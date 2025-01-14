@@ -4,9 +4,13 @@
 #include "general/clonable.h"
 
 
-class TrivialDominanceFunction : public Clonable<TrivialDominanceFunction, DominanceFunction> {
+template<typename ResourceType>
+class TrivialDominanceFunction : public Clonable<TrivialDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
 
 public:
-  bool check_dominance(const Resource& lhs_resource, const Resource& rhs_resource) override;
+  bool check_dominance(const ResourceType& lhs_resource, const ResourceType& rhs_resource) override {
+
+    return true;
+  }
 
 };

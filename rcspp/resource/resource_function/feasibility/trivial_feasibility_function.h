@@ -1,12 +1,16 @@
 #pragma once
 
-#include "resource/resource.h"
+//#include "resource/resource.h"
 #include "resource/resource_function/feasibility/feasibility_function.h"
 #include "general/clonable.h"
 
 
-class TrivialFeasibilityFunction : public Clonable<TrivialFeasibilityFunction, FeasibilityFunction> {
+template<typename ResourceType>
+class TrivialFeasibilityFunction : public Clonable<TrivialFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
 
 public:
-  bool is_feasible(const Resource& resource) override;
+  bool is_feasible(const ResourceType& resource) override {
+
+    return true;
+  }
 };

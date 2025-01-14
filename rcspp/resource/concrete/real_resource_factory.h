@@ -1,10 +1,10 @@
 #pragma once
 
-#include "resource/concrete_resource_factory.h"
+#include "resource/resource_factory.h"
 #include "real_resource.h"
 
 
-class RealResourceFactory : public ConcreteResourceFactory<RealResource> {
+class RealResourceFactory : public ResourceFactory<RealResource> {
 
 public:
 

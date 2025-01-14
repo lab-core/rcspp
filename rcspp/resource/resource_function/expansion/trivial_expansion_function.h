@@ -4,10 +4,12 @@
 #include "general/clonable.h"
 
 
-class TrivialExpansionFunction : public Clonable<TrivialExpansionFunction, ExpansionFunction> {
+template<typename ResourceType>
+class TrivialExpansionFunction : public Clonable<TrivialExpansionFunction<ResourceType>, ExpansionFunction<ResourceType>> {
 
 public:
-  void expand(const Resource& lhs_resource, const Resource& rhs_resource, 
-    Resource& reused_resource) override;
+  void expand(const ResourceType& lhs_resource, const ResourceType& rhs_resource, ResourceType& reused_resource) override {
+
+  }
 
 };

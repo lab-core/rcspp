@@ -1,11 +1,12 @@
 #pragma once
 
-#include "resource/resource_function/cost/resource_cost_function.h"
+#include "resource/resource_function/cost/cost_function.h"
 #include "resource/concrete/real_resource.h"
+#include "general/clonable.h"
 
 
-class RealValueCostFunction : public ResourceCostFunction<RealValueCostFunction, RealResource> {
+class RealValueCostFunction : public Clonable<RealValueCostFunction, CostFunction<RealResource>> {
 
 public:
-  virtual double get_cost(const RealResource& real_resource) const override;
+  double get_cost(const RealResource& real_resource) const override;
 };

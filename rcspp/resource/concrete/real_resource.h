@@ -1,23 +1,24 @@
 #pragma once
 
-#include "resource/concrete_resource.h"
+#include "resource/resource.h"
 
 #include <optional>
 
 
 
-class RealResource : public ConcreteResource<RealResource> {
+class RealResource : public Resource<RealResource> {
   friend class RealResourceFactory;
 
 public:
 
   RealResource(double value);
 
-  RealResource(std::unique_ptr<ExpansionFunction> expansion_function, 
-    std::unique_ptr<FeasibilityFunction> feasibility_function,
-    std::unique_ptr<CostFunction> cost_function, 
-    std::unique_ptr<DominanceFunction> dominance_function, 
-    double value);
+  RealResource(double value, double min, double max);
+
+  RealResource(double value, std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
+    std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
+    std::unique_ptr<CostFunction<RealResource>> cost_function,
+    std::unique_ptr<DominanceFunction<RealResource>> dominance_function);
 
   double get_value() const;
 

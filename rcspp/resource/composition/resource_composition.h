@@ -1,36 +1,64 @@
 #pragma once
 
-#include "resource/concrete_resource.h"
+#include "resource/resource.h"
 
 #include <vector>
 #include <memory>
 
 
-class ResourceComposition : public ConcreteResource<ResourceComposition> {
-  friend class ResourceCompositionFactory;
-
-private:
-  std::vector<std::unique_ptr<Resource>> resource_components_;
+template<typename... ResourceTypes>
+class ResourceComposition : public Resource<ResourceComposition<ResourceTypes...>> {
+  //friend class ResourceCompositionFactory;
 
 public:
 
-  ResourceComposition(std::vector<std::unique_ptr<Resource>>& resource_components);
+  ResourceComposition() {}
 
-  ResourceComposition(std::unique_ptr<ExpansionFunction> expansion_function,
-    std::unique_ptr<FeasibilityFunction> feasibility_function,
-    std::unique_ptr<CostFunction> cost_function,
-    std::unique_ptr<DominanceFunction> dominance_function, 
-    std::vector<std::unique_ptr<Resource>>& resource_components);
+  /*ResourceComposition(std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& resource_components) : 
+    Resource<ResourceComposition>(
+      std::make_unique<CompositionExpansionFunction>(),
+      std::make_unique<CompositionFeasibilityFunction>(),
+      std::make_unique<CompositionCostFunction>(),
+      std::make_unique<CompositionDominanceFunction>()), 
+    resource_components_(std::move(resource_components)) {
 
-  ResourceComposition(const ResourceComposition& rhs_resource_composition);
+  }*/   
 
-  ~ResourceComposition();
+  ResourceComposition(std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>> expansion_function,
+    std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>> feasibility_function,
+    std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
+    std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>> dominance_function,
+    std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...> resource_components) :
+    Resource<ResourceComposition<ResourceTypes...>>(
+      std::move(expansion_function),
+      std::move(feasibility_function),
+      std::move(cost_function),
+      std::move(dominance_function)),
+    resource_components_(std::move(resource_components)) {
 
-  ResourceComposition& operator=(const ResourceComposition& rhs_resource_composition);
+  }
 
-  std::vector<std::unique_ptr<Resource>>& get_components();
+  ResourceComposition(const ResourceComposition& rhs_resource_composition) : 
+    Resource<ResourceComposition<ResourceTypes...>>(rhs_resource_composition)
+  {
+    // resource_components_ is neither copied nor moved.
+  }
 
-  const std::vector<std::unique_ptr<Resource>>& get_components() const;
+  ~ResourceComposition() {}
 
-  //virtual std::unique_ptr<Resource> clone() const override;
+  ResourceComposition& operator=(const ResourceComposition& rhs_resource_composition) {
+    Resource<ResourceComposition<ResourceTypes...>>::operator=(rhs_resource_composition);
+  }
+
+  std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& get_components() {
+    return resource_components_;
+  }
+
+  const std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& get_components() const {
+    return resource_components_;
+  }
+
+private:
+  std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...> resource_components_;
+
 };

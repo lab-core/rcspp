@@ -7,16 +7,27 @@
 #include <vector>
 
 
+template<typename ResourceType>
 class RCSPPSolver {
 
 public:
 
-  RCSPPSolver(std::unique_ptr<Graph> graph, std::unique_ptr<Algorithm> algorithm);
+  RCSPPSolver(std::unique_ptr<Graph<ResourceType>> graph, std::unique_ptr<Algorithm<ResourceType>> algorithm) :
+    graph_(std::move(graph)), algorithm_(std::move(algorithm)) { }
 
-  std::vector<Solution> solve();
+  std::vector<Solution<ResourceType>> solve() {
+
+    std::cout << "RCSPPSolver::solve()\n";
+
+    auto solution = algorithm_->solve();
+
+    std::vector<Solution<ResourceType>> solutions{ solution };
+
+    return solutions;
+  }
 
 private:
-  std::unique_ptr<Graph> graph_;
-  std::unique_ptr<Algorithm> algorithm_;
+  std::unique_ptr<Graph<ResourceType>> graph_;
+  std::unique_ptr<Algorithm<ResourceType>> algorithm_;
 
 };

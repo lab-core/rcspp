@@ -6,13 +6,16 @@
 #include "resource/concrete/real_resource_factory.h"
 #include "algorithm/dominance_algorithm.h"
 #include "solver/rcspp_solver.h"
+#include "resource/composition/resource_composition_factory.h"
+#include "resource/concrete/resource_function/cost/real_value_cost_function.h"
+#include "resource/concrete/resource_function/dominance/real_value_dominance_function.h"
 
 
-std::unique_ptr<Graph> generate_graph(RealResourceFactory& resource_factory) {
+std::unique_ptr<Graph<RealResource>> generate_graph(RealResourceFactory& resource_factory) {
 
 	std::cout << "generate_graph" << std::endl;
 
-	auto graph = std::make_unique<Graph>();
+	auto graph = std::make_unique<Graph<RealResource>>();
 
 	std::cout << "graph" << std::endl;
 
@@ -62,9 +65,9 @@ void test_resource() {
 
 	std::cout << "test_resource()\n";
 
-	RealResource real_resource1(10);
+	RealResource real_resource1(10, 15, 50);
 
-	RealResource real_resource2(20);
+	RealResource real_resource2(20, 15, 50);
 
 	RealResource expanded_resource(100);
 
@@ -90,50 +93,136 @@ void test_resource() {
 	std::cout << "expanded_resource.is_feasible(): " << expanded_resource.is_feasible() << "\n";
 
 	std::cout << "expanded_resource.get_cost(): " << expanded_resource.get_cost() << "\n";
+			
+	ResourceCompositionFactory<RealResource, RealResource> resource_composition_factory;
 
-	std::vector<std::unique_ptr<Resource>> resource_components;
-	resource_components.push_back(std::make_unique<RealResource>(3));
-	resource_components.push_back(std::make_unique<RealResource>(8));
+	std::vector<std::unique_ptr<RealResource>> real_resources_vector;
+	real_resources_vector.emplace_back(std::make_unique<RealResource>(3, 10, 50));
+	real_resources_vector.emplace_back(std::make_unique<RealResource>(8, 10, 50));
 
-	auto res_composition = ResourceComposition(resource_components);
+	std::vector<std::unique_ptr<RealResource>> second_real_resources_vector;
+	second_real_resources_vector.emplace_back(std::make_unique<RealResource>(23, 10, 50));
+	second_real_resources_vector.emplace_back(std::make_unique<RealResource>(28, 10, 50));
+	second_real_resources_vector.emplace_back(std::make_unique<RealResource>(29, 10, 50));
+
+	std::tuple<std::vector<std::unique_ptr<RealResource>>, 
+		std::vector<std::unique_ptr<RealResource>>> resource_components{ 
+		std::move(real_resources_vector),
+		std::move(second_real_resources_vector) 
+	};
+
+	auto res_composition = resource_composition_factory.make_default_resource(resource_components);
+
+	const auto& res_comp_res_vec1 = std::get<0>(res_composition->get_components());
+	const auto& res_comp_res_vec2 = std::get<1>(res_composition->get_components());
+
+	std::cout << "res_composition: \n";
+
+	for (const auto& res1 : res_comp_res_vec1) {
+		std::cout << "res1: " << res1->get_cost() << "\n";
+	}
+
+	for (const auto& res2 : res_comp_res_vec2) {
+		std::cout << "res2: " << res2->get_cost() << "\n";
+	}
+
+	std::cout << "res_composition->is_feasible(): " << res_composition->is_feasible() << std::endl;
 
 
-	std::vector<std::unique_ptr<Resource>> resource_components2;
-	resource_components2.push_back(std::make_unique<RealResource>(13));
-	resource_components2.push_back(std::make_unique<RealResource>(18));
+	std::vector<std::unique_ptr<RealResource>> real_resources_vector2;
+	real_resources_vector2.emplace_back(std::make_unique<RealResource>(13, 10, 50));
+	real_resources_vector2.emplace_back(std::make_unique<RealResource>(18, 10, 50));
 
-	auto res_composition2 = ResourceComposition(resource_components2);
+	std::vector<std::unique_ptr<RealResource>> second_real_resources_vector2;
+	second_real_resources_vector2.emplace_back(std::make_unique<RealResource>(33, 10, 50));
+	second_real_resources_vector2.emplace_back(std::make_unique<RealResource>(18, 10, 50));
+	second_real_resources_vector2.emplace_back(std::make_unique<RealResource>(39, 10, 50));
 
-	std::vector<std::unique_ptr<Resource>> expanded_resource_components;
-	expanded_resource_components.push_back(std::make_unique<RealResource>(100));
-	expanded_resource_components.push_back(std::make_unique<RealResource>(100));
+	std::tuple<std::vector<std::unique_ptr<RealResource>>,
+		std::vector<std::unique_ptr<RealResource>>> resource_components2{ 
+		std::move(real_resources_vector2), 
+		std::move(second_real_resources_vector2)
+	};
 
-	auto expanded_res_composition = ResourceComposition(expanded_resource_components);
+	auto res_composition2 = resource_composition_factory.make_default_resource(resource_components2);
 
-	std::cout << "res_composition.get_value(): " << res_composition.get_cost() << "\n";
-	std::cout << "res_composition2.get_value(): " << res_composition2.get_cost() << "\n";
+	const auto& res_comp2_res_vec1 = std::get<0>(res_composition2->get_components());
+	const auto& res_comp2_res_vec2 = std::get<1>(res_composition2->get_components());
 
-	std::cout << "res_composition.is_feasible(): " << res_composition.is_feasible() << "\n";
+	std::cout << "res_composition2: \n";
 
-	std::cout << "res_composition2.is_feasible(): " << res_composition2.is_feasible() << "\n";
+	for (const auto& res1 : res_comp2_res_vec1) {
+		std::cout << "res1: " << res1->get_cost() << "\n";
+	}
 
-	std::cout << "res_composition <= res_composition2: " << (res_composition <= res_composition2) << "\n";
+	for (const auto& res2 : res_comp2_res_vec2) {
+		std::cout << "res2: " << res2->get_cost() << "\n";
+	}
 
-	std::cout << "res_composition2 <= res_composition: " << (res_composition2 <= res_composition) << "\n";
+	std::cout << "res_composition2->is_feasible(): " << res_composition2->is_feasible() << std::endl;
 
-	res_composition.expand(res_composition2, expanded_res_composition);
 
-	std::cout << "expanded_res_composition.get_cost(): " << expanded_res_composition.get_cost() << "\n";
+	std::vector<std::unique_ptr<RealResource>> expanded_real_resources_vector;
+	expanded_real_resources_vector.emplace_back(std::make_unique<RealResource>(5, 10, 50));
+	expanded_real_resources_vector.emplace_back(std::make_unique<RealResource>(10, 10, 50));
 
-	std::cout << "expanded_res_composition.get_components()[0]: " << expanded_res_composition.get_components()[0] << "\n";
+	std::vector<std::unique_ptr<RealResource>> second_expanded_real_resources_vector;
+	second_expanded_real_resources_vector.emplace_back(std::make_unique<RealResource>(25, 10, 50));
+	second_expanded_real_resources_vector.emplace_back(std::make_unique<RealResource>(30, 10, 50));
+	second_expanded_real_resources_vector.emplace_back(std::make_unique<RealResource>(31, 10, 50));
 
-	std::cout << "expanded_res_composition.get_components()[1]: " << expanded_res_composition.get_components()[1] << "\n";
+	std::tuple<std::vector<std::unique_ptr<RealResource>>, 
+		std::vector<std::unique_ptr<RealResource>>> expanded_resource_components{ 
+		std::move(expanded_real_resources_vector),
+		std::move(second_expanded_real_resources_vector)
+	};
 
+	auto expanded_res_composition = resource_composition_factory.make_default_resource(expanded_resource_components);
+
+
+
+	std::cout << "res_composition->get_value(): " << res_composition->get_cost() << "\n";
+	std::cout << "res_composition2->get_value(): " << res_composition2->get_cost() << "\n";
+
+	std::cout << "res_composition.is_feasible(): " << res_composition->is_feasible() << "\n";
+
+	std::cout << "res_composition2.is_feasible(): " << res_composition2->is_feasible() << "\n";
+
+	std::cout << "res_composition <= res_composition2: " << (*res_composition <= *res_composition2) << "\n";
+
+	std::cout << "res_composition2 <= res_composition: " << (*res_composition2 <= *res_composition) << "\n";
+
+	std::cout << "expanded_res_composition.get_cost(): " << expanded_res_composition->get_cost() << "\n";
+
+	res_composition->expand(*res_composition2, *expanded_res_composition);
+
+	std::cout << "expanded_res_composition.get_cost(): " << expanded_res_composition->get_cost() << "\n";
+
+	const auto& expanded_res_composition_components = expanded_res_composition->get_components();
+
+	std::cout << "res_composition <= expanded_res_composition: " << (*res_composition <= *expanded_res_composition) << "\n";
+
+	std::cout << "res_composition2 <= expanded_res_composition: " << (*res_composition2 <= *expanded_res_composition) << "\n";
+
+	const auto& expanded_res_vec1 = std::get<0>(expanded_res_composition_components);
+	const auto& expanded_res_vec2 = std::get<1>(expanded_res_composition_components);
+
+	std::cout << "expanded_res_composition: \n";
+
+	for (const auto& res1 : expanded_res_vec1) {
+		std::cout << "res1: " << res1->get_cost() << "\n";
+	}
+
+	for (const auto& res2 : expanded_res_vec2) {
+		std::cout << "res2: " << res2->get_cost() << "\n";
+	}
+
+	std::cout << "expanded_res_composition->is_feasible(): " << expanded_res_composition->is_feasible() << std::endl;
 
 	std::cout << "END: test_resource()\n";
 }
 
-void test_graph(Graph& graph) {
+void test_graph(Graph<RealResource>& graph) {
 
 	auto& node1 = graph.get_node(0);
 	auto& node2 = graph.get_node(1);
@@ -173,7 +262,7 @@ void test_graph(Graph& graph) {
 	std::cout << std::endl;
 }
 
-void test_label(RealResourceFactory& resource_factory, const Graph& graph) {
+void test_label(RealResourceFactory& resource_factory, const Graph<RealResource>& graph) {
 	std::cout << "test_label\n";
 
 	LabelFactory label_factory(resource_factory);
@@ -222,7 +311,7 @@ int main()
 
 	test_resource();
 
-	RealResourceFactory resource_factory(std::make_unique<RealResource>(1));
+	/*RealResourceFactory resource_factory(std::make_unique<RealResource>(1));
 
 	std::cout << "RealResourceFactory" << std::endl;
 
@@ -232,9 +321,9 @@ int main()
 
 	test_label(resource_factory, *graph);
 	
-	auto algorithm = std::make_unique<DominanceAlgorithm>(resource_factory, *graph);
+	auto algorithm = std::make_unique<DominanceAlgorithm<RealResource>>(resource_factory, *graph);
 
-	RCSPPSolver solver(std::move(graph), std::move(algorithm));
+	RCSPPSolver<RealResource> solver(std::move(graph), std::move(algorithm));
 
 	auto solutions = solver.solve();
 
@@ -253,7 +342,7 @@ int main()
 			std::cout << arc_id << " -> ";
 		}
 		std::cout << std::endl;
-	}
+	}*/
 
 	return 0;
 }

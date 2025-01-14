@@ -2,9 +2,10 @@
 #include "label/label.h"
 
 
+template<typename ResourceType>
 struct Solution {
 
-  Label* label;
+  Label<ResourceType>* label;
   double cost;
 
 };

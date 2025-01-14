@@ -5,12 +5,15 @@
 #include "resource/resource_function/cost/cost_function.h"
 #include "resource/resource_function/dominance/dominance_function.h"
 
+#include <iostream>
+#include <memory>
+
 
 std::unique_ptr<RealResource> RealResourceFactory::make_resource(double value) {
   
   std::cout << "RealResourceFactory::make_resource(double value)" << std::endl;
 
-  auto cloned_resource = concrete_resource_prototype_->concrete_clone();
+  auto cloned_resource = resource_prototype_->clone();
 
   cloned_resource->set_value(value);
 
@@ -23,10 +26,11 @@ std::unique_ptr<RealResource> RealResourceFactory::make_resource(double value, d
   
   auto min_max_feasibility_function = std::make_unique<MinMaxFeasibilityFunction>(min, max);
 
-  auto new_resource = std::make_unique<RealResource>(std::move(concrete_resource_prototype_->expansion_function_->clone()),
+  auto new_resource = std::make_unique<RealResource>(value,
+    std::move(resource_prototype_->expansion_function_->clone()),
     std::move(min_max_feasibility_function),
-    std::move(concrete_resource_prototype_->cost_function_->clone()),
-    std::move(concrete_resource_prototype_->dominance_function_->clone()), value);
+    std::move(resource_prototype_->cost_function_->clone()),
+    std::move(resource_prototype_->dominance_function_->clone()));
 
   new_resource->set_value(value);
 
