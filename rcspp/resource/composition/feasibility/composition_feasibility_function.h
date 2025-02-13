@@ -14,21 +14,12 @@ public:
 
     bool is_feasible = true;
 
-    /*const auto& resource_components = resource_composition.get_components();
-
-    for (auto&& res_comp : resource_components) {
-      if (!res_comp->is_feasible()) {
-        is_feasible = false;
-        break;
-      }
-    }*/
-
     const auto& resource_components = resource_composition.get_components();
 
     auto is_res_feas_function = [&](const auto& sing_res_vec) {
-
+      std::cout << "sing_res_vec.size()=" << sing_res_vec.size() << std::endl;
       for (auto&& res_comp : sing_res_vec) {
-        std::cout << "res_comp->get_cost(): " << res_comp->get_cost() << " -> " << res_comp->is_feasible() << std::endl;
+        std::cout << res_comp->get_cost() << std::endl;
         if (!res_comp->is_feasible()) {
           is_feasible = false;
           break;
@@ -36,11 +27,14 @@ public:
 
       };
 
+      return is_feasible;
+
       };
 
     std::apply([&](auto && ... args) {
 
-      (is_res_feas_function(args), ...);
+      // The && operator acts as a break in the fold expression.
+      (is_res_feas_function(args) && ...);
 
       }, resource_components);
 

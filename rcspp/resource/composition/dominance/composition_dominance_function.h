@@ -19,20 +19,24 @@ class CompositionDominanceFunction : public Clonable<CompositionDominanceFunctio
 
     auto dominance_res_function = [&](const auto& lhs_sing_res_vec, const auto& rhs_sing_res_vec) {
 
+      std::cout << "sing_res_vec.size()=" << lhs_sing_res_vec.size() << std::endl;
       for (int i = 0; i < lhs_sing_res_vec.size(); i++) {
-
+        std::cout << lhs_sing_res_vec[i]->get_cost() << " <= " << rhs_sing_res_vec[i]->get_cost() << std::endl;
         if (!(*lhs_sing_res_vec[i] <= *rhs_sing_res_vec[i])) {
           is_less_than_or_equal = false;
           break;
         }
       }
 
+      return is_less_than_or_equal;
+
       };
 
     std::apply([&](auto && ... args_lhs) {
       std::apply([&](auto && ... args_rhs) {
 
-        (dominance_res_function(args_lhs, args_rhs), ...);
+        // The && operator acts as a break in the fold expression.
+        (dominance_res_function(args_lhs, args_rhs) && ...);
                 
         }, rhs_resource_components);
       }, lhs_resource_components);
