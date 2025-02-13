@@ -19,7 +19,7 @@ include_directories ("/resource/")
 add_executable (rcspp 
 	"rcspp.cpp" 
 	 
-	"resource/composition/resource_composition.cpp" 
+	 
 	"resource/concrete/real_resource.cpp"
 	"resource/concrete/resource_function/cost/real_value_cost_function.cpp"
 	"resource/concrete/resource_function/expansion/real_addition_expansion_function.cpp"
