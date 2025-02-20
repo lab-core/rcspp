@@ -14,6 +14,17 @@ public:
   
     std::cout << "ResourceFactory\n";
 
+    make_prototype();
+  }
+
+  ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> expansion_function,
+    std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
+    std::unique_ptr<CostFunction<ResourceType>> cost_function,
+    std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
+
+    std::cout << "ResourceFactory(expansion_function, feasibility_function, cost_function, dominance_function)\n";
+
+    make_prototype(expansion_function, feasibility_function, cost_function, dominance_function);
   }
 
   ResourceFactory(std::unique_ptr<ResourceType> resource_prototype) : 
@@ -26,7 +37,30 @@ public:
     return resource_prototype_->clone();
   }
 
+  
+
 protected:
+  
+  // Create a default prototype.
+  void make_prototype() {
+
+    std::cout << "make_prototype()\n";
+    std::cout << typeid(ResourceType).name() << std::endl;
+
+    resource_prototype_ = std::make_unique<ResourceType>();
+  }
+
+  // Create a prototype with specific functions.
+  void make_prototype(std::unique_ptr<ExpansionFunction<ResourceType>> expansion_function,
+    std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
+    std::unique_ptr<CostFunction<ResourceType>> cost_function,
+    std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
+
+    std::cout << "make_prototype(expansion_function, feasibility_function, cost_function, dominance_function)\n";
+
+    resource_prototype_ = std::make_unique<ResourceType>(expansion_function, feasibility_function, cost_function, dominance_function);
+  }
+
   std::unique_ptr<ResourceType> resource_prototype_;
 
   size_t nb_labels_created_;

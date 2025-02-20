@@ -6,13 +6,36 @@
 #include <memory>
 
 
+template<typename... Types>
+class ResourceCompositionFactory;
+
+template<typename... ResourceTypes>
+class CompositionExpansionFunction;
+
+template<typename... ResourceTypes>
+class CompositionFeasibilityFunction;
+
+template<typename... ResourceTypes>
+class CompositionCostFunction;
+
+template<typename... ResourceTypes>
+class CompositionDominanceFunction;
+
+
 template<typename... ResourceTypes>
 class ResourceComposition : public Resource<ResourceComposition<ResourceTypes...>> {
-  //friend class ResourceCompositionFactory;
+  template<typename... Types>
+  friend class ResourceCompositionFactory;
 
 public:
 
-  ResourceComposition() {}
+  ResourceComposition() : Resource<ResourceComposition>(
+    std::make_unique<CompositionExpansionFunction<ResourceTypes...>>(),
+    std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
+    std::make_unique<CompositionCostFunction<ResourceTypes...>>(),
+    std::make_unique<CompositionDominanceFunction<ResourceTypes...>>()) {
+
+  }
 
   /*ResourceComposition(std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& resource_components) : 
     Resource<ResourceComposition>(
@@ -22,7 +45,20 @@ public:
       std::make_unique<CompositionDominanceFunction>()), 
     resource_components_(std::move(resource_components)) {
 
-  }*/   
+  }  */ 
+
+  ResourceComposition(std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>> expansion_function,
+    std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>> feasibility_function,
+    std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
+    std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>> dominance_function) :
+    Resource<ResourceComposition<ResourceTypes...>>(
+      std::move(expansion_function),
+      std::move(feasibility_function),
+      std::move(cost_function),
+      std::move(dominance_function)),
+    resource_components_(std::make_unique<std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>>()) {
+
+  }
 
   ResourceComposition(std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>> expansion_function,
     std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>> feasibility_function,

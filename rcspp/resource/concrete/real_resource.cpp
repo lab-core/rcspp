@@ -8,6 +8,24 @@
 #include "resource_function/dominance/real_value_dominance_function.h"
 
 
+RealResource::RealResource() : Resource<RealResource>(
+  std::make_unique<RealAdditionExpansionFunction>(),
+  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+  std::make_unique<RealValueCostFunction>(),
+  std::make_unique<RealValueDominanceFunction>()) {
+
+}
+
+RealResource::RealResource(std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
+  std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
+  std::unique_ptr<CostFunction<RealResource>> cost_function,
+  std::unique_ptr<DominanceFunction<RealResource>> dominance_function
+) : Resource<RealResource>(
+  std::move(expansion_function),
+  std::move(feasibility_function),
+  std::move(cost_function), std::move(dominance_function)) {
+}
+
 RealResource::RealResource(double value) : Resource<RealResource>(
   std::make_unique<RealAdditionExpansionFunction>(), 
   std::make_unique<TrivialFeasibilityFunction<RealResource>>(),

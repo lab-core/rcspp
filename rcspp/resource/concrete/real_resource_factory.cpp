@@ -4,14 +4,19 @@
 #include "resource/concrete/resource_function/feasibility/min_max_feasibility_function.h"
 #include "resource/resource_function/cost/cost_function.h"
 #include "resource/resource_function/dominance/dominance_function.h"
+#include "resource/resource_function/feasibility/trivial_feasibility_function.h"
+#include "resource/concrete/resource_function/expansion/real_addition_expansion_function.h"
+#include "resource/concrete/resource_function/dominance/real_value_dominance_function.h"
+#include "resource/concrete/resource_function/cost/real_value_cost_function.h"
 
 #include <iostream>
 #include <memory>
 
 
+
 std::unique_ptr<RealResource> RealResourceFactory::make_resource(double value) {
-  
-  std::cout << "RealResourceFactory::make_resource(double value)" << std::endl;
+
+  std::cout << "RealResourceFactory::make_resource(" << value << ")\n";
 
   auto cloned_resource = resource_prototype_->clone();
 
@@ -22,8 +27,8 @@ std::unique_ptr<RealResource> RealResourceFactory::make_resource(double value) {
 
 std::unique_ptr<RealResource> RealResourceFactory::make_resource(double value, double min, double max) {
 
-  std::cout << "RealResourceFactory::make_resource(double value, double min, double max)" << std::endl;
-  
+  std::cout << "RealResourceFactory::make_resource(" << value << ", " << min << ", " << max << ")\n";
+
   auto min_max_feasibility_function = std::make_unique<MinMaxFeasibilityFunction>(min, max);
 
   auto new_resource = std::make_unique<RealResource>(value,
