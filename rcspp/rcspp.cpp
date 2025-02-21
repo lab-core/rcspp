@@ -331,68 +331,86 @@ std::unique_ptr<Graph<RealResource>> generate_graph(RealResourceFactory& resourc
 //	return new_resource;
 //}
 
-//std::unique_ptr<Graph<ResourceComposition<RealResource, RealResource>>> generate_graph_composition(
-//	ResourceCompositionFactory<RealResource, RealResource>& resource_factory) {
-//
-//	std::cout << "generate_graph_composition" << std::endl;
-//
-//	auto graph = std::make_unique<Graph<ResourceComposition<RealResource, RealResource>>>();
-//
-//	std::cout << "graph" << std::endl;
-//
-//	auto resource1 = construct_resource_composition(std::vector<double>{1.1, 2.5}, std::vector<double>{3.4, 2.5});
-//		
-//	std::cout << "resource1: " << resource1->is_feasible() << std::endl;
-//
-//	auto resource2 = construct_resource_composition(std::vector<double>{0.1, 0.2}, std::vector<double>{7.4, 3.5});
-//
-//	std::cout << "_resource2: " << resource2->is_feasible() << std::endl;
-//
-//	auto resource3 = construct_resource_composition(std::vector<double>{1.6, 2.2}, std::vector<double>{2.0, 6.5});
-//
-//	std::cout << "resource3: " << resource3->is_feasible() << std::endl;
-//
-//	auto resource4 = construct_resource_composition(std::vector<double>{4.1, 5.2}, std::vector<double>{3.4, 2.5});
-//
-//	std::cout << "resource4: " << resource4->is_feasible() << std::endl;
-//
-//	auto resource5 = construct_resource_composition(std::vector<double>{1.2, 2.2}, std::vector<double>{1.4, 7.5});
-//
-//	std::cout << "resource5: " << resource5->is_feasible() << std::endl;
-//
-//	auto resource6 = construct_resource_composition(std::vector<double>{9.3, 2}, std::vector<double>{3.4, 8.5});
-//
-//	std::cout << "resource6: " << resource6->is_feasible() << std::endl;
-//
-//	graph->add_node(0, true, false);
-//	graph->add_node(10, false, true);
-//	graph->add_node(1);
-//	graph->add_node(2);
-//	graph->add_node(3);
-//
-//	std::cout << "graph: resource1=" << resource1->get_cost() << std::endl;
-//
-//	graph->add_arc(0, 1, std::move(resource1));
-//	graph->add_arc(1, 2, std::move(resource2));
-//	graph->add_arc(1, 3, std::move(resource3));
-//	graph->add_arc(1, 10, std::move(resource4));
-//	graph->add_arc(2, 10, std::move(resource5));
-//	graph->add_arc(3, 10, std::move(resource6));
-//
-//	return graph;
-//}
+std::unique_ptr<Graph<ResourceComposition<RealResource, RealResource>>> generate_graph_composition(
+	ResourceCompositionFactory<RealResource, RealResource>& resource_factory) {
+
+	std::cout << "generate_graph_composition" << std::endl;
+
+	auto graph = std::make_unique<Graph<ResourceComposition<RealResource, RealResource>>>();
+
+	std::cout << "graph" << std::endl;
+
+	auto resource1 = resource_factory.make_resource<std::tuple<double>,
+		std::tuple<double>>({ std::vector<std::tuple<double>>{{1.1}, {2.3}}, 
+			std::vector<std::tuple<double>>{{4.2}, {6.4}} });
+		
+	std::cout << "resource1: " << resource1->is_feasible() << std::endl;
+
+	auto resource2 = resource_factory.make_resource<std::tuple<double>,
+		std::tuple<double>>({ std::vector<std::tuple<double>>{{0.1}, {0.2}},
+			std::vector<std::tuple<double>>{{7.4}, {3.5}} });
+		
+	std::cout << "_resource2: " << resource2->is_feasible() << std::endl;
+
+	auto resource3 = resource_factory.make_resource<std::tuple<double>,
+		std::tuple<double>>({ std::vector<std::tuple<double>>{{1.6}, {2.2}},
+			std::vector<std::tuple<double>>{{2.0}, {6.5}} });
+		
+	std::cout << "resource3: " << resource3->is_feasible() << std::endl;
+
+	auto resource4 = resource_factory.make_resource<std::tuple<double>,
+		std::tuple<double>>({ std::vector<std::tuple<double>>{{4.1}, {5.2}},
+			std::vector<std::tuple<double>>{{3.4}, {2.5}} });
+		
+	std::cout << "resource4: " << resource4->is_feasible() << std::endl;
+
+	auto resource5 = resource_factory.make_resource<std::tuple<double>,
+		std::tuple<double>>({ std::vector<std::tuple<double>>{{1.2}, {2.32}},
+			std::vector<std::tuple<double>>{{1.4}, {7.5}} });
+		
+	std::cout << "resource5: " << resource5->is_feasible() << std::endl;
+
+	auto resource6 = resource_factory.make_resource<std::tuple<double>,
+		std::tuple<double>>({ std::vector<std::tuple<double>>{{9.3}, {2}},
+			std::vector<std::tuple<double>>{{3.4}, {8.5}} });
+		
+	std::cout << "resource6: " << resource6->is_feasible() << std::endl;
+
+	graph->add_node(0, true, false);
+	graph->add_node(10, false, true);
+	graph->add_node(1);
+	graph->add_node(2);
+	graph->add_node(3);
+
+	std::cout << "graph: resource1=" << resource1->get_cost() << std::endl;
+
+	graph->add_arc(0, 1, std::move(resource1));
+	graph->add_arc(1, 2, std::move(resource2));
+	graph->add_arc(1, 3, std::move(resource3));
+	graph->add_arc(1, 10, std::move(resource4));
+	graph->add_arc(2, 10, std::move(resource5));
+	graph->add_arc(3, 10, std::move(resource6));
+
+	return graph;
+}
 
 void test_graph_resource_composition() {
 
 	std::cout << "test_graph_resource_composition\n";
 
-	/*auto resource_composition = construct_resource_composition(std::vector<double>{0, 0}, std::vector<double>{0, 0});
+	auto resource_composition = std::make_unique<ResourceComposition<RealResource, RealResource>>();
+	auto& real_resource1_1 = resource_composition->add_component<0>(std::make_unique<RealResource>(0.2));
+	auto& real_resource1_2 = resource_composition->add_component<0>(std::make_unique<RealResource>(0.5));
 
-	ResourceCompositionFactory<RealResource, RealResource> resource_composition_factory(std::move(resource_composition));
+	auto& real_resource2_1 = resource_composition->add_component<1>(std::make_unique<RealResource>(1.3));
+	auto& real_resource2_2 = resource_composition->add_component<1>(std::make_unique<RealResource>(1.6));
+	auto& real_resource2_3 = resource_composition->add_component<1>(std::make_unique<RealResource>(1.4));
 
-	auto graph = generate_graph_composition(resource_composition_factory);
+	ResourceCompositionFactory<RealResource, RealResource> resource_factory(std::move(resource_composition));
 
-	auto algorithm = std::make_unique<DominanceAlgorithm<ResourceComposition<RealResource, RealResource>>>(resource_composition_factory, *graph);
+	auto graph = generate_graph_composition(resource_factory);
+
+	auto algorithm = std::make_unique<DominanceAlgorithm<ResourceComposition<RealResource, RealResource>>>(resource_factory, *graph);
 
 	RCSPPSolver<ResourceComposition<RealResource, RealResource>> solver(std::move(graph), std::move(algorithm));
 
@@ -413,24 +431,8 @@ void test_graph_resource_composition() {
 			std::cout << arc_id << " -> ";
 		}
 		std::cout << std::endl;
-	}*/
+	}
 
-	/*resource_composition_factory.make_resource<std::tuple<double, double, double>, 
-		std::tuple<double, double, double>>(std::make_tuple(std::vector<std::tuple<double, double, double>>{std::make_tuple(1.1, 0.0, 10.0), std::make_tuple(2.3, 0.0, 10.0)},
-		std::vector<std::tuple<double, double, double>>{std::make_tuple(4.2, 0.0, 10.0), std::make_tuple(6.4, 0.0, 10.0)}));*/
-
-	auto resource_factory1 = std::make_unique<RealResourceFactory>(std::make_unique<RealResource>(1));
-	auto resource_factory2 = std::make_unique<RealResourceFactory>(std::make_unique<RealResource>(1));
-
-	std::cout << "Before composition\n";
-
-	ResourceCompositionFactory<std::tuple<RealResource, RealResource>,
-		std::tuple<RealResourceFactory, RealResourceFactory>> resource_composition_factory_from_factory(
-		std::make_tuple(std::move(resource_factory1), std::move(resource_factory2)));
-
-	resource_composition_factory_from_factory.make_resource<std::tuple<double, double, double>,
-		std::tuple<double>>({ std::vector<std::tuple<double, double, double>>{{1.1, 0.0, 10.0}, {2.3, 0.0, 10.0}},
-		std::vector<std::tuple<double>>{{4.2}, {6.4}} });
 }
 
 
@@ -440,6 +442,33 @@ int main()
 	std::cout << "RCSPP\n";
 
 	test_graph_resource_composition();
+
+	auto resource_composition = std::make_unique<ResourceComposition<RealResource, RealResource>>();
+	auto& real_resource1_1 = resource_composition->add_component<0, RealResource>(std::make_tuple<double>(10.2));
+	auto& real_resource1_2 = resource_composition->add_component<0, RealResource>(std::make_tuple<double>(10.5));
+
+	auto& real_resource2_1 = resource_composition->add_component<1, RealResource>(std::make_tuple<double>(21.3));
+	auto& real_resource2_2 = resource_composition->add_component<1, RealResource>(std::make_tuple<double>(21.6));
+	auto& real_resource2_3 = resource_composition->add_component<1, RealResource>(std::make_tuple<double>(21.4));
+
+	std::cout <<"real_resource1_1.get_cost()=" << real_resource1_1.get_cost() << std::endl;
+
+	auto& resource_component_vector = resource_composition->get_components<1, RealResource>();
+
+	std::cout << "resource_component_vector.size()=" << resource_component_vector.size();
+
+	std::cout << "real_resource1_1.get_cost()=" << resource_composition->get_components<1, RealResource>(1).get_cost() 
+		<< std::endl;
+
+	ResourceCompositionFactory<RealResource, RealResource> resource_composition_factory(std::move(resource_composition));
+
+	auto new_resource = resource_composition_factory.make_resource();
+
+	std::cout << "new_resource->get_components<0, RealResource>(0)=" << new_resource->get_components<0, RealResource>(0).get_cost() << std::endl;
+	std::cout << "new_resource->get_components<0, RealResource>(0)=" << new_resource->get_components<0, RealResource>(1).get_cost() << std::endl;
+	std::cout << "new_resource->get_components<1, RealResource>(0)=" << new_resource->get_components<1, RealResource>(0).get_cost() << std::endl;
+	std::cout << "new_resource->get_components<1, RealResource>(1)=" << new_resource->get_components<1, RealResource>(1).get_cost() << std::endl;
+	std::cout << "new_resource->get_components<1, RealResource>(2)=" << new_resource->get_components<1, RealResource>(2).get_cost() << std::endl;
 
 	//test_resource();
 

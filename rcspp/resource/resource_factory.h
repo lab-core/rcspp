@@ -24,15 +24,16 @@ public:
 
     std::cout << "ResourceFactory(expansion_function, feasibility_function, cost_function, dominance_function)\n";
 
-    make_prototype(expansion_function, feasibility_function, cost_function, dominance_function);
+    make_prototype(std::move(expansion_function), std::move(feasibility_function), 
+      std::move(cost_function), std::move(dominance_function));
   }
 
   ResourceFactory(std::unique_ptr<ResourceType> resource_prototype) : 
-    resource_prototype_(std::move(resource_prototype)), nb_labels_created_(0) {}
+    resource_prototype_(std::move(resource_prototype)), nb_resources_created_(0) {}
 
   std::unique_ptr<ResourceType> make_resource() {
 
-    nb_labels_created_++;
+    nb_resources_created_++;
 
     return resource_prototype_->clone();
   }
@@ -58,10 +59,12 @@ protected:
 
     std::cout << "make_prototype(expansion_function, feasibility_function, cost_function, dominance_function)\n";
 
-    resource_prototype_ = std::make_unique<ResourceType>(expansion_function, feasibility_function, cost_function, dominance_function);
+    resource_prototype_ = std::make_unique<ResourceType>(std::move(expansion_function), 
+      std::move(feasibility_function), std::move(cost_function), std::move(dominance_function));
   }
 
   std::unique_ptr<ResourceType> resource_prototype_;
 
-  size_t nb_labels_created_;
+  size_t nb_resources_created_;
+  ;
 };

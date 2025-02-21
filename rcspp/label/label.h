@@ -57,6 +57,8 @@ public:
   //! Label expansion
   void expand(const Arc<ResourceType>& arc, Label& expanded_label) {
 
+    std::cout << "Label::expand\n";
+
     resource_->expand(*arc.resource, *expanded_label.resource_);
     expanded_label.end_node_ = &arc.destination;
     expanded_label.in_arc_ = &arc;

@@ -12,7 +12,7 @@ RealResource::RealResource() : Resource<RealResource>(
   std::make_unique<RealAdditionExpansionFunction>(),
   std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
   std::make_unique<RealValueCostFunction>(),
-  std::make_unique<RealValueDominanceFunction>()) {
+  std::make_unique<RealValueDominanceFunction>()), value_(0) {
 
 }
 
@@ -23,7 +23,7 @@ RealResource::RealResource(std::unique_ptr<ExpansionFunction<RealResource>> expa
 ) : Resource<RealResource>(
   std::move(expansion_function),
   std::move(feasibility_function),
-  std::move(cost_function), std::move(dominance_function)) {
+  std::move(cost_function), std::move(dominance_function)), value_(0) {
 }
 
 RealResource::RealResource(double value) : Resource<RealResource>(

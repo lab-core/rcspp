@@ -8,8 +8,16 @@ class RealResourceFactory : public ResourceFactory<RealResource> {
 
 public:
 
-  RealResourceFactory(std::unique_ptr<RealResource> resource_prototype) 
-    : ResourceFactory<RealResource>(std::move(resource_prototype)) {}
+  RealResourceFactory();
+
+  RealResourceFactory(std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
+    std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
+    std::unique_ptr<CostFunction<RealResource>> cost_function,
+    std::unique_ptr<DominanceFunction<RealResource>> dominance_function);
+
+  RealResourceFactory(std::unique_ptr<RealResource> resource_prototype);
+
+  std::unique_ptr<RealResource> make_resource();
 
   std::unique_ptr<RealResource> make_resource(double value);
 

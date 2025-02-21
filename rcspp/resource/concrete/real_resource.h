@@ -30,10 +30,7 @@ public:
   double get_value() const;
 
   void set_value(double value);
-  /*template<typename... Types>
-  void set_value(Types...) override;*/
 
 private:
   double value_;
-
 };

@@ -12,7 +12,35 @@
 #include <iostream>
 #include <memory>
 
+RealResourceFactory::RealResourceFactory() {
 
+}
+
+RealResourceFactory::RealResourceFactory(
+  std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
+  std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
+  std::unique_ptr<CostFunction<RealResource>> cost_function,
+  std::unique_ptr<DominanceFunction<RealResource>> dominance_function) 
+  : ResourceFactory<RealResource>(std::move(expansion_function), std::move(feasibility_function),
+    std::move(cost_function), std::move(dominance_function)) {
+
+}
+
+RealResourceFactory::RealResourceFactory(std::unique_ptr<RealResource> resource_prototype)
+  : ResourceFactory<RealResource>(std::move(resource_prototype)) {
+
+}
+
+std::unique_ptr<RealResource> RealResourceFactory::make_resource() {
+
+  std::cout << "make_resource\n";
+ 
+  /*auto new_resource = this->resource_prototype_->clone();
+
+  return std::move(new_resource);*/
+
+  return ResourceFactory<RealResource>::make_resource();
+}
 
 std::unique_ptr<RealResource> RealResourceFactory::make_resource(double value) {
 

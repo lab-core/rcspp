@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory>
-
 #include "resource_function/expansion/expansion_function.h"
 #include "resource_function/feasibility/feasibility_function.h"
 #include "resource_function/cost/cost_function.h"
@@ -11,6 +9,9 @@
 #include "resource_function/feasibility/trivial_feasibility_function.h"
 #include "resource_function/cost/trivial_cost_function.h"
 #include "resource_function/dominance/trivial_dominance_function.h"
+
+#include <memory>
+#include <iostream>
 
 
 template<typename DerivedResourceType>
@@ -39,6 +40,8 @@ public:
     feasibility_function_(rhs_resource.feasibility_function_->clone()), 
     cost_function_(rhs_resource.cost_function_->clone()), 
     dominance_function_(rhs_resource.dominance_function_->clone()) {
+
+    std::cout << "Resource::Resource(Resource const& rhs_resource)\n";
 
   }
 
