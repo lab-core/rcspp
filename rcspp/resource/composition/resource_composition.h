@@ -91,12 +91,26 @@ public:
     
   }
 
+  ResourceComposition(ResourceComposition&& rhs_resource_composition) :
+    Resource<ResourceComposition<ResourceTypes...>>() {
+
+    swap(*this, rhs_resource_composition);
+
+    return *this;    
+  }
+
   ~ResourceComposition() {}
 
-  ResourceComposition& operator=(const ResourceComposition& rhs_resource_composition) {
-    Resource<ResourceComposition<ResourceTypes...>>::operator=(rhs_resource_composition);
+  ResourceComposition& operator=(ResourceComposition rhs_resource_composition) {
 
-    // TODO: resource_components_ is neither copied nor moved.
+    swap(*this, rhs_resource_composition);
+    
+    return *this;
+  }
+
+  friend void swap(ResourceComposition& first, ResourceComposition& second) {
+    using std::swap;
+    swap(first.resource_components_, second.resource_components_);
   }
 
   template<size_t ResourceTypeIndex, typename ResourceType>

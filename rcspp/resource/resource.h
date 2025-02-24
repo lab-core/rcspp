@@ -45,9 +45,32 @@ public:
 
   }
 
-  /*virtual ~Resource();
+  Resource(Resource&& rhs_resource) : Resource() {
 
-  Resource& operator=(const Resource& rhs_resource);*/
+    swap(*this, rhs_resource);
+
+    return *this;
+  }
+
+  ~Resource() {}
+
+  Resource& operator=(Resource rhs_resource) {
+
+    swap(*this, rhs_resource);
+
+    return *this;
+  }
+
+  // To implement the copy-and-swap idiom
+  friend void swap(Resource& first, Resource& second) {
+
+    using std::swap;
+
+    swap(first.expansion_function_, second.expansion_function_);
+    swap(first.feasibility_function_, second.feasibility_function_);
+    swap(first.cost_function_, second.cost_function_);
+    swap(first.dominance_function_, second.dominance_function_);
+  }
 
   //! Check dominance
   bool operator<=(const DerivedResourceType& rhs_resource) const {
