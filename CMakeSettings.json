@@ -1,0 +1,42 @@
+{
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [ "msvc_x64" ],
+      "cmakeCommandArgs": "-DUSE_VRP=ON -DUSE_PYTHON=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+      "variables": [
+        {
+          "name": "CMAKE_C_COMPILER",
+          "value": "clang.exe",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "CMAKE_CXX_COMPILER",
+          "value": "clang++.exe",
+          "type": "FILEPATH"
+        }
+      ]
+    },
+    {
+      "name": "x64-Release",
+      "generator": "Ninja",
+      "configurationType": "Release",
+      "inheritEnvironments": [ "msvc_x64" ],
+      "cmakeCommandArgs": "-DUSE_VRP=ON -DUSE_PYTHON=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+      "variables": [
+        {
+          "name": "CMAKE_C_COMPILER",
+          "value": "clang.exe",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "CMAKE_CXX_COMPILER",
+          "value": "clang++.exe",
+          "type": "FILEPATH"
+        }
+      ]
+    }
+  ]
+}

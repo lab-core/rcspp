@@ -1,0 +1,10 @@
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = ".git,__pycache__,build,dist,venv"
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["rcspp"]

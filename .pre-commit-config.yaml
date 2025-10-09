@@ -1,0 +1,163 @@
+repos:
+  # -------------------------
+  # Pre-commit core hooks
+  # -------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        files: ^src/.*
+      - id: end-of-file-fixer
+        files: ^src/.*
+      - id: mixed-line-ending
+        files: ^src/.*
+      - id: check-added-large-files
+        files: ^src/.*
+
+  # -------------------------
+  # Python Formatter: Black
+  # -------------------------
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        name: Black Python Formatter
+        language_version: python3.11
+        files: ^src/.*\.pyi?$
+        additional_dependencies: []
+
+  # -------------------------
+  # Python Import Sorter: isort
+  # -------------------------
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.1.0
+    hooks:
+      - id: isort
+        name: Python Import Sorter
+        language_version: python3.11
+        files: ^src/.*\.pyi?$
+
+  # -------------------------
+  # Python Linter: flake8
+  # -------------------------
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        name: Python Linter
+        language_version: python3.11
+        files: ^src/.*\.pyi?$
+
+  # -------------------------
+  # Bandit
+  # -------------------------
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        files: ^src/.*\.py$
+        args: ["-ll"]
+
+  # -------------------------
+  # docformatter
+  # -------------------------
+  #- repo: https://github.com/Quantco/pre-commit-mirrors-docformatter
+  #  rev: 1.7.5
+  #  hooks:
+  #    - id: docformatter-conda
+  #      args: [--in-place, --black]
+  #      files: ^src/.*\.py$
+
+  - repo: https://github.com/PyCQA/docformatter
+    rev: v1.7.7  # Use latest release, check https://github.com/PyCQA/docformatter/releases for updates
+    hooks:
+    - id: docformatter
+      args: ["--in-place", "--black"]
+      files: ^src/.*\.py$
+
+  # # -------------------------
+  # # numpydoc-validation
+  # # -------------------------
+  # - repo: https://github.com/numpy/numpydoc
+  #   rev: v1.6.0
+  #   hooks:
+  #     - id: numpydoc-validation
+  #       files: ^src/.*\.py$
+
+  # -------------------------
+  # Markdownlint
+  # -------------------------
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        files: .*\.md$
+        args: ["--fix"]
+
+  # -------------------------
+  # Commit message hooks
+  # -------------------------
+  - repo: https://github.com/JangasCodingplace/commit-prefix-pre-commit
+    rev: v0.0.3-beta
+    hooks:
+      - id: commit-prefix
+        stages: [commit-msg]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: []
+
+  # -------------------------
+  # C++ all in one
+  # -------------------------
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      # -------------------------
+      # Clang Format
+      # -------------------------
+      - id: clang-format
+        files: ^src/.*\.(cpp|hpp|c|h)$
+        args:
+          - -i
+          - -style=file
+
+      # -------------------------
+      # Clang Tidy
+      # -------------------------
+      - id: clang-tidy
+        files: ^src/rcspp/.*\.(cpp|hpp)$
+        pass_filenames: true
+        args:
+          - -fix
+          # - -fix-errors
+          - -extra-arg=-I
+          - -extra-arg=src
+
+      # -------------------------
+      # Cppcheck
+      # -------------------------
+      - id: cppcheck
+        entry: cppcheck
+        files: ^src/rcspp/.*\.(cpp|hpp|c|h)$
+        args:
+          - --enable=all
+          - --inconclusive
+          - --std=c++20
+          - --suppress=missingIncludeSystem
+          - --suppress=unusedFunction
+          - --suppress=unusedStructMember
+          - -I
+          - src
+
+      # -------------------------
+      # Cpplint
+      # -------------------------
+      - id: cpplint
+        files: ^src/rcspp/.*\.(cpp|hpp|c|h)$
+        args:
+          - --linelength=100
+          - --filter=-whitespace/indent

@@ -1,0 +1,18 @@
+// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+// All rights reserved.
+
+#pragma once
+
+#include <string>
+
+#include "cg/mp_solution.hpp"
+#include "cg/path.hpp"
+#include "instance.hpp"
+
+class SolutionOutput {
+    public:
+        static void print(const Instance& instance, const MPSolution& solution,
+                          std::vector<Path> paths);
+
+        static void save_dual_to_file(const MPSolution& solution, std::string output_path);
+};

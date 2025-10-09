@@ -1,2 +1,3 @@
-rcspp/.vs/*
-rcspp/out/*
+.vs/*
+out/*
+*.dll

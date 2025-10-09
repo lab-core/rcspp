@@ -1,0 +1,18 @@
+# Enable the desired checks
+Checks: >
+  -*,
+  readability-*,
+  -readability-identifier-length,
+  #bugprone-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-raw-string-literal
+
+# Only check headers and sources under src/
+HeaderFilterRegex: 'src/.*'
+
+# Use the formatting style defined in .clang-format
+FormatStyle: file
+
+# Optional: Show extra notes in the output
+ExtraArgs: ["-std=c++20", "-Wno-clang-diagnostic-error"]
