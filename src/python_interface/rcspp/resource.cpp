@@ -22,6 +22,8 @@
 
 namespace py = pybind11;
 
+using namespace rcspp;
+
 using ResourceCompositionBase = ResourceComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
