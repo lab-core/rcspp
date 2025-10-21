@@ -7,6 +7,8 @@
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 class CompositionFeasibilityFunction
     : public Clonable<CompositionFeasibilityFunction<ResourceTypes...>,
@@ -65,3 +67,4 @@ class CompositionFeasibilityFunction
             return is_feasible_;
         }
 };
+}  // namespace rcspp

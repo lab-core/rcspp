@@ -9,9 +9,12 @@
 #include "rcspp/resource/concrete/real_resource.hpp"
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 
+namespace rcspp {
+
 class RealAdditionExpansionFunction
     : public Clonable<RealAdditionExpansionFunction, ExpansionFunction<RealResource>> {
     public:
         void expand(const Resource<RealResource>& resource, const Expander<RealResource>& expander,
                     Resource<RealResource>& expanded_resource) override;
 };
+}  // namespace rcspp

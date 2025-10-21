@@ -5,6 +5,8 @@
 
 #include "rcspp/resource/base/resource.hpp"
 
+namespace rcspp {
+
 auto MinMaxFeasibilityFunction::is_feasible(const Resource<RealResource>& resource) -> bool {
     bool feasible = true;
 
@@ -14,3 +16,4 @@ auto MinMaxFeasibilityFunction::is_feasible(const Resource<RealResource>& resour
 
     return feasible;
 }
+}  // namespace rcspp

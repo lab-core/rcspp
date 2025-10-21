@@ -7,9 +7,12 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 class TrivialCostFunction
     : public Clonable<TrivialCostFunction<ResourceType>, CostFunction<ResourceType>> {
     public:
         double get_cost(const Resource<ResourceType>& resource) const override { return 0; }
 };
+}  // namespace rcspp

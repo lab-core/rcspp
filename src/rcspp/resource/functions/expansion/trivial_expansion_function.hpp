@@ -7,6 +7,8 @@
 #include "rcspp/resource/base/expander.hpp"
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 class TrivialExpansionFunction
     : public Clonable<TrivialExpansionFunction<ResourceType>, ExpansionFunction<ResourceType>> {
@@ -14,3 +16,4 @@ class TrivialExpansionFunction
         void expand(const Resource<ResourceType>& resource, const Expander<ResourceType>& expander,
                     Resource<ResourceType>& reused_resource) override {}
 };
+}  // namespace rcspp

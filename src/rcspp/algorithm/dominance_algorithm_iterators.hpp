@@ -14,6 +14,8 @@
 #include "rcspp/algorithm/algorithm_with_iterators.hpp"
 #include "rcspp/label/label_pool.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> {
@@ -371,3 +373,4 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         size_t nb_update_non_dom_iter_ = 0;
         size_t nb_expand_iter_ = 0;
 };
+}  // namespace rcspp

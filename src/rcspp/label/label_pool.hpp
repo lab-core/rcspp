@@ -12,6 +12,8 @@
 
 #include "rcspp/label/label_factory.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class LabelPool {
@@ -107,3 +109,4 @@ class LabelPool {
         int64_t nb_created_labels_{0};
         int64_t nb_reused_labels_{0};
 };
+}  // namespace rcspp

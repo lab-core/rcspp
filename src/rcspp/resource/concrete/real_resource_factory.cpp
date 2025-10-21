@@ -16,6 +16,8 @@
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
+namespace rcspp {
+
 RealResourceFactory::RealResourceFactory()
     : ResourceFactory<RealResource>(std::make_unique<RealAdditionExpansionFunction>(),
                                     std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
@@ -80,3 +82,4 @@ RealResourceFactory::RealResourceFactory(
 //
 //   return new_resource;
 // }
+}  // namespace rcspp

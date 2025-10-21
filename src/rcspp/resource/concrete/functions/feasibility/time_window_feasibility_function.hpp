@@ -9,6 +9,8 @@
 #include "rcspp/resource/concrete/real_resource.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
+namespace rcspp {
+
 class TimeWindowFeasibilityFunction
     : public Clonable<TimeWindowFeasibilityFunction, FeasibilityFunction<RealResource>> {
     public:
@@ -24,3 +26,4 @@ class TimeWindowFeasibilityFunction
 
         void preprocess() override;
 };
+}  // namespace rcspp

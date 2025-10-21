@@ -10,6 +10,8 @@
 #include "rcspp/resource/base/resource_base.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
+namespace rcspp {
+
 RealResource::RealResource() : value_(0) {}
 
 RealResource::RealResource(double value) : value_(value) {}
@@ -25,3 +27,4 @@ void RealResource::set_value(double value) {
 void RealResource::reset() {
     value_ = 0;
 }
+}  // namespace rcspp

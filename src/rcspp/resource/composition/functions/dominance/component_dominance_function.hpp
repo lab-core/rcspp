@@ -8,6 +8,8 @@
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 
+namespace rcspp {
+
 template <size_t ResourceTypeIndex, typename... ResourceTypes>
 class ComponentDominanceFunction
     : public Clonable<ComponentDominanceFunction<ResourceTypeIndex, ResourceTypes...>,
@@ -30,3 +32,4 @@ class ComponentDominanceFunction
     private:
         size_t resource_index_;
 };
+}  // namespace rcspp

@@ -9,6 +9,8 @@
 
 #include "rcspp/resource/base/resource.hpp"
 
+namespace rcspp {
+
 TimeWindowFeasibilityFunction::TimeWindowFeasibilityFunction(
     const std::map<size_t, double>& max_time_window_by_node_id)
     : max_time_window_by_node_id_(max_time_window_by_node_id),
@@ -27,3 +29,4 @@ auto TimeWindowFeasibilityFunction::is_feasible(const Resource<RealResource>& re
 void TimeWindowFeasibilityFunction::preprocess() {
     max_time_window_ = max_time_window_by_node_id_.at(node_id_);
 }
+}  // namespace rcspp

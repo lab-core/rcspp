@@ -7,6 +7,8 @@
 #include <memory>
 #include <utility>
 
+namespace rcspp {
+
 template <typename ResourceType>
 class Resource;
 
@@ -39,3 +41,4 @@ class ExpansionFunction {
     protected:
         virtual void preprocess() {}
 };
+}  // namespace rcspp

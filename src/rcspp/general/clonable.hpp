@@ -5,6 +5,8 @@
 
 #include <memory>
 
+namespace rcspp {
+
 template <class DerivedType, class BaseType, class ReturnType = BaseType>
 class Clonable : public BaseType {
     public:
@@ -12,3 +14,4 @@ class Clonable : public BaseType {
             return std::make_unique<DerivedType>(static_cast<DerivedType const&>(*this));
         }
 };
+}  // namespace rcspp

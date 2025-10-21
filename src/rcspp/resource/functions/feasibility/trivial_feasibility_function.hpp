@@ -7,6 +7,8 @@
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 class TrivialFeasibilityFunction
     : public Clonable<TrivialFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
@@ -15,3 +17,4 @@ class TrivialFeasibilityFunction
             return true;
         }
 };
+}  // namespace rcspp

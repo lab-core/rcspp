@@ -14,6 +14,8 @@
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/resource/base/resource_factory.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Graph {
@@ -118,3 +120,4 @@ class Graph {
         std::vector<size_t> source_node_ids_;
         std::vector<size_t> sink_node_ids_;
 };
+}  // namespace rcspp

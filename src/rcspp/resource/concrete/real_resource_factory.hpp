@@ -12,6 +12,8 @@
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
+namespace rcspp {
+
 class RealResourceFactory : public ResourceFactory<RealResource> {
     public:
         RealResourceFactory();
@@ -37,3 +39,4 @@ class RealResourceFactory : public ResourceFactory<RealResource> {
 
         std::unique_ptr<RealResource> make_resource(double value, double min, double max);*/
 };
+}  // namespace rcspp

@@ -7,9 +7,12 @@
 #include "rcspp/resource/concrete/real_resource.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 
+namespace rcspp {
+
 class RealValueDominanceFunction
     : public Clonable<RealValueDominanceFunction, DominanceFunction<RealResource>> {
     public:
         auto check_dominance(const Resource<RealResource>& lhs_resource,
                              const Resource<RealResource>& rhs_resource) -> bool override;
 };
+}  // namespace rcspp

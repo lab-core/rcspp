@@ -12,6 +12,8 @@
 
 #include "rcspp/algorithm/solution.hpp"
 
+using namespace rcspp;
+
 BoostSubproblem::BoostSubproblem(Instance instance, const std::map<size_t, double>* dual_by_id)
     : source_id_(0),
       sink_id_(0),

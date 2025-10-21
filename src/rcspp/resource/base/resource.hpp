@@ -15,6 +15,8 @@
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 class ResourceCompositionFactory;
 
@@ -600,3 +602,4 @@ class Resource<ResourceComposition<ResourceTypes...>>
 
         size_t node_id_;
 };
+}  // namespace rcspp

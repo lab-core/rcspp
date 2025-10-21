@@ -9,6 +9,8 @@
 #include "rcspp/algorithm/solution.hpp"
 #include "vrp/instance.hpp"
 
+using namespace rcspp;
+
 class BoostSubproblem {
     public:
         BoostSubproblem(Instance instance, const std::map<size_t, double>* dual_by_id = nullptr);

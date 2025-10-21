@@ -13,6 +13,8 @@
 #include "rcspp/resource/base/expander.hpp"
 #include "rcspp/resource/base/resource.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 // requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Arc {
@@ -49,3 +51,4 @@ class Arc {
 
         std::vector<Row> dual_rows;
 };
+}  // namespace rcspp

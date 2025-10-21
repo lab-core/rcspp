@@ -16,6 +16,8 @@
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
@@ -137,3 +139,4 @@ class Algorithm {
 
         int64_t total_full_expand_time_ = 0;
 };
+}  // namespace rcspp

@@ -10,6 +10,8 @@
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/resource/concrete/functions/dominance/real_value_dominance_function.hpp"
 
+namespace rcspp {
+
 TimeWindowExpansionFunction::TimeWindowExpansionFunction(
     const std::map<size_t, double>& min_time_window_by_arc_id)
     : min_time_window_by_arc_id_(min_time_window_by_arc_id) {}
@@ -27,3 +29,4 @@ void TimeWindowExpansionFunction::expand(const Resource<RealResource>& resource,
 void TimeWindowExpansionFunction::preprocess() {
     min_time_window_ = min_time_window_by_arc_id_.at(arc_id_);
 }
+}  // namespace rcspp
