@@ -16,7 +16,6 @@
 #include "rcspp/resource/resource_graph.hpp"
 #include "solution_output.hpp"
 
-
 using namespace rcspp;
 
 class VRP {

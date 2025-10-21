@@ -9,9 +9,7 @@
 #include "rcspp/algorithm/solution.hpp"
 #include "vrp/instance.hpp"
 
-
 using namespace rcspp;
-
 
 class BoostSubproblem {
     public:

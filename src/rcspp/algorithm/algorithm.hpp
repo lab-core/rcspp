@@ -16,8 +16,7 @@
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
 
-namespace rcspp
-{
+namespace rcspp {
 
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>

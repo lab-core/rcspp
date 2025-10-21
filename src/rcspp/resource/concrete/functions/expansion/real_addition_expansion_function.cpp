@@ -3,7 +3,6 @@
 
 #include "rcspp/resource/concrete/functions/expansion/real_addition_expansion_function.hpp"
 
-
 namespace rcspp {
 
 void RealAdditionExpansionFunction::expand(const Resource<RealResource>& resource,
