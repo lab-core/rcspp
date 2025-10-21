@@ -7,6 +7,8 @@
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 class CompositionCostFunction
     : public Clonable<CompositionCostFunction<ResourceTypes...>,
@@ -30,3 +32,4 @@ class CompositionCostFunction
             return total_cost;
         }
 };
+}  // namespace rcspp

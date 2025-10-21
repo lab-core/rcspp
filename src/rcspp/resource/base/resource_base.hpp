@@ -7,6 +7,8 @@
 #include <memory>
 #include <utility>
 
+namespace rcspp {
+
 template <typename ResourceType>
 class ResourceBase {
     public:
@@ -20,3 +22,4 @@ class ResourceBase {
 
         virtual void reset() = 0;
 };
+}  // namespace rcspp

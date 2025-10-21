@@ -12,6 +12,8 @@
 #include "rcspp/graph/node.hpp"
 #include "rcspp/resource/base/resource.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 class LabelFactory;
 
@@ -82,3 +84,4 @@ class Label {
         // Pointer to the arc from which this label was backward expanded.
         const Arc<ResourceType>* out_arc_;
 };
+}  // namespace rcspp

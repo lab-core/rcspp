@@ -19,6 +19,8 @@
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class AlgorithmWithIterators : public Algorithm<ResourceType> {
@@ -112,13 +114,6 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
             for (const auto* sink_label : labels_at_sinks) {
                 const auto path_node_ids = this->get_path_node_ids(*sink_label);
                 const auto path_arc_ids = this->get_path_arc_ids(*sink_label);
-
-                const auto& sink_label_res = sink_label->get_resource();
-
-                auto cost = sink_label_res.template get_resource_component<0>(0).get_value();
-                auto time = sink_label_res.template get_resource_component<0>(1).get_value();
-                auto demand = sink_label_res.template get_resource_component<0>(2).get_value();
-
                 auto solution = Solution{sink_label->get_cost(), path_node_ids, path_arc_ids};
 
                 solutions.push_back(solution);
@@ -130,3 +125,4 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
             return solutions;
         }
 };
+}  // namespace rcspp

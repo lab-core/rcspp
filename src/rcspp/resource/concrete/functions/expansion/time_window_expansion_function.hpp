@@ -9,6 +9,8 @@
 #include "rcspp/resource/concrete/real_resource.hpp"
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 
+namespace rcspp {
+
 class TimeWindowExpansionFunction
     : public Clonable<TimeWindowExpansionFunction, ExpansionFunction<RealResource>> {
     public:
@@ -24,3 +26,4 @@ class TimeWindowExpansionFunction
 
         void preprocess() override;
 };
+}  // namespace rcspp

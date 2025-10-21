@@ -13,6 +13,8 @@
 
 #include "rcspp/resource/base/resource_base.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
     requires(std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
 class ResourceComposition : public ResourceBase<ResourceComposition<ResourceTypes...>> {
@@ -137,3 +139,4 @@ class ResourceComposition : public ResourceBase<ResourceComposition<ResourceType
         // a different type of resources from the template arguments (i.e., ResourceTypes...)
         std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...> resource_base_components_;
 };
+}  // namespace rcspp

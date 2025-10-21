@@ -7,6 +7,8 @@
 
 #include "rcspp/resource/base/resource_base.hpp"
 
+namespace rcspp {
+
 class RealResource : public ResourceBase<RealResource> {
         friend class RealResourceFactory;
 
@@ -24,3 +26,4 @@ class RealResource : public ResourceBase<RealResource> {
     private:
         double value_;
 };
+}  // namespace rcspp

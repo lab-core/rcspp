@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <tuple>
 
+namespace rcspp {
+
 class RealResource;
 class RealResourceFactory;
 
@@ -38,3 +40,4 @@ struct ResourceInitializerTypeTuple<RealResource> {
 };
 template <typename ResourceType>
 using ResourceInitializerTypeTuple_t = typename ResourceInitializerTypeTuple<ResourceType>::type;
+}  // namespace rcspp

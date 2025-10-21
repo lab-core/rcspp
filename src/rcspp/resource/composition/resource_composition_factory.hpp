@@ -14,6 +14,8 @@
 #include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 // requires (std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
 class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<ResourceTypes...>> {
@@ -216,3 +218,4 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             resource->set_value(std::get<N>(resource_initializer)...);
         }
 };
+}  // namespace rcspp

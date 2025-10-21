@@ -13,6 +13,8 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_base.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class ResourceFactory {
@@ -129,3 +131,4 @@ class ResourceFactory {
         size_t nb_resources_created_;
         size_t nb_expanders_created_;
 };
+}  // namespace rcspp

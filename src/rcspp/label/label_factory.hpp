@@ -9,6 +9,8 @@
 #include "rcspp/label/label.hpp"
 #include "rcspp/resource/base/resource_factory.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 // requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class LabelFactory {
@@ -44,3 +46,4 @@ class LabelFactory {
     private:
         ResourceFactory<ResourceType>& resource_factory_;
 };
+}  // namespace rcspp

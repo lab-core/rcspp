@@ -18,6 +18,8 @@
 #include "rcspp/resource/concrete/real_resource_factory.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     public:
@@ -185,3 +187,4 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
 };
+}  // namespace rcspp

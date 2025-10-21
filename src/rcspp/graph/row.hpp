@@ -5,7 +5,10 @@
 
 #include <cstddef>
 
+namespace rcspp {
+
 struct Row {
         size_t index;
         size_t coefficient;
 };
+}  // namespace rcspp

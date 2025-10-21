@@ -12,6 +12,8 @@
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 // requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Expander : public ResourceType {
@@ -130,3 +132,4 @@ class Expander<ResourceComposition<ResourceTypes...>>
 
         const size_t arc_id_;
 };
+}  // namespace rcspp

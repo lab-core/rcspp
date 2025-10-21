@@ -10,6 +10,8 @@
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/expansion/expansion_function.hpp"
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 class CompositionExpansionFunction
     : public Clonable<CompositionExpansionFunction<ResourceTypes...>,
@@ -63,3 +65,4 @@ class CompositionExpansionFunction
             }
         }
 };
+}  // namespace rcspp

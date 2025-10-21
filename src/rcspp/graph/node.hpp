@@ -10,6 +10,8 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_base.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 // requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Arc;
@@ -27,3 +29,4 @@ class Node {
 
         std::unique_ptr<Resource<ResourceType>> resource;
 };
+}  // namespace rcspp

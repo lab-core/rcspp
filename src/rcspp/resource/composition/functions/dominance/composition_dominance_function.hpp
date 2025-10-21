@@ -10,6 +10,8 @@
 
 // TODO(patrick): Define dominance_res_function as a method.
 
+namespace rcspp {
+
 template <typename... ResourceTypes>
 class CompositionDominanceFunction
     : public Clonable<CompositionDominanceFunction<ResourceTypes...>,
@@ -78,3 +80,4 @@ class CompositionDominanceFunction
             return is_less_than_or_equal_;
         }
 };
+}  // namespace rcspp

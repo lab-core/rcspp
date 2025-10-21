@@ -6,6 +6,8 @@
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 
+namespace rcspp {
+
 template <typename ResourceType>
 class TrivialDominanceFunction
     : public Clonable<TrivialDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
@@ -15,3 +17,4 @@ class TrivialDominanceFunction
             return true;
         }
 };
+}  // namespace rcspp

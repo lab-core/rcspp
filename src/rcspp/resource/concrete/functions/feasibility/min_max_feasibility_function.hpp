@@ -7,6 +7,8 @@
 #include "rcspp/resource/concrete/real_resource.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
+namespace rcspp {
+
 class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction, FeasibilityFunction<RealResource>> {
     public:
@@ -18,3 +20,4 @@ class MinMaxFeasibilityFunction
         double min_;
         double max_;
 };
+}  // namespace rcspp
