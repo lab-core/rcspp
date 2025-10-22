@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
@@ -164,7 +165,13 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         template <template <typename> class AlgorithmType = DominanceAlgorithmIterators>
-        std::vector<Solution> solve() {
+        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity()) {
+            // remove some arcs before solving the problem
+            // the deleted arcs will be restored at the destruction of the preprocessor
+            auto preprocessor =
+                ShortestPathPreprocessor<ResourceComposition<ResourceTypes...>>(this, upper_bound);
+            preprocessor.preprocess();
+
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
                                                                            *this);
             return algorithm.solve();

@@ -41,9 +41,9 @@ class Arc {
 
         const size_t id;
 
-        const Node<ResourceType>* origin;
+        Node<ResourceType>* const origin;
 
-        const Node<ResourceType>* destination;
+        Node<ResourceType>* const destination;
 
         std::unique_ptr<Expander<ResourceType>> expander;
 

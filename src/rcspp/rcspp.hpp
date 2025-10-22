@@ -8,6 +8,8 @@
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_with_iterators.hpp"
 #include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/preprocessor.hpp"
+#include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/graph/arc.hpp"
