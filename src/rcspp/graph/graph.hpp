@@ -68,6 +68,72 @@ class Graph {
             return add_arc(origin_node, destination_node, arc_id, cost, dual_rows);
         }
 
+        virtual bool delete_arc(size_t arc_id) {
+            auto it = arcs_by_id_.find(arc_id);
+            if (it == arcs_by_id_.end()) {
+                return false;
+            }
+            auto& arc = *it->second;
+
+            // remove arc from destination node's in_arcs
+            arc.destination->in_arcs.erase(
+                std::remove_if(arc.in_arcs.begin(),
+                               arc.in_arcs.end(),
+                               [arc_id](Arc<ResourceType>* arc) { return arc->id == arc_id; }),
+                arc.in_arcs.end());
+
+            // remove arc from origin node's out_arcs
+            arc.origin->out_arcs.erase(
+                std::remove_if(arc.out_arcs.begin(),
+                               arc.out_arcs.end(),
+                               [arc_id](Arc<ResourceType>* arc) { return arc->id == arc_id; }),
+                arc.out_arcs.end());
+
+            // move deleted arc
+            deleted_arcs_by_id_[arc_id] = std::move(it->second);
+            arcs_by_id_.erase(it->second);
+
+            return true;
+        }
+
+        virtual bool delete_arc(const Arc<ResourceType>& arc) { return delete_arc(arc.id); }
+
+        virtual auto restore_arc(
+            const std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator& it) {
+            auto& arc = *it->second;
+            // add arc to destination node's in_arcs
+            arc.destination->in_arcs.push_back(&arc);
+            // add arc to origin node's out_arcs
+            arc.origin->out_arcs.push_back(&arc);
+            // move restored arc
+            arcs_by_id_[arc_id] = std::move(it->second);
+            return deleted_arcs_by_id_.erase(it->second);
+        }
+
+        virtual bool restore_arc(size_t arc_id) {
+            auto it = deleted_arcs_by_id_.find(arc_id);
+            if (it == deleted_arcs_by_id_.end()) {
+                return false;
+            }
+            restore_arc(it);
+            return true;
+        }
+
+        virtual bool restore_arc(const Arc<ResourceType>& arc) { return restore_arc(arc.id); }
+
+        void restore_all_arcs() {
+            for (auto it = deleted_arcs_by_id_.begin(); it != deleted_arcs_by_id_.end();) {
+                auto& arc = *it->second;
+                // add arc to destination node's in_arcs
+                arc.destination->in_arcs.push_back(&arc);
+                // add arc to origin node's out_arcs
+                arc.origin->out_arcs.push_back(&arc);
+                // move restored arc
+                arcs_by_id_[arc.id] = std::move(it->second);
+                it = deleted_arcs_by_id_.erase(it);
+            }
+        }
+
         [[nodiscard]] Node<ResourceType>& get_node(size_t node_id) const {
             return *nodes_by_id_.at(node_id).get();
         }
@@ -116,6 +182,8 @@ class Graph {
     private:
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> arcs_by_id_;
         std::map<size_t, std::unique_ptr<Node<ResourceType>>> nodes_by_id_;
+
+        std::map<size_t, std::unique_ptr<Arc<ResourceType>>> deleted_arcs_by_id_;
 
         std::vector<size_t> source_node_ids_;
         std::vector<size_t> sink_node_ids_;
