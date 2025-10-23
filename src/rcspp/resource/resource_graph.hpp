@@ -164,14 +164,22 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
         }
 
-        template <template <typename> class AlgorithmType = DominanceAlgorithmIterators>
-        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity()) {
+        template <template <typename> class AlgorithmType = DominanceAlgorithmIterators,
+                  typename CostResourceType = RealResource>
+        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
+                                    size_t cost_index = 0) {
             // remove some arcs before solving the problem
             // the deleted arcs will be restored at the destruction of the preprocessor
             auto preprocessor =
-                ShortestPathPreprocessor<ResourceComposition<ResourceTypes...>>(this, upper_bound);
-            preprocessor.preprocess();
+                ShortestPathPreprocessor<CostResourceType, ResourceTypes...>(this,
+                                                                             upper_bound,
+                                                                             cost_index);
+            // only preprocess if the upper bound is finite
+            if (!std::isinf(upper_bound)) {
+                preprocessor.preprocess();
+            }
 
+            // solve the rcspp
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
                                                                            *this);
             return algorithm.solve();
