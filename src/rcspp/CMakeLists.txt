@@ -8,7 +8,7 @@ file(GLOB_RECURSE HEADERS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
 set(RCSPP_UMBRELLA_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/rcspp.hpp")
 
 # first lines of the umbrella header
-file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.\n// All rights reserved.\n\n#pragma once\n\n// Automatically generated umbrella header\n\n")
+file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Automatically generated umbrella header NOLINT(legal/copyright)\n#pragma once\n\n")
 
 foreach(header ${HEADERS_FILES})
     # Compute relative path inside
@@ -17,9 +17,6 @@ foreach(header ${HEADERS_FILES})
     # Add it to the umbrella header
     file(APPEND "${RCSPP_UMBRELLA_HEADER}" "#include \"${rel_path}\"\n")
 endforeach()
-
-# add the umbrella header to the list
-set(${HEADERS_FILES} ${RCSPP_UMBRELLA_HEADER} ${HEADERS_FILES})
 
 # Compile the dynamic library --------------------------------------------------
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -31,6 +28,8 @@ set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
 
 # Copy headers to build/include preserving folder structure --------------------
+# add the umbrella header to the list
+set(${HEADERS_FILES} ${RCSPP_UMBRELLA_HEADER} ${HEADERS_FILES})
 foreach(header ${HEADERS_FILES})
     # Compute relative path inside
     file(RELATIVE_PATH rel_path "${CMAKE_SOURCE_DIR}/src" "${header}")

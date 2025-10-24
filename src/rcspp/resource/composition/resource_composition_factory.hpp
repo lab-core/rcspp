@@ -6,6 +6,7 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/composition/functions/cost/composition_cost_function.hpp"

@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include "rcspp/graph/graph.hpp"
-
 #include <limits>
 #include <unordered_map>
 #include <vector>
 
+#include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
 
 namespace rcspp {
@@ -54,11 +53,10 @@ class BellmanFordAlgorithm {
                     // expand the resource
                     Resource<ResourceComposition<ResourceTypes...>> resource(
                         *arc->destination->resource);
-                    arc->expander->expand(*arc->origin->resource, resource);
+                    arc->expander->expand(*arc->origin->resource, &resource);
                     // fetch the new value of the cost resource
                     const CostResourceType& cost_resource =
-                        resource.template get_resource_component<CostResourceType>(
-                            cost_index);
+                        resource.template get_resource_component<CostResourceType>(cost_index);
                     double cost = cost_resource.get_value();
                     // compute the weight, i.e., cost difference
                     double w = cost - origin_cost;

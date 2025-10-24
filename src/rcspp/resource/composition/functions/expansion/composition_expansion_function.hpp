@@ -19,10 +19,10 @@ class CompositionExpansionFunction
     public:
         void expand(const Resource<ResourceComposition<ResourceTypes...>>& resource,
                     const Expander<ResourceComposition<ResourceTypes...>>& expander,
-                    Resource<ResourceComposition<ResourceTypes...>>& expanded_resource) override {
+                    Resource<ResourceComposition<ResourceTypes...>>* expanded_resource) override {
             auto& resource_components = resource.get_resource_components();
             auto& expander_components = expander.get_expander_components();
-            auto& expanded_resource_components = expanded_resource.get_resource_components();
+            auto& expanded_resource_components = expanded_resource->get_resource_components();
 
             /*const auto expand_res_function = [&](const auto& sing_res_vec, const auto&
               sing_exp_vec, const auto& expanded_sing_res_vec) {
@@ -61,7 +61,7 @@ class CompositionExpansionFunction
         void expand_resource(const auto& sing_res_vec, const auto& sing_exp_vec,
                              const auto& expanded_sing_res_vec) const {
             for (int i = 0; i < sing_res_vec.size(); i++) {
-                sing_exp_vec[i]->expand(*sing_res_vec[i], *expanded_sing_res_vec[i]);
+                sing_exp_vec[i]->expand(*sing_res_vec[i], expanded_sing_res_vec[i]);
             }
         }
 };

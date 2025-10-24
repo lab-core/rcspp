@@ -1,9 +1,5 @@
-// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
-// All rights reserved.
-
+// Automatically generated umbrella header NOLINT(legal/copyright)
 #pragma once
-
-// Automatically generated umbrella header
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_with_iterators.hpp"

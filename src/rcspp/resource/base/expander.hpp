@@ -7,6 +7,7 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
@@ -33,8 +34,13 @@ class Expander : public ResourceType {
 
         // Resource expansion
         void expand(const Resource<ResourceType>& resource,
-                    Resource<ResourceType>& expanded_resource) const {
+                    Resource<ResourceType>* expanded_resource) const {
             expansion_function_->expand(resource, *this, expanded_resource);
+        }
+
+        void expand(const Resource<ResourceType>& resource,
+                    const std::unique_ptr<Resource<ResourceType>>& expanded_resource) const {
+            expand(resource, expanded_resource.get());
         }
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
@@ -88,8 +94,14 @@ class Expander<ResourceComposition<ResourceTypes...>>
 
         // Resource expansion
         void expand(const Resource<ResourceComposition<ResourceTypes...>>& resource,
-                    Resource<ResourceComposition<ResourceTypes...>>& expanded_resource) const {
+                    Resource<ResourceComposition<ResourceTypes...>>* expanded_resource) const {
             expansion_function_->expand(resource, *this, expanded_resource);
+        }
+
+        void expand(const Resource<ResourceComposition<ResourceTypes...>>& resource,
+                    const std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>>&
+                        expanded_resource) const {
+            expand(resource, expanded_resource.get());
         }
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }

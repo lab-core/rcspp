@@ -4,11 +4,12 @@
 #pragma once
 
 #include <algorithm>
-#include <concepts>
+#include <concepts>  // NOLINT(build/include_order)
 #include <map>
 #include <memory>
 #include <optional>
-#include <ranges>
+#include <ranges>  // NOLINT(build/include_order)
+#include <utility>
 #include <vector>
 
 #include "rcspp/graph/arc.hpp"
@@ -37,8 +38,8 @@ class Graph {
             return *nodes_by_id_[node_id];
         }
 
-        virtual Arc<ResourceType>& add_arc(Node<ResourceType>& origin_node,
-                                           Node<ResourceType>& destination_node,
+        virtual Arc<ResourceType>& add_arc(Node<ResourceType>* origin_node,
+                                           Node<ResourceType>* destination_node,
                                            std::optional<size_t> arc_id = std::nullopt,
                                            double cost = 0.0, std::vector<Row> dual_rows = {}) {
             if (arc_id == std::nullopt) {
@@ -53,8 +54,8 @@ class Graph {
 
             auto new_arc_ptr = arcs_by_id_[*arc_id].get();
 
-            origin_node.out_arcs.push_back(new_arc_ptr);
-            destination_node.in_arcs.push_back(new_arc_ptr);
+            origin_node->out_arcs.push_back(new_arc_ptr);
+            destination_node->in_arcs.push_back(new_arc_ptr);
 
             return *new_arc_ptr;
         }
@@ -62,10 +63,10 @@ class Graph {
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
                                            std::optional<size_t> arc_id = std::nullopt,
                                            double cost = 0.0, std::vector<Row> dual_rows = {}) {
-            auto& origin_node = *nodes_by_id_.at(origin_node_id);
-            auto& destination_node = *nodes_by_id_.at(destination_node_id);
+            auto& origin_node = nodes_by_id_.at(origin_node_id);
+            auto& destination_node = nodes_by_id_.at(destination_node_id);
 
-            return add_arc(origin_node, destination_node, arc_id, cost, dual_rows);
+            return add_arc(origin_node.get(), destination_node.get(), arc_id, cost, dual_rows);
         }
 
         virtual std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator delete_arc(
@@ -118,9 +119,8 @@ class Graph {
             // delete from deleted arcs map if specified
             if (delete_from_map) {
                 return deleted_arcs_by_id_.erase(it);
-            } else {
-                return it;
             }
+            return it;
         }
 
         virtual bool restore_arc(size_t arc_id) {

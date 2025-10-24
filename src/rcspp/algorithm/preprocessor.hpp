@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <vector>
+
 #include "rcspp/graph/graph.hpp"
 
 namespace rcspp {
@@ -11,12 +13,13 @@ template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Preprocessor {
     public:
-        Preprocessor(Graph<ResourceType>* graph) : graph_(graph) {}
-        ~Preprocessor() {
-            restore();
-        }
+        explicit Preprocessor(Graph<ResourceType>* graph) : graph_(graph) {}
+        virtual ~Preprocessor() { restore(); }
 
         virtual bool preprocess() {
+            if (disable_preprocessing_) {
+                return false;
+            }
             bool deleted = false;
             for (auto it = graph_->arcs_by_id_.begin(); it != graph_->arcs_by_id_.end();) {
                 // check if we should to remove the arc
@@ -31,7 +34,7 @@ class Preprocessor {
             return deleted;
         }
 
-        virtual void restore() { 
+        virtual void restore() {
             for (const auto& arc_id : deleted_arcs_by_id_) {
                 graph_->restore_arc(arc_id);
             }
@@ -43,8 +46,7 @@ class Preprocessor {
         std::vector<size_t> deleted_arcs_by_id_;
 
     protected:
-        virtual bool remove_arc(const Arc<ResourceType>& arc) {
-            return false;
-        }
+        bool disable_preprocessing_ = false;
+        virtual bool remove_arc(const Arc<ResourceType>& arc) { return false; }
 };
 }  // namespace rcspp

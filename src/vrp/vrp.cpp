@@ -219,7 +219,7 @@ std::vector<Solution> VRP::solve_with_rcspp(const std::map<size_t, double>& dual
     }
 
     auto time_start = std::chrono::high_resolution_clock::now();
-    auto solutions = subproblem_graph_.solve();
+    auto solutions = subproblem_graph_.solve(-EPSILON);
     // A different algorithm can be specified as a template argument.
     // auto solutions = subproblem_graph_.solve<DominanceAlgorithmIterators>();
     auto time_end = std::chrono::high_resolution_clock::now();

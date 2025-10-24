@@ -32,7 +32,9 @@ struct ResourceContainerVRPTW {
         ResourceContainerVRPTW(double cost_ = 0, double time_ = 0, double demand_ = 0)
             : cost(cost_), time(time_), demand(demand_) {}
         ResourceContainerVRPTW& operator=(const ResourceContainerVRPTW& other) {
-            if (this == &other) return *this;
+            if (this == &other) {
+                return *this;
+            }
             this->~ResourceContainerVRPTW();
             new (this) ResourceContainerVRPTW(other);
             return *this;
@@ -45,9 +47,9 @@ struct ResourceContainerVRPTW {
 // ResourceExtensionFunction model
 class ResourceExtensionFunctionVRPTW {
     public:
-        inline bool operator()(const GraphVRPTW& graph, ResourceContainerVRPTW& new_res_cont,
-                               const ResourceContainerVRPTW& old_res_cont,
-                               boost::graph_traits<GraphVRPTW>::edge_descriptor edge_desc) const {
+        bool operator()(const GraphVRPTW& graph, ResourceContainerVRPTW& new_res_cont,
+                        const ResourceContainerVRPTW& old_res_cont,
+                        boost::graph_traits<GraphVRPTW>::edge_descriptor edge_desc) const {
             const EdgePropertiesVRPTW& arc_prop = get(boost::edge_bundle, graph)[edge_desc];
             const VertexPropertiesVRPTW& vert_prop =
                 get(boost::vertex_bundle, graph)[target(edge_desc, graph)];
@@ -55,10 +57,7 @@ class ResourceExtensionFunctionVRPTW {
             // Extension
             new_res_cont.cost = old_res_cont.cost + arc_prop.cost;
 
-            new_res_cont.time = old_res_cont.time + arc_prop.time;
-            if (vert_prop.ready_time > new_res_cont.time) {
-                new_res_cont.time = vert_prop.ready_time;
-            }
+            new_res_cont.time = std::max(old_res_cont.time + arc_prop.time, vert_prop.ready_time);
 
             new_res_cont.demand = old_res_cont.demand + arc_prop.demand;
 
@@ -80,8 +79,8 @@ class ResourceExtensionFunctionVRPTW {
 // DominanceFunction model
 class DominanceFunctionVRPTW {
     public:
-        inline bool operator()(const ResourceContainerVRPTW& res_cont_lhs,
-                               const ResourceContainerVRPTW& res_cont_rhs) const {
+        bool operator()(const ResourceContainerVRPTW& res_cont_lhs,
+                        const ResourceContainerVRPTW& res_cont_rhs) const {
             // must be "<=" here!!!
             // must NOT be "<"!!!
 

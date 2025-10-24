@@ -18,12 +18,12 @@ TimeWindowExpansionFunction::TimeWindowExpansionFunction(
 
 void TimeWindowExpansionFunction::expand(const Resource<RealResource>& resource,
                                          const Expander<RealResource>& expander,
-                                         Resource<RealResource>& expanded_resource) {
+                                         Resource<RealResource>* expanded_resource) {
     double sum_value = resource.get_value() + expander.get_value();
 
     sum_value = std::max(min_time_window_, sum_value);
 
-    expanded_resource.set_value(sum_value);
+    expanded_resource->set_value(sum_value);
 }
 
 void TimeWindowExpansionFunction::preprocess() {

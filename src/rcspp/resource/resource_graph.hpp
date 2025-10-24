@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -174,10 +175,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 ShortestPathPreprocessor<CostResourceType, ResourceTypes...>(this,
                                                                              upper_bound,
                                                                              cost_index);
-            // only preprocess if the upper bound is finite
-            if (!std::isinf(upper_bound)) {
-                preprocessor.preprocess();
-            }
+            preprocessor.preprocess();
 
             // solve the rcspp
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,

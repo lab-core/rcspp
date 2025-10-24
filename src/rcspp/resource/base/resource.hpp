@@ -525,10 +525,10 @@ class Resource<ResourceComposition<ResourceTypes...>>
             return *(std::get<ResourceTypeIndex>(resource_components_)[resource_index]);
         }
 
-                template <typename ResourceType>
+        template <typename ResourceType>
         [[nodiscard]] auto get_resource_components() -> auto& {
             constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
-                    return get_resource_components<ResourceTypeIndex>();
+            return get_resource_components<ResourceTypeIndex>();
         }
 
         template <typename ResourceType>

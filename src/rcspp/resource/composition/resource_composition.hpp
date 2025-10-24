@@ -4,8 +4,7 @@
 #pragma once
 
 #include <algorithm>
-#include <concepts>
-#include <iostream>
+#include <concepts>  // NOLINT(build/include_order)
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -119,7 +118,6 @@ class ResourceComposition : public ResourceBase<ResourceComposition<ResourceType
             return *(std::get<ResourceTypeIndex>(resource_base_components_)[resource_index]);
         }
 
-        
         template <typename ResourceType>
         [[nodiscard]] auto get_type_components() -> auto& {
             constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
@@ -151,7 +149,7 @@ class ResourceComposition : public ResourceBase<ResourceComposition<ResourceType
         static void reset_resource_vector(
             std::vector<std::unique_ptr<ResourceType>>* resource_vector_ptr) {
             for (auto& res : *resource_vector_ptr) {
-                res->reset();
+                (*res).reset();
             }
         }
 
