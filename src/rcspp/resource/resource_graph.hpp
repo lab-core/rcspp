@@ -170,7 +170,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
                                     size_t cost_index = 0) {
             // remove some arcs before solving the problem
-            // the deleted arcs will be restored at the destruction of the preprocessor
+            // the deleted arcs will be restored after the solve
             auto preprocessor =
                 ShortestPathPreprocessor<CostResourceType, ResourceTypes...>(this,
                                                                              upper_bound,
@@ -180,7 +180,12 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             // solve the rcspp
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
                                                                            *this);
-            return algorithm.solve();
+            std::vector<Solution> sols = algorithm.solve();
+
+            // restore the removed arcs for the next resolution
+            preprocessor.restore();
+
+            return sols;
         }
 
         template <typename CostResourceType = RealResource>

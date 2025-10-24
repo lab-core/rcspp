@@ -38,11 +38,6 @@ class Expander : public ResourceType {
             expansion_function_->expand(resource, *this, expanded_resource);
         }
 
-        void expand(const Resource<ResourceType>& resource,
-                    const std::unique_ptr<Resource<ResourceType>>& expanded_resource) const {
-            expand(resource, expanded_resource.get());
-        }
-
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
         [[nodiscard]] auto create(const ResourceType& resource_base, const size_t arc_id) const
@@ -96,12 +91,6 @@ class Expander<ResourceComposition<ResourceTypes...>>
         void expand(const Resource<ResourceComposition<ResourceTypes...>>& resource,
                     Resource<ResourceComposition<ResourceTypes...>>* expanded_resource) const {
             expansion_function_->expand(resource, *this, expanded_resource);
-        }
-
-        void expand(const Resource<ResourceComposition<ResourceTypes...>>& resource,
-                    const std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>>&
-                        expanded_resource) const {
-            expand(resource, expanded_resource.get());
         }
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }

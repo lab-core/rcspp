@@ -61,7 +61,7 @@ class CompositionExpansionFunction
         void expand_resource(const auto& sing_res_vec, const auto& sing_exp_vec,
                              const auto& expanded_sing_res_vec) const {
             for (int i = 0; i < sing_res_vec.size(); i++) {
-                sing_exp_vec[i]->expand(*sing_res_vec[i], expanded_sing_res_vec[i]);
+                sing_exp_vec[i]->expand(*sing_res_vec[i], expanded_sing_res_vec[i].get());
             }
         }
 };

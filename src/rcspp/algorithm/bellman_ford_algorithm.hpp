@@ -36,7 +36,7 @@ class BellmanFordAlgorithm {
     public:
         // compute shortest paths from any of the given targets to all nodes (forward) or from all
         // nodes to any of the given targets (backward)
-        template <typename CostResourceType, typename... ResourceTypes>
+        template <typename CostResourceType = RealResource, typename... ResourceTypes>
         static Distance solve(const Graph<ResourceComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids, size_t cost_index = 0,
                               bool forward = true) {
@@ -44,7 +44,7 @@ class BellmanFordAlgorithm {
             Distance distance(target_ids, graph_);
 
             // Prepare distance table
-            std::vector<ArcRelaxation> arc_relations;
+            std::vector<ArcRelaxation> arc_relaxations;
             for (const auto& [arc_id, arc] : graph_.get_arcs_by_id()) {
                 // fetch cost
                 // get the origin cost of the cost resource
@@ -61,13 +61,17 @@ class BellmanFordAlgorithm {
                     resource.template get_resource_component<CostResourceType>(cost_index);
                 double cost = cost_resource.get_value();
                 // compute the weight, i.e., cost difference
-                arc_relations.emplace_back(arc->origin->id,
-                                           arc->destination->id,
-                                           cost - origin_cost);
+                arc_relaxations.emplace_back(arc->origin->id,
+                                             arc->destination->id,
+                                             cost - origin_cost);
             }
 
+            // In backward shortest path computation, we need to reverse the order of arc
+            // relaxations to ensure that relaxation proceeds from destination to origin, correctly
+            // propagating distances from all nodes to the target(s). The goal is to be more
+            // efficient if the arcs are correctly ordered
             if (!forward) {
-                std::ranges::reverse(arc_relations);
+                std::ranges::reverse(arc_relaxations);
             }
 
             // Relax arcs |N|-1 times, on |N| iteration -> check for negative-weight cycles
@@ -75,7 +79,7 @@ class BellmanFordAlgorithm {
             for (size_t i = 0; i < nodes_size; ++i) {
                 bool modified = false;
                 bool last_iteration = (i == nodes_size - 1);
-                for (const auto& relax : arc_relations) {
+                for (const auto& relax : arc_relaxations) {
                     if (forward &&
                         distance[relax.origin_id] + relax.weight < distance[relax.destination_id]) {
                         distance[relax.destination_id] = distance[relax.origin_id] + relax.weight;

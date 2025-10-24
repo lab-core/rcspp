@@ -9,8 +9,8 @@
 
 namespace rcspp {
 
-template <typename CostResourceType, typename... ResourceTypes>
-class ShortestPathPreprocessor : public Preprocessor<ResourceComposition<ResourceTypes...>> {
+template <typename CostResourceType = RealResource, typename... ResourceTypes>
+class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<ResourceTypes...>> {
     public:
         ShortestPathPreprocessor(Graph<ResourceComposition<ResourceTypes...>>* graph,
                                  double upper_bound, size_t cost_index = 0)
@@ -38,14 +38,14 @@ class ShortestPathPreprocessor : public Preprocessor<ResourceComposition<Resourc
             }
         }
 
-    protected:
+    private:
         Distance dist_from_sources_, dist_to_sinks_;
         double upper_bound_;
 
         bool remove_arc(const Arc<ResourceComposition<ResourceTypes...>>& arc) override {
-            return static_cast<bool>(dist_from_sources_.at(arc.origin->id) + arc.cost +
-                                         dist_to_sinks_.at(arc.destination->id) >
-                                     upper_bound_);
+            return dist_from_sources_.at(arc.origin->id) + arc.cost +
+                       dist_to_sinks_.at(arc.destination->id) >
+                   upper_bound_;
         }
 };
 }  // namespace rcspp

@@ -1,4 +1,4 @@
-// Automatically generated umbrella header NOLINT(legal/copyright)
+// Automatically generated umbrella header clang-format off NOLINT(legal/copyright)
 #pragma once
 
 #include "rcspp/algorithm/algorithm.hpp"

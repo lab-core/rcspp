@@ -20,11 +20,6 @@ class ExpansionFunction {
     public:
         virtual ~ExpansionFunction() = default;
 
-        void expand(const Resource<ResourceType>& resource, const Expander<ResourceType>& expander,
-                    const std::unique_ptr<Resource<ResourceType>>& expanded_resource) {
-            expand(resource, expander, expanded_resource.get());
-        }
-
         virtual void expand(const Resource<ResourceType>& resource,
                             const Expander<ResourceType>& expander,
                             Resource<ResourceType>* expanded_resource) = 0;

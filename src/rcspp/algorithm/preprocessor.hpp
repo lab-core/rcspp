@@ -14,7 +14,7 @@ template <typename ResourceType>
 class Preprocessor {
     public:
         explicit Preprocessor(Graph<ResourceType>* graph) : graph_(graph) {}
-        virtual ~Preprocessor() { restore(); }
+        virtual ~Preprocessor() = default;
 
         virtual bool preprocess() {
             if (disable_preprocessing_) {
@@ -22,7 +22,7 @@ class Preprocessor {
             }
             bool deleted = false;
             for (auto it = graph_->arcs_by_id_.begin(); it != graph_->arcs_by_id_.end();) {
-                // check if we should to remove the arc
+                // check if we should remove the arc
                 if (remove_arc(*it->second)) {
                     deleted_arcs_by_id_.push_back(it->first);
                     it = graph_->delete_arc(it);

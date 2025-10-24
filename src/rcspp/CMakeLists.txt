@@ -8,7 +8,7 @@ file(GLOB_RECURSE HEADERS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
 set(RCSPP_UMBRELLA_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/rcspp.hpp")
 
 # first lines of the umbrella header
-file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Automatically generated umbrella header NOLINT(legal/copyright)\n#pragma once\n\n")
+file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Automatically generated umbrella header clang-format off NOLINT(legal/copyright)\n#pragma once\n\n")
 
 foreach(header ${HEADERS_FILES})
     # Compute relative path inside
