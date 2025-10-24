@@ -22,7 +22,7 @@ class ExpansionFunction {
 
         virtual void expand(const Resource<ResourceType>& resource,
                             const Expander<ResourceType>& expander,
-                            Resource<ResourceType>& expanded_resource) = 0;
+                            Resource<ResourceType>* expanded_resource) = 0;
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExpansionFunction> = 0;
 

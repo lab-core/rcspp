@@ -96,7 +96,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             const auto& current_node = label_ptr->get_end_node();
 
             for (auto arc_ptr : current_node->out_arcs) {
-                auto& new_label = this->label_pool_.get_next_label(&arc_ptr->destination);
+                auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
 
                 label_ptr->expand(*arc_ptr, &new_label);
 
@@ -128,7 +128,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             auto in_arc_ptr = label.get_in_arc();
 
             if (in_arc_ptr != nullptr) {
-                auto prev_node_ptr = &in_arc_ptr->origin;
+                auto prev_node_ptr = in_arc_ptr->origin;
 
                 const Label<ResourceType>* current_label_ptr = &label;
 
@@ -140,7 +140,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
                     for (auto label_ptr : expanded_labels_by_node_id_.at(prev_node_ptr->id)) {
                         auto& next_label_ref =
-                            this->label_pool_.get_next_label(&in_arc_ptr->destination);
+                            this->label_pool_.get_next_label(in_arc_ptr->destination);
                         label_ptr->expand(*in_arc_ptr, &next_label_ref);
 
                         if (next_label_ref <= *current_label_ptr) {
@@ -152,8 +152,8 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                     in_arc_ptr = current_label_ptr->get_in_arc();
 
                     if (in_arc_ptr != nullptr) {
-                        path_node_ids.push_back(in_arc_ptr->destination.id);
-                        prev_node_ptr = &in_arc_ptr->origin;
+                        path_node_ids.push_back(in_arc_ptr->destination->id);
+                        prev_node_ptr = in_arc_ptr->origin;
                     } else {
                         prev_node_ptr = nullptr;
                     }
@@ -182,7 +182,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             auto in_arc_ptr = label.get_in_arc();
 
             if (in_arc_ptr != nullptr) {
-                auto prev_node_ptr = &in_arc_ptr->origin;
+                auto prev_node_ptr = in_arc_ptr->origin;
 
                 const Label<ResourceType>* current_label_ptr = &label;
 
@@ -198,7 +198,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                             auto label_path_cost_differences = path_cost_differences;
 
                             auto& next_label_ref =
-                                this->label_pool_.get_next_label(&in_arc_ptr->destination);
+                                this->label_pool_.get_next_label(in_arc_ptr->destination);
                             label_ptr->expand(*in_arc_ptr, &next_label_ref);
 
                             if (next_label_ref <= *current_label_ptr) {
@@ -206,7 +206,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                                 auto current_label_cost = current_label_ptr->get_cost();
 
                                 label_path_node_ids.push_back(
-                                    label_ptr->get_in_arc()->destination.id);
+                                    label_ptr->get_in_arc()->destination->id);
 
                                 label_path_cost_differences.push_back(next_label_cost -
                                                                       current_label_cost);
@@ -235,7 +235,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                     }
 
                     if (in_arc_ptr != nullptr) {
-                        prev_node_ptr = &in_arc_ptr->origin;
+                        prev_node_ptr = in_arc_ptr->origin;
                     } else {
                         prev_node_ptr = nullptr;
                     }
@@ -253,14 +253,14 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             if (in_arc_ptr != nullptr) {
                 path_arc_ids.push_back(in_arc_ptr->id);
 
-                auto prev_node_ptr = &in_arc_ptr->origin;
+                auto prev_node_ptr = in_arc_ptr->origin;
 
                 const Label<ResourceType>* current_label_ptr = &label;
 
                 while (prev_node_ptr != nullptr && !this->graph_.is_source(prev_node_ptr->id)) {
                     for (const auto label_ptr : expanded_labels_by_node_id_.at(prev_node_ptr->id)) {
                         auto& next_label_ref =
-                            this->label_pool_.get_next_label(&in_arc_ptr->destination);
+                            this->label_pool_.get_next_label(in_arc_ptr->destination);
                         label_ptr->expand(*in_arc_ptr, &next_label_ref);
 
                         if (next_label_ref <= *current_label_ptr) {
@@ -273,7 +273,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
                     if (in_arc_ptr != nullptr) {
                         path_arc_ids.push_back(in_arc_ptr->id);
-                        prev_node_ptr = &in_arc_ptr->origin;
+                        prev_node_ptr = in_arc_ptr->origin;
                     } else {
                         prev_node_ptr = nullptr;
                     }

@@ -35,7 +35,6 @@ constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
 VRP::VRP(Instance instance, SolutionOutput* solution_output)
     : instance_(std::move(instance)),
-      path_id_(0),
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()),
       solution_output_(solution_output) {

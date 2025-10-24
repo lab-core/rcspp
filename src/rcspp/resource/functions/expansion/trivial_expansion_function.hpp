@@ -14,6 +14,6 @@ class TrivialExpansionFunction
     : public Clonable<TrivialExpansionFunction<ResourceType>, ExpansionFunction<ResourceType>> {
     public:
         void expand(const Resource<ResourceType>& resource, const Expander<ResourceType>& expander,
-                    Resource<ResourceType>& reused_resource) override {}
+                    Resource<ResourceType>* reused_resource) override {}
 };
 }  // namespace rcspp

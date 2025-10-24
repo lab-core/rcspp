@@ -39,7 +39,7 @@ class VRP {
         std::map<size_t, double> min_time_window_by_arc_id_;
         std::map<size_t, double> max_time_window_by_node_id_;
 
-        size_t path_id_;
+        size_t path_id_ = 0;
 
         std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
 

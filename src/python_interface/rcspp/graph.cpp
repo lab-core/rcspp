@@ -34,8 +34,8 @@ void init_graph(py::module_& m) {
              py::arg("sink") = false,
              py::return_value_policy::reference)
         .def("add_arc",
-             py::overload_cast<ConcreteNode&,
-                               ConcreteNode&,
+             py::overload_cast<ConcreteNode*,
+                               ConcreteNode*,
                                std::optional<size_t>,
                                double,
                                std::vector<Row>>(&ConcreteGraph::add_arc),
@@ -77,8 +77,8 @@ void init_graph(py::module_& m) {
 
     py::class_<ConcreteArc>(m, "Arc")
         .def(py::init<size_t,
-                      const ConcreteNode&,
-                      const ConcreteNode&,
+                      ConcreteNode*,
+                      ConcreteNode*,
                       std::unique_ptr<ConcreteExpander>,
                       double>(),
              py::arg("id"),
@@ -86,18 +86,18 @@ void init_graph(py::module_& m) {
              py::arg("destination"),
              py::arg("expander"),
              py::arg("cost"))
-        .def(py::init<size_t, const ConcreteNode&, const ConcreteNode&>(),
+        .def(py::init<size_t, ConcreteNode*, ConcreteNode*>(),
              py::arg("id"),
              py::arg("origin"),
              py::arg("destination"))
         .def_readonly("id", &ConcreteArc::id)
         .def(
             "get_origin",
-            [](const ConcreteArc& arc) -> const ConcreteNode& { return arc.origin; },
+            [](const ConcreteArc& arc) -> ConcreteNode* { return arc.origin; },
             py::return_value_policy::reference)
         .def(
             "get_destination",
-            [](const ConcreteArc& arc) -> const ConcreteNode& { return arc.destination; },
+            [](const ConcreteArc& arc) -> ConcreteNode* { return arc.destination; },
             py::return_value_policy::reference)
         .def_readwrite("expander", &ConcreteArc::expander)
         .def_readwrite("cost", &ConcreteArc::cost);
