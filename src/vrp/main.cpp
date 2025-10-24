@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <memory>
 
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
@@ -36,6 +37,11 @@ int main(int argc, char* argv[]) {
     if (argc >= 3) {
         subproblem_max_nb_solutions = std::stoull(argv[2]);
     }
+    std::string duals_directory =
+        "../../../../instances/duals/" + instance_name + "/";
+    if (argc >= 4) {
+        duals_directory = std::stoull(argv[3]);
+    }
 
     std::string output_path = "../output/" + instance_name + ".txt";
 
@@ -44,20 +50,15 @@ int main(int argc, char* argv[]) {
 
     auto instance = instance_reader.read();
 
-    /*auto optimal_dual_by_var_id = instance_reader.read_duals(output_path);
-    std::cout << "optimal_dual_by_var_id.size()=" << optimal_dual_by_var_id.size()
-    << std::endl;*/
-
-    /*BoostSubproblem subproblem(instance);
-
-    subproblem.solve();*/
-
-    VRP vrp(instance);
+    std::unique_ptr<SolutionOutput> solution_output;
+    if (!duals_directory.empty()) {
+        solution_output = std::make_unique<SolutionOutput>(duals_directory);
+    }
+    
+    VRP vrp(instance, solution_output.get());
 
     auto time_start = std::chrono::high_resolution_clock::now();
 
-    // auto master_solution = vrp.solve(subproblem_max_nb_solutions, false,
-    // optimal_dual_by_var_id);
     auto master_solution = vrp.solve(subproblem_max_nb_solutions, false);
 
     auto time_end = std::chrono::high_resolution_clock::now();

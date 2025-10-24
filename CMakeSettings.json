@@ -5,7 +5,7 @@
       "generator": "Ninja",
       "configurationType": "Debug",
       "inheritEnvironments": [ "msvc_x64" ],
-      "cmakeCommandArgs": "-DUSE_VRP=ON -DUSE_PYTHON=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+      "cmakeCommandArgs": "-DUSE_VRP=ON -DUSE_PYTHON=OFF -DUSE_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
       "variables": [
         {
           "name": "CMAKE_C_COMPILER",
@@ -24,7 +24,7 @@
       "generator": "Ninja",
       "configurationType": "Release",
       "inheritEnvironments": [ "msvc_x64" ],
-      "cmakeCommandArgs": "-DUSE_VRP=ON -DUSE_PYTHON=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+      "cmakeCommandArgs": "-DUSE_VRP=ON -DUSE_PYTHON=OFF -DUSE_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
       "variables": [
         {
           "name": "CMAKE_C_COMPILER",

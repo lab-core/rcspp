@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <ranges>
 
@@ -83,8 +84,10 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     int nb_iter = 0;
     while (min_reduced_cost < -EPSILON) {
         std::cout << "\n*********************************************\n";
-        std::cout << "nb_iter=" << nb_iter << " | min_reduced_cost=" << min_reduced_cost
-                  << " | EPSILON=" << EPSILON << std::endl;
+        std::cout << "nb_iter=" << nb_iter << " | min_reduced_cost=" << std::fixed
+                  << std::setprecision(std::numeric_limits<double>::max_digits10)
+                  << min_reduced_cost;
+        std::cout << " | EPSILON=" << EPSILON << std::endl;
         std::cout << "*********************************************\n";
 
         MasterProblem master_problem(instance_.get_demand_customers_id());
@@ -92,6 +95,9 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         master_problem.construct_model(paths_);
 
         master_solution = master_problem.solve(true);
+
+        std::string dual_output_file = "iter_" + std::to_string(nb_iter) + ".txt";
+        solution_output_->save_dual_to_file(master_solution, dual_output_file);
 
         const auto dual_by_id =
             calculate_dual(master_solution.dual_by_var_id, optimal_dual_by_var_id, nb_iter);
@@ -165,7 +171,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         add_paths(negative_red_cost_solutions);
 
-        nb_iter++;
+        nb_iter++;        
 
         if (min_reduced_cost >= -EPSILON) {
             final_dual_by_id = master_solution.dual_by_var_id;
