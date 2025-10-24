@@ -4,6 +4,7 @@
 #pragma once
 
 #include <limits>
+#include <random>
 #include <unordered_map>
 #include <vector>
 
@@ -26,6 +27,12 @@ struct Distance : public std::unordered_map<size_t, double> {
 };
 
 class BellmanFordAlgorithm {
+        struct ArcRelaxation {
+                size_t origin_id;
+                size_t destination_id;
+                double weight;
+        };
+
     public:
         // compute shortest paths from any of the given targets to all nodes (forward) or from all
         // nodes to any of the given targets (backward)
@@ -33,40 +40,49 @@ class BellmanFordAlgorithm {
         static Distance solve(const Graph<ResourceComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids, size_t cost_index = 0,
                               bool forward = true) {
-            auto node_ids = graph_.get_node_ids();
-            auto arc_ids = graph_.get_arc_ids();
-
             // Distance from source to each node
             Distance distance(target_ids, graph_);
 
+            // Prepare distance table
+            std::vector<ArcRelaxation> arc_relations;
+            for (const auto& [arc_id, arc] : graph_.get_arcs_by_id()) {
+                // fetch cost
+                // get the origin cost of the cost resource
+                const CostResourceType& origin_cost_resource =
+                    arc->origin->resource->template get_resource_component<CostResourceType>(
+                        cost_index);
+                double origin_cost = origin_cost_resource.get_value();
+                // expand the resource
+                Resource<ResourceComposition<ResourceTypes...>> resource(
+                    *arc->destination->resource);
+                arc->expander->expand(*arc->origin->resource, &resource);
+                // fetch the new value of the cost resource
+                const CostResourceType& cost_resource =
+                    resource.template get_resource_component<CostResourceType>(cost_index);
+                double cost = cost_resource.get_value();
+                // compute the weight, i.e., cost difference
+                arc_relations.emplace_back(arc->origin->id,
+                                           arc->destination->id,
+                                           cost - origin_cost);
+            }
+
+            if (!forward) {
+                std::ranges::reverse(arc_relations);
+            }
+
             // Relax arcs |N|-1 times, on |N| iteration -> check for negative-weight cycles
-            for (size_t i = 0; i < node_ids.size(); ++i) {
+            const size_t nodes_size = graph_.get_node_ids().size();
+            for (size_t i = 0; i < nodes_size; ++i) {
                 bool modified = false;
-                bool last_iteration = (i == node_ids.size() - 1);
-                for (const auto& [arc_id, arc] : graph_.get_arcs_by_id()) {
-                    // fetch cost
-                    // get the origin cost of the cost resource
-                    const CostResourceType& origin_cost_resource =
-                        arc->origin->resource->template get_resource_component<CostResourceType>(
-                            cost_index);
-                    double origin_cost = origin_cost_resource.get_value();
-                    // expand the resource
-                    Resource<ResourceComposition<ResourceTypes...>> resource(
-                        *arc->destination->resource);
-                    arc->expander->expand(*arc->origin->resource, &resource);
-                    // fetch the new value of the cost resource
-                    const CostResourceType& cost_resource =
-                        resource.template get_resource_component<CostResourceType>(cost_index);
-                    double cost = cost_resource.get_value();
-                    // compute the weight, i.e., cost difference
-                    double w = cost - origin_cost;
-                    size_t u = arc->origin->id;
-                    size_t v = arc->destination->id;
-                    if (forward && distance[u] + w < distance[v]) {
-                        distance[v] = distance[u] + w;
+                bool last_iteration = (i == nodes_size - 1);
+                for (const auto& relax : arc_relations) {
+                    if (forward &&
+                        distance[relax.origin_id] + relax.weight < distance[relax.destination_id]) {
+                        distance[relax.destination_id] = distance[relax.origin_id] + relax.weight;
                         modified = true;
-                    } else if (!forward && distance[v] + w < distance[u]) {
-                        distance[u] = distance[v] + w;
+                    } else if (!forward && distance[relax.destination_id] + relax.weight <
+                                               distance[relax.origin_id]) {
+                        distance[relax.origin_id] = distance[relax.destination_id] + relax.weight;
                         modified = true;
                     }
 
