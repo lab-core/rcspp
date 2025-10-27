@@ -13,6 +13,9 @@ int main() {
     if (test_rcspp()) {
         passed++;
     }
+    if (test_rcspp_non_integer_dual_row_coef()) {
+        passed++;
+    }
     total++;
 
     std::cout << passed << "/" << total << " tests passed\n";

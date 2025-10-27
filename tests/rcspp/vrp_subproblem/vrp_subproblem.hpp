@@ -1,3 +1,5 @@
+#pragma once
+
 #include "rcspp/rcspp.hpp"
 #include "vrp/instance.hpp"
 
@@ -7,12 +9,18 @@
 using namespace rcspp;
 
 class VRPSubproblem {
-    public:
-        VRPSubproblem(Instance instance);
+    // Solve one iteration of the subproblem of the VRPTW
 
+    public:
+        VRPSubproblem(Instance instance,
+                  const std::map<size_t, double>* row_coefficient_by_id = nullptr);
+
+        // Given a the duals by node id, solve the subproblem and return a vector of solutions.
         std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id);
 
     private:
+
+        const std::map<size_t, double>* row_coefficient_by_id_;
 
         Instance instance_;
 
@@ -44,7 +52,7 @@ class VRPSubproblem {
         void add_all_arcs_to_graph(ResourceGraph<RealResource>* graph,
                                    const std::map<size_t, double>* dual_by_id);
 
-        static void add_arc_to_graph(ResourceGraph<RealResource>* graph, size_t customer_orig_id,
+        void add_arc_to_graph(ResourceGraph<RealResource>* graph, size_t customer_orig_id,
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
                                      const std::map<size_t, double>* dual_by_id, size_t arc_id);

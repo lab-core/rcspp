@@ -12,8 +12,10 @@
 
 constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
-VRPSubproblem::VRPSubproblem(Instance instance)
-    : instance_(std::move(instance)),
+VRPSubproblem::VRPSubproblem(Instance instance,
+                             const std::map<size_t, double>* row_coefficient_by_id)
+    : row_coefficient_by_id_(row_coefficient_by_id),
+      instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()) {
     std::cout << "VRPSubproblem::VRPSubproblem\n";
@@ -218,13 +220,18 @@ void VRPSubproblem::add_arc_to_graph(ResourceGraph<RealResource>* resource_graph
 
     auto demand = customer_dest.demand;
 
+    long double row_coefficient = 1.0;
+    if (row_coefficient_by_id_ != nullptr) {
+        row_coefficient = row_coefficient_by_id_->at(customer_orig_id);
+    }
+
     auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
         {{reduced_cost}, {time}, {demand}},
         customer_orig_id,
         customer_dest_id,
         arc_id,
         distance,
-        {Row(customer_orig_id, 1.0)});
+        {Row(customer_orig_id, row_coefficient)});
 }
 
 double VRPSubproblem::calculate_distance(const Customer& customer1, const Customer& customer2) {
