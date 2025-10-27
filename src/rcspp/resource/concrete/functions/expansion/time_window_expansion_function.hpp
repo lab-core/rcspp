@@ -18,7 +18,7 @@ class TimeWindowExpansionFunction
             const std::map<size_t, double>& min_time_window_by_arc_id);
 
         void expand(const Resource<RealResource>& resource, const Expander<RealResource>& expander,
-                    Resource<RealResource>& expanded_resource) override;
+                    Resource<RealResource>* expanded_resource) override;
 
     private:
         const std::map<size_t, double>& min_time_window_by_arc_id_;

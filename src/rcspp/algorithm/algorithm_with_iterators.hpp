@@ -5,12 +5,11 @@
 
 #include <algorithm>
 #include <cassert>
-#include <chrono>
-#include <concepts>
+#include <chrono>    // NOLINT(build/c++11)
+#include <concepts>  // NOLINT(build/include_order)
 #include <iostream>
 #include <limits>
 #include <list>
-#include <memory>
 #include <utility>
 #include <vector>
 

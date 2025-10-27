@@ -51,8 +51,8 @@ class Label {
 
         // Label expansion
         void expand(const Arc<ResourceType>& arc, Label* expanded_label) const {
-            arc.expander->expand(*resource_, *expanded_label->resource_);
-            expanded_label->end_node_ = &arc.destination;
+            arc.expander->expand(*resource_, expanded_label->resource_.get());
+            expanded_label->end_node_ = arc.destination;
             expanded_label->in_arc_ = &arc;
             expanded_label->out_arc_ = nullptr;
         }

@@ -1,13 +1,12 @@
-// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
-// All rights reserved.
-
+// Automatically generated umbrella header clang-format off NOLINT(legal/copyright)
 #pragma once
-
-// Automatically generated umbrella header
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_with_iterators.hpp"
+#include "rcspp/algorithm/bellman_ford_algorithm.hpp"
 #include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/preprocessor.hpp"
+#include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/graph/arc.hpp"

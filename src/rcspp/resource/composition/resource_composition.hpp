@@ -4,14 +4,15 @@
 #pragma once
 
 #include <algorithm>
-#include <concepts>
-#include <iostream>
+#include <concepts>  // NOLINT(build/include_order)
+#include <iterator>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -93,29 +94,47 @@ class ResourceComposition : public ResourceBase<ResourceComposition<ResourceType
                         .emplace_back(std::move(resource));
         }
 
-        [[nodiscard]] auto get_components()
+        [[nodiscard]] auto get_type_components()
             -> std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& {
             return resource_base_components_;
         }
 
-        [[nodiscard]] auto get_components() const
+        [[nodiscard]] auto get_type_components() const
             -> const std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& {
             return resource_base_components_;
         }
 
         template <size_t ResourceTypeIndex>
-        [[nodiscard]] auto get_components() -> auto& {
+        [[nodiscard]] auto get_type_components() -> auto& {
             return std::get<ResourceTypeIndex>(resource_base_components_);
         }
 
         template <size_t ResourceTypeIndex>
-        [[nodiscard]] auto get_components() const -> const auto& {
+        [[nodiscard]] auto get_type_components() const -> const auto& {
             return std::get<ResourceTypeIndex>(resource_base_components_);
         }
 
         template <size_t ResourceTypeIndex>
-        [[nodiscard]] auto get_component(size_t resource_index) const -> const auto& {
+        [[nodiscard]] auto get_type_component(size_t resource_index) const -> const auto& {
             return *(std::get<ResourceTypeIndex>(resource_base_components_)[resource_index]);
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_type_components() -> auto& {
+            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            return get_type_components<ResourceTypeIndex>();
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_type_components() const -> const auto& {
+            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            return get_type_components<ResourceTypeIndex>();
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_type_component(size_t resource_index) const -> const auto& {
+            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            return get_type_component<ResourceTypeIndex>(resource_index);
         }
 
         void reset() override {
@@ -131,7 +150,7 @@ class ResourceComposition : public ResourceBase<ResourceComposition<ResourceType
         static void reset_resource_vector(
             std::vector<std::unique_ptr<ResourceType>>* resource_vector_ptr) {
             for (auto& res : *resource_vector_ptr) {
-                res->reset();
+                (*res).reset();
             }
         }
 
