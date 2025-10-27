@@ -68,33 +68,7 @@ class Graph {
 
             return add_arc(origin_node.get(), destination_node.get(), arc_id, cost, dual_rows);
         }
-
-        virtual std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator delete_arc(
-            std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator it) {
-            size_t arc_id = it->first;
-            Arc<ResourceType>& arc = *it->second;
-
-            // remove arc from destination node's in_arcs
-            auto& in_arcs = arc.destination->in_arcs;
-            in_arcs.erase(
-                std::remove_if(in_arcs.begin(),
-                               in_arcs.end(),
-                               [arc_id](Arc<ResourceType>* arc) { return arc->id == arc_id; }),
-                in_arcs.end());
-
-            // remove arc from origin node's out_arcs
-            auto& out_arcs = arc.origin->out_arcs;
-            out_arcs.erase(
-                std::remove_if(out_arcs.begin(),
-                               out_arcs.end(),
-                               [arc_id](Arc<ResourceType>* arc) { return arc->id == arc_id; }),
-                out_arcs.end());
-
-            // move deleted arc
-            deleted_arcs_by_id_[arc_id] = std::move(it->second);
-            return arcs_by_id_.erase(it);
-        }
-
+                
         virtual bool delete_arc(size_t arc_id) {
             auto it = arcs_by_id_.find(arc_id);
             if (it == arcs_by_id_.end()) {
@@ -105,23 +79,6 @@ class Graph {
         }
 
         virtual bool delete_arc(const Arc<ResourceType>& arc) { return delete_arc(arc.id); }
-
-        virtual std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator restore_arc(
-            const std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator& it,
-            bool delete_from_map = true) {
-            Arc<ResourceType>& arc = *it->second;
-            // add arc to destination node's in_arcs
-            arc.destination->in_arcs.push_back(&arc);
-            // add arc to origin node's out_arcs
-            arc.origin->out_arcs.push_back(&arc);
-            // move restored arc
-            arcs_by_id_[it->first] = std::move(it->second);
-            // delete from deleted arcs map if specified
-            if (delete_from_map) {
-                return deleted_arcs_by_id_.erase(it);
-            }
-            return it;
-        }
 
         virtual bool restore_arc(size_t arc_id) {
             auto it = deleted_arcs_by_id_.find(arc_id);
@@ -134,12 +91,12 @@ class Graph {
 
         virtual bool restore_arc(const Arc<ResourceType>& arc) { return restore_arc(arc.id); }
 
-        void restore_all_arcs() {
+        /*void restore_all_arcs() {
             for (auto it = deleted_arcs_by_id_.begin(); it != deleted_arcs_by_id_.end(); it++) {
                 restore_arc(it, false);
             }
             deleted_arcs_by_id_.clear();
-        }
+        }*/
 
         [[nodiscard]] Node<ResourceType>& get_node(size_t node_id) const {
             return *nodes_by_id_.at(node_id).get();
@@ -198,5 +155,48 @@ class Graph {
 
         std::vector<size_t> source_node_ids_;
         std::vector<size_t> sink_node_ids_;
+
+        virtual std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator delete_arc(
+            std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator it) {
+            size_t arc_id = it->first;
+            Arc<ResourceType>& arc = *it->second;
+
+            // remove arc from destination node's in_arcs
+            auto& in_arcs = arc.destination->in_arcs;
+            in_arcs.erase(
+                std::remove_if(in_arcs.begin(),
+                               in_arcs.end(),
+                               [arc_id](Arc<ResourceType>* arc) { return arc->id == arc_id; }),
+                in_arcs.end());
+
+            // remove arc from origin node's out_arcs
+            auto& out_arcs = arc.origin->out_arcs;
+            out_arcs.erase(
+                std::remove_if(out_arcs.begin(),
+                               out_arcs.end(),
+                               [arc_id](Arc<ResourceType>* arc) { return arc->id == arc_id; }),
+                out_arcs.end());
+
+            // move deleted arc
+            deleted_arcs_by_id_[arc_id] = std::move(it->second);
+            return arcs_by_id_.erase(it);
+        }
+
+        virtual std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator restore_arc(
+            const std::map<size_t, std::unique_ptr<Arc<ResourceType>>>::iterator& it,
+            bool delete_from_map = true) {
+            Arc<ResourceType>& arc = *it->second;
+            // add arc to destination node's in_arcs
+            arc.destination->in_arcs.push_back(&arc);
+            // add arc to origin node's out_arcs
+            arc.origin->out_arcs.push_back(&arc);
+            // move restored arc
+            arcs_by_id_[it->first] = std::move(it->second);
+            // delete from deleted arcs map if specified
+            if (delete_from_map) {
+                return deleted_arcs_by_id_.erase(it);
+            }
+            return it;
+        }
 };
 }  // namespace rcspp
