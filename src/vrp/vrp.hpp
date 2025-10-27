@@ -76,7 +76,7 @@ class VRP {
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
                                      const std::map<size_t, double>* dual_by_id, size_t arc_id);
-                
+
         [[nodiscard]] static double calculate_distance(const Customer& customer1,
                                                        const Customer& customer2);
 

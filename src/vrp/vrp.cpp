@@ -171,7 +171,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         add_paths(negative_red_cost_solutions);
 
-        nb_iter++;        
+        nb_iter++;
 
         if (min_reduced_cost >= -EPSILON) {
             final_dual_by_id = master_solution.dual_by_var_id;

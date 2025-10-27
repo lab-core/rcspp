@@ -4,11 +4,12 @@
 #include "solution_output.hpp"
 
 #include <fstream>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <limits>
 
-SolutionOutput::SolutionOutput(std::string duals_directory) : duals_directory_(std::move(duals_directory)) {}
+SolutionOutput::SolutionOutput(std::string duals_directory)
+    : duals_directory_(std::move(duals_directory)) {}
 
 void SolutionOutput::print(const Instance& instance, const MPSolution& solution,
                            std::vector<Path> paths) {
@@ -40,14 +41,12 @@ void SolutionOutput::print(const Instance& instance, const MPSolution& solution,
 }
 
 void SolutionOutput::save_dual_to_file(const MPSolution& solution, const std::string output_path) {
-
     std::string full_output_path = duals_directory_ + output_path;
 
     std::ofstream output_file(full_output_path);
 
     if (output_file.is_open()) {
         for (const auto& [var_id, dual_value] : solution.dual_by_var_id) {
-            
             output_file << var_id << " " << std::fixed
                         << std::setprecision(std::numeric_limits<double>::max_digits10)
                         << dual_value << std::endl;

@@ -58,9 +58,10 @@ bool test_rcspp_non_integer_dual_row_coef() {
     InstanceReader instance_reader(instance_path);
     auto instance = instance_reader.read();
 
+    // Use a dual row coefficient of 0.5
     const double DUAL_ROW_COEF = 0.5;
     std::map<size_t, double> coef_by_id;
-    for (auto& [key, value] : instance.get_customers_by_id()) {
+    for (const auto& [key, value] : instance.get_customers_by_id()) {
         coef_by_id.emplace(key, DUAL_ROW_COEF);
     }
     
@@ -73,7 +74,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     auto duals_path = duals_directory + duals_file;
 
     auto dual_by_id = InstanceReader::read_duals(duals_path);
-    // Multiply all udal values by 2
+    // Multiply all dual values by 2
     for (auto& [key, value] : dual_by_id) {
         value *= 1 / DUAL_ROW_COEF;
     }
@@ -87,7 +88,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     duals_path = duals_directory + duals_file;
 
     dual_by_id = InstanceReader::read_duals(duals_path);
-    // Multiply all udal values by 2
+    // Multiply all dual values by 2
     for (auto& [key, value] : dual_by_id) {
         value *= 1 / DUAL_ROW_COEF;
     }

@@ -37,8 +37,7 @@ int main(int argc, char* argv[]) {
     if (argc >= 3) {
         subproblem_max_nb_solutions = std::stoull(argv[2]);
     }
-    std::string duals_directory =
-        "../../../../instances/duals/" + instance_name + "/";
+    std::string duals_directory = "../../../../instances/duals/" + instance_name + "/";
     if (argc >= 4) {
         duals_directory = std::stoull(argv[3]);
     }
@@ -54,7 +53,7 @@ int main(int argc, char* argv[]) {
     if (!duals_directory.empty()) {
         solution_output = std::make_unique<SolutionOutput>(duals_directory);
     }
-    
+
     VRP vrp(instance, solution_output.get());
 
     auto time_start = std::chrono::high_resolution_clock::now();
