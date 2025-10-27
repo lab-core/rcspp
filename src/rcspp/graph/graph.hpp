@@ -68,7 +68,7 @@ class Graph {
 
             return add_arc(origin_node.get(), destination_node.get(), arc_id, cost, dual_rows);
         }
-                
+
         virtual bool delete_arc(size_t arc_id) {
             auto it = arcs_by_id_.find(arc_id);
             if (it == arcs_by_id_.end()) {

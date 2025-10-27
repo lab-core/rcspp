@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <concepts>  // NOLINT(build/include_order)
+#include <iterator>
 #include <memory>
 #include <tuple>
 #include <utility>
