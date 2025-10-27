@@ -11,13 +11,14 @@ int main() {
     int passed = 0;
     int total = 0;
 
-    // Test graph creation and graph update
+    // Test graph creation, graph update and solving the RCSPP
     if (test_rcspp()) {
         passed++;
     }
     total++;
 
-    // Test graph creation and graph update with non integer dual row coefficients
+    // Test graph creation and graph update with non integer dual 
+    // row coefficients, and solving the RCSPP
     if (test_rcspp_non_integer_dual_row_coef()) {
         passed++;
     }
