@@ -225,8 +225,16 @@ void VRPSubproblem::add_arc_to_graph(ResourceGraph<RealResource>* resource_graph
         row_coefficient = row_coefficient_by_id_->at(customer_orig_id);
     }
 
-    auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
+    /*auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
         {{reduced_cost}, {time}, {demand}},
+        customer_orig_id,
+        customer_dest_id,
+        arc_id,
+        distance,
+        {Row(customer_orig_id, row_coefficient)});*/
+
+    auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
+        {reduced_cost, time, demand},
         customer_orig_id,
         customer_dest_id,
         arc_id,

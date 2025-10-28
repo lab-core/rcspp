@@ -446,7 +446,7 @@ void VRP::add_arc_to_graph(ResourceGraph<RealResource>* resource_graph, size_t c
       {Row(customer_orig_id, 1.0)});*/
 
     auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
-        {{reduced_cost}, {time}, {demand}},
+        {reduced_cost, time, demand},
         customer_orig_id,
         customer_dest_id,
         arc_id,
