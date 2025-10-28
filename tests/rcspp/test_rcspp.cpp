@@ -75,8 +75,9 @@ bool test_rcspp_non_integer_dual_row_coef() {
 
     auto dual_by_id = InstanceReader::read_duals(duals_path);
     // Multiply all dual values by 2
+    const double DUAL_COEF = 1 / DUAL_ROW_COEF;
     for (auto& [key, value] : dual_by_id) {
-        value *= 1 / DUAL_ROW_COEF;
+        value *= DUAL_COEF;
     }
 
     success = test_vrp_solve(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_0);
@@ -90,7 +91,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     dual_by_id = InstanceReader::read_duals(duals_path);
     // Multiply all dual values by 2
     for (auto& [key, value] : dual_by_id) {
-        value *= 1 / DUAL_ROW_COEF;
+        value *= DUAL_COEF;
     }
 
     success = test_vrp_solve(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_1);
