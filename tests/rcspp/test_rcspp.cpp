@@ -101,8 +101,6 @@ bool test_rcspp_non_integer_dual_row_coef() {
 bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* vrp_subproblem, 
   double optimal_cost) {
 
-    bool success = true;
-
     auto solutions = vrp_subproblem->solve(dual_by_id);
 
     if (!solutions.empty()) {
@@ -112,11 +110,11 @@ bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* v
         if (std::abs(cost - optimal_cost) > EPSILON) {
             std::cout << "Difference with optimal cost: " << std::abs(cost - optimal_cost)
                       << std::endl;
-            success = false;
+            return false;
         }
     } else {
-        success = false;
+        return false;
     }
 
-    return success;
+    return true;
 }
