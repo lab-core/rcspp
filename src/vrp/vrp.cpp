@@ -109,7 +109,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         if (solution_output_.has_value()) {
             solution_output_->save_dual_to_file(master_solution, dual_output_file);
-        }        
+        }
 
         const auto dual_by_id =
             calculate_dual(master_solution.dual_by_var_id, optimal_dual_by_var_id, nb_iter);

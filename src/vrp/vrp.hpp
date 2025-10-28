@@ -20,7 +20,6 @@ using namespace rcspp;
 
 class VRP {
     public:
-        
         VRP(Instance instance);
 
         VRP(Instance instance, std::string duals_directory);
