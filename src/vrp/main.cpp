@@ -49,12 +49,7 @@ int main(int argc, char* argv[]) {
 
     auto instance = instance_reader.read();
 
-    std::unique_ptr<SolutionOutput> solution_output;
-    if (!duals_directory.empty()) {
-        solution_output = std::make_unique<SolutionOutput>(duals_directory);
-    }
-
-    VRP vrp(instance, solution_output.get());
+    VRP vrp(instance, duals_directory);
 
     auto time_start = std::chrono::high_resolution_clock::now();
 

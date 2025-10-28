@@ -20,7 +20,10 @@ using namespace rcspp;
 
 class VRP {
     public:
-        VRP(Instance instance, SolutionOutput* solution_output = nullptr);
+        
+        VRP(Instance instance);
+
+        VRP(Instance instance, std::string duals_directory);
 
         const std::vector<Path>& generate_initial_paths();
 
@@ -47,7 +50,7 @@ class VRP {
 
         ResourceGraph<RealResource> subproblem_graph_;
 
-        SolutionOutput* solution_output_;
+        std::optional<SolutionOutput> solution_output_;
 
         size_t depot_id_;
 

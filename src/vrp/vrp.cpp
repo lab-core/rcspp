@@ -34,12 +34,21 @@
 
 constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
-VRP::VRP(Instance instance, SolutionOutput* solution_output)
+VRP::VRP(Instance instance)
     : instance_(std::move(instance)),
       path_id_(0),
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()),
-      solution_output_(solution_output) {
+      solution_output_(std::nullopt) {
+    std::cout << "VRP::VRP\n";
+}
+
+VRP::VRP(Instance instance, std::string duals_directory)
+    : instance_(std::move(instance)),
+      path_id_(0),
+      time_window_by_customer_id_(initialize_time_windows()),
+      initial_graph_(construct_resource_graph()),
+      solution_output_(SolutionOutput(duals_directory)) {
     std::cout << "VRP::VRP\n";
 }
 
@@ -97,7 +106,10 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         master_solution = master_problem.solve(true);
 
         std::string dual_output_file = "iter_" + std::to_string(nb_iter) + ".txt";
-        solution_output_->save_dual_to_file(master_solution, dual_output_file);
+
+        if (solution_output_.has_value()) {
+            solution_output_->save_dual_to_file(master_solution, dual_output_file);
+        }        
 
         const auto dual_by_id =
             calculate_dual(master_solution.dual_by_var_id, optimal_dual_by_var_id, nb_iter);
