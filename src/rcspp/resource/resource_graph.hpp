@@ -3,12 +3,14 @@
 
 #pragma once
 
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
@@ -163,11 +165,27 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
         }
 
-        template <template <typename> class AlgorithmType = DominanceAlgorithmIterators>
-        std::vector<Solution> solve() {
+        template <template <typename> class AlgorithmType = DominanceAlgorithmIterators,
+                  typename CostResourceType = RealResource>
+        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
+                                    size_t cost_index = 0) {
+            // remove some arcs before solving the problem
+            // the deleted arcs will be restored after the solve
+            auto preprocessor =
+                ShortestPathPreprocessor<CostResourceType, ResourceTypes...>(this,
+                                                                             upper_bound,
+                                                                             cost_index);
+            preprocessor.preprocess();
+
+            // solve the rcspp
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
                                                                            *this);
-            return algorithm.solve();
+            std::vector<Solution> sols = algorithm.solve();
+
+            // restore the removed arcs for the next resolution
+            preprocessor.restore();
+
+            return sols;
         }
 
         template <typename CostResourceType = RealResource>

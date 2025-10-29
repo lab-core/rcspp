@@ -6,6 +6,7 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/composition/functions/cost/composition_cost_function.hpp"
@@ -86,7 +87,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
 
         std::unique_ptr<Expander<ResourceComposition<ResourceTypes...>>> make_expander(
             const ResourceComposition<ResourceTypes...>& resource_base, size_t arc_id) override {
-            const auto& resource_base_components = resource_base.get_components();
+            const auto& resource_base_components = resource_base.get_type_components();
 
             auto new_expander_resource_composition =
                 ResourceFactory<ResourceComposition<ResourceTypes...>>::make_expander(arc_id);
