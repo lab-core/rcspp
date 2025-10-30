@@ -9,6 +9,7 @@ project(rcspp-lib LANGUAGES CXX)
 option(CXX "enable C++ compilation" ON)
 option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
+option(USE_TESTS "Enable tests for RCSPP" ON)
 
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
@@ -47,6 +48,12 @@ if(USE_PYTHON)
   message("Building python wrapper")
   add_subdirectory(extern/pybind11)
   add_subdirectory(src/python_interface)
+endif()
+
+# RCSPP tests --------------------------------------------------
+if(USE_TESTS)
+  message("Building tests for RCSPP")
+  add_subdirectory(tests/rcspp)
 endif()
 
 # (Optional) If you are seeing -nostartfiles / -nostdlib unexpectedly, check:

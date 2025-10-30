@@ -11,8 +11,15 @@
 
 class SolutionOutput {
     public:
+        SolutionOutput() = default;
+
+        SolutionOutput(std::string duals_directory);
+
         static void print(const Instance& instance, const MPSolution& solution,
                           std::vector<Path> paths);
 
-        static void save_dual_to_file(const MPSolution& solution, std::string output_path);
+        void save_dual_to_file(const MPSolution& solution, std::string output_path);
+
+    private:
+        std::string duals_directory_;
 };
