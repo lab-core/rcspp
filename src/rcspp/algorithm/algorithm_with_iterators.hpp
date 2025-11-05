@@ -80,17 +80,14 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
                 }
             }
 
-            std::cout << "****************************************\n";
-            std::cout << "RCSPP: WHILE nb iter: " << i << std::endl;
-            std::cout << "****************************************\n";
-
-            std::cout << "best_label_=" << this->best_label_ << std::endl;
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+            LOG_TRACE("best_label_=", this->best_label_, "\n");
 
             std::vector<Solution> solutions;
             if (this->best_label_ != nullptr) {
                 solutions = extract_solutions();
 
-                std::cout << "Number of solutions: " << solutions.size() << std::endl;
+                LOG_DEBUG("Number of solutions: ", solutions.size(), '\n');
             }
 
             return solutions;

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// rcspp.cpp : définit le point d'entrée de l'application.
+// rcspp.cppï¿½: dï¿½finit le point d'entrï¿½e de l'application.
 //
 
 #include <chrono>
@@ -50,6 +50,7 @@ int main(int argc, char* argv[]) {
     auto instance = instance_reader.read();
 
     VRP vrp(instance, duals_directory);
+    Logger::instance().init(LogLevel::Trace);
 
     auto time_start = std::chrono::high_resolution_clock::now();
 

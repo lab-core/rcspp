@@ -73,11 +73,8 @@ class Algorithm {
                 }
             }
 
-            std::cout << "****************************************\n";
-            std::cout << "RCSPP: WHILE nb iter: " << nb_iter << std::endl;
-            std::cout << "****************************************\n";
-
-            std::cout << "best_label_=" << best_label_ << std::endl;
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", nb_iter, "\n");
+            LOG_TRACE("best_label_=", best_label_, "\n");
 
             Solution solution;
             if (best_label_ != nullptr) {
@@ -91,14 +88,14 @@ class Algorithm {
                 const auto path_arc_ids = get_path_arc_ids(*best_label_);
 
                 for (auto node_id : path_node_ids) {
-                    std::cout << node_id << ", ";
+                    LOG_DEBUG(node_id, ", ");
                 }
-                std::cout << std::endl;
+                LOG_DEBUG('\n');
 
                 for (auto arc_id : path_arc_ids) {
-                    std::cout << arc_id << ", ";
+                    LOG_DEBUG(arc_id, ", ");
                 }
-                std::cout << std::endl;
+                LOG_DEBUG('\n');
 
                 solution = Solution{best_label_->get_cost(), path_node_ids, path_arc_ids};
             }

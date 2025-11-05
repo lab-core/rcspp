@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/logger.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
@@ -544,7 +545,7 @@ class Resource<ResourceComposition<ResourceTypes...>>
         }
 
         void reset(size_t node_id) {
-            // std::cout << __FUNCTION__ << std::endl;
+            // LOG_TRACE(__FUNCTION__, '\n');
 
             node_id_ = node_id;
 
@@ -560,7 +561,7 @@ class Resource<ResourceComposition<ResourceTypes...>>
         }
 
         void reset(const Resource<ResourceComposition<ResourceTypes...>>& resource) {
-            // std::cout << __FUNCTION__ << std::endl;
+            // LOG_TRACE(__FUNCTION__, '\n');
 
             node_id_ = resource.node_id_;
 
