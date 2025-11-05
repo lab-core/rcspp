@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <list>
-#include <memory>
 #include <queue>
 #include <set>
 #include <utility>
@@ -29,9 +28,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             }
         }
 
-        ~DominanceAlgorithmIterators() override = default;
-
-    private:
+    protected:
         void initialize_labels() override {
             for (auto source_node_id : this->graph_.get_source_node_ids()) {
                 auto& source_node = this->graph_.get_node(source_node_id);
@@ -40,26 +37,8 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                 non_dominated_labels_by_node_id_[label.get_end_node()->id].push_back(&label);
                 auto label_it = non_dominated_labels_by_node_id_[label.get_end_node()->id].end();
                 --label_it;
-
-                unprocessed_labels_.push_back(std::make_pair(&label, label_it));
+                add_new_unprocessed_label(std::make_pair(&label, label_it));
             }
-        }
-
-        std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-        next_label_iterator() override {
-            auto label_iterator_pair = unprocessed_labels_.front();
-
-            unprocessed_labels_.pop_front();
-
-            return label_iterator_pair;
-        }
-
-        Label<ResourceType>& next_label() override {
-            auto& label = *unprocessed_labels_.front().first;
-
-            unprocessed_labels_.pop_front();
-
-            return label;
         }
 
         bool test(const Label<ResourceType>& label) override {
@@ -111,15 +90,11 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                         non_dominated_labels_by_node_id_[new_label.get_end_node()->id].end();
                     --new_label_it;
 
-                    unprocessed_labels_.push_back(std::make_pair(&new_label, new_label_it));
+                    add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
                 } else {
                     this->label_pool_.release_label(&new_label);
                 }
             }
-        }
-
-        [[nodiscard]] size_t number_of_labels() const override {
-            return unprocessed_labels_.size();
         }
 
         std::vector<size_t> get_path_node_ids(const Label<ResourceType>& label) override {
@@ -286,8 +261,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         }
 
         bool update_non_dominated_labels(
-            std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-                label_iterator_pair) override {
+            const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
             auto time_start = std::chrono::high_resolution_clock::now();
 
             auto label_ptr = label_iterator_pair.first;
@@ -333,7 +307,9 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         }
 
         void remove_label(const Label<ResourceType>& label) override {
-            // NOT USED
+            throw std::runtime_error(
+                "DominanceAlgorithmIterators::remove_label(const Label<ResourceType>& label) not "
+                "implemented.");
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
@@ -349,9 +325,8 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             return labels_at_sinks;
         }
 
-        std::list<
-            std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>>
-            unprocessed_labels_;
+        virtual void add_new_unprocessed_label(
+            const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
         std::vector<std::list<Label<ResourceType>*>> non_dominated_labels_by_node_id_;
 

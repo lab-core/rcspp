@@ -5,11 +5,30 @@
 #include "vrp_subproblem/vrp_subproblem.hpp"
 
 #include <memory>
+#include <string>
+#include <filesystem>
 
 using namespace rcspp;
 
+namespace fs = std::filesystem;
+
 const double EPSILON = 0.00000001;
 
+// returns a stable string with the canonical/absolute path of the root directory
+inline std::string file_parent_dir(unsigned levels = 3) {
+    fs::path p(__FILE__);
+    try {
+        p = fs::canonical(p);
+    } catch (...) {
+        if (!p.is_absolute()) {
+            p = fs::absolute(p);
+        }
+    }
+    for (unsigned i = 0; i < levels && p.has_parent_path(); ++i) {
+        p = p.parent_path();
+    }
+    return p.string();
+}
 
 bool test_rcspp() {
   // Test graph creation, graph update and solving the RCSPP
@@ -17,7 +36,7 @@ bool test_rcspp() {
   bool success = true;
 
   std::string instance_name = "R101";
-  std::string instance_path = "../../../../instances/" + instance_name + ".txt";
+  std::string instance_path = file_parent_dir()+"/instances/" + instance_name + ".txt";
 
   std::cout << "Instance: " << instance_path << std::endl;
   InstanceReader instance_reader(instance_path);
@@ -28,7 +47,7 @@ bool test_rcspp() {
   // Iteration 0: Test graph creation
   const double OPTIMAL_COST_ITER_0 = -319.87786809696524415;
   std::string duals_file = "iter_0.txt";
-  std::string duals_directory = "../../../../instances/duals/" + instance_name + "/";
+  std::string duals_directory = file_parent_dir()+"/instances/duals/" + instance_name + "/";
   auto duals_path = duals_directory + duals_file;    
   auto dual_by_id = InstanceReader::read_duals(duals_path);  
   success = test_vrp_solve(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_0);
@@ -36,7 +55,7 @@ bool test_rcspp() {
   // Iteration 1: Test graph update
   const double OPTIMAL_COST_ITER_1 = -291.88751273511473983;
   duals_file = "iter_1.txt";
-  duals_directory = "../../../../instances/duals/" + instance_name + "/";
+  duals_directory = file_parent_dir()+"/instances/duals/" + instance_name + "/";
   duals_path = duals_directory + duals_file;
   dual_by_id = InstanceReader::read_duals(duals_path);
   success = test_vrp_solve(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_1);
@@ -52,7 +71,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     bool success = true;
 
     std::string instance_name = "R101";
-    std::string instance_path = "../../../../instances/" + instance_name + ".txt";
+    std::string instance_path = file_parent_dir()+"/instances/" + instance_name + ".txt";
 
     std::cout << "Instance: " << instance_path << std::endl;
     InstanceReader instance_reader(instance_path);
@@ -70,7 +89,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     // Iteration 0: Test graph creation
     const double OPTIMAL_COST_ITER_0 = -319.87786809696524415;
     std::string duals_file = "iter_0.txt";
-    std::string duals_directory = "../../../../instances/duals/" + instance_name + "/";
+    std::string duals_directory = file_parent_dir()+"/instances/duals/" + instance_name + "/";
     auto duals_path = duals_directory + duals_file;
 
     auto dual_by_id = InstanceReader::read_duals(duals_path);
@@ -85,7 +104,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     // Iteration 1: Test graph update
     const double OPTIMAL_COST_ITER_1 = -291.88751273511473983;
     duals_file = "iter_1.txt";
-    duals_directory = "../../../../instances/duals/" + instance_name + "/";
+    duals_directory = file_parent_dir()+"/instances/duals/" + instance_name + "/";
     duals_path = duals_directory + duals_file;
 
     dual_by_id = InstanceReader::read_duals(duals_path);

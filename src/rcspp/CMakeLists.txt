@@ -6,17 +6,22 @@ file(GLOB_RECURSE HEADERS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
 
 # Generate the umbrella header rcspp.hpp ---------------------------------------
 set(RCSPP_UMBRELLA_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/rcspp.hpp")
+list(REMOVE_ITEM HEADERS_FILES "${RCSPP_UMBRELLA_HEADER}")
 
-# first lines of the umbrella header
-file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Automatically generated umbrella header clang-format off NOLINT(legal/copyright)\n#pragma once\n\n")
+if(NOT DEFINED UMBRELLA_HEADER_GENERATED)
+    set(UMBRELLA_HEADER_GENERATED TRUE CACHE INTERNAL "Flag to indicate that the umbrella header has been generated")
 
-foreach(header ${HEADERS_FILES})
-    # Compute relative path inside
-    file(RELATIVE_PATH rel_path "${CMAKE_SOURCE_DIR}/src" "${header}")
+    # first lines of the umbrella header
+    file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Automatically generated umbrella header clang-format off NOLINT(legal/copyright)\n#pragma once\n\n")
 
-    # Add it to the umbrella header
-    file(APPEND "${RCSPP_UMBRELLA_HEADER}" "#include \"${rel_path}\"\n")
-endforeach()
+    foreach(header ${HEADERS_FILES})
+        # Compute relative path inside
+        file(RELATIVE_PATH rel_path "${CMAKE_SOURCE_DIR}/src" "${header}")
+
+        # Add it to the umbrella header
+        file(APPEND "${RCSPP_UMBRELLA_HEADER}" "#include \"${rel_path}\"\n")
+    endforeach()
+endif()
 
 # Compile the dynamic library --------------------------------------------------
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -29,8 +34,7 @@ target_compile_features(${LIB} PUBLIC cxx_std_23)
 
 # Copy headers to build/include preserving folder structure --------------------
 # add the umbrella header to the list
-set(${HEADERS_FILES} ${RCSPP_UMBRELLA_HEADER} ${HEADERS_FILES})
-foreach(header ${HEADERS_FILES})
+foreach(header ${HEADERS_FILES} ${RCSPP_UMBRELLA_HEADER})
     # Compute relative path inside
     file(RELATIVE_PATH rel_path "${CMAKE_SOURCE_DIR}/src" "${header}")
     set(dest "${BUILD_INCLUDE_DIR}/${rel_path}")

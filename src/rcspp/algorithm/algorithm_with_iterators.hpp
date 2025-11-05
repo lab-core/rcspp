@@ -21,6 +21,10 @@
 namespace rcspp {
 
 template <typename ResourceType>
+using LabelIteratorPair =
+    std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
+
+template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class AlgorithmWithIterators : public Algorithm<ResourceType> {
     public:
@@ -93,15 +97,13 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
         }
 
     protected:
-        virtual std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-        next_label_iterator() = 0;
+        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
         virtual void remove_label(
             const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
 
         virtual bool update_non_dominated_labels(
-            std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-                label_iterator_pair) = 0;
+            const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 

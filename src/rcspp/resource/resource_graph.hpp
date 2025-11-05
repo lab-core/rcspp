@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
+#include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
@@ -165,7 +165,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
         }
 
-        template <template <typename> class AlgorithmType = DominanceAlgorithmIterators,
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
                                     size_t cost_index = 0) {
