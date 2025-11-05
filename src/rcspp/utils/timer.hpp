@@ -33,8 +33,11 @@ class Timer {
 
         // Return elapsed time cast to the requested Duration type (default milliseconds).
         template <typename Duration = std::chrono::milliseconds>
-        [[nodiscard]] Duration elapsed() const noexcept {
-            duration total = accumulated_;
+        [[nodiscard]] Duration elapsed(bool only_current) const noexcept {
+            duration total{};
+            if (only_current) {
+                total = accumulated_;
+            }
             if (running_) {
                 total += clock::now() - start_time_;
             }
@@ -42,9 +45,9 @@ class Timer {
         }
 
         // Convenience helpers
-        [[nodiscard]] double elapsed_seconds() const noexcept;
-        [[nodiscard]] int64_t elapsed_milliseconds() const noexcept;
-        [[nodiscard]] int64_t elapsed_microseconds() const noexcept;
+        [[nodiscard]] double elapsed_seconds(bool only_current = false) const noexcept;
+        [[nodiscard]] int64_t elapsed_milliseconds(bool only_current = false) const noexcept;
+        [[nodiscard]] int64_t elapsed_microseconds(bool only_current = false) const noexcept;
 
     private:
         bool running_{false};

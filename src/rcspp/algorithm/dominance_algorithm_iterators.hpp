@@ -45,8 +45,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             // Dominance check
 
             nb_test_iter_++;
-
-            auto time_start = std::chrono::high_resolution_clock::now();
+            total_test_time_.start();
 
             bool non_dominated = true;
             for (const auto non_dominated_label_ptr :
@@ -61,10 +60,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                 }
             }
 
-            auto time_end = std::chrono::high_resolution_clock::now();
-
-            total_test_time_ +=
-                std::chrono::duration_cast<std::chrono::nanoseconds>(time_end - time_start).count();
+            total_test_time_.stop();
 
             return non_dominated;
         }
@@ -267,7 +263,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
         bool update_non_dominated_labels(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
-            auto time_start = std::chrono::high_resolution_clock::now();
+            total_update_non_dom_time_.start();
 
             auto label_ptr = label_iterator_pair.first;
 
@@ -296,10 +292,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                 remove_label(label_iterator_pair.second);
             }
 
-            auto time_end = std::chrono::high_resolution_clock::now();
-
-            total_update_non_dom_time_ +=
-                std::chrono::duration_cast<std::chrono::nanoseconds>(time_end - time_start).count();
+            total_update_non_dom_time_.stop();
 
             return label_non_dominated;
         }
@@ -337,17 +330,17 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
         std::vector<std::list<Label<ResourceType>*>> expanded_labels_by_node_id_;
 
-        int64_t total_label_time_ = 0;
-        int64_t total_expand_time_ = 0;
-        int64_t total_non_dominated_time_ = 0;
-        int64_t total_test_time_ = 0;
-        int64_t total_expand_inside_time_ = 0;
-        int64_t total_assign_label_time_ = 0;
-        int64_t total_for_time_ = 0;
-        int64_t total_iteration_time_ = 0;
-        int64_t total_update_non_dom_time_ = 0;
-        int64_t total_update_non_dom_v2_time_ = 0;
-        int64_t total_label_pool_time_ = 0;
+        Timer total_label_time_;
+        Timer total_expand_time_;
+        Timer total_non_dominated_time_;
+        Timer total_test_time_;
+        Timer total_expand_inside_time_;
+        Timer total_assign_label_time_;
+        Timer total_for_time_;
+        Timer total_iteration_time_;
+        Timer total_update_non_dom_time_;
+        Timer total_update_non_dom_v2_time_;
+        Timer total_label_pool_time_;
 
         size_t nb_test_iter_ = 0;
         size_t nb_update_non_dom_iter_ = 0;

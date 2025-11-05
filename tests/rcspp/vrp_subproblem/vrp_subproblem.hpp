@@ -37,7 +37,7 @@ class VRPSubproblem {
 
         size_t depot_id_;
 
-        int64_t total_subproblem_time_ = 0;
+        Timer total_subproblem_time_;
 
         std::map<size_t, std::pair<double, double>> initialize_time_windows();
 

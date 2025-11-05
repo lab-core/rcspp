@@ -1,12 +1,7 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// rcspp.cpp�: d�finit le point d'entr�e de l'application.
-//
-
-#include <chrono>
 #include <iostream>
-#include <memory>
 
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
@@ -52,17 +47,13 @@ int main(int argc, char* argv[]) {
     VRP vrp(instance, duals_directory);
     Logger::instance().init(LogLevel::Trace);
 
-    auto time_start = std::chrono::high_resolution_clock::now();
-
+    Timer timer(true);
     auto master_solution = vrp.solve(subproblem_max_nb_solutions, false);
-
-    auto time_end = std::chrono::high_resolution_clock::now();
+    timer.stop();
 
     SolutionOutput::print(instance, master_solution, vrp.get_paths());
 
-    std::cout
-        << "Time: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(time_end - time_start).count();
+    std::cout << "Time: " << timer.elapsed_milliseconds();
 
     return 0;
 }

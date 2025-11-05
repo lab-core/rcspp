@@ -55,11 +55,11 @@ class VRP {
 
         std::vector<Path> paths_;
 
-        int64_t total_subproblem_time_ = 0;
-        int64_t total_subproblem_solve_time_ = 0;
+        Timer total_subproblem_time_;
+        Timer total_subproblem_solve_time_;
 
-        int64_t total_subproblem_time_boost_ = 0;
-        int64_t total_subproblem_solve_time_boost_ = 0;
+        Timer total_subproblem_time_boost_;
+        Timer total_subproblem_solve_time_boost_;
 
         std::map<size_t, std::pair<double, double>> initialize_time_windows();
 

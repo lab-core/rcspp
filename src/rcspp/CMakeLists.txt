@@ -31,6 +31,7 @@ add_library(${LIB} SHARED ${SOURCE_FILES} ${HEADERS_FILES})
 # Set library version
 set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
+target_include_directories(${LIB} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Copy headers to build/include preserving folder structure --------------------
 # add the umbrella header to the list
@@ -46,10 +47,3 @@ foreach(header ${HEADERS_FILES} ${RCSPP_UMBRELLA_HEADER})
     # Copy header
     configure_file("${header}" "${dest}" COPYONLY)
 endforeach()
-
-# Make the build include directory available to other targets
-target_include_directories(${LIB}
-    PUBLIC
-        $<BUILD_INTERFACE:${BUILD_INCLUDE_DIR}>
-        $<INSTALL_INTERFACE:include>
-)

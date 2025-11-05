@@ -4,7 +4,6 @@
 #include "vrp.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -107,20 +106,14 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
             calculate_dual(master_solution.dual_by_var_id, optimal_dual_by_var_id, nb_iter);
 
         std::vector<Solution> solutions_rcspp;
-        auto subproblem_time_start = std::chrono::high_resolution_clock::now();
+        total_subproblem_time_.start();
         solutions_rcspp = solve_with_rcspp(dual_by_id);
-        auto subproblem_time_end = std::chrono::high_resolution_clock::now();
-        total_subproblem_time_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                      subproblem_time_end - subproblem_time_start)
-                                      .count();
+        total_subproblem_time_.stop();
 
         std::vector<Solution> solutions_boost;
-        auto subproblem_time_start_boost = std::chrono::high_resolution_clock::now();
+        total_subproblem_time_boost_.start();
         solutions_boost = solve_with_boost(dual_by_id);
-        auto subproblem_time_end_boost = std::chrono::high_resolution_clock::now();
-        total_subproblem_time_boost_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                            subproblem_time_end_boost - subproblem_time_start_boost)
-                                            .count();
+        total_subproblem_time_boost_.stop();
 
         std::cout << "Solution BOOST cost: " << solutions_boost[0].cost << std::endl;
         std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;
@@ -185,14 +178,14 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     std::cout << "\n*********************************************\n";
     std::cout << "nb_iter=" << nb_iter << " | min_reduced_cost=" << min_reduced_cost
               << " | EPSILON=" << EPSILON << std::endl;
-    std::cout << "total_subproblem_time_: " << (total_subproblem_time_ / MICROSECONDS_PER_SECOND)
+    std::cout << "total_subproblem_time_: " << total_subproblem_time_.elapsed_seconds()
               << std::endl;
-    std::cout << "total_subproblem_solve_time_: "
-              << (total_subproblem_solve_time_ / MICROSECONDS_PER_SECOND) << std::endl;
-    std::cout << "total_subproblem_time_boost_: "
-              << (total_subproblem_time_boost_ / MICROSECONDS_PER_SECOND) << std::endl;
+    std::cout << "total_subproblem_solve_time_: " << total_subproblem_solve_time_.elapsed_seconds()
+              << std::endl;
+    std::cout << "total_subproblem_time_boost_: " << total_subproblem_time_boost_.elapsed_seconds()
+              << std::endl;
     std::cout << "total_subproblem_solve_time_boost_: "
-              << (total_subproblem_solve_time_boost_ / MICROSECONDS_PER_SECOND) << std::endl;
+              << total_subproblem_solve_time_boost_.elapsed_seconds() << std::endl;
     std::cout << "*********************************************\n";
 
     // Last solve
@@ -228,20 +221,17 @@ std::vector<Solution> VRP::solve_with_rcspp(const std::map<size_t, double>& dual
         update_resource_graph(&subproblem_graph_, &dual_by_id);
     }
 
-    auto time_start = std::chrono::high_resolution_clock::now();
+    total_subproblem_solve_time_.start();
     // auto solutions = subproblem_graph_.solve();
     // A different algorithm can be specified as a template argument.
-    // auto solutions = subproblem_graph_.solve<PushingDominanceAlgorithmIterators>();
-    auto solutions = subproblem_graph_.solve<PullingDominanceAlgorithmIterators>();
-    auto time_end = std::chrono::high_resolution_clock::now();
+    auto solutions = subproblem_graph_.solve<PushingDominanceAlgorithmIterators>();
+    // auto solutions = subproblem_graph_.solve<PullingDominanceAlgorithmIterators>();
 
-    total_subproblem_solve_time_ +=
-        std::chrono::duration_cast<std::chrono::nanoseconds>(time_end - time_start).count();
+    std::cout << __FUNCTION__ << " Time: "
+              << total_subproblem_solve_time_.elapsed_milliseconds(/* only_current = */ true)
+              << std::endl;
 
-    std::cout
-        << __FUNCTION__ << " Time: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(time_end - time_start).count()
-        << std::endl;
+    total_subproblem_solve_time_.stop();
 
     return solutions;
 }
@@ -249,17 +239,14 @@ std::vector<Solution> VRP::solve_with_rcspp(const std::map<size_t, double>& dual
 std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual_by_id) {
     BoostSubproblem subproblem(instance_, &dual_by_id);
 
-    auto time_start = std::chrono::high_resolution_clock::now();
+    total_subproblem_solve_time_boost_.start();
     auto solutions = subproblem.solve();
-    auto time_end = std::chrono::high_resolution_clock::now();
 
-    total_subproblem_solve_time_boost_ +=
-        std::chrono::duration_cast<std::chrono::nanoseconds>(time_end - time_start).count();
+    std::cout << __FUNCTION__ << " Time: "
+              << total_subproblem_solve_time_boost_.elapsed_milliseconds(/* only_current = */ true)
+              << std::endl;
 
-    std::cout
-        << __FUNCTION__ << " Time: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(time_end - time_start).count()
-        << std::endl;
+    total_subproblem_solve_time_boost_.stop();
 
     return solutions;
 }

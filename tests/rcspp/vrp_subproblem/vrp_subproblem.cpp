@@ -10,8 +10,6 @@
 #include "vrp_subproblem.hpp"
 #include "rcspp/rcspp.hpp"
 
-constexpr double MICROSECONDS_PER_SECOND = 1e6;
-
 VRPSubproblem::VRPSubproblem(Instance instance,
                              const std::map<size_t, double>* row_coefficient_by_id)
     : row_coefficient_by_id_(row_coefficient_by_id),
@@ -24,18 +22,15 @@ VRPSubproblem::VRPSubproblem(Instance instance,
 std::vector<Solution> VRPSubproblem::solve(const std::map<size_t, double>& dual_by_id) {
     std::cout << __FUNCTION__ << std::endl;
 
-    auto subproblem_time_start = std::chrono::high_resolution_clock::now();
+    total_subproblem_time_.start();
     auto solutions_rcspp = solve_with_rcspp(dual_by_id);
     auto subproblem_time_end = std::chrono::high_resolution_clock::now();
-    total_subproblem_time_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  subproblem_time_end - subproblem_time_start)
-                                  .count();
+    total_subproblem_time_.stop();
 
     std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;
 
     std::cout << "\n*********************************************\n";
-    std::cout << "total_subproblem_time_: " << (total_subproblem_time_ / MICROSECONDS_PER_SECOND)
-              << std::endl;
+    std::cout << "total_subproblem_time_: " << total_subproblem_time_.elapsed_seconds() << std::endl;
     std::cout << "*********************************************\n";
 
     return solutions_rcspp;

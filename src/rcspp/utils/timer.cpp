@@ -45,16 +45,16 @@ bool Timer::running() const noexcept {
 }
 
 // Convenience helpers
-double Timer::elapsed_seconds() const noexcept {
+double Timer::elapsed_seconds(bool only_current) const noexcept {
     // Use the finest common resolution (nanoseconds) then convert to double seconds
     return std::chrono::duration_cast<std::chrono::duration<double>>(
-               elapsed<std::chrono::nanoseconds>())
+               elapsed<std::chrono::nanoseconds>(only_current))
         .count();
 }
-int64_t Timer::elapsed_milliseconds() const noexcept {
-    return elapsed<std::chrono::milliseconds>().count();
+int64_t Timer::elapsed_milliseconds(bool only_current) const noexcept {
+    return elapsed<std::chrono::milliseconds>(only_current).count();
 }
-int64_t Timer::elapsed_microseconds() const noexcept {
-    return elapsed<std::chrono::microseconds>().count();
+int64_t Timer::elapsed_microseconds(bool only_current) const noexcept {
+    return elapsed<std::chrono::microseconds>(only_current).count();
 }
 }  // namespace rcspp
