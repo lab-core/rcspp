@@ -30,8 +30,7 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
         ~PushingDominanceAlgorithmIterators() override = default;
 
     protected:
-        std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-        next_label_iterator() override {
+        LabelIteratorPair<ResourceType> next_label_iterator() override {
             // if no more labels for the current node, move to the next node with labels
             while (current_unprocessed_labels_.empty()) {
                 // move to the next node
@@ -44,8 +43,7 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                 // move labels for the current node
                 // TODO(Antoine): verify if could be improved
                 current_unprocessed_labels_ =
-                    unprocessed_labels_by_node_id_[current_unprocessed_node_id];
-                unprocessed_labels_by_node_id_[current_unprocessed_node_id].clear();
+                    std::move(unprocessed_labels_by_node_id_[current_unprocessed_node_id]);
             }
 
             // get the next label

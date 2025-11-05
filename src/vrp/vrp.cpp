@@ -83,17 +83,17 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
     int nb_iter = 0;
     while (min_reduced_cost < -EPSILON) {
-        LOG_DEBUG("\n*********************************************\n");
-        LOG_DEBUG("nb_iter=",
-                  nb_iter,
-                  " | min_reduced_cost=",
-                  std::fixed,
-                  std::setprecision(std::numeric_limits<double>::max_digits10),
-                  min_reduced_cost,
-                  " | EPSILON=",
-                  EPSILON,
-                  '\n');
-        LOG_DEBUG("*********************************************\n");
+        LOG_DEBUG(std::string(45, '*'), '\n');
+        LOG_INFO("nb_iter=",
+                 nb_iter,
+                 " | min_reduced_cost=",
+                 std::fixed,
+                 std::setprecision(std::numeric_limits<double>::max_digits10),
+                 min_reduced_cost,
+                 " | EPSILON=",
+                 EPSILON,
+                 '\n');
+        LOG_DEBUG(std::string(45, '*'), '\n');
 
         MasterProblem master_problem(instance_.get_demand_customers_id());
 
@@ -112,8 +112,8 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         std::vector<Solution> solutions_rcspp;
         total_subproblem_time_.start();
-        solutions_rcspp = solve_with_rcspp(dual_by_id);
-        // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
+        // solutions_rcspp = solve_with_rcspp(dual_by_id);
+        solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
 
         std::vector<Solution> solutions_boost;
@@ -160,7 +160,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         }
     }
 
-    LOG_INFO("\n*********************************************\n");
+    LOG_INFO(std::string(45, '*'), '\n');
     LOG_INFO("nb_iter=",
              nb_iter,
              " | min_reduced_cost=",
@@ -178,7 +178,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     LOG_INFO("total_subproblem_solve_time_boost_: ",
              total_subproblem_solve_time_boost_.elapsed_seconds(),
              '\n');
-    LOG_INFO("*********************************************\n");
+    LOG_INFO(std::string(45, '*'), '\n');
 
     // Last solve
     MasterProblem master_problem(instance_.get_demand_customers_id());

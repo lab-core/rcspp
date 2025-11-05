@@ -42,17 +42,17 @@ class VRP {
 
             int nb_iter = 0;
             while (min_reduced_cost < -EPSILON) {
-                LOG_DEBUG("\n*********************************************\n");
-                LOG_DEBUG("nb_iter=",
-                          nb_iter,
-                          " | min_reduced_cost=",
-                          std::fixed,
-                          std::setprecision(std::numeric_limits<double>::max_digits10),
-                          min_reduced_cost,
-                          " | EPSILON=",
-                          EPSILON,
-                          '\n');
-                LOG_DEBUG("*********************************************\n");
+                LOG_DEBUG(std::string(45, '*'), '\n');
+                LOG_INFO("nb_iter=",
+                         nb_iter,
+                         " | min_reduced_cost=",
+                         std::fixed,
+                         std::setprecision(std::numeric_limits<double>::max_digits10),
+                         min_reduced_cost,
+                         " | EPSILON=",
+                         EPSILON,
+                         '\n');
+                LOG_DEBUG(std::string(45, '*'), '\n');
 
                 MasterProblem master_problem(instance_.get_demand_customers_id());
                 master_problem.construct_model(paths_);

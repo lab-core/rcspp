@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
     auto master_solution = vrp.solve(subproblem_max_nb_solutions, false);
     timer.stop();
 
-    LOG_INFO("\n********************************\n");
+    LOG_INFO(std::string(45, '*'), '\n');
     LOG_INFO(SolutionOutput::to_string(instance, master_solution, vrp.get_paths()));
     LOG_INFO("Time: ", timer.elapsed_milliseconds(), '\n');
 
