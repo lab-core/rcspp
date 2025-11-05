@@ -13,22 +13,14 @@
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
 #include "cg/subproblem/boost/boost_subproblem.hpp"
-#include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/pushing_dominance_algorithm_iterators.hpp"
 #include "rcspp/graph/row.hpp"
-#include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
-#include "rcspp/resource/composition/functions/cost/composition_cost_function.hpp"
-#include "rcspp/resource/composition/functions/dominance/component_dominance_function.hpp"
-#include "rcspp/resource/composition/functions/dominance/composition_dominance_function.hpp"
-#include "rcspp/resource/composition/functions/expansion/composition_expansion_function.hpp"
-#include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
-#include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/concrete/functions/cost/real_value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/real_value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/expansion/real_addition_expansion_function.hpp"
 #include "rcspp/resource/concrete/functions/expansion/time_window_expansion_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/concrete/real_resource_factory.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 #include "rcspp/resource/resource_graph.hpp"
 
@@ -238,7 +230,7 @@ std::vector<Solution> VRP::solve_with_rcspp(const std::map<size_t, double>& dual
     auto time_start = std::chrono::high_resolution_clock::now();
     auto solutions = subproblem_graph_.solve();
     // A different algorithm can be specified as a template argument.
-    // auto solutions = subproblem_graph_.solve<DominanceAlgorithmIterators>();
+    // auto solutions = subproblem_graph_.solve<PushingDominanceAlgorithmIterators>();
     auto time_end = std::chrono::high_resolution_clock::now();
 
     total_subproblem_solve_time_ +=
