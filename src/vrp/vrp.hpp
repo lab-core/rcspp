@@ -39,6 +39,7 @@ class VRP {
             generate_initial_paths();
             MasterProblem master_problem(instance_.get_demand_customers_id());
             master_problem.construct_model(paths_);
+            MPSolution master_solution;
 
             double min_reduced_cost = -std::numeric_limits<double>::infinity();
             std::vector<Timer> timers(1 + sizeof...(AlgorithmTypes));
@@ -47,6 +48,8 @@ class VRP {
                 LOG_DEBUG(std::string(45, '*'), '\n');
                 LOG_INFO("nb_iter=",
                          nb_iter,
+                         " | obj=",
+                         master_solution.cost,
                          " | min_reduced_cost=",
                          std::fixed,
                          std::setprecision(std::numeric_limits<double>::max_digits10),
@@ -56,7 +59,7 @@ class VRP {
                          '\n');
                 LOG_DEBUG(std::string(45, '*'), '\n');
 
-                MPSolution master_solution = master_problem.solve();
+                master_solution = master_problem.solve();
 
                 const auto dual_by_id =
                     calculate_dual(master_solution.dual_by_var_id, std::nullopt, nb_iter);
@@ -127,6 +130,20 @@ class VRP {
 
                 nb_iter++;
             }
+
+            LOG_DEBUG(std::string(45, '*'), '\n');
+            LOG_INFO("nb_iter=",
+                     nb_iter,
+                     " | obj=",
+                     master_solution.cost,
+                     " | min_reduced_cost=",
+                     std::fixed,
+                     std::setprecision(std::numeric_limits<double>::max_digits10),
+                     min_reduced_cost,
+                     " | EPSILON=",
+                     EPSILON,
+                     '\n');
+            LOG_DEBUG(std::string(45, '*'), '\n');
 
             return timers;
         }

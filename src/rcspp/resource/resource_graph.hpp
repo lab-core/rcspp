@@ -177,6 +177,11 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                                              cost_index);
             preprocessor.preprocess();
 
+            // if not sorted with a preprocessor, use default sort (by id)
+            if (!this->is_nodes_sorted()) {
+                this->sort_nodes();
+            }
+
             // solve the rcspp
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
                                                                            *this);

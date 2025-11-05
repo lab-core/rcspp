@@ -85,6 +85,8 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         LOG_DEBUG(std::string(45, '*'), '\n');
         LOG_INFO("nb_iter=",
                  nb_iter,
+                 " | obj=",
+                 master_solution.cost,
                  " | min_reduced_cost=",
                  std::fixed,
                  std::setprecision(std::numeric_limits<double>::max_digits10),
@@ -107,8 +109,8 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         std::vector<Solution> solutions_rcspp;
         total_subproblem_time_.start();
-        // solutions_rcspp = solve_with_rcspp(dual_by_id);
-        solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
+        solutions_rcspp = solve_with_rcspp(dual_by_id);
+        // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
 
         std::vector<Solution> solutions_boost;
@@ -157,6 +159,8 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
     LOG_INFO("nb_iter=",
              nb_iter,
+             " | obj=",
+             master_solution.cost,
              " | min_reduced_cost=",
              min_reduced_cost,
              " | EPSILON=",

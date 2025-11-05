@@ -19,13 +19,13 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                                            const Graph<ResourceType>& graph, bool use_pool = true)
             : DominanceAlgorithmIterators<ResourceType>(resource_factory, graph, use_pool) {
             for (size_t i = 0; i < graph.get_number_of_nodes(); i++) {
-                unprocessed_labels_by_node_id_.push_back(
+                unprocessed_labels_by_node_pos_.push_back(
                     std::list<LabelIteratorPair<ResourceType>>());
             }
 
             // ensure that the first call to populate_current_unprocessed_labels_if_needed advances
             // to the first node
-            current_unprocessed_node_id = graph.get_number_of_nodes();
+            current_unprocessed_node_pos_ = graph.get_number_of_nodes();
         }
 
         ~PullingDominanceAlgorithmIterators() override = default;
@@ -33,22 +33,22 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
     protected:
         void main_loop() override {
             int i = 0;
-            while (this->number_of_labels() > 0) {
+            while (number_of_labels() > 0) {
                 i++;
 
                 // don't do anything on first iteration (i.e. num_loops_ == -1)
-                if (this->num_loops_ >= 0) {
+                if (num_loops_ >= 0) {
                     // save unprocessed labels for the current node
-                    this->unprocessed_labels_by_node_id_[this->current_unprocessed_node_id] =
-                        std::move(this->current_unprocessed_labels_);
+                    unprocessed_labels_by_node_pos_[current_unprocessed_node_pos_] =
+                        std::move(current_unprocessed_labels_);
                 }
 
                 // pull to the new node
                 pull_new_unprocessed_labels();
 
                 // set the iterator to the beginning
-                auto it = this->current_unprocessed_labels_.begin();
-                while (it != this->current_unprocessed_labels_.end()) {
+                auto it = current_unprocessed_labels_.begin();
+                while (it != current_unprocessed_labels_.end()) {
                     auto& label = *it->first;
 
                     // label dominated -> continue to next one
@@ -99,19 +99,19 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
 
         void pull_new_unprocessed_labels() {
             // move to the next node
-            ++this->current_unprocessed_node_id;
-            if (this->current_unprocessed_node_id >= this->unprocessed_labels_by_node_id_.size()) {
-                this->current_unprocessed_node_id = 0;
-                ++this->num_loops_;
+            ++current_unprocessed_node_pos_;
+            if (current_unprocessed_node_pos_ >= this->graph_.get_number_of_nodes()) {
+                current_unprocessed_node_pos_ = 0;
+                num_loops_++;
             }
 
             // clear current labels before adding new ones once a loop has been performed
             // all unprocessed labels from the previous loop have been processed
-            if (this->num_loops_ > 0) {
+            if (num_loops_ > 0) {
                 auto& labels_at_node =
-                    this->unprocessed_labels_by_node_id_[this->current_unprocessed_node_id];
+                    unprocessed_labels_by_node_pos_[current_unprocessed_node_pos_];
                 // mark all those labels as processed
-                this->num_unprocessed_labels -= labels_at_node.size();
+                num_unprocessed_labels_ -= labels_at_node.size();
                 labels_at_node.clear();
             }
 
@@ -119,20 +119,20 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             pull_labels();
 
             // move labels for the current node
-            this->current_unprocessed_labels_ =
-                std::move(this->unprocessed_labels_by_node_id_[this->current_unprocessed_node_id]);
+            current_unprocessed_labels_ =
+                std::move(unprocessed_labels_by_node_pos_[current_unprocessed_node_pos_]);
         }
 
         void pull_labels() {
             // in pulling, we do not expand to nodes
             this->total_full_expand_time_.start();
 
-            const auto& current_node = this->graph_.get_node(this->current_unprocessed_node_id);
+            const auto& current_node = this->graph_.get_node(current_unprocessed_node_pos_);
 
             for (auto arc_ptr : current_node.in_arcs) {
                 // pull all the unprocessed labels from the origin node
                 const auto& unprocessed_labels =
-                    this->unprocessed_labels_by_node_id_.at(arc_ptr->origin->id);
+                    unprocessed_labels_by_node_pos_.at(arc_ptr->origin->pos);
                 for (const auto& label_iterator_pair : unprocessed_labels) {
                     this->expand_label(label_iterator_pair.first, arc_ptr);
                 }
@@ -141,25 +141,25 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             this->total_full_expand_time_.stop();
         }
 
-        [[nodiscard]] size_t number_of_labels() const override { return num_unprocessed_labels; }
+        [[nodiscard]] size_t number_of_labels() const override { return num_unprocessed_labels_; }
 
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
-            unprocessed_labels_by_node_id_[label_iterator_pair.first->get_end_node()->id].push_back(
-                label_iterator_pair);
-            num_unprocessed_labels++;
+            unprocessed_labels_by_node_pos_[label_iterator_pair.first->get_end_node()->pos]
+                .push_back(label_iterator_pair);
+            num_unprocessed_labels_++;
         }
 
         std::list<LabelIteratorPair<ResourceType>>::iterator erase_unprocessed_label(
             const std::list<LabelIteratorPair<ResourceType>>::iterator& label_iterator) {
-            num_unprocessed_labels--;
+            num_unprocessed_labels_--;
             return current_unprocessed_labels_.erase(label_iterator);
         }
 
-        size_t num_unprocessed_labels = 0;
-        size_t current_unprocessed_node_id;
+        size_t num_unprocessed_labels_ = 0;
+        size_t current_unprocessed_node_pos_;
         int num_loops_ = -1;  // as starting from the end -> do not count first loop
         std::list<LabelIteratorPair<ResourceType>> current_unprocessed_labels_;
-        std::vector<std::list<LabelIteratorPair<ResourceType>>> unprocessed_labels_by_node_id_;
+        std::vector<std::list<LabelIteratorPair<ResourceType>>> unprocessed_labels_by_node_pos_;
 };
 }  // namespace rcspp

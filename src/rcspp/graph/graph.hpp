@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <concepts>  // NOLINT(build/include_order)
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -123,6 +124,10 @@ class Graph {
             return arcs_by_id_;
         }
 
+        [[nodiscard]] const std::vector<Node<ResourceType>*>& get_sorted_nodes() const {
+            return sorted_nodes_;
+        }
+
         [[nodiscard]] const std::vector<size_t>& get_source_node_ids() const {
             return source_node_ids_;
         }
@@ -143,9 +148,52 @@ class Graph {
             return std::ranges::find(sink_node_ids_, node_id) != sink_node_ids_.end();
         }
 
+        void sort_nodes() {
+            sorted_nodes_.clear();
+            sorted_nodes_.reserve(nodes_by_id_.size());
+            for (auto& [node_id, node_ptr] : nodes_by_id_) {
+                node_ptr->pos = sorted_nodes_.size();
+                sorted_nodes_.push_back(node_ptr.get());
+            }
+        }
+
+        void sort_nodes(
+            std::function<bool(const Node<ResourceType>*, const Node<ResourceType>*)> comp) {
+            // populate the vector
+            sorted_nodes_.clear();
+            sorted_nodes_.reserve(nodes_by_id_.size());
+            for (auto& [node_id, node_ptr] : nodes_by_id_) {
+                sorted_nodes_.push_back(node_ptr.get());
+            }
+
+            // sort
+            std::stable_sort(sorted_nodes_.begin(), sorted_nodes_.end(), comp);
+
+            // fix position
+            size_t i = 0;
+            for (const auto& node_ptr : sorted_nodes_) {
+                node_ptr->pos = i++;
+            }
+        }
+
+        [[nodiscard]] bool is_nodes_sorted() const {
+            if (sorted_nodes_.empty()) {
+                return false;
+            }
+            for (size_t i = 0; i < sorted_nodes_.size(); i++) {
+                if (sorted_nodes_[i]->pos != i) {
+                    LOG_WARN(
+                        "Nodes are not correctly sorted in the graph. It will be overriden.\n");
+                    return false;
+                }
+            }
+            return true;
+        }
+
     private:
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> arcs_by_id_;
         std::map<size_t, std::unique_ptr<Node<ResourceType>>> nodes_by_id_;
+        std::vector<Node<ResourceType>*> sorted_nodes_;
 
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> deleted_arcs_by_id_;
 

@@ -23,6 +23,7 @@ class Node {
         explicit Node(size_t node_id) : id(node_id) {}
 
         const size_t id;
+        size_t pos = -1;
 
         std::vector<Arc<ResourceType>*> in_arcs;
         std::vector<Arc<ResourceType>*> out_arcs;
