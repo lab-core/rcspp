@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
 
     LOG_INFO(std::string(45, '*'), '\n');
     LOG_INFO(SolutionOutput::to_string(instance, master_solution, vrp.get_paths()));
-    LOG_INFO("Time: ", timer.elapsed_milliseconds(), '\n');
+    LOG_INFO("Time: ", timer.elapsed_seconds(), " sec.\n");
 
     return 0;
 }

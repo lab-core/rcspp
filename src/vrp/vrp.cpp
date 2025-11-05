@@ -74,13 +74,12 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     LOG_TRACE(__FUNCTION__, '\n');
 
     MPSolution master_solution;
-
     generate_initial_paths();
+    MasterProblem master_problem(instance_.get_demand_customers_id());
+    master_problem.construct_model(paths_);
 
     double min_reduced_cost = -std::numeric_limits<double>::infinity();
-
     std::map<size_t, double> final_dual_by_id;
-
     int nb_iter = 0;
     while (min_reduced_cost < -EPSILON) {
         LOG_DEBUG(std::string(45, '*'), '\n');
@@ -95,17 +94,13 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
                  '\n');
         LOG_DEBUG(std::string(45, '*'), '\n');
 
-        MasterProblem master_problem(instance_.get_demand_customers_id());
-
-        master_problem.construct_model(paths_);
-
-        master_solution = master_problem.solve(true);
+        master_solution = master_problem.solve();
 
         std::string dual_output_file = "iter_" + std::to_string(nb_iter) + ".txt";
 
-        if (solution_output_.has_value()) {
-            solution_output_->save_dual_to_file(master_solution, dual_output_file);
-        }
+        // if (solution_output_.has_value()) {
+        //     solution_output_->save_dual_to_file(master_solution, dual_output_file);
+        // }
 
         const auto dual_by_id =
             calculate_dual(master_solution.dual_by_var_id, optimal_dual_by_var_id, nb_iter);
@@ -151,7 +146,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
             }
         }
 
-        add_paths(negative_red_cost_solutions);
+        add_paths(&master_problem, negative_red_cost_solutions);
 
         nb_iter++;
 
@@ -160,7 +155,6 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         }
     }
 
-    LOG_INFO(std::string(45, '*'), '\n');
     LOG_INFO("nb_iter=",
              nb_iter,
              " | min_reduced_cost=",
@@ -168,22 +162,9 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
              " | EPSILON=",
              EPSILON,
              '\n');
-    LOG_INFO("total_subproblem_time_: ", total_subproblem_time_.elapsed_seconds(), '\n');
-    LOG_INFO("total_subproblem_solve_time_: ",
-             total_subproblem_solve_time_.elapsed_seconds(),
-             '\n');
-    LOG_INFO("total_subproblem_time_boost_: ",
-             total_subproblem_time_boost_.elapsed_seconds(),
-             '\n');
-    LOG_INFO("total_subproblem_solve_time_boost_: ",
-             total_subproblem_solve_time_boost_.elapsed_seconds(),
-             '\n');
-    LOG_INFO(std::string(45, '*'), '\n');
 
-    // Last solve
-    MasterProblem master_problem(instance_.get_demand_customers_id());
-    master_problem.construct_model(paths_);
-    master_solution = master_problem.solve();
+    // Last solve as a MIP
+    master_solution = master_problem.solve(false);
     master_solution.dual_by_var_id = final_dual_by_id;
 
     return master_solution;
@@ -398,13 +379,16 @@ double VRP::calculate_distance(const Customer& customer1, const Customer& custom
     return distance;
 }
 
-void VRP::add_paths(const std::vector<Solution>& solutions) {
+void VRP::add_paths(MasterProblem* master_problem, const std::vector<Solution>& solutions) {
     LOG_TRACE("VRP::add_paths: ", solutions.size(), '\n');
+    std::vector<Path> new_paths;
     for (const auto& solution : solutions) {
         auto solution_cost = calculate_solution_cost(solution);
-        paths_.emplace_back(path_id_, solution_cost, solution.path_node_ids);
+        new_paths.emplace_back(path_id_, solution_cost, solution.path_node_ids);
         path_id_++;
     }
+    master_problem->add_columns(new_paths);
+    paths_.insert(paths_.end(), new_paths.begin(), new_paths.end());
 }
 
 double VRP::calculate_solution_cost(const Solution& solution) const {

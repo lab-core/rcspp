@@ -37,9 +37,11 @@ class VRP {
             LOG_TRACE(__FUNCTION__, '\n');
 
             generate_initial_paths();
+            MasterProblem master_problem(instance_.get_demand_customers_id());
+            master_problem.construct_model(paths_);
+
             double min_reduced_cost = -std::numeric_limits<double>::infinity();
             std::vector<Timer> timers(1 + sizeof...(AlgorithmTypes));
-
             int nb_iter = 0;
             while (min_reduced_cost < -EPSILON) {
                 LOG_DEBUG(std::string(45, '*'), '\n');
@@ -54,9 +56,7 @@ class VRP {
                          '\n');
                 LOG_DEBUG(std::string(45, '*'), '\n');
 
-                MasterProblem master_problem(instance_.get_demand_customers_id());
-                master_problem.construct_model(paths_);
-                MPSolution master_solution = master_problem.solve(true);
+                MPSolution master_solution = master_problem.solve();
 
                 const auto dual_by_id =
                     calculate_dual(master_solution.dual_by_var_id, std::nullopt, nb_iter);
@@ -123,7 +123,7 @@ class VRP {
                     }
                 }
 
-                add_paths(negative_red_cost_solutions);
+                add_paths(&master_problem, negative_red_cost_solutions);
 
                 nb_iter++;
             }
@@ -182,7 +182,7 @@ class VRP {
         [[nodiscard]] static double calculate_distance(const Customer& customer1,
                                                        const Customer& customer2);
 
-        void add_paths(const std::vector<Solution>& solutions);
+        void add_paths(MasterProblem* master_problem, const std::vector<Solution>& solutions);
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
