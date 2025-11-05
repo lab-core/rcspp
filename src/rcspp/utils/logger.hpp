@@ -29,8 +29,13 @@ class Logger {
         }
 
         // Initialize logger: set level, enable console, optional file path
-        void init(LogLevel level = LogLevel::Info, bool to_console = true,
-                  const std::string& file_path = {}) {
+        static void init(LogLevel level = LogLevel::Info, bool to_console = true,
+                         const std::string& file_path = {}) {
+            Logger::instance().initialize(level, to_console, file_path);
+        }
+
+        void initialize(LogLevel level = LogLevel::Info, bool to_console = true,
+                        const std::string& file_path = {}) {
             std::scoped_lock<std::mutex> lock(mu_);
             level_ = level;
             to_console_ = to_console;

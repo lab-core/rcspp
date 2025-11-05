@@ -36,11 +36,13 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             while (current_unprocessed_labels_.empty()) {
                 // move to the next node
                 current_unprocessed_node_id++;
+                // if we have looped over all nodes, start again from the beginning
                 if (current_unprocessed_node_id >= unprocessed_labels_by_node_id_.size()) {
                     current_unprocessed_node_id = 0;
                     num_loops_++;
                 }
                 // move labels for the current node
+                // TODO(Antoine): verify if could be improved
                 current_unprocessed_labels_ =
                     unprocessed_labels_by_node_id_[current_unprocessed_node_id];
                 unprocessed_labels_by_node_id_[current_unprocessed_node_id].clear();
@@ -50,12 +52,10 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             auto label_iterator_pair = current_unprocessed_labels_.front();
 
             current_unprocessed_labels_.pop_front();
-            num_unprocessed_labels--;
+            --num_unprocessed_labels;
 
             return label_iterator_pair;
         }
-
-        Label<ResourceType>& next_label() override { return *next_label_iterator().first; }
 
         [[nodiscard]] size_t number_of_labels() const override { return num_unprocessed_labels; }
 

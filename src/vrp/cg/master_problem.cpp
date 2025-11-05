@@ -7,9 +7,10 @@
 
 #include "gurobi_c++.h"
 #include "mp_solution.hpp"
+#include "rcspp/utils/logger.hpp"
 
 MasterProblem::MasterProblem(const std::vector<size_t>& node_ids)
-    : node_ids_(node_ids), env_(init_env()), model_(GRBModel(env_)) {}
+    : node_ids_(node_ids), model_(MasterProblem::init_env()) {}
 
 void MasterProblem::construct_model(const std::vector<Path>& paths) {
     add_variables(paths);
@@ -79,7 +80,7 @@ void MasterProblem::add_node_constraint(size_t node_id) {
 }
 
 MPSolution MasterProblem::solve(bool relax) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     MPSolution solution;
 
@@ -92,29 +93,22 @@ MPSolution MasterProblem::solve(bool relax) {
         solution = extract_solution(model_, relax);
     }
 
-    /*std::cout << "-------------------------------------------------\n";
-    bool non_integer = false;
-    for (const auto& [var_id, value] : solution.value_by_var_id) {
-      if (value > 0.001 && value < 0.999) {
-        non_integer = true;
-        std::cout << "*** ";
-      }
-      std::cout << var_id << ": " << value << std::endl;
-
-    }
-    std::cout << "-------------------------------------------------\n";
-    if (non_integer) {
-      std::cout << "NON INTEGER!!!\n\n";
-    }*/
-
     return solution;
 }
 
-GRBEnv MasterProblem::init_env() {
-    GRBEnv env(true);
-    env.start();
+GRBEnv* MasterProblem::env_ = nullptr;
 
-    return env;
+GRBEnv MasterProblem::init_env() {
+    if (MasterProblem::env_ != nullptr) {
+        return *MasterProblem::env_;
+    }
+
+    MasterProblem::env_ = new GRBEnv(true);
+    // Turn off console output
+    MasterProblem::env_->set(GRB_IntParam_OutputFlag, 0);
+    MasterProblem::env_->start();
+
+    return *MasterProblem::env_;
 }
 
 MPSolution MasterProblem::extract_solution(const GRBModel& model, bool dual) const {
@@ -139,8 +133,6 @@ MPSolution MasterProblem::extract_solution(const GRBModel& model, bool dual) con
     solution.value_by_var_id = value_by_var_id;
     solution.dual_by_var_id = dual_by_var_id;
     solution.cost = objective.getValue();
-
-    std::cout << "solution.cost=" << solution.cost << std::endl;
 
     return solution;
 }

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <chrono>  // NOLINT(build/c++11)
+#include <string>
 
 namespace rcspp {
 
@@ -32,10 +33,10 @@ class Timer {
         [[nodiscard]] bool running() const noexcept;
 
         // Return elapsed time cast to the requested Duration type (default milliseconds).
-        template <typename Duration = std::chrono::milliseconds>
+        template <typename Duration = std::chrono::nanoseconds>
         [[nodiscard]] Duration elapsed(bool only_current) const noexcept {
             duration total{};
-            if (only_current) {
+            if (!only_current) {
                 total = accumulated_;
             }
             if (running_) {
@@ -44,10 +45,15 @@ class Timer {
             return std::chrono::duration_cast<Duration>(total);
         }
 
-        // Convenience helpers
+        // Convenience helpers - only_current, if true, returns time since last start if not stopped
         [[nodiscard]] double elapsed_seconds(bool only_current = false) const noexcept;
         [[nodiscard]] int64_t elapsed_milliseconds(bool only_current = false) const noexcept;
         [[nodiscard]] int64_t elapsed_microseconds(bool only_current = false) const noexcept;
+
+        [[nodiscard]] std::string elapsed_to_hms(bool only_current = false) const noexcept;
+
+        // accumulate another Timer into this (ignores non-finite elapsed values)
+        Timer& operator+=(const Timer& other) noexcept;
 
     private:
         bool running_{false};

@@ -19,7 +19,7 @@ class SimpleDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Res
 
         ~SimpleDominanceAlgorithmIterators() override = default;
 
-    protected:
+    private:
         std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
         next_label_iterator() override {
             auto label_iterator_pair = unprocessed_labels_.front();
@@ -27,14 +27,6 @@ class SimpleDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Res
             unprocessed_labels_.pop_front();
 
             return label_iterator_pair;
-        }
-
-        Label<ResourceType>& next_label() override {
-            auto& label = *unprocessed_labels_.front().first;
-
-            unprocessed_labels_.pop_front();
-
-            return label;
         }
 
         [[nodiscard]] size_t number_of_labels() const override {

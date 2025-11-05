@@ -1,3 +1,4 @@
 .vs/*
 out/*
 *.dll
+instances/duals/

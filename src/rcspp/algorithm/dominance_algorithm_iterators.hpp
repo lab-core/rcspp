@@ -41,6 +41,8 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             }
         }
 
+        Label<ResourceType>& next_label() override { return *this->next_label_iterator().first; }
+
         bool test(const Label<ResourceType>& label) override {
             // Dominance check
 

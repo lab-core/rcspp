@@ -19,7 +19,7 @@ class MasterProblem {
         MPSolution solve(bool relax = false);
 
     private:
-        GRBEnv env_;
+        static GRBEnv* env_;
         GRBModel model_;
         GRBLinExpr objective_lin_expr_;
 

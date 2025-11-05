@@ -152,7 +152,7 @@ void init_graph(py::module_& m) {
         .def("get_resource_factory",
              &ResourceGraph<RealResource>::get_resource_factory,
              py::return_value_policy::reference)
-        .def("solve", &ResourceGraph<RealResource>::solve<DominanceAlgorithmIterators>);
+        .def("solve", &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithmIterators>);
 }
 
 // Macro pour add_resource

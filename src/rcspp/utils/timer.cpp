@@ -3,6 +3,8 @@
 
 #include "rcspp/utils/timer.hpp"
 
+#include <string>
+
 namespace rcspp {
 Timer::Timer(bool start_timer) noexcept : accumulated_(duration::zero()) {
     if (start_timer) {
@@ -47,14 +49,33 @@ bool Timer::running() const noexcept {
 // Convenience helpers
 double Timer::elapsed_seconds(bool only_current) const noexcept {
     // Use the finest common resolution (nanoseconds) then convert to double seconds
-    return std::chrono::duration_cast<std::chrono::duration<double>>(
-               elapsed<std::chrono::nanoseconds>(only_current))
-        .count();
+    return std::chrono::duration_cast<std::chrono::duration<double>>(elapsed(only_current)).count();
 }
 int64_t Timer::elapsed_milliseconds(bool only_current) const noexcept {
     return elapsed<std::chrono::milliseconds>(only_current).count();
 }
 int64_t Timer::elapsed_microseconds(bool only_current) const noexcept {
     return elapsed<std::chrono::microseconds>(only_current).count();
+}
+
+constexpr int HOURS_IN_SECONDS = 3600;
+constexpr int MINUTES_IN_SECONDS = 60;
+constexpr int MAX_LENGHT_HMS = 9;  // "HH:MM:SS" + 1
+
+std::string Timer::elapsed_to_hms(bool only_current) const noexcept {
+    const int sec = static_cast<int>(std::round(elapsed_seconds(only_current)));
+    const int h = sec / HOURS_IN_SECONDS;
+    const int m = (sec % HOURS_IN_SECONDS) / MINUTES_IN_SECONDS;
+    const int ss = sec % MINUTES_IN_SECONDS;
+    char buf[MAX_LENGHT_HMS];
+    std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, ss);
+    return {buf};
+}
+
+// accumulate another Timer into this (ignores non-finite elapsed values)
+Timer& Timer::operator+=(const Timer& other) noexcept {
+    // add accumulated of this other timer
+    accumulated_ += other.elapsed(false);
+    return *this;
 }
 }  // namespace rcspp

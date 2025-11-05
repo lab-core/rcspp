@@ -29,13 +29,14 @@ class PullingDominanceAlgorithmIterators : public PushingDominanceAlgorithmItera
             assert(label_ptr->get_end_node()->id == this->current_unprocessed_node_id);
             this->expanded_labels_by_node_id_[this->current_unprocessed_node_id].push_back(
                 label_ptr);
-            remove_current_label_ =
-                false;  // flag to not remove the current label in next_label_iterator
+            // flag to not remove the current label in next_label_iterator
+            remove_current_label_ = false;
         }
 
         std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
         next_label_iterator() override {
             // remove the current label if needed, and move the iterator forward
+            // TODO(Antoine): not remove if sink node? this->graph_.is_sink && !label.dominated
             if (remove_current_label_) {
                 current_unprocessed_label_iterator_ =
                     this->current_unprocessed_labels_.erase(current_unprocessed_label_iterator_);
@@ -52,8 +53,6 @@ class PullingDominanceAlgorithmIterators : public PushingDominanceAlgorithmItera
                     this->unprocessed_labels_by_node_id_[this->current_unprocessed_node_id] =
                         this->current_unprocessed_labels_;  // save unprocessed labels for the
                                                             // current node
-                    this->current_unprocessed_labels_
-                        .clear();  // flush all labels as we will pull new ones
                 }
 
                 // pull to the new node
@@ -69,6 +68,7 @@ class PullingDominanceAlgorithmIterators : public PushingDominanceAlgorithmItera
 
         void pull_new_unprocessed_labels() {
             // if no more labels for the current node, move to the next node with labels
+            this->current_unprocessed_labels_.clear();
             while (this->current_unprocessed_labels_.empty() && this->num_unprocessed_labels > 0) {
                 // move to the next node
                 ++this->current_unprocessed_node_id;
@@ -78,12 +78,13 @@ class PullingDominanceAlgorithmIterators : public PushingDominanceAlgorithmItera
                     ++this->num_loops_;
                 }
 
-                // clear current labels before adding new ones when not the first loop
+                // clear current labels before adding new ones once a loop has been performed
+                // all unprocessed labels from the previous loop have been processed
                 if (this->num_loops_ > 0) {
                     auto& labels_at_node =
                         this->unprocessed_labels_by_node_id_[this->current_unprocessed_node_id];
-                    this->num_unprocessed_labels -=
-                        labels_at_node.size();  // mark all those labels as processed
+                    // mark all those labels as processed
+                    this->num_unprocessed_labels -= labels_at_node.size();
                     labels_at_node.clear();
                 }
 

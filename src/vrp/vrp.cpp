@@ -31,7 +31,7 @@ VRP::VRP(Instance instance)
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()),
       solution_output_(std::nullopt) {
-    std::cout << "VRP::VRP\n";
+    LOG_TRACE("VRP::VRP\n");
 }
 
 VRP::VRP(Instance instance, std::string duals_directory)
@@ -40,11 +40,11 @@ VRP::VRP(Instance instance, std::string duals_directory)
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()),
       solution_output_(SolutionOutput(duals_directory)) {
-    std::cout << "VRP::VRP\n";
+    LOG_TRACE("VRP::VRP\n");
 }
 
 const std::vector<Path>& VRP::generate_initial_paths() {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& depot_customer = instance_.get_depot_customer();
 
@@ -71,7 +71,7 @@ const std::vector<Path>& VRP::generate_initial_paths() {
 
 MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool use_boost,
                       std::optional<std::map<size_t, double>> optimal_dual_by_var_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     MPSolution master_solution;
 
@@ -83,12 +83,17 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
     int nb_iter = 0;
     while (min_reduced_cost < -EPSILON) {
-        std::cout << "\n*********************************************\n";
-        std::cout << "nb_iter=" << nb_iter << " | min_reduced_cost=" << std::fixed
-                  << std::setprecision(std::numeric_limits<double>::max_digits10)
-                  << min_reduced_cost;
-        std::cout << " | EPSILON=" << EPSILON << std::endl;
-        std::cout << "*********************************************\n";
+        LOG_DEBUG("\n*********************************************\n");
+        LOG_DEBUG("nb_iter=",
+                  nb_iter,
+                  " | min_reduced_cost=",
+                  std::fixed,
+                  std::setprecision(std::numeric_limits<double>::max_digits10),
+                  min_reduced_cost,
+                  " | EPSILON=",
+                  EPSILON,
+                  '\n');
+        LOG_DEBUG("*********************************************\n");
 
         MasterProblem master_problem(instance_.get_demand_customers_id());
 
@@ -108,6 +113,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         std::vector<Solution> solutions_rcspp;
         total_subproblem_time_.start();
         solutions_rcspp = solve_with_rcspp(dual_by_id);
+        // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
 
         std::vector<Solution> solutions_boost;
@@ -115,11 +121,11 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         solutions_boost = solve_with_boost(dual_by_id);
         total_subproblem_time_boost_.stop();
 
-        std::cout << "Solution BOOST cost: " << solutions_boost[0].cost << std::endl;
-        std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;
+        LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
+        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
 
         if (std::abs(solutions_boost[0].cost - solutions_rcspp[0].cost) > COST_COMPARISON_EPSILON) {
-            std::cout << "ERROR!!!!\n";
+            LOG_ERROR("ERROR!!!!\n");
             break;
         }
 
@@ -134,27 +140,6 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
             auto nb_solutions = std::min(subproblem_max_nb_solutions.value(), solutions.size());
             solutions = std::vector<Solution>(solutions.begin(), solutions.begin() + nb_solutions);
         }
-
-        /*for (const auto& sol : solutions) {
-
-          std::cout << "sol.cost=" << sol.cost << std::endl;
-          std::cout << "sol.label_cost=" << sol.label_cost << std::endl;
-          std::cout << "sol.label_time=" << sol.label_time << std::endl;
-          std::cout << "sol.label_demand=" << sol.label_demand << std::endl;
-
-          std::cout << "sol.path_node_ids: ";
-          for (auto node_id : sol.path_node_ids) {
-            std::cout << node_id << " -> ";
-          }
-          std::cout << std::endl;
-
-          std::cout << "sol.path_arc_ids: ";
-          for (auto arc_id : sol.path_arc_ids) {
-            std::cout << arc_id << " -> ";
-          }
-          std::cout << std::endl;
-
-        }*/
 
         std::vector<Solution> negative_red_cost_solutions;
 
@@ -175,35 +160,31 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         }
     }
 
-    std::cout << "\n*********************************************\n";
-    std::cout << "nb_iter=" << nb_iter << " | min_reduced_cost=" << min_reduced_cost
-              << " | EPSILON=" << EPSILON << std::endl;
-    std::cout << "total_subproblem_time_: " << total_subproblem_time_.elapsed_seconds()
-              << std::endl;
-    std::cout << "total_subproblem_solve_time_: " << total_subproblem_solve_time_.elapsed_seconds()
-              << std::endl;
-    std::cout << "total_subproblem_time_boost_: " << total_subproblem_time_boost_.elapsed_seconds()
-              << std::endl;
-    std::cout << "total_subproblem_solve_time_boost_: "
-              << total_subproblem_solve_time_boost_.elapsed_seconds() << std::endl;
-    std::cout << "*********************************************\n";
+    LOG_INFO("\n*********************************************\n");
+    LOG_INFO("nb_iter=",
+             nb_iter,
+             " | min_reduced_cost=",
+             min_reduced_cost,
+             " | EPSILON=",
+             EPSILON,
+             '\n');
+    LOG_INFO("total_subproblem_time_: ", total_subproblem_time_.elapsed_seconds(), '\n');
+    LOG_INFO("total_subproblem_solve_time_: ",
+             total_subproblem_solve_time_.elapsed_seconds(),
+             '\n');
+    LOG_INFO("total_subproblem_time_boost_: ",
+             total_subproblem_time_boost_.elapsed_seconds(),
+             '\n');
+    LOG_INFO("total_subproblem_solve_time_boost_: ",
+             total_subproblem_solve_time_boost_.elapsed_seconds(),
+             '\n');
+    LOG_INFO("*********************************************\n");
 
     // Last solve
     MasterProblem master_problem(instance_.get_demand_customers_id());
     master_problem.construct_model(paths_);
     master_solution = master_problem.solve();
-
-    /*std::cout << "final_dual_by_id:" << final_dual_by_id.size() << std::endl;
-    for (const auto& [id, dual_value] : final_dual_by_id) {
-      std::cout << id << ": " << dual_value << std::endl;
-    }*/
-
     master_solution.dual_by_var_id = final_dual_by_id;
-    /*std::cout << "master_solution.dual_by_var_id:" <<
-    master_solution.dual_by_var_id.size() << std::endl; for (const auto& [id,
-    dual_value] : master_solution.dual_by_var_id) { std::cout << id << ": " <<
-    dual_value << std::endl;
-    }*/
 
     return master_solution;
 }
@@ -212,39 +193,16 @@ const std::vector<Path>& VRP::get_paths() const {
     return paths_;
 }
 
-std::vector<Solution> VRP::solve_with_rcspp(const std::map<size_t, double>& dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
-
-    if (subproblem_graph_.get_number_of_nodes() == 0) {
-        subproblem_graph_ = construct_resource_graph(&dual_by_id);
-    } else {
-        update_resource_graph(&subproblem_graph_, &dual_by_id);
-    }
-
-    total_subproblem_solve_time_.start();
-    // auto solutions = subproblem_graph_.solve();
-    // A different algorithm can be specified as a template argument.
-    auto solutions = subproblem_graph_.solve<PushingDominanceAlgorithmIterators>();
-    // auto solutions = subproblem_graph_.solve<PullingDominanceAlgorithmIterators>();
-
-    std::cout << __FUNCTION__ << " Time: "
-              << total_subproblem_solve_time_.elapsed_milliseconds(/* only_current = */ true)
-              << std::endl;
-
-    total_subproblem_solve_time_.stop();
-
-    return solutions;
-}
-
 std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual_by_id) {
     BoostSubproblem subproblem(instance_, &dual_by_id);
 
     total_subproblem_solve_time_boost_.start();
     auto solutions = subproblem.solve();
 
-    std::cout << __FUNCTION__ << " Time: "
-              << total_subproblem_solve_time_boost_.elapsed_milliseconds(/* only_current = */ true)
-              << std::endl;
+    LOG_DEBUG(__FUNCTION__,
+              " Time: ",
+              total_subproblem_solve_time_boost_.elapsed_milliseconds(/* only_current = */ true),
+              " (ms)\n");
 
     total_subproblem_solve_time_boost_.stop();
 
@@ -252,7 +210,7 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
 }
 
 std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
 
@@ -303,7 +261,7 @@ std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
 
 ResourceGraph<RealResource> VRP::construct_resource_graph(
     const std::map<size_t, double>* dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     ResourceGraph<RealResource> resource_graph;
 
@@ -337,7 +295,7 @@ ResourceGraph<RealResource> VRP::construct_resource_graph(
 
 void VRP::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
                                 const std::map<size_t, double>* dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto max_arc_id = dual_by_id->rbegin()->first;
     std::vector<double> duals(max_arc_id + 1, 0.0);
@@ -349,7 +307,7 @@ void VRP::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
 }
 
 void VRP::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     size_t sink_id = customers_by_id.size();
@@ -441,7 +399,7 @@ double VRP::calculate_distance(const Customer& customer1, const Customer& custom
 }
 
 void VRP::add_paths(const std::vector<Solution>& solutions) {
-    std::cout << "VRP::add_paths: " << solutions.size() << std::endl;
+    LOG_TRACE("VRP::add_paths: ", solutions.size(), '\n');
     for (const auto& solution : solutions) {
         auto solution_cost = calculate_solution_cost(solution);
         paths_.emplace_back(path_id_, solution_cost, solution.path_node_ids);

@@ -3,9 +3,28 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 
 #include "instance.hpp"
+
+namespace fs = std::filesystem;
+
+// returns a stable string with the canonical/absolute path of the root directory
+inline std::string file_parent_dir(std::string file_path, unsigned levels) {
+    fs::path p(__FILE__);
+    try {
+        p = fs::canonical(p);
+    } catch (...) {
+        if (!p.is_absolute()) {
+            p = fs::absolute(p);
+        }
+    }
+    for (unsigned i = 0; i < levels && p.has_parent_path(); ++i) {
+        p = p.parent_path();
+    }
+    return p.string();
+}
 
 class InstanceReader {
     public:

@@ -6,16 +6,18 @@
 #include <fstream>
 #include <iostream>
 
+#include "rcspp/utils/logger.hpp"
+
 InstanceReader::InstanceReader(std::string file_path) : file_path_(std::move(file_path)) {}
 
 Instance InstanceReader::read() const {
-    std::cout << "InstanceReader::read()\n";
+    LOG_TRACE("InstanceReader::read()\n");
 
     int nb_vehicles = 0;
     int capacity = 0;
     std::string instance_name;
 
-    std::cout << "file_path_=" << file_path_ << std::endl;
+    LOG_DEBUG("file_path_=", file_path_, '\n');
 
     std::ifstream file(file_path_);
 
@@ -65,13 +67,13 @@ Instance InstanceReader::read() const {
                               depot);
     }
 
-    std::cout << "nb_customers: " << instance.get_customers_by_id().size() << std::endl;
+    LOG_DEBUG("nb_customers: ", instance.get_customers_by_id().size(), '\n');
 
     return instance;
 }
 
 std::map<size_t, double> InstanceReader::read_duals(const std::string& duals_file_path) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     std::map<size_t, double> dual_by_var_id;
 
