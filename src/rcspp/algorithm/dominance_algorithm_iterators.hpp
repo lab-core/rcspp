@@ -75,25 +75,30 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             const auto& current_node = label_ptr->get_end_node();
 
             for (auto arc_ptr : current_node->out_arcs) {
-                auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
+                expand_label(label_ptr, arc_ptr);
+            }
+        }
 
-                label_ptr->expand(*arc_ptr, &new_label);
+        virtual void expand_label(Label<ResourceType>* label_ptr,
+                                  const Arc<ResourceType>* arc_ptr) {
+            auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
 
-                if (new_label.is_feasible() && test(new_label)) {
-                    // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
-                    // feasible and non dominated.
+            label_ptr->expand(*arc_ptr, &new_label);
 
-                    non_dominated_labels_by_node_id_[new_label.get_end_node()->id].push_back(
-                        &new_label);
+            if (new_label.is_feasible() && test(new_label)) {
+                // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
+                // feasible and non dominated.
 
-                    auto new_label_it =
-                        non_dominated_labels_by_node_id_[new_label.get_end_node()->id].end();
-                    --new_label_it;
+                non_dominated_labels_by_node_id_[new_label.get_end_node()->id].push_back(
+                    &new_label);
 
-                    add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
-                } else {
-                    this->label_pool_.release_label(&new_label);
-                }
+                auto new_label_it =
+                    non_dominated_labels_by_node_id_[new_label.get_end_node()->id].end();
+                --new_label_it;
+
+                add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
+            } else {
+                this->label_pool_.release_label(&new_label);
             }
         }
 

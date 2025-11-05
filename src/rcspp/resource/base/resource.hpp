@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/logger.hpp"
+#include "../../utils/logger.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"

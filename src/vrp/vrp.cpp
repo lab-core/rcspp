@@ -13,6 +13,7 @@
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
 #include "cg/subproblem/boost/boost_subproblem.hpp"
+#include "rcspp/algorithm/pulling_dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm_iterators.hpp"
 #include "rcspp/graph/row.hpp"
 #include "rcspp/resource/concrete/functions/cost/real_value_cost_function.hpp"
@@ -228,9 +229,10 @@ std::vector<Solution> VRP::solve_with_rcspp(const std::map<size_t, double>& dual
     }
 
     auto time_start = std::chrono::high_resolution_clock::now();
-    auto solutions = subproblem_graph_.solve();
+    // auto solutions = subproblem_graph_.solve();
     // A different algorithm can be specified as a template argument.
     // auto solutions = subproblem_graph_.solve<PushingDominanceAlgorithmIterators>();
+    auto solutions = subproblem_graph_.solve<PullingDominanceAlgorithmIterators>();
     auto time_end = std::chrono::high_resolution_clock::now();
 
     total_subproblem_solve_time_ +=

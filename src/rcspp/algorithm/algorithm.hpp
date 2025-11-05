@@ -16,6 +16,7 @@
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
+#include "rcspp/utils/timer.hpp"
 
 namespace rcspp {
 
@@ -58,14 +59,9 @@ class Algorithm {
                     best_label_ = &label;
                 } else if (!graph_.is_sink(label.get_end_node()->id) &&
                            label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    auto time_start = std::chrono::high_resolution_clock::now();
+                    total_full_expand_time_.start();
                     expand(&label);
-                    auto time_end = std::chrono::high_resolution_clock::now();
-
-                    total_full_expand_time_ +=
-                        std::chrono::duration_cast<std::chrono::nanoseconds>(time_end - time_start)
-                            .count();
-
+                    total_full_expand_time_.stop();
                 } else {
                     this->label_pool_.release_label(&label);
 
@@ -135,6 +131,6 @@ class Algorithm {
 
         size_t nb_dominated_labels_{0};
 
-        int64_t total_full_expand_time_ = 0;
+        Timer total_full_expand_time_;
 };
 }  // namespace rcspp

@@ -37,51 +37,7 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
         std::vector<Solution> solve(bool print = false) override {
             this->initialize_labels();
 
-            int i = 0;
-
-            while (this->number_of_labels() > 0) {
-                i++;
-
-                auto label_iterator_pair = next_label_iterator();
-
-                auto& label = *label_iterator_pair.first;
-
-                if (label.dominated) {
-                    this->label_pool_.release_label(&label);
-                    continue;
-                }
-
-                assert(label.get_end_node());
-
-                if (this->graph_.is_sink(label.get_end_node()->id) &&
-                    (label.get_cost() < this->cost_upper_bound_)) {
-                    this->cost_upper_bound_ = label.get_cost();
-                    this->best_label_ = &label;
-                } else if (!this->graph_.is_sink(label.get_end_node()->id) &&
-                           label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    bool label_non_dominated = update_non_dominated_labels(label_iterator_pair);
-
-                    if (label_non_dominated) {
-                        auto time_start = std::chrono::high_resolution_clock::now();
-                        this->expand(&label);
-                        auto time_end = std::chrono::high_resolution_clock::now();
-
-                        this->total_full_expand_time_ +=
-                            std::chrono::duration_cast<std::chrono::nanoseconds>(time_end -
-                                                                                 time_start)
-                                .count();
-                    } else {
-                        this->label_pool_.release_label(&label);
-                    }
-                } else {
-                    this->label_pool_.release_label(&label);
-
-                    remove_label(label_iterator_pair.second);
-                }
-            }
-
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
-            LOG_TRACE("best_label_=", this->best_label_, "\n");
+            main_loop();
 
             std::vector<Solution> solutions;
             if (this->best_label_ != nullptr) {
@@ -94,6 +50,55 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
         }
 
     protected:
+        virtual void main_loop() {
+            int i = 0;
+
+            while (this->number_of_labels() > 0) {
+                i++;
+
+                // next label to process
+                auto label_iterator_pair = next_label_iterator();
+
+                // no more label -> break (useful when pulling)
+                if (label_iterator_pair.first == nullptr) {
+                    break;
+                }
+
+                // label dominated -> continue to next one
+                auto& label = *label_iterator_pair.first;
+                if (label.dominated) {
+                    this->label_pool_.release_label(&label);
+                    continue;
+                }
+
+                assert(label.get_end_node());
+
+                // check if we can update the best label or expand
+                if (this->graph_.is_sink(label.get_end_node()->id) &&
+                    (label.get_cost() < this->cost_upper_bound_)) {
+                    this->cost_upper_bound_ = label.get_cost();
+                    this->best_label_ = &label;
+                } else if (!this->graph_.is_sink(label.get_end_node()->id) &&
+                           label.get_cost() < std::numeric_limits<double>::infinity()) {
+                    bool label_non_dominated = update_non_dominated_labels(label_iterator_pair);
+
+                    if (label_non_dominated) {
+                        this->total_full_expand_time_.start();
+                        this->expand(&label);
+                        this->total_full_expand_time_.stop();
+                    } else {
+                        this->label_pool_.release_label(&label);
+                    }
+                } else {
+                    this->label_pool_.release_label(&label);
+                    remove_label(label_iterator_pair.second);
+                }
+            }
+
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+            LOG_TRACE("best_label_=", this->best_label_, "\n");
+        }
+
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
         virtual void remove_label(

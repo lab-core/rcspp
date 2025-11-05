@@ -21,6 +21,10 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                 unprocessed_labels_by_node_id_.push_back(
                     std::list<LabelIteratorPair<ResourceType>>());
             }
+
+            // ensure that the first call to populate_current_unprocessed_labels_if_needed advances
+            // to the first node
+            current_unprocessed_node_id = graph.get_number_of_nodes();
         }
 
         ~PushingDominanceAlgorithmIterators() override = default;
@@ -28,7 +32,19 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
     protected:
         std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
         next_label_iterator() override {
-            populate_current_unprocessed_labels_if_needed();
+            // if no more labels for the current node, move to the next node with labels
+            while (current_unprocessed_labels_.empty()) {
+                // move to the next node
+                current_unprocessed_node_id++;
+                if (current_unprocessed_node_id >= unprocessed_labels_by_node_id_.size()) {
+                    current_unprocessed_node_id = 0;
+                    num_loops_++;
+                }
+                // move labels for the current node
+                current_unprocessed_labels_ =
+                    unprocessed_labels_by_node_id_[current_unprocessed_node_id];
+                unprocessed_labels_by_node_id_[current_unprocessed_node_id].clear();
+            }
 
             // get the next label
             auto label_iterator_pair = current_unprocessed_labels_.front();
@@ -39,31 +55,7 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             return label_iterator_pair;
         }
 
-        Label<ResourceType>& next_label() override {
-            populate_current_unprocessed_labels_if_needed();
-
-            auto& label = *current_unprocessed_labels_.front().first;
-
-            current_unprocessed_labels_.pop_front();
-            num_unprocessed_labels--;
-
-            return label;
-        }
-
-        void populate_current_unprocessed_labels_if_needed() {
-            // if no more labels for the current node, move to the next node with labels
-            while (current_unprocessed_labels_.empty()) {
-                // move to the next node
-                current_unprocessed_node_id++;
-                if (current_unprocessed_node_id >= unprocessed_labels_by_node_id_.size()) {
-                    current_unprocessed_node_id = 0;
-                }
-                // move labels for the current node
-                current_unprocessed_labels_ =
-                    unprocessed_labels_by_node_id_[current_unprocessed_node_id];
-                unprocessed_labels_by_node_id_[current_unprocessed_node_id].clear();
-            }
-        }
+        Label<ResourceType>& next_label() override { return *next_label_iterator().first; }
 
         [[nodiscard]] size_t number_of_labels() const override { return num_unprocessed_labels; }
 
@@ -75,7 +67,8 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
         }
 
         size_t num_unprocessed_labels = 0;
-        size_t current_unprocessed_node_id = 0;
+        size_t current_unprocessed_node_id;
+        int num_loops_ = -1;  // as starting from the end -> do not count first loop
         std::list<LabelIteratorPair<ResourceType>> current_unprocessed_labels_;
         std::vector<std::list<LabelIteratorPair<ResourceType>>> unprocessed_labels_by_node_id_;
 };
