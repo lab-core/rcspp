@@ -33,20 +33,20 @@ RealResourceFactory::RealResourceFactory(const RealResource& real_resource_proto
                                     real_resource_prototype) {}
 
 RealResourceFactory::RealResourceFactory(
-    std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
-    std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
-    std::unique_ptr<CostFunction<RealResource>> cost_function,
-    std::unique_ptr<DominanceFunction<RealResource>> dominance_function)
+  std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
+  std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
+  std::unique_ptr<CostFunction<RealResource>> cost_function,
+  std::unique_ptr<DominanceFunction<RealResource>> dominance_function)
     : ResourceFactory<RealResource>(std::move(expansion_function), std::move(feasibility_function),
                                     std::move(cost_function), std::move(dominance_function),
                                     RealResource(0)) {}
 
 RealResourceFactory::RealResourceFactory(
-    const RealResource& real_resource_prototype,
-    std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
-    std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
-    std::unique_ptr<CostFunction<RealResource>> cost_function,
-    std::unique_ptr<DominanceFunction<RealResource>> dominance_function)
+  const RealResource& real_resource_prototype,
+  std::unique_ptr<ExpansionFunction<RealResource>> expansion_function,
+  std::unique_ptr<FeasibilityFunction<RealResource>> feasibility_function,
+  std::unique_ptr<CostFunction<RealResource>> cost_function,
+  std::unique_ptr<DominanceFunction<RealResource>> dominance_function)
     : ResourceFactory<RealResource>(std::move(expansion_function), std::move(feasibility_function),
                                     std::move(cost_function), std::move(dominance_function),
                                     real_resource_prototype) {}

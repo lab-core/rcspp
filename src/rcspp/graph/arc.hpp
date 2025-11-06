@@ -18,35 +18,35 @@ namespace rcspp {
 template <typename ResourceType>
 // requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Arc {
-    public:
-        Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            std::unique_ptr<Expander<ResourceType>> arc_expander, double arc_cost,
-            std::vector<Row> dual_rows = {})
-            : id(arc_id),
-              origin(origin_node),
-              destination(destination_node),
-              expander(std::move(arc_expander)),
-              cost(arc_cost),
-              dual_rows(std::move(dual_rows)) {}
+  public:
+    Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
+        std::unique_ptr<Expander<ResourceType>> arc_expander, double arc_cost,
+        std::vector<Row> dual_rows = {})
+        : id(arc_id),
+          origin(origin_node),
+          destination(destination_node),
+          expander(std::move(arc_expander)),
+          cost(arc_cost),
+          dual_rows(std::move(dual_rows)) {}
 
-        Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            double arc_cost, std::vector<Row> dual_rows = {})
-            : Arc(arc_id, origin_node, destination_node, nullptr, arc_cost, std::move(dual_rows)) {}
+    Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
+        double arc_cost, std::vector<Row> dual_rows = {})
+        : Arc(arc_id, origin_node, destination_node, nullptr, arc_cost, std::move(dual_rows)) {}
 
-        Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            std::vector<Row> dual_rows = {})
-            : Arc(arc_id, origin_node, destination_node, 0, std::move(dual_rows)) {}
+    Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
+        std::vector<Row> dual_rows = {})
+        : Arc(arc_id, origin_node, destination_node, 0, std::move(dual_rows)) {}
 
-        const size_t id;
+    const size_t id;
 
-        Node<ResourceType>* const origin;
+    Node<ResourceType>* const origin;
 
-        Node<ResourceType>* const destination;
+    Node<ResourceType>* const destination;
 
-        std::unique_ptr<Expander<ResourceType>> expander;
+    std::unique_ptr<Expander<ResourceType>> expander;
 
-        double cost;
+    double cost;
 
-        std::vector<Row> dual_rows;
+    std::vector<Row> dual_rows;
 };
 }  // namespace rcspp

@@ -8,7 +8,7 @@
 namespace rcspp {
 
 struct Row {
-        size_t index;
-        long double coefficient;
+    size_t index;
+    long double coefficient;
 };
 }  // namespace rcspp

@@ -6,17 +6,17 @@
 #include <cstddef>
 
 struct Customer {
-        Customer();
+    Customer();
 
-        Customer(std::size_t id, double pos_x, double pos_y, int demand, int ready_time,
-                 int due_time, int service_time, bool depot);
+    Customer(std::size_t id, double pos_x, double pos_y, int demand, int ready_time, int due_time,
+             int service_time, bool depot);
 
-        size_t id;
-        double pos_x;
-        double pos_y;
-        int demand;
-        int ready_time;
-        int due_time;
-        int service_time;
-        bool depot;
+    size_t id;
+    double pos_x;
+    double pos_y;
+    int demand;
+    int ready_time;
+    int due_time;
+    int service_time;
+    bool depot;
 };

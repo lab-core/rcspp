@@ -11,13 +11,13 @@ namespace rcspp {
 
 class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction, FeasibilityFunction<RealResource>> {
-    public:
-        MinMaxFeasibilityFunction(double min, double max) : min_(min), max_(max) {}
+  public:
+    MinMaxFeasibilityFunction(double min, double max) : min_(min), max_(max) {}
 
-        auto is_feasible(const Resource<RealResource>& resource) -> bool override;
+    auto is_feasible(const Resource<RealResource>& resource) -> bool override;
 
-    private:
-        double min_;
-        double max_;
+  private:
+    double min_;
+    double max_;
 };
 }  // namespace rcspp

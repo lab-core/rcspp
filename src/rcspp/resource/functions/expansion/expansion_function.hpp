@@ -17,28 +17,28 @@ class Expander;
 
 template <typename ResourceType>
 class ExpansionFunction {
-    public:
-        virtual ~ExpansionFunction() = default;
+  public:
+    virtual ~ExpansionFunction() = default;
 
-        virtual void expand(const Resource<ResourceType>& resource,
-                            const Expander<ResourceType>& expander,
-                            Resource<ResourceType>* expanded_resource) = 0;
+    virtual void expand(const Resource<ResourceType>& resource,
+                        const Expander<ResourceType>& expander,
+                        Resource<ResourceType>* expanded_resource) = 0;
 
-        [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExpansionFunction> = 0;
+    [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExpansionFunction> = 0;
 
-        virtual auto create(size_t arc_id) -> std::unique_ptr<ExpansionFunction> {
-            auto new_expansion_function = clone();
+    virtual auto create(size_t arc_id) -> std::unique_ptr<ExpansionFunction> {
+      auto new_expansion_function = clone();
 
-            new_expansion_function->arc_id_ = arc_id;
+      new_expansion_function->arc_id_ = arc_id;
 
-            new_expansion_function->preprocess();
+      new_expansion_function->preprocess();
 
-            return new_expansion_function;
-        }
+      return new_expansion_function;
+    }
 
-        size_t arc_id_;
+    size_t arc_id_;
 
-    protected:
-        virtual void preprocess() {}
+  protected:
+    virtual void preprocess() {}
 };
 }  // namespace rcspp

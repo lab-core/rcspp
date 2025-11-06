@@ -12,29 +12,29 @@
 using namespace rcspp;
 
 class BoostSubproblem {
-    public:
-        BoostSubproblem(Instance instance, const std::map<size_t, double>* dual_by_id = nullptr);
+  public:
+    BoostSubproblem(Instance instance, const std::map<size_t, double>* dual_by_id = nullptr);
 
-        std::vector<Solution> solve();
+    std::vector<Solution> solve();
 
-    private:
-        Instance instance_;
-        const std::map<size_t, double>* dual_by_id_;
+  private:
+    Instance instance_;
+    const std::map<size_t, double>* dual_by_id_;
 
-        size_t source_id_{0};
-        size_t sink_id_{0};
+    size_t source_id_{0};
+    size_t sink_id_{0};
 
-        GraphVRPTW graph_boost_;
+    GraphVRPTW graph_boost_;
 
-        GraphVRPTW construct_boost_graph();
+    GraphVRPTW construct_boost_graph();
 
-        void add_vertices(GraphVRPTW& graph_boost);
+    void add_vertices(GraphVRPTW& graph_boost);
 
-        void add_edges(GraphVRPTW& graph_boost) const;
+    void add_edges(GraphVRPTW& graph_boost) const;
 
-        void add_single_edge(size_t arc_id, const Customer& customer_orig,
-                             const Customer& customer_dest, GraphVRPTW& graph_boost) const;
+    void add_single_edge(size_t arc_id, const Customer& customer_orig,
+                         const Customer& customer_dest, GraphVRPTW& graph_boost) const;
 
-        [[nodiscard]] static double calculate_distance(const Customer& customer1,
-                                                       const Customer& customer2);
+    [[nodiscard]] static double calculate_distance(const Customer& customer1,
+                                                   const Customer& customer2);
 };

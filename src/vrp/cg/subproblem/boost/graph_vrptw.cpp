@@ -10,28 +10,28 @@ constexpr double RESOURCE_CONTAINER_EPSILON = 1e-8;
 
 bool operator==(const ResourceContainerVRPTW& res_cont_lhs,
                 const ResourceContainerVRPTW& res_cont_rhs) {
-    // LOG_TRACE(__FUNCTION__, '\n');
+  // LOG_TRACE(__FUNCTION__, '\n');
 
-    return ((std::abs(res_cont_lhs.cost - res_cont_rhs.cost) < RESOURCE_CONTAINER_EPSILON) &&
-            (std::abs(res_cont_lhs.time - res_cont_rhs.time) < RESOURCE_CONTAINER_EPSILON) &&
-            (std::abs(res_cont_lhs.demand - res_cont_rhs.demand) < RESOURCE_CONTAINER_EPSILON));
+  return ((std::abs(res_cont_lhs.cost - res_cont_rhs.cost) < RESOURCE_CONTAINER_EPSILON) &&
+          (std::abs(res_cont_lhs.time - res_cont_rhs.time) < RESOURCE_CONTAINER_EPSILON) &&
+          (std::abs(res_cont_lhs.demand - res_cont_rhs.demand) < RESOURCE_CONTAINER_EPSILON));
 }
 
 bool operator<(const ResourceContainerVRPTW& res_cont_lhs,
                const ResourceContainerVRPTW& res_cont_rhs) {
-    // LOG_TRACE(__FUNCTION__, '\n');
+  // LOG_TRACE(__FUNCTION__, '\n');
 
-    bool result = true;
+  bool result = true;
 
-    if (res_cont_lhs.cost > res_cont_rhs.cost - RESOURCE_CONTAINER_EPSILON) {
-        result = false;
-    }
-    if (res_cont_lhs.time > res_cont_rhs.time - RESOURCE_CONTAINER_EPSILON) {
-        result = false;
-    }
-    if (res_cont_lhs.demand > res_cont_rhs.demand - RESOURCE_CONTAINER_EPSILON) {
-        result = false;
-    }
+  if (res_cont_lhs.cost > res_cont_rhs.cost - RESOURCE_CONTAINER_EPSILON) {
+    result = false;
+  }
+  if (res_cont_lhs.time > res_cont_rhs.time - RESOURCE_CONTAINER_EPSILON) {
+    result = false;
+  }
+  if (res_cont_lhs.demand > res_cont_rhs.demand - RESOURCE_CONTAINER_EPSILON) {
+    result = false;
+  }
 
-    return result;
+  return result;
 }

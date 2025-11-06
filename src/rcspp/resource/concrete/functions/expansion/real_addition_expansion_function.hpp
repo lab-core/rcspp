@@ -13,8 +13,8 @@ namespace rcspp {
 
 class RealAdditionExpansionFunction
     : public Clonable<RealAdditionExpansionFunction, ExpansionFunction<RealResource>> {
-    public:
-        void expand(const Resource<RealResource>& resource, const Expander<RealResource>& expander,
-                    Resource<RealResource>* expanded_resource) override;
+  public:
+    void expand(const Resource<RealResource>& resource, const Expander<RealResource>& expander,
+                Resource<RealResource>* expanded_resource) override;
 };
 }  // namespace rcspp

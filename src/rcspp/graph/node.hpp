@@ -17,17 +17,17 @@ template <typename ResourceType>
 class Arc;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+  requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Node {
-    public:
-        explicit Node(size_t node_id) : id(node_id) {}
+  public:
+    explicit Node(size_t node_id) : id(node_id) {}
 
-        const size_t id;
-        size_t pos = -1;
+    const size_t id;
+    size_t pos = -1;
 
-        std::vector<Arc<ResourceType>*> in_arcs;
-        std::vector<Arc<ResourceType>*> out_arcs;
+    std::vector<Arc<ResourceType>*> in_arcs;
+    std::vector<Arc<ResourceType>*> out_arcs;
 
-        std::unique_ptr<Resource<ResourceType>> resource;
+    std::unique_ptr<Resource<ResourceType>> resource;
 };
 }  // namespace rcspp
