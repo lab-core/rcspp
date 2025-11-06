@@ -16,7 +16,22 @@ class VRPSubproblem {
                   const std::map<size_t, double>* row_coefficient_by_id = nullptr);
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
-        std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id);
+    template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+    std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
+        std::cout << __FUNCTION__ << std::endl;
+
+        total_subproblem_time_.start();
+        auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id);
+        total_subproblem_time_.stop();
+
+        std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;
+
+        std::cout << "\n*********************************************\n";
+        std::cout << "total_subproblem_time_: " << total_subproblem_time_.elapsed_seconds() << std::endl;
+        std::cout << "*********************************************\n";
+
+        return solutions_rcspp;
+    }
 
     private:
 
@@ -64,8 +79,23 @@ class VRPSubproblem {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id);
+            const std::map<size_t, double>& dual_by_id) {
+            {
+                std::cout << __FUNCTION__ << std::endl;
+
+                if (subproblem_graph_.get_number_of_nodes() == 0) {
+                    subproblem_graph_ = construct_resource_graph(&dual_by_id);
+                } else {
+                    update_resource_graph(&subproblem_graph_, &dual_by_id);
+                }
+
+                auto solutions = subproblem_graph_.solve<AlgorithmType>();
+
+                return solutions;
+            }
+        }
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(
             const std::map<size_t, double>& master_dual_by_var_id,
