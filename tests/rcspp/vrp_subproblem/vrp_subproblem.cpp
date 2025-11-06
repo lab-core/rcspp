@@ -2,7 +2,6 @@
 // All rights reserved.
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <limits>
 #include <ranges>
@@ -24,7 +23,6 @@ std::vector<Solution> VRPSubproblem::solve(const std::map<size_t, double>& dual_
 
     total_subproblem_time_.start();
     auto solutions_rcspp = solve_with_rcspp(dual_by_id);
-    auto subproblem_time_end = std::chrono::high_resolution_clock::now();
     total_subproblem_time_.stop();
 
     std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;

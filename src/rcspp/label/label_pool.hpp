@@ -5,7 +5,6 @@
 
 #include <concepts>
 #include <memory>
-#include <optional>
 #include <set>
 #include <utility>
 #include <vector>
@@ -70,7 +69,7 @@ class LabelPool {
 
                 nb_labels_++;
             } else {
-                // // LOG_TRACE("NOT temporary_label_ptr_\n");
+                // LOG_TRACE("NOT temporary_label_ptr_\n");
 
                 temporary_label_ptr_ =
                     label_factory_->make_label(nb_labels_, end_node, in_arc, out_arc);

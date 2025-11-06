@@ -36,7 +36,6 @@ VRP::VRP(Instance instance)
 
 VRP::VRP(Instance instance, std::string duals_directory)
     : instance_(std::move(instance)),
-      path_id_(0),
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()),
       solution_output_(SolutionOutput(duals_directory)) {

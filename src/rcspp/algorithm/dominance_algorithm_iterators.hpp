@@ -145,7 +145,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
         std::vector<std::pair<std::vector<size_t>, std::vector<double>>> get_vector_paths_node_ids(
             const Label<ResourceType>& label) override {
-            /// LOG_TRACE(__FUNCTION__, '\n');
+            // LOG_TRACE(__FUNCTION__, '\n');
 
             std::vector<std::pair<std::vector<size_t>, std::vector<double>>> all_paths_node_ids;
 

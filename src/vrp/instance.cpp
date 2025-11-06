@@ -9,10 +9,7 @@
 #include "rcspp/utils/logger.hpp"
 
 Instance::Instance(int nb_vehicles, int capacity, std::optional<std::string> name)
-    : nb_vehicles_(nb_vehicles),
-      capacity_(capacity),
-      name_(std::move(name)),
-      depot_customer_id_(0) {}
+    : nb_vehicles_(nb_vehicles), capacity_(capacity), name_(std::move(name)) {}
 
 const Customer& Instance::add_customer(int customer_id, double pos_x, double pos_y, int demand,
                                        int ready_time, int due_time, int service_time, bool depot) {

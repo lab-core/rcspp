@@ -11,8 +11,8 @@
 namespace fs = std::filesystem;
 
 // returns a stable string with the canonical/absolute path of the root directory
-inline std::string file_parent_dir(std::string file_path, unsigned levels) {
-    fs::path p(__FILE__);
+inline std::string file_parent_dir(const std::string file_path, unsigned levels) {
+    fs::path p(file_path);
     try {
         p = fs::canonical(p);
     } catch (...) {

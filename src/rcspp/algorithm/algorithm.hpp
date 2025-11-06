@@ -30,12 +30,12 @@ class Algorithm {
               graph_(graph),
               cost_upper_bound_(std::numeric_limits<double>::infinity()),
               best_label_(nullptr) {
-            if (!graph_.get_sorted_nodes().empty() && graph_.is_nodes_sorted()) {
+            if (!graph_.get_sorted_nodes().empty() && !graph_.is_nodes_sorted()) {
                 LOG_FATAL(
-                    "Graph have a sorted nodes structure that is not correctly sorted. Do not "
+                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.\n");
                 throw std::runtime_error(
-                    "Graph have a sorted nodes structure that is not correctly sorted. Do not "
+                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.");
             }
         }

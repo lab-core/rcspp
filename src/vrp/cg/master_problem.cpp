@@ -73,14 +73,14 @@ MPSolution MasterProblem::solve(bool integer) {
     return solution;
 }
 
-GRBEnv* MasterProblem::env_ = nullptr;
+std::unique_ptr<GRBEnv> MasterProblem::env_ = nullptr;
 
 GRBEnv MasterProblem::init_env() {
     if (MasterProblem::env_ != nullptr) {
         return *MasterProblem::env_;
     }
 
-    MasterProblem::env_ = new GRBEnv(true);
+    MasterProblem::env_ = std::make_unique<GRBEnv>(true);
     // Turn off console output
     MasterProblem::env_->set(GRB_IntParam_OutputFlag, 0);
     MasterProblem::env_->start();

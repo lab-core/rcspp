@@ -35,6 +35,6 @@ class Instance {
         std::optional<std::string> name_;
         std::map<size_t, Customer> customers_by_id_;
 
-        size_t depot_customer_id_;
+        size_t depot_customer_id_{0};
         std::vector<size_t> demand_customers_id_;
 };

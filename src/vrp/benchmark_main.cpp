@@ -12,7 +12,9 @@
 #include "vrp.hpp"
 
 std::string print_timer_table(const std::string& instance, const std::vector<Timer>& timers,
-                              const std::vector<std::string>& labels, bool print_headers = true) {
+                              const std::vector<std::string>& labels, bool print_headers = true,
+                              size_t metric_w = 15,     // NOLINT(readability-magic-numbers)
+                              size_t min_col_w = 10) {  // NOLINT(readability-magic-numbers)
     std::ostringstream out;
     if (timers.size() != labels.size()) {
         out << "print_timer_table_flipped: mismatch between timers and labels sizes\n";
@@ -20,7 +22,8 @@ std::string print_timer_table(const std::string& instance, const std::vector<Tim
     }
 
     // prepare formatted metric strings and compute column widths
-    std::vector<std::string> secs_str(timers.size()), hms_str(timers.size());
+    std::vector<std::string> secs_str(timers.size());
+    std::vector<std::string> hms_str(timers.size());
     for (size_t i = 0; i < timers.size(); ++i) {
         std::ostringstream tmp;
         double s = timers[i].elapsed_seconds();
@@ -30,17 +33,17 @@ std::string print_timer_table(const std::string& instance, const std::vector<Tim
     }
 
     const std::string metric_label = "Instance";
-    size_t metric_w = 15;
     // compute column widths for each label column
     std::vector<size_t> col_w(timers.size());
     for (size_t i = 0; i < timers.size(); ++i) {
-        col_w[i] = std::max(
-            {labels[i].size(), secs_str[i].size(), hms_str[i].size(), static_cast<size_t>(10)});
+        col_w[i] = std::max({labels[i].size(), secs_str[i].size(), hms_str[i].size(), min_col_w});
     }
 
     // total width for separator
-    size_t total_w = metric_w + 1;              // metric column + space
-    for (size_t w : col_w) total_w += (w + 1);  // each column + space
+    size_t total_w = metric_w + 1;  // metric column + space
+    for (size_t w : col_w) {
+        total_w += (w + 1);  // each column + space
+    }
 
     // header row: metric label + labels as column headers
     if (print_headers) {

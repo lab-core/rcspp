@@ -21,7 +21,7 @@ class MasterProblem {
         void add_columns(const std::vector<Path>& paths);
 
     private:
-        static GRBEnv* env_;
+        static std::unique_ptr<GRBEnv> env_;
         GRBModel model_;
 
         std::vector<size_t> node_ids_;

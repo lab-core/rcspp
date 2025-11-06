@@ -24,7 +24,8 @@ struct EdgePropertiesVRPTW {
         double demand;
 };
 
-typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, VertexPropertiesVRPTW,
+typedef boost::adjacency_list<boost::vecS,  // NOLINT(modernize-use-using)
+                              boost::vecS, boost::directedS, VertexPropertiesVRPTW,
                               EdgePropertiesVRPTW>
     GraphVRPTW;
 

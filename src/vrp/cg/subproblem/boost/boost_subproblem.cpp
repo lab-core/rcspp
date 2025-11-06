@@ -16,9 +16,7 @@
 using namespace rcspp;
 
 BoostSubproblem::BoostSubproblem(Instance instance, const std::map<size_t, double>* dual_by_id)
-    : source_id_(0),
-      sink_id_(0),
-      instance_(std::move(instance)),
+    : instance_(std::move(instance)),
       dual_by_id_(dual_by_id),
       graph_boost_(construct_boost_graph()) {}
 

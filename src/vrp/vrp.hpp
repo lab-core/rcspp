@@ -33,7 +33,7 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve() {
+        std::vector<Timer> solve() {  // NOLINT(readability-function-cognitive-complexity)
             LOG_TRACE(__FUNCTION__, '\n');
 
             generate_initial_paths();
