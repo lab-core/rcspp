@@ -61,10 +61,10 @@ class Algorithm {
 
         assert(label.get_end_node());
 
-        if (graph_.is_sink(label.get_end_node()->id) && (label.get_cost() < cost_upper_bound_)) {
+        if (label.get_end_node()->sink && label.get_cost() < cost_upper_bound_) {
           cost_upper_bound_ = label.get_cost();
           best_label_ = &label;
-        } else if (!graph_.is_sink(label.get_end_node()->id) &&
+        } else if (!label.get_end_node()->sink &&
                    label.get_cost() < std::numeric_limits<double>::infinity()) {
           total_full_expand_time_.start();
           expand(&label);

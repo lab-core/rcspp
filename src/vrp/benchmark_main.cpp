@@ -7,6 +7,8 @@
 #include "instance.hpp"
 #include "instance_reader.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/pushing_dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
 #include "rcspp/resource/resource_graph.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
@@ -93,6 +95,7 @@ int main(int argc, char* argv[]) {
 
     auto instance = instance_reader.read();
     VRP vrp(instance);
+    vrp.sort_nodes();
 
     Timer timer(true);
     auto timers = vrp.solve<SimpleDominanceAlgorithmIterators,

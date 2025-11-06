@@ -73,11 +73,10 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
         assert(label.get_end_node());
 
         // check if we can update the best label or expand
-        if (this->graph_.is_sink(label.get_end_node()->id) &&
-            (label.get_cost() < this->cost_upper_bound_)) {
+        if (label.get_end_node()->sink && label.get_cost() < this->cost_upper_bound_) {
           this->cost_upper_bound_ = label.get_cost();
           this->best_label_ = &label;
-        } else if (!this->graph_.is_sink(label.get_end_node()->id) &&
+        } else if (!label.get_end_node()->sink &&
                    label.get_cost() < std::numeric_limits<double>::infinity()) {
           bool label_non_dominated = update_non_dominated_labels(label_iterator_pair);
 

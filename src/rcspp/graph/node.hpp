@@ -20,7 +20,8 @@ template <typename ResourceType>
   requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Node {
   public:
-    explicit Node(size_t node_id) : id(node_id) {}
+    explicit Node(size_t node_id, bool source, bool sink)
+        : id(node_id), source(source), sink(sink) {}
 
     const size_t id;
     size_t pos = -1;
@@ -29,5 +30,8 @@ class Node {
     std::vector<Arc<ResourceType>*> out_arcs;
 
     std::unique_ptr<Resource<ResourceType>> resource;
+
+    const bool source;
+    const bool sink;
 };
 }  // namespace rcspp

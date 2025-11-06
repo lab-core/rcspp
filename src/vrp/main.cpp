@@ -40,6 +40,7 @@ int main(int argc, char* argv[]) {
   auto instance = instance_reader.read();
 
   VRP vrp(instance, duals_directory);
+  // vrp.sort_nodes();
 
   Timer timer(true);
   auto master_solution = vrp.solve(subproblem_max_nb_solutions, false);

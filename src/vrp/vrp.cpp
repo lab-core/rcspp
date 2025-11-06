@@ -29,7 +29,7 @@ constexpr double MICROSECONDS_PER_SECOND = 1e6;
 VRP::VRP(Instance instance)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      initial_graph_(construct_resource_graph()),
+      graph_(construct_resource_graph()),
       solution_output_(std::nullopt) {
   LOG_TRACE("VRP::VRP\n");
 }
@@ -37,7 +37,7 @@ VRP::VRP(Instance instance)
 VRP::VRP(Instance instance, std::string duals_directory)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      initial_graph_(construct_resource_graph()),
+      graph_(construct_resource_graph()),
       solution_output_(SolutionOutput(duals_directory)) {
   LOG_TRACE("VRP::VRP\n");
 }
@@ -66,6 +66,10 @@ const std::vector<Path>& VRP::generate_initial_paths() {
   }
 
   return paths_;
+}
+
+void VRP::sort_nodes() {
+  graph_.sort_nodes_by_cost();
 }
 
 MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool use_boost,
@@ -109,6 +113,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     std::vector<Solution> solutions_rcspp;
     total_subproblem_time_.start();
     solutions_rcspp = solve_with_rcspp(dual_by_id);
+    // solutions_rcspp = solve_with_rcspp<PushingDominanceAlgorithmIterators>(dual_by_id);
     // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
     total_subproblem_time_.stop();
 
@@ -287,7 +292,7 @@ void VRP::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
     duals.at(arc_id) = dual_value;
   }
 
-  subproblem_graph_.update_reduced_costs(duals);
+  graph_.update_reduced_costs(duals);
 }
 
 void VRP::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
@@ -399,7 +404,7 @@ double VRP::calculate_solution_cost(const Solution& solution) const {
 
   // TODO(patrick): Figure out how to get the cost of an Expander.
   for (auto arc_id : solution.path_arc_ids) {
-    cost += initial_graph_.get_arc(arc_id).cost;
+    cost += graph_.get_arc(arc_id).cost;
   }
 
   return cost;

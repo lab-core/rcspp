@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>  // NOLINT(build/include_order)
 #include <functional>
 #include <map>
@@ -25,7 +26,7 @@ class Graph {
     Graph() = default;
 
     virtual Node<ResourceType>& add_node(size_t node_id, bool source = false, bool sink = false) {
-      nodes_by_id_[node_id] = std::make_unique<Node<ResourceType>>(node_id);
+      nodes_by_id_[node_id] = std::make_unique<Node<ResourceType>>(node_id, source, sink);
 
       if (source) {
         source_node_ids_.push_back(nodes_by_id_[node_id]->id);
@@ -146,16 +147,12 @@ class Graph {
     }
 
     void sort_nodes() {
-      sorted_nodes_.clear();
-      sorted_nodes_.reserve(nodes_by_id_.size());
-      for (auto& [node_id, node_ptr] : nodes_by_id_) {
-        node_ptr->pos = sorted_nodes_.size();
-        sorted_nodes_.push_back(node_ptr.get());
-      }
+      sort_nodes(
+        [](const Node<ResourceType>* n1, const Node<ResourceType>* n2) { return n1->id < n2->id; });
     }
 
-    void sort_nodes(
-      std::function<bool(const Node<ResourceType>*, const Node<ResourceType>*)> comp) {
+    template <class Compare>
+    void sort_nodes(Compare comp) {
       // populate the vector
       sorted_nodes_.clear();
       sorted_nodes_.reserve(nodes_by_id_.size());
@@ -179,9 +176,10 @@ class Graph {
       }
       for (size_t i = 0; i < sorted_nodes_.size(); i++) {
         if (sorted_nodes_[i]->pos != i) {
-          LOG_WARN("Nodes are not correctly sorted in the graph. It will be overriden.\n");
+          LOG_WARN("Nodes are not correctly sorted in the graph. It will be overridden.\n");
           return false;
         }
+        assert(sorted_nodes_[i]->pos == sorted_nodes_[i]->id);
       }
       return true;
     }

@@ -142,6 +142,8 @@ class VRP {
       return timers;
     }
 
+    void sort_nodes();
+
     [[nodiscard]] const std::vector<Path>& get_paths() const;
 
   private:
@@ -156,9 +158,7 @@ class VRP {
 
     std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
 
-    ResourceGraph<RealResource> initial_graph_;
-
-    ResourceGraph<RealResource> subproblem_graph_;
+    ResourceGraph<RealResource> graph_;
 
     std::optional<SolutionOutput> solution_output_;
 
@@ -202,14 +202,9 @@ class VRP {
       const std::map<size_t, double>& dual_by_id) {
       LOG_TRACE(__FUNCTION__, '\n');
 
-      if (subproblem_graph_.get_number_of_nodes() == 0) {
-        subproblem_graph_ = construct_resource_graph(&dual_by_id);
-      } else {
-        update_resource_graph(&subproblem_graph_, &dual_by_id);
-      }
-
+      update_resource_graph(&graph_, &dual_by_id);
       total_subproblem_solve_time_.start();
-      auto solutions = subproblem_graph_.solve<AlgorithmType>();
+      auto solutions = graph_.solve<AlgorithmType>();
 
       LOG_DEBUG(__FUNCTION__,
                 " Time: ",

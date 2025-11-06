@@ -3,12 +3,14 @@
 
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "../algorithm/shortest_path_sort.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/solution.hpp"
@@ -159,6 +161,12 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
       }
     }
 
+    template <template <typename, typename...> class SortType = ShortestPathSort,
+              typename CostResourceType = RealResource>
+    void sort_nodes_by_cost(size_t cost_index = 0) {
+      SortType<CostResourceType, ResourceTypes...> sort(this, cost_index);
+    }
+
     template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
               typename CostResourceType = RealResource>
     std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
@@ -169,7 +177,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         ShortestPathPreprocessor<CostResourceType, ResourceTypes...>(this, upper_bound, cost_index);
       preprocessor.preprocess();
 
-      // if not sorted with a preprocessor, use default sort (by id)
+      // if not sorted, use default sort (by id)
       if (!this->is_nodes_sorted()) {
         this->sort_nodes();
       }
