@@ -166,20 +166,19 @@ class Graph {
       // fix position
       size_t i = 0;
       for (const auto& node_ptr : sorted_nodes_) {
-        node_ptr->pos = i++;
+        node_ptr->pos_ = i++;
       }
     }
 
-    [[nodiscard]] bool is_nodes_sorted() const {
+    [[nodiscard]] bool are_nodes_sorted() const {
       if (sorted_nodes_.empty()) {
         return false;
       }
       for (size_t i = 0; i < sorted_nodes_.size(); i++) {
-        if (sorted_nodes_[i]->pos != i) {
+        if (sorted_nodes_[i]->pos() != i) {
           LOG_WARN("Nodes are not correctly sorted in the graph. It will be overridden.\n");
           return false;
         }
-        assert(sorted_nodes_[i]->pos == sorted_nodes_[i]->id);
       }
       return true;
     }

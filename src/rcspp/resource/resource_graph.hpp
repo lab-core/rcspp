@@ -178,7 +178,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
       preprocessor.preprocess();
 
       // if not sorted, use default sort (by id)
-      if (!this->is_nodes_sorted()) {
+      if (!this->are_nodes_sorted()) {
         this->sort_nodes();
       }
 

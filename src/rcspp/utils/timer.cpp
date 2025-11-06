@@ -3,6 +3,7 @@
 
 #include "rcspp/utils/timer.hpp"
 
+#include <cstdio>
 #include <string>
 
 namespace rcspp {
@@ -63,7 +64,7 @@ constexpr int MINUTES_IN_SECONDS = 60;
 constexpr int MAX_LENGTH_HMS = 9;  // "HH:MM:SS" + 1
 
 std::string Timer::elapsed_to_hms(bool only_current) const noexcept {
-  const int sec = static_cast<int>(std::round(elapsed_seconds(only_current)));
+  const int sec = static_cast<int>(round(elapsed_seconds(only_current)));
   const int h = sec / HOURS_IN_SECONDS;
   const int m = (sec % HOURS_IN_SECONDS) / MINUTES_IN_SECONDS;
   const int ss = sec % MINUTES_IN_SECONDS;

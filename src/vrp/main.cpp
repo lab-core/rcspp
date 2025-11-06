@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
   }
   std::string duals_directory = root_dir + "/instances/duals/" + instance_name + "/";
   if (argc >= 4) {
-    duals_directory = std::stoull(argv[3]);
+    duals_directory = argv[3];
   }
 
   std::string output_path = "../output/" + instance_name + ".txt";

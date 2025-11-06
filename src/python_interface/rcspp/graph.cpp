@@ -68,7 +68,7 @@ void init_graph(py::module_& m) {
   py::class_<ConcreteNode>(m, "Node")
     .def(py::init<size_t, bool, bool>())
     .def_readonly("id", &ConcreteNode::id)
-    .def_readonly("pos", &ConcreteNode::pos)
+    .def("pos", &ConcreteNode::pos)
     .def_readonly("source", &ConcreteNode::source)
     .def_readonly("sink", &ConcreteNode::sink)
     .def_readwrite("in_arcs", &ConcreteNode::in_arcs)

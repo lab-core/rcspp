@@ -61,7 +61,7 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                      label.get_cost() < std::numeric_limits<double>::infinity()) {
             bool label_non_dominated = this->update_non_dominated_labels(*it);
             if (label_non_dominated) {
-              this->expanded_labels_by_node_pos_.at(label.get_end_node()->pos).push_back(&label);
+              this->expanded_labels_by_node_pos_.at(label.get_end_node()->pos()).push_back(&label);
               ++it;  // move to next label
             } else {
               this->label_pool_.release_label(&label);
@@ -122,7 +122,7 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
       for (auto arc_ptr : current_node->in_arcs) {
         // pull all the unprocessed labels from the origin node
         const auto& unprocessed_labels =
-          this->unprocessed_labels_by_node_pos_.at(arc_ptr->origin->pos);
+          this->unprocessed_labels_by_node_pos_.at(arc_ptr->origin->pos());
         for (const auto& label_iterator_pair : unprocessed_labels) {
           this->expand_label(label_iterator_pair.first, arc_ptr);
         }

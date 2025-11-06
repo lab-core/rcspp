@@ -25,7 +25,7 @@ class ShortestPathSort {
       // order based on shortest path distances
       graph->sort_nodes([&](const Node<ResourceComposition<ResourceTypes...>>* node1,
                             const Node<ResourceComposition<ResourceTypes...>>* node2) {
-        // if a source, put last
+        // if a source, put first
         if (node1->source && !node2->source) {
           return true;
         }
@@ -42,7 +42,7 @@ class ShortestPathSort {
         // otherwise, compare by distance from sources (increasing)
         double dist_src1 = dist_from_sources.at(node1->id);
         double dist_src2 = dist_from_sources.at(node2->id);
-        if (abs(dist_src1 - dist_src2) > 1e-3) {  // NOLINT (readability-magic-numbers)
+        if (std::fabs(dist_src1 - dist_src2) > 1e-3) {  // NOLINT (readability-magic-numbers)
           return dist_src1 < dist_src2;
         }
         // break ties by distance to sinks (decreasing)

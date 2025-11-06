@@ -34,7 +34,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         auto& source_node = this->graph_.get_node(source_node_id);
         auto& label = this->label_pool_.get_next_label(&source_node);
 
-        auto& labels = non_dominated_labels_by_node_pos_.at(source_node.pos);
+        auto& labels = non_dominated_labels_by_node_pos_.at(source_node.pos());
         auto label_it =
           labels.insert(labels.end(), &label);  // it points to the newly inserted element
         add_new_unprocessed_label(std::make_pair(&label, label_it));
@@ -51,7 +51,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
       bool non_dominated = true;
       for (const auto non_dominated_label_ptr :
-           non_dominated_labels_by_node_pos_.at(label.get_end_node()->pos)) {
+           non_dominated_labels_by_node_pos_.at(label.get_end_node()->pos())) {
         if (&label == non_dominated_label_ptr) {
           continue;
         }
@@ -68,7 +68,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
     }
 
     void expand(Label<ResourceType>* label_ptr) override {
-      expanded_labels_by_node_pos_.at(label_ptr->get_end_node()->pos).push_back(label_ptr);
+      expanded_labels_by_node_pos_.at(label_ptr->get_end_node()->pos()).push_back(label_ptr);
 
       const auto& current_node = label_ptr->get_end_node();
 
@@ -85,7 +85,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
       if (new_label.is_feasible() && test(new_label)) {
         // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
         // feasible and non dominated.
-        auto& labels = non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos);
+        auto& labels = non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos());
         auto new_label_it =
           labels.insert(labels.end(), &new_label);  // points to the newly inserted element
         add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
@@ -111,9 +111,9 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
           }
 
           // if empty, infinite loop
-          assert(!expanded_labels_by_node_pos_.at(prev_node_ptr->pos).empty());
+          assert(!expanded_labels_by_node_pos_.at(prev_node_ptr->pos()).empty());
 
-          for (auto label_ptr : expanded_labels_by_node_pos_.at(prev_node_ptr->pos)) {
+          for (auto label_ptr : expanded_labels_by_node_pos_.at(prev_node_ptr->pos())) {
             auto& next_label_ref = this->label_pool_.get_next_label(in_arc_ptr->destination);
             label_ptr->expand(*in_arc_ptr, &next_label_ref);
 
@@ -166,7 +166,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             std::ranges::reverse(path_node_ids);
             all_paths_node_ids.emplace_back(path_node_ids, path_cost_differences);
           } else {
-            for (auto label_ptr : non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos)) {
+            for (auto label_ptr : non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
               auto label_path_node_ids = path_node_ids;
               auto label_path_cost_differences = path_cost_differences;
 
@@ -227,7 +227,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         const Label<ResourceType>* current_label_ptr = &label;
 
         while (prev_node_ptr != nullptr && !prev_node_ptr->source) {
-          for (const auto label_ptr : expanded_labels_by_node_pos_.at(prev_node_ptr->pos)) {
+          for (const auto label_ptr : expanded_labels_by_node_pos_.at(prev_node_ptr->pos())) {
             auto& next_label_ref = this->label_pool_.get_next_label(in_arc_ptr->destination);
             label_ptr->expand(*in_arc_ptr, &next_label_ref);
 
@@ -259,7 +259,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
       auto label_ptr = label_iterator_pair.first;
 
-      auto current_node_pos = label_ptr->get_end_node()->pos;
+      auto current_node_pos = label_ptr->get_end_node()->pos();
 
       bool label_non_dominated = true;
       auto& non_dominated_labels_list = non_dominated_labels_by_node_pos_.at(current_node_pos);
@@ -289,7 +289,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
     }
 
     void remove_label(const std::list<Label<ResourceType>*>::iterator& label_iterator) override {
-      auto current_node_pos = (*label_iterator)->get_end_node()->pos;
+      auto current_node_pos = (*label_iterator)->get_end_node()->pos();
       non_dominated_labels_by_node_pos_.at(current_node_pos).erase(label_iterator);
     }
 
@@ -302,8 +302,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
     [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
       std::list<Label<ResourceType>*> labels_at_sinks;
       for (auto sink_node_id : this->graph_.get_sink_node_ids()) {
-        auto node_pos = this->graph_.get_node(sink_node_id).pos;
-        assert(sink_node_id == node_pos);
+        auto node_pos = this->graph_.get_node(sink_node_id).pos();
         const auto& labels_at_current_sink = non_dominated_labels_by_node_pos_.at(node_pos);
         labels_at_sinks.insert(labels_at_sinks.end(),
                                labels_at_current_sink.begin(),
@@ -349,7 +348,7 @@ struct NodeUnprocessedLabelsManager {
     }
 
     void add_new_label(const LabelIteratorPair<ResourceType>& label_iterator_pair) {
-      unprocessed_labels_by_node_pos_.at(label_iterator_pair.first->get_end_node()->pos)
+      unprocessed_labels_by_node_pos_.at(label_iterator_pair.first->get_end_node()->pos())
         .push_back(label_iterator_pair);
       num_unprocessed_labels_++;
     }
