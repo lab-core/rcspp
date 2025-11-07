@@ -8,12 +8,12 @@
 namespace rcspp {
 
 auto MinMaxFeasibilityFunction::is_feasible(const Resource<RealResource>& resource) -> bool {
-  bool feasible = true;
+    bool feasible = true;
 
-  if ((resource.get_value() < min_) || (resource.get_value() > max_)) {
-    feasible = false;
-  }
+    if ((resource.get_value() < min_) || (resource.get_value() > max_)) {
+        feasible = false;
+    }
 
-  return feasible;
+    return feasible;
 }
 }  // namespace rcspp

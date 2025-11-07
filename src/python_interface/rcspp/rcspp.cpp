@@ -11,11 +11,11 @@ void init_graph(py::module_&);
 void init_resource(py::module_&);
 
 PYBIND11_MODULE(rcsppy, m) {
-  m.doc() = "RCSPP module";
+    m.doc() = "RCSPP module";
 
-  auto graph_submodule = m.def_submodule("graph", "Graph-related classes");
-  init_graph(graph_submodule);
+    auto graph_submodule = m.def_submodule("graph", "Graph-related classes");
+    init_graph(graph_submodule);
 
-  auto resource_submodule = m.def_submodule("resource", "Resource-related classes");
-  init_resource(resource_submodule);
+    auto resource_submodule = m.def_submodule("resource", "Resource-related classes");
+    init_resource(resource_submodule);
 }

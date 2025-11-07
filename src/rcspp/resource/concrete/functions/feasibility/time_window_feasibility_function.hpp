@@ -13,17 +13,17 @@ namespace rcspp {
 
 class TimeWindowFeasibilityFunction
     : public Clonable<TimeWindowFeasibilityFunction, FeasibilityFunction<RealResource>> {
-  public:
-    explicit TimeWindowFeasibilityFunction(
-      const std::map<size_t, double>& max_time_window_by_node_id);
+    public:
+        explicit TimeWindowFeasibilityFunction(
+            const std::map<size_t, double>& max_time_window_by_node_id);
 
-    auto is_feasible(const Resource<RealResource>& resource) -> bool override;
+        auto is_feasible(const Resource<RealResource>& resource) -> bool override;
 
-  private:
-    const std::map<size_t, double>& max_time_window_by_node_id_;
+    private:
+        const std::map<size_t, double>& max_time_window_by_node_id_;
 
-    double max_time_window_;
+        double max_time_window_;
 
-    void preprocess() override;
+        void preprocess() override;
 };
 }  // namespace rcspp

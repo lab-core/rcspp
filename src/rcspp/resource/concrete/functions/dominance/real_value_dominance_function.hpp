@@ -11,8 +11,8 @@ namespace rcspp {
 
 class RealValueDominanceFunction
     : public Clonable<RealValueDominanceFunction, DominanceFunction<RealResource>> {
-  public:
-    auto check_dominance(const Resource<RealResource>& lhs_resource,
-                         const Resource<RealResource>& rhs_resource) -> bool override;
+    public:
+        auto check_dominance(const Resource<RealResource>& lhs_resource,
+                             const Resource<RealResource>& rhs_resource) -> bool override;
 };
 }  // namespace rcspp

@@ -12,21 +12,21 @@
 namespace rcspp {
 
 TimeWindowFeasibilityFunction::TimeWindowFeasibilityFunction(
-  const std::map<size_t, double>& max_time_window_by_node_id)
+    const std::map<size_t, double>& max_time_window_by_node_id)
     : max_time_window_by_node_id_(max_time_window_by_node_id),
       max_time_window_(std::numeric_limits<double>::infinity()) {}
 
 auto TimeWindowFeasibilityFunction::is_feasible(const Resource<RealResource>& resource) -> bool {
-  bool feasible = true;
+    bool feasible = true;
 
-  if (resource.get_value() > max_time_window_) {
-    feasible = false;
-  }
+    if (resource.get_value() > max_time_window_) {
+        feasible = false;
+    }
 
-  return feasible;
+    return feasible;
 }
 
 void TimeWindowFeasibilityFunction::preprocess() {
-  max_time_window_ = max_time_window_by_node_id_.at(node_id_);
+    max_time_window_ = max_time_window_by_node_id_.at(node_id_);
 }
 }  // namespace rcspp

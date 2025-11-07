@@ -10,8 +10,8 @@
 namespace rcspp {
 
 class RealValueCostFunction : public Clonable<RealValueCostFunction, CostFunction<RealResource>> {
-  public:
-    [[nodiscard]] auto get_cost(const Resource<RealResource>& real_resource) const
-      -> double override;
+    public:
+        [[nodiscard]] auto get_cost(const Resource<RealResource>& real_resource) const
+            -> double override;
 };
 }  // namespace rcspp

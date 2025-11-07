@@ -10,6 +10,6 @@
 namespace rcspp {
 
 auto RealValueCostFunction::get_cost(const Resource<RealResource>& real_resource) const -> double {
-  return real_resource.get_value();
+    return real_resource.get_value();
 }
 }  // namespace rcspp

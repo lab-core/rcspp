@@ -10,20 +10,20 @@
 namespace rcspp {
 
 class RealResource : public ResourceBase<RealResource> {
-    friend class RealResourceFactory;
+        friend class RealResourceFactory;
 
-  public:
-    RealResource();
+    public:
+        RealResource();
 
-    explicit RealResource(double value);
+        explicit RealResource(double value);
 
-    [[nodiscard]] auto get_value() const -> double;
+        [[nodiscard]] auto get_value() const -> double;
 
-    void set_value(double value);
+        void set_value(double value);
 
-    void reset() override;
+        void reset() override;
 
-  private:
-    double value_;
+    private:
+        double value_;
 };
 }  // namespace rcspp

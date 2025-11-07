@@ -6,7 +6,7 @@
 #include <map>
 
 struct MPSolution {
-    std::map<size_t, double> value_by_var_id;
-    std::map<size_t, double> dual_by_var_id;
-    double cost;
+        std::map<size_t, double> value_by_var_id;
+        std::map<size_t, double> dual_by_var_id;
+        double cost;
 };

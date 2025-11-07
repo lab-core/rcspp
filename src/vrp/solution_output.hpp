@@ -10,16 +10,16 @@
 #include "instance.hpp"
 
 class SolutionOutput {
-  public:
-    SolutionOutput() = default;
+    public:
+        SolutionOutput() = default;
 
-    SolutionOutput(std::string duals_directory);
+        SolutionOutput(std::string duals_directory);
 
-    static std::string to_string(const Instance& instance, const MPSolution& solution,
-                                 std::vector<Path> paths);
+        static std::string to_string(const Instance& instance, const MPSolution& solution,
+                                     std::vector<Path> paths);
 
-    void save_dual_to_file(const MPSolution& solution, std::string output_path);
+        void save_dual_to_file(const MPSolution& solution, std::string output_path);
 
-  private:
-    std::string duals_directory_;
+    private:
+        std::string duals_directory_;
 };

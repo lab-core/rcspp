@@ -17,14 +17,14 @@ RealResource::RealResource() : value_(0) {}
 RealResource::RealResource(double value) : value_(value) {}
 
 auto RealResource::get_value() const -> double {
-  return value_;
+    return value_;
 }
 
 void RealResource::set_value(double value) {
-  value_ = value;
+    value_ = value;
 }
 
 void RealResource::reset() {
-  value_ = 0;
+    value_ = 0;
 }
 }  // namespace rcspp

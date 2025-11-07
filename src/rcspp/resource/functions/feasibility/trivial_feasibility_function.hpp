@@ -12,9 +12,9 @@ namespace rcspp {
 template <typename ResourceType>
 class TrivialFeasibilityFunction
     : public Clonable<TrivialFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
-  public:
-    auto is_feasible([[maybe_unused]] const Resource<ResourceType>& resource) -> bool override {
-      return true;
-    }
+    public:
+        auto is_feasible([[maybe_unused]] const Resource<ResourceType>& resource) -> bool override {
+            return true;
+        }
 };
 }  // namespace rcspp

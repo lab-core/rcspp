@@ -9,9 +9,9 @@ namespace rcspp {
 
 template <class DerivedType, class BaseType, class ReturnType = BaseType>
 class Clonable : public BaseType {
-  public:
-    [[nodiscard]] auto clone() const -> std::unique_ptr<ReturnType> override {
-      return std::make_unique<DerivedType>(static_cast<DerivedType const&>(*this));
-    }
+    public:
+        [[nodiscard]] auto clone() const -> std::unique_ptr<ReturnType> override {
+            return std::make_unique<DerivedType>(static_cast<DerivedType const&>(*this));
+        }
 };
 }  // namespace rcspp
