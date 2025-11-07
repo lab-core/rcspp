@@ -1,0 +1,73 @@
+# yaml
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        cmake-build-type: [Debug]
+    env:
+      BUILD_DIR: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ccache python3 python3-pip
+          # install clang-format and clang-tidy (adjust version if needed)
+          sudo apt-get install -y clang-format clang-tidy
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake ccache python3
+          # install llvm which provides clang-format/clang-tidy; add to PATH
+          brew install llvm
+          echo "::add-path::$(brew --prefix llvm)/bin"
+
+      - name: Show clang-format version
+        run: clang-format --version
+
+      - name: Check clang-format (fails if formatting differs)
+        run: |
+          files=$(git ls-files '*.cpp' '*.hpp' '*.c' '*.h')
+          if [ -n "$files" ]; then
+            # use --dry-run -Werror to detect diffs (available on modern clang-format)
+            clang-format --style=file --dry-run -Werror $files
+          else
+            echo "No source files to check"
+          fi
+
+      - name: Configure CMake
+        run: |
+          mkdir -p $BUILD_DIR
+          cd $BUILD_DIR
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+
+      - name: Build
+        run: |
+          cd $BUILD_DIR
+          cmake --build . -- -j
+
+      - name: Run tests (find and run test_main from project root)
+        run: |
+          cd $BUILD_DIR
+          TEST_BIN=$(find . -type f -name test_main -perm -111 | head -n1)
+          if [ -z "$TEST_BIN" ]; then
+            echo "test_main not found"
+            exit 1
+          fi
+          # run from repository root so tests using __FILE__ or relative paths succeed
+          TEST_BIN_ABS="$(pwd)/$TEST_BIN"
+          cd $GITHUB_WORKSPACE
+          "$TEST_BIN_ABS"
