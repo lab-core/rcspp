@@ -18,6 +18,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enable Git LFS
+        run: |
+          git lfs install --skip-smudge || true
+          # fetch and checkout LFS objects (safe even if none present)
+          git lfs pull || true
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
