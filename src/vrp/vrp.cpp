@@ -68,8 +68,90 @@ const std::vector<Path>& VRP::generate_initial_paths() {
   return paths_;
 }
 
-void VRP::sort_nodes() {
+void VRP::sort_nodes_by_cost() {
   graph_.sort_nodes_by_cost();
+}
+
+void VRP::sort_nodes_by_min_tw() {
+  std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
+
+  const auto& customers_by_id = instance_.get_customers_by_id();
+  for (const auto& [customer_id, customer] : customers_by_id) {
+    time_window_by_customer_id.emplace(
+      customer_id,
+      std::pair<double, double>{customer.ready_time, customer.due_time});
+  }
+
+  const auto& source_customer = customers_by_id.at(0);
+  size_t sink_id = customers_by_id.size();
+  time_window_by_customer_id.emplace(
+    sink_id,
+    std::pair<double, double>{0, std::numeric_limits<double>::infinity()});
+
+  graph_.sort_nodes([time_window_by_customer_id](const auto& node1, const auto& node2) {
+    // if a source, put first
+    if (node1->source && !node2->source) {
+      return true;
+    }
+    if (!node1->source && node2->source) {
+      return false;
+    }
+    // if a sink, put last
+    if (node1->sink && !node2->sink) {
+      return false;
+    }
+    if (!node1->sink && node2->sink) {
+      return true;
+    }
+    if (std::fabs(time_window_by_customer_id.at(node1->id).first -
+                  time_window_by_customer_id.at(node2->id).first) < 1e-3) {
+      return time_window_by_customer_id.at(node1->id).second <=
+             time_window_by_customer_id.at(node2->id).second;
+    }
+    return time_window_by_customer_id.at(node1->id).first <
+           time_window_by_customer_id.at(node2->id).first;
+  });
+}
+
+void VRP::sort_nodes_by_max_tw() {
+  std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
+
+  const auto& customers_by_id = instance_.get_customers_by_id();
+  for (const auto& [customer_id, customer] : customers_by_id) {
+    time_window_by_customer_id.emplace(
+      customer_id,
+      std::pair<double, double>{customer.ready_time, customer.due_time});
+  }
+
+  const auto& source_customer = customers_by_id.at(0);
+  size_t sink_id = customers_by_id.size();
+  time_window_by_customer_id.emplace(
+    sink_id,
+    std::pair<double, double>{0, std::numeric_limits<double>::infinity()});
+
+  graph_.sort_nodes([time_window_by_customer_id](const auto& node1, const auto& node2) {
+    // if a source, put first
+    if (node1->source && !node2->source) {
+      return true;
+    }
+    if (!node1->source && node2->source) {
+      return false;
+    }
+    // if a sink, put last
+    if (node1->sink && !node2->sink) {
+      return false;
+    }
+    if (!node1->sink && node2->sink) {
+      return true;
+    }
+    if (std::fabs(time_window_by_customer_id.at(node1->id).second -
+                  time_window_by_customer_id.at(node2->id).second) < 1e-3) {
+      return time_window_by_customer_id.at(node1->id).first <=
+             time_window_by_customer_id.at(node2->id).first;
+    }
+    return time_window_by_customer_id.at(node1->id).second <
+           time_window_by_customer_id.at(node2->id).second;
+  });
 }
 
 MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool use_boost,

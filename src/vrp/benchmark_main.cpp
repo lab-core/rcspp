@@ -95,7 +95,9 @@ int main(int argc, char* argv[]) {
 
     auto instance = instance_reader.read();
     VRP vrp(instance);
-    vrp.sort_nodes();
+    // vrp.sort_nodes_by_cost();
+    // vrp.sort_nodes_by_min_tw();
+    vrp.sort_nodes_by_max_tw();
 
     Timer timer(true);
     auto timers = vrp.solve<SimpleDominanceAlgorithmIterators,

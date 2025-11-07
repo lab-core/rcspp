@@ -3,6 +3,7 @@
 
 #include "rcspp/utils/timer.hpp"
 
+#include <array>
 #include <cstdio>
 #include <string>
 
