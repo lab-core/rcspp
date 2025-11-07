@@ -8,9 +8,12 @@
 
 namespace rcspp {
 
-auto RealValueDominanceFunction::check_dominance(const Resource<RealResource>& lhs_resource,
-                                                 const Resource<RealResource>& rhs_resource)
-  -> bool {
-  return lhs_resource.get_value() <= rhs_resource.get_value();
-}
+// clang-format off
+  auto RealValueDominanceFunction::check_dominance(const Resource<RealResource>& lhs_resource,
+                                                   const Resource<RealResource>& rhs_resource)
+    -> bool {
+    return lhs_resource.get_value() <= rhs_resource.get_value();
+  }
+// clang-format on
+
 }  // namespace rcspp
