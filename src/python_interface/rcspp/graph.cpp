@@ -155,7 +155,10 @@ void init_graph(py::module_& m) {
         .def("get_resource_factory",
              &ResourceGraph<RealResource>::get_resource_factory,
              py::return_value_policy::reference)
-        .def("solve", &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithmIterators>);
+        .def("solve",
+             &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithmIterators>,
+             py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
+             py::arg("cost_index") = 0);
 }
 
 // Macro pour add_resource

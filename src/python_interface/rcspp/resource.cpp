@@ -17,7 +17,6 @@
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
-#include "rcspp/resource/concrete/real_resource_factory.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
 namespace py = pybind11;
@@ -29,8 +28,6 @@ using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
 using ConcreteResource = Resource<ResourceCompositionBase>;
 using ConcreteFactory = ResourceFactory<ResourceCompositionBase>;
-
-using RealResourceFactoryBase = ResourceFactory<RealResource>;
 
 using RealExpansionFunction = ExpansionFunction<RealResource>;
 using RealFeasibilityFunction = FeasibilityFunction<RealResource>;
@@ -44,9 +41,8 @@ void init_resource(py::module_& m) {
 
     // Resource factories
 
-    py::class_<RealResourceFactory>(m, "RealResourceFactory")
+    py::class_<ResourceFactory<RealResource>>(m, "RealResourceFactory")
         .def(py::init<>())
-        .def(py::init<const RealResource&>(), py::arg("real_resource_prototype"))
         .def(py::init<std::unique_ptr<RealExpansionFunction>,
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
@@ -55,16 +51,16 @@ void init_resource(py::module_& m) {
              py::arg("feasibility_function"),
              py::arg("cost_function"),
              py::arg("dominance_function"))
-        .def(py::init<const RealResource&,
-                      std::unique_ptr<RealExpansionFunction>,
+        .def(py::init<std::unique_ptr<RealExpansionFunction>,
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
-                      std::unique_ptr<RealDominanceFunction>>(),
-             py::arg("real_resource_prototype"),
+                      std::unique_ptr<RealDominanceFunction>,
+                      const RealResource&>(),
              py::arg("expansion_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),
-             py::arg("dominance_function"));
+             py::arg("dominance_function"),
+             py::arg("real_resource_prototype"));
 
     // Resource functions
 

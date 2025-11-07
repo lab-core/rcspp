@@ -9,7 +9,6 @@
 namespace rcspp {
 
 class RealResource;
-//class RealResourceFactory;
 
 // ResourceType to ResourceTypeIndex
 template <typename ResourceType>
