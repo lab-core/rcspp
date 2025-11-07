@@ -44,12 +44,12 @@ jobs:
           cd $BUILD_DIR
           cmake --build . -- -j
 
-      - name: Run tests (find and run test_main from project root)
+      - name: Run tests (find and run tests-rcspp from project root)
         run: |
           cd $BUILD_DIR
-          TEST_BIN=$(find . -type f -name test_main -perm -111 | head -n1)
+          TEST_BIN=$(find . -type f -name tests-rcspp -perm -111 | head -n1)
           if [ -z "$TEST_BIN" ]; then
-            echo "test_main not found"
+            echo "tests-rcspp not found"
             exit 1
           fi
           # run from repository root so tests using __FILE__ or relative paths succeed
