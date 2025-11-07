@@ -19,7 +19,6 @@
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
-#include "rcspp/resource/concrete/real_resource_factory.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
@@ -52,7 +51,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
             constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
-            using ResourceFactoryType = ResourceFactoryType_t<ResourceType>;
+            using ResourceFactoryType = ResourceFactory<ResourceType>;
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(expansion_function),
