@@ -18,17 +18,17 @@ class VRPSubproblem {
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
     template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
     std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
-        std::cout << __FUNCTION__ << std::endl;
+        LOG_TRACE(__FUNCTION__, '\n');
 
         total_subproblem_time_.start();
         auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id);
         total_subproblem_time_.stop();
 
-        std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;
+        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
 
-        std::cout << "\n*********************************************\n";
-        std::cout << "total_subproblem_time_: " << total_subproblem_time_.elapsed_seconds() << std::endl;
-        std::cout << "*********************************************\n";
+        LOG_DEBUG("\n", std::string(45, '*'), "\n");
+        LOG_DEBUG("total_subproblem_time_: ", total_subproblem_time_.elapsed_seconds());
+        LOG_DEBUG("\n", std::string(45, '*'), "\n");
 
         return solutions_rcspp;
     }
@@ -82,8 +82,7 @@ class VRPSubproblem {
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id) {
-            {
-                std::cout << __FUNCTION__ << std::endl;
+                LOG_TRACE(__FUNCTION__, '\n');
 
                 if (subproblem_graph_.get_number_of_nodes() == 0) {
                     subproblem_graph_ = construct_resource_graph(&dual_by_id);
@@ -94,7 +93,6 @@ class VRPSubproblem {
                 auto solutions = subproblem_graph_.solve<AlgorithmType>();
 
                 return solutions;
-            }
         }
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(

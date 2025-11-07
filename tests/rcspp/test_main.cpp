@@ -27,11 +27,7 @@ int main() {
     passed += p.first;
     total += p.second;
 
-    std::cout << passed << "/" << total << " tests passed\n";
+    LOG_INFO(passed, "/", total, " tests passed\n");
 
-    if (passed == total) {
-        all_tests_passed = 0;
-    }
-
-    return all_tests_passed;
+    return total - passed;  // return the number of failed tests
 }

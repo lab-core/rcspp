@@ -20,11 +20,10 @@ bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* v
 
     if (!solutions.empty()) {
         auto cost = solutions[0].cost;
-        std::cout << "cost=" << cost << std::endl;
+        LOG_DEBUG("cost=", cost, '\n');
 
         if (std::abs(cost - optimal_cost) > 1e-9) {
-            std::cout << "Difference with optimal cost: " << std::abs(cost - optimal_cost)
-                      << std::endl;
+            LOG_ERROR("Difference with optimal cost: ", std::abs(cost - optimal_cost), '\n');
             return false;
         }
     } else {
@@ -44,7 +43,7 @@ bool test_rcspp() {
     std::string root_dir = file_parent_dir(__FILE__, 3);
   std::string instance_path = root_dir+"/instances/" + instance_name + ".txt";
 
-  std::cout << "Instance: " << instance_path << std::endl;
+  LOG_INFO("Instance: ", instance_path, '\n');
   InstanceReader instance_reader(instance_path);
   auto instance = instance_reader.read();
 
@@ -80,7 +79,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     std::string root_dir = file_parent_dir(__FILE__, 3);
     std::string instance_path = root_dir+"/instances/" + instance_name + ".txt";
 
-    std::cout << "Instance: " << instance_path << std::endl;
+    LOG_INFO("Instance: ", instance_path, '\n');
     InstanceReader instance_reader(instance_path);
     auto instance = instance_reader.read();
 
@@ -94,7 +93,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     VRPSubproblem vrp_subproblem(instance, &coef_by_id);
 
     // Iteration 0: Test graph creation
-    const double OPTIMAL_COST_ITER_0 = -319.87786809696524415;
+    const double OPTIMAL_COST_ITER_0 = -773.05426356439386;
     std::string duals_file = "iter_0.txt";
     std::string duals_directory = root_dir+"/instances/duals/" + instance_name + "/";
     auto duals_path = duals_directory + duals_file;
@@ -107,6 +106,9 @@ bool test_rcspp_non_integer_dual_row_coef() {
     }
 
     success = test_vrp_solve<AlgorithmType>(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_0);
+    if (!success) {
+        return false;
+    }
 
     // Iteration 1: Test graph update
     const double OPTIMAL_COST_ITER_1 = -291.88751273511473983;

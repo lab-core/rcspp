@@ -15,11 +15,11 @@ VRPSubproblem::VRPSubproblem(Instance instance,
       instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()) {
-    std::cout << "VRPSubproblem::VRPSubproblem\n";
+    LOG_TRACE("VRPSubproblem::VRPSubproblem\n");
 }
 
 std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windows() {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
 
@@ -70,7 +70,7 @@ std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windo
 
 ResourceGraph<RealResource> VRPSubproblem::construct_resource_graph(
     const std::map<size_t, double>* dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     ResourceGraph<RealResource> resource_graph;
 
@@ -104,7 +104,7 @@ ResourceGraph<RealResource> VRPSubproblem::construct_resource_graph(
 
 void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
                                 const std::map<size_t, double>* dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto max_arc_id = dual_by_id->rbegin()->first;
     std::vector<double> duals(max_arc_id + 1, 0.0);
@@ -116,7 +116,7 @@ void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_
 }
 
 void VRPSubproblem::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     size_t sink_id = customers_by_id.size();

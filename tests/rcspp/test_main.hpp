@@ -25,6 +25,8 @@ template <template <typename> class... AlgorithmTypes>
   (void)std::initializer_list<int>{([&]() {
     if (test_rcspp_non_integer_dual_row_coef<AlgorithmTypes>()) {
       ++passed;
+    } else {
+      LOG_ERROR("Test fail for all_tests_rcspp_non_integer_dual_row_coef, iteration ", total, '\n');
     }
     ++total;
     return 0;
