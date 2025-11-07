@@ -31,7 +31,7 @@ jobs:
           brew install cmake ccache python3
           # install llvm which provides clang-format/clang-tidy; add to PATH
           brew install llvm
-          echo "::add-path::$(brew --prefix llvm)/bin"
+          echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
       - name: Configure CMake
         run: |
