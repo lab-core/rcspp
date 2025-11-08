@@ -7,7 +7,7 @@
 
 #include "gurobi_c++.h"
 #include "mp_solution.hpp"
-#include "rcspp/utils/logger.hpp"
+#include "rcspp/rcspp.hpp"
 
 MasterProblem::MasterProblem(const std::vector<size_t>& node_ids)
     : node_ids_(node_ids), model_(MasterProblem::init_env()) {}

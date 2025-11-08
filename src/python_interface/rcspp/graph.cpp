@@ -22,7 +22,7 @@ using ConcreteGraph = Graph<ResourceCompositionBase>;
 using ConcreteNode = Node<ResourceCompositionBase>;
 using ConcreteArc = Arc<ResourceCompositionBase>;
 
-using ConcreteExpander = Expander<ResourceCompositionBase>;
+using ConcreteExtender = Extender<ResourceCompositionBase>;
 
 void init_graph(py::module_& m) {
     py::class_<ConcreteGraph>(m, "Graph")
@@ -82,12 +82,12 @@ void init_graph(py::module_& m) {
         .def(py::init<size_t,
                       ConcreteNode*,
                       ConcreteNode*,
-                      std::unique_ptr<ConcreteExpander>,
+                      std::unique_ptr<ConcreteExtender>,
                       double>(),
              py::arg("id"),
              py::arg("origin"),
              py::arg("destination"),
-             py::arg("expander"),
+             py::arg("extender"),
              py::arg("cost"))
         .def(py::init<size_t, ConcreteNode*, ConcreteNode*>(),
              py::arg("id"),
@@ -102,7 +102,7 @@ void init_graph(py::module_& m) {
             "get_destination",
             [](const ConcreteArc& arc) -> ConcreteNode* { return arc.destination; },
             py::return_value_policy::reference)
-        .def_readwrite("expander", &ConcreteArc::expander)
+        .def_readwrite("extender", &ConcreteArc::extender)
         .def_readwrite("cost", &ConcreteArc::cost);
 
     py::class_<Solution>(m, "Solution")
@@ -115,7 +115,7 @@ void init_graph(py::module_& m) {
         .def(py::init<>())
         .def("add_real_resource",
              &ResourceGraph<RealResource>::add_resource<RealResource>,
-             py::arg("expansion_function"),
+             py::arg("extension_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),
              py::arg("dominance_function"))

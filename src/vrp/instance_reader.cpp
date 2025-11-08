@@ -6,7 +6,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "rcspp/utils/logger.hpp"
+#include "rcspp/rcspp.hpp"
 
 InstanceReader::InstanceReader(std::string file_path) : file_path_(std::move(file_path)) {}
 

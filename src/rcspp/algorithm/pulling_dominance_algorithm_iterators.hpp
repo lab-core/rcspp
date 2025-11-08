@@ -52,7 +52,7 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
 
                     assert(label.get_end_node());
 
-                    // check if we can update the best label or expand
+                    // check if we can update the best label or extend
                     if (label.get_end_node()->sink && label.get_cost() < this->cost_upper_bound_) {
                         this->cost_upper_bound_ = label.get_cost();
                         this->best_label_ = &label;
@@ -61,7 +61,7 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                                label.get_cost() < std::numeric_limits<double>::infinity()) {
                         bool label_non_dominated = this->update_non_dominated_labels(*it);
                         if (label_non_dominated) {
-                            this->expanded_labels_by_node_pos_.at(label.get_end_node()->pos())
+                            this->extended_labels_by_node_pos_.at(label.get_end_node()->pos())
                                 .push_back(&label);
                             ++it;  // move to next label
                         } else {
@@ -84,8 +84,8 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             throw std::runtime_error("next_label_iterator() not implemented");
         }
 
-        void expand(Label<ResourceType>* label_ptr) override {
-            throw std::runtime_error("expand(Label<ResourceType>* label_ptr) not implemented");
+        void extend(Label<ResourceType>* label_ptr) override {
+            throw std::runtime_error("extend(Label<ResourceType>* label_ptr) not implemented");
         }
 
         void pull_new_unprocessed_labels() {
@@ -115,8 +115,8 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
         }
 
         void pull_labels() {
-            // in pulling, we do not expand to nodes
-            this->total_full_expand_time_.start();
+            // in pulling, we do not extend to nodes
+            this->total_full_extend_time_.start();
 
             const auto& current_node =
                 this->graph_.get_sorted_nodes().at(this->current_unprocessed_node_pos_);
@@ -125,11 +125,11 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                 const auto& unprocessed_labels =
                     this->unprocessed_labels_by_node_pos_.at(arc_ptr->origin->pos());
                 for (const auto& label_iterator_pair : unprocessed_labels) {
-                    this->expand_label(label_iterator_pair.first, arc_ptr);
+                    this->extend_label(label_iterator_pair.first, arc_ptr);
                 }
             }
 
-            this->total_full_expand_time_.stop();
+            this->total_full_extend_time_.stop();
         }
 
         [[nodiscard]] size_t number_of_labels() const override {

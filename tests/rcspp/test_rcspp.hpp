@@ -1,6 +1,5 @@
 #pragma once
 
-#include "vrp_subproblem/vrp_subproblem.hpp"
 #include "rcspp/rcspp.hpp"
 #include "vrp/instance.hpp"
 #include "vrp/instance_reader.hpp"
@@ -56,6 +55,9 @@ bool test_rcspp() {
   auto duals_path = duals_directory + duals_file;
   auto dual_by_id = InstanceReader::read_duals(duals_path);
   success = test_vrp_solve<AlgorithmType>(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_0);
+    if (!success) {
+        return false;
+    }
 
   // Iteration 1: Test graph update
   const double OPTIMAL_COST_ITER_1 = -291.88751273511473983;

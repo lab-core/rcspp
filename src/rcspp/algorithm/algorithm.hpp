@@ -66,9 +66,9 @@ class Algorithm {
                     best_label_ = &label;
                 } else if (!label.get_end_node()->sink &&
                            label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    total_full_expand_time_.start();
-                    expand(&label);
-                    total_full_expand_time_.stop();
+                    total_full_extend_time_.start();
+                    extend(&label);
+                    total_full_extend_time_.stop();
                 } else {
                     this->label_pool_.release_label(&label);
 
@@ -115,7 +115,7 @@ class Algorithm {
 
         virtual bool test(const Label<ResourceType>& label) = 0;
 
-        virtual void expand(Label<ResourceType>* label) = 0;
+        virtual void extend(Label<ResourceType>* label) = 0;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
@@ -138,6 +138,6 @@ class Algorithm {
 
         size_t nb_dominated_labels_{0};
 
-        Timer total_full_expand_time_;
+        Timer total_full_extend_time_;
 };
 }  // namespace rcspp

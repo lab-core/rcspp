@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "graph_vrptw.hpp"
-#include "rcspp/algorithm/solution.hpp"
+#include "rcspp/rcspp.hpp"
 #include "vrp/instance.hpp"
 
 using namespace rcspp;

@@ -52,10 +52,10 @@ class BellmanFordAlgorithm {
                     arc->origin->resource->template get_resource_component<CostResourceType>(
                         cost_index);
                 double origin_cost = origin_cost_resource.get_value();
-                // expand the resource
+                // extend the resource
                 Resource<ResourceComposition<ResourceTypes...>> resource(
                     *arc->destination->resource);
-                arc->expander->expand(*arc->origin->resource, &resource);
+                arc->extender->extend(*arc->origin->resource, &resource);
                 // fetch the new value of the cost resource
                 const CostResourceType& cost_resource =
                     resource.template get_resource_component<CostResourceType>(cost_index);

@@ -7,7 +7,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
-#include "rcspp/resource/functions/expansion/expansion_function.hpp"
+#include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
 
@@ -17,8 +17,8 @@ class TimeWindowExpansionFunction
         explicit TimeWindowExpansionFunction(
             const std::map<size_t, double>& min_time_window_by_arc_id);
 
-        void expand(const Resource<RealResource>& resource, const Expander<RealResource>& expander,
-                    Resource<RealResource>* expanded_resource) override;
+        void extend(const Resource<RealResource>& resource, const Extender<RealResource>& extender,
+                    Resource<RealResource>* extended_resource) override;
 
     private:
         const std::map<size_t, double>& min_time_window_by_arc_id_;

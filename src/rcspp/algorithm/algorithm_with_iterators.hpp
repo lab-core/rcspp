@@ -72,7 +72,7 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
 
                 assert(label.get_end_node());
 
-                // check if we can update the best label or expand
+                // check if we can update the best label or extend
                 if (label.get_end_node()->sink && label.get_cost() < this->cost_upper_bound_) {
                     this->cost_upper_bound_ = label.get_cost();
                     this->best_label_ = &label;
@@ -81,9 +81,9 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
                     bool label_non_dominated = update_non_dominated_labels(label_iterator_pair);
 
                     if (label_non_dominated) {
-                        this->total_full_expand_time_.start();
-                        this->expand(&label);
-                        this->total_full_expand_time_.stop();
+                        this->total_full_extend_time_.start();
+                        this->extend(&label);
+                        this->total_full_extend_time_.stop();
                     } else {
                         this->label_pool_.release_label(&label);
                     }

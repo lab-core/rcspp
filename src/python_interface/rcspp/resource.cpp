@@ -12,8 +12,8 @@
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/concrete/functions/cost/real_value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/real_value_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/expansion/real_addition_expansion_function.hpp"
-#include "rcspp/resource/concrete/functions/expansion/time_window_expansion_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/real_addition_extension_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
@@ -28,6 +28,8 @@ using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
 using ConcreteResource = Resource<ResourceCompositionBase>;
 using ConcreteFactory = ResourceFactory<ResourceCompositionBase>;
+
+using RealResourceFactoryBase = ResourceFactory<RealResource>;
 
 using RealExpansionFunction = ExpansionFunction<RealResource>;
 using RealFeasibilityFunction = FeasibilityFunction<RealResource>;
@@ -47,7 +49,7 @@ void init_resource(py::module_& m) {
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
                       std::unique_ptr<RealDominanceFunction>>(),
-             py::arg("expansion_function"),
+             py::arg("extension_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),
              py::arg("dominance_function"))
@@ -56,7 +58,7 @@ void init_resource(py::module_& m) {
                       std::unique_ptr<RealCostFunction>,
                       std::unique_ptr<RealDominanceFunction>,
                       const RealResource&>(),
-             py::arg("expansion_function"),
+             py::arg("extension_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),
              py::arg("dominance_function"),

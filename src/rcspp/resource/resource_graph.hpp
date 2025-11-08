@@ -28,14 +28,14 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     public:
         ResourceGraph(
             std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
-                expansion_function,
+                extension_function,
             std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
                 feasibility_function,
             std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
             std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>>
                 dominance_function)
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
-                  std::move(expansion_function), std::move(feasibility_function),
+                  std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function))) {}
 
         ResourceGraph()
@@ -46,7 +46,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                   std::make_unique<CompositionDominanceFunction<RealResource>>())) {}
 
         template <typename ResourceType>
-        void add_resource(std::unique_ptr<ExpansionFunction<ResourceType>> expansion_function,
+        void add_resource(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
@@ -54,7 +54,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
-                std::make_unique<ResourceFactoryType>(std::move(expansion_function),
+                std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
                                                       std::move(cost_function),
                                                       std::move(dominance_function)));
@@ -86,17 +86,17 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                     .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
                         resource_consumption);
 
-            auto expander = resource_factory_.make_expander(*resource_base, arc.id);
+            auto extender = resource_factory_.make_extender(*resource_base, arc.id);
 
-            arc.expander = std::move(expander);
+            arc.extender = std::move(extender);
 
             return arc;
         }
 
-        template <typename... ExpanderResourceTypes>
+        template <typename... ExtenderResourceTypes>
         Arc<ResourceComposition<ResourceTypes...>>& add_arc(
-            const std::tuple<ResourceInitializerTypeTuple_t<ExpanderResourceTypes>...>&
-                expander_resource_consumption,
+            const std::tuple<ResourceInitializerTypeTuple_t<ExtenderResourceTypes>...>&
+                extender_resource_consumption,
             size_t origin_node_id, size_t destination_node_id,
             std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
             std::vector<Row> dual_rows = {}) {
@@ -105,17 +105,17 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 (([&] {
-                     using ExpanderType =
-                         std::tuple_element_t<Is, std::tuple<ExpanderResourceTypes...>>;
-                     constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ExpanderType>;
+                     using ExtenderType =
+                         std::tuple_element_t<Is, std::tuple<ExtenderResourceTypes...>>;
+                     constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ExtenderType>;
                      auto& res_vec = std::get<ResourceTypeIndex>(resource_consumption);
-                     const auto& res_cons = std::get<Is>(expander_resource_consumption);
+                     const auto& res_cons = std::get<Is>(extender_resource_consumption);
                      res_vec.push_back(res_cons);  // push a single resource consumption
                  }()),
                  ...);
             };  // NOLINT
 
-            apply_indices(std::make_index_sequence<sizeof...(ExpanderResourceTypes)>{});
+            apply_indices(std::make_index_sequence<sizeof...(ExtenderResourceTypes)>{});
 
             auto& arc = Graph<ResourceComposition<ResourceTypes...>>::add_arc(origin_node_id,
                                                                               destination_node_id,
@@ -126,8 +126,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 resource_factory_
                     .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
                         resource_consumption);
-            auto expander = resource_factory_.make_expander(*resource_base, arc.id);
-            arc.expander = std::move(expander);
+            auto extender = resource_factory_.make_extender(*resource_base, arc.id);
+            arc.extender = std::move(extender);
 
             return arc;
         }
@@ -141,7 +141,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             std::optional<double> cost = std::nullopt) {
-            resource_factory_.update_expander(arc->expander.get(), resource_consumption);
+            resource_factory_.update_extender(arc->extender.get(), resource_consumption);
 
             if (cost.has_value()) {
                 arc->cost = cost.value();
@@ -155,9 +155,9 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             std::optional<double> cost = std::nullopt) {
             constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
 
-            resource_factory_.template update_expander<ResourceInitializerTypeTuple_t<ResourceType>,
+            resource_factory_.template update_extender<ResourceInitializerTypeTuple_t<ResourceType>,
                                                        ResourceTypeIndex>(
-                arc->expander.get(),
+                arc->extender.get(),
                 resource_index,
                 single_resource_consumption);
 

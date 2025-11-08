@@ -5,7 +5,7 @@
 
 #include "functions/cost/real_value_cost_function.hpp"
 #include "functions/dominance/real_value_dominance_function.hpp"
-#include "functions/expansion/real_addition_expansion_function.hpp"
+#include "functions/extension/real_addition_extension_function.hpp"
 #include "functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/base/resource_base.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"

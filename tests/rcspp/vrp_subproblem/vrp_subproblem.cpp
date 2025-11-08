@@ -213,7 +213,7 @@ double VRPSubproblem::calculate_distance(const Customer& customer1, const Custom
 double VRPSubproblem::calculate_solution_cost(const Solution& solution) const {
     double cost = 0.0;
 
-    // TODO(patrick): Figure out how to get the cost of an Expander.
+    // TODO(patrick): Figure out how to get the cost of an Extender.
     for (auto arc_id : solution.path_arc_ids) {
         cost += initial_graph_.get_arc(arc_id).cost;
     }

@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "rcspp/graph/arc.hpp"
-#include "rcspp/resource/base/expander.hpp"
+#include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_base.hpp"
 
@@ -20,9 +20,9 @@ template <typename ResourceType>
 class ResourceFactory {
     public:
         ResourceFactory()
-            : nb_resource_bases_created_(0), nb_resources_created_(0), nb_expanders_created_(0) {}
+            : nb_resource_bases_created_(0), nb_resources_created_(0), nb_extenders_created_(0) {}
 
-        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> expansion_function,
+        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
@@ -30,22 +30,22 @@ class ResourceFactory {
             : resource_prototype_(make_resource_prototype(
                   std::move(dominance_function), std::move(feasibility_function),
                   std::move(cost_function), resource_base_prototype)),
-              expansion_function_(std::move(expansion_function)),
+              extension_function_(std::move(extension_function)),
               nb_resource_bases_created_(0),
               nb_resources_created_(0),
-              nb_expanders_created_(0) {}
+              nb_extenders_created_(0) {}
 
-        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> expansion_function,
+        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function)
             : resource_prototype_(make_resource_prototype(std::move(dominance_function),
                                                           std::move(feasibility_function),
                                                           std::move(cost_function))),
-              expansion_function_(std::move(expansion_function)),
+              extension_function_(std::move(extension_function)),
               nb_resource_bases_created_(0),
               nb_resources_created_(0),
-              nb_expanders_created_(0) {}
+              nb_extenders_created_(0) {}
 
         /*ResourceFactory(std::unique_ptr<ResourceType> resource_prototype) :
           resource_prototype_(std::move(resource_prototype)), nb_resources_created_(0) {
@@ -79,22 +79,22 @@ class ResourceFactory {
             return resource.copy();
         }
 
-        // Make an expander
-        auto make_expander(size_t arc_id) -> std::unique_ptr<Expander<ResourceType>> {
-            nb_expanders_created_++;
+        // Make an extender
+        auto make_extender(size_t arc_id) -> std::unique_ptr<Extender<ResourceType>> {
+            nb_extenders_created_++;
 
-            return std::make_unique<Expander<ResourceType>>(expansion_function_->create(arc_id),
+            return std::make_unique<Extender<ResourceType>>(extension_function_->create(arc_id),
                                                             arc_id);
         }
 
-        // Make an expander
+        // Make an extender
         // clang-format off
-        virtual auto make_expander(const ResourceType& resource_base, size_t arc_id)
-            -> std::unique_ptr<Expander<ResourceType>> {
-            nb_expanders_created_++;
+        virtual auto make_extender(const ResourceType& resource_base, size_t arc_id)
+            -> std::unique_ptr<Extender<ResourceType>> {
+            nb_extenders_created_++;
 
-            return std::make_unique<Expander<ResourceType>>(resource_base,
-                                                            expansion_function_->create(arc_id),
+            return std::make_unique<Extender<ResourceType>>(resource_base,
+                                                            extension_function_->create(arc_id),
                                                             arc_id);
         }
         // clang-format on
@@ -125,10 +125,10 @@ class ResourceFactory {
         }
 
         std::unique_ptr<Resource<ResourceType>> resource_prototype_;
-        std::unique_ptr<ExpansionFunction<ResourceType>> expansion_function_;
+        std::unique_ptr<ExpansionFunction<ResourceType>> extension_function_;
 
         size_t nb_resource_bases_created_;
         size_t nb_resources_created_;
-        size_t nb_expanders_created_;
+        size_t nb_extenders_created_;
 };
 }  // namespace rcspp

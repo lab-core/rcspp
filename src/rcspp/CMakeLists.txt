@@ -8,42 +8,61 @@ file(GLOB_RECURSE HEADERS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
 set(RCSPP_UMBRELLA_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/rcspp.hpp")
 list(REMOVE_ITEM HEADERS_FILES "${RCSPP_UMBRELLA_HEADER}")
 
-if(NOT DEFINED UMBRELLA_HEADER_GENERATED)
-    set(UMBRELLA_HEADER_GENERATED TRUE CACHE INTERNAL "Flag to indicate that the umbrella header has been generated")
+# Previously the umbrella header was generated at configure time using file(WRITE)/file(APPEND).
+# That approach can race in parallel builds (when multiple build jobs attempt generation at the
+# same time). Instead create a proper build-step (custom command + custom target) which:
+#  - declares the umbrella header as an OUTPUT of a custom command
+#  - creates a custom target depending on that output
+#  - makes the library depend on that target so the header is generated before compilation
+#  - (optionally) serializes the target with a JOB_POOL so it cannot run concurrently with
+#    other pooled jobs when the build system is invoked with -j.
 
-    # first lines of the umbrella header
-    file(WRITE "${RCSPP_UMBRELLA_HEADER}" "// Automatically generated umbrella header clang-format off NOLINT(legal/copyright)\n#pragma once\n\n")
+# Create a small helper CMake script (generate_umbrella.cmake) that will be invoked by the
+# custom command to produce the umbrella header. The script lives next to this CMakeLists.
 
-    foreach(header ${HEADERS_FILES})
-        # Compute relative path inside
-        file(RELATIVE_PATH rel_path "${CMAKE_SOURCE_DIR}/src" "${header}")
+# Custom command that generates the umbrella header using the helper script
+add_custom_command(
+  OUTPUT "${RCSPP_UMBRELLA_HEADER}"
+  # Regenerate when any header under this directory changes
+  DEPENDS ${HEADERS_FILES}
+  COMMAND ${CMAKE_COMMAND}
+          -DREPO_SRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+          -DREPO_REL_DIR=${CMAKE_SOURCE_DIR}/src
+          -DREPO_BUILD_DIR=${BUILD_INCLUDE_DIR}
+          -DOUT_FILE=${RCSPP_UMBRELLA_HEADER}
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/generate_umbrella_include.cmake"
+  COMMENT "Generating umbrella header ${RCSPP_UMBRELLA_HEADER}"
+  VERBATIM
+)
 
-        # Add it to the umbrella header
-        file(APPEND "${RCSPP_UMBRELLA_HEADER}" "#include \"${rel_path}\"\n")
-    endforeach()
+# Custom target that depends on the generated umbrella header
+add_custom_target(generate_umbrella_header DEPENDS "${RCSPP_UMBRELLA_HEADER}")
+
+# If CMake supports job pools, create a small pool with a single slot and assign it to
+# the generator target, ensuring the command will not run in parallel with other jobs
+# that use the same pool.
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.15")
+  # Define a global job pool named 'genpool' with 1 slot
+  set_property(GLOBAL PROPERTY JOB_POOLS genpool=1)
+  # Assign the target to that pool (serialize execution)
+  set_property(TARGET generate_umbrella_header PROPERTY JOB_POOL genpool)
 endif()
+
+# Make sure the library build depends on the umbrella header generation so it is created
+# before compilation starts.
+# NOTE: ${LIB} is created further down in this CMakeLists, so we'll add the dependency
+# after the target is declared. To keep this edit minimal we will remember to add
+# add_dependencies(${LIB} generate_umbrella_header) right after the add_library call below.
 
 # Compile the dynamic library --------------------------------------------------
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(LIB ${PROJECT_NAME})
 add_library(${LIB} SHARED ${SOURCE_FILES} ${HEADERS_FILES})
 
+# Ensure umbrella header is generated before building the library
+add_dependencies(${LIB} generate_umbrella_header)
+
 # Set library version
 set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
 target_include_directories(${LIB} PRIVATE ${CMAKE_SOURCE_DIR}/src)
-
-# Copy headers to build/include preserving folder structure --------------------
-# add the umbrella header to the list
-foreach(header ${HEADERS_FILES} ${RCSPP_UMBRELLA_HEADER})
-    # Compute relative path inside
-    file(RELATIVE_PATH rel_path "${CMAKE_SOURCE_DIR}/src" "${header}")
-    set(dest "${BUILD_INCLUDE_DIR}/${rel_path}")
-
-    # Make sure destination folder exists
-    get_filename_component(dest_dir "${dest}" DIRECTORY)
-    file(MAKE_DIRECTORY "${dest_dir}")
-
-    # Copy header
-    configure_file("${header}" "${dest}" COPYONLY)
-endforeach()

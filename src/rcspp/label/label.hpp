@@ -49,12 +49,12 @@ class Label {
             return *resource_ <= *rhs_label.resource_;
         }
 
-        // Label expansion
-        void expand(const Arc<ResourceType>& arc, Label* expanded_label) const {
-            arc.expander->expand(*resource_, expanded_label->resource_.get());
-            expanded_label->end_node_ = arc.destination;
-            expanded_label->in_arc_ = &arc;
-            expanded_label->out_arc_ = nullptr;
+        // Label extension
+        void extend(const Arc<ResourceType>& arc, Label* extended_label) const {
+            arc.extender->extend(*resource_, extended_label->resource_.get());
+            extended_label->end_node_ = arc.destination;
+            extended_label->in_arc_ = &arc;
+            extended_label->out_arc_ = nullptr;
         }
 
         // Return label cost
@@ -78,10 +78,10 @@ class Label {
         // Pointer to the node at the end of the path associated with the current label.
         const Node<ResourceType>* end_node_;
 
-        // Pointer to the arc from which this label was forward expanded.
+        // Pointer to the arc from which this label was forward extended.
         const Arc<ResourceType>* in_arc_;
 
-        // Pointer to the arc from which this label was backward expanded.
+        // Pointer to the arc from which this label was backward extended.
         const Arc<ResourceType>* out_arc_;
 };
 }  // namespace rcspp

@@ -4,8 +4,8 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/base/expander.hpp"
-#include "rcspp/resource/functions/expansion/expansion_function.hpp"
+#include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
 
@@ -13,7 +13,7 @@ template <typename ResourceType>
 class TrivialExpansionFunction
     : public Clonable<TrivialExpansionFunction<ResourceType>, ExpansionFunction<ResourceType>> {
     public:
-        void expand(const Resource<ResourceType>& resource, const Expander<ResourceType>& expander,
+        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* reused_resource) override {}
 };
 }  // namespace rcspp

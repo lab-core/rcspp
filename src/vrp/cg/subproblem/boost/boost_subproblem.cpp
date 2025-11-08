@@ -10,8 +10,7 @@
 #include <limits>
 #include <ranges>
 
-#include "rcspp/algorithm/solution.hpp"
-#include "rcspp/utils/logger.hpp"
+#include "rcspp/rcspp.hpp"
 
 using namespace rcspp;
 

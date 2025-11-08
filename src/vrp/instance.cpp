@@ -6,7 +6,7 @@
 #include <iostream>
 #include <optional>
 
-#include "rcspp/utils/logger.hpp"
+#include "rcspp/rcspp.hpp"
 
 Instance::Instance(int nb_vehicles, int capacity, std::optional<std::string> name)
     : nb_vehicles_(nb_vehicles), capacity_(capacity), name_(std::move(name)) {}

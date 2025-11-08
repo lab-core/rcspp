@@ -6,7 +6,7 @@
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
 #include "instance_reader.hpp"
-#include "rcspp/resource/resource_graph.hpp"
+#include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
 

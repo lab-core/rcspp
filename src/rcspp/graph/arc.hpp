@@ -10,7 +10,7 @@
 
 #include "rcspp/graph/node.hpp"
 #include "rcspp/graph/row.hpp"
-#include "rcspp/resource/base/expander.hpp"
+#include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/base/resource.hpp"
 
 namespace rcspp {
@@ -20,12 +20,12 @@ template <typename ResourceType>
 class Arc {
     public:
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            std::unique_ptr<Expander<ResourceType>> arc_expander, double arc_cost,
+            std::unique_ptr<Extender<ResourceType>> arc_extender, double arc_cost,
             std::vector<Row> dual_rows = {})
             : id(arc_id),
               origin(origin_node),
               destination(destination_node),
-              expander(std::move(arc_expander)),
+              extender(std::move(arc_extender)),
               cost(arc_cost),
               dual_rows(std::move(dual_rows)) {}
 
@@ -43,7 +43,7 @@ class Arc {
 
         Node<ResourceType>* const destination;
 
-        std::unique_ptr<Expander<ResourceType>> expander;
+        std::unique_ptr<Extender<ResourceType>> extender;
 
         double cost;
 

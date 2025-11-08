@@ -9,7 +9,7 @@
 #include <limits>
 #include <sstream>
 
-#include "rcspp/utils/logger.hpp"
+#include "rcspp/rcspp.hpp"
 
 SolutionOutput::SolutionOutput(std::string duals_directory)
     : duals_directory_(std::move(duals_directory)) {}

@@ -36,7 +36,16 @@ class Node {
         const bool source;
         const bool sink;
 
-        [[nodiscard]] size_t pos() const { return pos_.value(); }
+        [[nodiscard]] size_t pos() const {
+            try {
+                return pos_.value();
+            } catch (const std::bad_optional_access& e) {
+                LOG_FATAL("Node::pos(): Position is not set for node ",
+                          std::to_string(id),
+                          ". Sort the graph with Graph::sort_nodes() to set pos.\n");
+                throw e;
+            }
+        }
 
     private:
         friend class Graph<ResourceType>;

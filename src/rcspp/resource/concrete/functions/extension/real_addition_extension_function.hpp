@@ -4,17 +4,17 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/base/expander.hpp"
+#include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
-#include "rcspp/resource/functions/expansion/expansion_function.hpp"
+#include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
 
 class RealAdditionExpansionFunction
     : public Clonable<RealAdditionExpansionFunction, ExpansionFunction<RealResource>> {
     public:
-        void expand(const Resource<RealResource>& resource, const Expander<RealResource>& expander,
-                    Resource<RealResource>* expanded_resource) override;
+        void extend(const Resource<RealResource>& resource, const Extender<RealResource>& extender,
+                    Resource<RealResource>* extended_resource) override;
 };
 }  // namespace rcspp

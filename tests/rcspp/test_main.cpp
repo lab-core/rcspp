@@ -2,9 +2,7 @@
 
 #include <iostream>
 
-#include "rcspp/algorithm/pulling_dominance_algorithm_iterators.hpp"
-#include "rcspp/algorithm/pushing_dominance_algorithm_iterators.hpp"
-
+#include "rcspp/rcspp.hpp"
 
 
 int main() {

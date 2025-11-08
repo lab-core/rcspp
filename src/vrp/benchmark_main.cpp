@@ -6,10 +6,7 @@
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
 #include "instance_reader.hpp"
-#include "rcspp/algorithm/pulling_dominance_algorithm_iterators.hpp"
-#include "rcspp/algorithm/pushing_dominance_algorithm_iterators.hpp"
-#include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
-#include "rcspp/resource/resource_graph.hpp"
+#include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
 

@@ -9,12 +9,7 @@
 #include "cg/mp_solution.hpp"
 #include "cg/path.hpp"
 #include "instance.hpp"
-#include "rcspp/algorithm/solution.hpp"
-#include "rcspp/graph/graph.hpp"
-#include "rcspp/resource/composition/resource_composition.hpp"
-#include "rcspp/resource/composition/resource_composition_factory.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
-#include "rcspp/resource/resource_graph.hpp"
+#include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 
 using namespace rcspp;

@@ -12,17 +12,7 @@
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
 #include "cg/subproblem/boost/boost_subproblem.hpp"
-#include "rcspp/algorithm/pulling_dominance_algorithm_iterators.hpp"
-#include "rcspp/algorithm/pushing_dominance_algorithm_iterators.hpp"
-#include "rcspp/graph/row.hpp"
-#include "rcspp/resource/concrete/functions/cost/real_value_cost_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/real_value_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/expansion/real_addition_expansion_function.hpp"
-#include "rcspp/resource/concrete/functions/expansion/time_window_expansion_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
-#include "rcspp/resource/resource_graph.hpp"
+#include "rcspp/rcspp.hpp"
 
 constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
@@ -484,7 +474,7 @@ void VRP::add_paths(MasterProblem* master_problem, const std::vector<Solution>& 
 double VRP::calculate_solution_cost(const Solution& solution) const {
     double cost = 0.0;
 
-    // TODO(patrick): Figure out how to get the cost of an Expander.
+    // TODO(patrick): Figure out how to get the cost of an Extender.
     for (auto arc_id : solution.path_arc_ids) {
         cost += graph_.get_arc(arc_id).cost;
     }
