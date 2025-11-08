@@ -24,6 +24,12 @@ class ExpansionFunction {
                             const Extender<ResourceType>& extender,
                             Resource<ResourceType>* extended_resource) = 0;
 
+        // check if any extension is feasible -> used to remove the arc if no extension is feasible
+        // by default, all extensions are feasible
+        [[nodiscard]] virtual bool is_feasible(const Extender<ResourceType>& extender) {
+            return true;
+        }
+
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExpansionFunction> = 0;
 
         virtual auto create(size_t arc_id) -> std::unique_ptr<ExpansionFunction> {

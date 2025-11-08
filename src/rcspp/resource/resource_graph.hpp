@@ -10,8 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include "../algorithm/shortest_path_sort.hpp"
+#include "rcspp/algorithm/feasibility_preprocessor.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
+#include "rcspp/algorithm/shortest_path_sort.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -175,14 +176,25 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    size_t cost_index = 0) {
-            // remove some arcs before solving the problem
-            // the deleted arcs will be restored after the solve
-            auto preprocessor =
-                ShortestPathPreprocessor<CostResourceType, ResourceTypes...>(this,
-                                                                             upper_bound,
-                                                                             cost_index);
-            preprocessor.preprocess();
+                                    bool preprocess = true, size_t cost_index = 0) {
+            std::vector<std::unique_ptr<Preprocessor<ResourceComposition<ResourceTypes...>>>>
+                preprocessors;
+            if (preprocess) {
+                // if first solve, try to remove some arcs based on feasibility
+                if (!fesibility_processed_) {
+                    process_feasibility();
+                }
+
+                // remove some arcs before solving the problem
+                // the deleted arcs will be restored after the solve
+                auto preprocessor =
+                    std::make_unique<ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
+                        this,
+                        upper_bound,
+                        cost_index);
+                preprocessor->preprocess();
+                preprocessors.emplace_back(std::move(preprocessor));
+            }
 
             // if not sorted, use default sort (by id)
             if (!this->are_nodes_sorted()) {
@@ -195,9 +207,21 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             std::vector<Solution> sols = algorithm.solve();
 
             // restore the removed arcs for the next resolution
-            preprocessor.restore();
+            if (preprocess) {
+                for (auto& preprocessor : preprocessors) {
+                    preprocessor->restore();
+                }
+            }
 
             return sols;
+        }
+
+        void process_feasibility() {
+            FeasibilityPreprocessor<ResourceComposition<ResourceTypes...>> feasibility_preprocessor(
+                &resource_factory_,
+                this);
+            feasibility_preprocessor.preprocess();
+            fesibility_processed_ = true;
         }
 
         template <typename CostResourceType = RealResource>
@@ -216,5 +240,6 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
+        bool fesibility_processed_ = false;
 };
 }  // namespace rcspp
