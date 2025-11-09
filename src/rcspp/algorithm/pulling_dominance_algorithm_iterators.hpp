@@ -59,10 +59,10 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                         ++it;  // move to next label
                     } else if (!label.get_end_node()->sink &&
                                label.get_cost() < std::numeric_limits<double>::infinity()) {
-                        bool label_non_dominated = this->update_non_dominated_labels(*it);
+                        bool label_non_dominated = this->update_non_dominated_labels(*it->first);
                         if (label_non_dominated) {
-                            this->extended_labels_by_node_pos_.at(label.get_end_node()->pos())
-                                .push_back(&label);
+                            // this->extended_labels_by_node_pos_.at(label.get_end_node()->pos())
+                            //     .push_back(&label);
                             ++it;  // move to next label
                         } else {
                             this->label_pool_.release_label(&label);

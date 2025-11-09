@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/connectivity_matrix.hpp"
 #include "rcspp/algorithm/feasibility_preprocessor.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/shortest_path_sort.hpp"
@@ -37,14 +38,16 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 dominance_function)
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
                   std::move(extension_function), std::move(feasibility_function),
-                  std::move(cost_function), std::move(dominance_function))) {}
+                  std::move(cost_function), std::move(dominance_function))),
+              connectivityMatrix_(this) {}
 
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
                   std::make_unique<CompositionExpansionFunction<RealResource>>(),
                   std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
                   std::make_unique<ComponentCostFunction<0, RealResource>>(0),
-                  std::make_unique<CompositionDominanceFunction<RealResource>>())) {}
+                  std::make_unique<CompositionDominanceFunction<RealResource>>())),
+              connectivityMatrix_(this) {}
 
         template <typename ResourceType>
         void add_resource(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
@@ -167,22 +170,38 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
         }
 
+        // sort nodes by connectivity, break cycles on cost
         template <template <typename, typename...> class SortType = ShortestPathSort,
                   typename CostResourceType = RealResource>
-        void sort_nodes_by_cost(size_t cost_index = 0) {
-            SortType<CostResourceType, ResourceTypes...> sort(this, cost_index);
+        void sort_nodes_by_connectivity(int cost_index = -1) {
+            SortType<CostResourceType, ResourceTypes...> sort(this,
+                                                              &connectivityMatrix_,
+                                                              cost_index);
         }
 
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, size_t cost_index = 0) {
+                                    bool preprocess = true, int cost_index = -1) {
+            if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
+                LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
+                return {};
+            }
+
             std::vector<std::unique_ptr<Preprocessor<ResourceComposition<ResourceTypes...>>>>
                 preprocessors;
             if (preprocess) {
-                // if first solve, try to remove some arcs based on feasibility
-                if (!fesibility_processed_) {
+                // if graph has been modified, try to remove some arcs based on feasibility
+                // initialize or update connectivity matrix
+                if (this->is_modified()) {
                     process_feasibility();
+                    is_connected(this->get_source_node_ids().front(),
+                                 this->get_sink_node_ids().front());
+                }
+
+                // if not sorted, use default sort by connectivity
+                if (!this->are_nodes_sorted()) {
+                    this->sort_nodes_by_connectivity(cost_index);
                 }
 
                 // remove some arcs before solving the problem
@@ -211,6 +230,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 for (auto& preprocessor : preprocessors) {
                     preprocessor->restore();
                 }
+                this->track_modifications();  // mark as unmodified after restoring arcs
             }
 
             return sols;
@@ -221,7 +241,15 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 &resource_factory_,
                 this);
             feasibility_preprocessor.preprocess();
-            fesibility_processed_ = true;
+        }
+
+        bool is_connected(size_t origin_node_id, size_t destination_node_id) {
+            if (this->is_modified()) {
+                connectivityMatrix_.compute_bitmatrix();
+                this->track_modifications();
+            }
+
+            return connectivityMatrix_.is_connected(origin_node_id, destination_node_id);
         }
 
         template <typename CostResourceType = RealResource>
@@ -241,5 +269,6 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         bool fesibility_processed_ = false;
+        ConnectivityMatrix<ResourceComposition<ResourceTypes...>> connectivityMatrix_;
 };
 }  // namespace rcspp

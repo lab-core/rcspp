@@ -28,7 +28,7 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve() {  // NOLINT(readability-function-cognitive-complexity)
+        std::vector<Timer> solve() {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
             generate_initial_paths();
@@ -40,20 +40,6 @@ class VRP {
             std::vector<Timer> timers(1 + sizeof...(AlgorithmTypes));
             int nb_iter = 0;
             while (min_reduced_cost < -EPSILON) {
-                LOG_DEBUG(std::string(45, '*'), '\n');
-                LOG_INFO("nb_iter=",
-                         nb_iter,
-                         " | obj=",
-                         master_solution.cost,
-                         " | min_reduced_cost=",
-                         std::fixed,
-                         std::setprecision(std::numeric_limits<double>::max_digits10),
-                         min_reduced_cost,
-                         " | EPSILON=",
-                         EPSILON,
-                         '\n');
-                LOG_DEBUG(std::string(45, '*'), '\n');
-
                 master_solution = master_problem.solve();
 
                 const auto dual_by_id =
@@ -78,7 +64,11 @@ class VRP {
                                 COST_COMPARISON_EPSILON) {
                                 LOG_ERROR("BOOST and RCSPP (",
                                           algo_index,
-                                          ") first-solution costs differ beyond tolerance\n");
+                                          ") first-solution costs differ beyond tolerance: ",
+                                          solutions_boost[0].cost,
+                                          " vs ",
+                                          sols[0].cost,
+                                          "\n");
                             }
                         } else {
                             LOG_ERROR("BOOST has a solution while RCSPP (", algo_index, ") not\n");
@@ -124,26 +114,28 @@ class VRP {
                 add_paths(&master_problem, negative_red_cost_solutions);
 
                 nb_iter++;
-            }
 
-            LOG_DEBUG(std::string(45, '*'), '\n');
-            LOG_INFO("nb_iter=",
-                     nb_iter,
-                     " | obj=",
-                     master_solution.cost,
-                     " | min_reduced_cost=",
-                     std::fixed,
-                     std::setprecision(std::numeric_limits<double>::max_digits10),
-                     min_reduced_cost,
-                     " | EPSILON=",
-                     EPSILON,
-                     '\n');
-            LOG_DEBUG(std::string(45, '*'), '\n');
+                LOG_DEBUG(std::string(45, '*'), '\n');
+                LOG_INFO("nb_iter=",
+                         nb_iter,
+                         " | obj=",
+                         master_solution.cost,
+                         " | min_reduced_cost=",
+                         std::fixed,
+                         std::setprecision(std::numeric_limits<double>::max_digits10),
+                         min_reduced_cost,
+                         " | paths_added=",
+                         negative_red_cost_solutions.size(),
+                         " | EPSILON=",
+                         EPSILON,
+                         '\n');
+                LOG_DEBUG(std::string(45, '*'), '\n');
+            }
 
             return timers;
         }
 
-        void sort_nodes_by_cost();
+        void sort_nodes_by_connectivity();
         void sort_nodes_by_min_tw();
         void sort_nodes_by_max_tw();
 

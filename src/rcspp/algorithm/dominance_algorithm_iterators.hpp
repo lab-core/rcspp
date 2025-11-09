@@ -24,7 +24,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             : AlgorithmWithIterators<ResourceType>(resource_factory, graph, use_pool) {
             for (size_t i = 0; i < graph.get_number_of_nodes(); i++) {
                 non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
-                extended_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
+                // extended_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
             }
         }
 
@@ -49,18 +49,22 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             nb_test_iter_++;
             total_test_time_.start();
 
-            bool non_dominated = true;
-            for (const auto non_dominated_label_ptr :
-                 non_dominated_labels_by_node_pos_.at(label.get_end_node()->pos())) {
-                if (&label == non_dominated_label_ptr) {
-                    continue;
-                }
-                if ((*non_dominated_label_ptr) <= label) {
-                    non_dominated = false;
-                    this->nb_dominated_labels_++;
-                    break;
-                }
+            bool non_dominated = update_non_dominated_labels(label);
+            if (!non_dominated) {
+                this->nb_dominated_labels_++;
             }
+
+            // for (const auto non_dominated_label_ptr :
+            //      non_dominated_labels_by_node_pos_.at(label.get_end_node()->pos())) {
+            //     if (&label == non_dominated_label_ptr) {
+            //         continue;
+            //     }
+            //     if ((*non_dominated_label_ptr) <= label) {
+            //         non_dominated = false;
+            //         this->nb_dominated_labels_++;
+            //         break;
+            //     }
+            // }
 
             total_test_time_.stop();
 
@@ -68,7 +72,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         }
 
         void extend(Label<ResourceType>* label_ptr) override {
-            extended_labels_by_node_pos_.at(label_ptr->get_end_node()->pos()).push_back(label_ptr);
+            // extended_labels_by_node_pos_.at(label_ptr->get_end_node()->pos()).push_back(label_ptr);
 
             const auto& current_node = label_ptr->get_end_node();
 
@@ -80,17 +84,16 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
-
             label_ptr->extend(*arc_ptr, &new_label);
 
             if (new_label.is_feasible() && test(new_label)) {
                 // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
                 // feasible and non dominated.
-                auto& labels =
+                auto& non_dominated_labels =
                     non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos());
+                // points to the newly inserted element
                 auto new_label_it =
-                    labels.insert(labels.end(),
-                                  &new_label);  // points to the newly inserted element
+                    non_dominated_labels.insert(non_dominated_labels.end(), &new_label);
                 add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
             } else {
                 this->label_pool_.release_label(&new_label);
@@ -114,9 +117,10 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                     }
 
                     // if empty, infinite loop
-                    assert(!extended_labels_by_node_pos_.at(prev_node_ptr->pos()).empty());
+                    assert(!non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos()).empty());
 
-                    for (auto label_ptr : extended_labels_by_node_pos_.at(prev_node_ptr->pos())) {
+                    for (auto label_ptr :
+                         non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
                         auto& next_label_ref =
                             this->label_pool_.get_next_label(in_arc_ptr->destination);
                         label_ptr->extend(*in_arc_ptr, &next_label_ref);
@@ -237,7 +241,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
                 while (prev_node_ptr != nullptr && !prev_node_ptr->source) {
                     for (const auto label_ptr :
-                         extended_labels_by_node_pos_.at(prev_node_ptr->pos())) {
+                         non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
                         auto& next_label_ref =
                             this->label_pool_.get_next_label(in_arc_ptr->destination);
                         label_ptr->extend(*in_arc_ptr, &next_label_ref);
@@ -264,41 +268,46 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             return path_arc_ids;
         }
 
-        bool update_non_dominated_labels(
-            const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
+        bool update_non_dominated_labels(const Label<ResourceType>& label) override {
             total_update_non_dom_time_.start();
 
-            auto label_ptr = label_iterator_pair.first;
-
-            auto current_node_pos = label_ptr->get_end_node()->pos();
-
-            bool label_non_dominated = true;
+            auto current_node_pos = label.get_end_node()->pos();
             auto& non_dominated_labels_list =
                 non_dominated_labels_by_node_pos_.at(current_node_pos);
-            for (auto non_dominated_label_it = non_dominated_labels_list.begin();
-                 non_dominated_label_it != non_dominated_labels_list.end();
-                 non_dominated_label_it++) {
-                if (label_ptr == *non_dominated_label_it) {
+
+            // First, check if label is dominated by any existing non-dominated label
+            bool label_dominated = false;
+            for (const auto non_dominated_label_ptr : non_dominated_labels_list) {
+                if (&label == non_dominated_label_ptr) {
                     continue;
                 }
-                if (*label_ptr <= *(*non_dominated_label_it)) {
-                    (*non_dominated_label_it)->dominated = true;
-                    non_dominated_label_it =
-                        non_dominated_labels_list.erase(non_dominated_label_it);
-                    // cppcheck-suppress knownConditionTrueFalse
-                } else if (*(*non_dominated_label_it) <= *label_ptr) {
-                    label_non_dominated = false;
+                if ((*non_dominated_label_ptr) <= label) {
+                    label_dominated = true;
                     break;
                 }
             }
+            if (label_dominated) {
+                total_update_non_dom_time_.stop();
+                return false;
+            }
 
-            if (!label_non_dominated) {
-                remove_label(label_iterator_pair.second);
+            // Second, remove all existing non-dominated labels that are dominated by label
+            for (auto non_dominated_label_it = non_dominated_labels_list.begin();
+                 non_dominated_label_it != non_dominated_labels_list.end();
+                 ++non_dominated_label_it) {
+                if (&label == *non_dominated_label_it) {
+                    continue;
+                }
+                if (label <= *(*non_dominated_label_it)) {
+                    (*non_dominated_label_it)->dominated = true;
+                    non_dominated_label_it =
+                        non_dominated_labels_list.erase(non_dominated_label_it);
+                }
             }
 
             total_update_non_dom_time_.stop();
 
-            return label_non_dominated;
+            return true;
         }
 
         void remove_label(
@@ -331,7 +340,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
         std::vector<std::list<Label<ResourceType>*>> non_dominated_labels_by_node_pos_;
 
-        std::vector<std::list<Label<ResourceType>*>> extended_labels_by_node_pos_;
+        // std::vector<std::list<Label<ResourceType>*>> extended_labels_by_node_pos_;
 
         Timer total_label_time_;
         Timer total_extend_time_;

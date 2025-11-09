@@ -58,8 +58,8 @@ const std::vector<Path>& VRP::generate_initial_paths() {
     return paths_;
 }
 
-void VRP::sort_nodes_by_cost() {
-    graph_.sort_nodes_by_cost();
+void VRP::sort_nodes_by_connectivity() {
+    graph_.sort_nodes_by_connectivity();
 }
 
 void VRP::sort_nodes_by_min_tw() {
@@ -157,20 +157,6 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     std::map<size_t, double> final_dual_by_id;
     int nb_iter = 0;
     while (min_reduced_cost < -EPSILON) {
-        LOG_DEBUG(std::string(45, '*'), '\n');
-        LOG_INFO("nb_iter=",
-                 nb_iter,
-                 " | obj=",
-                 master_solution.cost,
-                 " | min_reduced_cost=",
-                 std::fixed,
-                 std::setprecision(std::numeric_limits<double>::max_digits10),
-                 min_reduced_cost,
-                 " | EPSILON=",
-                 EPSILON,
-                 '\n');
-        LOG_DEBUG(std::string(45, '*'), '\n');
-
         master_solution = master_problem.solve();
 
         std::string dual_output_file = "iter_" + std::to_string(nb_iter) + ".txt";
@@ -189,6 +175,19 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
 
+        // for (auto* node: graph_.get_sorted_nodes()) {
+        //     LOG_DEBUG("Node ID: ", node->id, " -> ",
+        //     time_window_by_customer_id_.at(node->id).first, ", ",
+        //     time_window_by_customer_id_.at(node->id).second, '\n'); for (auto* node2:
+        //     graph_.get_sorted_nodes()) {
+        //         if (node == node2) break;
+        //         if (graph_.is_connected(node->id, node2->id) && !graph_.is_connected(node2->id,
+        //         node->id)) {
+        //             LOG_DEBUG("Wrong ordering between ", node->id, " and ", node2->id, '\n');
+        //         }
+        //     }
+        // }
+
         std::vector<Solution> solutions_boost;
         total_subproblem_time_boost_.start();
         solutions_boost = solve_with_boost(dual_by_id);
@@ -198,8 +197,12 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
 
         if (std::abs(solutions_boost[0].cost - solutions_rcspp[0].cost) > COST_COMPARISON_EPSILON) {
-            LOG_ERROR("ERROR!!!!\n");
-            break;
+            LOG_ERROR("Different costs between BOOST and RCSPP:",
+                      solutions_boost[0].cost,
+                      " vs ",
+                      solutions_rcspp[0].cost,
+                      "\n");
+            // break;
         }
 
         std::vector<Solution> solutions;
@@ -231,17 +234,23 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         if (min_reduced_cost >= -EPSILON) {
             final_dual_by_id = master_solution.dual_by_var_id;
         }
-    }
 
-    LOG_INFO("nb_iter=",
-             nb_iter,
-             " | obj=",
-             master_solution.cost,
-             " | min_reduced_cost=",
-             min_reduced_cost,
-             " | EPSILON=",
-             EPSILON,
-             '\n');
+        LOG_DEBUG(std::string(45, '*'), '\n');
+        LOG_INFO("nb_iter=",
+                 nb_iter,
+                 " | obj=",
+                 master_solution.cost,
+                 " | min_reduced_cost=",
+                 std::fixed,
+                 std::setprecision(std::numeric_limits<double>::max_digits10),
+                 min_reduced_cost,
+                 " | paths_added=",
+                 negative_red_cost_solutions.size(),
+                 " | EPSILON=",
+                 EPSILON,
+                 '\n');
+        LOG_DEBUG(std::string(45, '*'), '\n');
+    }
 
     // Last solve as a MIP
     master_solution = master_problem.solve(false);
@@ -374,12 +383,12 @@ void VRP::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
     size_t sink_id = customers_by_id.size();
 
     for (const auto& [customer_id, customer] : customers_by_id) {
-        auto& node = resource_graph->add_node(customer_id, customer.depot);
+        resource_graph->add_node(customer_id, customer.depot);
         if (customer.depot) {
             depot_id_ = customer.id;
 
             // Add the depot as a sink as well.
-            auto& sink_node = resource_graph->add_node(sink_id, false, true);
+            resource_graph->add_node(sink_id, false, true);
         }
     }
 }
@@ -440,17 +449,12 @@ void VRP::add_arc_to_graph(ResourceGraph<RealResource>* resource_graph, size_t c
 
     auto demand = customer_dest.demand;
 
-    /*auto& arc = resource_graph->add_arc({ { {reduced_cost}, {time},
-      {demand} } }, customer_orig_id, customer_dest_id, arc_id, distance,
-      {Row(customer_orig_id, 1.0)});*/
-
-    auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
-        {reduced_cost, time, demand},
-        customer_orig_id,
-        customer_dest_id,
-        arc_id,
-        distance,
-        {Row(customer_orig_id, 1.0)});
+    resource_graph->add_arc<RealResource, RealResource, RealResource>({reduced_cost, time, demand},
+                                                                      customer_orig_id,
+                                                                      customer_dest_id,
+                                                                      arc_id,
+                                                                      distance,
+                                                                      {Row(customer_orig_id, 1.0)});
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

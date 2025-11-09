@@ -4,6 +4,7 @@
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_with_iterators.hpp"
 #include "rcspp/algorithm/bellman_ford_algorithm.hpp"
+#include "rcspp/algorithm/connectivity_matrix.hpp"
 #include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/feasibility_preprocessor.hpp"
 #include "rcspp/algorithm/preprocessor.hpp"

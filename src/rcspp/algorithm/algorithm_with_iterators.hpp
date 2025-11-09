@@ -73,23 +73,26 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
                 assert(label.get_end_node());
 
                 // check if we can update the best label or extend
-                if (label.get_end_node()->sink && label.get_cost() < this->cost_upper_bound_) {
-                    this->cost_upper_bound_ = label.get_cost();
-                    this->best_label_ = &label;
-                } else if (!label.get_end_node()->sink &&
-                           label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    bool label_non_dominated = update_non_dominated_labels(label_iterator_pair);
+                if (label.get_end_node()->sink) {
+                    if (label.get_cost() < this->cost_upper_bound_) {
+                        this->cost_upper_bound_ = label.get_cost();
+                        this->best_label_ = &label;
+                    }
+                } else if (!std::isinf(label.get_cost())) {
+                    bool label_non_dominated = update_non_dominated_labels(label);
 
                     if (label_non_dominated) {
                         this->total_full_extend_time_.start();
+
                         this->extend(&label);
                         this->total_full_extend_time_.stop();
                     } else {
+                        remove_label(label_iterator_pair.second);
                         this->label_pool_.release_label(&label);
                     }
                 } else {
-                    this->label_pool_.release_label(&label);
                     remove_label(label_iterator_pair.second);
+                    this->label_pool_.release_label(&label);
                 }
             }
 
@@ -102,8 +105,7 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
         virtual void remove_label(
             const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
 
-        virtual bool update_non_dominated_labels(
-            const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
+        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) = 0;
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
