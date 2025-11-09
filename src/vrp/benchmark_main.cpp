@@ -77,21 +77,8 @@ int main(int argc, char* argv[]) {
     LOG_TRACE(__FUNCTION__, '\n');
 
     // std::vector<std::string> instance_names = {"toy"};
-    std::vector<std::string> instance_names = {"C101",
-                                               "C102",
-                                               "C103",
-                                               "C104",
-                                               "C201",
-                                               "R101",
-                                               "R102",
-                                               "R103",
-                                               "R104",
-                                               "R201",
-                                               "RC101",
-                                               "RC102",
-                                               "RC103",
-                                               "RC104",
-                                               "RC201"};
+    std::vector<std::string> instance_names =
+        {"C101", "C102", "C103", "R101", "R102", "R103", "RC101", "RC102", "RC103"};
     std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling"};
     std::string root_dir = file_parent_dir(__FILE__, 3);
 
@@ -106,6 +93,7 @@ int main(int argc, char* argv[]) {
 
         auto instance = instance_reader.read();
         VRP vrp(instance);
+        // vrp.sort_nodes();
         // vrp.sort_nodes_by_connectivity();
         // vrp.sort_nodes_by_min_tw();
         // vrp.sort_nodes_by_max_tw();

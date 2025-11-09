@@ -58,6 +58,10 @@ const std::vector<Path>& VRP::generate_initial_paths() {
     return paths_;
 }
 
+void VRP::sort_nodes() {
+    graph_.sort_nodes();
+}
+
 void VRP::sort_nodes_by_connectivity() {
     graph_.sort_nodes_by_connectivity();
 }

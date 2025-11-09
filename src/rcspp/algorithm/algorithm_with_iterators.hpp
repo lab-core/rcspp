@@ -79,17 +79,10 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
                         this->best_label_ = &label;
                     }
                 } else if (!std::isinf(label.get_cost())) {
-                    bool label_non_dominated = update_non_dominated_labels(label);
-
-                    if (label_non_dominated) {
-                        this->total_full_extend_time_.start();
-
-                        this->extend(&label);
-                        this->total_full_extend_time_.stop();
-                    } else {
-                        remove_label(label_iterator_pair.second);
-                        this->label_pool_.release_label(&label);
-                    }
+                    assert(update_non_dominated_labels(label));
+                    this->total_full_extend_time_.start();
+                    this->extend(&label);
+                    this->total_full_extend_time_.stop();
                 } else {
                     remove_label(label_iterator_pair.second);
                     this->label_pool_.release_label(&label);

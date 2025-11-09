@@ -24,7 +24,6 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             : AlgorithmWithIterators<ResourceType>(resource_factory, graph, use_pool) {
             for (size_t i = 0; i < graph.get_number_of_nodes(); i++) {
                 non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
-                // extended_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
             }
         }
 
@@ -35,8 +34,8 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                 auto& label = this->label_pool_.get_next_label(&source_node);
 
                 auto& labels = non_dominated_labels_by_node_pos_.at(source_node.pos());
-                auto label_it =
-                    labels.insert(labels.end(), &label);  // it points to the newly inserted element
+                // it points to the newly inserted element
+                auto label_it = labels.insert(labels.end(), &label);
                 add_new_unprocessed_label(std::make_pair(&label, label_it));
             }
         }
@@ -72,10 +71,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
         }
 
         void extend(Label<ResourceType>* label_ptr) override {
-            // extended_labels_by_node_pos_.at(label_ptr->get_end_node()->pos()).push_back(label_ptr);
-
             const auto& current_node = label_ptr->get_end_node();
-
             for (auto arc_ptr : current_node->out_arcs) {
                 extend_label(label_ptr, arc_ptr);
             }
@@ -293,15 +289,13 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
             // Second, remove all existing non-dominated labels that are dominated by label
             for (auto non_dominated_label_it = non_dominated_labels_list.begin();
-                 non_dominated_label_it != non_dominated_labels_list.end();
-                 ++non_dominated_label_it) {
-                if (&label == *non_dominated_label_it) {
-                    continue;
-                }
-                if (label <= *(*non_dominated_label_it)) {
+                 non_dominated_label_it != non_dominated_labels_list.end();) {
+                if (&label != *non_dominated_label_it && label <= *(*non_dominated_label_it)) {
                     (*non_dominated_label_it)->dominated = true;
                     non_dominated_label_it =
                         non_dominated_labels_list.erase(non_dominated_label_it);
+                } else {
+                    ++non_dominated_label_it;
                 }
             }
 
@@ -339,8 +333,6 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
         std::vector<std::list<Label<ResourceType>*>> non_dominated_labels_by_node_pos_;
-
-        // std::vector<std::list<Label<ResourceType>*>> extended_labels_by_node_pos_;
 
         Timer total_label_time_;
         Timer total_extend_time_;

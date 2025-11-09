@@ -135,6 +135,7 @@ class VRP {
             return timers;
         }
 
+        void sort_nodes();
         void sort_nodes_by_connectivity();
         void sort_nodes_by_min_tw();
         void sort_nodes_by_max_tw();
