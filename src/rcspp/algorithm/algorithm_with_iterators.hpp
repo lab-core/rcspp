@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
 #include <iostream>
 #include <limits>

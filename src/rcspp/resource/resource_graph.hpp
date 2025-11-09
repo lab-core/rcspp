@@ -268,7 +268,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
-        bool fesibility_processed_ = false;
+        bool feasibility_processed_ = false;
         ConnectivityMatrix<ResourceComposition<ResourceTypes...>> connectivityMatrix_;
 };
 }  // namespace rcspp
