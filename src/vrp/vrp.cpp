@@ -333,37 +333,40 @@ std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
     return time_window_by_customer_id;
 }
 
-void VRP::construct_resource_graph(ResourceGraph<RealResource>* resource_graph,
+void VRP::construct_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
+    RGraph resource_graph;
+
     // Distance (cost)
-    resource_graph->add_resource<RealResource>(
-        std::make_unique<RealAdditionExtensionFunction>(),
+    resource_graph.add_resource<RealResource>(
+        std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-        std::make_unique<RealValueCostFunction>(),
-        std::make_unique<RealValueDominanceFunction>());
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
 
     // Time
-    resource_graph->add_resource<RealResource>(
-        std::make_unique<TimeWindowExtensionFunction>(min_time_window_by_arc_id_),
-        std::make_unique<TimeWindowFeasibilityFunction>(max_time_window_by_node_id_),
-        std::make_unique<RealValueCostFunction>(),
-        std::make_unique<RealValueDominanceFunction>());
+    resource_graph.add_resource<RealResource>(
+        std::make_unique<TimeWindowExtensionFunction<RealResource>>(min_time_window_by_arc_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(max_time_window_by_node_id_),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
 
     // Demand
-    resource_graph->add_resource<RealResource>(
-        std::make_unique<RealAdditionExtensionFunction>(),
-        std::make_unique<MinMaxFeasibilityFunction>(0.0, (double)instance_.get_capacity()),
-        std::make_unique<RealValueCostFunction>(),
-        std::make_unique<RealValueDominanceFunction>());
+    resource_graph.add_resource<RealResource>(
+        std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0,
+                                                                  (double)instance_.get_capacity()),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
 
     add_all_nodes_to_graph(resource_graph);
 
     add_all_arcs_to_graph(resource_graph, dual_by_id);
 }
 
-void VRP::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
+void VRP::update_resource_graph(RGraph* resource_graph,
                                 const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
@@ -376,7 +379,7 @@ void VRP::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
     graph_.update_reduced_costs(duals);
 }
 
-void VRP::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
+void VRP::add_all_nodes_to_graph(RGraph* resource_graph) {
     LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& customers_by_id = instance_.get_customers_by_id();
@@ -393,7 +396,7 @@ void VRP::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
     }
 }
 
-void VRP::add_all_arcs_to_graph(ResourceGraph<RealResource>* resource_graph,
+void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
                                 const std::map<size_t, double>* dual_by_id) {
     const auto& customers_by_id = instance_.get_customers_by_id();
     size_t sink_id = customers_by_id.size();
@@ -431,9 +434,8 @@ void VRP::add_all_arcs_to_graph(ResourceGraph<RealResource>* resource_graph,
     }
 }
 
-void VRP::add_arc_to_graph(ResourceGraph<RealResource>* resource_graph, size_t customer_orig_id,
-                           size_t customer_dest_id, const Customer& customer_orig,
-                           const Customer& customer_dest,
+void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size_t customer_dest_id,
+                           const Customer& customer_orig, const Customer& customer_dest,
                            const std::map<size_t, double>* dual_by_id, size_t arc_id) {
     double distance = calculate_distance(customer_orig, customer_dest);
     double customer_pi = 0;

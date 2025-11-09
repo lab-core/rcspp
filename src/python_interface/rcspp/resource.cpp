@@ -10,13 +10,13 @@
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
-#include "rcspp/resource/concrete/functions/cost/real_value_cost_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/real_value_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/real_addition_extension_function.hpp"
+#include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
+#include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
+#include "rcspp/resource/concrete/num_resource.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
 namespace py = pybind11;
@@ -82,24 +82,24 @@ void init_resource(py::module_& m) {
 
     // Concrete resource functions
 
-    py::class_<RealValueCostFunction, CostFunction<RealResource>, py::smart_holder>(
+    py::class_<ValueCostFunction<RealResource>, CostFunction<RealResource>, py::smart_holder>(
         m,
         "RealValueCostFunction")
         .def(py::init<>());
 
-    py::class_<RealValueDominanceFunction, DominanceFunction<RealResource>, py::smart_holder>(
-        m,
-        "RealValueDominanceFunction")
+    py::class_<ValueDominanceFunction<RealResource>,
+               DominanceFunction<RealResource>,
+               py::smart_holder>(m, "RealValueDominanceFunction")
         .def(py::init<>());
 
-    py::class_<RealAdditionExtensionFunction, ExpansionFunction<RealResource>, py::smart_holder>(
-        m,
-        "RealAdditionExpansionFunction")
+    py::class_<NumAdditionExpansionFunction<RealResource>,
+               ExpansionFunction<RealResource>,
+               py::smart_holder>(m, "RealAdditionExpansionFunction")
         .def(py::init<>());
 
-    py::class_<MinMaxFeasibilityFunction, FeasibilityFunction<RealResource>, py::smart_holder>(
-        m,
-        "MinMaxFeasibilityFunction")
+    py::class_<MinMaxFeasibilityFunction<RealResource>,
+               FeasibilityFunction<RealResource>,
+               py::smart_holder>(m, "MinMaxFeasibilityFunction")
         .def(py::init<double, double>());
 
     static std::map<size_t, double> g_min_time_window_by_arc_id;
@@ -121,9 +121,9 @@ void init_resource(py::module_& m) {
 
     static std::map<size_t, double> g_max_time_window_by_node_id;
 
-    py::class_<TimeWindowFeasibilityFunction, FeasibilityFunction<RealResource>, py::smart_holder>(
-        m,
-        "TimeWindowFeasibilityFunction")
+    py::class_<TimeWindowFeasibilityFunction<RealResource>,
+               FeasibilityFunction<RealResource>,
+               py::smart_holder>(m, "TimeWindowFeasibilityFunction")
         .def(py::init([](const py::dict& max_time_window_by_node_id) {
                  // Copy Python dict into the global map
                  g_max_time_window_by_node_id.clear();
@@ -132,7 +132,7 @@ void init_resource(py::module_& m) {
                                                           max_time.cast<double>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowFeasibilityFunction(g_max_time_window_by_node_id);
+                 return TimeWindowFeasibilityFunction<RealResource>(g_max_time_window_by_node_id);
              }),
              py::arg("max_time_window_by_node_id"));
 

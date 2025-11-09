@@ -14,6 +14,8 @@
 
 using namespace rcspp;
 
+using RGraph = ResourceGraph<RealResource>;
+
 class VRP {
     public:
         VRP(Instance instance);
@@ -165,7 +167,7 @@ class VRP {
 
         std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
 
-        ResourceGraph<RealResource> graph_;
+        RGraph graph_;
 
         std::optional<SolutionOutput> solution_output_;
 
@@ -181,18 +183,17 @@ class VRP {
 
         std::map<size_t, std::pair<double, double>> initialize_time_windows();
 
-        void construct_resource_graph(ResourceGraph<RealResource>* graph,
+        void construct_resource_graph(RGraph* graph,
                                       const std::map<size_t, double>* dual_by_id = nullptr);
 
-        void update_resource_graph(ResourceGraph<RealResource>* resource_graph,
+        void update_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id);
 
-        void add_all_nodes_to_graph(ResourceGraph<RealResource>* graph);
+        void add_all_nodes_to_graph(RGraph* graph);
 
-        void add_all_arcs_to_graph(ResourceGraph<RealResource>* graph,
-                                   const std::map<size_t, double>* dual_by_id);
+        void add_all_arcs_to_graph(RGraph* graph, const std::map<size_t, double>* dual_by_id);
 
-        static void add_arc_to_graph(ResourceGraph<RealResource>* graph, size_t customer_orig_id,
+        static void add_arc_to_graph(RGraph* graph, size_t customer_orig_id,
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
                                      const std::map<size_t, double>* dual_by_id, size_t arc_id);

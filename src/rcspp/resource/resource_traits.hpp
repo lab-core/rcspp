@@ -8,13 +8,14 @@
 
 namespace rcspp {
 
-class RealResource;
+template <typename T>
+class NumResource;
 
 // ResourceType to ResourceTypeIndex
 template <typename ResourceType>
 struct ResourceTypeIndex;
-template <>
-struct ResourceTypeIndex<RealResource> {
+template <typename T>
+struct ResourceTypeIndex<NumResource<T>> {
         static constexpr std::size_t value = 0;
 };
 template <typename ResourceType>
@@ -23,8 +24,8 @@ constexpr std::size_t ResourceTypeIndex_v = ResourceTypeIndex<ResourceType>::val
 // ResourceType to ResourceInitializerTypeTuple
 template <typename ResourceType>
 struct ResourceInitializerTypeTuple;
-template <>
-struct ResourceInitializerTypeTuple<RealResource> {
+template <typename T>
+struct ResourceInitializerTypeTuple<NumResource<T>> {
         using type = std::tuple<double>;
 };
 template <typename ResourceType>

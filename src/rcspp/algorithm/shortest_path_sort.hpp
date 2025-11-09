@@ -7,7 +7,7 @@
 
 #include "rcspp/algorithm/bellman_ford_algorithm.hpp"
 #include "rcspp/algorithm/connectivity_matrix.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
+#include "rcspp/resource/concrete/num_resource.hpp"
 
 namespace rcspp {
 template <typename CostResourceType = RealResource, typename... ResourceTypes>

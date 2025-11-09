@@ -20,7 +20,7 @@
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
+#include "rcspp/resource/concrete/num_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
