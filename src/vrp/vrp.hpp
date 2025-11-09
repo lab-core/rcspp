@@ -76,11 +76,22 @@ class VRP {
                     }
 
                     if (!sols.empty()) {
-                        LOG_DEBUG("Solution RCSPP cost (algo ",
+                        LOG_DEBUG("Solution RCSPP (algo ",
                                   algo_index,
-                                  "): ",
+                                  "): cost=",
                                   sols[0].cost,
+                                  " | nb_solutions=",
+                                  sols.size(),
                                   '\n');
+                        if (algo_index > 1 && sols.size() != solutions_rcspp_any.size()) {
+                            LOG_WARN("The number of solutions from RCSPP (algo ",
+                                     algo_index,
+                                     ") differs from that of the first algorithm: ",
+                                     sols.size(),
+                                     " vs ",
+                                     solutions_rcspp_any.size(),
+                                     "\n");
+                        }
                     } else {
                         LOG_DEBUG("Solution RCSPP (algo ", algo_index, ") returned no solutions\n");
                     }

@@ -38,40 +38,29 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                 // pull to the new node
                 pull_new_unprocessed_labels();
 
-                // set the iterator to the beginning
-                auto it = this->current_unprocessed_labels_.begin();
-                while (it != this->current_unprocessed_labels_.end()) {
+                // filter labels at current node
+                for (auto it = this->current_unprocessed_labels_.begin();
+                     it != this->current_unprocessed_labels_.end();) {
                     auto& label = *it->first;
 
                     // label dominated -> continue to next one
                     if (label.dominated) {
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
-                        continue;
-                    }
-
-                    assert(label.get_end_node());
-
-                    // check if we can update the best label or extend
-                    if (label.get_end_node()->sink && label.get_cost() < this->cost_upper_bound_) {
-                        this->cost_upper_bound_ = label.get_cost();
-                        this->best_label_ = &label;
-                        ++it;  // move to next label
-                    } else if (!label.get_end_node()->sink &&
-                               label.get_cost() < std::numeric_limits<double>::infinity()) {
-                        bool label_non_dominated = this->update_non_dominated_labels(*it->first);
-                        if (label_non_dominated) {
-                            // this->extended_labels_by_node_pos_.at(label.get_end_node()->pos())
-                            //     .push_back(&label);
-                            ++it;  // move to next label
-                        } else {
-                            this->label_pool_.release_label(&label);
-                            it = erase_unprocessed_label(it);  // erase label
-                        }
-                    } else {
-                        this->label_pool_.release_label(&label);
+                    } else if (std::isinf(label.get_cost())) {
+                        // label cost too high -> continue to next one
                         this->remove_label(it->second);
+                        this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
+                    } else {
+                        assert(this->update_non_dominated_labels(label));
+                        // check if sink and update best solution
+                        if (label.get_end_node()->sink &&
+                            label.get_cost() < this->cost_upper_bound_) {
+                            this->cost_upper_bound_ = label.get_cost();
+                            this->best_label_ = &label;
+                        }
+                        ++it;  // move to next label
                     }
                 }
             }
@@ -90,10 +79,11 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
 
         void pull_new_unprocessed_labels() {
             // move to the next node
-            this->current_unprocessed_node_pos_++;
+            ++this->current_unprocessed_node_pos_;
             if (this->current_unprocessed_node_pos_ >= this->graph_.get_number_of_nodes()) {
+                // start a new loop
                 this->current_unprocessed_node_pos_ = 0;
-                this->num_loops_++;
+                ++this->num_loops_;
             }
 
             // clear current labels before adding new ones once a loop has been performed

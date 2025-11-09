@@ -77,8 +77,20 @@ int main(int argc, char* argv[]) {
     LOG_TRACE(__FUNCTION__, '\n');
 
     // std::vector<std::string> instance_names = {"toy"};
-    std::vector<std::string> instance_names =
-        {"C101", "C102", "C103", "R101", "R102", "R103", "RC101", "RC102", "RC103"};
+    std::vector<std::string> instance_names;
+    size_t max_instance_index = 2;
+    if (argc >= 2) {
+        max_instance_index = std::stoull(argv[1]);
+    }
+    if (max_instance_index > 9) {  // NOLINT(readability-magic-numbers)
+        LOG_ERROR("Maximum instance index exceeded, should be <= 9 to match existing instances\n");
+        return 1;
+    }
+    for (size_t instance_num = 1; instance_num <= max_instance_index; ++instance_num) {
+        instance_names.emplace_back("C10" + std::to_string(instance_num));
+        instance_names.emplace_back("R10" + std::to_string(instance_num));
+        instance_names.emplace_back("RC10" + std::to_string(instance_num));
+    }
     std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling"};
     std::string root_dir = file_parent_dir(__FILE__, 3);
 

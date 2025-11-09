@@ -98,7 +98,7 @@ void VRP::sort_nodes_by_min_tw() {
             return true;
         }
         if (std::fabs(time_window_by_customer_id.at(node1->id).first -
-                      time_window_by_customer_id.at(node2->id).first) < 1e-3) {
+                      time_window_by_customer_id.at(node2->id).first) < 1e-3) {  // NOLINT
             return time_window_by_customer_id.at(node1->id).second <=
                    time_window_by_customer_id.at(node2->id).second;
         }
@@ -139,7 +139,7 @@ void VRP::sort_nodes_by_max_tw() {
             return true;
         }
         if (std::fabs(time_window_by_customer_id.at(node1->id).second -
-                      time_window_by_customer_id.at(node2->id).second) < 1e-3) {
+                      time_window_by_customer_id.at(node2->id).second) < 1e-3) {  // NOLINT
             return time_window_by_customer_id.at(node1->id).first <=
                    time_window_by_customer_id.at(node2->id).first;
         }
