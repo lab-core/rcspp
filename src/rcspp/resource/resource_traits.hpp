@@ -12,10 +12,10 @@
 namespace rcspp {
 
 template <typename T>
-class NumResource;
+class NumericalResource;
 
 template <typename T>
-class ContainerResource;
+class SetResource;
 
 // ResourceType to ResourceTypeIndex
 template <typename ResourceType>
@@ -30,11 +30,11 @@ struct ResourceTypeIndex;
     };
 
 // Type aliases for common numeric resource types
-RCSPP_DEFINE_RESOURCE_INDEX(RealResource, NumResource<double>, 0)
-RCSPP_DEFINE_RESOURCE_INDEX(IntResource, NumResource<int>, 1)
+RCSPP_DEFINE_RESOURCE_INDEX(RealResource, NumericalResource<double>, 0)
+RCSPP_DEFINE_RESOURCE_INDEX(IntResource, NumericalResource<int>, 1)
 // RCSPP_DEFINE_RESOURCE_INDEX(LongResource, NumResource<int64_t>, 2)
 // RCSPP_DEFINE_RESOURCE_INDEX(SizeTResource, NumResource<size_t>, 3)
-RCSPP_DEFINE_RESOURCE_INDEX(IntSetResource, ContainerResource<std::set<int>>, 2)
+RCSPP_DEFINE_RESOURCE_INDEX(IntSetResource, SetResource<int>, 2)
 
 // Example usage:
 //   // for a concrete resource type:
@@ -45,14 +45,19 @@ RCSPP_DEFINE_RESOURCE_INDEX(IntSetResource, ContainerResource<std::set<int>>, 2)
 
 // Explicit specialization for NumResource<T> is already provided above.
 
-template <typename ResourceType>
+template <typename ResourceType, typename... ResourceTypes>
 constexpr std::size_t ResourceTypeIndex_v = ResourceTypeIndex<ResourceType>::value;
 
 // ResourceType to ResourceInitializerTypeTuple
 // Extracts the initializer type tuple for a given ResourceType
 // Default implementation deduces the value type from ResourceType::get_value().
+// Specializations can be provided for more complex ResourceTypes that have initializer with several
+// values
 template <typename ResourceType>
 using ResourceInitializerTypeTuple_t =
     std::tuple<std::decay_t<decltype(std::declval<ResourceType>().get_value())>>;
+
+//   template <typename ResourceType, typename... ResourceTypes>
+// using ResourceInitializerTypeTuple_t =
 
 }  // namespace rcspp

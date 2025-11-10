@@ -7,13 +7,13 @@
 
 #include "rcspp/algorithm/bellman_ford_algorithm.hpp"
 #include "rcspp/algorithm/connectivity_matrix.hpp"
-#include "rcspp/resource/concrete/num_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace rcspp {
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
-class ShortestPathSort {
+class ShortestPathConnectivitySort {
     public:
-        explicit ShortestPathSort(
+        explicit ShortestPathConnectivitySort(
             Graph<ResourceComposition<ResourceTypes...>>* graph,
             ConnectivityMatrix<ResourceComposition<ResourceTypes...>>* cm,
             std::optional<size_t> cost_index = std::nullopt) {  // use default cost if nullopt

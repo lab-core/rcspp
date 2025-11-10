@@ -14,7 +14,7 @@ class InclusionDominanceFunction
     public:
         auto check_dominance(const Resource<ResourceType>& lhs_resource,
                              const Resource<ResourceType>& rhs_resource) -> bool override {
-            return lhs_resource.includes(rhs_resource);
+            return lhs_resource.includes(rhs_resource.get_value());
         }
 };
 }  // namespace rcspp

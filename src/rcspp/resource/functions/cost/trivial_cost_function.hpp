@@ -13,6 +13,8 @@ template <typename ResourceType>
 class TrivialCostFunction
     : public Clonable<TrivialCostFunction<ResourceType>, CostFunction<ResourceType>> {
     public:
-        double get_cost(const Resource<ResourceType>& resource) const override { return 0; }
+        [[nodiscard]] double get_cost(const Resource<ResourceType>& resource) const override {
+            return 0;
+        }
 };
 }  // namespace rcspp

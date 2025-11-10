@@ -10,15 +10,15 @@
 namespace rcspp {
 
 template <typename T>
-class NumResource : public ResourceBase<NumResource<T>> {
+class NumericalResource : public ResourceBase<NumericalResource<T>> {
     public:
-        explicit NumResource(T value = 0) : value_(value) {}
+        explicit NumericalResource(T value = 0) : value_(value) {}
 
         [[nodiscard]] auto get_value() const -> T { return value_; }
 
         void set_value(T value) { value_ = value; }
 
-        void set_value(const NumResource<T>& resource) { value_ = resource.value_; }
+        void set_value(const NumericalResource<T>& resource) { value_ = resource.value_; }
 
         void add(T value) { value_ += value; }
 

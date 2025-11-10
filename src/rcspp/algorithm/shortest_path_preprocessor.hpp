@@ -10,7 +10,7 @@
 
 #include "rcspp/algorithm/bellman_ford_algorithm.hpp"
 #include "rcspp/algorithm/preprocessor.hpp"
-#include "rcspp/resource/concrete/num_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace rcspp {
 

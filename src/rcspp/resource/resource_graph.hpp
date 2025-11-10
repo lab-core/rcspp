@@ -12,15 +12,15 @@
 
 #include "rcspp/algorithm/connectivity_matrix.hpp"
 #include "rcspp/algorithm/feasibility_preprocessor.hpp"
+#include "rcspp/algorithm/shortest_path_connectivity_sort.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
-#include "rcspp/algorithm/shortest_path_sort.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
-#include "rcspp/resource/concrete/num_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
@@ -168,7 +168,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         // sort nodes by connectivity, break cycles on cost
-        template <template <typename, typename...> class SortType = ShortestPathSort,
+        template <template <typename, typename...> class SortType = ShortestPathConnectivitySort,
                   typename CostResourceType = RealResource>
         void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,

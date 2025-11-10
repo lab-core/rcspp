@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "rcspp/graph/graph.hpp"
-#include "rcspp/resource/concrete/num_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace rcspp {
 

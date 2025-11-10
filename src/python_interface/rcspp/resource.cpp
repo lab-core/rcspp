@@ -16,7 +16,7 @@
 #include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/concrete/num_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
 namespace py = pybind11;
