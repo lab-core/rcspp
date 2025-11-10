@@ -200,8 +200,9 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
         LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
 
-        if (std::abs(solutions_boost[0].cost - solutions_rcspp[0].cost) > COST_COMPARISON_EPSILON) {
-            LOG_ERROR("Different costs between BOOST and RCSPP:",
+        // RCSPP can be better as it uses int for some resources (e.g., load, time)
+        if (solutions_rcspp[0].cost - solutions_boost[0].cost > COST_COMPARISON_EPSILON) {
+            LOG_ERROR("BOOST solution is better than RCSPP:",
                       solutions_boost[0].cost,
                       " vs ",
                       solutions_rcspp[0].cost,
@@ -248,7 +249,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
                  std::fixed,
                  std::setprecision(std::numeric_limits<double>::max_digits10),
                  min_reduced_cost,
-                 " | paths_added=",
+                 " | paths_generated=",
                  negative_red_cost_solutions.size(),
                  " | EPSILON=",
                  EPSILON,
@@ -283,30 +284,29 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
     return solutions;
 }
 
-std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
+std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
+    std::map<size_t, std::pair<int, int>> time_window_by_customer_id;
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     for (const auto& [customer_id, customer] : customers_by_id) {
         time_window_by_customer_id.emplace(
             customer_id,
-            std::pair<double, double>{customer.ready_time, customer.due_time});
+            std::pair<int, int>{customer.ready_time, customer.due_time});
     }
 
     const auto& source_customer = customers_by_id.at(0);
     size_t sink_id = customers_by_id.size();
-    time_window_by_customer_id.emplace(
-        sink_id,
-        std::pair<double, double>{0, std::numeric_limits<double>::infinity()});
+    time_window_by_customer_id.emplace(sink_id,
+                                       std::pair<int, int>{0, std::numeric_limits<int>::max()});
 
     size_t arc_id = 0;
     for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
         for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
             if (customer_orig_id != customer_dest_id) {
-                double min_time = 0;
-                double max_time = std::numeric_limits<double>::infinity();
+                int min_time = 0;
+                int max_time = std::numeric_limits<int>::max();
                 if (time_window_by_customer_id.contains(customer_dest_id)) {
                     min_time = time_window_by_customer_id.at(customer_dest_id).first;
                     max_time = time_window_by_customer_id.at(customer_dest_id).second;
@@ -318,8 +318,8 @@ std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
             }
         }
 
-        double min_time = 0;
-        double max_time = std::numeric_limits<double>::infinity();
+        int min_time = 0;
+        int max_time = std::numeric_limits<int>::max();
         if (time_window_by_customer_id.contains(sink_id)) {
             min_time = time_window_by_customer_id.at(sink_id).first;
             max_time = time_window_by_customer_id.at(sink_id).second;
@@ -337,29 +337,28 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    RGraph resource_graph;
-
     // Distance (cost)
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
     // Time
-    resource_graph.add_resource<RealResource>(
-        std::make_unique<TimeWindowExtensionFunction<RealResource>>(min_time_window_by_arc_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(max_time_window_by_node_id_),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
+    using TimeResource = IntResource;
+    resource_graph->add_resource<TimeResource>(
+        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(min_time_window_by_arc_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(max_time_window_by_node_id_),
+        std::make_unique<ValueCostFunction<TimeResource>>(),
+        std::make_unique<ValueDominanceFunction<TimeResource>>());
 
     // Demand
-    resource_graph.add_resource<RealResource>(
-        std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
-        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0,
-                                                                  (double)instance_.get_capacity()),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
+    using DemandResource = IntResource;
+    resource_graph->add_resource<DemandResource>(
+        std::make_unique<NumAdditionExpansionFunction<DemandResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<DemandResource>>(0, instance_.get_capacity()),
+        std::make_unique<ValueCostFunction<DemandResource>>(),
+        std::make_unique<ValueDominanceFunction<DemandResource>>());
 
     add_all_nodes_to_graph(resource_graph);
 
@@ -451,12 +450,18 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, RealResource, RealResource>({reduced_cost, time, demand},
-                                                                      customer_orig_id,
-                                                                      customer_dest_id,
-                                                                      arc_id,
-                                                                      distance,
-                                                                      {Row(customer_orig_id, 1.0)});
+    resource_graph->add_arc<RealResource, IntResource, IntResource>({reduced_cost, time, demand},
+                                                                    customer_orig_id,
+                                                                    customer_dest_id,
+                                                                    arc_id,
+                                                                    distance,
+                                                                    {Row(customer_orig_id, 1.0)});
+    // resource_graph->add_arc({{reduced_cost, time, demand}},
+    //                                                                   customer_orig_id,
+    //                                                                   customer_dest_id,
+    //                                                                   arc_id,
+    //                                                                   distance,
+    //                                                                   {Row(customer_orig_id, 1.0)});
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

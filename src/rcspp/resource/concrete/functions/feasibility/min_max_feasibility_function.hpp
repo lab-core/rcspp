@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <type_traits>
+#include <utility>
+
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
@@ -12,20 +15,17 @@ template <typename ResourceType>
 class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
     public:
-        MinMaxFeasibilityFunction(double min, double max) : min_(min), max_(max) {}
+        using ValueType =
+            std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>;
+
+        MinMaxFeasibilityFunction(ValueType min, ValueType max) : min_(min), max_(max) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
-            bool feasible = true;
-
-            if ((resource.get_value() < min_) || (resource.get_value() > max_)) {
-                feasible = false;
-            }
-
-            return feasible;
+            return min_ <= resource.get_value() && resource.get_value() <= max_;
         }
 
     private:
-        double min_;
-        double max_;
+        ValueType min_;
+        ValueType max_;
 };
 }  // namespace rcspp

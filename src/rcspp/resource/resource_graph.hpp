@@ -43,10 +43,10 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
-                  std::make_unique<CompositionExpansionFunction<RealResource>>(),
-                  std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
-                  std::make_unique<ComponentCostFunction<0, RealResource>>(0),
-                  std::make_unique<CompositionDominanceFunction<RealResource>>())),
+                  std::make_unique<CompositionExpansionFunction<ResourceTypes...>>(),
+                  std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
+                  std::make_unique<ComponentCostFunction<0, ResourceTypes...>>(0),
+                  std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
               connectivityMatrix_(this) {}
 
         ResourceGraph(const ResourceGraph&) = delete;
@@ -109,9 +109,9 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             size_t origin_node_id, size_t destination_node_id,
             std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
             std::vector<Row> dual_rows = {}) {
+            // build the full resource consumption tuple from the extender resource consumption
             std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
-
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 (([&] {
                      using ExtenderType =
@@ -123,22 +123,14 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                  }()),
                  ...);
             };  // NOLINT
-
             apply_indices(std::make_index_sequence<sizeof...(ExtenderResourceTypes)>{});
 
-            auto& arc = Graph<ResourceComposition<ResourceTypes...>>::add_arc(origin_node_id,
-                                                                              destination_node_id,
-                                                                              arc_id,
-                                                                              cost,
-                                                                              dual_rows);
-            auto resource_base =
-                resource_factory_
-                    .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
-                        resource_consumption);
-            auto extender = resource_factory_.make_extender(*resource_base, arc.id);
-            arc.extender = std::move(extender);
-
-            return arc;
+            return add_arc(resource_consumption,
+                           origin_node_id,
+                           destination_node_id,
+                           arc_id,
+                           cost,
+                           dual_rows);
         }
 
         ResourceCompositionFactory<ResourceTypes...>& get_resource_factory() {
@@ -200,8 +192,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 // initialize or update connectivity matrix
                 if (this->is_modified()) {
                     process_feasibility();
-                    is_connected(this->get_source_node_ids().front(),
-                                 this->get_sink_node_ids().front());
+                    connectivityMatrix_.compute_bitmatrix();
                 }
 
                 // if not sorted, use default sort by connectivity

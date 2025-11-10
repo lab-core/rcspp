@@ -18,15 +18,14 @@ class NumResource : public ResourceBase<NumResource<T>> {
 
         void set_value(T value) { value_ = value; }
 
+        void set_value(const NumResource<T>& resource) { value_ = resource.value_; }
+
+        void add(T value) { value_ += value; }
+
         void reset() override { value_ = 0; }
 
     private:
         T value_;
 };
 
-// Type aliases for common numeric resource types
-using RealResource = NumResource<double>;
-using IntResource = NumResource<int>;
-using LongResource = NumResource<int64_t>;
-using SizeTResource = NumResource<size_t>;
 }  // namespace rcspp

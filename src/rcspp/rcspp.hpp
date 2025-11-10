@@ -34,6 +34,7 @@
 #include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
+#include "rcspp/resource/concrete/container_resource.hpp"
 #include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"

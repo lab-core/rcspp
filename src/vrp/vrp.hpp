@@ -14,7 +14,7 @@
 
 using namespace rcspp;
 
-using RGraph = ResourceGraph<RealResource>;
+using RGraph = ResourceGraph<RealResource, IntResource>;
 
 class VRP {
     public:
@@ -62,11 +62,12 @@ class VRP {
 
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
-                            if (std::abs(solutions_boost[0].cost - sols[0].cost) >
-                                COST_COMPARISON_EPSILON) {
-                                LOG_ERROR("BOOST and RCSPP (",
+                            // RCSPP can be better as it uses int for some resources (e.g., load,
+                            // time)
+                            if (sols[0].cost - solutions_boost[0].cost > COST_COMPARISON_EPSILON) {
+                                LOG_ERROR("BOOST solution is better than RCSPP (",
                                           algo_index,
-                                          ") first-solution costs differ beyond tolerance: ",
+                                          ") solution: ",
                                           solutions_boost[0].cost,
                                           " vs ",
                                           sols[0].cost,
@@ -137,7 +138,7 @@ class VRP {
                          std::fixed,
                          std::setprecision(std::numeric_limits<double>::max_digits10),
                          min_reduced_cost,
-                         " | paths_added=",
+                         " | paths_generated=",
                          negative_red_cost_solutions.size(),
                          " | EPSILON=",
                          EPSILON,
@@ -160,12 +161,12 @@ class VRP {
 
         Instance instance_;
 
-        std::map<size_t, double> min_time_window_by_arc_id_;
-        std::map<size_t, double> max_time_window_by_node_id_;
+        std::map<size_t, int> min_time_window_by_arc_id_;
+        std::map<size_t, int> max_time_window_by_node_id_;
 
         size_t path_id_ = 0;
 
-        std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
+        std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
 
         RGraph graph_;
 
@@ -181,7 +182,7 @@ class VRP {
         Timer total_subproblem_time_boost_;
         Timer total_subproblem_solve_time_boost_;
 
-        std::map<size_t, std::pair<double, double>> initialize_time_windows();
+        std::map<size_t, std::pair<int, int>> initialize_time_windows();
 
         void construct_resource_graph(RGraph* graph,
                                       const std::map<size_t, double>* dual_by_id = nullptr);
