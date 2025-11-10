@@ -75,7 +75,7 @@ RGraph* resource_graph,
 
     // Distance (cost)
     resource_graph.add_resource<RealResource>(
-        std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
+        std::make_unique<AdditionExpansionFunction<RealResource>>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
@@ -89,7 +89,7 @@ RGraph* resource_graph,
 
     // Demand
     resource_graph.add_resource<RealResource>(
-        std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
+        std::make_unique<AdditionExpansionFunction<RealResource>>(),
         std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, (double)instance_.get_capacity()),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());

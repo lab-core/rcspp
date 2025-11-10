@@ -313,7 +313,8 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
                 }
                 min_time_window_by_arc_id_.emplace(arc_id, min_time);
                 max_time_window_by_node_id_.emplace(customer_dest_id, max_time);
-
+                node_set_by_node_id_.emplace(customer_dest_id,
+                                             std::set<int>{static_cast<int>(customer_dest_id)});
                 arc_id++;
             }
         }
@@ -326,6 +327,7 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
         }
         min_time_window_by_arc_id_.emplace(arc_id, min_time);
         max_time_window_by_node_id_.emplace(sink_id, max_time);
+        node_set_by_node_id_.emplace(sink_id, std::set<int>{});
 
         arc_id++;
     }
@@ -339,7 +341,7 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
 
     // Distance (cost)
     resource_graph->add_resource<RealResource>(
-        std::make_unique<NumAdditionExpansionFunction<RealResource>>(),
+        std::make_unique<AdditionExpansionFunction<RealResource>>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
@@ -355,12 +357,21 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     // Demand
     using DemandResource = IntResource;
     resource_graph->add_resource<DemandResource>(
-        std::make_unique<NumAdditionExpansionFunction<DemandResource>>(),
+        std::make_unique<AdditionExpansionFunction<DemandResource>>(),
         std::make_unique<MinMaxFeasibilityFunction<DemandResource>>(0, instance_.get_capacity()),
         std::make_unique<ValueCostFunction<DemandResource>>(),
         std::make_unique<ValueDominanceFunction<DemandResource>>());
 
     add_all_nodes_to_graph(resource_graph);
+    // Node
+    using NodeResource = IntSetResource;
+    resource_graph.add_resource<NodeResource>(
+        std::make_unique<UnionExpansionFunction<NodeResource>>(),
+        std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
+        std::make_unique<TrivialCostFunction<NodeResource>>(),
+        std::make_unique<InclusionDominanceFunction<NodeResource>>());
+
+    add_all_nodes_to_graph(&resource_graph);
 
     add_all_arcs_to_graph(resource_graph, dual_by_id);
 }
@@ -450,12 +461,13 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, IntResource, IntResource>({reduced_cost, time, demand},
-                                                                    customer_orig_id,
-                                                                    customer_dest_id,
-                                                                    arc_id,
-                                                                    distance,
-                                                                    {Row(customer_orig_id, 1.0)});
+    resource_graph->add_arc<RealResource, IntResource, IntResource, IntSetResource>(
+        {reduced_cost, time, demand, std::set<int>({static_cast<int>(customer_orig_id)})},
+        customer_orig_id,
+        customer_dest_id,
+        arc_id,
+        distance,
+        {Row(customer_orig_id, 1.0)});
     // resource_graph->add_arc({{reduced_cost, time, demand}},
     //                                                                   customer_orig_id,
     //                                                                   customer_dest_id,

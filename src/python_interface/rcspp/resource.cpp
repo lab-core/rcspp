@@ -92,7 +92,7 @@ void init_resource(py::module_& m) {
                py::smart_holder>(m, "RealValueDominanceFunction")
         .def(py::init<>());
 
-    py::class_<NumAdditionExpansionFunction<RealResource>,
+    py::class_<AdditionExpansionFunction<RealResource>,
                ExpansionFunction<RealResource>,
                py::smart_holder>(m, "RealAdditionExpansionFunction")
         .def(py::init<>());

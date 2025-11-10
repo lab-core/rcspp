@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <set>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -12,6 +13,9 @@ namespace rcspp {
 
 template <typename T>
 class NumResource;
+
+template <typename T>
+class ContainerResource;
 
 // ResourceType to ResourceTypeIndex
 template <typename ResourceType>
@@ -28,8 +32,9 @@ struct ResourceTypeIndex;
 // Type aliases for common numeric resource types
 RCSPP_DEFINE_RESOURCE_INDEX(RealResource, NumResource<double>, 0)
 RCSPP_DEFINE_RESOURCE_INDEX(IntResource, NumResource<int>, 1)
-RCSPP_DEFINE_RESOURCE_INDEX(LongResource, NumResource<int64_t>, 2)
-RCSPP_DEFINE_RESOURCE_INDEX(SizeTResource, NumResource<size_t>, 3)
+// RCSPP_DEFINE_RESOURCE_INDEX(LongResource, NumResource<int64_t>, 2)
+// RCSPP_DEFINE_RESOURCE_INDEX(SizeTResource, NumResource<size_t>, 3)
+RCSPP_DEFINE_RESOURCE_INDEX(IntSetResource, ContainerResource<std::set<int>>, 2)
 
 // Example usage:
 //   // for a concrete resource type:
