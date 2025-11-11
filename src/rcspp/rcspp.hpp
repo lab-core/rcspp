@@ -40,6 +40,7 @@
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/intersection_extension_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/ng-path_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/union_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/intersect_feasibility_function.hpp"

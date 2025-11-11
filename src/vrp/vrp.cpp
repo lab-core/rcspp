@@ -13,12 +13,14 @@
 #include "cg/mp_solution.hpp"
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "rcspp/rcspp.hpp"
+#include "rcspp/resource/concrete/functions/extension/ng-path_extension_function.hpp"
 
 constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
 VRP::VRP(Instance instance)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
+      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(3)),
       solution_output_(std::nullopt) {
     LOG_TRACE("VRP::VRP\n");
     construct_resource_graph(&graph_);
@@ -27,6 +29,7 @@ VRP::VRP(Instance instance)
 VRP::VRP(Instance instance, std::string duals_directory)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
+      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(3)),
       solution_output_(SolutionOutput(duals_directory)) {
     LOG_TRACE("VRP::VRP\n");
     construct_resource_graph(&graph_);
@@ -284,6 +287,21 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
     return solutions;
 }
 
+void VRP::initialize_distances() {
+    distances_.clear();
+    const size_t size = instance_.get_demand_customers_id().size() + 1;
+    distances_.reserve(size);
+    const auto& customers_by_id = instance_.get_customers_by_id();
+    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
+        std::vector<double> dist(size, 0);
+        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
+            dist[customer_dest_id] = calculate_distance(customer_orig, customer_dest);
+        }
+        dist.back() = dist.front();  // depot distance
+        distances_.emplace_back(std::move(dist));
+    }
+}
+
 std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 
@@ -300,11 +318,13 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     size_t sink_id = customers_by_id.size();
     time_window_by_customer_id.emplace(sink_id,
                                        std::pair<int, int>{0, std::numeric_limits<int>::max()});
+    max_time_window_by_node_id_.emplace(0, std::numeric_limits<int>::max());
+    node_set_by_node_id_.emplace(0, std::set<size_t>{0});
 
     size_t arc_id = 0;
     for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
         for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            if (customer_orig_id != customer_dest_id) {
+            if (!customer_dest.depot && customer_orig_id != customer_dest_id) {
                 int min_time = 0;
                 int max_time = std::numeric_limits<int>::max();
                 if (time_window_by_customer_id.contains(customer_dest_id)) {
@@ -313,10 +333,10 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
                 }
                 min_time_window_by_arc_id_.emplace(arc_id, min_time);
                 max_time_window_by_node_id_.emplace(customer_dest_id, max_time);
-                node_set_by_node_id_.emplace(customer_dest_id, std::set<size_t>{customer_dest_id});
                 arc_id++;
             }
         }
+        node_set_by_node_id_.emplace(customer_orig_id, std::set<size_t>{customer_orig_id});
 
         int min_time = 0;
         int max_time = std::numeric_limits<int>::max();
@@ -334,6 +354,50 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     return time_window_by_customer_id;
 }
 
+std::map<size_t, std::set<size_t>> VRP::initialize_ng_neighborhoods(size_t max_size) {
+    std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id;
+    const auto& customers_by_id = instance_.get_customers_by_id();
+    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
+        if (customer_orig.depot) {
+            ng_neighborhood_customer_id[customer_orig_id] = {};
+            continue;
+        }
+        // Compute distances to all other customers
+        std::vector<std::pair<size_t, double>> dist;
+        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
+            if (customer_dest.depot) {
+                continue;
+            }
+            dist.emplace_back(customer_dest_id, calculate_distance(customer_orig, customer_dest));
+        }
+        // Sort by distance
+        std::ranges::sort(dist,
+                          [](const auto& p1, const auto& p2) { return p1.second < p2.second; });
+        // Select the closest max_size customers
+        std::set<size_t> neighborhood;
+        for (size_t i = 0; i < std::min(max_size, dist.size()); i++) {
+            neighborhood.insert(dist[i].first);
+        }
+        ng_neighborhood_customer_id[customer_orig_id] = neighborhood;
+    }
+
+    size_t arc_id = 0;
+    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
+        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
+            if (!customer_dest.depot && customer_orig_id != customer_dest_id) {
+                ng_neighborhood_by_arc_id_[arc_id] =
+                    ng_neighborhood_customer_id.at(customer_orig_id);
+                arc_id++;
+            }
+        }
+        // for the sink
+        ng_neighborhood_by_arc_id_[arc_id] = {};
+        arc_id++;
+    }
+    return ng_neighborhood_customer_id;
+}
+
+RGraph VRP::construct_resource_graph(const std::map<size_t, double>* dual_by_id) {
 void VRP::construct_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
@@ -361,14 +425,22 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
         std::make_unique<ValueCostFunction<DemandResource>>(),
         std::make_unique<ValueDominanceFunction<DemandResource>>());
 
-    add_all_nodes_to_graph(resource_graph);
-    // Node
-    using NodeResource = SizeTBitsetResource;
-    resource_graph.add_resource<NodeResource>(
-        std::make_unique<UnionExpansionFunction<NodeResource>>(),
-        std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
-        std::make_unique<TrivialCostFunction<NodeResource>>(),
-        std::make_unique<InclusionDominanceFunction<NodeResource>>());
+    // // Node
+    // using NodeResource = SizeTBitsetResource;
+    // resource_graph.add_resource<NodeResource>(
+    //     std::make_unique<UnionExpansionFunction<NodeResource>>(),
+    //     std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
+    //     std::make_unique<TrivialCostFunction<NodeResource>>(),
+    //     std::make_unique<InclusionDominanceFunction<NodeResource>>());
+
+    // // NG path
+    // using NgResource = SizeTBitsetResource;
+    // resource_graph.add_resource<NgResource>(
+    //     std::make_unique<NgPathExpansionFunction<SizeTBitsetResource,
+    //     size_t>>(ng_neighborhood_by_arc_id_),
+    //     std::make_unique<IntersectFeasibilityFunction<NgResource>>(node_set_by_node_id_),
+    //     std::make_unique<TrivialCostFunction<NgResource>>(),
+    //     std::make_unique<InclusionDominanceFunction<NgResource>>());
 
     add_all_nodes_to_graph(&resource_graph);
 
@@ -413,7 +485,7 @@ void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
     size_t arc_id = 0;
     for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
         for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            if (customer_orig_id != customer_dest_id) {
+            if (!customer_dest.depot && customer_orig_id != customer_dest_id) {
                 add_arc_to_graph(resource_graph,
                                  customer_orig_id,
                                  customer_dest_id,
@@ -460,19 +532,19 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, IntResource, IntResource, SizeTBitsetResource>(
-        {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
-        customer_orig_id,
-        customer_dest_id,
-        arc_id,
-        distance,
-        {Row(customer_orig_id, 1.0)});
-    // resource_graph->add_arc({{reduced_cost, time, demand}},
-    //                                                                   customer_orig_id,
-    //                                                                   customer_dest_id,
-    //                                                                   arc_id,
-    //                                                                   distance,
-    //                                                                   {Row(customer_orig_id, 1.0)});
+    // resource_graph->add_arc<RealResource, IntResource, IntResource, SizeTBitsetResource>(
+    //     {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
+    //     customer_orig_id,
+    //     customer_dest_id,
+    //     arc_id,
+    //     distance,
+    //     {Row(customer_orig_id, 1.0)});
+    resource_graph->add_arc<RealResource, IntResource, IntResource>({reduced_cost, time, demand},
+                                                                    customer_orig_id,
+                                                                    customer_dest_id,
+                                                                    arc_id,
+                                                                    distance,
+                                                                    {Row(customer_orig_id, 1.0)});
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

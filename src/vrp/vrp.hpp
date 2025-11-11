@@ -165,11 +165,14 @@ class VRP {
         std::map<size_t, int> max_time_window_by_node_id_;
 
         std::map<size_t, std::set<size_t>> node_set_by_node_id_;
+        std::map<size_t, std::set<size_t>> ng_neighborhood_by_arc_id_;
 
         size_t path_id_ = 0;
 
         std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
+        std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id_;
 
+        // Resource graph. need to be loaded after time windows and ng neighborhoods are initialized
         RGraph graph_;
 
         std::optional<SolutionOutput> solution_output_;
@@ -184,7 +187,11 @@ class VRP {
         Timer total_subproblem_time_boost_;
         Timer total_subproblem_solve_time_boost_;
 
+        std::vector<std::vector<double>> distances_;
+
+        void initialize_distances();
         std::map<size_t, std::pair<int, int>> initialize_time_windows();
+        std::map<size_t, std::set<size_t>> initialize_ng_neighborhoods(size_t max_size);
 
         void construct_resource_graph(RGraph* graph,
                                       const std::map<size_t, double>* dual_by_id = nullptr);
