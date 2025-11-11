@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>      // NOLINT(build/include_order)
 #include <cstdint>  // NOLINT(build/c++11)
 #include <queue>
 #include <ranges>  // NOLINT(build/include_order)
@@ -396,7 +397,7 @@ class ConnectivityMatrix {
                     }
                     const size_t base = w * 64;
                     while (word != 0ULL) {
-                        const auto tz = static_cast<unsigned>(__builtin_ctzll(word));
+                        const auto tz = static_cast<unsigned>(std::countr_zero(word));
                         const size_t j = base + tz;
                         if (j < N_nodes) {
                             const size_t node_id = node_ids_[j];
