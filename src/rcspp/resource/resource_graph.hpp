@@ -173,7 +173,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         // sort nodes by connectivity, break cycles on cost
         template <template <typename, typename...> class SortType = ShortestPathSort,
                   typename CostResourceType = RealResource>
-        void sort_nodes_by_connectivity(int cost_index = -1) {
+        void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,
                                                               &connectivityMatrix_,
                                                               cost_index);
@@ -182,7 +182,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, int cost_index = -1) {
+                                    bool preprocess = true, int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -201,7 +201,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
                 // if not sorted, use default sort by connectivity
                 if (!this->are_nodes_sorted()) {
-                    this->sort_nodes_by_connectivity(cost_index);
+                    this->sort_nodes_by_connectivity();
                 }
 
                 // remove some arcs before solving the problem
@@ -268,7 +268,6 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
-        bool feasibility_processed_ = false;
         ConnectivityMatrix<ResourceComposition<ResourceTypes...>> connectivityMatrix_;
 };
 }  // namespace rcspp

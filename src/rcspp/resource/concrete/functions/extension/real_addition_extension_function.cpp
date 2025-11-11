@@ -5,7 +5,7 @@
 
 namespace rcspp {
 
-void RealAdditionExpansionFunction::extend(const Resource<RealResource>& resource,
+void RealAdditionExtensionFunction::extend(const Resource<RealResource>& resource,
                                            const Extender<RealResource>& extender,
                                            Resource<RealResource>* extended_resource) {
     auto sum_value = resource.get_value() + extender.get_value();

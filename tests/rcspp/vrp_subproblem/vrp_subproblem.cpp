@@ -76,21 +76,21 @@ ResourceGraph<RealResource> VRPSubproblem::construct_resource_graph(
 
     // Distance (cost)
     resource_graph.add_resource<RealResource>(
-        std::make_unique<RealAdditionExpansionFunction>(),
+        std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Time
     resource_graph.add_resource<RealResource>(
-        std::make_unique<TimeWindowExpansionFunction>(min_time_window_by_arc_id_),
+        std::make_unique<TimeWindowExtensionFunction>(min_time_window_by_arc_id_),
         std::make_unique<TimeWindowFeasibilityFunction>(max_time_window_by_node_id_),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Demand
     resource_graph.add_resource<RealResource>(
-        std::make_unique<RealAdditionExpansionFunction>(),
+        std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<MinMaxFeasibilityFunction>(0.0, (double)instance_.get_capacity()),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());

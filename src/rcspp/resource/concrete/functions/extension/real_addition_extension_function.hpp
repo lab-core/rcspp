@@ -11,8 +11,8 @@
 
 namespace rcspp {
 
-class RealAdditionExpansionFunction
-    : public Clonable<RealAdditionExpansionFunction, ExpansionFunction<RealResource>> {
+class RealAdditionExtensionFunction
+    : public Clonable<RealAdditionExtensionFunction, ExpansionFunction<RealResource>> {
     public:
         void extend(const Resource<RealResource>& resource, const Extender<RealResource>& extender,
                     Resource<RealResource>* extended_resource) override;

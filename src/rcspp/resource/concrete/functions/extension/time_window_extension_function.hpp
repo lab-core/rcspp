@@ -11,10 +11,10 @@
 
 namespace rcspp {
 
-class TimeWindowExpansionFunction
-    : public Clonable<TimeWindowExpansionFunction, ExpansionFunction<RealResource>> {
+class TimeWindowExtensionFunction
+    : public Clonable<TimeWindowExtensionFunction, ExpansionFunction<RealResource>> {
     public:
-        explicit TimeWindowExpansionFunction(
+        explicit TimeWindowExtensionFunction(
             const std::map<size_t, double>& min_time_window_by_arc_id);
 
         void extend(const Resource<RealResource>& resource, const Extender<RealResource>& extender,

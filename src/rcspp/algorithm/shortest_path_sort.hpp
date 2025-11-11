@@ -13,9 +13,10 @@ namespace rcspp {
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
 class ShortestPathSort {
     public:
-        explicit ShortestPathSort(Graph<ResourceComposition<ResourceTypes...>>* graph,
-                                  ConnectivityMatrix<ResourceComposition<ResourceTypes...>>* cm,
-                                  int cost_index = -1) {  // -1 -> use default cost
+        explicit ShortestPathSort(
+            Graph<ResourceComposition<ResourceTypes...>>* graph,
+            ConnectivityMatrix<ResourceComposition<ResourceTypes...>>* cm,
+            std::optional<size_t> cost_index = std::nullopt) {  // use default cost if nullopt
             // compute shortest path distances from sources and to sinks
             bool distances_computed = true;
             Distance dist_from_sources;
