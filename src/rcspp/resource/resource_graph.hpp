@@ -49,6 +49,11 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                   std::make_unique<CompositionDominanceFunction<RealResource>>())),
               connectivityMatrix_(this) {}
 
+        ResourceGraph(const ResourceGraph&) = delete;
+        ResourceGraph& operator=(const ResourceGraph&) = delete;
+        ResourceGraph(ResourceGraph&&) = delete;
+        ResourceGraph& operator=(ResourceGraph&&) = delete;
+
         template <typename ResourceType>
         void add_resource(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,

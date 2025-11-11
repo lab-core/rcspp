@@ -9,6 +9,7 @@ template <template <typename> class... AlgorithmTypes>
   int passed = 0;
   int total = 0;
   (void)std::initializer_list<int>{([&]() {
+    LOG_INFO("Run test all_tests_rcspp, iteration ", total, '\n');
     if (test_rcspp<AlgorithmTypes>()) {
       ++passed;
     }
@@ -23,6 +24,7 @@ template <template <typename> class... AlgorithmTypes>
   int passed = 0;
   int total = 0;
   (void)std::initializer_list<int>{([&]() {
+    LOG_INFO("Run test all_tests_rcspp_non_integer_dual_row_coef, iteration ", total, '\n');
     if (test_rcspp_non_integer_dual_row_coef<AlgorithmTypes>()) {
       ++passed;
     } else {

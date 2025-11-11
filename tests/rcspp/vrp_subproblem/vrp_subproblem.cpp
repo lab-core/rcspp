@@ -13,9 +13,9 @@ VRPSubproblem::VRPSubproblem(Instance instance,
                              const std::map<size_t, double>* row_coefficient_by_id)
     : row_coefficient_by_id_(row_coefficient_by_id),
       instance_(std::move(instance)),
-      time_window_by_customer_id_(initialize_time_windows()),
-      initial_graph_(construct_resource_graph()) {
+      time_window_by_customer_id_(initialize_time_windows()) {
     LOG_TRACE("VRPSubproblem::VRPSubproblem\n");
+    construct_resource_graph(&graph_);
 }
 
 std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windows() {
@@ -68,38 +68,35 @@ std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windo
     return time_window_by_customer_id;
 }
 
-ResourceGraph<RealResource> VRPSubproblem::construct_resource_graph(
+void VRPSubproblem::construct_resource_graph(
+ResourceGraph<RealResource>* resource_graph,
     const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    ResourceGraph<RealResource> resource_graph;
-
     // Distance (cost)
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Time
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<TimeWindowExtensionFunction>(min_time_window_by_arc_id_),
         std::make_unique<TimeWindowFeasibilityFunction>(max_time_window_by_node_id_),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Demand
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<MinMaxFeasibilityFunction>(0.0, (double)instance_.get_capacity()),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
-    add_all_nodes_to_graph(&resource_graph);
+    add_all_nodes_to_graph(resource_graph);
 
-    add_all_arcs_to_graph(&resource_graph, dual_by_id);
-
-    return resource_graph;
+    add_all_arcs_to_graph(resource_graph, dual_by_id);
 }
 
 void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
@@ -112,7 +109,7 @@ void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_
         duals.at(arc_id) = dual_value;
     }
 
-    subproblem_graph_.update_reduced_costs(duals);
+    graph_.update_reduced_costs(duals);
 }
 
 void VRPSubproblem::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
@@ -215,7 +212,7 @@ double VRPSubproblem::calculate_solution_cost(const Solution& solution) const {
 
     // TODO(patrick): Figure out how to get the cost of an Extender.
     for (auto arc_id : solution.path_arc_ids) {
-        cost += initial_graph_.get_arc(arc_id).cost;
+        cost += graph_.get_arc(arc_id).cost;
     }
 
     return cost;

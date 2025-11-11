@@ -181,8 +181,8 @@ class VRP {
 
         std::map<size_t, std::pair<double, double>> initialize_time_windows();
 
-        ResourceGraph<RealResource> construct_resource_graph(
-            const std::map<size_t, double>* dual_by_id = nullptr);
+        void construct_resource_graph(ResourceGraph<RealResource>* graph,
+                                      const std::map<size_t, double>* dual_by_id = nullptr);
 
         void update_resource_graph(ResourceGraph<RealResource>* resource_graph,
                                    const std::map<size_t, double>* dual_by_id);
