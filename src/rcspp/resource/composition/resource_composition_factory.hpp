@@ -85,24 +85,25 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             return new_resource_composition;
         }
 
+        template <typename GraphResourceType>
         std::unique_ptr<Extender<ResourceComposition<ResourceTypes...>>> make_extender(
-            const ResourceComposition<ResourceTypes...>& resource_base, size_t arc_id) override {
+            const ResourceComposition<ResourceTypes...>& resource_base,
+            const Arc<GraphResourceType>& arc) {
             const auto& resource_base_components = resource_base.get_type_components();
 
             auto new_extender_resource_composition =
-                ResourceFactory<ResourceComposition<ResourceTypes...>>::make_extender(arc_id);
+                ResourceFactory<ResourceComposition<ResourceTypes...>>::make_extender(arc);
 
-            auto make_extender_function = [&](const auto& res_base_vec,
-                                              const auto& res_fac_vec,
-                                              auto& res_comp_vec) {
-                for (int i = 0; i < res_base_vec.size(); i++) {
-                    const auto& res_base = *res_base_vec[i];
+            auto make_extender_function =
+                [&](const auto& res_base_vec, const auto& res_fac_vec, auto& res_comp_vec) {
+                    for (int i = 0; i < res_base_vec.size(); i++) {
+                        const auto& res_base = *res_base_vec[i];
 
-                    const auto& res_fac = res_fac_vec[i];
+                        const auto& res_fac = res_fac_vec[i];
 
-                    res_comp_vec.emplace_back(std::move(res_fac->make_extender(res_base, arc_id)));
-                }
-            };
+                        res_comp_vec.emplace_back(std::move(res_fac->make_extender(res_base, arc)));
+                    }
+                };
 
             std::apply(
                 [&](auto&&... args_res_base_vec) {

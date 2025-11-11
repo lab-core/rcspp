@@ -96,7 +96,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                     .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
                         resource_consumption);
 
-            auto extender = resource_factory_.make_extender(*resource_base, arc.id);
+            auto extender = resource_factory_.make_extender(*resource_base, arc);
 
             arc.extender = std::move(extender);
 

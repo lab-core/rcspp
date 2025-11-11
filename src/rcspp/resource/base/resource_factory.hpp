@@ -80,22 +80,23 @@ class ResourceFactory {
         }
 
         // Make an extender
-        auto make_extender(size_t arc_id) -> std::unique_ptr<Extender<ResourceType>> {
+        template <typename GraphResourceType>
+        auto make_extender(const Arc<GraphResourceType>& arc)
+            -> std::unique_ptr<Extender<ResourceType>> {
             nb_extenders_created_++;
-
-            return std::make_unique<Extender<ResourceType>>(extension_function_->create(arc_id),
-                                                            arc_id);
+            return std::make_unique<Extender<ResourceType>>(extension_function_->create(arc),
+                                                            arc.id);
         }
 
         // Make an extender
         // clang-format off
-        virtual auto make_extender(const ResourceType& resource_base, size_t arc_id)
+    template <typename GraphResourceType>
+         auto make_extender(const ResourceType& resource_base, const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<Extender<ResourceType>> {
             nb_extenders_created_++;
-
             return std::make_unique<Extender<ResourceType>>(resource_base,
-                                                            extension_function_->create(arc_id),
-                                                            arc_id);
+                                                            extension_function_->create(arc),
+                                                            arc.id);
         }
         // clang-format on
 

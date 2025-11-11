@@ -321,34 +321,26 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     max_time_window_by_node_id_.emplace(0, std::numeric_limits<int>::max());
     node_set_by_node_id_.emplace(0, std::set<size_t>{0});
 
-    size_t arc_id = 0;
-    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
-        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            if (!customer_dest.depot && customer_orig_id != customer_dest_id) {
-                int min_time = 0;
-                int max_time = std::numeric_limits<int>::max();
-                if (time_window_by_customer_id.contains(customer_dest_id)) {
-                    min_time = time_window_by_customer_id.at(customer_dest_id).first;
-                    max_time = time_window_by_customer_id.at(customer_dest_id).second;
-                }
-                min_time_window_by_arc_id_.emplace(arc_id, min_time);
-                max_time_window_by_node_id_.emplace(customer_dest_id, max_time);
-                arc_id++;
-            }
-        }
-        node_set_by_node_id_.emplace(customer_orig_id, std::set<size_t>{customer_orig_id});
+    int min_time = 0;
+    int max_time = std::numeric_limits<int>::max();
+    if (time_window_by_customer_id.contains(sink_id)) {
+        min_time = time_window_by_customer_id.at(sink_id).first;
+        max_time = time_window_by_customer_id.at(sink_id).second;
+    }
+    min_time_window_by_node_id_[sink_id] = min_time;
+    max_time_window_by_node_id_[sink_id] = max_time;
+    node_set_by_node_id_.emplace(sink_id, std::set<size_t>{});
 
+    for (const auto& [customer_id, customer] : customers_by_id) {
         int min_time = 0;
         int max_time = std::numeric_limits<int>::max();
-        if (time_window_by_customer_id.contains(sink_id)) {
-            min_time = time_window_by_customer_id.at(sink_id).first;
-            max_time = time_window_by_customer_id.at(sink_id).second;
+        if (time_window_by_customer_id.contains(customer_id)) {
+            min_time = time_window_by_customer_id.at(customer_id).first;
+            max_time = time_window_by_customer_id.at(customer_id).second;
         }
-        min_time_window_by_arc_id_.emplace(arc_id, min_time);
-        max_time_window_by_node_id_.emplace(sink_id, max_time);
-        node_set_by_node_id_.emplace(sink_id, std::set<size_t>{});
-
-        arc_id++;
+        min_time_window_by_node_id_[customer_id] = min_time;
+        max_time_window_by_node_id_[customer_id] = max_time;
+        node_set_by_node_id_.emplace(customer_id, std::set<size_t>{customer_id});
     }
 
     return time_window_by_customer_id;
@@ -381,23 +373,9 @@ std::map<size_t, std::set<size_t>> VRP::initialize_ng_neighborhoods(size_t max_s
         ng_neighborhood_customer_id[customer_orig_id] = neighborhood;
     }
 
-    size_t arc_id = 0;
-    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
-        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            if (!customer_dest.depot && customer_orig_id != customer_dest_id) {
-                ng_neighborhood_by_arc_id_[arc_id] =
-                    ng_neighborhood_customer_id.at(customer_orig_id);
-                arc_id++;
-            }
-        }
-        // for the sink
-        ng_neighborhood_by_arc_id_[arc_id] = {};
-        arc_id++;
-    }
     return ng_neighborhood_customer_id;
 }
 
-RGraph VRP::construct_resource_graph(const std::map<size_t, double>* dual_by_id) {
 void VRP::construct_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
@@ -412,7 +390,7 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     // Time
     using TimeResource = IntResource;
     resource_graph->add_resource<TimeResource>(
-        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(min_time_window_by_arc_id_),
+        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(min_time_window_by_node_id_),
         std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(max_time_window_by_node_id_),
         std::make_unique<ValueCostFunction<TimeResource>>(),
         std::make_unique<ValueDominanceFunction<TimeResource>>());
@@ -437,12 +415,12 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     // using NgResource = SizeTBitsetResource;
     // resource_graph.add_resource<NgResource>(
     //     std::make_unique<NgPathExpansionFunction<SizeTBitsetResource,
-    //     size_t>>(ng_neighborhood_by_arc_id_),
+    //     size_t>>(ng_neighborhood_customer_id_),
     //     std::make_unique<IntersectFeasibilityFunction<NgResource>>(node_set_by_node_id_),
     //     std::make_unique<TrivialCostFunction<NgResource>>(),
     //     std::make_unique<InclusionDominanceFunction<NgResource>>());
 
-    add_all_nodes_to_graph(&resource_graph);
+    add_all_nodes_to_graph(resource_graph);
 
     add_all_arcs_to_graph(resource_graph, dual_by_id);
 }

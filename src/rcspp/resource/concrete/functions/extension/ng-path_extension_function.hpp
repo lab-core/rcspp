@@ -16,8 +16,8 @@ class NgPathExpansionFunction : public Clonable<NgPathExpansionFunction<Resource
                                                 ExpansionFunction<ResourceType>> {
     public:
         explicit NgPathExpansionFunction(
-            const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_arc_id)
-            : ng_neighborhood_by_arc_id_(ng_neighborhood_by_arc_id) {}
+            const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_origin_id)
+            : ng_neighborhood_by_origin_id_(ng_neighborhood_by_origin_id) {}
 
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {
@@ -31,11 +31,12 @@ class NgPathExpansionFunction : public Clonable<NgPathExpansionFunction<Resource
 
     private:
         // neighborhood of the origin node of the arc
-        const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_arc_id_;
+        const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_origin_id_;
         std::set<ValueType> ng_neighborhood_{};
 
-        void preprocess() override {
-            ng_neighborhood_ = ng_neighborhood_by_arc_id_.at(this->arc_id_);
+        template <typename GraphResourceType>
+        void preprocess(const Arc<GraphResourceType>& arc) {
+            ng_neighborhood_ = ng_neighborhood_by_origin_id_.at(arc.origin->id);
         }
 };
 
