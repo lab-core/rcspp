@@ -59,7 +59,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
@@ -116,7 +117,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 (([&] {
                      using ExtenderType =
                          std::tuple_element_t<Is, std::tuple<ExtenderResourceTypes...>>;
-                     constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ExtenderType>;
+                     constexpr size_t ResourceTypeIndex =
+                         ResourceTypeIndex_v<ExtenderType, ResourceTypes...>;
                      auto& res_vec = std::get<ResourceTypeIndex>(resource_consumption);
                      const auto& res_cons = std::get<Is>(extender_resource_consumption);
                      res_vec.push_back(res_cons);  // push a single resource consumption
@@ -154,7 +156,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             Arc<ResourceComposition<ResourceTypes...>>* arc, std::size_t resource_index,
             const ResourceInitializerTypeTuple_t<ResourceType>& single_resource_consumption,
             std::optional<double> cost = std::nullopt) {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
 
             resource_factory_.template update_extender<ResourceInitializerTypeTuple_t<ResourceType>,
                                                        ResourceTypeIndex>(

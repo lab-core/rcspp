@@ -313,8 +313,7 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
                 }
                 min_time_window_by_arc_id_.emplace(arc_id, min_time);
                 max_time_window_by_node_id_.emplace(customer_dest_id, max_time);
-                node_set_by_node_id_.emplace(customer_dest_id,
-                                             std::set<int>{static_cast<int>(customer_dest_id)});
+                node_set_by_node_id_.emplace(customer_dest_id, std::set<size_t>{customer_dest_id});
                 arc_id++;
             }
         }
@@ -327,7 +326,7 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
         }
         min_time_window_by_arc_id_.emplace(arc_id, min_time);
         max_time_window_by_node_id_.emplace(sink_id, max_time);
-        node_set_by_node_id_.emplace(sink_id, std::set<int>{});
+        node_set_by_node_id_.emplace(sink_id, std::set<size_t>{});
 
         arc_id++;
     }
@@ -364,7 +363,7 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
 
     add_all_nodes_to_graph(resource_graph);
     // Node
-    using NodeResource = IntSetResource;
+    using NodeResource = SizeTBitsetResource;
     resource_graph.add_resource<NodeResource>(
         std::make_unique<UnionExpansionFunction<NodeResource>>(),
         std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
@@ -461,8 +460,8 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, IntResource, IntResource, IntSetResource>(
-        {reduced_cost, time, demand, std::set<int>({static_cast<int>(customer_orig_id)})},
+    resource_graph->add_arc<RealResource, IntResource, IntResource, SizeTBitsetResource>(
+        {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
         customer_orig_id,
         customer_dest_id,
         arc_id,

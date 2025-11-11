@@ -27,7 +27,7 @@ class ContainerResource : public ResourceBase<DerivedType> {
         explicit ContainerResource(const Container& container) : container_(container) {}
 
         [[nodiscard]] const Container& get_value() const { return container_; }
-        void set_value(Container container) { container_ = std::move(container); }
+        virtual void set_value(Container container) { container_ = std::move(container); }
 
         // Methods that must be specialized for concrete C.
         virtual void add(const ValueType& /*value*/) = 0;
@@ -38,6 +38,7 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual bool includes(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual bool intersects(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_union(const Container& /*other*/) const = 0;
+        [[nodiscard]] virtual Container get_intersection(const Container& /*other*/) const = 0;
 
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
 
@@ -108,18 +109,36 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                            std::inserter(result, result.begin()));
             return result;
         }
+
+        [[nodiscard]] Container get_intersection(const Container& other_set) const override {
+            Container result;
+            std::set_intersection(this->container_.begin(),
+                                  this->container_.end(),
+                                  other_set.begin(),
+                                  other_set.end(),
+                                  std::inserter(result, result.begin()));
+            return result;
+        }
 };
 
 // Proper bitset specialization: implement bitset semantics using word vector
-class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetResource, size_t> {
+template <typename T>
+class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T> {
     public:
         using Container = std::vector<uint64_t>;
-        using ValueType = size_t;
-        using Derived = BitsetResource;
+        using ValueType = T;
+        using Derived = BitsetResource<T>;
 
         BitsetResource() = default;
-        explicit BitsetResource(size_t nb_bits) { ensure_size(nb_bits); }
         explicit BitsetResource(const std::set<ValueType>& indices) {
+            for (auto idx : indices) {
+                add(idx);
+            }
+        }
+
+        // convenience setter from an index set
+        void set_value(const std::set<ValueType>& indices) {
+            this->container_.clear();
             for (auto idx : indices) {
                 add(idx);
             }
@@ -130,8 +149,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         // number idx. The companion idx & 63 computes idx % 64 (bit offset inside that word).
         void add(const ValueType& idx) override {
             ensure_size(idx + 1);
-            this->container_[static_cast<size_t>(idx) >> 6] |=
-                (1ULL << (static_cast<size_t>(idx) & 63));  // NOLINT
+            this->container_[idx >> 6] |= (1ULL << (idx & 63));  // NOLINT
         }
 
         void add(const Container& other_words) override {
@@ -190,6 +208,20 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             return out;
         }
 
+        [[nodiscard]] Container get_intersection(const Container& other) const override {
+            const size_t words_min = std::min(this->container_.size(), other.size());
+            Container out(words_min, 0ULL);
+            for (size_t i = 0; i < words_min; ++i) {
+                out[i] = this->container_[i] & other[i];
+            }
+            // keep trailing zero words for intersection to avoid resizing issues
+            // // remove trailing zero words
+            // while (!out.empty() && out.back() == 0ULL) {
+            //     out.pop_back();
+            // }
+            return out;
+        }
+
         [[nodiscard]] static size_t compute_used_bits(const Container& bits) {
             for (size_t i = bits.size(); i > 0; --i) {
                 const uint64_t w = bits[i - 1];
@@ -211,7 +243,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
     private:
         // storage is inherited from ContainerResource as `container_`.
 
-        void ensure_size(size_t requested_nb_bits) {
+        void ensure_size(ValueType requested_nb_bits) {
             const size_t new_words = (requested_nb_bits + 63) / 64;
             if (this->size() < new_words) {
                 this->container_.resize(new_words, 0ULL);

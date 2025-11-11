@@ -14,7 +14,7 @@
 
 using namespace rcspp;
 
-using RGraph = ResourceGraph<RealResource, IntResource, IntSetResource>;
+using RGraph = ResourceGraph<RealResource, IntResource, SizeTBitsetResource>;
 
 class VRP {
     public:
@@ -164,7 +164,7 @@ class VRP {
         std::map<size_t, int> min_time_window_by_arc_id_;
         std::map<size_t, int> max_time_window_by_node_id_;
 
-        std::map<size_t, std::set<int>> node_set_by_node_id_;
+        std::map<size_t, std::set<size_t>> node_set_by_node_id_;
 
         size_t path_id_ = 0;
 
