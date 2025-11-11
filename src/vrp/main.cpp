@@ -1,35 +1,25 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// rcspp.cpp : définit le point d'entrée de l'application.
-//
-
-#include <chrono>
 #include <iostream>
-#include <memory>
 
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
 #include "instance_reader.hpp"
-#include "rcspp/resource/resource_graph.hpp"
+#include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
-
-////#include "rcspp/resource/base/resource.hpp"
-////#include "rcspp/resource/base/expander.hpp"
-// #include "rcspp/resource/composition/resource_composition.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
-// #include "rcspp/resource/base/resource.hpp"
-// #include "rcspp/resource/base/expander.hpp"
 
 constexpr size_t DEFAULT_MAX_NB_SOLUTIONS = 20;
 
 int main(int argc, char* argv[]) {
-    std::cout << __FUNCTION__ << std::endl;
+    Logger::init(LogLevel::Trace);
+
+    LOG_TRACE(__FUNCTION__, '\n');
 
     std::string instance_name = "R101";
-
-    std::string instance_path = "../../../../instances/" + instance_name + ".txt";
+    std::string root_dir = file_parent_dir(__FILE__, 3);
+    std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
     if (argc >= 2) {
         instance_path = argv[1];
     }
@@ -37,31 +27,28 @@ int main(int argc, char* argv[]) {
     if (argc >= 3) {
         subproblem_max_nb_solutions = std::stoull(argv[2]);
     }
-    std::string duals_directory = "../../../../instances/duals/" + instance_name + "/";
+    std::string duals_directory = root_dir + "/instances/duals/" + instance_name + "/";
     if (argc >= 4) {
-        duals_directory = std::stoull(argv[3]);
+        duals_directory = argv[3];
     }
 
     std::string output_path = "../output/" + instance_name + ".txt";
 
-    std::cout << "Instance: " << instance_path << std::endl;
+    LOG_INFO("Instance: ", instance_path, '\n');
     InstanceReader instance_reader(instance_path);
 
     auto instance = instance_reader.read();
 
     VRP vrp(instance, duals_directory);
+    // vrp.sort_nodes();
 
-    auto time_start = std::chrono::high_resolution_clock::now();
-
+    Timer timer(true);
     auto master_solution = vrp.solve(subproblem_max_nb_solutions, false);
+    timer.stop();
 
-    auto time_end = std::chrono::high_resolution_clock::now();
-
-    SolutionOutput::print(instance, master_solution, vrp.get_paths());
-
-    std::cout
-        << "Time: "
-        << std::chrono::duration_cast<std::chrono::milliseconds>(time_end - time_start).count();
+    LOG_INFO(std::string(45, '*'), '\n');
+    LOG_INFO(SolutionOutput::to_string(instance, master_solution, vrp.get_paths()));
+    LOG_INFO("Time: ", timer.elapsed_seconds(), " sec.\n");
 
     return 0;
 }

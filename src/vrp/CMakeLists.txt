@@ -30,15 +30,7 @@ endif()
 
 # Sources ---------------------------------------------------------------------
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
-
-# Include paths for project sources (kept as you had them)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_include_directories(${PROJECT_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
-if(Boost_FOUND)
-  target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-endif()
+list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp")
 
 set(LIBS rcspp)
 # Link Gurobi (C++ if available)
@@ -48,10 +40,32 @@ else()
   set(LIBS ${LIBS} GUROBI::gurobi)
 endif()
 
+# build executable -------------------------------------------------------------
+add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(${PROJECT_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
+if(Boost_FOUND)
+  target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
-
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:rcspp>"
             $<TARGET_FILE_DIR:${PROJECT_NAME}>
+)
+
+# build benchmark -------------------------------------------------------------
+list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+set(BENCHMARK_NAME "rcspp-vrp-benchmark")
+add_executable(${BENCHMARK_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp" ${SOURCE_FILES})
+target_include_directories(${BENCHMARK_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(${BENCHMARK_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
+if(Boost_FOUND)
+  target_include_directories(${BENCHMARK_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
+endif()
+target_link_libraries(${BENCHMARK_NAME} PRIVATE ${LIBS})
+add_custom_command(TARGET ${BENCHMARK_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:rcspp>"
+        $<TARGET_FILE_DIR:${BENCHMARK_NAME}>
 )

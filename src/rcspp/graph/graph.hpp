@@ -4,7 +4,9 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <concepts>  // NOLINT(build/include_order)
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -25,7 +27,8 @@ class Graph {
 
         virtual Node<ResourceType>& add_node(size_t node_id, bool source = false,
                                              bool sink = false) {
-            nodes_by_id_[node_id] = std::make_unique<Node<ResourceType>>(node_id);
+            nodes_by_id_[node_id] = std::make_unique<Node<ResourceType>>(node_id, source, sink);
+            modified_ = true;
 
             if (source) {
                 source_node_ids_.push_back(nodes_by_id_[node_id]->id);
@@ -46,18 +49,18 @@ class Graph {
                 arc_id = arcs_by_id_.size();
             }
 
-            arcs_by_id_[*arc_id] = std::make_unique<Arc<ResourceType>>(*arc_id,
-                                                                       origin_node,
-                                                                       destination_node,
-                                                                       cost,
-                                                                       dual_rows);
+            auto& new_arc = arcs_by_id_[*arc_id] =
+                std::make_unique<Arc<ResourceType>>(*arc_id,
+                                                    origin_node,
+                                                    destination_node,
+                                                    cost,
+                                                    dual_rows);
+            modified_ = true;
 
-            auto new_arc_ptr = arcs_by_id_[*arc_id].get();
+            origin_node->out_arcs.push_back(new_arc.get());
+            destination_node->in_arcs.push_back(new_arc.get());
 
-            origin_node->out_arcs.push_back(new_arc_ptr);
-            destination_node->in_arcs.push_back(new_arc_ptr);
-
-            return *new_arc_ptr;
+            return *new_arc.get();
         }
 
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
@@ -123,6 +126,10 @@ class Graph {
             return arcs_by_id_;
         }
 
+        [[nodiscard]] const std::vector<Node<ResourceType>*>& get_sorted_nodes() const {
+            return sorted_nodes_;
+        }
+
         [[nodiscard]] const std::vector<size_t>& get_source_node_ids() const {
             return source_node_ids_;
         }
@@ -143,9 +150,54 @@ class Graph {
             return std::ranges::find(sink_node_ids_, node_id) != sink_node_ids_.end();
         }
 
+        void sort_nodes() {
+            sort_nodes([](const Node<ResourceType>* n1, const Node<ResourceType>* n2) {
+                return n1->id < n2->id;
+            });
+        }
+
+        template <class Compare>
+        void sort_nodes(Compare comp) {
+            // populate the vector
+            sorted_nodes_.clear();
+            sorted_nodes_.reserve(nodes_by_id_.size());
+            for (auto& [node_id, node_ptr] : nodes_by_id_) {
+                sorted_nodes_.push_back(node_ptr.get());
+            }
+
+            // sort
+            std::stable_sort(sorted_nodes_.begin(), sorted_nodes_.end(), comp);
+
+            // fix position
+            size_t i = 0;
+            for (const auto& node_ptr : sorted_nodes_) {
+                node_ptr->pos_ = i++;
+            }
+        }
+
+        [[nodiscard]] bool are_nodes_sorted() const {
+            if (sorted_nodes_.empty()) {
+                return false;
+            }
+            for (size_t i = 0; i < sorted_nodes_.size(); i++) {
+                if (sorted_nodes_[i]->pos() != i) {
+                    LOG_WARN(
+                        "Nodes are not correctly sorted in the graph. It will be overridden.\n");
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        void track_modifications() { modified_ = false; }
+
+        [[nodiscard]] bool is_modified() const { return modified_; }
+
     private:
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> arcs_by_id_;
         std::map<size_t, std::unique_ptr<Node<ResourceType>>> nodes_by_id_;
+        std::vector<Node<ResourceType>*> sorted_nodes_;
+        bool modified_ = false;
 
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> deleted_arcs_by_id_;
 
@@ -179,6 +231,7 @@ class Graph {
 
             // move deleted arc
             deleted_arcs_by_id_[arc_id] = std::move(it->second);
+            modified_ = true;
             return arcs_by_id_.erase(it);
         }
 
@@ -192,6 +245,7 @@ class Graph {
             arc.origin->out_arcs.push_back(&arc);
             // move restored arc
             arcs_by_id_[it->first] = std::move(it->second);
+            modified_ = true;
             // delete from deleted arcs map if specified
             if (delete_from_map) {
                 return deleted_arcs_by_id_.erase(it);

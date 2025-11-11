@@ -11,7 +11,7 @@
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/composition/functions/cost/composition_cost_function.hpp"
 #include "rcspp/resource/composition/functions/dominance/composition_dominance_function.hpp"
-#include "rcspp/resource/composition/functions/expansion/composition_expansion_function.hpp"
+#include "rcspp/resource/composition/functions/extension/composition_extension_function.hpp"
 #include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 
@@ -25,14 +25,14 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
 
         ResourceCompositionFactory(
             std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
-                expansion_function,
+                extension_function,
             std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
                 feasibility_function,
             std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
             std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>>
                 dominance_function)
             : ResourceFactory<ResourceComposition<ResourceTypes...>>(
-                  std::move(expansion_function), std::move(feasibility_function),
+                  std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function)) {}
 
         std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource() override {
@@ -85,14 +85,14 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             return new_resource_composition;
         }
 
-        std::unique_ptr<Expander<ResourceComposition<ResourceTypes...>>> make_expander(
+        std::unique_ptr<Extender<ResourceComposition<ResourceTypes...>>> make_extender(
             const ResourceComposition<ResourceTypes...>& resource_base, size_t arc_id) override {
             const auto& resource_base_components = resource_base.get_type_components();
 
-            auto new_expander_resource_composition =
-                ResourceFactory<ResourceComposition<ResourceTypes...>>::make_expander(arc_id);
+            auto new_extender_resource_composition =
+                ResourceFactory<ResourceComposition<ResourceTypes...>>::make_extender(arc_id);
 
-            auto make_expander_function = [&](const auto& res_base_vec,
+            auto make_extender_function = [&](const auto& res_base_vec,
                                               const auto& res_fac_vec,
                                               auto& res_comp_vec) {
                 for (int i = 0; i < res_base_vec.size(); i++) {
@@ -100,7 +100,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
 
                     const auto& res_fac = res_fac_vec[i];
 
-                    res_comp_vec.emplace_back(std::move(res_fac->make_expander(res_base, arc_id)));
+                    res_comp_vec.emplace_back(std::move(res_fac->make_extender(res_base, arc_id)));
                 }
             };
 
@@ -110,18 +110,18 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                         [&](auto&&... args_res_fac_vec) {
                             std::apply(
                                 [&](auto&&... args_res_comp_vec) {
-                                    (make_expander_function(args_res_base_vec,
+                                    (make_extender_function(args_res_base_vec,
                                                             args_res_fac_vec,
                                                             args_res_comp_vec),
                                      ...);
                                 },
-                                new_expander_resource_composition->expander_components_);
+                                new_extender_resource_composition->extender_components_);
                         },
                         resource_factory_components_);
                 },
                 resource_base_components);
 
-            return new_expander_resource_composition;
+            return new_extender_resource_composition;
         }
 
         // Add (move) the resource factory in argument to the right vector of resource factories
@@ -139,8 +139,8 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
         }
 
         template <typename... TypeTuples>
-        void update_expander(
-            Expander<ResourceComposition<ResourceTypes...>>* expander_resource_composition,
+        void update_extender(
+            Extender<ResourceComposition<ResourceTypes...>>* extender_resource_composition,
             const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
             auto update_resource_function = [&](const auto& res_init_vec,
                                                 const auto& res_comp_vec) {
@@ -162,17 +162,17 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                         [&](auto&&... args_res_comp_vec) {
                             (update_resource_function(args_res_init_vec, args_res_comp_vec), ...);
                         },
-                        expander_resource_composition->expander_components_);
+                        extender_resource_composition->extender_components_);
                 },
                 resource_initializer);
         }
 
         template <typename TypeTuple, size_t ResourceTypeIndex>
-        void update_expander(
-            Expander<ResourceComposition<ResourceTypes...>>* expander_resource_composition,
+        void update_extender(
+            Extender<ResourceComposition<ResourceTypes...>>* extender_resource_composition,
             std::size_t resource_index, const TypeTuple& single_resource_initializer) {
             const auto& res_comp = std::get<ResourceTypeIndex>(
-                expander_resource_composition->expander_components_)[resource_index];
+                extender_resource_composition->extender_components_)[resource_index];
 
             auto res_init_index = std::make_index_sequence<std::tuple_size_v<
                 typename std::remove_reference_t<decltype(single_resource_initializer)>>>{};

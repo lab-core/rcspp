@@ -6,18 +6,30 @@
 #include <iostream>
 #include <optional>
 
+#include "rcspp/rcspp.hpp"
+
 Instance::Instance(int nb_vehicles, int capacity, std::optional<std::string> name)
-    : nb_vehicles_(nb_vehicles),
-      capacity_(capacity),
-      name_(std::move(name)),
-      depot_customer_id_(0) {}
+    : nb_vehicles_(nb_vehicles), capacity_(capacity), name_(std::move(name)) {}
 
 const Customer& Instance::add_customer(int customer_id, double pos_x, double pos_y, int demand,
                                        int ready_time, int due_time, int service_time, bool depot) {
-    std::cout << __FUNCTION__ << std::endl;
-    std::cout << customer_id << ", " << pos_x << ", " << pos_y << ", " << demand << ", "
-              << ready_time << ", " << due_time << ", " << service_time << ", " << depot
-              << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
+    LOG_DEBUG(customer_id,
+              ", ",
+              pos_x,
+              ", ",
+              pos_y,
+              ", ",
+              demand,
+              ", ",
+              ready_time,
+              ", ",
+              due_time,
+              ", ",
+              service_time,
+              ", ",
+              depot,
+              '\n');
 
     if (depot) {
         depot_customer_id_ = customer_id;
@@ -33,7 +45,7 @@ const Customer& Instance::add_customer(int customer_id, double pos_x, double pos
 }
 
 const std::map<size_t, Customer>& Instance::get_customers_by_id() const {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     return customers_by_id_;
 }
@@ -43,7 +55,7 @@ const Customer& Instance::get_customer(size_t id) const {
 }
 
 const Customer& Instance::get_depot_customer() const {
-    std::cout << "depot_customer_id_=" << depot_customer_id_ << std::endl;
+    LOG_DEBUG("depot_customer_id_=", depot_customer_id_, '\n');
 
     return customers_by_id_.at(depot_customer_id_);
 }

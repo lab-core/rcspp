@@ -10,8 +10,6 @@
 namespace rcspp {
 
 class RealResource : public ResourceBase<RealResource> {
-        friend class RealResourceFactory;
-
     public:
         RealResource();
 

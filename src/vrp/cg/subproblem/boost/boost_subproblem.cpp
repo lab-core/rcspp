@@ -10,14 +10,12 @@
 #include <limits>
 #include <ranges>
 
-#include "rcspp/algorithm/solution.hpp"
+#include "rcspp/rcspp.hpp"
 
 using namespace rcspp;
 
 BoostSubproblem::BoostSubproblem(Instance instance, const std::map<size_t, double>* dual_by_id)
-    : source_id_(0),
-      sink_id_(0),
-      instance_(std::move(instance)),
+    : instance_(std::move(instance)),
       dual_by_id_(dual_by_id),
       graph_boost_(construct_boost_graph()) {}
 
@@ -27,13 +25,13 @@ std::vector<Solution> BoostSubproblem::solve() {
     boost::graph_traits<GraphVRPTW>::vertex_descriptor source_vertex = source_id_;
     boost::graph_traits<GraphVRPTW>::vertex_descriptor sink_vertex = sink_id_;
 
-    // std::cout << "source_vertex=" << source_vertex << std::endl;
-    // std::cout << "sink_vertex=" << sink_vertex << std::endl;
+    // LOG_DEBUG("source_vertex=" << source_vertex << std::endl;
+    // LOG_DEBUG("sink_vertex=" << sink_vertex << std::endl;
 
     std::vector<std::vector<boost::graph_traits<GraphVRPTW>::edge_descriptor>> opt_solutions;
     std::vector<ResourceContainerVRPTW> pareto_opt_resource_containers;
 
-    // std::cout << "r_c_shortest_paths\n";
+    // LOG_DEBUG("r_c_shortest_paths\n";
     boost::r_c_shortest_paths(
         graph_boost_,
         get(&VertexPropertiesVRPTW::id, graph_boost_),
@@ -48,11 +46,9 @@ std::vector<Solution> BoostSubproblem::solve() {
         std::allocator<boost::r_c_shortest_paths_label<GraphVRPTW, ResourceContainerVRPTW>>(),
         boost::default_r_c_shortest_paths_visitor());
 
-    std::cout << "r_c_shortest_paths: SOLVED!\n";
-
-    std::cout << "SPP with time windows:" << std::endl;
-    std::cout << "Number of optimal solutions: ";
-    std::cout << static_cast<int>(opt_solutions.size()) << std::endl;
+    LOG_DEBUG("r_c_shortest_paths: SOLVED!\n");
+    LOG_DEBUG("SPP with time windows:\n");
+    LOG_DEBUG("Number of optimal solutions: ", static_cast<int>(opt_solutions.size()), '\n');
 
     Solution best_solution;
     double best_cost = std::numeric_limits<double>::infinity();
@@ -105,7 +101,7 @@ std::vector<Solution> BoostSubproblem::solve() {
 }
 
 GraphVRPTW BoostSubproblem::construct_boost_graph() {
-    // std::cout << __FUNCTION__ << std::endl;
+    // LOG_TRACE(__FUNCTION__, '\n');
 
     GraphVRPTW graph_boost;
 
@@ -117,9 +113,9 @@ GraphVRPTW BoostSubproblem::construct_boost_graph() {
 }
 
 void BoostSubproblem::add_vertices(GraphVRPTW& graph_boost) {
-    // std::cout << __FUNCTION__ << std::endl;
+    // LOG_TRACE(__FUNCTION__, '\n');
 
-    /*std::cout << "instance_.get_customers_by_id().size()="
+    /*LOG_DEBUG("instance_.get_customers_by_id().size()="
       << instance_.get_customers_by_id().size() << std::endl;*/
 
     for (const auto& [customer_id, customer] : instance_.get_customers_by_id()) {
@@ -127,7 +123,7 @@ void BoostSubproblem::add_vertices(GraphVRPTW& graph_boost) {
             source_id_ = customer.id;
         }
 
-        /*std::cout << "customer_id: " << customer_id << " | customer.ready_time="
+        /*LOG_DEBUG("customer_id: " << customer_id << " | customer.ready_time="
           << customer.ready_time
           << " | customer.due_time=" << customer.due_time
           << " | instance_.get_capacity()=" << instance_.get_capacity() <<
@@ -147,7 +143,7 @@ void BoostSubproblem::add_vertices(GraphVRPTW& graph_boost) {
                                             instance_.get_capacity()),
                       graph_boost);
 
-    /*std::cout << "customer_id: " << sink_id_ << " | sink_customer.ready_time="
+    /*LOG_DEBUG("customer_id: " << sink_id_ << " | sink_customer.ready_time="
       << sink_customer.ready_time
       << " | sink_customer.due_time=" << sink_customer.due_time
       << " | instance_.get_capacity()=" << instance_.get_capacity() <<
@@ -155,7 +151,7 @@ void BoostSubproblem::add_vertices(GraphVRPTW& graph_boost) {
 }
 
 void BoostSubproblem::add_edges(GraphVRPTW& graph_boost) const {
-    // std::cout << __FUNCTION__ << std::endl;
+    // LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& customers_by_id = instance_.get_customers_by_id();
 
@@ -198,7 +194,7 @@ void BoostSubproblem::add_single_edge(size_t arc_id, const Customer& customer_or
                     EdgePropertiesVRPTW(arc_id, reduced_cost, time, demand),
                     graph_boost);
 
-    /*std::cout << "arc_id: " << arc_id << " | " << customer_orig.id << " -> " <<
+    /*LOG_DEBUG("arc_id: " << arc_id << " | " << customer_orig.id << " -> " <<
       customer_dest.id
       << " | cost=" << reduced_cost << " | time=" << time << " | demand=" <<
       demand << std::endl;*/

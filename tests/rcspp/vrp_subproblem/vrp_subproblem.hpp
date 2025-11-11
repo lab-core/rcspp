@@ -16,7 +16,22 @@ class VRPSubproblem {
                   const std::map<size_t, double>* row_coefficient_by_id = nullptr);
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
-        std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id);
+    template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+    std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
+        LOG_TRACE(__FUNCTION__, '\n');
+
+        total_subproblem_time_.start();
+        auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id);
+        total_subproblem_time_.stop();
+
+        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
+
+        LOG_DEBUG("\n", std::string(45, '*'), "\n");
+        LOG_DEBUG("total_subproblem_time_: ", total_subproblem_time_.elapsed_seconds());
+        LOG_DEBUG("\n", std::string(45, '*'), "\n");
+
+        return solutions_rcspp;
+    }
 
     private:
 
@@ -37,7 +52,7 @@ class VRPSubproblem {
 
         size_t depot_id_;
 
-        int64_t total_subproblem_time_ = 0;
+        Timer total_subproblem_time_;
 
         std::map<size_t, std::pair<double, double>> initialize_time_windows();
 
@@ -64,8 +79,21 @@ class VRPSubproblem {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id);
+            const std::map<size_t, double>& dual_by_id) {
+                LOG_TRACE(__FUNCTION__, '\n');
+
+                if (subproblem_graph_.get_number_of_nodes() == 0) {
+                    subproblem_graph_ = construct_resource_graph(&dual_by_id);
+                } else {
+                    update_resource_graph(&subproblem_graph_, &dual_by_id);
+                }
+
+                auto solutions = subproblem_graph_.solve<AlgorithmType>();
+
+                return solutions;
+        }
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(
             const std::map<size_t, double>& master_dual_by_var_id,

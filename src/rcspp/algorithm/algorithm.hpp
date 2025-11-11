@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <chrono>    // NOLINT(build/c++11)
 #include <concepts>  // NOLINT(build/include_order)
 #include <iostream>
 #include <limits>
@@ -16,6 +15,7 @@
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
+#include "rcspp/utils/timer.hpp"
 
 namespace rcspp {
 
@@ -29,7 +29,16 @@ class Algorithm {
                   std::make_unique<LabelFactory<ResourceType>>(resource_factory), use_pool)),
               graph_(graph),
               cost_upper_bound_(std::numeric_limits<double>::infinity()),
-              best_label_(nullptr) {}
+              best_label_(nullptr) {
+            if (!graph_.get_sorted_nodes().empty() && !graph_.are_nodes_sorted()) {
+                LOG_FATAL(
+                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
+                    "manipulate the pos index of the nodes.\n");
+                throw std::runtime_error(
+                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
+                    "manipulate the pos index of the nodes.");
+            }
+        }
 
         virtual ~Algorithm() = default;
 
@@ -52,20 +61,14 @@ class Algorithm {
 
                 assert(label.get_end_node());
 
-                if (graph_.is_sink(label.get_end_node()->id) &&
-                    (label.get_cost() < cost_upper_bound_)) {
+                if (label.get_end_node()->sink && label.get_cost() < cost_upper_bound_) {
                     cost_upper_bound_ = label.get_cost();
                     best_label_ = &label;
-                } else if (!graph_.is_sink(label.get_end_node()->id) &&
+                } else if (!label.get_end_node()->sink &&
                            label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    auto time_start = std::chrono::high_resolution_clock::now();
-                    expand(&label);
-                    auto time_end = std::chrono::high_resolution_clock::now();
-
-                    total_full_expand_time_ +=
-                        std::chrono::duration_cast<std::chrono::nanoseconds>(time_end - time_start)
-                            .count();
-
+                    total_full_extend_time_.start();
+                    extend(&label);
+                    total_full_extend_time_.stop();
                 } else {
                     this->label_pool_.release_label(&label);
 
@@ -73,11 +76,8 @@ class Algorithm {
                 }
             }
 
-            std::cout << "****************************************\n";
-            std::cout << "RCSPP: WHILE nb iter: " << nb_iter << std::endl;
-            std::cout << "****************************************\n";
-
-            std::cout << "best_label_=" << best_label_ << std::endl;
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", nb_iter, "\n");
+            LOG_TRACE("best_label_=", best_label_, "\n");
 
             Solution solution;
             if (best_label_ != nullptr) {
@@ -91,14 +91,14 @@ class Algorithm {
                 const auto path_arc_ids = get_path_arc_ids(*best_label_);
 
                 for (auto node_id : path_node_ids) {
-                    std::cout << node_id << ", ";
+                    LOG_DEBUG(node_id, ", ");
                 }
-                std::cout << std::endl;
+                LOG_DEBUG('\n');
 
                 for (auto arc_id : path_arc_ids) {
-                    std::cout << arc_id << ", ";
+                    LOG_DEBUG(arc_id, ", ");
                 }
-                std::cout << std::endl;
+                LOG_DEBUG('\n');
 
                 solution = Solution{best_label_->get_cost(), path_node_ids, path_arc_ids};
             }
@@ -115,7 +115,7 @@ class Algorithm {
 
         virtual bool test(const Label<ResourceType>& label) = 0;
 
-        virtual void expand(Label<ResourceType>* label) = 0;
+        virtual void extend(Label<ResourceType>* label) = 0;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
@@ -138,6 +138,6 @@ class Algorithm {
 
         size_t nb_dominated_labels_{0};
 
-        int64_t total_full_expand_time_ = 0;
+        Timer total_full_extend_time_;
 };
 }  // namespace rcspp

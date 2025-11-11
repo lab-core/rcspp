@@ -5,7 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
-#include <chrono>    // NOLINT(build/c++11)
+#include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
 #include <iostream>
 #include <limits>
@@ -21,6 +21,10 @@
 namespace rcspp {
 
 template <typename ResourceType>
+using LabelIteratorPair =
+    std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
+
+template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class AlgorithmWithIterators : public Algorithm<ResourceType> {
     public:
@@ -33,15 +37,35 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
         std::vector<Solution> solve(bool print = false) override {
             this->initialize_labels();
 
+            main_loop();
+
+            std::vector<Solution> solutions;
+            if (this->best_label_ != nullptr) {
+                solutions = extract_solutions();
+
+                LOG_DEBUG("Number of solutions: ", solutions.size(), '\n');
+            }
+
+            return solutions;
+        }
+
+    protected:
+        virtual void main_loop() {
             int i = 0;
 
             while (this->number_of_labels() > 0) {
                 i++;
 
+                // next label to process
                 auto label_iterator_pair = next_label_iterator();
 
-                auto& label = *label_iterator_pair.first;
+                // no more label -> break (useful when pulling)
+                if (label_iterator_pair.first == nullptr) {
+                    break;
+                }
 
+                // label dominated -> continue to next one
+                auto& label = *label_iterator_pair.first;
                 if (label.dominated) {
                     this->label_pool_.release_label(&label);
                     continue;
@@ -49,59 +73,33 @@ class AlgorithmWithIterators : public Algorithm<ResourceType> {
 
                 assert(label.get_end_node());
 
-                if (this->graph_.is_sink(label.get_end_node()->id) &&
-                    (label.get_cost() < this->cost_upper_bound_)) {
-                    this->cost_upper_bound_ = label.get_cost();
-                    this->best_label_ = &label;
-                } else if (!this->graph_.is_sink(label.get_end_node()->id) &&
-                           label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    bool label_non_dominated = update_non_dominated_labels(label_iterator_pair);
-
-                    if (label_non_dominated) {
-                        auto time_start = std::chrono::high_resolution_clock::now();
-                        this->expand(&label);
-                        auto time_end = std::chrono::high_resolution_clock::now();
-
-                        this->total_full_expand_time_ +=
-                            std::chrono::duration_cast<std::chrono::nanoseconds>(time_end -
-                                                                                 time_start)
-                                .count();
-                    } else {
-                        this->label_pool_.release_label(&label);
+                // check if we can update the best label or extend
+                if (label.get_end_node()->sink) {
+                    if (label.get_cost() < this->cost_upper_bound_) {
+                        this->cost_upper_bound_ = label.get_cost();
+                        this->best_label_ = &label;
                     }
+                } else if (!std::isinf(label.get_cost())) {
+                    assert(update_non_dominated_labels(label));
+                    this->total_full_extend_time_.start();
+                    this->extend(&label);
+                    this->total_full_extend_time_.stop();
                 } else {
-                    this->label_pool_.release_label(&label);
-
                     remove_label(label_iterator_pair.second);
+                    this->label_pool_.release_label(&label);
                 }
             }
 
-            std::cout << "****************************************\n";
-            std::cout << "RCSPP: WHILE nb iter: " << i << std::endl;
-            std::cout << "****************************************\n";
-
-            std::cout << "best_label_=" << this->best_label_ << std::endl;
-
-            std::vector<Solution> solutions;
-            if (this->best_label_ != nullptr) {
-                solutions = extract_solutions();
-
-                std::cout << "Number of solutions: " << solutions.size() << std::endl;
-            }
-
-            return solutions;
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+            LOG_TRACE("best_label_=", this->best_label_, "\n");
         }
 
-    protected:
-        virtual std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-        next_label_iterator() = 0;
+        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
         virtual void remove_label(
             const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
 
-        virtual bool update_non_dominated_labels(
-            std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>
-                label_iterator_pair) = 0;
+        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) = 0;
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 

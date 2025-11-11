@@ -2,7 +2,6 @@
 // All rights reserved.
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <limits>
 #include <ranges>
@@ -10,54 +9,17 @@
 #include "vrp_subproblem.hpp"
 #include "rcspp/rcspp.hpp"
 
-constexpr double MICROSECONDS_PER_SECOND = 1e6;
-
 VRPSubproblem::VRPSubproblem(Instance instance,
                              const std::map<size_t, double>* row_coefficient_by_id)
     : row_coefficient_by_id_(row_coefficient_by_id),
       instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
       initial_graph_(construct_resource_graph()) {
-    std::cout << "VRPSubproblem::VRPSubproblem\n";
+    LOG_TRACE("VRPSubproblem::VRPSubproblem\n");
 }
-
-std::vector<Solution> VRPSubproblem::solve(const std::map<size_t, double>& dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
-
-    auto subproblem_time_start = std::chrono::high_resolution_clock::now();
-    auto solutions_rcspp = solve_with_rcspp(dual_by_id);
-    auto subproblem_time_end = std::chrono::high_resolution_clock::now();
-    total_subproblem_time_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  subproblem_time_end - subproblem_time_start)
-                                  .count();
-
-    std::cout << "Solution RCSPP cost: " << solutions_rcspp[0].cost << std::endl;
-
-    std::cout << "\n*********************************************\n";
-    std::cout << "total_subproblem_time_: " << (total_subproblem_time_ / MICROSECONDS_PER_SECOND)
-              << std::endl;
-    std::cout << "*********************************************\n";
-
-    return solutions_rcspp;
-}
-
-std::vector<Solution> VRPSubproblem::solve_with_rcspp(const std::map<size_t, double>& dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
-
-    if (subproblem_graph_.get_number_of_nodes() == 0) {
-        subproblem_graph_ = construct_resource_graph(&dual_by_id);
-    } else {
-        update_resource_graph(&subproblem_graph_, &dual_by_id);
-    }
-
-    auto solutions = subproblem_graph_.solve();
-
-    return solutions;
-}
-
 
 std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windows() {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
 
@@ -108,27 +70,27 @@ std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windo
 
 ResourceGraph<RealResource> VRPSubproblem::construct_resource_graph(
     const std::map<size_t, double>* dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     ResourceGraph<RealResource> resource_graph;
 
     // Distance (cost)
     resource_graph.add_resource<RealResource>(
-        std::make_unique<RealAdditionExpansionFunction>(),
+        std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Time
     resource_graph.add_resource<RealResource>(
-        std::make_unique<TimeWindowExpansionFunction>(min_time_window_by_arc_id_),
+        std::make_unique<TimeWindowExtensionFunction>(min_time_window_by_arc_id_),
         std::make_unique<TimeWindowFeasibilityFunction>(max_time_window_by_node_id_),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Demand
     resource_graph.add_resource<RealResource>(
-        std::make_unique<RealAdditionExpansionFunction>(),
+        std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<MinMaxFeasibilityFunction>(0.0, (double)instance_.get_capacity()),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
@@ -142,7 +104,7 @@ ResourceGraph<RealResource> VRPSubproblem::construct_resource_graph(
 
 void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
                                 const std::map<size_t, double>* dual_by_id) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto max_arc_id = dual_by_id->rbegin()->first;
     std::vector<double> duals(max_arc_id + 1, 0.0);
@@ -154,7 +116,7 @@ void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_
 }
 
 void VRPSubproblem::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
-    std::cout << __FUNCTION__ << std::endl;
+    LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     size_t sink_id = customers_by_id.size();
@@ -251,7 +213,7 @@ double VRPSubproblem::calculate_distance(const Customer& customer1, const Custom
 double VRPSubproblem::calculate_solution_cost(const Solution& solution) const {
     double cost = 0.0;
 
-    // TODO(patrick): Figure out how to get the cost of an Expander.
+    // TODO(patrick): Figure out how to get the cost of an Extender.
     for (auto arc_id : solution.path_arc_ids) {
         cost += initial_graph_.get_arc(arc_id).cost;
     }

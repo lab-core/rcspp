@@ -1,7 +1,8 @@
-#include "test_rcspp.hpp"
-#include "vrp_subproblem/vrp_subproblem.hpp"
+#include "test_main.hpp"
 
 #include <iostream>
+
+#include "rcspp/rcspp.hpp"
 
 
 int main() {
@@ -12,23 +13,19 @@ int main() {
     int total = 0;
 
     // Test graph creation, graph update and solving the RCSPP
-    if (test_rcspp()) {
-        passed++;
-    }
-    total++;
+    auto p =
+    all_tests_rcspp<SimpleDominanceAlgorithmIterators, PushingDominanceAlgorithmIterators, PullingDominanceAlgorithmIterators>();
+    passed += p.first;
+    total += p.second;
 
     // Test graph creation and graph update with non integer dual 
     // row coefficients, and solving the RCSPP
-    if (test_rcspp_non_integer_dual_row_coef()) {
-        passed++;
-    }
-    total++;
+    p =
+    all_tests_rcspp_non_integer_dual_row_coef<SimpleDominanceAlgorithmIterators, PushingDominanceAlgorithmIterators, PullingDominanceAlgorithmIterators>();
+    passed += p.first;
+    total += p.second;
 
-    std::cout << passed << "/" << total << " tests passed\n";
+    LOG_INFO(passed, "/", total, " tests passed\n");
 
-    if (passed == total) {
-        all_tests_passed = 0;
-    }
-
-    return all_tests_passed;
+    return total - passed;  // return the number of failed tests
 }

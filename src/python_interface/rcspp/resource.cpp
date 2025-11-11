@@ -12,12 +12,11 @@
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/concrete/functions/cost/real_value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/real_value_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/expansion/real_addition_expansion_function.hpp"
-#include "rcspp/resource/concrete/functions/expansion/time_window_expansion_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/real_addition_extension_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
 #include "rcspp/resource/concrete/real_resource.hpp"
-#include "rcspp/resource/concrete/real_resource_factory.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
 namespace py = pybind11;
@@ -44,27 +43,26 @@ void init_resource(py::module_& m) {
 
     // Resource factories
 
-    py::class_<RealResourceFactory>(m, "RealResourceFactory")
+    py::class_<ResourceFactory<RealResource>>(m, "RealResourceFactory")
         .def(py::init<>())
-        .def(py::init<const RealResource&>(), py::arg("real_resource_prototype"))
         .def(py::init<std::unique_ptr<RealExpansionFunction>,
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
                       std::unique_ptr<RealDominanceFunction>>(),
-             py::arg("expansion_function"),
+             py::arg("extension_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),
              py::arg("dominance_function"))
-        .def(py::init<const RealResource&,
-                      std::unique_ptr<RealExpansionFunction>,
+        .def(py::init<std::unique_ptr<RealExpansionFunction>,
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
-                      std::unique_ptr<RealDominanceFunction>>(),
-             py::arg("real_resource_prototype"),
-             py::arg("expansion_function"),
+                      std::unique_ptr<RealDominanceFunction>,
+                      const RealResource&>(),
+             py::arg("extension_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),
-             py::arg("dominance_function"));
+             py::arg("dominance_function"),
+             py::arg("real_resource_prototype"));
 
     // Resource functions
 
@@ -94,7 +92,7 @@ void init_resource(py::module_& m) {
         "RealValueDominanceFunction")
         .def(py::init<>());
 
-    py::class_<RealAdditionExpansionFunction, ExpansionFunction<RealResource>, py::smart_holder>(
+    py::class_<RealAdditionExtensionFunction, ExpansionFunction<RealResource>, py::smart_holder>(
         m,
         "RealAdditionExpansionFunction")
         .def(py::init<>());
@@ -106,9 +104,9 @@ void init_resource(py::module_& m) {
 
     static std::map<size_t, double> g_min_time_window_by_arc_id;
 
-    py::class_<TimeWindowExpansionFunction, ExpansionFunction<RealResource>, py::smart_holder>(
+    py::class_<TimeWindowExtensionFunction, ExpansionFunction<RealResource>, py::smart_holder>(
         m,
-        "TimeWindowExpansionFunction")
+        "TimeWindowExtensionFunction")
         .def(py::init([](const py::dict& min_time_window_by_arc_id) {
                  // Copy Python dict into the global map
                  g_min_time_window_by_arc_id.clear();
@@ -117,7 +115,7 @@ void init_resource(py::module_& m) {
                                                          max_time.cast<double>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowExpansionFunction(g_min_time_window_by_arc_id);
+                 return TimeWindowExtensionFunction(g_min_time_window_by_arc_id);
              }),
              py::arg("min_time_window_by_arc_id"));
 

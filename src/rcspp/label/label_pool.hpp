@@ -5,7 +5,6 @@
 
 #include <concepts>
 #include <memory>
-#include <optional>
 #include <set>
 #include <utility>
 #include <vector>
@@ -57,10 +56,10 @@ class LabelPool {
         Label<ResourceType>& get_temporary_label(const Node<ResourceType>* end_node,
                                                  const Arc<ResourceType>* in_arc = nullptr,
                                                  const Arc<ResourceType>* out_arc = nullptr) {
-            // std::cout << __FUNCTION__ << std::endl;
+            // LOG_TRACE(__FUNCTION__, '\n');
 
             if (temporary_label_ptr_) {
-                // std::cout << "temporary_label_ptr_\n";
+                // LOG_TRACE("temporary_label_ptr_\n");
 
                 label_factory_->reset_label(temporary_label_ptr_,
                                             nb_labels_,
@@ -70,7 +69,7 @@ class LabelPool {
 
                 nb_labels_++;
             } else {
-                // std::cout << "NOT temporary_label_ptr_\n";
+                // LOG_TRACE("NOT temporary_label_ptr_\n");
 
                 temporary_label_ptr_ =
                     label_factory_->make_label(nb_labels_, end_node, in_arc, out_arc);

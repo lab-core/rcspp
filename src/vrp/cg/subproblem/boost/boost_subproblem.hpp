@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "graph_vrptw.hpp"
-#include "rcspp/algorithm/solution.hpp"
+#include "rcspp/rcspp.hpp"
 #include "vrp/instance.hpp"
 
 using namespace rcspp;
@@ -21,8 +21,8 @@ class BoostSubproblem {
         Instance instance_;
         const std::map<size_t, double>* dual_by_id_;
 
-        size_t source_id_;
-        size_t sink_id_;
+        size_t source_id_{0};
+        size_t sink_id_{0};
 
         GraphVRPTW graph_boost_;
 
