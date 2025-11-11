@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         cmake-build-type: [Debug, Release]
     env:
       BUILD_DIR: build
@@ -39,18 +39,47 @@ jobs:
           brew install llvm
           echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
-      - name: Configure CMake
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Ensure choco is available on hosted runner; install cmake if missing
+          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y || true
+          # Python is preinstalled on the hosted runner; ensure pip is available
+          python -m pip --version || true
+
+      - name: Configure CMake (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p $BUILD_DIR
           cd $BUILD_DIR
           cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
-      - name: Build
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:BUILD_DIR | Out-Null
+          Push-Location $env:BUILD_DIR
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+          Pop-Location
+
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           cd $BUILD_DIR
           cmake --build . -- -j
 
-      - name: Run tests (find and run tests-rcspp from project root)
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Push-Location $env:BUILD_DIR
+          cmake --build . --config ${{ matrix.cmake-build-type }} -- /m
+          Pop-Location
+
+      - name: Run tests (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           cd $BUILD_DIR
           TEST_BIN=$(find . -type f -name tests-rcspp -perm -111 | head -n1)
@@ -62,3 +91,15 @@ jobs:
           TEST_BIN_ABS="$(pwd)/$TEST_BIN"
           cd $GITHUB_WORKSPACE
           "$TEST_BIN_ABS"
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Push-Location $env:BUILD_DIR
+          $test = Get-ChildItem -Path . -Recurse -Filter tests-rcspp.exe -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $test) { Write-Error 'tests-rcspp.exe not found'; exit 1 }
+          $testPath = $test.FullName
+          Pop-Location
+          Set-Location $env:GITHUB_WORKSPACE
+          & $testPath
