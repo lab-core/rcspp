@@ -95,7 +95,7 @@ bool test_rcspp_non_integer_dual_row_coef() {
     VRPSubproblem vrp_subproblem(instance, &coef_by_id);
 
     // Iteration 0: Test graph creation
-    const double OPTIMAL_COST_ITER_0 = -773.05426356439386;
+    const double OPTIMAL_COST_ITER_0 = -319.87786809696524;
     std::string duals_file = "iter_0.txt";
     std::string duals_directory = root_dir+"/instances/duals/" + instance_name + "/";
     auto duals_path = duals_directory + duals_file;

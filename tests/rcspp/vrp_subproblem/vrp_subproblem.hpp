@@ -46,9 +46,7 @@ class VRPSubproblem {
 
         std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
 
-        ResourceGraph<RealResource> initial_graph_;
-
-        ResourceGraph<RealResource> subproblem_graph_;
+        ResourceGraph<RealResource> graph_;
 
         size_t depot_id_;
 
@@ -56,7 +54,8 @@ class VRPSubproblem {
 
         std::map<size_t, std::pair<double, double>> initialize_time_windows();
 
-        ResourceGraph<RealResource> construct_resource_graph(
+        void construct_resource_graph(
+        ResourceGraph<RealResource>* resource_graph,
             const std::map<size_t, double>* dual_by_id = nullptr);
 
         void update_resource_graph(ResourceGraph<RealResource>* resource_graph,
@@ -83,14 +82,8 @@ class VRPSubproblem {
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id) {
                 LOG_TRACE(__FUNCTION__, '\n');
-
-                if (subproblem_graph_.get_number_of_nodes() == 0) {
-                    subproblem_graph_ = construct_resource_graph(&dual_by_id);
-                } else {
-                    update_resource_graph(&subproblem_graph_, &dual_by_id);
-                }
-
-                auto solutions = subproblem_graph_.solve<AlgorithmType>();
+                update_resource_graph(&graph_, &dual_by_id);
+                auto solutions = graph_.solve<AlgorithmType>();
 
                 return solutions;
         }

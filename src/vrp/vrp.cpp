@@ -19,17 +19,17 @@ constexpr double MICROSECONDS_PER_SECOND = 1e6;
 VRP::VRP(Instance instance)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      graph_(construct_resource_graph()),
       solution_output_(std::nullopt) {
     LOG_TRACE("VRP::VRP\n");
+    construct_resource_graph(&graph_);
 }
 
 VRP::VRP(Instance instance, std::string duals_directory)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      graph_(construct_resource_graph()),
       solution_output_(SolutionOutput(duals_directory)) {
     LOG_TRACE("VRP::VRP\n");
+    construct_resource_graph(&graph_);
 }
 
 const std::vector<Path>& VRP::generate_initial_paths() {
@@ -333,38 +333,34 @@ std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
     return time_window_by_customer_id;
 }
 
-ResourceGraph<RealResource> VRP::construct_resource_graph(
-    const std::map<size_t, double>* dual_by_id) {
+void VRP::construct_resource_graph(ResourceGraph<RealResource>* resource_graph,
+                                   const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    ResourceGraph<RealResource> resource_graph;
-
     // Distance (cost)
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Time
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<TimeWindowExtensionFunction>(min_time_window_by_arc_id_),
         std::make_unique<TimeWindowFeasibilityFunction>(max_time_window_by_node_id_),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
     // Demand
-    resource_graph.add_resource<RealResource>(
+    resource_graph->add_resource<RealResource>(
         std::make_unique<RealAdditionExtensionFunction>(),
         std::make_unique<MinMaxFeasibilityFunction>(0.0, (double)instance_.get_capacity()),
         std::make_unique<RealValueCostFunction>(),
         std::make_unique<RealValueDominanceFunction>());
 
-    add_all_nodes_to_graph(&resource_graph);
+    add_all_nodes_to_graph(resource_graph);
 
-    add_all_arcs_to_graph(&resource_graph, dual_by_id);
-
-    return resource_graph;
+    add_all_arcs_to_graph(resource_graph, dual_by_id);
 }
 
 void VRP::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
