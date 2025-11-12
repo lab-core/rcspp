@@ -36,14 +36,14 @@ struct ResourceTypeIndex<ResourceType, ResourceType1, ResourceTypes...> {
 
 // Retrieve the value of the associated template
 template <typename ResourceType, typename... ResourceTypes>
-inline constexpr int UnsafeResourceTypeIndex_v =
-    ResourceTypeIndex<ResourceType, ResourceTypes...>::value;
+    requires(ResourceTypeIndex<ResourceType, ResourceTypes...>::value != -1)
+inline constexpr int ResourceTypeIndex_v = ResourceTypeIndex<ResourceType, ResourceTypes...>::value;
 
-// safe version that requires ResourceType to be in ResourceTypes...
-template <typename ResourceType, typename... ResourceTypes>
-    requires(UnsafeResourceTypeIndex_v<ResourceType, ResourceTypes...> != -1)
-inline constexpr size_t ResourceTypeIndex_v =
-    ResourceTypeIndex<ResourceType, ResourceTypes...>::value;
+// // safe version that requires ResourceType to be in ResourceTypes...
+// template <typename ResourceType, typename... ResourceTypes>
+//     requires(UnsafeResourceTypeIndex_v<ResourceType, ResourceTypes...> != -1)
+// inline constexpr size_t ResourceTypeIndex_v =
+//     ResourceTypeIndex<ResourceType, ResourceTypes...>::value;
 
 // ResourceType to ResourceInitializerTypeTuple
 // Extracts the initializer type tuple for a given ResourceType
@@ -55,6 +55,7 @@ template <typename ResourceType>
 struct ResourceInitializerTypeTuple {
         using type = std::tuple<std::decay_t<decltype(std::declval<ResourceType>().get_value())>>;
 };
+
 // convenience alias
 template <typename ResourceType>
 using ResourceInitializerTypeTuple_t = typename ResourceInitializerTypeTuple<ResourceType>::type;
@@ -77,12 +78,12 @@ using UIntSetResource = SetResource<unsigned int>;
 
 template <typename T>
 class BitsetResource;
-// full specialization for BitsetResource
+// specialization for BitsetResource<T>
 template <typename T>
 struct ResourceInitializerTypeTuple<BitsetResource<T>> {
         using type = std::tuple<std::set<T>>;
 };
 
-using UIntBitsetResource = SetResource<unsigned int>;
-using SizeTBitsetResource = SetResource<size_t>;
+using UIntBitsetResource = BitsetResource<unsigned int>;
+using SizeTBitsetResource = BitsetResource<size_t>;
 }  // namespace rcspp

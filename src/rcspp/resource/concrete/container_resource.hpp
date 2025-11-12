@@ -137,11 +137,16 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         }
 
         // convenience setter from an index set
+        // -> necessary for an initializer with a set (i.e. ResourceInitializerTypeTuple)
         void set_value(const std::set<ValueType>& indices) {
             this->container_.clear();
             for (auto idx : indices) {
                 add(idx);
             }
+        }
+
+        void set_value(Container container) override {
+            ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(container);
         }
 
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division

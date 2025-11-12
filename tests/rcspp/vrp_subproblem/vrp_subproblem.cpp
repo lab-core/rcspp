@@ -18,52 +18,43 @@ VRPSubproblem::VRPSubproblem(Instance instance,
     construct_resource_graph(&graph_);
 }
 
-std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windows() {
+std::map<size_t, std::pair<int, int>> VRPSubproblem::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
+    std::map<size_t, std::pair<int, int>> time_window_by_customer_id;
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     for (const auto& [customer_id, customer] : customers_by_id) {
         time_window_by_customer_id.emplace(
             customer_id,
-            std::pair<double, double>{customer.ready_time, customer.due_time});
+            std::pair<int, int>{customer.ready_time, customer.due_time});
     }
 
     const auto& source_customer = customers_by_id.at(0);
     size_t sink_id = customers_by_id.size();
     time_window_by_customer_id.emplace(
         sink_id,
-        std::pair<double, double>{0, std::numeric_limits<double>::infinity()});
+        std::pair<int, int>{0, std::numeric_limits<int>::max()});
 
-    size_t arc_id = 0;
-    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
-        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            if (customer_orig_id != customer_dest_id) {
-                double min_time = 0;
-                double max_time = std::numeric_limits<double>::infinity();
-                if (time_window_by_customer_id.contains(customer_dest_id)) {
-                    min_time = time_window_by_customer_id.at(customer_dest_id).first;
-                    max_time = time_window_by_customer_id.at(customer_dest_id).second;
-                }
-                min_time_window_by_arc_id_.emplace(arc_id, min_time);
-                max_time_window_by_node_id_.emplace(customer_dest_id, max_time);
-
-                arc_id++;
-            }
+    for (const auto& [customer_id, customer] : customers_by_id) {
+        int min_time = 0;
+        int max_time = std::numeric_limits<int>::max();
+        if (time_window_by_customer_id.contains(customer_id)) {
+            min_time = time_window_by_customer_id.at(customer_id).first;
+            max_time = time_window_by_customer_id.at(customer_id).second;
         }
-
-        double min_time = 0;
-        double max_time = std::numeric_limits<double>::infinity();
-        if (time_window_by_customer_id.contains(sink_id)) {
-            min_time = time_window_by_customer_id.at(sink_id).first;
-            max_time = time_window_by_customer_id.at(sink_id).second;
-        }
-        min_time_window_by_arc_id_.emplace(arc_id, min_time);
-        max_time_window_by_node_id_.emplace(sink_id, max_time);
-
-        arc_id++;
+        min_time_window_by_node_id_.emplace(customer_id, min_time);
+        max_time_window_by_node_id_.emplace(customer_id, max_time);
     }
+
+    int min_time = 0;
+    int max_time = std::numeric_limits<int>::max();
+    if (time_window_by_customer_id.contains(sink_id)) {
+        min_time = time_window_by_customer_id.at(sink_id).first;
+        max_time = time_window_by_customer_id.at(sink_id).second;
+    }
+    min_time_window_by_node_id_.emplace(sink_id, min_time);
+    max_time_window_by_node_id_.emplace(sink_id, max_time);
 
     return time_window_by_customer_id;
 }
@@ -74,32 +65,32 @@ RGraph* resource_graph,
     LOG_TRACE(__FUNCTION__, '\n');
 
     // Distance (cost)
-    resource_graph.add_resource<RealResource>(
-        std::make_unique<AdditionExpansionFunction<RealResource>>(),
+    resource_graph->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
         std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
     // Time
-    resource_graph.add_resource<RealResource>(
-        std::make_unique<TimeWindowExtensionFunction<RealResource>>(min_time_window_by_arc_id_),
+    resource_graph->add_resource<RealResource>(
+        std::make_unique<TimeWindowExtensionFunction<RealResource>>(min_time_window_by_node_id_),
         std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(max_time_window_by_node_id_),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
     // Demand
-    resource_graph.add_resource<RealResource>(
-        std::make_unique<AdditionExpansionFunction<RealResource>>(),
-        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, (double)instance_.get_capacity()),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
+    resource_graph->add_resource<IntResource>(
+        std::make_unique<AdditionExtensionFunction<IntResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<IntResource>>(0, instance_.get_capacity()),
+        std::make_unique<ValueCostFunction<IntResource>>(),
+        std::make_unique<ValueDominanceFunction<IntResource>>());
 
     add_all_nodes_to_graph(resource_graph);
 
     add_all_arcs_to_graph(resource_graph, dual_by_id);
 }
 
-void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_graph,
+void VRPSubproblem::update_resource_graph(RGraph* resource_graph,
                                 const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
@@ -112,7 +103,7 @@ void VRPSubproblem::update_resource_graph(ResourceGraph<RealResource>* resource_
     graph_.update_reduced_costs(duals);
 }
 
-void VRPSubproblem::add_all_nodes_to_graph(ResourceGraph<RealResource>* resource_graph) {
+void VRPSubproblem::add_all_nodes_to_graph(RGraph* resource_graph) {
     LOG_TRACE(__FUNCTION__, '\n');
 
     const auto& customers_by_id = instance_.get_customers_by_id();
@@ -192,7 +183,7 @@ void VRPSubproblem::add_arc_to_graph(RGraph* resource_graph, size_t customer_ori
         distance,
         {Row(customer_orig_id, row_coefficient)});*/
 
-    auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
+    auto& arc = resource_graph->add_arc<RealResource, RealResource, IntResource>(
         {reduced_cost, time, demand},
         customer_orig_id,
         customer_dest_id,

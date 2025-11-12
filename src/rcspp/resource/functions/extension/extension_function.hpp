@@ -19,18 +19,18 @@ template <typename ResourceType>
 class Arc;
 
 template <typename ResourceType>
-class ExpansionFunction {
+class ExtensionFunction {
     public:
-        virtual ~ExpansionFunction() = default;
+        virtual ~ExtensionFunction() = default;
 
         virtual void extend(const Resource<ResourceType>& resource,
                             const Extender<ResourceType>& extender,
                             Resource<ResourceType>* extended_resource) = 0;
 
-        [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExpansionFunction> = 0;
+        [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExtensionFunction> = 0;
 
         template <typename GraphResourceType>
-        auto create(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExpansionFunction> {
+        auto create(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtensionFunction> {
             auto new_extension_function = clone();
 
             new_extension_function->arc_id_ = arc.id;

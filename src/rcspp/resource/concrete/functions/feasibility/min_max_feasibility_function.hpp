@@ -11,13 +11,12 @@
 
 namespace rcspp {
 
-template <typename ResourceType>
+template <typename ResourceType,
+          typename ValueType =
+              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
 class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
     public:
-        using ValueType =
-            std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>;
-
         MinMaxFeasibilityFunction(ValueType min, ValueType max) : min_(min), max_(max) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {

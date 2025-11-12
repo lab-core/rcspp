@@ -31,7 +31,7 @@ using ConcreteFactory = ResourceFactory<ResourceCompositionBase>;
 
 using RealResourceFactoryBase = ResourceFactory<RealResource>;
 
-using RealExpansionFunction = ExpansionFunction<RealResource>;
+using RealExtensionFunction = ExtensionFunction<RealResource>;
 using RealFeasibilityFunction = FeasibilityFunction<RealResource>;
 using RealCostFunction = CostFunction<RealResource>;
 using RealDominanceFunction = DominanceFunction<RealResource>;
@@ -45,7 +45,7 @@ void init_resource(py::module_& m) {
 
     py::class_<ResourceFactory<RealResource>>(m, "RealResourceFactory")
         .def(py::init<>())
-        .def(py::init<std::unique_ptr<RealExpansionFunction>,
+        .def(py::init<std::unique_ptr<RealExtensionFunction>,
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
                       std::unique_ptr<RealDominanceFunction>>(),
@@ -53,7 +53,7 @@ void init_resource(py::module_& m) {
              py::arg("feasibility_function"),
              py::arg("cost_function"),
              py::arg("dominance_function"))
-        .def(py::init<std::unique_ptr<RealExpansionFunction>,
+        .def(py::init<std::unique_ptr<RealExtensionFunction>,
                       std::unique_ptr<RealFeasibilityFunction>,
                       std::unique_ptr<RealCostFunction>,
                       std::unique_ptr<RealDominanceFunction>,
@@ -73,8 +73,8 @@ void init_resource(py::module_& m) {
     py::class_<DominanceFunction<RealResource>, py::smart_holder>(m,
                                                                   "DominanceFunctionRealResource");
 
-    py::class_<ExpansionFunction<RealResource>, py::smart_holder>(m,
-                                                                  "ExpansionFunctionRealResource");
+    py::class_<ExtensionFunction<RealResource>, py::smart_holder>(m,
+                                                                  "ExtensionFunctionRealResource");
 
     py::class_<FeasibilityFunction<RealResource>, py::smart_holder>(
         m,
@@ -92,9 +92,9 @@ void init_resource(py::module_& m) {
                py::smart_holder>(m, "RealValueDominanceFunction")
         .def(py::init<>());
 
-    py::class_<AdditionExpansionFunction<RealResource>,
-               ExpansionFunction<RealResource>,
-               py::smart_holder>(m, "RealAdditionExpansionFunction")
+    py::class_<AdditionExtensionFunction<RealResource>,
+               ExtensionFunction<RealResource>,
+               py::smart_holder>(m, "RealAdditionExtensionFunction")
         .def(py::init<>());
 
     py::class_<MinMaxFeasibilityFunction<RealResource>,
@@ -102,20 +102,20 @@ void init_resource(py::module_& m) {
                py::smart_holder>(m, "MinMaxFeasibilityFunction")
         .def(py::init<double, double>());
 
-    static std::map<size_t, double> g_min_time_window_by_arc_id;
+    static std::map<size_t, double> g_min_time_window_by_node_id;
 
-    py::class_<TimeWindowExtensionFunction, ExpansionFunction<RealResource>, py::smart_holder>(
-        m,
-        "TimeWindowExtensionFunction")
-        .def(py::init([](const py::dict& min_time_window_by_arc_id) {
+    py::class_<TimeWindowExtensionFunction<RealResource>,
+               ExtensionFunction<RealResource>,
+               py::smart_holder>(m, "TimeWindowExtensionFunction")
+        .def(py::init([](const py::dict& min_time_window_by_node_id) {
                  // Copy Python dict into the global map
-                 g_min_time_window_by_arc_id.clear();
-                 for (const auto& [node_id, max_time] : min_time_window_by_arc_id) {
-                     g_min_time_window_by_arc_id.emplace(node_id.cast<size_t>(),
-                                                         max_time.cast<double>());
+                 g_min_time_window_by_node_id.clear();
+                 for (const auto& [node_id, max_time] : min_time_window_by_node_id) {
+                     g_min_time_window_by_node_id.emplace(node_id.cast<size_t>(),
+                                                          max_time.cast<double>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowExtensionFunction(g_min_time_window_by_arc_id);
+                 return TimeWindowExtensionFunction<RealResource>(g_min_time_window_by_node_id);
              }),
              py::arg("min_time_window_by_arc_id"));
 

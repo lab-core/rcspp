@@ -161,8 +161,8 @@ class VRP {
 
         Instance instance_;
 
-        std::map<size_t, int> min_time_window_by_node_id_;
-        std::map<size_t, int> max_time_window_by_node_id_;
+        std::map<size_t, double> min_time_window_by_node_id_;
+        std::map<size_t, double> max_time_window_by_node_id_;
 
         std::map<size_t, std::set<size_t>> node_set_by_node_id_;
 

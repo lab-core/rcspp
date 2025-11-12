@@ -22,13 +22,13 @@ class Extender : public ResourceType {
         Extender() : extension_function_(nullptr), arc_id_(0) {}
 
         Extender(const ResourceType& resource_base,
-                 std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+                 std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                  const size_t arc_id)
             : ResourceType(resource_base),
               extension_function_(std::move(extension_function)),
               arc_id_(arc_id) {}
 
-        Extender(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        Extender(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                  const size_t arc_id)
             : extension_function_(std::move(extension_function)), arc_id_(arc_id) {}
 
@@ -58,7 +58,7 @@ class Extender : public ResourceType {
         }
 
     private:
-        std::unique_ptr<ExpansionFunction<ResourceType>> extension_function_;
+        std::unique_ptr<ExtensionFunction<ResourceType>> extension_function_;
 
         const size_t arc_id_;
 };
@@ -75,14 +75,14 @@ class Extender<ResourceComposition<ResourceTypes...>>
         Extender() : extension_function_(nullptr), arc_id_(0) {}
 
         Extender(const ResourceComposition<ResourceTypes...>& resource_base,
-                 std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+                 std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
                      extension_function,
                  const size_t arc_id)
             : ResourceComposition<ResourceTypes...>(resource_base),
               extension_function_(std::move(extension_function)),
               arc_id_(arc_id) {}
 
-        Extender(std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+        Extender(std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
                      extension_function,
                  const size_t arc_id)
             : extension_function_(std::move(extension_function)), arc_id_(arc_id) {}
@@ -128,7 +128,7 @@ class Extender<ResourceComposition<ResourceTypes...>>
         // New attribute
         std::tuple<std::vector<std::unique_ptr<Extender<ResourceTypes>>>...> extender_components_;
 
-        std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+        std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
             extension_function_;
 
         const size_t arc_id_;

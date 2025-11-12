@@ -22,7 +22,7 @@ class ResourceFactory {
         ResourceFactory()
             : nb_resource_bases_created_(0), nb_resources_created_(0), nb_extenders_created_(0) {}
 
-        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        ResourceFactory(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
@@ -35,7 +35,7 @@ class ResourceFactory {
               nb_resources_created_(0),
               nb_extenders_created_(0) {}
 
-        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        ResourceFactory(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function)
@@ -126,7 +126,7 @@ class ResourceFactory {
         }
 
         std::unique_ptr<Resource<ResourceType>> resource_prototype_;
-        std::unique_ptr<ExpansionFunction<ResourceType>> extension_function_;
+        std::unique_ptr<ExtensionFunction<ResourceType>> extension_function_;
 
         size_t nb_resource_bases_created_;
         size_t nb_resources_created_;

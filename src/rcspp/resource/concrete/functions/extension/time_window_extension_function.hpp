@@ -11,13 +11,12 @@
 
 namespace rcspp {
 
-template <typename ResourceType>
+template <typename ResourceType,
+          typename ValueType =
+              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
 class TimeWindowExtensionFunction
-    : public Clonable<TimeWindowExtensionFunction<ResourceType>, ExpansionFunction<ResourceType>> {
+    : public Clonable<TimeWindowExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
     public:
-        using ValueType =
-            std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>;
-
         explicit TimeWindowExtensionFunction(
             const std::map<size_t, ValueType>& min_time_window_by_dest_id)
             : min_time_window_by_dest_id_(min_time_window_by_dest_id) {}

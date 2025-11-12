@@ -29,7 +29,7 @@ template <typename... ResourceTypes>
 class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     public:
         ResourceGraph(
-            std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+            std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
                 extension_function,
             std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
                 feasibility_function,
@@ -43,7 +43,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
-                  std::make_unique<CompositionExpansionFunction<ResourceTypes...>>(),
+                  std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
                   std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
                   std::make_unique<ComponentCostFunction<0, ResourceTypes...>>(0),
                   std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
@@ -55,7 +55,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         ResourceGraph& operator=(ResourceGraph&&) = delete;
 
         template <typename ResourceType>
-        void add_resource(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        void add_resource(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {

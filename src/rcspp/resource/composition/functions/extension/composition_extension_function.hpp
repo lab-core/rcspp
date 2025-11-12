@@ -13,9 +13,9 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
-class CompositionExpansionFunction
-    : public Clonable<CompositionExpansionFunction<ResourceTypes...>,
-                      ExpansionFunction<ResourceComposition<ResourceTypes...>>> {
+class CompositionExtensionFunction
+    : public Clonable<CompositionExtensionFunction<ResourceTypes...>,
+                      ExtensionFunction<ResourceComposition<ResourceTypes...>>> {
     public:
         void extend(const Resource<ResourceComposition<ResourceTypes...>>& resource,
                     const Extender<ResourceComposition<ResourceTypes...>>& extender,

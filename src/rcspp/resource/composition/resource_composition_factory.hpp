@@ -24,7 +24,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
         ResourceCompositionFactory() = default;
 
         ResourceCompositionFactory(
-            std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+            std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
                 extension_function,
             std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
                 feasibility_function,
@@ -34,6 +34,8 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             : ResourceFactory<ResourceComposition<ResourceTypes...>>(
                   std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function)) {}
+
+        virtual ~ResourceCompositionFactory() = default;
 
         std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource() override {
             return ResourceFactory<ResourceComposition<ResourceTypes...>>::make_resource();

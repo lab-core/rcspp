@@ -8,7 +8,7 @@
 
 using namespace rcspp;
 
-using RGraph = ResourceGraph<RealResource>;
+using RGraph = ResourceGraph<RealResource, IntResource>;
 
 class VRPSubproblem {
     // Solve one iteration of the subproblem of the VRPTW
@@ -41,12 +41,12 @@ class VRPSubproblem {
 
         Instance instance_;
 
-        std::map<size_t, double> min_time_window_by_arc_id_;
+        std::map<size_t, double> min_time_window_by_node_id_;
         std::map<size_t, double> max_time_window_by_node_id_;
 
         size_t path_id_;
 
-        std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
+        std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
 
         RGraph graph_;
 
@@ -54,7 +54,7 @@ class VRPSubproblem {
 
         Timer total_subproblem_time_;
 
-        std::map<size_t, std::pair<double, double>> initialize_time_windows();
+        std::map<size_t, std::pair<int, int>> initialize_time_windows();
 
         void construct_resource_graph(
         RGraph* resource_graph,
