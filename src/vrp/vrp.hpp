@@ -190,7 +190,6 @@ class VRP {
 
         std::vector<std::vector<double>> distances_;
 
-        void initialize_distances();
         std::map<size_t, std::pair<int, int>> initialize_time_windows();
         std::map<size_t, std::set<size_t>> initialize_ng_neighborhoods(size_t max_size);
 

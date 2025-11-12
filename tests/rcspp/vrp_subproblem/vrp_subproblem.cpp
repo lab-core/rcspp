@@ -183,7 +183,7 @@ void VRPSubproblem::add_arc_to_graph(RGraph* resource_graph, size_t customer_ori
         distance,
         {Row(customer_orig_id, row_coefficient)});*/
 
-    auto& arc = resource_graph->add_arc<RealResource, RealResource, IntResource>(
+    resource_graph->add_arc<RealResource, RealResource, IntResource>(
         {reduced_cost, time, demand},
         customer_orig_id,
         customer_dest_id,

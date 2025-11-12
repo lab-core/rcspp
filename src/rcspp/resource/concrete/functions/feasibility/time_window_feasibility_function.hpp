@@ -20,7 +20,7 @@ class TimeWindowFeasibilityFunction : public Clonable<TimeWindowFeasibilityFunct
         explicit TimeWindowFeasibilityFunction(
             const std::map<size_t, ValueType>& max_time_window_by_node_id)
             : max_time_window_by_node_id_(max_time_window_by_node_id),
-              max_time_window_(std::numeric_limits<ValueType>::infinity()) {}
+              max_time_window_(std::numeric_limits<ValueType>::max() / 2) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
             return resource.get_value() <= max_time_window_;

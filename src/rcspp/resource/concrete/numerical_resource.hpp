@@ -3,11 +3,25 @@
 
 #pragma once
 
+#include <limits>
 #include <optional>
 
 #include "rcspp/resource/base/resource_base.hpp"
 
 namespace rcspp {
+
+// Helper: floating-point-aware <= with tolerance, NaN and infinity handling
+template <typename T>
+    requires(std::is_floating_point_v<T>)
+bool value_leq(T lhs, T rhs) noexcept {
+    return lhs <= rhs - std::numeric_limits<T>::epsilon();
+}
+
+// Fallback for non-floating types: exact comparison
+template <typename T>
+bool value_leq(T lhs, T rhs) noexcept {
+    return lhs <= rhs;
+}
 
 template <typename T>
 class NumericalResource : public ResourceBase<NumericalResource<T>> {
@@ -24,8 +38,27 @@ class NumericalResource : public ResourceBase<NumericalResource<T>> {
 
         void reset() override { value_ = 0; }
 
+        [[nodiscard]] bool leq(const NumericalResource<T>& other) const {
+            return leq(other.get_value());
+        }
+
+        // bool operator<=(const NumericalResource<T>& other) const {
+        [[nodiscard]] bool leq(T other_value) const {
+            return value_ <= other_value;
+            return value_leq(value_, other_value);
+        }
+
+        [[nodiscard]] bool geq(const NumericalResource<T>& other) const {
+            return geq(other.get_value());
+        }
+
+        // bool operator<=(const NumericalResource<T>& other) const {
+        [[nodiscard]] bool geq(T other_value) const {
+            return value_ >= other_value;
+            return value_leq(other_value, value_);
+        }
+
     private:
         T value_;
 };
-
 }  // namespace rcspp

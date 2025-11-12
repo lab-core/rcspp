@@ -287,21 +287,6 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
     return solutions;
 }
 
-void VRP::initialize_distances() {
-    distances_.clear();
-    const size_t size = instance_.get_demand_customers_id().size() + 1;
-    distances_.reserve(size);
-    const auto& customers_by_id = instance_.get_customers_by_id();
-    for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
-        std::vector<double> dist(size, 0);
-        for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            dist[customer_dest_id] = calculate_distance(customer_orig, customer_dest);
-        }
-        dist.back() = dist.front();  // depot distance
-        distances_.emplace_back(std::move(dist));
-    }
-}
-
 std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 

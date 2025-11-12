@@ -20,7 +20,7 @@ class MinMaxFeasibilityFunction
         MinMaxFeasibilityFunction(ValueType min, ValueType max) : min_(min), max_(max) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
-            return min_ <= resource.get_value() && resource.get_value() <= max_;
+            return resource.geq(min_) && resource.leq(max_);
         }
 
     private:
