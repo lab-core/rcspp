@@ -14,7 +14,7 @@ class TrivialDominanceFunction
     public:
         bool check_dominance(const Resource<ResourceType>& lhs_resource,
                              const Resource<ResourceType>& rhs_resource) override {
-            return false;
+            return true;
         }
 };
 }  // namespace rcspp

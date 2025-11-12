@@ -64,13 +64,14 @@ class VRP {
                         if (!sols.empty()) {
                             // RCSPP can be better as it uses int for some resources (e.g., load,
                             // time)
-                            if (sols[0].cost - solutions_boost[0].cost > COST_COMPARISON_EPSILON) {
-                                LOG_ERROR("BOOST solution is better than RCSPP (",
+                            if (abs(sols[0].cost - solutions_boost[0].cost) >
+                                COST_COMPARISON_EPSILON) {
+                                LOG_ERROR("RCSPP solution is different of BOOST (",
                                           algo_index,
                                           ") solution: ",
-                                          solutions_boost[0].cost,
-                                          " vs ",
                                           sols[0].cost,
+                                          " vs ",
+                                          solutions_boost[0].cost,
                                           "\n");
                             }
                         } else {
@@ -171,7 +172,8 @@ class VRP {
         std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
         std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id_;
 
-        // Resource graph. need to be loaded after time windows and ng neighborhoods are initialized
+        // Resource graph. needs to be loaded after time windows and ng neighborhoods are
+        // initialized
         RGraph graph_;
 
         std::optional<SolutionOutput> solution_output_;

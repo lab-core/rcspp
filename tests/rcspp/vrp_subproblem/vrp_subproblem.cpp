@@ -34,11 +34,11 @@ std::map<size_t, std::pair<int, int>> VRPSubproblem::initialize_time_windows() {
     size_t sink_id = customers_by_id.size();
     time_window_by_customer_id.emplace(
         sink_id,
-        std::pair<int, int>{0, std::numeric_limits<int>::max()});
+        std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});
 
     for (const auto& [customer_id, customer] : customers_by_id) {
         int min_time = 0;
-        int max_time = std::numeric_limits<int>::max();
+        int max_time = std::numeric_limits<int>::max() / 2;
         if (time_window_by_customer_id.contains(customer_id)) {
             min_time = time_window_by_customer_id.at(customer_id).first;
             max_time = time_window_by_customer_id.at(customer_id).second;
@@ -48,7 +48,7 @@ std::map<size_t, std::pair<int, int>> VRPSubproblem::initialize_time_windows() {
     }
 
     int min_time = 0;
-    int max_time = std::numeric_limits<int>::max();
+    int max_time = std::numeric_limits<int>::max() / 2;
     if (time_window_by_customer_id.contains(sink_id)) {
         min_time = time_window_by_customer_id.at(sink_id).first;
         max_time = time_window_by_customer_id.at(sink_id).second;

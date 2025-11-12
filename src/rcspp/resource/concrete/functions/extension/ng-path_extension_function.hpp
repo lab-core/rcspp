@@ -26,9 +26,8 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
                     Resource<ResourceType>* extended_resource) override {
             // keep only the nodes in the neighborhood of the origin node of the arc
             auto intersection_container = resource.get_intersection(ng_neighborhood_.get_value());
-            extended_resource->set_value(intersection_container);
             // then, add the extender value (which is the origin node of the arc normally)
-            intersection_container = extended_resource->get_union(extender.get_value());
+            intersection_container = extender.get_union(intersection_container);
             extended_resource->set_value(intersection_container);
         }
 

@@ -204,11 +204,11 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
 
         // RCSPP can be better as it uses int for some resources (e.g., load, time)
-        if (solutions_rcspp[0].cost - solutions_boost[0].cost > COST_COMPARISON_EPSILON) {
-            LOG_ERROR("BOOST solution is better than RCSPP:",
-                      solutions_boost[0].cost,
-                      " vs ",
+        if (abs(solutions_rcspp[0].cost - solutions_boost[0].cost) > COST_COMPARISON_EPSILON) {
+            LOG_ERROR("RCSPP solution is different of BOOST:",
                       solutions_rcspp[0].cost,
+                      " vs ",
+                      solutions_boost[0].cost,
                       "\n");
             // break;
         }
@@ -317,12 +317,12 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
     const auto& source_customer = customers_by_id.at(0);
     size_t sink_id = customers_by_id.size();
     time_window_by_customer_id.emplace(sink_id,
-                                       std::pair<int, int>{0, std::numeric_limits<int>::max()});
-    max_time_window_by_node_id_.emplace(0, std::numeric_limits<int>::max());
+                                       std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});
+    max_time_window_by_node_id_.emplace(0, std::numeric_limits<int>::max() / 2);
     node_set_by_node_id_.emplace(0, std::set<size_t>{0});
 
     int min_time = 0;
-    int max_time = std::numeric_limits<int>::max();
+    int max_time = std::numeric_limits<int>::max() / 2;
     if (time_window_by_customer_id.contains(sink_id)) {
         min_time = time_window_by_customer_id.at(sink_id).first;
         max_time = time_window_by_customer_id.at(sink_id).second;
@@ -333,7 +333,7 @@ std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
 
     for (const auto& [customer_id, customer] : customers_by_id) {
         int min_time = 0;
-        int max_time = std::numeric_limits<int>::max();
+        int max_time = std::numeric_limits<int>::max() / 2;
         if (time_window_by_customer_id.contains(customer_id)) {
             min_time = time_window_by_customer_id.at(customer_id).first;
             max_time = time_window_by_customer_id.at(customer_id).second;

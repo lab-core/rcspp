@@ -39,12 +39,6 @@ template <typename ResourceType, typename... ResourceTypes>
     requires(ResourceTypeIndex<ResourceType, ResourceTypes...>::value != -1)
 inline constexpr int ResourceTypeIndex_v = ResourceTypeIndex<ResourceType, ResourceTypes...>::value;
 
-// // safe version that requires ResourceType to be in ResourceTypes...
-// template <typename ResourceType, typename... ResourceTypes>
-//     requires(UnsafeResourceTypeIndex_v<ResourceType, ResourceTypes...> != -1)
-// inline constexpr size_t ResourceTypeIndex_v =
-//     ResourceTypeIndex<ResourceType, ResourceTypes...>::value;
-
 // ResourceType to ResourceInitializerTypeTuple
 // Extracts the initializer type tuple for a given ResourceType
 // Default implementation deduces the value type from ResourceType::get_value().

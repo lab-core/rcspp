@@ -250,7 +250,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
         void ensure_size(ValueType requested_nb_bits) {
             const size_t new_words = (requested_nb_bits + 63) / 64;
-            if (this->size() < new_words) {
+            if (this->container_.size() < new_words) {
                 this->container_.resize(new_words, 0ULL);
             }
         }
