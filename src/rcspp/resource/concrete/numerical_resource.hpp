@@ -14,13 +14,26 @@ namespace rcspp {
 template <typename T>
     requires(std::is_floating_point_v<T>)
 bool value_leq(T lhs, T rhs) noexcept {
-    return lhs <= rhs - std::numeric_limits<T>::epsilon();
+    return lhs <= rhs + std::numeric_limits<T>::epsilon();
 }
 
 // Fallback for non-floating types: exact comparison
 template <typename T>
 bool value_leq(T lhs, T rhs) noexcept {
     return lhs <= rhs;
+}
+
+// Helper: floating-point-aware <= with tolerance, NaN and infinity handling
+template <typename T>
+    requires(std::is_floating_point_v<T>)
+bool value_lt(T lhs, T rhs) noexcept {
+    return lhs < rhs - std::numeric_limits<T>::epsilon();
+}
+
+// Fallback for non-floating types: exact comparison
+template <typename T>
+bool value_lt(T lhs, T rhs) noexcept {
+    return lhs < rhs;
 }
 
 template <typename T>
