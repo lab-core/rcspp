@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <mutex>  // NOLINT(build/c++11)
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -188,6 +189,15 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 return {};
             }
 
+            // try to acquire the mutex without blocking
+            std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+            if (!lock.owns_lock()) {
+                LOG_WARN(
+                    "ResourceGraph::solve: Cannot lock the mutex. Concurrent solves are not "
+                    "allowed.");
+                return {};
+            }
+
             std::vector<std::unique_ptr<Preprocessor<ResourceComposition<ResourceTypes...>>>>
                 preprocessors;
             if (preprocess) {
@@ -268,5 +278,6 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         ConnectivityMatrix<ResourceComposition<ResourceTypes...>> connectivityMatrix_;
+        std::mutex mutex_;
 };
 }  // namespace rcspp
