@@ -31,8 +31,8 @@ class IntersectFeasibilityFunction : public Clonable<IntersectFeasibilityFunctio
         const std::map<size_t, ValueType>& forbidden_by_node_id_;
         ResourceType forbidden_;
 
-        void preprocess() override {
-            forbidden_.set_value(forbidden_by_node_id_.at(this->node_id_));
+        void preprocess(size_t node_id) override {
+            forbidden_.set_value(forbidden_by_node_id_.at(node_id));
         }
 };
 }  // namespace rcspp

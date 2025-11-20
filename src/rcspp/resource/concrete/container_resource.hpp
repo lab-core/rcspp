@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>      // NOLINT
 #include <cstdint>  // NOLINT
 #include <iterator>
 #include <set>
@@ -146,7 +147,8 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         }
 
         void set_value(Container container) override {
-            ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(container);
+            ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(
+                std::move(container));
         }
 
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division
@@ -233,7 +235,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
                 if (w == 0ULL) {
                     continue;
                 }
-                const unsigned msb = 63U - static_cast<unsigned>(__builtin_clzll(w));
+                const unsigned msb = 63U - static_cast<unsigned>(std::countl_zero(w));
                 return (i - 1) * 64 + static_cast<size_t>(msb) + 1;  // NOLINT
             }
             return 0;

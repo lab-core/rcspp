@@ -20,7 +20,7 @@ class TimeWindowFeasibilityFunction : public Clonable<TimeWindowFeasibilityFunct
         explicit TimeWindowFeasibilityFunction(
             const std::map<size_t, ValueType>& max_time_window_by_node_id)
             : max_time_window_by_node_id_(max_time_window_by_node_id),
-              max_time_window_(std::numeric_limits<ValueType>::max() / 2) {}
+              max_time_window_(std::numeric_limits<ValueType>::max() / 2) {}  // prevent overflow
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
             return resource.get_value() <= max_time_window_;
@@ -31,8 +31,8 @@ class TimeWindowFeasibilityFunction : public Clonable<TimeWindowFeasibilityFunct
 
         ValueType max_time_window_;
 
-        void preprocess() override {
-            max_time_window_ = max_time_window_by_node_id_.at(this->node_id_);
+        void preprocess(size_t node_id) override {
+            max_time_window_ = max_time_window_by_node_id_.at(node_id);
         }
 };
 }  // namespace rcspp

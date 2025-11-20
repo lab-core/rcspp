@@ -23,23 +23,13 @@ class CostFunction {
 
         auto create(const size_t node_id) -> std::unique_ptr<CostFunction> {
             auto new_cost_function = clone();
-
-            new_cost_function->node_id_ = node_id;
-
-            new_cost_function->preprocess();
-
+            new_cost_function->preprocess(node_id);
             return new_cost_function;
         }
 
-        virtual void reset(const size_t node_id) {
-            node_id_ = node_id;
-
-            preprocess();
-        }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        size_t node_id_;
-
-        virtual void preprocess() {}
+        virtual void preprocess(size_t node_id) {}
 };
 }  // namespace rcspp

@@ -22,23 +22,13 @@ class FeasibilityFunction {
 
         virtual auto create(const size_t node_id) -> std::unique_ptr<FeasibilityFunction> {
             auto new_feasibility_function = clone();
-
-            new_feasibility_function->node_id_ = node_id;
-
-            new_feasibility_function->preprocess();
-
+            new_feasibility_function->preprocess(node_id);
             return new_feasibility_function;
         }
 
-        virtual void reset(const size_t node_id) {
-            node_id_ = node_id;
-
-            preprocess();
-        }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        size_t node_id_ = 0;
-
-        virtual void preprocess() {}
+        virtual void preprocess(size_t node_id) {}
 };
 }  // namespace rcspp

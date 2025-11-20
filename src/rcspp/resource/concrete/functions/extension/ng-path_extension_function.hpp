@@ -36,9 +36,8 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
         const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_origin_id_;
         ResourceType ng_neighborhood_;
 
-        template <typename GraphResourceType>
-        void preprocess(const Arc<GraphResourceType>& arc) {
-            ng_neighborhood_.set_value(ng_neighborhood_by_origin_id_.at(arc.origin->id));
+        void preprocess(size_t origin_id, size_t /* destination_id */) override {
+            ng_neighborhood_.set_value(ng_neighborhood_by_origin_id_.at(origin_id));
         }
 };
 

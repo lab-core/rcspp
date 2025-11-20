@@ -23,23 +23,13 @@ class DominanceFunction {
 
         auto create(const size_t node_id) -> std::unique_ptr<DominanceFunction> {
             auto new_dominance_function = clone();
-
-            new_dominance_function->node_id_ = node_id;
-
-            new_dominance_function->preprocess();
-
+            new_dominance_function->preprocess(node_id);
             return new_dominance_function;
         }
 
-        virtual void reset(const size_t node_id) {
-            node_id_ = node_id;
-
-            preprocess();
-        }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        size_t node_id_;
-
-        virtual void preprocess() {}
+        virtual void preprocess(size_t node_id) {}
 };
 }  // namespace rcspp

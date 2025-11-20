@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
-#include <mutex>  // NOLINT(build/c++11)
+#include <mutex>  // NOLINT
 #include <tuple>
 #include <utility>
 #include <vector>

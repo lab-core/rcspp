@@ -32,18 +32,11 @@ class ExtensionFunction {
         template <typename GraphResourceType>
         auto create(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtensionFunction> {
             auto new_extension_function = clone();
-
-            new_extension_function->arc_id_ = arc.id;
-
-            new_extension_function->preprocess(arc);
-
+            new_extension_function->preprocess(arc.origin->id, arc.destination->id);
             return new_extension_function;
         }
 
-        size_t arc_id_;
-
     protected:
-        template <typename GraphResourceType>
-        void preprocess(const Arc<GraphResourceType>& arc) {}
+        virtual void preprocess(size_t origin_id, size_t destination_id) {}
 };
 }  // namespace rcspp

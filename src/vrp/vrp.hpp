@@ -66,7 +66,7 @@ class VRP {
                             // time)
                             if (abs(sols[0].cost - solutions_boost[0].cost) >
                                 COST_COMPARISON_EPSILON) {
-                                LOG_ERROR("RCSPP solution is different of BOOST (",
+                                LOG_ERROR("RCSPP solution is different from BOOST (",
                                           algo_index,
                                           ") solution: ",
                                           sols[0].cost,

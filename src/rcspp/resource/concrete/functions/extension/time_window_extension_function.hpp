@@ -32,9 +32,8 @@ class TimeWindowExtensionFunction
         const std::map<size_t, ValueType>& min_time_window_by_dest_id_;
         ValueType min_time_window_{0};
 
-        template <typename GraphResourceType>
-        void preprocess(const Arc<GraphResourceType>& arc) {
-            min_time_window_ = min_time_window_by_dest_id_.at(arc.destination->id);
+        void preprocess(size_t /* origin_id */, size_t destination_id) override {
+            min_time_window_ = min_time_window_by_dest_id_.at(destination_id);
         }
 };
 }  // namespace rcspp
