@@ -15,7 +15,8 @@ template <typename ResourceType,
           typename ValueType =
               std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
 class MinMaxFeasibilityFunction
-    : public Clonable<MinMaxFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
+    : public Clonable<MinMaxFeasibilityFunction<ResourceType, ValueType>,
+                      FeasibilityFunction<ResourceType>> {
     public:
         MinMaxFeasibilityFunction(ValueType min, ValueType max) : min_(min), max_(max) {}
 

@@ -401,15 +401,14 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     //     std::make_unique<TrivialCostFunction<NodeResource>>(),
     //     std::make_unique<InclusionDominanceFunction<NodeResource>>());
 
-    // // NG path
-    // using NgResource = SizeTBitsetResource;
-    // resource_graph->add_resource<NgResource>(
-    //     std::make_unique<NgPathExtensionFunction<SizeTBitsetResource, size_t>>(
-    //         ng_neighborhood_customer_id_),
-    //     std::make_unique<IntersectFeasibilityFunction<NgResource, std::set<size_t>>>(
-    //         node_set_by_node_id_),
-    //     std::make_unique<TrivialCostFunction<NgResource>>(),
-    //     std::make_unique<InclusionDominanceFunction<NgResource>>());
+    // NG path
+    using NgResource = SizeTBitsetResource;
+    resource_graph->add_resource<NgResource>(
+        std::make_unique<NgPathExtensionFunction<NgResource, size_t>>(ng_neighborhood_customer_id_),
+        std::make_unique<IntersectFeasibilityFunction<NgResource, std::set<size_t>>>(
+            node_set_by_node_id_),
+        std::make_unique<TrivialCostFunction<NgResource>>(),
+        std::make_unique<InclusionDominanceFunction<NgResource>>());
 
     add_all_nodes_to_graph(resource_graph);
 
@@ -501,19 +500,20 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    // resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
-    //     {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
-    //     customer_orig_id,
-    //     customer_dest_id,
-    //     arc_id,
-    //     distance,
-    //     {Row(customer_orig_id, 1.0)});
-    resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
-                                                                     customer_orig_id,
-                                                                     customer_dest_id,
-                                                                     arc_id,
-                                                                     distance,
-                                                                     {Row(customer_orig_id, 1.0)});
+    resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
+        {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
+        customer_orig_id,
+        customer_dest_id,
+        arc_id,
+        distance,
+        {Row(customer_orig_id, 1.0)});
+    // resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time,
+    // demand},
+    //                                                                  customer_orig_id,
+    //                                                                  customer_dest_id,
+    //                                                                  arc_id,
+    //                                                                  distance,
+    //                                                                  {Row(customer_orig_id, 1.0)});
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

@@ -16,8 +16,9 @@ namespace rcspp {
 template <typename ResourceType,
           typename ValueType =
               std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
-class IntersectFeasibilityFunction : public Clonable<IntersectFeasibilityFunction<ResourceType>,
-                                                     FeasibilityFunction<ResourceType>> {
+class IntersectFeasibilityFunction
+    : public Clonable<IntersectFeasibilityFunction<ResourceType, ValueType>,
+                      FeasibilityFunction<ResourceType>> {
     public:
         explicit IntersectFeasibilityFunction(
             const std::map<size_t, ValueType>& forbidden_by_node_id)

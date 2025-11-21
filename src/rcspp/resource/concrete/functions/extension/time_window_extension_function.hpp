@@ -15,7 +15,8 @@ template <typename ResourceType,
           typename ValueType =
               std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
 class TimeWindowExtensionFunction
-    : public Clonable<TimeWindowExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
+                      ExtensionFunction<ResourceType>> {
     public:
         explicit TimeWindowExtensionFunction(
             const std::map<size_t, ValueType>& min_time_window_by_dest_id)

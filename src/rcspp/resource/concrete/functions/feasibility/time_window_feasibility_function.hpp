@@ -14,8 +14,9 @@ namespace rcspp {
 template <typename ResourceType,
           typename ValueType =
               std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
-class TimeWindowFeasibilityFunction : public Clonable<TimeWindowFeasibilityFunction<ResourceType>,
-                                                      FeasibilityFunction<ResourceType>> {
+class TimeWindowFeasibilityFunction
+    : public Clonable<TimeWindowFeasibilityFunction<ResourceType, ValueType>,
+                      FeasibilityFunction<ResourceType>> {
     public:
         explicit TimeWindowFeasibilityFunction(
             const std::map<size_t, ValueType>& max_time_window_by_node_id)
