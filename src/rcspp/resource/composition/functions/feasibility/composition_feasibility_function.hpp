@@ -18,53 +18,28 @@ class CompositionFeasibilityFunction
 
         bool is_feasible(
             const Resource<ResourceComposition<ResourceTypes...>>& resource_composition) override {
-            // bool is_feasible = true;
-            is_feasible_ = true;
-
             const auto& resource_components = resource_composition.get_resource_components();
 
-            /*const auto is_res_feas_function = [&](const auto& sing_res_vec) {
-              for (auto&& res_comp : sing_res_vec) {
-                if (!res_comp->is_feasible()) {
-                  is_feasible = false;
-                  break;
-                }
-
-              };
-
-              return is_feasible;
-
-              };*/
-
-            // std::apply([&](auto && ... args) {
-
-            //  // The && operator acts as a break in the fold expression.
-            //  (is_res_feas_function(args) && ...);
-
-            //  }, resource_components);
-
+            bool is_feasible = true;
             std::apply(
                 [&](auto&&... args) {
                     // The && operator acts as a break in the fold expression.
-                    (check_feasibility(args) && ...);
+                    (check_feasibility(args, &is_feasible) && ...);
                 },
                 resource_components);
 
-            return is_feasible_;
+            return is_feasible;
         }
 
     private:
-        bool is_feasible_{true};
-
-        bool check_feasibility(const auto& sing_res_vec) {
+        bool check_feasibility(const auto& sing_res_vec, bool* is_feasible) {
             for (auto&& res_comp : sing_res_vec) {
                 if (!res_comp->is_feasible()) {
-                    is_feasible_ = false;
-                    break;
+                    *is_feasible = false;
+                    return false;
                 }
             }
-
-            return is_feasible_;
+            return true;
         }
 };
 }  // namespace rcspp

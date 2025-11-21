@@ -14,6 +14,8 @@
 
 using namespace rcspp;
 
+using RGraph = ResourceGraph<RealResource, IntResource, SizeTBitsetResource>;
+
 class VRP {
     public:
         VRP(Instance instance);
@@ -60,14 +62,16 @@ class VRP {
 
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
-                            if (std::abs(solutions_boost[0].cost - sols[0].cost) >
+                            // RCSPP can be better as it uses int for some resources (e.g., load,
+                            // time)
+                            if (abs(sols[0].cost - solutions_boost[0].cost) >
                                 COST_COMPARISON_EPSILON) {
-                                LOG_ERROR("BOOST and RCSPP (",
+                                LOG_ERROR("RCSPP solution is different from BOOST (",
                                           algo_index,
-                                          ") first-solution costs differ beyond tolerance: ",
-                                          solutions_boost[0].cost,
-                                          " vs ",
+                                          ") solution: ",
                                           sols[0].cost,
+                                          " vs ",
+                                          solutions_boost[0].cost,
                                           "\n");
                             }
                         } else {
@@ -135,7 +139,7 @@ class VRP {
                          std::fixed,
                          std::setprecision(std::numeric_limits<double>::max_digits10),
                          min_reduced_cost,
-                         " | paths_added=",
+                         " | paths_generated=",
                          negative_red_cost_solutions.size(),
                          " | EPSILON=",
                          EPSILON,
@@ -158,14 +162,19 @@ class VRP {
 
         Instance instance_;
 
-        std::map<size_t, double> min_time_window_by_arc_id_;
+        std::map<size_t, double> min_time_window_by_node_id_;
         std::map<size_t, double> max_time_window_by_node_id_;
+
+        std::map<size_t, std::set<size_t>> node_set_by_node_id_;
 
         size_t path_id_ = 0;
 
-        std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
+        std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
+        std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id_;
 
-        ResourceGraph<RealResource> graph_;
+        // Resource graph. needs to be loaded after time windows and ng neighborhoods are
+        // initialized
+        RGraph graph_;
 
         std::optional<SolutionOutput> solution_output_;
 
@@ -179,20 +188,22 @@ class VRP {
         Timer total_subproblem_time_boost_;
         Timer total_subproblem_solve_time_boost_;
 
-        std::map<size_t, std::pair<double, double>> initialize_time_windows();
+        std::vector<std::vector<double>> distances_;
 
-        void construct_resource_graph(ResourceGraph<RealResource>* graph,
+        std::map<size_t, std::pair<int, int>> initialize_time_windows();
+        std::map<size_t, std::set<size_t>> initialize_ng_neighborhoods(size_t max_size);
+
+        void construct_resource_graph(RGraph* graph,
                                       const std::map<size_t, double>* dual_by_id = nullptr);
 
-        void update_resource_graph(ResourceGraph<RealResource>* resource_graph,
+        void update_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id);
 
-        void add_all_nodes_to_graph(ResourceGraph<RealResource>* graph);
+        void add_all_nodes_to_graph(RGraph* graph);
 
-        void add_all_arcs_to_graph(ResourceGraph<RealResource>* graph,
-                                   const std::map<size_t, double>* dual_by_id);
+        void add_all_arcs_to_graph(RGraph* graph, const std::map<size_t, double>* dual_by_id);
 
-        static void add_arc_to_graph(ResourceGraph<RealResource>* graph, size_t customer_orig_id,
+        static void add_arc_to_graph(RGraph* graph, size_t customer_orig_id,
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
                                      const std::map<size_t, double>* dual_by_id, size_t arc_id);

@@ -6,21 +6,22 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <mutex>  // NOLINT
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/connectivity_matrix.hpp"
 #include "rcspp/algorithm/feasibility_preprocessor.hpp"
+#include "rcspp/algorithm/shortest_path_connectivity_sort.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
-#include "rcspp/algorithm/shortest_path_sort.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
@@ -29,7 +30,7 @@ template <typename... ResourceTypes>
 class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     public:
         ResourceGraph(
-            std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+            std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
                 extension_function,
             std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
                 feasibility_function,
@@ -43,10 +44,10 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
-                  std::make_unique<CompositionExpansionFunction<RealResource>>(),
-                  std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
-                  std::make_unique<ComponentCostFunction<0, RealResource>>(0),
-                  std::make_unique<CompositionDominanceFunction<RealResource>>())),
+                  std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
+                  std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
+                  std::make_unique<ComponentCostFunction<0, ResourceTypes...>>(0),
+                  std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
               connectivityMatrix_(this) {}
 
         ResourceGraph(const ResourceGraph&) = delete;
@@ -55,11 +56,12 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         ResourceGraph& operator=(ResourceGraph&&) = delete;
 
         template <typename ResourceType>
-        void add_resource(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        void add_resource(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
@@ -95,7 +97,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                     .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
                         resource_consumption);
 
-            auto extender = resource_factory_.make_extender(*resource_base, arc.id);
+            auto extender = resource_factory_.make_extender(*resource_base, arc);
 
             arc.extender = std::move(extender);
 
@@ -109,36 +111,29 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             size_t origin_node_id, size_t destination_node_id,
             std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
             std::vector<Row> dual_rows = {}) {
+            // build the full resource consumption tuple from the extender resource consumption
             std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
-
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 (([&] {
                      using ExtenderType =
                          std::tuple_element_t<Is, std::tuple<ExtenderResourceTypes...>>;
-                     constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ExtenderType>;
+                     constexpr size_t ResourceTypeIndex =
+                         ResourceTypeIndex_v<ExtenderType, ResourceTypes...>;
                      auto& res_vec = std::get<ResourceTypeIndex>(resource_consumption);
                      const auto& res_cons = std::get<Is>(extender_resource_consumption);
                      res_vec.push_back(res_cons);  // push a single resource consumption
                  }()),
                  ...);
             };  // NOLINT
-
             apply_indices(std::make_index_sequence<sizeof...(ExtenderResourceTypes)>{});
 
-            auto& arc = Graph<ResourceComposition<ResourceTypes...>>::add_arc(origin_node_id,
-                                                                              destination_node_id,
-                                                                              arc_id,
-                                                                              cost,
-                                                                              dual_rows);
-            auto resource_base =
-                resource_factory_
-                    .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
-                        resource_consumption);
-            auto extender = resource_factory_.make_extender(*resource_base, arc.id);
-            arc.extender = std::move(extender);
-
-            return arc;
+            return add_arc(resource_consumption,
+                           origin_node_id,
+                           destination_node_id,
+                           arc_id,
+                           cost,
+                           dual_rows);
         }
 
         ResourceCompositionFactory<ResourceTypes...>& get_resource_factory() {
@@ -162,7 +157,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             Arc<ResourceComposition<ResourceTypes...>>* arc, std::size_t resource_index,
             const ResourceInitializerTypeTuple_t<ResourceType>& single_resource_consumption,
             std::optional<double> cost = std::nullopt) {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
 
             resource_factory_.template update_extender<ResourceInitializerTypeTuple_t<ResourceType>,
                                                        ResourceTypeIndex>(
@@ -176,7 +172,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         // sort nodes by connectivity, break cycles on cost
-        template <template <typename, typename...> class SortType = ShortestPathSort,
+        template <template <typename, typename...> class SortType = ShortestPathConnectivitySort,
                   typename CostResourceType = RealResource>
         void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,
@@ -193,6 +189,15 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 return {};
             }
 
+            // try to acquire the mutex without blocking
+            std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+            if (!lock.owns_lock()) {
+                LOG_WARN(
+                    "ResourceGraph::solve: Cannot lock the mutex. Concurrent solves are not "
+                    "allowed.");
+                return {};
+            }
+
             std::vector<std::unique_ptr<Preprocessor<ResourceComposition<ResourceTypes...>>>>
                 preprocessors;
             if (preprocess) {
@@ -200,8 +205,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 // initialize or update connectivity matrix
                 if (this->is_modified()) {
                     process_feasibility();
-                    is_connected(this->get_source_node_ids().front(),
-                                 this->get_sink_node_ids().front());
+                    connectivityMatrix_.compute_bitmatrix();
                 }
 
                 // if not sorted, use default sort by connectivity
@@ -274,5 +278,6 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         ConnectivityMatrix<ResourceComposition<ResourceTypes...>> connectivityMatrix_;
+        std::mutex mutex_;
 };
 }  // namespace rcspp

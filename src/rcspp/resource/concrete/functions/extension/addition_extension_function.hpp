@@ -10,10 +10,13 @@
 namespace rcspp {
 
 template <typename ResourceType>
-class TrivialExtensionFunction
-    : public Clonable<TrivialExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+class AdditionExtensionFunction
+    : public Clonable<AdditionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
     public:
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* reused_resource) override {}
+                    Resource<ResourceType>* extended_resource) override {
+            auto sum_value = resource.get_value() + extender.get_value();
+            extended_resource->set_value(sum_value);
+        }
 };
 }  // namespace rcspp

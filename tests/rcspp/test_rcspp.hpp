@@ -22,7 +22,7 @@ bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* v
         LOG_DEBUG("cost=", cost, '\n');
 
         if (std::abs(cost - optimal_cost) > 1e-9) {
-            LOG_ERROR("Difference with optimal cost: ", std::abs(cost - optimal_cost), '\n');
+            LOG_ERROR("Difference with optimal cost: ", std::abs(cost - optimal_cost), ": ", cost, " vs ", optimal_cost, '\n');
             return false;
         }
     } else {
