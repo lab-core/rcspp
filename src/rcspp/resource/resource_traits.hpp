@@ -69,6 +69,7 @@ class SetResource;
 using RealSetResource = SetResource<double>;
 using IntSetResource = SetResource<int>;
 using UIntSetResource = SetResource<unsigned int>;
+using SizeTSetResource = SetResource<size_t>;
 
 template <typename T>
 class BitsetResource;

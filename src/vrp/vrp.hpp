@@ -14,7 +14,7 @@
 
 using namespace rcspp;
 
-using RGraph = ResourceGraph<RealResource, IntResource, SizeTBitsetResource>;
+using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 
 class VRP {
     public:

@@ -124,6 +124,42 @@ class Extender<ResourceComposition<ResourceTypes...>>
             return extender_components_;
         }
 
+        template <size_t ResourceTypeIndex>
+        [[nodiscard]] auto get_extender_components() -> auto& {
+            return std::get<ResourceTypeIndex>(extender_components_);
+        }
+
+        template <size_t ResourceTypeIndex>
+        [[nodiscard]] auto get_extender_components() const -> const auto& {
+            return std::get<ResourceTypeIndex>(extender_components_);
+        }
+
+        template <size_t ResourceTypeIndex>
+        [[nodiscard]] auto get_extender_component(size_t resource_index) const -> const auto& {
+            return *(std::get<ResourceTypeIndex>(extender_components_)[resource_index]);
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_extender_components() -> auto& {
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+            return get_extender_components<ResourceTypeIndex>();
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_extender_components() const -> const auto& {
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+            return get_extender_components<ResourceTypeIndex>();
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_extender_component(size_t resource_index) const -> const auto& {
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+            return get_extender_component<ResourceTypeIndex>(resource_index);
+        }
+
     private:
         // New attribute
         std::tuple<std::vector<std::unique_ptr<Extender<ResourceTypes>>>...> extender_components_;

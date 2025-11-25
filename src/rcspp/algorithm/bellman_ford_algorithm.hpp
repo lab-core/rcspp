@@ -53,7 +53,7 @@ class BellmanFordAlgorithm {
                 if (cost_index.has_value()) {
                     const CostResourceType& origin_cost_resource =
                         arc->origin->resource->template get_resource_component<CostResourceType>(
-                            static_cast<size_t>(cost_index.value()));
+                            cost_index.value());
                     double origin_cost = origin_cost_resource.get_value();
                     // extend the resource
                     Resource<ResourceComposition<ResourceTypes...>> resource(
@@ -62,7 +62,7 @@ class BellmanFordAlgorithm {
                     // fetch the new value of the cost resource
                     const CostResourceType& cost_resource =
                         resource.template get_resource_component<CostResourceType>(
-                            static_cast<size_t>(cost_index.value()));
+                            cost_index.value());
                     double cost = cost_resource.get_value();
                     // compute the weight, i.e., cost difference
                     arc_relaxations.emplace_back(arc->origin->id,

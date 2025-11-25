@@ -21,6 +21,7 @@ class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<R
                                  double upper_bound, size_t cost_index = 0)
             : Preprocessor<ResourceComposition<ResourceTypes...>>(graph),
               graph_(graph),
+              cost_index_(cost_index),
               upper_bound_(upper_bound) {
             if (std::isinf(upper_bound)) {
                 Preprocessor<ResourceComposition<ResourceTypes...>>::disable_preprocessing_ = true;
@@ -46,12 +47,16 @@ class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<R
 
     private:
         Distance dist_from_sources_, dist_to_sinks_;
+        size_t cost_index_;
         double upper_bound_;
         // pointer to the graph for traversal and connectivity queries
         Graph<ResourceComposition<ResourceTypes...>>* graph_;
 
         bool remove_arc(const Arc<ResourceComposition<ResourceTypes...>>& arc) override {
-            return dist_from_sources_.at(arc.origin->id) + arc.cost +
+            const CostResourceType& arc_cost_extender =
+                arc.extender->template get_extender_component<CostResourceType>(cost_index_);
+            double arc_cost = arc_cost_extender.get_value();
+            return dist_from_sources_.at(arc.origin->id) + arc_cost +
                        dist_to_sinks_.at(arc.destination->id) >
                    upper_bound_;
         }
