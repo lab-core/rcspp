@@ -53,7 +53,7 @@ const std::vector<Path>& VRP::generate_initial_paths() {
 
         paths_.emplace_back(path_id_,
                             path_cost,
-                            std::vector<size_t>{depot_customer.id, customer_id, depot_customer.id});
+                            std::list<size_t>{depot_customer.id, customer_id, depot_customer.id});
 
         path_id_++;
     }

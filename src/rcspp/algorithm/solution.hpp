@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include <vector>
+#include <list>
 
 namespace rcspp {
 
 struct Solution {
         double cost;
-        std::vector<size_t> path_node_ids;
-        std::vector<size_t> path_arc_ids;
+        std::list<size_t> path_node_ids;
+        std::list<size_t> path_arc_ids;
 };
 }  // namespace rcspp

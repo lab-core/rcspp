@@ -15,7 +15,7 @@
 #include "rcspp/algorithm/feasibility_preprocessor.hpp"
 #include "rcspp/algorithm/shortest_path_connectivity_sort.hpp"
 #include "rcspp/algorithm/shortest_path_preprocessor.hpp"
-#include "rcspp/algorithm/simple_dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
@@ -183,7 +183,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, int cost_index = 0) {
+                                    AlgorithmParams params = {}, bool preprocess = true,
+                                    int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -230,8 +231,10 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
 
             // solve the rcspp
+            params.cost_upper_bound = upper_bound;
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
-                                                                           *this);
+                                                                           *this,
+                                                                           params);
             std::vector<Solution> sols = algorithm.solve();
 
             // restore the removed arcs for the next resolution

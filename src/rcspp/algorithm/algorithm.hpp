@@ -8,6 +8,7 @@
 #include <concepts>  // NOLINT(build/include_order)
 #include <iostream>
 #include <limits>
+#include <list>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -20,16 +21,40 @@
 namespace rcspp {
 
 template <typename ResourceType>
+using LabelIterator = std::list<Label<ResourceType>*>::iterator;
+
+template <typename ResourceType>
+using LabelIteratorPair =
+    std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
+
+struct AlgorithmParams {
+        AlgorithmParams& normalize() {
+            if (stop_after_X_solutions < std::numeric_limits<size_t>::max() &&
+                !return_dominated_solutions) {
+                LOG_WARN(
+                    "AlgorithmParams: return_dominated_solutions is set to true since "
+                    "stop_after_X_solutions < MAX.\n");
+                return_dominated_solutions = true;  // need to return dominated solutions
+            }
+            return *this;
+        }
+
+        double cost_upper_bound = std::numeric_limits<double>::infinity();
+        size_t stop_after_X_solutions = std::numeric_limits<size_t>::max();
+        bool return_dominated_solutions = false;
+        bool use_pool = true;
+};
+
+template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
     public:
         Algorithm(ResourceFactory<ResourceType>* resource_factory, const Graph<ResourceType>& graph,
-                  bool use_pool = true)
+                  AlgorithmParams params)
             : label_pool_(LabelPool<ResourceType>(
-                  std::make_unique<LabelFactory<ResourceType>>(resource_factory), use_pool)),
+                  std::make_unique<LabelFactory<ResourceType>>(resource_factory), params.use_pool)),
               graph_(graph),
-              cost_upper_bound_(std::numeric_limits<double>::infinity()),
-              best_label_(nullptr) {
+              params_(std::move(params.normalize())) {
             if (!graph_.get_sorted_nodes().empty() && !graph_.are_nodes_sorted()) {
                 LOG_FATAL(
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
@@ -42,18 +67,46 @@ class Algorithm {
 
         virtual ~Algorithm() = default;
 
-        virtual std::vector<Solution> solve(bool print = false) {
-            print_ = print;
+        virtual std::vector<Solution> solve() {
+            Timer timer;
+            this->initialize_labels();
+            main_loop();
 
-            initialize_labels();
+            if (solutions_.empty()) {
+                solutions_ = extract_solutions();
+            }
 
-            int nb_iter = 0;
+            std::ranges::sort(solutions_,
+                              [](const Solution& a, const Solution& b) { return a.cost < b.cost; });
 
-            while (number_of_labels() > 0) {
-                nb_iter++;
+            LOG_DEBUG("Number of solutions: ", solutions_.size(), '\n');
+            LOG_DEBUG("Min cost=",
+                      solutions_.empty() ? params_.cost_upper_bound : solutions_.front().cost,
+                      "\n");
+            LOG_DEBUG("Total time=", timer.elapsed_seconds(), " sec.\n");
 
-                auto& label = next_label();
+            return solutions_;
+        }
 
+    protected:
+        bool print_{false};
+
+        virtual void main_loop() {
+            int i = 0;
+
+            while (this->number_of_labels() > 0) {
+                i++;
+
+                // next label to process
+                auto label_iterator_pair = next_label_iterator();
+
+                // no more label -> break (useful when pulling)
+                if (label_iterator_pair.first == nullptr) {
+                    break;
+                }
+
+                // label dominated -> continue to next one
+                auto& label = *label_iterator_pair.first;
                 if (label.dominated) {
                     this->label_pool_.release_label(&label);
                     continue;
@@ -61,83 +114,78 @@ class Algorithm {
 
                 assert(label.get_end_node());
 
-                if (label.get_end_node()->sink && label.get_cost() < cost_upper_bound_) {
-                    cost_upper_bound_ = label.get_cost();
-                    best_label_ = &label;
-                } else if (!label.get_end_node()->sink &&
-                           label.get_cost() < std::numeric_limits<double>::infinity()) {
-                    total_full_extend_time_.start();
-                    extend(&label);
-                    total_full_extend_time_.stop();
+                // check if we can update the best label or extend
+                if (label.get_end_node()->sink) {
+                    if (label.get_cost() < params_.cost_upper_bound &&
+                        params_.return_dominated_solutions) {
+                        solutions_.push_back(extract_solution(label));
+                        if (solutions_.size() >= params_.stop_after_X_solutions) {
+                            LOG_DEBUG("Stopping after ", solutions_.size(), " solutions.\n");
+                            break;
+                        }
+                    }
+                } else if (!std::isinf(label.get_cost())) {
+                    assert(update_non_dominated_labels(label));
+                    this->total_full_extend_time_.start();
+                    this->extend(&label);
+                    this->total_full_extend_time_.stop();
                 } else {
+                    remove_label(label_iterator_pair.second);
                     this->label_pool_.release_label(&label);
-
-                    remove_label(label);
                 }
             }
 
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", nb_iter, "\n");
-            LOG_TRACE("best_label_=", best_label_, "\n");
-
-            Solution solution;
-            if (best_label_ != nullptr) {
-                const auto& best_label_res = best_label_->get_resource();
-
-                auto cost = best_label_res.template get_resource_component<0>(0).get_value();
-                auto time = best_label_res.template get_resource_component<0>(1).get_value();
-                auto demand = best_label_res.template get_resource_component<0>(2).get_value();
-
-                const auto path_node_ids = get_path_node_ids(*best_label_);
-                const auto path_arc_ids = get_path_arc_ids(*best_label_);
-
-                for (auto node_id : path_node_ids) {
-                    LOG_DEBUG(node_id, ", ");
-                }
-                LOG_DEBUG('\n');
-
-                for (auto arc_id : path_arc_ids) {
-                    LOG_DEBUG(arc_id, ", ");
-                }
-                LOG_DEBUG('\n');
-
-                solution = Solution{best_label_->get_cost(), path_node_ids, path_arc_ids};
-            }
-
-            return std::vector<Solution>{solution};
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
         }
-
-    protected:
-        bool print_{false};
 
         virtual void initialize_labels() = 0;
 
-        virtual Label<ResourceType>& next_label() = 0;
+        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
         virtual bool test(const Label<ResourceType>& label) = 0;
-
         virtual void extend(Label<ResourceType>* label) = 0;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
-        virtual std::vector<size_t> get_path_node_ids(const Label<ResourceType>& label) = 0;
+        virtual void remove_label(const LabelIterator<ResourceType>& label_iterator) = 0;
+        virtual void remove_label(const LabelIteratorPair<ResourceType>& label_iterator_pair) {
+            this->remove_label(label_iterator_pair.second);
+        }
 
-        virtual std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
+        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) = 0;
 
-        virtual std::vector<std::pair<std::vector<size_t>, std::vector<double>>>
-        get_vector_paths_node_ids(const Label<ResourceType>& label) = 0;
+        [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
-        virtual void remove_label(const Label<ResourceType>& label) = 0;
+        virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
+
+        virtual Solution extract_solution(const Label<ResourceType>& end_label) {
+            auto path_arc_ids = this->get_path_arc_ids(end_label);
+            std::list<size_t> path_node_ids;
+            for (size_t arc_id : path_arc_ids) {
+                path_node_ids.push_back(this->graph_.get_arc(arc_id).origin->id);
+            }
+            path_node_ids.push_back(end_label.get_end_node()->id);
+            return Solution{end_label.get_cost(),
+                            std::move(path_node_ids),
+                            std::move(path_arc_ids)};
+        }
+
+        std::vector<Solution> extract_solutions() {
+            std::vector<Solution> solutions;
+            auto labels_at_sinks = this->get_labels_at_sinks();
+            for (const auto* sink_label : labels_at_sinks) {
+                solutions.push_back(this->extract_solution(*sink_label));
+            }
+            return solutions;
+        }
 
         LabelPool<ResourceType> label_pool_;
-
         const Graph<ResourceType>& graph_;
+        const AlgorithmParams params_;
 
-        double cost_upper_bound_;
-
-        Label<ResourceType>* best_label_;
+        std::vector<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
-
         Timer total_full_extend_time_;
 };
 }  // namespace rcspp

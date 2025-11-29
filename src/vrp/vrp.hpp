@@ -30,7 +30,7 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve() {  // NOLINT
+        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
             generate_initial_paths();
@@ -57,15 +57,16 @@ class VRP {
                 size_t algo_index = 1;  // timers[0] used by boost
                 (void)std::initializer_list<int>{([&]() {
                     timers[algo_index].start();
-                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id);
+                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params);
                     timers[algo_index].stop();
 
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
                             // RCSPP can be better as it uses int for some resources (e.g., load,
                             // time)
-                            if (abs(sols[0].cost - solutions_boost[0].cost) >
-                                COST_COMPARISON_EPSILON) {
+                            if (params.stop_after_X_solutions > 0 &&
+                                abs(sols[0].cost - solutions_boost[0].cost) >
+                                    COST_COMPARISON_EPSILON) {
                                 LOG_ERROR("RCSPP solution is different from BOOST (",
                                           algo_index,
                                           ") solution: ",
@@ -217,12 +218,12 @@ class VRP {
 
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id) {
+            const std::map<size_t, double>& dual_by_id, AlgorithmParams params = {}) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
-            auto solutions = graph_.solve<AlgorithmType>();
+            auto solutions = graph_.solve<AlgorithmType>(-EPSILON, params);
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",

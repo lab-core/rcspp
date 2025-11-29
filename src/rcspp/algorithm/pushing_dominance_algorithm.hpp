@@ -7,21 +7,21 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<ResourceType>,
-                                           NodeUnprocessedLabelsManager<ResourceType> {
+class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
+                                  NodeUnprocessedLabelsManager<ResourceType> {
     public:
-        PushingDominanceAlgorithmIterators(ResourceFactory<ResourceType>* resource_factory,
-                                           const Graph<ResourceType>& graph, bool use_pool = true)
-            : DominanceAlgorithmIterators<ResourceType>(resource_factory, graph, use_pool),
+        PushingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                                  const Graph<ResourceType>& graph, AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
               NodeUnprocessedLabelsManager<ResourceType>(graph.get_number_of_nodes()) {}
 
-        ~PushingDominanceAlgorithmIterators() override = default;
+        ~PushingDominanceAlgorithm() override = default;
 
     protected:
         LabelIteratorPair<ResourceType> next_label_iterator() override {

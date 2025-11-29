@@ -8,20 +8,20 @@
 #include <list>
 #include <utility>
 
-#include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<ResourceType>,
-                                           NodeUnprocessedLabelsManager<ResourceType> {
+class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
+                                  NodeUnprocessedLabelsManager<ResourceType> {
     public:
-        PullingDominanceAlgorithmIterators(ResourceFactory<ResourceType>* resource_factory,
-                                           const Graph<ResourceType>& graph, bool use_pool = true)
-            : DominanceAlgorithmIterators<ResourceType>(resource_factory, graph, use_pool),
+        PullingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                                  const Graph<ResourceType>& graph, AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
               NodeUnprocessedLabelsManager<ResourceType>(graph.get_number_of_nodes()) {}
 
-        ~PullingDominanceAlgorithmIterators() override = default;
+        ~PullingDominanceAlgorithm() override = default;
 
     protected:
         void main_loop() override {
@@ -57,17 +57,20 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
                         assert(this->update_non_dominated_labels(label));
                         // check if sink and update best solution
                         if (label.get_end_node()->sink &&
-                            label.get_cost() < this->cost_upper_bound_) {
-                            this->cost_upper_bound_ = label.get_cost();
-                            this->best_label_ = &label;
+                            label.get_cost() < this->params_.cost_upper_bound &&
+                            this->params_.return_dominated_solutions) {
+                            this->solutions_.push_back(this->extract_solution(label));
+                            if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                                LOG_DEBUG("Stopping after ",
+                                          this->solutions_.size(),
+                                          " solutions.\n");
+                                return;
+                            }
                         }
                         ++it;  // move to next label
                     }
                 }
             }
-
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
-            LOG_TRACE("best_label_=", this->best_label_, "\n");
         }
 
         LabelIteratorPair<ResourceType> next_label_iterator() override {
@@ -134,7 +137,7 @@ class PullingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
 
         std::list<LabelIteratorPair<ResourceType>>::iterator erase_unprocessed_label(
             const std::list<LabelIteratorPair<ResourceType>>::iterator& label_iterator) {
-            this->num_unprocessed_labels_--;
+            --this->num_unprocessed_labels_;
             return this->current_unprocessed_labels_.erase(label_iterator);
         }
 };
