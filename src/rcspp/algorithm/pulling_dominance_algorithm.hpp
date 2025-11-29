@@ -27,7 +27,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
         void main_loop() override {
             int i = 0;
             while (number_of_labels() > 0) {
-                i++;
+                ++i;
 
                 // don't do anything on first iteration (i.e. num_loops_ == -1)
                 if (this->num_loops_ >= 0) {
@@ -123,6 +123,11 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                 }
             }
 
+            // truncate/limit the number of labels extended per node (only if not a sink)
+            if (!current_node->sink) {
+                this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
+                                                        &this->label_pool_);
+            }
             this->total_full_extend_time_.stop();
         }
 

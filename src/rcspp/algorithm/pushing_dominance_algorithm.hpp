@@ -28,22 +28,25 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             // if no more labels for the current node, move to the next node with labels
             while (this->current_unprocessed_labels_.empty()) {
                 // move to the next node
-                this->current_unprocessed_node_pos_++;
+                ++this->current_unprocessed_node_pos_;
                 // if we have looped over all nodes, start again from the beginning
                 if (this->current_unprocessed_node_pos_ >= this->graph_.get_number_of_nodes()) {
                     this->current_unprocessed_node_pos_ = 0;
-                    this->num_loops_++;
+                    ++this->num_loops_;
                 }
                 // move labels for the current node
                 this->current_unprocessed_labels_ = std::move(
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_));
+                // truncate/limit the number of labels extended per node
+                this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
+                                                        &this->label_pool_);
             }
 
             // get the next label
             auto label_iterator_pair = this->current_unprocessed_labels_.front();
 
             this->current_unprocessed_labels_.pop_front();
-            this->num_unprocessed_labels_--;
+            --this->num_unprocessed_labels_;
 
             return label_iterator_pair;
         }

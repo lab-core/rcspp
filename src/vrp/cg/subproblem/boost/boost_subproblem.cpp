@@ -163,12 +163,12 @@ void BoostSubproblem::add_edges(GraphVRPTW& graph_boost) const {
         for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
             if (customer_orig_id != customer_dest_id) {
                 add_single_edge(arc_id, customer_orig, customer_dest, graph_boost);
-                arc_id++;
+                ++arc_id;
             }
         }
 
         add_single_edge(arc_id, customer_orig, sink_customer, graph_boost);
-        arc_id++;
+        ++arc_id;
     }
 }
 

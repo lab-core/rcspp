@@ -52,30 +52,26 @@ class ResourceFactory {
         }*/
 
         virtual auto make_resource_base() -> std::unique_ptr<ResourceType> {
-            nb_resource_bases_created_++;
-
+            ++nb_resource_bases_created_;
             return resource_prototype_->clone();
         }
 
         // Make a resource from the prototype.
         virtual auto make_resource() -> std::unique_ptr<Resource<ResourceType>> {
-            nb_resources_created_++;
-
+            ++nb_resources_created_;
             return resource_prototype_->clone_resource();
         }
 
         // Make a resource from the prototype with node_id.
         virtual auto make_resource(size_t node_id) -> std::unique_ptr<Resource<ResourceType>> {
-            nb_resources_created_++;
-
+            ++nb_resources_created_;
             return resource_prototype_->create(node_id);
         }
 
-        // Make a resource from an other resource by copying its resource function objects.
+        // Make a resource from another resource by copying its resource function objects.
         virtual auto make_resource(const Resource<ResourceType>& resource)
             -> std::unique_ptr<Resource<ResourceType>> {
-            nb_resources_created_++;
-
+            ++nb_resources_created_;
             return resource.copy();
         }
 
@@ -83,7 +79,7 @@ class ResourceFactory {
         template <typename GraphResourceType>
         auto make_extender(const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<Extender<ResourceType>> {
-            nb_extenders_created_++;
+            ++nb_extenders_created_;
             return std::make_unique<Extender<ResourceType>>(extension_function_->create(arc),
                                                             arc.id);
         }
@@ -93,7 +89,7 @@ class ResourceFactory {
     template <typename GraphResourceType>
          auto make_extender(const ResourceType& resource_base, const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<Extender<ResourceType>> {
-            nb_extenders_created_++;
+            ++nb_extenders_created_;
             return std::make_unique<Extender<ResourceType>>(resource_base,
                                                             extension_function_->create(arc),
                                                             arc.id);

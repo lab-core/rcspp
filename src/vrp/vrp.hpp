@@ -129,11 +129,9 @@ class VRP {
 
                 add_paths(&master_problem, negative_red_cost_solutions);
 
-                nb_iter++;
-
                 LOG_DEBUG(std::string(45, '*'), '\n');
                 LOG_INFO("nb_iter=",
-                         nb_iter,
+                         nb_iter++,
                          " | obj=",
                          master_solution.cost,
                          " | min_reduced_cost=",

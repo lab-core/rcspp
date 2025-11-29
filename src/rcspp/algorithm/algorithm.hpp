@@ -39,10 +39,20 @@ struct AlgorithmParams {
             return *this;
         }
 
+        // upper bound on the cost of solutions to find
         double cost_upper_bound = std::numeric_limits<double>::infinity();
+
+        // stop after finding X solutions (not going to optimality
         size_t stop_after_X_solutions = std::numeric_limits<size_t>::max();
+
+        // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
+
+        // for using label pool (should normally always be true)
         bool use_pool = true;
+
+        // for truncated labeling
+        size_t num_labels_to_extend_by_node = std::numeric_limits<size_t>::max();
 };
 
 template <typename ResourceType>
@@ -95,7 +105,7 @@ class Algorithm {
             int i = 0;
 
             while (this->number_of_labels() > 0) {
-                i++;
+                ++i;
 
                 // next label to process
                 auto label_iterator_pair = next_label_iterator();
@@ -147,10 +157,8 @@ class Algorithm {
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
-        virtual void remove_label(const LabelIterator<ResourceType>& label_iterator) = 0;
-        virtual void remove_label(const LabelIteratorPair<ResourceType>& label_iterator_pair) {
-            this->remove_label(label_iterator_pair.second);
-        }
+        virtual void remove_label(
+            const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
 
         virtual bool update_non_dominated_labels(const Label<ResourceType>& label) = 0;
 
@@ -160,6 +168,10 @@ class Algorithm {
 
         virtual Solution extract_solution(const Label<ResourceType>& end_label) {
             auto path_arc_ids = this->get_path_arc_ids(end_label);
+            if (path_arc_ids.empty()) {
+                return {};
+            }
+
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
                 path_node_ids.push_back(this->graph_.get_arc(arc_id).origin->id);
@@ -174,7 +186,10 @@ class Algorithm {
             std::vector<Solution> solutions;
             auto labels_at_sinks = this->get_labels_at_sinks();
             for (const auto* sink_label : labels_at_sinks) {
-                solutions.push_back(this->extract_solution(*sink_label));
+                auto sol = this->extract_solution(*sink_label);
+                if (sol.cost <= params_.cost_upper_bound) {
+                    solutions.push_back(std::move(sol));
+                }
             }
             return solutions;
         }

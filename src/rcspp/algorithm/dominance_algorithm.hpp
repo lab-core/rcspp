@@ -42,11 +42,11 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
         bool test(const Label<ResourceType>& label) override {
             // Dominance check
-            nb_test_iter_++;
+            ++nb_test_iter_;
             total_test_time_.start();
             bool non_dominated = update_non_dominated_labels(label);
             if (!non_dominated) {
-                this->nb_dominated_labels_++;
+                ++this->nb_dominated_labels_;
             }
             total_test_time_.stop();
 
@@ -92,6 +92,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                 const Label<ResourceType>* current_label_ptr = &label;
 
                 while (prev_node_ptr != nullptr && !prev_node_ptr->source) {
+                    bool found = false;
                     for (const auto label_ptr :
                          non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
                         auto& next_label_ref =
@@ -100,12 +101,17 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
                         if (next_label_ref <= *current_label_ptr) {
                             current_label_ptr = label_ptr;
+                            found = true;
                             break;
                         }
                     }
 
-                    in_arc_ptr = current_label_ptr->get_in_arc();
+                    if (!found) {
+                        LOG_ERROR("Error while extracting path: could not find previous label.\n");
+                        return {};
+                    }
 
+                    in_arc_ptr = current_label_ptr->get_in_arc();
                     if (in_arc_ptr != nullptr) {
                         path_arc_ids.push_back(in_arc_ptr->id);
                         prev_node_ptr = in_arc_ptr->origin;
@@ -216,7 +222,58 @@ struct NodeUnprocessedLabelsManager {
         void add_new_label(const LabelIteratorPair<ResourceType>& label_iterator_pair) {
             unprocessed_labels_by_node_pos_.at(label_iterator_pair.first->get_end_node()->pos())
                 .push_back(label_iterator_pair);
-            num_unprocessed_labels_++;
+            ++num_unprocessed_labels_;
+        }
+
+        void resize_current_unprocessed_labels(size_t new_size,
+                                               LabelPool<ResourceType>* label_pool = nullptr,
+                                               bool sort = true) {
+            if (!current_unprocessed_labels_.empty()) {
+                resize_unprocessed_labels(&current_unprocessed_labels_, new_size, label_pool, sort);
+            } else {
+                resize_unprocessed_labels(
+                    &unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_),
+                    new_size,
+                    label_pool,
+                    sort);
+            }
+        }
+
+        void resize_unprocessed_labels(
+            std::list<LabelIteratorPair<ResourceType>>* unprocessed_labels, size_t new_size,
+            LabelPool<ResourceType>* label_pool, bool sort) {
+            int num_exceeding_labels = unprocessed_labels->size() - new_size;
+            if (num_exceeding_labels <= 0) {
+                return;
+            }
+
+            if (sort) {
+                // sort labels by cost (ascending)
+                unprocessed_labels->sort([](const LabelIteratorPair<ResourceType>& p1,
+                                            const LabelIteratorPair<ResourceType>& p2) {
+                    // either both dominated or both non-dominated
+                    if (p1.first->dominated == p2.first->dominated) {
+                        return p1.first->get_cost() < p2.first->get_cost();  // lower cost first
+                    }
+                    return !p1.first->dominated;  // non-dominated first
+                });
+            }
+
+            // release exceeding labels if pool is provided
+            if (label_pool != nullptr) {
+                // release the exceeding labels
+                size_t i = 0;
+                for (auto& p : *unprocessed_labels) {
+                    if (i++ >= new_size && p.first->dominated) {
+                        label_pool->release_label(p.first);
+                        p.first = nullptr;
+                    }
+                }
+            }
+
+            // update unprocessed labels count and resize
+            num_unprocessed_labels_ -= num_exceeding_labels;
+            unprocessed_labels->resize(new_size);
         }
 
         size_t num_unprocessed_labels_ = 0;

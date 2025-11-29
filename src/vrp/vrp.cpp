@@ -55,7 +55,7 @@ const std::vector<Path>& VRP::generate_initial_paths() {
                             path_cost,
                             std::list<size_t>{depot_customer.id, customer_id, depot_customer.id});
 
-        path_id_++;
+        ++path_id_;
     }
 
     return paths_;
@@ -237,7 +237,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         add_paths(&master_problem, negative_red_cost_solutions);
 
-        nb_iter++;
+        ++nb_iter;
 
         if (min_reduced_cost >= -EPSILON) {
             final_dual_by_id = master_solution.dual_by_var_id;
@@ -462,14 +462,14 @@ void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
                                  customer_dest,
                                  dual_by_id,
                                  arc_id);
-                arc_id++;
+                ++arc_id;
             }
         }
 
         /*if (!customer_orig.depot) {
           const auto& sink_customer = customers_by_id.at(depot_id_);
           add_arc_to_graph(graph, customer_orig_id, sink_id, customer_orig,
-        sink_customer, dual_by_id, arc_id); arc_id++;
+        sink_customer, dual_by_id, arc_id); ++arc_id;
         }*/
 
         const auto& sink_customer = customers_by_id.at(depot_id_);
@@ -480,7 +480,7 @@ void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
                          sink_customer,
                          dual_by_id,
                          arc_id);
-        arc_id++;
+        ++arc_id;
     }
 }
 
@@ -528,7 +528,7 @@ void VRP::add_paths(MasterProblem* master_problem, const std::vector<Solution>& 
     for (const auto& solution : solutions) {
         auto solution_cost = calculate_solution_cost(solution);
         new_paths.emplace_back(path_id_, solution_cost, solution.path_node_ids);
-        path_id_++;
+        ++path_id_;
     }
     master_problem->add_columns(new_paths);
     paths_.insert(paths_.end(), new_paths.begin(), new_paths.end());
