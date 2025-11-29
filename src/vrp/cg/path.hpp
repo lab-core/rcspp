@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include <vector>
+#include <list>
 
 struct Path {
-        Path(size_t id, double cost, const std::vector<size_t>& visited_nodes);
+        Path(size_t id, double cost, const std::list<size_t>& visited_nodes);
 
         size_t id;
         double cost;
-        std::vector<size_t> visited_nodes;
+        std::list<size_t> visited_nodes;
 };

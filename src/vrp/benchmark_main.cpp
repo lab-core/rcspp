@@ -111,9 +111,12 @@ int main(int argc, char* argv[]) {
         // vrp.sort_nodes_by_max_tw();
 
         Timer timer(true);
+        AlgorithmParams params;
+        // params.return_dominated_solutions = true;
+        // params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         auto timers = vrp.solve<SimpleDominanceAlgorithmIterators,
-                                PushingDominanceAlgorithmIterators,
-                                PullingDominanceAlgorithmIterators>();
+                                PushingDominanceAlgorithm,
+                                PullingDominanceAlgorithm>(params);
         timer.stop();
 
         if (first_instance) {

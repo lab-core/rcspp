@@ -6,16 +6,16 @@
 #include <list>
 #include <utility>
 
-#include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class SimpleDominanceAlgorithmIterators : public DominanceAlgorithmIterators<ResourceType> {
+class SimpleDominanceAlgorithmIterators : public DominanceAlgorithm<ResourceType> {
     public:
         SimpleDominanceAlgorithmIterators(ResourceFactory<ResourceType>* resource_factory,
-                                          const Graph<ResourceType>& graph, bool use_pool = true)
-            : DominanceAlgorithmIterators<ResourceType>(resource_factory, graph, use_pool) {}
+                                          const Graph<ResourceType>& graph, AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)) {}
 
         ~SimpleDominanceAlgorithmIterators() override = default;
 

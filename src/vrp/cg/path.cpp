@@ -3,5 +3,5 @@
 
 #include "path.hpp"
 
-Path::Path(size_t id, double cost, const std::vector<size_t>& visited_nodes)
+Path::Path(size_t id, double cost, const std::list<size_t>& visited_nodes)
     : id(id), cost(cost), visited_nodes(visited_nodes) {}

@@ -528,19 +528,22 @@ class Resource<ResourceComposition<ResourceTypes...>>
 
         template <typename ResourceType>
         [[nodiscard]] auto get_resource_components() -> auto& {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             return get_resource_components<ResourceTypeIndex>();
         }
 
         template <typename ResourceType>
         [[nodiscard]] auto get_resource_components() const -> const auto& {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             return get_resource_components<ResourceTypeIndex>();
         }
 
         template <typename ResourceType>
         [[nodiscard]] auto get_resource_component(size_t resource_index) const -> const auto& {
-            constexpr size_t ResourceTypeIndex = ResourceTypeIndex_v<ResourceType>;
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             return get_resource_component<ResourceTypeIndex>(resource_index);
         }
 
