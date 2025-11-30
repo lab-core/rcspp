@@ -29,12 +29,10 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             while (number_of_labels() > 0) {
                 ++i;
 
-                // don't do anything on first iteration (i.e. num_loops_ == -1)
-                if (this->num_loops_ >= 0) {
-                    // save unprocessed labels for the current node
-                    this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_) =
-                        std::move(this->current_unprocessed_labels_);
-                }
+                // save unprocessed labels for the current node
+                assert(this->check_number_of_unprocessed_labels());
+                this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_) =
+                    std::move(this->current_unprocessed_labels_);
 
                 // pull to the new node
                 pull_new_unprocessed_labels();
@@ -59,7 +57,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                         if (label.get_end_node()->sink &&
                             label.get_cost() < this->params_.cost_upper_bound &&
                             this->params_.return_dominated_solutions) {
-                            this->solutions_.push_back(this->extract_solution(label));
+                            this->extract_solution(label);
                             if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
                                 LOG_DEBUG("Stopping after ",
                                           this->solutions_.size(),
@@ -88,11 +86,18 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                 // start a new loop
                 this->current_unprocessed_node_pos_ = 0;
                 ++this->num_loops_;
+                first_loop_ = false;
             }
 
-            // clear current labels before adding new ones once a loop has been performed
-            // all unprocessed labels from the previous loop have been processed
-            if (this->num_loops_ > 0) {
+            if (first_loop_) {
+                // on first loop, add any pre-existing labels at the node to the current labels
+                auto& labels_at_node =
+                    this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_);
+                this->current_unprocessed_labels_.splice(this->current_unprocessed_labels_.end(),
+                                                         labels_at_node);
+            } else {
+                // clear current labels before adding new ones once a loop has been performed
+                // all unprocessed labels from the previous loop have been processed
                 auto& labels_at_node =
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_);
                 // mark all those labels as processed
@@ -102,10 +107,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
 
             // pull labels for the current node
             pull_labels();
-
-            // move labels for the current node
-            this->current_unprocessed_labels_ = std::move(
-                this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_));
         }
 
         void pull_labels() {
@@ -145,5 +146,12 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             --this->num_unprocessed_labels_;
             return this->current_unprocessed_labels_.erase(label_iterator);
         }
+
+        void prepareNextPhase() override {
+            first_loop_ = true;
+            this->restore_truncated_unprocessed_labels();
+        }
+
+        bool first_loop_ = true;
 };
 }  // namespace rcspp

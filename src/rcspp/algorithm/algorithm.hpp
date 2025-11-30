@@ -9,6 +9,7 @@
 #include <iostream>
 #include <limits>
 #include <list>
+#include <map>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -27,23 +28,46 @@ template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
+constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
+
 struct AlgorithmParams {
-        AlgorithmParams& normalize() {
-            if (stop_after_X_solutions < std::numeric_limits<size_t>::max() &&
-                !return_dominated_solutions) {
+        AlgorithmParams& check() {
+            if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
                 LOG_WARN(
-                    "AlgorithmParams: return_dominated_solutions is set to true since "
-                    "stop_after_X_solutions < MAX.\n");
-                return_dominated_solutions = true;  // need to return dominated solutions
+                    "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
+                    "num_max_phases will not have any effects, set num_labels_to_extend_by_node to "
+                    "a lower value.\n");
+            }
+            if (num_max_phases > 1 && stop_after_X_solutions >= MAX_INT) {
+                LOG_WARN(
+                    "AlgorithmParams: stop_after_X_solutions == MAX and num_max_phases > 1. "
+                    "num_max_phases will not have any effects, set stop_after_X_solutions to a "
+                    "lower value.\n");
+            }
+            if (return_dominated_solutions && stop_after_X_solutions >= MAX_INT) {
+                LOG_WARN(
+                    "AlgorithmParams: stop_after_X_solutions == MAX and return_dominated_solutions "
+                    "is set to true. return_dominated_solutions will not have any effects, set "
+                    "stop_after_X_solutions to a lower value.\n");
             }
             return *this;
+        }
+
+        [[nodiscard]] bool could_be_non_optimal() const {
+            if (stop_after_X_solutions < MAX_INT) {
+                return true;
+            }
+            if (num_labels_to_extend_by_node < MAX_INT) {
+                return false;
+            }
+            return false;
         }
 
         // upper bound on the cost of solutions to find
         double cost_upper_bound = std::numeric_limits<double>::infinity();
 
         // stop after finding X solutions (not going to optimality
-        size_t stop_after_X_solutions = std::numeric_limits<size_t>::max();
+        size_t stop_after_X_solutions = MAX_INT;
 
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
@@ -52,7 +76,11 @@ struct AlgorithmParams {
         bool use_pool = true;
 
         // for truncated labeling
-        size_t num_labels_to_extend_by_node = std::numeric_limits<size_t>::max();
+        size_t num_labels_to_extend_by_node = MAX_INT;
+
+        // number maximum of passes for the resolution if previous pass ended early with not enough
+        // solutions
+        size_t num_max_phases = 1;
 };
 
 template <typename ResourceType>
@@ -64,7 +92,7 @@ class Algorithm {
             : label_pool_(LabelPool<ResourceType>(
                   std::make_unique<LabelFactory<ResourceType>>(resource_factory), params.use_pool)),
               graph_(graph),
-              params_(std::move(params.normalize())) {
+              params_(std::move(params.check())) {
             if (!graph_.get_sorted_nodes().empty() && !graph_.are_nodes_sorted()) {
                 LOG_FATAL(
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
@@ -80,22 +108,46 @@ class Algorithm {
         virtual std::vector<Solution> solve() {
             Timer timer;
             this->initialize_labels();
-            main_loop();
 
-            if (solutions_.empty()) {
-                solutions_ = extract_solutions();
+            size_t num_phases = 0;
+            while (solutions_.size() < params_.stop_after_X_solutions && number_of_labels() > 0) {
+                // main labeling loop
+                main_loop();
+
+                // extract solutions any remaining solutions
+                extract_remaining_solutions();
+
+                // prepare next phase (if any)
+                if (++num_phases < params_.num_max_phases) {
+                    prepareNextPhase();
+                } else {
+                    break;
+                }
             }
 
-            std::ranges::sort(solutions_,
+            // recover solutions
+            std::vector<Solution> solutions;
+            solutions.reserve(solutions_.size());
+            for (auto& [id, solution] : solutions_) {
+                solutions.push_back(std::move(solution));
+            }
+
+            // sort solutions
+            std::ranges::sort(solutions,
                               [](const Solution& a, const Solution& b) { return a.cost < b.cost; });
 
-            LOG_DEBUG("Number of solutions: ", solutions_.size(), '\n');
+            LOG_DEBUG("Number of solutions before resize: ", solutions.size(), '\n');
             LOG_DEBUG("Min cost=",
-                      solutions_.empty() ? params_.cost_upper_bound : solutions_.front().cost,
+                      solutions.empty() ? params_.cost_upper_bound : solutions.front().cost,
                       "\n");
             LOG_DEBUG("Total time=", timer.elapsed_seconds(), " sec.\n");
 
-            return solutions_;
+            // resize solutions if needed
+            if (solutions.size() > params_.stop_after_X_solutions) {
+                solutions.resize(params_.stop_after_X_solutions);
+            }
+
+            return solutions;
         }
 
     protected:
@@ -128,7 +180,7 @@ class Algorithm {
                 if (label.get_end_node()->sink) {
                     if (label.get_cost() < params_.cost_upper_bound &&
                         params_.return_dominated_solutions) {
-                        solutions_.push_back(extract_solution(label));
+                        extract_solution(label);
                         if (solutions_.size() >= params_.stop_after_X_solutions) {
                             LOG_DEBUG("Stopping after ", solutions_.size(), " solutions.\n");
                             break;
@@ -150,6 +202,8 @@ class Algorithm {
 
         virtual void initialize_labels() = 0;
 
+        virtual void prepareNextPhase() {}
+
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
         virtual bool test(const Label<ResourceType>& label) = 0;
@@ -166,10 +220,19 @@ class Algorithm {
 
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
-        virtual Solution extract_solution(const Label<ResourceType>& end_label) {
+        virtual void extract_solution(const Label<ResourceType>& end_label) {
+            // already found solution for this label id
+            if (solutions_.find(end_label.id) != solutions_.end()) {
+                return;
+            }
+
+            if (end_label.get_cost() >= params_.cost_upper_bound) {
+                return;
+            }
+
             auto path_arc_ids = this->get_path_arc_ids(end_label);
             if (path_arc_ids.empty()) {
-                return {};
+                return;
             }
 
             std::list<size_t> path_node_ids;
@@ -177,28 +240,24 @@ class Algorithm {
                 path_node_ids.push_back(this->graph_.get_arc(arc_id).origin->id);
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
-            return Solution{end_label.get_cost(),
-                            std::move(path_node_ids),
-                            std::move(path_arc_ids)};
+            solutions_.try_emplace(end_label.id,
+                                   end_label.get_cost(),
+                                   std::move(path_node_ids),
+                                   std::move(path_arc_ids));
         }
 
-        std::vector<Solution> extract_solutions() {
-            std::vector<Solution> solutions;
+        void extract_remaining_solutions() {
             auto labels_at_sinks = this->get_labels_at_sinks();
             for (const auto* sink_label : labels_at_sinks) {
-                auto sol = this->extract_solution(*sink_label);
-                if (sol.cost <= params_.cost_upper_bound) {
-                    solutions.push_back(std::move(sol));
-                }
+                this->extract_solution(*sink_label);
             }
-            return solutions;
         }
 
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>& graph_;
         const AlgorithmParams params_;
 
-        std::vector<Solution> solutions_;
+        std::map<size_t, Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
         Timer total_full_extend_time_;

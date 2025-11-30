@@ -114,7 +114,8 @@ int main(int argc, char* argv[]) {
         AlgorithmParams params;
         // params.return_dominated_solutions = true;
         // params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
-        params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
+        // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
+        // params.num_max_phases = 100;
         auto timers = vrp.solve<SimpleDominanceAlgorithmIterators,
                                 PushingDominanceAlgorithm,
                                 PullingDominanceAlgorithm>(params);

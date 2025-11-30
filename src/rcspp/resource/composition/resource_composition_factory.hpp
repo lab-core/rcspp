@@ -103,7 +103,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
 
                         const auto& res_fac = res_fac_vec[i];
 
-                        res_comp_vec.emplace_back(std::move(res_fac->make_extender(res_base, arc)));
+                        res_comp_vec.emplace_back(res_fac->make_extender(res_base, arc));
                     }
                 };
 
@@ -197,7 +197,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                 for (int i = 0; i < res_fac_vec.size(); i++) {
                     const auto& res_fac = res_fac_vec[i];
 
-                    prot_res_comp_vec.emplace_back(std::move(res_fac->make_resource()));
+                    prot_res_comp_vec.emplace_back(res_fac->make_resource());
                 }
             };
 

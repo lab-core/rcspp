@@ -249,7 +249,7 @@ class Graph {
                 out_arcs.end());
 
             // move deleted arc
-            removed_arcs_by_id_[arc_id] = std::move(it->second);
+            removed_arcs_by_id_.emplace(arc_id, std::move(it->second));
             modified_ = true;  // mark as modified
             // delete from arcs map
             return arcs_by_id_.erase(it);
@@ -263,7 +263,7 @@ class Graph {
             // add arc to origin node's out_arcs
             arc->origin->out_arcs.push_back(arc);
             // move restored arc
-            arcs_by_id_[it->first] = std::move(it->second);
+            arcs_by_id_.emplace(it->first, std::move(it->second));
             modified_ = true;  // mark as modified
             // delete from deleted arcs map
             return removed_arcs_by_id_.erase(it);

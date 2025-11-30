@@ -38,6 +38,8 @@ class SimpleDominanceAlgorithmIterators : public DominanceAlgorithm<ResourceType
                 // if dominated, release the label
                 if (label_iterator_pair.first->dominated) {
                     this->label_pool_.release_label(label_iterator_pair.first);
+                } else {
+                    unprocessed_truncated_labels_.push_back(label_iterator_pair);
                 }
             }
 
@@ -53,7 +55,15 @@ class SimpleDominanceAlgorithmIterators : public DominanceAlgorithm<ResourceType
             unprocessed_labels_.push_back(label_iterator_pair);
         }
 
+        void prepareNextPhase() override {
+            std::ranges::fill(number_of_extended_labels_per_node_.begin(),
+                              number_of_extended_labels_per_node_.end(),
+                              0);
+            unprocessed_labels_.splice(unprocessed_labels_.end(), unprocessed_truncated_labels_);
+        }
+
         std::list<LabelIteratorPair<ResourceType>> unprocessed_labels_;
+        std::list<LabelIteratorPair<ResourceType>> unprocessed_truncated_labels_;
         std::vector<size_t> number_of_extended_labels_per_node_;
 };
 }  // namespace rcspp

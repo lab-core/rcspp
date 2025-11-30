@@ -59,5 +59,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
             this->add_new_label(label_iterator_pair);
         }
+
+        void prepareNextPhase() override { this->restore_truncated_unprocessed_labels(); }
 };
 }  // namespace rcspp

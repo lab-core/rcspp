@@ -64,10 +64,11 @@ class VRP {
                         if (!sols.empty()) {
                             // RCSPP can be better as it uses int for some resources (e.g., load,
                             // time)
-                            if (params.stop_after_X_solutions > 0 &&
-                                abs(sols[0].cost - solutions_boost[0].cost) >
-                                    COST_COMPARISON_EPSILON) {
-                                LOG_ERROR("RCSPP solution is different from BOOST (",
+                            double diff = solutions_boost[0].cost - sols[0].cost;
+                            bool non_optimal = params.could_be_non_optimal();
+                            if ((non_optimal && diff > COST_COMPARISON_EPSILON) ||
+                                (!non_optimal && abs(diff) > COST_COMPARISON_EPSILON)) {
+                                LOG_ERROR("RCSPP solution is not coherent with BOOST (",
                                           algo_index,
                                           ") solution: ",
                                           sols[0].cost,
@@ -75,7 +76,7 @@ class VRP {
                                           solutions_boost[0].cost,
                                           "\n");
                             }
-                        } else {
+                        } else if (solutions_boost[0].cost < -EPSILON) {
                             LOG_ERROR("BOOST has a solution while RCSPP (", algo_index, ") not\n");
                         }
                     }
@@ -107,15 +108,6 @@ class VRP {
                     ++algo_index;
                     return 0;
                 }())...};
-
-                // If we didn't get any rcsp solutions from first algorithm, ensure we have
-                // something to inspect
-                if (solutions_rcspp_any.empty()) {
-                    LOG_WARN(
-                        "No RCSPP solutions from first algorithm; aborting column generation "
-                        "loop\n");
-                    break;
-                }
 
                 // Collect negative reduced cost solutions from the chosen RCSPP results
                 std::vector<Solution> negative_red_cost_solutions;

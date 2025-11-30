@@ -213,30 +213,38 @@ struct NodeUnprocessedLabelsManager {
             for (size_t i = 0; i < num_nodes; i++) {
                 unprocessed_labels_by_node_pos_.push_back(
                     std::list<LabelIteratorPair<ResourceType>>());
+                truncated_unprocessed_labels_by_node_pos_.push_back(
+                    std::list<LabelIteratorPair<ResourceType>>());
             }
-            // ensure that the first call to populate_current_unprocessed_labels_if_needed advances
-            // to the first node
-            current_unprocessed_node_pos_ = num_nodes;
+            initialize_unprocessed_labels();
+        }
+
+        void initialize_unprocessed_labels() {
+            // save unprocessed labels for the current node
+            unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_)
+                .splice(unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_).end(),
+                        current_unprocessed_labels_);
+            // restart the loop at the beginning
+            current_unprocessed_node_pos_ = 0;
+            this->current_unprocessed_labels_ = std::move(unprocessed_labels_by_node_pos_.at(0));
         }
 
         void add_new_label(const LabelIteratorPair<ResourceType>& label_iterator_pair) {
-            unprocessed_labels_by_node_pos_.at(label_iterator_pair.first->get_end_node()->pos())
-                .push_back(label_iterator_pair);
+            assert(check_number_of_unprocessed_labels());
+            size_t pos = label_iterator_pair.first->get_end_node()->pos();
+            if (pos == current_unprocessed_node_pos_) {
+                current_unprocessed_labels_.push_back(label_iterator_pair);
+            } else {
+                unprocessed_labels_by_node_pos_.at(pos).push_back(label_iterator_pair);
+            }
             ++num_unprocessed_labels_;
         }
 
         void resize_current_unprocessed_labels(size_t new_size,
                                                LabelPool<ResourceType>* label_pool = nullptr,
                                                bool sort = true) {
-            if (!current_unprocessed_labels_.empty()) {
-                resize_unprocessed_labels(&current_unprocessed_labels_, new_size, label_pool, sort);
-            } else {
-                resize_unprocessed_labels(
-                    &unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_),
-                    new_size,
-                    label_pool,
-                    sort);
-            }
+            assert(check_number_of_unprocessed_labels());
+            resize_unprocessed_labels(&current_unprocessed_labels_, new_size, label_pool, sort);
         }
 
         void resize_unprocessed_labels(
@@ -259,14 +267,15 @@ struct NodeUnprocessedLabelsManager {
                 });
             }
 
-            // release exceeding labels if pool is provided
-            if (label_pool != nullptr) {
-                // release the exceeding labels
-                size_t i = 0;
-                for (auto& p : *unprocessed_labels) {
-                    if (i++ >= new_size && p.first->dominated) {
+            // release the exceeding labels
+            size_t i = 0;
+            for (auto& p : *unprocessed_labels) {
+                if (i++ >= new_size) {
+                    if (p.first->dominated && label_pool) {
                         label_pool->release_label(p.first);
                         p.first = nullptr;
+                    } else {
+                        store_truncated_unprocessed_label(p);
                     }
                 }
             }
@@ -274,12 +283,51 @@ struct NodeUnprocessedLabelsManager {
             // update unprocessed labels count and resize
             num_unprocessed_labels_ -= num_exceeding_labels;
             unprocessed_labels->resize(new_size);
+            assert(check_number_of_unprocessed_labels());
+        }
+
+        void store_truncated_unprocessed_label(
+            LabelIteratorPair<ResourceType> label_iterator_pair) {
+            truncated_unprocessed_labels_by_node_pos_
+                .at(label_iterator_pair.first->get_end_node()->pos())
+                .push_back(std::move(label_iterator_pair));
+        }
+
+        void restore_truncated_unprocessed_labels() {
+            size_t pos = 0;
+            for (auto& truncated_labels : truncated_unprocessed_labels_by_node_pos_) {
+                num_unprocessed_labels_ += truncated_labels.size();
+                auto& unprocessed_labels = unprocessed_labels_by_node_pos_.at(pos++);
+                unprocessed_labels.splice(unprocessed_labels.end(), truncated_labels);
+            }
+            // restart the loop at the beginning
+            initialize_unprocessed_labels();
+            assert(check_number_of_unprocessed_labels());
+        }
+
+        [[nodiscard]] bool check_number_of_unprocessed_labels() const {
+            size_t total_labels = 0;
+            for (const auto& labels_at_node : unprocessed_labels_by_node_pos_) {
+                total_labels += labels_at_node.size();
+            }
+            total_labels += current_unprocessed_labels_.size();
+            if (total_labels != num_unprocessed_labels_) {
+                LOG_ERROR("Mismatch in number of unprocessed labels: counted ",
+                          total_labels,
+                          " vs stored ",
+                          num_unprocessed_labels_,
+                          "\n");
+                return false;
+            }
+            return true;
         }
 
         size_t num_unprocessed_labels_ = 0;
-        size_t current_unprocessed_node_pos_;
-        int num_loops_ = -1;  // as starting from the end -> do not count first loop
+        size_t current_unprocessed_node_pos_ = 0;
+        size_t num_loops_ = 0;
         std::list<LabelIteratorPair<ResourceType>> current_unprocessed_labels_;
         std::vector<std::list<LabelIteratorPair<ResourceType>>> unprocessed_labels_by_node_pos_;
+        std::vector<std::list<LabelIteratorPair<ResourceType>>>
+            truncated_unprocessed_labels_by_node_pos_;
 };
 }  // namespace rcspp

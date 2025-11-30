@@ -75,7 +75,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                               bool sink = false) override {
             auto& node =
                 Graph<ResourceComposition<ResourceTypes...>>::add_node(node_id, source, sink);
-            node.resource = std::move(resource_factory_.make_resource(node.id));
+            node.resource = resource_factory_.make_resource(node.id);
 
             return node;
         }
@@ -96,11 +96,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 resource_factory_
                     .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
                         resource_consumption);
-
             auto extender = resource_factory_.make_extender(*resource_base, arc);
-
             arc.extender = std::move(extender);
-
             return arc;
         }
 
