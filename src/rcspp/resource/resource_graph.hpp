@@ -11,13 +11,13 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/connectivity_matrix.hpp"
-#include "rcspp/algorithm/feasibility_preprocessor.hpp"
-#include "rcspp/algorithm/shortest_path_connectivity_sort.hpp"
-#include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
+#include "rcspp/preprocessor/connectivity_matrix.hpp"
+#include "rcspp/preprocessor/feasibility_preprocessor.hpp"
+#include "rcspp/preprocessor/shortest_path_connectivity_sort.hpp"
+#include "rcspp/preprocessor/shortest_path_preprocessor.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"

@@ -5,8 +5,6 @@
 
 #include <algorithm>
 #include <list>
-#include <queue>
-#include <set>
 #include <utility>
 #include <vector>
 
@@ -40,19 +38,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             }
         }
 
-        bool test(const Label<ResourceType>& label) override {
-            // Dominance check
-            ++nb_test_iter_;
-            total_test_time_.start();
-            bool non_dominated = update_non_dominated_labels(label);
-            if (!non_dominated) {
-                ++this->nb_dominated_labels_;
-            }
-            total_test_time_.stop();
-
-            return non_dominated;
-        }
-
         void extend(Label<ResourceType>* label_ptr) override {
             const auto& current_node = label_ptr->get_end_node();
             for (auto arc_ptr : current_node->out_arcs) {
@@ -65,7 +50,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
 
-            if (new_label.is_feasible() && test(new_label)) {
+            bool feasible = new_label.is_feasible();
+            if (feasible && update_non_dominated_labels(new_label)) {
                 // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
                 // feasible and non dominated.
                 auto& non_dominated_labels =
@@ -75,6 +61,11 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     non_dominated_labels.insert(non_dominated_labels.end(), &new_label);
                 add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
             } else {
+                if (!feasible) {
+                    ++this->nb_infeasible_labels_;
+                } else {
+                    ++this->nb_dominated_labels_;
+                }
                 this->label_pool_.release_label(&new_label);
             }
         }
@@ -126,8 +117,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             return path_arc_ids;
         }
 
-        bool update_non_dominated_labels(const Label<ResourceType>& label) override {
+        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) {
             total_update_non_dom_time_.start();
+            ++nb_update_non_dom_iter_;
 
             auto current_node_pos = label.get_end_node()->pos();
             auto& non_dominated_labels_list =
@@ -190,19 +182,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
         std::vector<std::list<Label<ResourceType>*>> non_dominated_labels_by_node_pos_;
 
-        Timer total_label_time_;
         Timer total_extend_time_;
-        Timer total_non_dominated_time_;
-        Timer total_test_time_;
-        Timer total_extend_inside_time_;
-        Timer total_assign_label_time_;
-        Timer total_for_time_;
-        Timer total_iteration_time_;
         Timer total_update_non_dom_time_;
-        Timer total_update_non_dom_v2_time_;
-        Timer total_label_pool_time_;
 
-        size_t nb_test_iter_ = 0;
+        size_t nb_infeasible_labels_ = 0;
         size_t nb_update_non_dom_iter_ = 0;
         size_t nb_extend_iter_ = 0;
 };

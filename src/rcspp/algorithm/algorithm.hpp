@@ -187,7 +187,6 @@ class Algorithm {
                         }
                     }
                 } else if (!std::isinf(label.get_cost())) {
-                    assert(update_non_dominated_labels(label));
                     this->total_full_extend_time_.start();
                     this->extend(&label);
                     this->total_full_extend_time_.stop();
@@ -204,17 +203,14 @@ class Algorithm {
 
         virtual void prepareNextPhase() {}
 
+        [[nodiscard]] virtual size_t number_of_labels() const = 0;
+
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
-        virtual bool test(const Label<ResourceType>& label) = 0;
         virtual void extend(Label<ResourceType>* label) = 0;
-
-        [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
         virtual void remove_label(
             const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
-
-        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) = 0;
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 

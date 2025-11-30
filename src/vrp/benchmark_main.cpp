@@ -6,6 +6,7 @@
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
 #include "instance_reader.hpp"
+#include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
@@ -113,10 +114,11 @@ int main(int argc, char* argv[]) {
         Timer timer(true);
         AlgorithmParams params;
         // params.return_dominated_solutions = true;
-        // params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
+        params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
         // params.num_max_phases = 100;
-        auto timers = vrp.solve<SimpleDominanceAlgorithmIterators,
+        auto timers = vrp.solve<GreedyAlgorithm,
+                                SimpleDominanceAlgorithmIterators,
                                 PushingDominanceAlgorithm,
                                 PullingDominanceAlgorithm>(params);
         timer.stop();
