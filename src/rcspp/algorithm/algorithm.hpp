@@ -11,6 +11,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -81,6 +82,16 @@ struct AlgorithmParams {
         // number maximum of passes for the resolution if previous pass ended early with not enough
         // solutions
         size_t num_max_phases = 1;
+
+        // maximum number of iterations/loops (for algorithms that use it)
+        size_t max_iterations = MAX_INT;
+
+        // for tabu search algorithms
+        size_t tabu_tenure = 5;
+        std::set<size_t> forbidden_tabu;
+        bool tabu_random_noise = true;
+
+        int seed = 0;
 };
 
 template <typename ResourceType>
@@ -153,75 +164,26 @@ class Algorithm {
     protected:
         bool print_{false};
 
-        virtual void main_loop() {
-            int i = 0;
-
-            while (this->number_of_labels() > 0) {
-                ++i;
-
-                // next label to process
-                auto label_iterator_pair = next_label_iterator();
-
-                // no more label -> break (useful when pulling)
-                if (label_iterator_pair.first == nullptr) {
-                    break;
-                }
-
-                // label dominated -> continue to next one
-                auto& label = *label_iterator_pair.first;
-                if (label.dominated) {
-                    this->label_pool_.release_label(&label);
-                    continue;
-                }
-
-                assert(label.get_end_node());
-
-                // check if we can update the best label or extend
-                if (label.get_end_node()->sink) {
-                    if (label.get_cost() < params_.cost_upper_bound &&
-                        params_.return_dominated_solutions) {
-                        extract_solution(label);
-                        if (solutions_.size() >= params_.stop_after_X_solutions) {
-                            LOG_DEBUG("Stopping after ", solutions_.size(), " solutions.\n");
-                            break;
-                        }
-                    }
-                } else if (!std::isinf(label.get_cost())) {
-                    this->total_full_extend_time_.start();
-                    this->extend(&label);
-                    this->total_full_extend_time_.stop();
-                } else {
-                    remove_label(label_iterator_pair.second);
-                    this->label_pool_.release_label(&label);
-                }
-            }
-
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
-        }
-
         virtual void initialize_labels() = 0;
-
-        virtual void prepareNextPhase() {}
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
-        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
+        virtual void prepareNextPhase() {}
 
-        virtual void extend(Label<ResourceType>* label) = 0;
+        virtual void main_loop() = 0;
 
-        virtual void remove_label(
-            const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
+        void extract_remaining_solutions() {
+            auto labels_at_sinks = this->get_labels_at_sinks();
+            for (const auto* sink_label : labels_at_sinks) {
+                this->extract_solution(*sink_label);
+            }
+        }
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
         virtual void extract_solution(const Label<ResourceType>& end_label) {
-            // already found solution for this label id
-            if (solutions_.find(end_label.id) != solutions_.end()) {
-                return;
-            }
-
             if (end_label.get_cost() >= params_.cost_upper_bound) {
                 return;
             }
@@ -236,17 +198,15 @@ class Algorithm {
                 path_node_ids.push_back(this->graph_.get_arc(arc_id).origin->id);
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
-            solutions_.try_emplace(end_label.id,
-                                   end_label.get_cost(),
-                                   std::move(path_node_ids),
-                                   std::move(path_arc_ids));
-        }
+            auto sol =
+                Solution(end_label.get_cost(), std::move(path_node_ids), std::move(path_arc_ids));
 
-        void extract_remaining_solutions() {
-            auto labels_at_sinks = this->get_labels_at_sinks();
-            for (const auto* sink_label : labels_at_sinks) {
-                this->extract_solution(*sink_label);
+            // solution already extracted
+            if (solutions_.contains(sol.get_hash())) {
+                return;
             }
+
+            solutions_.emplace(sol.get_hash(), std::move(sol));
         }
 
         LabelPool<ResourceType> label_pool_;

@@ -23,9 +23,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
 
     protected:
         void main_loop() override {
-            int i = 0;
-
-            while (this->number_of_labels() > 0) {
+            size_t i = 0;
+            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
 
                 // get the label
@@ -43,7 +42,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                 }
 
                 // next label to process
-                extend(nullptr);
+                extend();
             }
 
             LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
@@ -67,11 +66,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
 
         [[nodiscard]] size_t number_of_labels() const override { return path_.size(); }
 
-        LabelIteratorPair<ResourceType> next_label_iterator() override {
-            throw std::runtime_error("No next label iterator");
-        }
-
-        void extend(Label<ResourceType>* label) override {
+        void extend() {
             // Note: do NOT keep a reference to path_.back() across pop_back() calls
             // (that'd be a dangling reference). Re-query path_.back() each loop.
             // try to extend the label greedily
@@ -132,11 +127,6 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             add_labels_to_path(std::move(all_labels));
 
             return true;
-        }
-
-        void remove_label(
-            const std::list<Label<ResourceType>*>::iterator& label_iterator) override {
-            throw std::runtime_error("No next label iterator");
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {

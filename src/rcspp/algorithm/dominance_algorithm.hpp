@@ -38,7 +38,54 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             }
         }
 
-        void extend(Label<ResourceType>* label_ptr) override {
+        void main_loop() override {
+            size_t i = 0;
+            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
+                ++i;
+
+                // next label to process
+                auto label_iterator_pair = next_label_iterator();
+
+                // no more label -> break (useful when pulling)
+                if (label_iterator_pair.first == nullptr) {
+                    break;
+                }
+
+                // label dominated -> continue to next one
+                auto& label = *label_iterator_pair.first;
+                if (label.dominated) {
+                    this->label_pool_.release_label(&label);
+                    continue;
+                }
+
+                assert(label.get_end_node());
+
+                // check if we can update the best label or extend
+                if (label.get_end_node()->sink) {
+                    if (label.get_cost() < this->params_.cost_upper_bound &&
+                        this->params_.return_dominated_solutions) {
+                        this->extract_solution(label);
+                        if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                            LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
+                            break;
+                        }
+                    }
+                } else if (!std::isinf(label.get_cost())) {
+                    this->total_full_extend_time_.start();
+                    this->extend(&label);
+                    this->total_full_extend_time_.stop();
+                } else {
+                    remove_label(label_iterator_pair.second);
+                    this->label_pool_.release_label(&label);
+                }
+            }
+
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+        }
+
+        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
+
+        virtual void extend(Label<ResourceType>* label_ptr) {
             const auto& current_node = label_ptr->get_end_node();
             for (auto arc_ptr : current_node->out_arcs) {
                 extend_label(label_ptr, arc_ptr);
@@ -158,8 +205,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             return true;
         }
 
-        void remove_label(
-            const std::list<Label<ResourceType>*>::iterator& label_iterator) override {
+        virtual void remove_label(const std::list<Label<ResourceType>*>::iterator& label_iterator) {
             auto current_node_pos = (*label_iterator)->get_end_node()->pos();
             non_dominated_labels_by_node_pos_.at(current_node_pos).erase(label_iterator);
         }

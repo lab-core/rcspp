@@ -7,6 +7,7 @@
 #include "instance.hpp"
 #include "instance_reader.hpp"
 #include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/tabu_search.hpp"
 #include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
@@ -117,8 +118,10 @@ int main(int argc, char* argv[]) {
         params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
         // params.num_max_phases = 100;
+        params.max_iterations = 100;  // NOLINT(readability-magic-numbers)
         auto timers = vrp.solve<GreedyAlgorithm,
-                                SimpleDominanceAlgorithmIterators,
+                                TabuSearch,
+                                SimpleDominanceAlgorithm,
                                 PushingDominanceAlgorithm,
                                 PullingDominanceAlgorithm>(params);
         timer.stop();

@@ -12,14 +12,14 @@
 namespace rcspp {
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class SimpleDominanceAlgorithmIterators : public DominanceAlgorithm<ResourceType> {
+class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType> {
     public:
-        SimpleDominanceAlgorithmIterators(ResourceFactory<ResourceType>* resource_factory,
-                                          const Graph<ResourceType>& graph, AlgorithmParams params)
+        SimpleDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                                 const Graph<ResourceType>& graph, AlgorithmParams params)
             : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
               number_of_extended_labels_per_node_(graph.get_number_of_nodes()) {}
 
-        ~SimpleDominanceAlgorithmIterators() override = default;
+        ~SimpleDominanceAlgorithm() override = default;
 
     private:
         LabelIteratorPair<ResourceType> next_label_iterator() override {

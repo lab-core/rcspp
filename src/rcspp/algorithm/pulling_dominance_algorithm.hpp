@@ -25,8 +25,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
 
     protected:
         void main_loop() override {
-            int i = 0;
-            while (number_of_labels() > 0) {
+            size_t i = 0;
+            while (number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
 
                 // save unprocessed labels for the current node

@@ -156,7 +156,7 @@ void init_graph(py::module_& m) {
              &ResourceGraph<RealResource>::get_resource_factory,
              py::return_value_policy::reference)
         .def("solve",
-             &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithmIterators>,
+             &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithm>,
              py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
              py::arg("params") = AlgorithmParams{},
              py::arg("preprocess") = true,
