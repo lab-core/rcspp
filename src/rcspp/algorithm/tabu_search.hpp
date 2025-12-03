@@ -5,6 +5,7 @@
 
 #include <list>
 #include <map>
+#include <memory>
 #include <random>
 #include <utility>
 #include <vector>
@@ -25,20 +26,12 @@ class TabuSearch : public Algorithm<ResourceType> {
         using SolutionT = Solution;
 
         TabuSearch(ResourceFactory<ResourceType>* resource_factory,
-                   Graph<ResourceType>& graph,  // NOLINT
-                   AlgorithmParams params)
+                   const Graph<ResourceType>& graph, AlgorithmParams params)
             : Algorithm<ResourceType>(resource_factory, graph, std::move(params)),
               resource_factory_(resource_factory),
-              graph_ptr_(&graph),
+              graph_copy_(graph.clone()),
               rnd_(std::random_device{}()) {  // NOLINT(whitespace/braces)
             rnd_.seed(this->params_.seed);
-        }
-
-        ~TabuSearch() override {
-            // restore all removed arcs
-            for (const auto& p : removed_tabu_arc_ids_) {
-                graph_ptr_->restore_arc(p.first);
-            }
         }
 
         // Run tabu search and collect solutions. The search runs up to max_iterations or
@@ -63,7 +56,7 @@ class TabuSearch : public Algorithm<ResourceType> {
                 ++i;
 
                 // solve
-                AlgorithmType<ResourceType> alg(resource_factory_, this->graph_, alg_params);
+                AlgorithmType<ResourceType> alg(resource_factory_, *graph_copy_, alg_params);
                 std::vector<Solution> sols = alg.solve();
                 if (sols.empty()) {
                     break;
@@ -82,21 +75,27 @@ class TabuSearch : public Algorithm<ResourceType> {
                     this->solutions_.emplace(sol.get_hash(), std::move(sol));
                     added = true;
                 }
+
                 // increase tenure
                 if (!added) {
-                    ++tabu_tenure_extra_;
+                    tabu_tenure_extra_ = 1 + (2 * tabu_tenure_extra_);
                 }
 
                 // decrease tenure and remove expired
-                for (auto it = removed_tabu_arc_ids_.begin(); it != removed_tabu_arc_ids_.end();) {
-                    if (it->second == 0) {
-                        graph_ptr_->restore_arc(it->first);
-                        it = removed_tabu_arc_ids_.erase(it);
-                    } else {
-                        --(it->second);
-                        ++it;
+                size_t tabu_size = removed_tabu_arc_ids_.size();
+                do {
+                    for (auto it = removed_tabu_arc_ids_.begin();
+                         it != removed_tabu_arc_ids_.end();) {
+                        if (it->second == 0) {
+                            graph_copy_->restore_arc(it->first);
+                            it = removed_tabu_arc_ids_.erase(it);
+                        } else {
+                            --(it->second);
+                            ++it;
+                        }
                     }
-                }
+                } while (!added && removed_tabu_arc_ids_.size() == tabu_size);
+                // -> ensure that at least one tabu is removed if no new solution was added
             }
 
             LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
@@ -105,14 +104,14 @@ class TabuSearch : public Algorithm<ResourceType> {
         void tabu_solution(const Solution& sol) {
             // remove the following nodes from the graph for the next iteration
             for (auto arc_id : sol.path_arc_ids) {
-                // check if arc can be removed
-                const auto& arc = this->graph_.get_arc(arc_id);
-                if (this->params_.forbidden_tabu.contains(arc.origin->id) ||
-                    this->params_.forbidden_tabu.contains(arc.destination->id)) {
+                // check if arc is already removed or can be removed
+                const auto* arc = graph_copy_->get_arc(arc_id);
+                if (arc == nullptr || this->params_.forbidden_tabu.contains(arc->origin->id) ||
+                    this->params_.forbidden_tabu.contains(arc->destination->id)) {
                     continue;
                 }
                 // remove arc and add to tabu list
-                if (graph_ptr_->remove_arc(arc_id)) {
+                if (graph_copy_->remove_arc(arc_id)) {
                     size_t tenure = this->params_.tabu_tenure + tabu_tenure_extra_;
                     if (this->params_.tabu_random_noise) {
                         std::uniform_int_distribution<int> dist(tenure > 1 ? -1 : 0, 1);
@@ -139,7 +138,7 @@ class TabuSearch : public Algorithm<ResourceType> {
 
     private:
         ResourceFactory<ResourceType>* resource_factory_;
-        Graph<ResourceType>* graph_ptr_;
+        std::unique_ptr<Graph<ResourceType>> graph_copy_;
         std::map<size_t, size_t> removed_tabu_arc_ids_;
         size_t tabu_tenure_extra_{0};
         std::mt19937_64 rnd_;

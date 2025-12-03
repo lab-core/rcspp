@@ -87,7 +87,7 @@ struct AlgorithmParams {
         size_t max_iterations = MAX_INT;
 
         // for tabu search algorithms
-        size_t tabu_tenure = 5;
+        size_t tabu_tenure = 5;  // NOLINT
         std::set<size_t> forbidden_tabu;
         bool tabu_random_noise = true;
 
@@ -100,8 +100,8 @@ class Algorithm {
     public:
         Algorithm(ResourceFactory<ResourceType>* resource_factory, const Graph<ResourceType>& graph,
                   AlgorithmParams params)
-            : label_pool_(LabelPool<ResourceType>(
-                  std::make_unique<LabelFactory<ResourceType>>(resource_factory), params.use_pool)),
+            : label_pool_(std::make_unique<LabelPool<ResourceType>>(
+                  std::make_unique<LabelFactory<ResourceType>>(resource_factory))),
               graph_(graph),
               params_(std::move(params.check())) {
             if (!graph_.get_sorted_nodes().empty() && !graph_.are_nodes_sorted()) {
@@ -143,6 +143,10 @@ class Algorithm {
                 solutions.push_back(std::move(solution));
             }
 
+            // prepare next phase to ensure that all_labels_processed() returns the right value
+            // Also, next solve() is ready to start if needed
+            prepareNextPhase();
+
             // sort solutions
             std::ranges::sort(solutions,
                               [](const Solution& a, const Solution& b) { return a.cost < b.cost; });
@@ -160,6 +164,8 @@ class Algorithm {
 
             return solutions;
         }
+
+        [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
 
     protected:
         bool print_{false};
@@ -195,7 +201,7 @@ class Algorithm {
 
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
-                path_node_ids.push_back(this->graph_.get_arc(arc_id).origin->id);
+                path_node_ids.push_back(this->graph_.get_arc(arc_id)->origin->id);
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
             auto sol =
@@ -209,11 +215,11 @@ class Algorithm {
             solutions_.emplace(sol.get_hash(), std::move(sol));
         }
 
-        LabelPool<ResourceType> label_pool_;
+        std::unique_ptr<LabelPool<ResourceType>> label_pool_;
         const Graph<ResourceType>& graph_;
         const AlgorithmParams params_;
 
-        std::map<size_t, Solution> solutions_;
+        std::map<std::uint64_t, Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
         Timer total_full_extend_time_;

@@ -28,17 +28,18 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType> {
                 label_iterator_pair = unprocessed_labels_.front();
                 unprocessed_labels_.pop_front();
 
-                // truncate/limit the number of labels extended per node
-                size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(
-                    label_iterator_pair.first->get_end_node()->pos());
-                if (num_extended_labels_for_node < this->params_.num_labels_to_extend_by_node) {
-                    ++num_extended_labels_for_node;
-                    break;
-                }
                 // if dominated, release the label
                 if (label_iterator_pair.first->dominated) {
-                    this->label_pool_.release_label(label_iterator_pair.first);
+                    this->label_pool_->release_label(label_iterator_pair.first);
                 } else {
+                    // truncate/limit the number of labels extended per node
+                    size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(
+                        label_iterator_pair.first->get_end_node()->pos());
+                    if (num_extended_labels_for_node < this->params_.num_labels_to_extend_by_node) {
+                        ++num_extended_labels_for_node;
+                        break;  // found a label to process
+                    }
+                    // otherwise, store truncated label for next phase
                     unprocessed_truncated_labels_.push_back(label_iterator_pair);
                 }
             }

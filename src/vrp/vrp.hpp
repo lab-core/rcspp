@@ -30,8 +30,18 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{}) {  // NOLINT
+        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{},
+                                 std::optional<size_t> numAlgos = std::nullopt) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
+
+            if (numAlgos.has_value()) {
+                size_t nAlgos = numAlgos.value();
+                size_t totalAlgos = sizeof...(AlgorithmTypes) + 1;
+                if (nAlgos != totalAlgos) {
+                    LOG_ERROR("There is not the right number of algorithms defined.\n");
+                    return {};
+                }
+            }
 
             generate_initial_paths();
             MasterProblem master_problem(instance_.get_demand_customers_id());

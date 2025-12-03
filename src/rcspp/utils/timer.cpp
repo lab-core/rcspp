@@ -63,15 +63,16 @@ int64_t Timer::elapsed_microseconds(bool only_current) const noexcept {
 
 constexpr int HOURS_IN_SECONDS = 3600;
 constexpr int MINUTES_IN_SECONDS = 60;
-constexpr int MAX_LENGTH_HMS = 32;  // "HH:MM:SS"
+constexpr int MAX_LENGTH_HMS = 32;  // "HH:MM:SS.ss"
 
 std::string Timer::elapsed_to_hms(bool only_current) const noexcept {
-    const int sec = static_cast<int>(std::round(elapsed_seconds(only_current)));
-    const int h = sec / HOURS_IN_SECONDS;
-    const int m = (sec % HOURS_IN_SECONDS) / MINUTES_IN_SECONDS;
-    const int ss = sec % MINUTES_IN_SECONDS;
+    const double sec = elapsed_seconds(only_current);
+    const int h = static_cast<int>(sec) / HOURS_IN_SECONDS;
+    const int m = (static_cast<int>(sec) % HOURS_IN_SECONDS) / MINUTES_IN_SECONDS;
+    double s = sec - (h * HOURS_IN_SECONDS + m * MINUTES_IN_SECONDS);
+
     std::array<char, MAX_LENGTH_HMS> buf;
-    std::snprintf(buf.data(), buf.size(), "%02d:%02d:%02d", h, m, ss);
+    std::snprintf(buf.data(), buf.size(), "%02d:%02d:%05.2f", h, m, s);
     return {buf.data()};
 }
 

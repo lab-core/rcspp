@@ -136,8 +136,8 @@ class ConnectivityMatrix {
             // Build adjacency list (indices) for the graph
             std::vector<std::vector<size_t>> adj(N);
             for (size_t i = 0; i < N; ++i) {
-                const auto& node = graph_->get_node(node_ids_[i]);
-                for (const auto arc_ptr : node.out_arcs) {
+                const auto* node = graph_->get_node(node_ids_[i]);
+                for (const auto arc_ptr : node->out_arcs) {
                     const auto it = id_to_index_.find(arc_ptr->destination->id);
                     if (it != id_to_index_.end()) {
                         adj[i].push_back(it->second);

@@ -51,8 +51,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
         void initialize_labels() override {
             std::list<Label<ResourceType>*> sources;
             for (auto source_node_id : this->graph_.get_source_node_ids()) {
-                auto& source_node = this->graph_.get_node(source_node_id);
-                auto& label = this->label_pool_.get_next_label(&source_node);
+                auto* source_node = this->graph_.get_node(source_node_id);
+                auto& label = this->label_pool_->get_next_label(source_node);
                 sources.push_back(&label);
             }
 
@@ -78,7 +78,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                 // need to backtrack until we find a node with remaining siblings
                 while (!path_.empty() && path_.back().second.empty()) {
                     // release the label at this depth and pop
-                    this->label_pool_.release_label(path_.back().first);
+                    this->label_pool_->release_label(path_.back().first);
                     path_.pop_back();
                 }
 
@@ -88,7 +88,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                 }
 
                 // there is at least one sibling at current depth: release current label and switch
-                this->label_pool_.release_label(path_.back().first);
+                this->label_pool_->release_label(path_.back().first);
                 auto next_label = path_.back().second.front();
                 path_.back().second.pop_front();
                 path_.back().first = next_label;
@@ -102,7 +102,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             std::list<Label<ResourceType>*> all_labels;
             for (auto* arc : end_node->out_arcs) {
                 // extend along arc
-                auto& new_label = this->label_pool_.get_next_label(arc->destination);
+                auto& new_label = this->label_pool_->get_next_label(arc->destination);
                 label->extend(*arc, &new_label);
                 // check feasibility
                 if (new_label.is_feasible()) {
@@ -110,18 +110,18 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                     all_labels.push_back(&new_label);
                 } else {
                     // release label
-                    this->label_pool_.release_label(&new_label);
+                    this->label_pool_->release_label(&new_label);
                 }
+            }
+
+            if (all_labels.empty()) {
+                return false;
             }
 
             // sort the labels by cost
             all_labels.sort([](Label<ResourceType>* l1, Label<ResourceType>* l2) {
                 return l1->get_cost() < l2->get_cost();
             });
-
-            if (all_labels.empty()) {
-                return false;
-            }
 
             // keep best label first
             add_labels_to_path(std::move(all_labels));

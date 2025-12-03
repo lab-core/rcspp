@@ -12,10 +12,12 @@
 #include "solution_output.hpp"
 #include "vrp.hpp"
 
+constexpr size_t METRIC_WIDTH = 15;
+constexpr size_t COL_WIDTH = 12;
+
 std::string print_timer_table(const std::string& instance, const std::vector<Timer>& timers,
                               const std::vector<std::string>& labels, bool print_headers = true,
-                              size_t metric_w = 15,     // NOLINT(readability-magic-numbers)
-                              size_t min_col_w = 10) {  // NOLINT(readability-magic-numbers)
+                              size_t metric_w = METRIC_WIDTH, size_t min_col_w = COL_WIDTH) {
     std::ostringstream out;
     if (timers.size() != labels.size()) {
         out << "print_timer_table_flipped: mismatch between timers and labels sizes\n";
@@ -93,7 +95,7 @@ int main(int argc, char* argv[]) {
         instance_names.emplace_back("R10" + std::to_string(instance_num));
         instance_names.emplace_back("RC10" + std::to_string(instance_num));
     }
-    std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling"};
+    std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling", "TabuSearch"};
     std::string root_dir = file_parent_dir(__FILE__, 3);
 
     std::vector<Timer> total_timers;
@@ -118,12 +120,11 @@ int main(int argc, char* argv[]) {
         params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
         // params.num_max_phases = 100;
-        params.max_iterations = 100;  // NOLINT(readability-magic-numbers)
-        auto timers = vrp.solve<GreedyAlgorithm,
-                                TabuSearch,
-                                SimpleDominanceAlgorithm,
+        params.max_iterations = 1e6;  // NOLINT(readability-magic-numbers)
+        auto timers = vrp.solve<SimpleDominanceAlgorithm,
                                 PushingDominanceAlgorithm,
-                                PullingDominanceAlgorithm>(params);
+                                PullingDominanceAlgorithm,
+                                TabuSearch>(params, labels.size());
         timer.stop();
 
         if (first_instance) {
