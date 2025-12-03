@@ -17,9 +17,8 @@ namespace rcspp {
 template <typename ResourceType>
 class GreedyAlgorithm : public Algorithm<ResourceType> {
     public:
-        GreedyAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                        const Graph<ResourceType>& graph, AlgorithmParams params)
-            : Algorithm<ResourceType>(resource_factory, graph, std::move(params)) {}
+        GreedyAlgorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
+            : Algorithm<ResourceType>(resource_factory, std::move(params)) {}
 
     protected:
         void main_loop() override {
@@ -32,7 +31,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
 
                 // check if we can update the best label or extend
                 if (label->get_end_node()->sink) {
-                    if (label->get_cost() < this->params_.cost_upper_bound) {
+                    if (label->get_cost() < this->cost_upper_bound_) {
                         this->extract_solution(*label);
                         if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
                             LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
@@ -50,8 +49,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
 
         void initialize_labels() override {
             std::list<Label<ResourceType>*> sources;
-            for (auto source_node_id : this->graph_.get_source_node_ids()) {
-                auto* source_node = this->graph_.get_node(source_node_id);
+            for (auto source_node_id : this->graph_->get_source_node_ids()) {
+                auto* source_node = this->graph_->get_node(source_node_id);
                 auto& label = this->label_pool_->get_next_label(source_node);
                 sources.push_back(&label);
             }
@@ -61,6 +60,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             }
 
             // store the sources: take the first element out, then move the remaining list
+            path_.clear();
             add_labels_to_path(std::move(sources));
         }
 

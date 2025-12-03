@@ -64,9 +64,6 @@ struct AlgorithmParams {
             return false;
         }
 
-        // upper bound on the cost of solutions to find
-        double cost_upper_bound = std::numeric_limits<double>::infinity();
-
         // stop after finding X solutions (not going to optimality
         size_t stop_after_X_solutions = MAX_INT;
 
@@ -98,13 +95,18 @@ template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
     public:
-        Algorithm(ResourceFactory<ResourceType>* resource_factory, const Graph<ResourceType>& graph,
-                  AlgorithmParams params)
+        Algorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
             : label_pool_(std::make_unique<LabelPool<ResourceType>>(
                   std::make_unique<LabelFactory<ResourceType>>(resource_factory))),
-              graph_(graph),
-              params_(std::move(params.check())) {
-            if (!graph_.get_sorted_nodes().empty() && !graph_.are_nodes_sorted()) {
+              graph_(nullptr),
+              params_(std::move(params.check())) {}
+
+        virtual ~Algorithm() = default;
+
+        [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
+
+        virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
+            if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
                 LOG_FATAL(
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.\n");
@@ -112,12 +114,20 @@ class Algorithm {
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.");
             }
+
+            graph_ = graph;
+            cost_upper_bound_ = cost_upper_bound;
+            label_pool_->clear();
+            solutions_.clear();
         }
 
-        virtual ~Algorithm() = default;
-
-        virtual std::vector<Solution> solve() {
+        virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
+                                            double cost_upper_bound) {
+            // initialization
             Timer timer;
+            initialize(graph, cost_upper_bound);
+
+            // initialize labels
             this->initialize_labels();
 
             size_t num_phases = 0;
@@ -153,7 +163,7 @@ class Algorithm {
 
             LOG_DEBUG("Number of solutions before resize: ", solutions.size(), '\n');
             LOG_DEBUG("Min cost=",
-                      solutions.empty() ? params_.cost_upper_bound : solutions.front().cost,
+                      solutions.empty() ? cost_upper_bound : solutions.front().cost,
                       "\n");
             LOG_DEBUG("Total time=", timer.elapsed_seconds(), " sec.\n");
 
@@ -190,7 +200,7 @@ class Algorithm {
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
         virtual void extract_solution(const Label<ResourceType>& end_label) {
-            if (end_label.get_cost() >= params_.cost_upper_bound) {
+            if (end_label.get_cost() >= cost_upper_bound_) {
                 return;
             }
 
@@ -201,7 +211,7 @@ class Algorithm {
 
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
-                path_node_ids.push_back(this->graph_.get_arc(arc_id)->origin->id);
+                path_node_ids.push_back(this->graph_->get_arc(arc_id)->origin->id);
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
             auto sol =
@@ -216,9 +226,10 @@ class Algorithm {
         }
 
         std::unique_ptr<LabelPool<ResourceType>> label_pool_;
-        const Graph<ResourceType>& graph_;
+        const Graph<ResourceType>* graph_;
         const AlgorithmParams params_;
 
+        double cost_upper_bound_ = std::numeric_limits<double>::infinity();
         std::map<std::uint64_t, Solution> solutions_;
 
         size_t nb_dominated_labels_{0};

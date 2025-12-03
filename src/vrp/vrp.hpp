@@ -15,6 +15,8 @@
 using namespace rcspp;
 
 using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
+using ResourceType =
+    ResourceComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 
 class VRP {
     public:
@@ -30,14 +32,16 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{},
-                                 std::optional<size_t> numAlgos = std::nullopt) {  // NOLINT
+        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{},  // NOLINT
+                                 std::optional<size_t> numAlgos = std::nullopt,
+                                 std::vector<Algorithm<ResourceType>*> algorithms = {}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
+
+            size_t num_total_algos = sizeof...(AlgorithmTypes) + 1 + algorithms.size();
 
             if (numAlgos.has_value()) {
                 size_t nAlgos = numAlgos.value();
-                size_t totalAlgos = sizeof...(AlgorithmTypes) + 1;
-                if (nAlgos != totalAlgos) {
+                if (nAlgos != num_total_algos) {
                     LOG_ERROR("There is not the right number of algorithms defined.\n");
                     return {};
                 }
@@ -49,7 +53,7 @@ class VRP {
             MPSolution master_solution;
 
             double min_reduced_cost = -std::numeric_limits<double>::infinity();
-            std::vector<Timer> timers(1 + sizeof...(AlgorithmTypes));
+            std::vector<Timer> timers(num_total_algos);
             int nb_iter = 0;
             while (min_reduced_cost < -EPSILON) {
                 master_solution = master_problem.solve();
@@ -65,17 +69,15 @@ class VRP {
                 // Run RCSPP for each AlgorithmType and collect the first algorithm's solutions
                 std::vector<Solution> solutions_rcspp_any;
                 size_t algo_index = 1;  // timers[0] used by boost
-                (void)std::initializer_list<int>{([&]() {
-                    timers[algo_index].start();
-                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params);
-                    timers[algo_index].stop();
 
+                auto collect_solutions = [&](auto sols, Algorithm<ResourceType>* algo = nullptr) {
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
                             // RCSPP can be better as it uses int for some resources (e.g., load,
                             // time)
                             double diff = solutions_boost[0].cost - sols[0].cost;
-                            bool non_optimal = params.could_be_non_optimal();
+                            bool non_optimal = algo == nullptr ? params.could_be_non_optimal()
+                                                               : !algo->is_optimal();
                             if ((non_optimal && diff > COST_COMPARISON_EPSILON) ||
                                 (!non_optimal && abs(diff) > COST_COMPARISON_EPSILON)) {
                                 LOG_ERROR("RCSPP solution is not coherent with BOOST (",
@@ -117,7 +119,21 @@ class VRP {
                     }
                     ++algo_index;
                     return 0;
+                };
+
+                (void)std::initializer_list<int>{([&]() {
+                    timers[algo_index].start();
+                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params);
+                    timers[algo_index].stop();
+                    return collect_solutions(sols);
                 }())...};
+
+                for (auto* algorithm : algorithms) {
+                    timers[algo_index].start();
+                    auto sols = solve_with_rcspp(dual_by_id, algorithm);
+                    timers[algo_index].stop();
+                    collect_solutions(sols, algorithm);
+                }
 
                 // Collect negative reduced cost solutions from the chosen RCSPP results
                 std::vector<Solution> negative_red_cost_solutions;
@@ -150,6 +166,8 @@ class VRP {
 
             return timers;
         }
+
+        RGraph& get_graph() { return graph_; }
 
         void sort_nodes();
         void sort_nodes_by_connectivity();
@@ -224,6 +242,25 @@ class VRP {
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
             auto solutions = graph_.solve<AlgorithmType>(-EPSILON, params);
+
+            LOG_DEBUG(__FUNCTION__,
+                      " Time: ",
+                      total_subproblem_solve_time_.elapsed_milliseconds(/* only_current = */ true),
+                      " (ms)\n");
+
+            total_subproblem_solve_time_.stop();
+
+            return solutions;
+        }
+
+        template <template <typename> class AlgorithmType>
+        [[nodiscard]] std::vector<Solution> solve_with_rcspp(
+            const std::map<size_t, double>& dual_by_id, AlgorithmType<ResourceType>* algo) {
+            LOG_TRACE(__FUNCTION__, '\n');
+
+            update_resource_graph(&graph_, &dual_by_id);
+            total_subproblem_solve_time_.start();
+            auto solutions = graph_.solve(algo, -EPSILON);
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",

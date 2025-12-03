@@ -15,13 +15,16 @@ template <typename ResourceType>
 class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType> {
     public:
         SimpleDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                 const Graph<ResourceType>& graph, AlgorithmParams params)
-            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
-              number_of_extended_labels_per_node_(graph.get_number_of_nodes()) {}
+                                 AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, std::move(params)) {}
 
         ~SimpleDominanceAlgorithm() override = default;
 
     private:
+        void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
+        }
         LabelIteratorPair<ResourceType> next_label_iterator() override {
             LabelIteratorPair<ResourceType> label_iterator_pair;
             while (!unprocessed_labels_.empty()) {

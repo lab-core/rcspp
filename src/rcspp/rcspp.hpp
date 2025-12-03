@@ -2,13 +2,13 @@
 #pragma once
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/diversification_search.hpp"
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 #include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
-#include "rcspp/algorithm/tabu_search.hpp"
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/graph/graph.hpp"

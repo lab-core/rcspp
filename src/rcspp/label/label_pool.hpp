@@ -65,6 +65,11 @@ class LabelPool {
             }
         }
 
+        void clear() {
+            labels_.clear();
+            available_labels_.clear();
+        }
+
         [[nodiscard]] int64_t get_nb_created_labels() const { return nb_created_labels_; }
 
         [[nodiscard]] int64_t get_nb_reused_labels() const { return nb_reused_labels_; }

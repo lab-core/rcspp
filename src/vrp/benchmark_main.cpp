@@ -6,8 +6,8 @@
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #include "instance.hpp"
 #include "instance_reader.hpp"
+#include "rcspp/algorithm/diversification_search.hpp"
 #include "rcspp/algorithm/greedy.hpp"
-#include "rcspp/algorithm/tabu_search.hpp"
 #include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"
@@ -114,17 +114,29 @@ int main(int argc, char* argv[]) {
         // vrp.sort_nodes_by_min_tw();
         // vrp.sort_nodes_by_max_tw();
 
+        AlgorithmParams other_params;
+        other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
+        other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
+        auto greedy_algo = vrp.get_graph().create_algorithm<GreedyAlgorithm>(other_params);
+        AlgorithmParams tabu_params;
+        tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
+        tabu_params.max_iterations = 1e6;         // NOLINT(readability-magic-numbers)
+        auto tabu_search_algo =
+            vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
+                                                                    std::move(greedy_algo));
+
+        std::vector<Algorithm<ResourceType>*> algorithms = {tabu_search_algo.get()};
+
         Timer timer(true);
         AlgorithmParams params;
         // params.return_dominated_solutions = true;
-        params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
+        // params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
         // params.num_max_phases = 100;
-        params.max_iterations = 1e6;  // NOLINT(readability-magic-numbers)
+        // params.max_iterations = 1e6;  // NOLINT(readability-magic-numbers)
         auto timers = vrp.solve<SimpleDominanceAlgorithm,
                                 PushingDominanceAlgorithm,
-                                PullingDominanceAlgorithm,
-                                TabuSearch>(params, labels.size());
+                                PullingDominanceAlgorithm>(params, labels.size(), algorithms);
         timer.stop();
 
         if (first_instance) {

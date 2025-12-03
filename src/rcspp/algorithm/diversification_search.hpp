@@ -11,32 +11,30 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
-#include "rcspp/algorithm/greedy.hpp"
 
 namespace rcspp {
 
-// Generic TabuSearch wrapper.
-// AlgorithmFactory must be callable with no arguments and return std::unique_ptr<Algorithm>.
-// The Algorithm produced must expose a method:
-//   std::vector<Solution> solve();
-// extract_arcs: given a Solution returns the vector of arc ids used by the solution.
-template <typename ResourceType, template <typename> class AlgorithmType = GreedyAlgorithm>
-class TabuSearch : public Algorithm<ResourceType> {
+// DiversificationSearch wrapper.
+template <typename ResourceType>
+class DiversificationSearch : public Algorithm<ResourceType> {
     public:
-        using SolutionT = Solution;
-
-        TabuSearch(ResourceFactory<ResourceType>* resource_factory,
-                   const Graph<ResourceType>& graph, AlgorithmParams params)
-            : Algorithm<ResourceType>(resource_factory, graph, std::move(params)),
-              resource_factory_(resource_factory),
-              graph_copy_(graph.clone()),
+        DiversificationSearch(ResourceFactory<ResourceType>* resource_factory,
+                              AlgorithmParams params, std::unique_ptr<Algorithm<ResourceType>> algo)
+            : Algorithm<ResourceType>(resource_factory, std::move(params)),
+              algo_(std::move(algo)),
               rnd_(std::random_device{}()) {  // NOLINT(whitespace/braces)
             rnd_.seed(this->params_.seed);
         }
 
+        [[nodiscard]] bool is_optimal() const override { return false; }
+
         // Run tabu search and collect solutions. The search runs up to max_iterations or
         // stop_after_X_solutions
     protected:
+        void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            graph_copy_ = std::move(graph->clone());
+        }
         void main_loop() override {
             // check stopping criteria
             if (this->params_.max_iterations >= MAX_INT) {
@@ -55,9 +53,9 @@ class TabuSearch : public Algorithm<ResourceType> {
                    this->solutions_.size() < this->params_.stop_after_X_solutions) {
                 ++i;
 
-                // solve
-                AlgorithmType<ResourceType> alg(resource_factory_, *graph_copy_, alg_params);
-                std::vector<Solution> sols = alg.solve();
+                // solve (important to clear the label pool, as the graph is changing)
+                std::vector<Solution> sols =
+                    algo_->solve(graph_copy_.get(), this->cost_upper_bound_);
                 if (sols.empty()) {
                     break;
                 }
@@ -82,20 +80,15 @@ class TabuSearch : public Algorithm<ResourceType> {
                 }
 
                 // decrease tenure and remove expired
-                size_t tabu_size = removed_tabu_arc_ids_.size();
-                do {
-                    for (auto it = removed_tabu_arc_ids_.begin();
-                         it != removed_tabu_arc_ids_.end();) {
-                        if (it->second == 0) {
-                            graph_copy_->restore_arc(it->first);
-                            it = removed_tabu_arc_ids_.erase(it);
-                        } else {
-                            --(it->second);
-                            ++it;
-                        }
+                for (auto it = removed_tabu_arc_ids_.begin(); it != removed_tabu_arc_ids_.end();) {
+                    if (it->second == 0) {
+                        graph_copy_->restore_arc(it->first);
+                        it = removed_tabu_arc_ids_.erase(it);
+                    } else {
+                        --(it->second);
+                        ++it;
                     }
-                } while (!added && removed_tabu_arc_ids_.size() == tabu_size);
-                // -> ensure that at least one tabu is removed if no new solution was added
+                }
             }
 
             LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
@@ -137,8 +130,8 @@ class TabuSearch : public Algorithm<ResourceType> {
         }
 
     private:
-        ResourceFactory<ResourceType>* resource_factory_;
         std::unique_ptr<Graph<ResourceType>> graph_copy_;
+        std::unique_ptr<Algorithm<ResourceType>> algo_;
         std::map<size_t, size_t> removed_tabu_arc_ids_;
         size_t tabu_tenure_extra_{0};
         std::mt19937_64 rnd_;

@@ -17,18 +17,18 @@ template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class DominanceAlgorithm : public Algorithm<ResourceType> {
     public:
-        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                           const Graph<ResourceType>& graph, AlgorithmParams params)
-            : Algorithm<ResourceType>(resource_factory, graph, std::move(params)) {
-            for (size_t i = 0; i < graph.get_number_of_nodes(); i++) {
-                non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
-            }
-        }
+        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
+            : Algorithm<ResourceType>(resource_factory, std::move(params)) {}
 
     protected:
         void initialize_labels() override {
-            for (auto source_node_id : this->graph_.get_source_node_ids()) {
-                auto* source_node = this->graph_.get_node(source_node_id);
+            non_dominated_labels_by_node_pos_.clear();
+            for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
+                non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
+            }
+
+            for (auto source_node_id : this->graph_->get_source_node_ids()) {
+                auto* source_node = this->graph_->get_node(source_node_id);
                 auto& label = this->label_pool_->get_next_label(source_node);
 
                 auto& labels = non_dominated_labels_by_node_pos_.at(source_node->pos());
@@ -62,7 +62,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
                 // check if we can update the best label or extend
                 if (label.get_end_node()->sink) {
-                    if (label.get_cost() < this->params_.cost_upper_bound &&
+                    if (label.get_cost() < this->cost_upper_bound_ &&
                         this->params_.return_dominated_solutions) {
                         this->extract_solution(label);
                         if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
@@ -212,8 +212,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
             std::list<Label<ResourceType>*> labels_at_sinks;
-            for (auto sink_node_id : this->graph_.get_sink_node_ids()) {
-                auto node_pos = this->graph_.get_node(sink_node_id)->pos();
+            for (auto sink_node_id : this->graph_->get_sink_node_ids()) {
+                auto node_pos = this->graph_->get_node(sink_node_id)->pos();
                 const auto& labels_at_current_sink = non_dominated_labels_by_node_pos_.at(node_pos);
                 labels_at_sinks.insert(labels_at_sinks.end(),
                                        labels_at_current_sink.begin(),
@@ -238,17 +238,15 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
 template <typename ResourceType>
 struct NodeUnprocessedLabelsManager {
-        explicit NodeUnprocessedLabelsManager(size_t num_nodes) {
-            for (size_t i = 0; i < num_nodes; i++) {
-                unprocessed_labels_by_node_pos_.push_back(
-                    std::list<LabelIteratorPair<ResourceType>>());
-                truncated_unprocessed_labels_by_node_pos_.push_back(
-                    std::list<LabelIteratorPair<ResourceType>>());
+        void initialize_unprocessed_labels(size_t num_nodes) {
+            if (unprocessed_labels_by_node_pos_.empty()) {
+                for (size_t i = 0; i < num_nodes; i++) {
+                    unprocessed_labels_by_node_pos_.push_back(
+                        std::list<LabelIteratorPair<ResourceType>>());
+                    truncated_unprocessed_labels_by_node_pos_.push_back(
+                        std::list<LabelIteratorPair<ResourceType>>());
+                }
             }
-            initialize_unprocessed_labels();
-        }
-
-        void initialize_unprocessed_labels() {
             // save unprocessed labels for the current node
             unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_)
                 .splice(unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_).end(),
@@ -330,7 +328,7 @@ struct NodeUnprocessedLabelsManager {
                 unprocessed_labels.splice(unprocessed_labels.end(), truncated_labels);
             }
             // restart the loop at the beginning
-            initialize_unprocessed_labels();
+            initialize_unprocessed_labels(unprocessed_labels_by_node_pos_.size());
             assert(check_number_of_unprocessed_labels());
         }
 
