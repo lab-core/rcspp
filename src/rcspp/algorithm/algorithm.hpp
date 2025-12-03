@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
 #include <iostream>
 #include <limits>
@@ -54,13 +55,7 @@ struct AlgorithmParams {
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            if (stop_after_X_solutions < MAX_INT) {
-                return true;
-            }
-            if (num_labels_to_extend_by_node < MAX_INT) {
-                return false;
-            }
-            return false;
+            return (stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT);
         }
 
         // upper bound on the cost of solutions to find
@@ -72,13 +67,13 @@ struct AlgorithmParams {
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
 
-        // for using label pool (should normally always be true)
+        // whether to use label pooling for memory reuse (should normally always be true)
         bool use_pool = true;
 
         // for truncated labeling
         size_t num_labels_to_extend_by_node = MAX_INT;
 
-        // number maximum of passes for the resolution if previous pass ended early with not enough
+        // maximum number of passes for the resolution if previous pass ended early with not enough
         // solutions
         size_t num_max_phases = 1;
 };

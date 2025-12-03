@@ -56,20 +56,14 @@ class NumericalResource : public ResourceBase<NumericalResource<T>> {
         }
 
         // bool operator<=(const NumericalResource<T>& other) const {
-        [[nodiscard]] bool leq(T other_value) const {
-            return value_ <= other_value;
-            return value_leq(value_, other_value);
-        }
+        [[nodiscard]] bool leq(T other_value) const { return value_leq(value_, other_value); }
 
         [[nodiscard]] bool geq(const NumericalResource<T>& other) const {
             return geq(other.get_value());
         }
 
         // bool operator<=(const NumericalResource<T>& other) const {
-        [[nodiscard]] bool geq(T other_value) const {
-            return value_ >= other_value;
-            return value_leq(other_value, value_);
-        }
+        [[nodiscard]] bool geq(T other_value) const { return value_leq(other_value, value_); }
 
     private:
         T value_;
