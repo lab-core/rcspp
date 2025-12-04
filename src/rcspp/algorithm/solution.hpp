@@ -15,19 +15,19 @@ namespace rcspp {
 // 64-bit FNV-1a constants
 inline constexpr std::uint64_t FNV_OFFSET_BASIS = 14695981039346656037ULL;
 inline constexpr std::uint64_t FNV_PRIME = 1099511628211ULL;
-inline constexpr int FVN_NUM_BYTES_UINT64 = 8;
-inline constexpr std::uint64_t FVN_NUM_BITS_PER_BYTE_UINT64 = 0xFFU;
-inline constexpr int FVN_NUM_BITS_PER_BYTE = 8;
+inline constexpr int FNV_NUM_BYTES_UINT64 = 8;
+inline constexpr std::uint64_t FNV_NUM_BITS_PER_BYTE_UINT64 = 0xFFU;
+inline constexpr int FNV_NUM_BITS_PER_BYTE = 8;
 
 // Hash the raw bytes of a 64-bit integer using FNV-1a
 // FNV-1a is a simple, fast, noncryptographic hash designed for hash tables and checksums.
 // It processes input byte-by-byte: initialize the hash to an offset basis, for each byte XOR the
 // hash with the byte, then multiply by a large prime (modulo the word size).
 static std::uint64_t fnv1a_mix_uint64(std::uint64_t v, std::uint64_t h = FNV_OFFSET_BASIS) {
-    for (int i = 0; i < FVN_NUM_BYTES_UINT64; ++i) {  // process 1 byte (8 bits) 8 times (64 bits)
+    for (int i = 0; i < FNV_NUM_BYTES_UINT64; ++i) {  // process 1 byte (8 bits) 8 times (64 bits)
         auto byte =
-            static_cast<std::uint8_t>(v & FVN_NUM_BITS_PER_BYTE_UINT64);  // get the last byte
-        v >>= FVN_NUM_BITS_PER_BYTE;                                      // remove the last byte
+            static_cast<std::uint8_t>(v & FNV_NUM_BITS_PER_BYTE_UINT64);  // get the last byte
+        v >>= FNV_NUM_BITS_PER_BYTE;                                      // remove the last byte
         h ^= byte;       // XOR the hash with the byte
         h *= FNV_PRIME;  // multiply by the FNV prime
     }
