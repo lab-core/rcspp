@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include <list>
 #include <utility>
-#include <vector>
 
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 
