@@ -13,7 +13,18 @@
 
 namespace rcspp {
 
-// GreedyAlgorithm: attempt greedy extension but allow backtracking.
+/**
+ * @brief GreedyAlgorithm for Resource Constrained Shortest Path Problems (RCSPP).
+ *
+ * This algorithm attempts to extend the current path greedily, always choosing the next best label to extend.
+ * If a greedy extension is not possible, the algorithm backtracks to previous labels and explores alternative siblings.
+ * This approach combines greedy search with backtracking, allowing it to efficiently find feasible solutions
+ * while avoiding exhaustive enumeration of all possible paths.
+ *
+ * Use this algorithm when you want a fast, heuristic approach to RCSPP that can quickly find good solutions,
+ * but may not guarantee optimality in all cases. It is particularly useful for large graphs where full enumeration
+ * is computationally expensive, and a balance between speed and solution quality is desired.
+ */
 template <typename ResourceType>
 class GreedyAlgorithm : public Algorithm<ResourceType> {
     public:
