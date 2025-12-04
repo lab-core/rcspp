@@ -113,7 +113,7 @@ class DiversificationSearch : public Algorithm<ResourceType> {
         }
 
         void tabu_solution(const Solution& sol) {
-            // remove the following nodes from the graph for the next iteration
+            // remove the following arcs from the graph for the next iteration
             for (auto arc_id : sol.path_arc_ids) {
                 // check if arc is already removed or can be removed
                 const auto* arc = graph_copy_->get_arc(arc_id);
