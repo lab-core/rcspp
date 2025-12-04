@@ -47,7 +47,7 @@ struct Solution {
 
         // Order-sensitive hash: different order -> different hash
         // Should not have any collisions for small sequences of arc ids
-        // worst-case, we loose a solution
+        // WARNING: Hash collisions will silently skip solutions, which can compromise correctness.
         std::uint64_t get_hash() {
             if (hash_ == 0) {
                 hash_ = FNV_OFFSET_BASIS;             // initialize hash
