@@ -28,8 +28,8 @@ class DiversificationSearch : public Algorithm<ResourceType> {
 
         [[nodiscard]] bool is_optimal() const override { return false; }
 
-        // Run tabu search and collect solutions. The search runs up to max_iterations or
-        // stop_after_X_solutions
+        // Run diversification search using tabu-based strategy and collect solutions. The search runs up to max_iterations or
+        // stop_after_X_solutions.
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
