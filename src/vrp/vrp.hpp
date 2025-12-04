@@ -206,7 +206,7 @@ class VRP {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id, AlgorithmParams params = {}) {
             LOG_TRACE(__FUNCTION__, '\n');

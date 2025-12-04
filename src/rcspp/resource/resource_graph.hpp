@@ -177,7 +177,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators,
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
                                     AlgorithmParams params = {}, bool preprocess = true,

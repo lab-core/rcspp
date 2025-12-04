@@ -11,7 +11,7 @@
 
 using namespace rcspp;
 
-template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
 bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* vrp_subproblem,
   double optimal_cost) {
 
@@ -32,7 +32,7 @@ bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* v
     return true;
 }
 
-template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
 bool test_rcspp() {
   // Test graph creation, graph update and solving the RCSPP
 
@@ -70,7 +70,7 @@ bool test_rcspp() {
   return success;
 }
 
-template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
 bool test_rcspp_non_integer_dual_row_coef() {
     // Test graph creation, graph update and solving the RCSPP
     // when the dual row coefficients are non-integer
