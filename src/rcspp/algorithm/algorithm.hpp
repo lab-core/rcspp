@@ -56,13 +56,7 @@ struct AlgorithmParams {
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            if (stop_after_X_solutions < MAX_INT) {
-                return true;
-            }
-            if (num_labels_to_extend_by_node < MAX_INT) {
-                return false;
-            }
-            return false;
+            return ((stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT));
         }
 
         // stop after finding X solutions (not going to optimality
