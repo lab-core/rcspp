@@ -55,7 +55,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                 extend();
             }
 
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+            LOG_DEBUG("GreedyAlgorithm: WHILE nb iter: ", i, "\n");
         }
 
         void initialize_labels() override {
