@@ -7,43 +7,46 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/dominance_algorithm_iterators.hpp"
+#include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<ResourceType>,
-                                           NodeUnprocessedLabelsManager<ResourceType> {
+class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
+                                  NodeUnprocessedLabelsManager<ResourceType> {
     public:
-        PushingDominanceAlgorithmIterators(ResourceFactory<ResourceType>* resource_factory,
-                                           const Graph<ResourceType>& graph, bool use_pool = true)
-            : DominanceAlgorithmIterators<ResourceType>(resource_factory, graph, use_pool),
+        PushingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                                  const Graph<ResourceType>& graph, AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
               NodeUnprocessedLabelsManager<ResourceType>(graph.get_number_of_nodes()) {}
 
-        ~PushingDominanceAlgorithmIterators() override = default;
+        ~PushingDominanceAlgorithm() override = default;
 
     protected:
         LabelIteratorPair<ResourceType> next_label_iterator() override {
             // if no more labels for the current node, move to the next node with labels
             while (this->current_unprocessed_labels_.empty()) {
                 // move to the next node
-                this->current_unprocessed_node_pos_++;
+                ++this->current_unprocessed_node_pos_;
                 // if we have looped over all nodes, start again from the beginning
                 if (this->current_unprocessed_node_pos_ >= this->graph_.get_number_of_nodes()) {
                     this->current_unprocessed_node_pos_ = 0;
-                    this->num_loops_++;
+                    ++this->num_loops_;
                 }
                 // move labels for the current node
                 this->current_unprocessed_labels_ = std::move(
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_));
+                // truncate/limit the number of labels extended per node
+                this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
+                                                        &this->label_pool_);
             }
 
             // get the next label
             auto label_iterator_pair = this->current_unprocessed_labels_.front();
 
             this->current_unprocessed_labels_.pop_front();
-            this->num_unprocessed_labels_--;
+            --this->num_unprocessed_labels_;
 
             return label_iterator_pair;
         }
@@ -56,5 +59,7 @@ class PushingDominanceAlgorithmIterators : public DominanceAlgorithmIterators<Re
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
             this->add_new_label(label_iterator_pair);
         }
+
+        void prepareNextPhase() override { this->restore_truncated_unprocessed_labels(); }
 };
 }  // namespace rcspp

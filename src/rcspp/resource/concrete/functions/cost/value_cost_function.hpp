@@ -4,17 +4,17 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
-class TrivialCostFunction
-    : public Clonable<TrivialCostFunction<ResourceType>, CostFunction<ResourceType>> {
+class ValueCostFunction
+    : public Clonable<ValueCostFunction<ResourceType>, CostFunction<ResourceType>> {
     public:
-        [[nodiscard]] double get_cost(const Resource<ResourceType>& resource) const override {
-            return 0;
+        [[nodiscard]] auto get_cost(const Resource<ResourceType>& num_resource) const
+            -> double override {
+            return num_resource.get_value();
         }
 };
 }  // namespace rcspp

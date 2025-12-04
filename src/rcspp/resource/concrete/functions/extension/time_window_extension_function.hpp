@@ -3,27 +3,38 @@
 
 #pragma once
 
+#include <algorithm>
 #include <map>
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/concrete/real_resource.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
 
+template <typename ResourceType,
+          typename ValueType =
+              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
 class TimeWindowExtensionFunction
-    : public Clonable<TimeWindowExtensionFunction, ExpansionFunction<RealResource>> {
+    : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
+                      ExtensionFunction<ResourceType>> {
     public:
         explicit TimeWindowExtensionFunction(
-            const std::map<size_t, double>& min_time_window_by_arc_id);
+            const std::map<size_t, ValueType>& min_time_window_by_dest_id)
+            : min_time_window_by_dest_id_(min_time_window_by_dest_id) {}
 
-        void extend(const Resource<RealResource>& resource, const Extender<RealResource>& extender,
-                    Resource<RealResource>* extended_resource) override;
+        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
+                    Resource<ResourceType>* extended_resource) override {
+            auto sum_value = resource.get_value() + extender.get_value();
+            sum_value = std::max(min_time_window_, sum_value);
+            extended_resource->set_value(sum_value);
+        }
 
     private:
-        const std::map<size_t, double>& min_time_window_by_arc_id_;
-        double min_time_window_{0};
+        const std::map<size_t, ValueType>& min_time_window_by_dest_id_;
+        ValueType min_time_window_{0};
 
-        void preprocess() override;
+        void preprocess(size_t /* origin_id */, size_t destination_id) override {
+            min_time_window_ = min_time_window_by_dest_id_.at(destination_id);
+        }
 };
 }  // namespace rcspp

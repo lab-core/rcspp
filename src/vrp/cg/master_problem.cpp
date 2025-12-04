@@ -18,7 +18,8 @@ void MasterProblem::construct_model(const std::vector<Path>& paths) {
     add_columns(paths);
 }
 
-void MasterProblem::add_columns(const std::vector<Path>& paths) {
+void MasterProblem::add_columns(const std::vector<Path>& paths, size_t max_paths) {
+    size_t n = 0;
     for (const auto& path : paths) {
         // Create column for the path variable
         GRBColumn col;
@@ -35,6 +36,10 @@ void MasterProblem::add_columns(const std::vector<Path>& paths) {
             model_.addVar(0.0, GRB_INFINITY, path.cost, GRB_CONTINUOUS, col, path_var_name);
         path_variables_by_id_.emplace(path.id, path_var);
         paths_by_id_.emplace(path.id, path);
+
+        if (++n >= max_paths) {
+            break;
+        }
     }
 }
 
@@ -93,14 +98,12 @@ MPSolution MasterProblem::extract_solution(const GRBModel& model, bool integer) 
     std::map<size_t, double> dual_by_var_id;
 
     for (const auto& [path_id, path_var] : path_variables_by_id_) {
-        auto var = model.getVar((int)path_id);
-        value_by_var_id.emplace(path_id, var.get(GRB_DoubleAttr_X));
+        value_by_var_id.emplace(path_id, path_var.get(GRB_DoubleAttr_X));
     }
 
     if (!integer) {
         for (const auto& [node_id, node_constr] : this->node_constraints_by_id_) {
-            auto constr = model.getConstr((int)node_id - 1);
-            dual_by_var_id.emplace(node_id, constr.get(GRB_DoubleAttr_Pi));
+            dual_by_var_id.emplace(node_id, node_constr.get(GRB_DoubleAttr_Pi));
         }
     }
 

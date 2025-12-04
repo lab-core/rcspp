@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <typeinfo>
 
 namespace rcspp {
 

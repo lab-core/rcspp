@@ -16,29 +16,27 @@ template <typename ResourceType>
 class Extender;
 
 template <typename ResourceType>
-class ExpansionFunction {
+class Arc;
+
+template <typename ResourceType>
+class ExtensionFunction {
     public:
-        virtual ~ExpansionFunction() = default;
+        virtual ~ExtensionFunction() = default;
 
         virtual void extend(const Resource<ResourceType>& resource,
                             const Extender<ResourceType>& extender,
                             Resource<ResourceType>* extended_resource) = 0;
 
-        [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExpansionFunction> = 0;
+        [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExtensionFunction> = 0;
 
-        virtual auto create(size_t arc_id) -> std::unique_ptr<ExpansionFunction> {
+        template <typename GraphResourceType>
+        auto create(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtensionFunction> {
             auto new_extension_function = clone();
-
-            new_extension_function->arc_id_ = arc_id;
-
-            new_extension_function->preprocess();
-
+            new_extension_function->preprocess(arc.origin->id, arc.destination->id);
             return new_extension_function;
         }
 
-        size_t arc_id_;
-
     protected:
-        virtual void preprocess() {}
+        virtual void preprocess(size_t origin_id, size_t destination_id) {}
 };
 }  // namespace rcspp

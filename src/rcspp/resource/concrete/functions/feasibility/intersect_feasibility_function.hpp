@@ -3,37 +3,37 @@
 
 #pragma once
 
-#include <limits>
 #include <map>
+#include <type_traits>
+#include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 
 namespace rcspp {
 
+// Deduce the container/value type by calling get_value() on the concrete Resource
 template <typename ResourceType,
           typename ValueType =
               std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
-class TimeWindowFeasibilityFunction
-    : public Clonable<TimeWindowFeasibilityFunction<ResourceType, ValueType>,
+class IntersectFeasibilityFunction
+    : public Clonable<IntersectFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
     public:
-        explicit TimeWindowFeasibilityFunction(
-            const std::map<size_t, ValueType>& max_time_window_by_node_id)
-            : max_time_window_by_node_id_(max_time_window_by_node_id),
-              max_time_window_(std::numeric_limits<ValueType>::max() / 2) {}  // prevent overflow
+        explicit IntersectFeasibilityFunction(
+            const std::map<size_t, ValueType>& forbidden_by_node_id)
+            : forbidden_by_node_id_(forbidden_by_node_id) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
-            return resource.get_value() <= max_time_window_;
+            return !resource.intersects(forbidden_.get_value());
         }
 
     private:
-        const std::map<size_t, ValueType>& max_time_window_by_node_id_;
-
-        ValueType max_time_window_;
+        const std::map<size_t, ValueType>& forbidden_by_node_id_;
+        ResourceType forbidden_;
 
         void preprocess(size_t node_id) override {
-            max_time_window_ = max_time_window_by_node_id_.at(node_id);
+            forbidden_.set_value(forbidden_by_node_id_.at(node_id));
         }
 };
 }  // namespace rcspp

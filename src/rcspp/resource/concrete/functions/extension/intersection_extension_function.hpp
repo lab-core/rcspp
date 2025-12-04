@@ -10,10 +10,13 @@
 namespace rcspp {
 
 template <typename ResourceType>
-class TrivialExtensionFunction
-    : public Clonable<TrivialExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+class IntersectionExtensionFunction : public Clonable<IntersectionExtensionFunction<ResourceType>,
+                                                      ExtensionFunction<ResourceType>> {
     public:
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* reused_resource) override {}
+                    Resource<ResourceType>* extended_resource) override {
+            auto intersection_container = resource.get_intersection(extender.get_value());
+            extended_resource->set_value(intersection_container);
+        }
 };
 }  // namespace rcspp

@@ -10,18 +10,18 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/algorithm_with_iterators.hpp"
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/label/label_pool.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> {
+class DominanceAlgorithm : public Algorithm<ResourceType> {
     public:
-        DominanceAlgorithmIterators(ResourceFactory<ResourceType>* resource_factory,
-                                    const Graph<ResourceType>& graph, bool use_pool = true)
-            : AlgorithmWithIterators<ResourceType>(resource_factory, graph, use_pool) {
+        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                           const Graph<ResourceType>& graph, AlgorithmParams params)
+            : Algorithm<ResourceType>(resource_factory, graph, std::move(params)) {
             for (size_t i = 0; i < graph.get_number_of_nodes(); i++) {
                 non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
             }
@@ -40,31 +40,14 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             }
         }
 
-        Label<ResourceType>& next_label() override { return *this->next_label_iterator().first; }
-
         bool test(const Label<ResourceType>& label) override {
             // Dominance check
-
-            nb_test_iter_++;
+            ++nb_test_iter_;
             total_test_time_.start();
-
             bool non_dominated = update_non_dominated_labels(label);
             if (!non_dominated) {
-                this->nb_dominated_labels_++;
+                ++this->nb_dominated_labels_;
             }
-
-            // for (const auto non_dominated_label_ptr :
-            //      non_dominated_labels_by_node_pos_.at(label.get_end_node()->pos())) {
-            //     if (&label == non_dominated_label_ptr) {
-            //         continue;
-            //     }
-            //     if ((*non_dominated_label_ptr) <= label) {
-            //         non_dominated = false;
-            //         this->nb_dominated_labels_++;
-            //         break;
-            //     }
-            // }
-
             total_test_time_.stop();
 
             return non_dominated;
@@ -96,135 +79,8 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             }
         }
 
-        std::vector<size_t> get_path_node_ids(const Label<ResourceType>& label) override {
-            std::vector<size_t> path_node_ids{label.get_end_node()->id};
-
-            auto in_arc_ptr = label.get_in_arc();
-
-            if (in_arc_ptr != nullptr) {
-                auto prev_node_ptr = in_arc_ptr->origin;
-
-                const Label<ResourceType>* current_label_ptr = &label;
-
-                while (prev_node_ptr != nullptr) {
-                    if (prev_node_ptr->source) {
-                        path_node_ids.push_back(prev_node_ptr->id);
-                        break;
-                    }
-
-                    // if empty, infinite loop
-                    assert(!non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos()).empty());
-
-                    for (auto label_ptr :
-                         non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
-                        auto& next_label_ref =
-                            this->label_pool_.get_next_label(in_arc_ptr->destination);
-                        label_ptr->extend(*in_arc_ptr, &next_label_ref);
-
-                        if (next_label_ref <= *current_label_ptr) {
-                            current_label_ptr = label_ptr;
-                            break;
-                        }
-                    }
-
-                    in_arc_ptr = current_label_ptr->get_in_arc();
-
-                    if (in_arc_ptr != nullptr) {
-                        path_node_ids.push_back(in_arc_ptr->destination->id);
-                        prev_node_ptr = in_arc_ptr->origin;
-                    } else {
-                        prev_node_ptr = nullptr;
-                    }
-                }
-            }
-
-            std::ranges::reverse(path_node_ids);
-
-            return path_node_ids;
-        }
-
-        std::vector<std::pair<std::vector<size_t>, std::vector<double>>> get_vector_paths_node_ids(
-            const Label<ResourceType>& label) override {
-            // LOG_TRACE(__FUNCTION__, '\n');
-
-            std::vector<std::pair<std::vector<size_t>, std::vector<double>>> all_paths_node_ids;
-
-            std::vector<size_t> path_node_ids{label.get_end_node()->id};
-
-            std::vector<double> path_cost_differences;
-
-            std::queue<Label<ResourceType>*> labels_queue;
-            std::queue<std::vector<size_t>> partial_paths_node_ids_queue;
-            std::queue<std::vector<double>> partial_paths_cost_differences_queue;
-
-            auto in_arc_ptr = label.get_in_arc();
-
-            if (in_arc_ptr != nullptr) {
-                auto prev_node_ptr = in_arc_ptr->origin;
-
-                const Label<ResourceType>* current_label_ptr = &label;
-
-                while (prev_node_ptr != nullptr) {
-                    if (prev_node_ptr->source) {
-                        path_node_ids.push_back(prev_node_ptr->id);
-                        std::ranges::reverse(path_node_ids);
-                        all_paths_node_ids.emplace_back(path_node_ids, path_cost_differences);
-                    } else {
-                        for (auto label_ptr :
-                             non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
-                            auto label_path_node_ids = path_node_ids;
-                            auto label_path_cost_differences = path_cost_differences;
-
-                            auto& next_label_ref =
-                                this->label_pool_.get_next_label(in_arc_ptr->destination);
-                            label_ptr->extend(*in_arc_ptr, &next_label_ref);
-
-                            if (next_label_ref <= *current_label_ptr) {
-                                auto next_label_cost = next_label_ref.get_cost();
-                                auto current_label_cost = current_label_ptr->get_cost();
-
-                                label_path_node_ids.push_back(
-                                    label_ptr->get_in_arc()->destination->id);
-
-                                label_path_cost_differences.push_back(next_label_cost -
-                                                                      current_label_cost);
-
-                                labels_queue.push(label_ptr);
-                                partial_paths_node_ids_queue.push(label_path_node_ids);
-                                partial_paths_cost_differences_queue.push(
-                                    label_path_cost_differences);
-                            }
-                        }
-                    }
-
-                    if (!labels_queue.empty()) {
-                        current_label_ptr = labels_queue.front();
-                        labels_queue.pop();
-
-                        path_node_ids = partial_paths_node_ids_queue.front();
-                        partial_paths_node_ids_queue.pop();
-
-                        path_cost_differences = partial_paths_cost_differences_queue.front();
-                        partial_paths_cost_differences_queue.pop();
-
-                        in_arc_ptr = current_label_ptr->get_in_arc();
-                    } else {
-                        in_arc_ptr = nullptr;
-                    }
-
-                    if (in_arc_ptr != nullptr) {
-                        prev_node_ptr = in_arc_ptr->origin;
-                    } else {
-                        prev_node_ptr = nullptr;
-                    }
-                }
-            }
-
-            return all_paths_node_ids;
-        }
-
-        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
-            std::vector<size_t> path_arc_ids;
+        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
+            std::list<size_t> path_arc_ids;
 
             auto in_arc_ptr = label.get_in_arc();
 
@@ -236,6 +92,7 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
                 const Label<ResourceType>* current_label_ptr = &label;
 
                 while (prev_node_ptr != nullptr && !prev_node_ptr->source) {
+                    bool found = false;
                     for (const auto label_ptr :
                          non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
                         auto& next_label_ref =
@@ -244,12 +101,17 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
 
                         if (next_label_ref <= *current_label_ptr) {
                             current_label_ptr = label_ptr;
+                            found = true;
                             break;
                         }
                     }
 
-                    in_arc_ptr = current_label_ptr->get_in_arc();
+                    if (!found) {
+                        LOG_ERROR("Error while extracting path: could not find previous label.\n");
+                        return {};
+                    }
 
+                    in_arc_ptr = current_label_ptr->get_in_arc();
                     if (in_arc_ptr != nullptr) {
                         path_arc_ids.push_back(in_arc_ptr->id);
                         prev_node_ptr = in_arc_ptr->origin;
@@ -310,12 +172,6 @@ class DominanceAlgorithmIterators : public AlgorithmWithIterators<ResourceType> 
             non_dominated_labels_by_node_pos_.at(current_node_pos).erase(label_iterator);
         }
 
-        void remove_label(const Label<ResourceType>& label) override {
-            throw std::runtime_error(
-                "DominanceAlgorithmIterators::remove_label(const Label<ResourceType>& label) not "
-                "implemented.");
-        }
-
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
             std::list<Label<ResourceType>*> labels_at_sinks;
             for (auto sink_node_id : this->graph_.get_sink_node_ids()) {
@@ -357,22 +213,121 @@ struct NodeUnprocessedLabelsManager {
             for (size_t i = 0; i < num_nodes; i++) {
                 unprocessed_labels_by_node_pos_.push_back(
                     std::list<LabelIteratorPair<ResourceType>>());
+                truncated_unprocessed_labels_by_node_pos_.push_back(
+                    std::list<LabelIteratorPair<ResourceType>>());
             }
-            // ensure that the first call to populate_current_unprocessed_labels_if_needed advances
-            // to the first node
-            current_unprocessed_node_pos_ = num_nodes;
+            initialize_unprocessed_labels();
+        }
+
+        void initialize_unprocessed_labels() {
+            // save unprocessed labels for the current node
+            unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_)
+                .splice(unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_).end(),
+                        current_unprocessed_labels_);
+            // restart the loop at the beginning
+            current_unprocessed_node_pos_ = 0;
+            this->current_unprocessed_labels_ = std::move(unprocessed_labels_by_node_pos_.at(0));
         }
 
         void add_new_label(const LabelIteratorPair<ResourceType>& label_iterator_pair) {
-            unprocessed_labels_by_node_pos_.at(label_iterator_pair.first->get_end_node()->pos())
-                .push_back(label_iterator_pair);
-            num_unprocessed_labels_++;
+            assert(check_number_of_unprocessed_labels());
+            size_t pos = label_iterator_pair.first->get_end_node()->pos();
+            if (pos == current_unprocessed_node_pos_) {
+                current_unprocessed_labels_.push_back(label_iterator_pair);
+            } else {
+                unprocessed_labels_by_node_pos_.at(pos).push_back(label_iterator_pair);
+            }
+            ++num_unprocessed_labels_;
+        }
+
+        void resize_current_unprocessed_labels(size_t new_size,
+                                               LabelPool<ResourceType>* label_pool = nullptr,
+                                               bool sort = true) {
+            assert(check_number_of_unprocessed_labels());
+            resize_unprocessed_labels(&current_unprocessed_labels_, new_size, label_pool, sort);
+        }
+
+        void resize_unprocessed_labels(
+            std::list<LabelIteratorPair<ResourceType>>* unprocessed_labels, size_t new_size,
+            LabelPool<ResourceType>* label_pool, bool sort) {
+            int num_exceeding_labels = unprocessed_labels->size() - new_size;
+            if (num_exceeding_labels <= 0) {
+                return;
+            }
+
+            if (sort) {
+                // sort labels by cost (ascending)
+                unprocessed_labels->sort([](const LabelIteratorPair<ResourceType>& p1,
+                                            const LabelIteratorPair<ResourceType>& p2) {
+                    // either both dominated or both non-dominated
+                    if (p1.first->dominated == p2.first->dominated) {
+                        return p1.first->get_cost() < p2.first->get_cost();  // lower cost first
+                    }
+                    return !p1.first->dominated;  // non-dominated first
+                });
+            }
+
+            // release the exceeding labels
+            size_t i = 0;
+            for (auto& p : *unprocessed_labels) {
+                if (i++ >= new_size) {
+                    if (p.first->dominated && label_pool) {
+                        label_pool->release_label(p.first);
+                        p.first = nullptr;
+                    } else {
+                        store_truncated_unprocessed_label(p);
+                    }
+                }
+            }
+
+            // update unprocessed labels count and resize
+            num_unprocessed_labels_ -= num_exceeding_labels;
+            unprocessed_labels->resize(new_size);
+            assert(check_number_of_unprocessed_labels());
+        }
+
+        void store_truncated_unprocessed_label(
+            LabelIteratorPair<ResourceType> label_iterator_pair) {
+            truncated_unprocessed_labels_by_node_pos_
+                .at(label_iterator_pair.first->get_end_node()->pos())
+                .push_back(std::move(label_iterator_pair));
+        }
+
+        void restore_truncated_unprocessed_labels() {
+            size_t pos = 0;
+            for (auto& truncated_labels : truncated_unprocessed_labels_by_node_pos_) {
+                num_unprocessed_labels_ += truncated_labels.size();
+                auto& unprocessed_labels = unprocessed_labels_by_node_pos_.at(pos++);
+                unprocessed_labels.splice(unprocessed_labels.end(), truncated_labels);
+            }
+            // restart the loop at the beginning
+            initialize_unprocessed_labels();
+            assert(check_number_of_unprocessed_labels());
+        }
+
+        [[nodiscard]] bool check_number_of_unprocessed_labels() const {
+            size_t total_labels = 0;
+            for (const auto& labels_at_node : unprocessed_labels_by_node_pos_) {
+                total_labels += labels_at_node.size();
+            }
+            total_labels += current_unprocessed_labels_.size();
+            if (total_labels != num_unprocessed_labels_) {
+                LOG_ERROR("Mismatch in number of unprocessed labels: counted ",
+                          total_labels,
+                          " vs stored ",
+                          num_unprocessed_labels_,
+                          "\n");
+                return false;
+            }
+            return true;
         }
 
         size_t num_unprocessed_labels_ = 0;
-        size_t current_unprocessed_node_pos_;
-        int num_loops_ = -1;  // as starting from the end -> do not count first loop
+        size_t current_unprocessed_node_pos_ = 0;
+        size_t num_loops_ = 0;
         std::list<LabelIteratorPair<ResourceType>> current_unprocessed_labels_;
         std::vector<std::list<LabelIteratorPair<ResourceType>>> unprocessed_labels_by_node_pos_;
+        std::vector<std::list<LabelIteratorPair<ResourceType>>>
+            truncated_unprocessed_labels_by_node_pos_;
 };
 }  // namespace rcspp

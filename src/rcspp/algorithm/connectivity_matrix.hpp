@@ -275,7 +275,7 @@ class ConnectivityMatrix {
             std::vector<size_t> indeg(scc_count, 0);
             for (size_t u = 0; u < scc_count; ++u) {
                 for (size_t v : cond_adj[u]) {
-                    indeg[v]++;
+                    ++indeg[v];
                 }
             }
             std::queue<size_t> q;

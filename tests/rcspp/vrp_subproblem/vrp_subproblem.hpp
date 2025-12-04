@@ -8,6 +8,8 @@
 
 using namespace rcspp;
 
+using RGraph = ResourceGraph<RealResource, IntResource>;
+
 class VRPSubproblem {
     // Solve one iteration of the subproblem of the VRPTW
 
@@ -16,7 +18,7 @@ class VRPSubproblem {
                   const std::map<size_t, double>* row_coefficient_by_id = nullptr);
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
-    template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+    template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
     std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
         LOG_TRACE(__FUNCTION__, '\n');
 
@@ -39,34 +41,34 @@ class VRPSubproblem {
 
         Instance instance_;
 
-        std::map<size_t, double> min_time_window_by_arc_id_;
+        std::map<size_t, double> min_time_window_by_node_id_;
         std::map<size_t, double> max_time_window_by_node_id_;
 
         size_t path_id_;
 
-        std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
+        std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
 
-        ResourceGraph<RealResource> graph_;
+        RGraph graph_;
 
         size_t depot_id_;
 
         Timer total_subproblem_time_;
 
-        std::map<size_t, std::pair<double, double>> initialize_time_windows();
+        std::map<size_t, std::pair<int, int>> initialize_time_windows();
 
         void construct_resource_graph(
-        ResourceGraph<RealResource>* resource_graph,
+        RGraph* resource_graph,
             const std::map<size_t, double>* dual_by_id = nullptr);
 
-        void update_resource_graph(ResourceGraph<RealResource>* resource_graph,
+        void update_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id);
 
-        void add_all_nodes_to_graph(ResourceGraph<RealResource>* graph);
+        void add_all_nodes_to_graph(RGraph* graph);
 
-        void add_all_arcs_to_graph(ResourceGraph<RealResource>* graph,
+        void add_all_arcs_to_graph(RGraph* graph,
                                    const std::map<size_t, double>* dual_by_id);
 
-        void add_arc_to_graph(ResourceGraph<RealResource>* graph, size_t customer_orig_id,
+        void add_arc_to_graph(RGraph* graph, size_t customer_orig_id,
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
                                      const std::map<size_t, double>* dual_by_id, size_t arc_id);
@@ -78,11 +80,17 @@ class VRPSubproblem {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id) {
                 LOG_TRACE(__FUNCTION__, '\n');
-                update_resource_graph(&graph_, &dual_by_id);
+
+                if (graph_.get_number_of_nodes() == 0) {
+                    construct_resource_graph(&graph_, &dual_by_id);
+                } else {
+                    update_resource_graph(&graph_, &dual_by_id);
+                }
+
                 auto solutions = graph_.solve<AlgorithmType>();
 
                 return solutions;

@@ -24,7 +24,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
         ResourceCompositionFactory() = default;
 
         ResourceCompositionFactory(
-            std::unique_ptr<ExpansionFunction<ResourceComposition<ResourceTypes...>>>
+            std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
                 extension_function,
             std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
                 feasibility_function,
@@ -34,6 +34,8 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             : ResourceFactory<ResourceComposition<ResourceTypes...>>(
                   std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function)) {}
+
+        virtual ~ResourceCompositionFactory() = default;
 
         std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource() override {
             return ResourceFactory<ResourceComposition<ResourceTypes...>>::make_resource();
@@ -85,24 +87,25 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             return new_resource_composition;
         }
 
+        template <typename GraphResourceType>
         std::unique_ptr<Extender<ResourceComposition<ResourceTypes...>>> make_extender(
-            const ResourceComposition<ResourceTypes...>& resource_base, size_t arc_id) override {
+            const ResourceComposition<ResourceTypes...>& resource_base,
+            const Arc<GraphResourceType>& arc) {
             const auto& resource_base_components = resource_base.get_type_components();
 
             auto new_extender_resource_composition =
-                ResourceFactory<ResourceComposition<ResourceTypes...>>::make_extender(arc_id);
+                ResourceFactory<ResourceComposition<ResourceTypes...>>::make_extender(arc);
 
-            auto make_extender_function = [&](const auto& res_base_vec,
-                                              const auto& res_fac_vec,
-                                              auto& res_comp_vec) {
-                for (int i = 0; i < res_base_vec.size(); i++) {
-                    const auto& res_base = *res_base_vec[i];
+            auto make_extender_function =
+                [&](const auto& res_base_vec, const auto& res_fac_vec, auto& res_comp_vec) {
+                    for (int i = 0; i < res_base_vec.size(); i++) {
+                        const auto& res_base = *res_base_vec[i];
 
-                    const auto& res_fac = res_fac_vec[i];
+                        const auto& res_fac = res_fac_vec[i];
 
-                    res_comp_vec.emplace_back(std::move(res_fac->make_extender(res_base, arc_id)));
-                }
-            };
+                        res_comp_vec.emplace_back(res_fac->make_extender(res_base, arc));
+                    }
+                };
 
             std::apply(
                 [&](auto&&... args_res_base_vec) {
@@ -194,7 +197,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                 for (int i = 0; i < res_fac_vec.size(); i++) {
                     const auto& res_fac = res_fac_vec[i];
 
-                    prot_res_comp_vec.emplace_back(std::move(res_fac->make_resource()));
+                    prot_res_comp_vec.emplace_back(res_fac->make_resource());
                 }
             };
 

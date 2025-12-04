@@ -37,8 +37,8 @@ class LabelPool {
 
                 label_factory_->reset_label(label_ptr, nb_labels_, end_node, in_arc, out_arc);
 
-                nb_labels_++;
-                nb_reused_labels_++;
+                ++nb_labels_;
+                ++nb_reused_labels_;
             } else {
                 // A new label is created
                 auto new_label = label_factory_->make_label(nb_labels_, end_node, in_arc, out_arc);
@@ -46,8 +46,8 @@ class LabelPool {
                 labels_.push_back(std::move(new_label));
                 label_ptr = labels_.back().get();
 
-                nb_labels_++;
-                nb_created_labels_++;
+                ++nb_labels_;
+                ++nb_created_labels_;
             }
 
             return *label_ptr;
@@ -56,27 +56,17 @@ class LabelPool {
         Label<ResourceType>& get_temporary_label(const Node<ResourceType>* end_node,
                                                  const Arc<ResourceType>* in_arc = nullptr,
                                                  const Arc<ResourceType>* out_arc = nullptr) {
-            // LOG_TRACE(__FUNCTION__, '\n');
-
             if (temporary_label_ptr_) {
-                // LOG_TRACE("temporary_label_ptr_\n");
-
                 label_factory_->reset_label(temporary_label_ptr_,
                                             nb_labels_,
                                             end_node,
                                             in_arc,
                                             out_arc);
-
-                nb_labels_++;
             } else {
-                // LOG_TRACE("NOT temporary_label_ptr_\n");
-
                 temporary_label_ptr_ =
                     label_factory_->make_label(nb_labels_, end_node, in_arc, out_arc);
-
-                nb_labels_++;
             }
-
+            ++nb_labels_;
             return *temporary_label_ptr_;
         }
 

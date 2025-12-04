@@ -14,6 +14,8 @@
 
 using namespace rcspp;
 
+using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
+
 class VRP {
     public:
         VRP(Instance instance);
@@ -28,7 +30,7 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve() {  // NOLINT
+        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
             generate_initial_paths();
@@ -55,22 +57,26 @@ class VRP {
                 size_t algo_index = 1;  // timers[0] used by boost
                 (void)std::initializer_list<int>{([&]() {
                     timers[algo_index].start();
-                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id);
+                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params);
                     timers[algo_index].stop();
 
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
-                            if (std::abs(solutions_boost[0].cost - sols[0].cost) >
-                                COST_COMPARISON_EPSILON) {
-                                LOG_ERROR("BOOST and RCSPP (",
+                            // RCSPP can be better as it uses int for some resources (e.g., load,
+                            // time)
+                            double diff = solutions_boost[0].cost - sols[0].cost;
+                            bool non_optimal = params.could_be_non_optimal();
+                            if ((non_optimal && diff > COST_COMPARISON_EPSILON) ||
+                                (!non_optimal && abs(diff) > COST_COMPARISON_EPSILON)) {
+                                LOG_ERROR("RCSPP solution is not coherent with BOOST (",
                                           algo_index,
-                                          ") first-solution costs differ beyond tolerance: ",
-                                          solutions_boost[0].cost,
-                                          " vs ",
+                                          ") solution: ",
                                           sols[0].cost,
+                                          " vs ",
+                                          solutions_boost[0].cost,
                                           "\n");
                             }
-                        } else {
+                        } else if (solutions_boost[0].cost < -EPSILON) {
                             LOG_ERROR("BOOST has a solution while RCSPP (", algo_index, ") not\n");
                         }
                     }
@@ -103,15 +109,6 @@ class VRP {
                     return 0;
                 }())...};
 
-                // If we didn't get any rcsp solutions from first algorithm, ensure we have
-                // something to inspect
-                if (solutions_rcspp_any.empty()) {
-                    LOG_WARN(
-                        "No RCSPP solutions from first algorithm; aborting column generation "
-                        "loop\n");
-                    break;
-                }
-
                 // Collect negative reduced cost solutions from the chosen RCSPP results
                 std::vector<Solution> negative_red_cost_solutions;
                 min_reduced_cost = std::numeric_limits<double>::infinity();
@@ -124,18 +121,16 @@ class VRP {
 
                 add_paths(&master_problem, negative_red_cost_solutions);
 
-                nb_iter++;
-
                 LOG_DEBUG(std::string(45, '*'), '\n');
                 LOG_INFO("nb_iter=",
-                         nb_iter,
+                         nb_iter++,
                          " | obj=",
                          master_solution.cost,
                          " | min_reduced_cost=",
                          std::fixed,
                          std::setprecision(std::numeric_limits<double>::max_digits10),
                          min_reduced_cost,
-                         " | paths_added=",
+                         " | paths_generated=",
                          negative_red_cost_solutions.size(),
                          " | EPSILON=",
                          EPSILON,
@@ -158,14 +153,19 @@ class VRP {
 
         Instance instance_;
 
-        std::map<size_t, double> min_time_window_by_arc_id_;
+        std::map<size_t, double> min_time_window_by_node_id_;
         std::map<size_t, double> max_time_window_by_node_id_;
+
+        std::map<size_t, std::set<size_t>> node_set_by_node_id_;
 
         size_t path_id_ = 0;
 
-        std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
+        std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
+        std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id_;
 
-        ResourceGraph<RealResource> graph_;
+        // Resource graph. needs to be loaded after time windows and ng neighborhoods are
+        // initialized
+        RGraph graph_;
 
         std::optional<SolutionOutput> solution_output_;
 
@@ -179,20 +179,22 @@ class VRP {
         Timer total_subproblem_time_boost_;
         Timer total_subproblem_solve_time_boost_;
 
-        std::map<size_t, std::pair<double, double>> initialize_time_windows();
+        std::vector<std::vector<double>> distances_;
 
-        void construct_resource_graph(ResourceGraph<RealResource>* graph,
+        std::map<size_t, std::pair<int, int>> initialize_time_windows();
+        std::map<size_t, std::set<size_t>> initialize_ng_neighborhoods(size_t max_size);
+
+        void construct_resource_graph(RGraph* graph,
                                       const std::map<size_t, double>* dual_by_id = nullptr);
 
-        void update_resource_graph(ResourceGraph<RealResource>* resource_graph,
+        void update_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id);
 
-        void add_all_nodes_to_graph(ResourceGraph<RealResource>* graph);
+        void add_all_nodes_to_graph(RGraph* graph);
 
-        void add_all_arcs_to_graph(ResourceGraph<RealResource>* graph,
-                                   const std::map<size_t, double>* dual_by_id);
+        void add_all_arcs_to_graph(RGraph* graph, const std::map<size_t, double>* dual_by_id);
 
-        static void add_arc_to_graph(ResourceGraph<RealResource>* graph, size_t customer_orig_id,
+        static void add_arc_to_graph(RGraph* graph, size_t customer_orig_id,
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
                                      const std::map<size_t, double>* dual_by_id, size_t arc_id);
@@ -204,14 +206,14 @@ class VRP {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithmIterators>
+        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id) {
+            const std::map<size_t, double>& dual_by_id, AlgorithmParams params = {}) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
-            auto solutions = graph_.solve<AlgorithmType>();
+            auto solutions = graph_.solve<AlgorithmType>(-EPSILON, params);
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",

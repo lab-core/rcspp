@@ -14,14 +14,14 @@ int main() {
 
     // Test graph creation, graph update and solving the RCSPP
     auto p =
-    all_tests_rcspp<SimpleDominanceAlgorithmIterators, PushingDominanceAlgorithmIterators, PullingDominanceAlgorithmIterators>();
+    all_tests_rcspp<SimpleDominanceAlgorithm, PushingDominanceAlgorithm, PullingDominanceAlgorithm>();
     passed += p.first;
     total += p.second;
 
     // Test graph creation and graph update with non integer dual 
     // row coefficients, and solving the RCSPP
     p =
-    all_tests_rcspp_non_integer_dual_row_coef<SimpleDominanceAlgorithmIterators, PushingDominanceAlgorithmIterators, PullingDominanceAlgorithmIterators>();
+    all_tests_rcspp_non_integer_dual_row_coef<SimpleDominanceAlgorithm, PushingDominanceAlgorithm, PullingDominanceAlgorithm>();
     passed += p.first;
     total += p.second;
 

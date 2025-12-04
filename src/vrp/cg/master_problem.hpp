@@ -18,7 +18,7 @@ class MasterProblem {
 
         MPSolution solve(bool integer = false);
 
-        void add_columns(const std::vector<Path>& paths);
+        void add_columns(const std::vector<Path>& paths, size_t max_paths = 100);  // NOLINT
 
     private:
         static std::unique_ptr<GRBEnv> env_;

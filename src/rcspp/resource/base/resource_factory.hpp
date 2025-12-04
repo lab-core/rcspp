@@ -22,7 +22,7 @@ class ResourceFactory {
         ResourceFactory()
             : nb_resource_bases_created_(0), nb_resources_created_(0), nb_extenders_created_(0) {}
 
-        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        ResourceFactory(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
@@ -35,7 +35,7 @@ class ResourceFactory {
               nb_resources_created_(0),
               nb_extenders_created_(0) {}
 
-        ResourceFactory(std::unique_ptr<ExpansionFunction<ResourceType>> extension_function,
+        ResourceFactory(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function)
@@ -52,50 +52,47 @@ class ResourceFactory {
         }*/
 
         virtual auto make_resource_base() -> std::unique_ptr<ResourceType> {
-            nb_resource_bases_created_++;
-
+            ++nb_resource_bases_created_;
             return resource_prototype_->clone();
         }
 
         // Make a resource from the prototype.
         virtual auto make_resource() -> std::unique_ptr<Resource<ResourceType>> {
-            nb_resources_created_++;
-
+            ++nb_resources_created_;
             return resource_prototype_->clone_resource();
         }
 
         // Make a resource from the prototype with node_id.
         virtual auto make_resource(size_t node_id) -> std::unique_ptr<Resource<ResourceType>> {
-            nb_resources_created_++;
-
+            ++nb_resources_created_;
             return resource_prototype_->create(node_id);
         }
 
-        // Make a resource from an other resource by copying its resource function objects.
+        // Make a resource from another resource by copying its resource function objects.
         virtual auto make_resource(const Resource<ResourceType>& resource)
             -> std::unique_ptr<Resource<ResourceType>> {
-            nb_resources_created_++;
-
+            ++nb_resources_created_;
             return resource.copy();
         }
 
         // Make an extender
-        auto make_extender(size_t arc_id) -> std::unique_ptr<Extender<ResourceType>> {
-            nb_extenders_created_++;
-
-            return std::make_unique<Extender<ResourceType>>(extension_function_->create(arc_id),
-                                                            arc_id);
+        template <typename GraphResourceType>
+        auto make_extender(const Arc<GraphResourceType>& arc)
+            -> std::unique_ptr<Extender<ResourceType>> {
+            ++nb_extenders_created_;
+            return std::make_unique<Extender<ResourceType>>(extension_function_->create(arc),
+                                                            arc.id);
         }
 
         // Make an extender
         // clang-format off
-        virtual auto make_extender(const ResourceType& resource_base, size_t arc_id)
+    template <typename GraphResourceType>
+         auto make_extender(const ResourceType& resource_base, const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<Extender<ResourceType>> {
-            nb_extenders_created_++;
-
+            ++nb_extenders_created_;
             return std::make_unique<Extender<ResourceType>>(resource_base,
-                                                            extension_function_->create(arc_id),
-                                                            arc_id);
+                                                            extension_function_->create(arc),
+                                                            arc.id);
         }
         // clang-format on
 
@@ -125,7 +122,7 @@ class ResourceFactory {
         }
 
         std::unique_ptr<Resource<ResourceType>> resource_prototype_;
-        std::unique_ptr<ExpansionFunction<ResourceType>> extension_function_;
+        std::unique_ptr<ExtensionFunction<ResourceType>> extension_function_;
 
         size_t nb_resource_bases_created_;
         size_t nb_resources_created_;
