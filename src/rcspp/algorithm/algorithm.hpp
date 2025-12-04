@@ -77,7 +77,7 @@ struct AlgorithmParams {
         // for truncated labeling
         size_t num_labels_to_extend_by_node = MAX_INT;
 
-        // number maximum of passes for the resolution if previous pass ended early with not enough
+        // maximum number of passes for the resolution if previous pass ended early with not enough
         // solutions
         size_t num_max_phases = 1;
 
