@@ -40,21 +40,12 @@ class Extender : public ResourceType {
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
-        [[nodiscard]] auto create(const ResourceType& resource_base, const size_t arc_id) const
+        template <typename GraphResourceType>
+        [[nodiscard]] auto clone(const Arc<GraphResourceType>& arc) const
             -> std::unique_ptr<Extender<ResourceType>> {
-            auto new_extender = std::make_unique<Extender>(resource_base,
-                                                           extension_function_->create(arc_id),
-                                                           arc_id);
-
-            return new_extender;
-        }
-
-        [[nodiscard]] auto create(const size_t arc_id) const
-            -> std::unique_ptr<Extender<ResourceType>> {
-            auto new_extender =
-                std::make_unique<Extender>(extension_function_->create(arc_id), arc_id);
-
-            return new_extender;
+            return std::make_unique<Extender<ResourceType>>(*this,
+                                                            extension_function_->create(arc),
+                                                            arc.id);
         }
 
     private:
@@ -95,20 +86,28 @@ class Extender<ResourceComposition<ResourceTypes...>>
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
-        [[nodiscard]] auto create(const ResourceComposition<ResourceTypes...>& resource_base,
-                                  const size_t arc_id) const
+        [[nodiscard]] auto clone(const Arc<ResourceComposition<ResourceTypes...>>& arc) const
             -> std::unique_ptr<Extender<ResourceComposition<ResourceTypes...>>> {
-            auto new_extender = std::make_unique<Extender>(resource_base,
-                                                           extension_function_->create(arc_id),
-                                                           arc_id);
+            auto new_extender = std::make_unique<Extender<ResourceComposition<ResourceTypes...>>>(
+                *this,
+                extension_function_->create(arc),
+                arc.id);
 
-            return new_extender;
-        }
+            auto make_extender_function = [&](const auto& extenders, auto& new_extenders) {
+                for (const auto& extender : extenders) {
+                    new_extenders.emplace_back(extender->clone(arc));
+                }
+            };
 
-        [[nodiscard]] auto create(const size_t arc_id) const
-            -> std::unique_ptr<Extender<ResourceComposition<ResourceTypes...>>> {
-            auto new_extender =
-                std::make_unique<Extender>(extension_function_->create(arc_id), arc_id);
+            std::apply(
+                [&](const auto&... ext_comp) {
+                    std::apply(
+                        [&](auto&... new_ext_comp) {
+                            (make_extender_function(ext_comp, new_ext_comp), ...);
+                        },
+                        new_extender->extender_components_);
+                },
+                extender_components_);
 
             return new_extender;
         }

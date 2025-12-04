@@ -203,7 +203,7 @@ double VRPSubproblem::calculate_solution_cost(const Solution& solution) const {
 
     // TODO(patrick): Figure out how to get the cost of an Extender.
     for (auto arc_id : solution.path_arc_ids) {
-        cost += graph_.get_arc(arc_id).cost;
+        cost += graph_.get_arc(arc_id)->cost;
     }
 
     return cost;

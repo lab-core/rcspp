@@ -8,8 +8,8 @@
 #include <cstdint>
 #include <unordered_map>
 
-#include "rcspp/algorithm/bellman_ford_algorithm.hpp"
-#include "rcspp/algorithm/preprocessor.hpp"
+#include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
+#include "rcspp/preprocessor/preprocessor.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace rcspp {

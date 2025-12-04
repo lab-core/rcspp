@@ -100,9 +100,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                 [&](const auto& res_base_vec, const auto& res_fac_vec, auto& res_comp_vec) {
                     for (int i = 0; i < res_base_vec.size(); i++) {
                         const auto& res_base = *res_base_vec[i];
-
                         const auto& res_fac = res_fac_vec[i];
-
                         res_comp_vec.emplace_back(res_fac->make_extender(res_base, arc));
                     }
                 };

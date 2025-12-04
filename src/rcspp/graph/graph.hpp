@@ -25,6 +25,58 @@ class Graph {
     public:
         Graph() = default;
 
+        // copy constructor and assignment operator are deleted
+        Graph(const Graph& graph) = delete;
+        Graph& operator=(const Graph& graph) = delete;
+        Graph(Graph&&) = delete;
+        Graph& operator=(Graph&&) = delete;
+
+        [[nodiscard]] std::unique_ptr<Graph<ResourceType>> clone(
+            bool clone_removed_arcs = false) const {
+            auto new_graph = std::make_unique<Graph<ResourceType>>();
+
+            // copy nodes
+            for (const auto& [node_id, node_ptr] : nodes_by_id_) {
+                auto& node = new_graph->add_node(node_id, node_ptr->source, node_ptr->sink);
+                node.resource =
+                    node_ptr->resource ? std::move(node_ptr->resource->clone_resource()) : nullptr;
+            }
+
+            // copy sorted nodes
+            for (const auto* node_ptr : sorted_nodes_) {
+                auto* node = new_graph->get_node(node_ptr->id);
+                node->pos_ = node_ptr->pos_;
+                new_graph->sorted_nodes_.push_back(node);
+            }
+
+            // copy arcs
+            for (const auto& [arc_id, arc_ptr] : arcs_by_id_) {
+                auto& arc = new_graph->add_arc(arc_ptr->origin->id,
+                                               arc_ptr->destination->id,
+                                               arc_id,
+                                               arc_ptr->cost,
+                                               arc_ptr->dual_rows);
+                arc.extender =
+                    arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
+            }
+
+            if (clone_removed_arcs) {
+                // copy removed arcs
+                for (const auto& [arc_id, arc_ptr] : removed_arcs_by_id_) {
+                    auto& arc = new_graph->add_arc(arc_ptr->origin->id,
+                                                   arc_ptr->destination->id,
+                                                   arc_id,
+                                                   arc_ptr->cost,
+                                                   arc_ptr->dual_rows);
+                    new_graph->remove_arc(arc_id);
+                    arc.extender =
+                        arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
+                }
+            }
+
+            return new_graph;
+        }
+
         virtual Node<ResourceType>& add_node(size_t node_id, bool source = false,
                                              bool sink = false) {
             nodes_by_id_[node_id] = std::make_unique<Node<ResourceType>>(node_id, source, sink);
@@ -124,12 +176,16 @@ class Graph {
             return restored_arc_ids;
         }
 
-        [[nodiscard]] Node<ResourceType>& get_node(size_t node_id) const {
-            return *nodes_by_id_.at(node_id).get();
+        [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
+            return nodes_by_id_.at(node_id).get();
         }
 
-        [[nodiscard]] Arc<ResourceType>& get_arc(size_t arc_id) const {
-            return *arcs_by_id_.at(arc_id).get();
+        [[nodiscard]] Arc<ResourceType>* get_arc(size_t arc_id) const {
+            auto it = arcs_by_id_.find(arc_id);
+            if (it == arcs_by_id_.end()) {
+                return nullptr;
+            }
+            return it->second.get();
         }
 
         [[nodiscard]] std::vector<size_t> get_node_ids() const {
