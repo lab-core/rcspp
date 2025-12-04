@@ -104,6 +104,18 @@ class Algorithm {
 
         virtual ~Algorithm() = default;
 
+        /**
+         * @brief Checks whether the algorithm has reached an optimal state.
+         *
+         * An algorithm is considered optimal when there are no more labels left to process,
+         * i.e., when @ref number_of_labels returns zero. This typically means that all possible
+         * extensions have been explored and no further improvements or solutions can be found.
+         *
+         * The default implementation returns true if @ref number_of_labels() == 0.
+         * Derived classes may override this method to provide a more specific notion of optimality.
+         *
+         * @return true if the algorithm is optimal (no labels left to process), false otherwise.
+         */
         [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
 
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
