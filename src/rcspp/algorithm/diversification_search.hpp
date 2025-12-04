@@ -109,7 +109,7 @@ class DiversificationSearch : public Algorithm<ResourceType> {
                 }
             }
 
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+            LOG_DEBUG("DiversificationSearch: WHILE nb iter: ", i, "\n");
         }
 
         void tabu_solution(const Solution& sol) {
