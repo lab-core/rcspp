@@ -39,7 +39,7 @@ class DiversificationSearch : public Algorithm<ResourceType> {
             // check stopping criteria
             if (this->params_.max_iterations >= MAX_INT) {
                 LOG_ERROR(
-                    "max_iterations needs to be set to a finite value for TabuSearch in order to "
+                    "max_iterations needs to be set to a finite value for DiversificationSearch in order to "
                     "stop.\n");
                 return;
             }
