@@ -183,15 +183,11 @@ class VRP {
         static constexpr double COST_COMPARISON_EPSILON = 1e-6;
 
         Instance instance_;
-
-        std::map<size_t, double> min_time_window_by_node_id_;
-        std::map<size_t, double> max_time_window_by_node_id_;
-
         std::map<size_t, std::set<size_t>> node_set_by_node_id_;
 
         size_t path_id_ = 0;
 
-        std::map<size_t, std::pair<int, int>> time_window_by_customer_id_;
+        std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
         std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id_;
 
         // Resource graph. needs to be loaded after time windows and ng neighborhoods are
@@ -212,7 +208,7 @@ class VRP {
 
         std::vector<std::vector<double>> distances_;
 
-        std::map<size_t, std::pair<int, int>> initialize_time_windows();
+        std::map<size_t, std::pair<double, double>> initialize_time_windows();
         std::map<size_t, std::set<size_t>> initialize_ng_neighborhoods(size_t max_size);
 
         void construct_resource_graph(RGraph* graph,

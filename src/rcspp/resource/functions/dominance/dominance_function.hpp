@@ -16,8 +16,9 @@ class DominanceFunction {
     public:
         virtual ~DominanceFunction() = default;
 
-        virtual auto check_dominance(const Resource<ResourceType>& lhs_resource,
-                                     const Resource<ResourceType>& rhs_resource) -> bool = 0;
+        [[nodiscard]] virtual auto check_dominance(const Resource<ResourceType>& lhs_resource,
+                                                   const Resource<ResourceType>& rhs_resource)
+            -> bool = 0;
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<DominanceFunction> = 0;
 

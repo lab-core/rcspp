@@ -19,7 +19,7 @@ class CompositionDominanceFunction
     public:
         CompositionDominanceFunction() = default;
 
-        bool check_dominance(
+        [[nodiscard]] bool check_dominance(
             const Resource<ResourceComposition<ResourceTypes...>>& lhs_resource,
             const Resource<ResourceComposition<ResourceTypes...>>& rhs_resource) override {
             return std::apply(
@@ -35,7 +35,8 @@ class CompositionDominanceFunction
         }
 
     private:
-        bool check_dominance(const auto& lhs_sing_res_vec, const auto& rhs_sing_res_vec) {
+        [[nodiscard]] bool check_dominance(const auto& lhs_sing_res_vec,
+                                           const auto& rhs_sing_res_vec) const {
             for (int i = 0; i < lhs_sing_res_vec.size(); i++) {
                 if (!(*lhs_sing_res_vec[i] <= *rhs_sing_res_vec[i])) {
                     return false;

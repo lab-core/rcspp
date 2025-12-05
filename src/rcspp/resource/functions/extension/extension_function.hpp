@@ -27,6 +27,12 @@ class ExtensionFunction {
                             const Extender<ResourceType>& extender,
                             Resource<ResourceType>* extended_resource) = 0;
 
+        virtual void extend_back(const Resource<ResourceType>& resource,
+                                 const Extender<ResourceType>& extender,
+                                 Resource<ResourceType>* extended_resource) {
+            extend(resource, extender, extended_resource);
+        }
+
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExtensionFunction> = 0;
 
         template <typename GraphResourceType>
