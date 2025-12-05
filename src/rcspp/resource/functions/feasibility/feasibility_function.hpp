@@ -16,7 +16,18 @@ class FeasibilityFunction {
     public:
         virtual ~FeasibilityFunction() = default;
 
-        virtual auto is_feasible(const Resource<ResourceType>& resource) -> bool = 0;
+        [[nodiscard]] virtual auto is_feasible(const Resource<ResourceType>& resource) -> bool = 0;
+
+        [[nodiscard]] virtual auto is_back_feasible(const Resource<ResourceType>& resource)
+            -> bool {
+            return is_feasible(resource);
+        }
+
+        [[nodiscard]] virtual auto can_be_merged(const Resource<ResourceType>& resource,
+                                                 const Resource<ResourceType>& back_resource)
+            -> bool {
+            throw std::runtime_error("FeasibilityFunction::merge not implemented");
+        };
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<FeasibilityFunction> = 0;
 

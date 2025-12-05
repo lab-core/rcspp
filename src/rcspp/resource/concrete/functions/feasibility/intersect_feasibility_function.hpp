@@ -24,8 +24,16 @@ class IntersectFeasibilityFunction
             const std::map<size_t, ValueType>& forbidden_by_node_id)
             : forbidden_by_node_id_(forbidden_by_node_id) {}
 
-        auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        [[nodiscard]] auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
             return !resource.intersects(forbidden_.get_value());
+        }
+
+        [[nodiscard]] auto can_be_merged(const Resource<ResourceType>& resource,
+                                         const Resource<ResourceType>& back_resource)
+            -> bool override {
+            // ensure that no node is in the intersection, as they would normally be visited on both
+            // sides in this case
+            return !resource.intersects(back_resource.get_value());
         }
 
     private:

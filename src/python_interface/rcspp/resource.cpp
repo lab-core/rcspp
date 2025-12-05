@@ -102,39 +102,41 @@ void init_resource(py::module_& m) {
                py::smart_holder>(m, "MinMaxFeasibilityFunction")
         .def(py::init<double, double>());
 
-    static std::map<size_t, double> g_min_time_window_by_node_id;
+    static std::map<size_t, std::pair<double, double>> g_e_time_window_by_node_id;
 
     py::class_<TimeWindowExtensionFunction<RealResource>,
                ExtensionFunction<RealResource>,
                py::smart_holder>(m, "TimeWindowExtensionFunction")
-        .def(py::init([](const py::dict& min_time_window_by_node_id) {
+        .def(py::init([](const py::dict& time_window_by_node_id) {
                  // Copy Python dict into the global map
-                 g_min_time_window_by_node_id.clear();
-                 for (const auto& [node_id, max_time] : min_time_window_by_node_id) {
-                     g_min_time_window_by_node_id.emplace(node_id.cast<size_t>(),
-                                                          max_time.cast<double>());
+                 g_e_time_window_by_node_id.clear();
+                 for (const auto& [node_id, time_pair] : time_window_by_node_id) {
+                     g_e_time_window_by_node_id.emplace(
+                         node_id.cast<size_t>(),
+                         time_pair.cast<std::pair<double, double>>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowExtensionFunction<RealResource>(g_min_time_window_by_node_id);
+                 return TimeWindowExtensionFunction<RealResource>(g_e_time_window_by_node_id);
              }),
-             py::arg("min_time_window_by_arc_id"));
+             py::arg("time_window_by_arc_id"));
 
-    static std::map<size_t, double> g_max_time_window_by_node_id;
+    static std::map<size_t, std::pair<double, double>> g_f_time_window_by_node_id;
 
     py::class_<TimeWindowFeasibilityFunction<RealResource>,
                FeasibilityFunction<RealResource>,
                py::smart_holder>(m, "TimeWindowFeasibilityFunction")
         .def(py::init([](const py::dict& max_time_window_by_node_id) {
                  // Copy Python dict into the global map
-                 g_max_time_window_by_node_id.clear();
-                 for (const auto& [node_id, max_time] : max_time_window_by_node_id) {
-                     g_max_time_window_by_node_id.emplace(node_id.cast<size_t>(),
-                                                          max_time.cast<double>());
+                 g_f_time_window_by_node_id.clear();
+                 for (const auto& [node_id, time_pair] : max_time_window_by_node_id) {
+                     g_f_time_window_by_node_id.emplace(
+                         node_id.cast<size_t>(),
+                         time_pair.cast<std::pair<double, double>>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowFeasibilityFunction<RealResource>(g_max_time_window_by_node_id);
+                 return TimeWindowFeasibilityFunction<RealResource>(g_f_time_window_by_node_id);
              }),
-             py::arg("max_time_window_by_node_id"));
+             py::arg("time_window_by_node_id"));
 
     py::class_<TrivialFeasibilityFunction<RealResource>,
                FeasibilityFunction<RealResource>,

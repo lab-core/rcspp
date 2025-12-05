@@ -287,46 +287,30 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
     return solutions;
 }
 
-std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
+std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    std::map<size_t, std::pair<int, int>> time_window_by_customer_id;
+    std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     for (const auto& [customer_id, customer] : customers_by_id) {
         time_window_by_customer_id.emplace(
             customer_id,
-            std::pair<int, int>{customer.ready_time, customer.due_time});
+            std::pair<double, double>{customer.ready_time, customer.due_time});
     }
 
     const auto& source_customer = customers_by_id.at(0);
+    time_window_by_customer_id.emplace(
+        0,
+        std::pair<double, double>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
     size_t sink_id = customers_by_id.size();
     time_window_by_customer_id.emplace(
         sink_id,
         std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
-    max_time_window_by_node_id_.emplace(0,
-                                        std::numeric_limits<int>::max() / 2);  // prevent overflow
     node_set_by_node_id_.emplace(0, std::set<size_t>{0});
-
-    int min_time = 0;
-    int max_time = std::numeric_limits<int>::max() / 2;  // prevent overflow
-    if (time_window_by_customer_id.contains(sink_id)) {
-        min_time = time_window_by_customer_id.at(sink_id).first;
-        max_time = time_window_by_customer_id.at(sink_id).second;
-    }
-    min_time_window_by_node_id_[sink_id] = min_time;
-    max_time_window_by_node_id_[sink_id] = max_time;
     node_set_by_node_id_.emplace(sink_id, std::set<size_t>{});
 
     for (const auto& [customer_id, customer] : customers_by_id) {
-        int min_time = 0;
-        int max_time = std::numeric_limits<int>::max() / 2;  // prevent overflow
-        if (time_window_by_customer_id.contains(customer_id)) {
-            min_time = time_window_by_customer_id.at(customer_id).first;
-            max_time = time_window_by_customer_id.at(customer_id).second;
-        }
-        min_time_window_by_node_id_[customer_id] = min_time;
-        max_time_window_by_node_id_[customer_id] = max_time;
         node_set_by_node_id_.emplace(customer_id, std::set<size_t>{customer_id});
     }
 
@@ -380,8 +364,8 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     // Time
     using TimeResource = RealResource;
     resource_graph->add_resource<TimeResource>(
-        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(min_time_window_by_node_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(max_time_window_by_node_id_),
+        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(time_window_by_customer_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(time_window_by_customer_id_),
         std::make_unique<ValueCostFunction<TimeResource>>(),
         std::make_unique<ValueDominanceFunction<TimeResource>>());
 

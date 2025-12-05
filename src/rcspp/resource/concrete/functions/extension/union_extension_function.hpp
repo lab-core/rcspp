@@ -15,8 +15,8 @@ class UnionExtensionFunction
     public:
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {
-            auto union_container = resource.get_union(extender.get_value());
-            extended_resource->set_value(union_container);
+            auto union_value = resource.get_union(extender.get_value());
+            extended_resource->set_value(union_value);
         }
 };
 }  // namespace rcspp

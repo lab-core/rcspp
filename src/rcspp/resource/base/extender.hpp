@@ -38,6 +38,11 @@ class Extender : public ResourceType {
             extension_function_->extend(resource, *this, extended_resource);
         }
 
+        void extend_back(const Resource<ResourceType>& resource,
+                         Resource<ResourceType>* extended_resource) const {
+            extension_function_->extend_back(resource, *this, extended_resource);
+        }
+
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
         template <typename GraphResourceType>
@@ -82,6 +87,11 @@ class Extender<ResourceComposition<ResourceTypes...>>
         void extend(const Resource<ResourceComposition<ResourceTypes...>>& resource,
                     Resource<ResourceComposition<ResourceTypes...>>* extended_resource) const {
             extension_function_->extend(resource, *this, extended_resource);
+        }
+
+        void extend_back(const Resource<ResourceComposition<ResourceTypes...>>& resource,
+                         Resource<ResourceComposition<ResourceTypes...>>* extended_resource) const {
+            extension_function_->extend_back(resource, *this, extended_resource);
         }
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
