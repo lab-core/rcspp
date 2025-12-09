@@ -59,11 +59,9 @@ struct Solution {
         // Should not have any collisions for small sequences of arc ids
         // WARNING: Hash collisions will silently skip solutions, which can compromise correctness.
         void init_hash() {
-            if (hash_ == 0) {
-                hash_ = FNV_OFFSET_BASIS;             // initialize hash
-                for (std::size_t a : path_arc_ids) {  // hash each arc id sequentially
-                    hash_ = fnv1a_mix_uint64(static_cast<std::uint64_t>(a), hash_);
-                }
+            hash_ = FNV_OFFSET_BASIS;             // initialize hash
+            for (std::size_t a : path_arc_ids) {  // hash each arc id sequentially
+                hash_ = fnv1a_mix_uint64(static_cast<std::uint64_t>(a), hash_);
             }
         }
 };
