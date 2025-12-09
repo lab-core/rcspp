@@ -60,7 +60,7 @@ struct AlgorithmParams {
             return ((stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT));
         }
 
-        // stop after finding X solutions (not going to optimality
+        // stop after finding X solutions (not going to optimality)
         size_t stop_after_X_solutions = MAX_INT;
 
         // whether to also return dominated solutions found at the sink nodes
