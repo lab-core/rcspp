@@ -16,14 +16,16 @@ namespace rcspp {
 /**
  * @brief GreedyAlgorithm for Resource Constrained Shortest Path Problems (RCSPP).
  *
- * This algorithm attempts to extend the current path greedily, always choosing the next best label to extend.
- * If a greedy extension is not possible, the algorithm backtracks to previous labels and explores alternative siblings.
- * This approach combines greedy search with backtracking, allowing it to efficiently find feasible solutions
- * while avoiding exhaustive enumeration of all possible paths.
+ * This algorithm attempts to extend the current path greedily, always choosing the next best label
+ * to extend. If a greedy extension is not possible, the algorithm backtracks to previous labels and
+ * explores alternative siblings. This approach combines greedy search with backtracking, allowing
+ * it to efficiently find feasible solutions while avoiding exhaustive enumeration of all possible
+ * paths.
  *
- * Use this algorithm when you want a fast, heuristic approach to RCSPP that can quickly find good solutions,
- * but may not guarantee optimality in all cases. It is particularly useful for large graphs where full enumeration
- * is computationally expensive, and a balance between speed and solution quality is desired.
+ * Use this algorithm when you want a fast, heuristic approach to RCSPP that can quickly find good
+ * solutions, but may not guarantee optimality in all cases. It is particularly useful for large
+ * graphs where full enumeration is computationally expensive, and a balance between speed and
+ * solution quality is desired.
  */
 template <typename ResourceType>
 class GreedyAlgorithm : public Algorithm<ResourceType> {
@@ -62,7 +64,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             std::list<Label<ResourceType>*> sources;
             for (auto source_node_id : this->graph_->get_source_node_ids()) {
                 auto* source_node = this->graph_->get_node(source_node_id);
-                auto& label = this->label_pool_->get_next_label(source_node);
+                auto& label = this->label_pool_.get_next_label(source_node);
                 sources.push_back(&label);
             }
 
@@ -82,14 +84,18 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             // (that'd be a dangling reference). Re-query path_.back() each loop.
             // try to extend the label greedily
             while (!path_.empty()) {
-                if (extend_label(path_.back().first)) {
-                    break;  // successfully extended
+                bool extended = false;
+                while (extend_label(path_.back().first)) {
+                    extended = true;  // successfully extended
+                }
+                if (extended) {
+                    break;  // successfully dive, move to next label
                 }
 
                 // need to backtrack until we find a node with remaining siblings
                 while (!path_.empty() && path_.back().second.empty()) {
                     // release the label at this depth and pop
-                    this->label_pool_->release_label(path_.back().first);
+                    this->label_pool_.release_label(path_.back().first);
                     path_.pop_back();
                 }
 
@@ -99,7 +105,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                 }
 
                 // there is at least one sibling at current depth: release current label and switch
-                this->label_pool_->release_label(path_.back().first);
+                this->label_pool_.release_label(path_.back().first);
                 auto next_label = path_.back().second.front();
                 path_.back().second.pop_front();
                 path_.back().first = next_label;
@@ -113,7 +119,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             std::list<Label<ResourceType>*> all_labels;
             for (auto* arc : end_node->out_arcs) {
                 // extend along arc
-                auto& new_label = this->label_pool_->get_next_label(arc->destination);
+                auto& new_label = this->label_pool_.get_next_label(arc->destination);
                 label->extend(*arc, &new_label);
                 // check feasibility
                 if (new_label.is_feasible()) {
@@ -121,7 +127,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                     all_labels.push_back(&new_label);
                 } else {
                     // release label
-                    this->label_pool_->release_label(&new_label);
+                    this->label_pool_.release_label(&new_label);
                 }
             }
 

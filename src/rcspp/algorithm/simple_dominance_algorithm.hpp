@@ -33,7 +33,7 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType> {
 
                 // if dominated, release the label
                 if (label_iterator_pair.first->dominated) {
-                    this->label_pool_->release_label(label_iterator_pair.first);
+                    this->label_pool_.release_label(label_iterator_pair.first);
                 } else {
                     // truncate/limit the number of labels extended per node
                     size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(

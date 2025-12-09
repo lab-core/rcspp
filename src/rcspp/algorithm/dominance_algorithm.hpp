@@ -29,7 +29,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
             for (auto source_node_id : this->graph_->get_source_node_ids()) {
                 auto* source_node = this->graph_->get_node(source_node_id);
-                auto& label = this->label_pool_->get_next_label(source_node);
+                auto& label = this->label_pool_.get_next_label(source_node);
 
                 auto& labels = non_dominated_labels_by_node_pos_.at(source_node->pos());
                 // it points to the newly inserted element
@@ -54,7 +54,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                 // label dominated -> continue to next one
                 auto& label = *label_iterator_pair.first;
                 if (label.dominated) {
-                    this->label_pool_->release_label(&label);
+                    this->label_pool_.release_label(&label);
                     continue;
                 }
 
@@ -76,7 +76,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     this->total_full_extend_time_.stop();
                 } else {
                     remove_label(label_iterator_pair.second);
-                    this->label_pool_->release_label(&label);
+                    this->label_pool_.release_label(&label);
                 }
             }
 
@@ -94,7 +94,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
-            auto& new_label = this->label_pool_->get_next_label(arc_ptr->destination);
+            auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
 
             bool feasible = new_label.is_feasible();
@@ -113,7 +113,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                 } else {
                     ++this->nb_dominated_labels_;
                 }
-                this->label_pool_->release_label(&new_label);
+                this->label_pool_.release_label(&new_label);
             }
         }
 
@@ -134,7 +134,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     for (const auto label_ptr :
                          non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
                         auto& next_label_ref =
-                            this->label_pool_->get_next_label(in_arc_ptr->destination);
+                            this->label_pool_.get_next_label(in_arc_ptr->destination);
                         label_ptr->extend(*in_arc_ptr, &next_label_ref);
 
                         if (next_label_ref <= *current_label_ptr) {

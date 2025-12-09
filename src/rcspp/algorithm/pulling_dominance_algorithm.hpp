@@ -49,12 +49,12 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
 
                     // label dominated -> continue to next one
                     if (label.dominated) {
-                        this->label_pool_->release_label(&label);
+                        this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (std::isinf(label.get_cost())) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
-                        this->label_pool_->release_label(&label);
+                        this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else {
                         assert(this->update_non_dominated_labels(label));
@@ -132,7 +132,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             // truncate/limit the number of labels extended per node (only if not a sink)
             if (!current_node->sink) {
                 this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
-                                                        this->label_pool_.get());
+                                                        &this->label_pool_);
             }
             this->total_full_extend_time_.stop();
         }

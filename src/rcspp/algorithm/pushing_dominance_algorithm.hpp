@@ -42,7 +42,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_));
                 // truncate/limit the number of labels extended per node
                 this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
-                                                        this->label_pool_.get());
+                                                        &this->label_pool_);
             }
 
             // get the next label

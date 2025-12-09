@@ -71,13 +71,13 @@ class VRP {
                 size_t algo_index = 1;  // timers[0] used by boost
 
                 auto collect_solutions = [&](auto sols, Algorithm<ResourceType>* algo = nullptr) {
+                    bool non_optimal =
+                        algo == nullptr ? params.could_be_non_optimal() : !algo->is_optimal();
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
                             // RCSPP can be better as it uses int for some resources (e.g., load,
                             // time)
                             double diff = solutions_boost[0].cost - sols[0].cost;
-                            bool non_optimal = algo == nullptr ? params.could_be_non_optimal()
-                                                               : !algo->is_optimal();
                             if ((non_optimal && diff > COST_COMPARISON_EPSILON) ||
                                 (!non_optimal && abs(diff) > COST_COMPARISON_EPSILON)) {
                                 LOG_ERROR("RCSPP solution is not coherent with BOOST (",
@@ -89,7 +89,11 @@ class VRP {
                                           "\n");
                             }
                         } else if (solutions_boost[0].cost < -EPSILON) {
-                            LOG_ERROR("BOOST has a solution while RCSPP (", algo_index, ") not\n");
+                            if (!non_optimal) {
+                                LOG_ERROR("BOOST has a solution while RCSPP (",
+                                          algo_index,
+                                          ") not\n");
+                            }
                         }
                     }
 
@@ -101,7 +105,8 @@ class VRP {
                                   " | nb_solutions=",
                                   sols.size(),
                                   '\n');
-                        if (algo_index > 1 && sols.size() != solutions_rcspp_any.size()) {
+                        if (algo_index > 1 && sols.size() != solutions_rcspp_any.size() &&
+                            !non_optimal) {
                             LOG_WARN("The number of solutions from RCSPP (algo ",
                                      algo_index,
                                      ") differs from that of the first algorithm: ",
@@ -158,8 +163,6 @@ class VRP {
                          min_reduced_cost,
                          " | paths_generated=",
                          negative_red_cost_solutions.size(),
-                         " | EPSILON=",
-                         EPSILON,
                          '\n');
                 LOG_DEBUG(std::string(45, '*'), '\n');
             }

@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
         instance_names.emplace_back("R10" + std::to_string(instance_num));
         instance_names.emplace_back("RC10" + std::to_string(instance_num));
     }
-    std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling", "TabuSearch"};
+    std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling", "Diversif"};
     std::string root_dir = file_parent_dir(__FILE__, 3);
 
     std::vector<Timer> total_timers;

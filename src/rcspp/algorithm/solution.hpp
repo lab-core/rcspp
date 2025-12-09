@@ -39,27 +39,37 @@ struct Solution {
         Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids)
             : cost(_cost),
               path_node_ids(std::move(_path_node_ids)),
-              path_arc_ids(std::move(_path_arc_ids)) {}
+              path_arc_ids(std::move(_path_arc_ids)) {
+            init_hash();
+        }
+
+        bool operator==(const Solution& rhs) const noexcept { return hash_ == rhs.hash_; }
+
+        [[nodiscard]] uint64_t get_hash() const noexcept { return hash_; }
 
         double cost = std::numeric_limits<double>::infinity();
         std::list<size_t> path_node_ids;
         std::list<size_t> path_arc_ids;
 
+    private:
+        std::uint64_t hash_ = 0;
+
         // Order-sensitive hash: different order -> different hash
         // Should not have any collisions for small sequences of arc ids
         // WARNING: Hash collisions will silently skip solutions, which can compromise correctness.
-        std::uint64_t get_hash() {
+        void init_hash() {
             if (hash_ == 0) {
                 hash_ = FNV_OFFSET_BASIS;             // initialize hash
                 for (std::size_t a : path_arc_ids) {  // hash each arc id sequentially
                     hash_ = fnv1a_mix_uint64(static_cast<std::uint64_t>(a), hash_);
                 }
             }
-
-            return hash_;
         }
-
-    private:
-        std::uint64_t hash_ = 0;
 };
 }  // namespace rcspp
+
+// hash specialization for Solution for unordered_set
+template <>
+struct std::hash<rcspp::Solution> {
+        size_t operator()(rcspp::Solution const& s) const noexcept { return s.get_hash(); }
+};

@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -91,8 +92,7 @@ template <typename ResourceType>
 class Algorithm {
     public:
         Algorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
-            : label_pool_(std::make_unique<LabelPool<ResourceType>>(
-                  std::make_unique<LabelFactory<ResourceType>>(resource_factory))),
+            : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
               graph_(nullptr),
               params_(std::move(params.check())) {}
 
@@ -124,7 +124,7 @@ class Algorithm {
 
             graph_ = graph;
             cost_upper_bound_ = cost_upper_bound;
-            label_pool_->clear();
+            label_pool_.clear();
             solutions_.clear();
         }
 
@@ -156,7 +156,7 @@ class Algorithm {
             // recover solutions
             std::vector<Solution> solutions;
             solutions.reserve(solutions_.size());
-            for (auto& [id, solution] : solutions_) {
+            for (auto&& solution : solutions_) {
                 solutions.push_back(std::move(solution));
             }
 
@@ -225,19 +225,19 @@ class Algorithm {
                 Solution(end_label.get_cost(), std::move(path_node_ids), std::move(path_arc_ids));
 
             // solution already extracted
-            if (solutions_.contains(sol.get_hash())) {
+            if (solutions_.contains(sol)) {
                 return;
             }
 
-            solutions_.emplace(sol.get_hash(), std::move(sol));
+            solutions_.insert(std::move(sol));
         }
 
-        std::unique_ptr<LabelPool<ResourceType>> label_pool_;
+        LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
         const AlgorithmParams params_;
 
         double cost_upper_bound_ = std::numeric_limits<double>::infinity();
-        std::map<std::uint64_t, Solution> solutions_;
+        std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
         Timer total_full_extend_time_;
