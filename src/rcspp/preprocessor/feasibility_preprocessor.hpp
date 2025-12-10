@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/preprocessor.hpp"
+#include "rcspp/preprocessor/preprocessor.hpp"
 
 namespace rcspp {
 
@@ -20,16 +20,16 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
             : Preprocessor<ResourceType>(graph), resource_factory_(resource_factory) {
             for (size_t node_id : graph->get_node_ids()) {
                 // Create an initial resource by extending a resource to this node
-                const auto& node = graph->get_node(node_id);
+                const auto* node = graph->get_node(node_id);
                 // if source, add default resource
-                if (node.source) {
+                if (node->source) {
                     initial_resources_by_node_id_[node_id].emplace_back(
                         resource_factory->make_resource(node_id));
                     continue;
                 }
                 // loop through the in arcs to find all feasible initial resource
                 auto& initial_resources = initial_resources_by_node_id_[node_id];
-                for (auto* arc : node.in_arcs) {
+                for (auto* arc : node->in_arcs) {
                     auto previous_resource = resource_factory->make_resource(arc->origin->id);
                     auto new_resource = resource_factory->make_resource(node_id);
                     arc->extender->extend(*previous_resource, new_resource.get());

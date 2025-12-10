@@ -12,6 +12,8 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <set>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -55,19 +57,16 @@ struct AlgorithmParams {
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            return (stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT);
+            return ((stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT));
         }
 
-        // upper bound on the cost of solutions to find
-        double cost_upper_bound = std::numeric_limits<double>::infinity();
-
-        // stop after finding X solutions (not going to optimality
+        // stop after finding X solutions (not going to optimality)
         size_t stop_after_X_solutions = MAX_INT;
 
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
 
-        // whether to use label pooling for memory reuse (should normally always be true)
+        // for using label pool (should normally always be true)
         bool use_pool = true;
 
         // for truncated labeling
@@ -76,19 +75,45 @@ struct AlgorithmParams {
         // maximum number of passes for the resolution if previous pass ended early with not enough
         // solutions
         size_t num_max_phases = 1;
+
+        // maximum number of iterations/loops (for algorithms that use it)
+        size_t max_iterations = MAX_INT;
+
+        // for tabu search algorithms
+        size_t tabu_tenure = 5;  // NOLINT
+        std::set<size_t> forbidden_tabu;
+        bool tabu_random_noise = true;
+
+        int seed = 0;
 };
 
 template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
     public:
-        Algorithm(ResourceFactory<ResourceType>* resource_factory, const Graph<ResourceType>& graph,
-                  AlgorithmParams params)
-            : label_pool_(LabelPool<ResourceType>(
-                  std::make_unique<LabelFactory<ResourceType>>(resource_factory), params.use_pool)),
-              graph_(graph),
-              params_(std::move(params.check())) {
-            if (!graph_.get_sorted_nodes().empty() && !graph_.are_nodes_sorted()) {
+        Algorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
+            : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
+              graph_(nullptr),
+              params_(std::move(params.check())) {}
+
+        virtual ~Algorithm() = default;
+
+        /**
+         * @brief Checks whether the algorithm has reached an optimal state.
+         *
+         * An algorithm is considered optimal when there are no more labels left to process,
+         * i.e., when @ref number_of_labels returns zero. This typically means that all possible
+         * extensions have been explored and no further improvements or solutions can be found.
+         *
+         * The default implementation returns true if @ref number_of_labels() == 0.
+         * Derived classes may override this method to provide a more specific notion of optimality.
+         *
+         * @return true if the algorithm is optimal (no labels left to process), false otherwise.
+         */
+        [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
+
+        virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
+            if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
                 LOG_FATAL(
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.\n");
@@ -96,12 +121,20 @@ class Algorithm {
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.");
             }
+
+            graph_ = graph;
+            cost_upper_bound_ = cost_upper_bound;
+            label_pool_.clear();
+            solutions_.clear();
         }
 
-        virtual ~Algorithm() = default;
-
-        virtual std::vector<Solution> solve() {
+        virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
+                                            double cost_upper_bound) {
+            // initialization
             Timer timer;
+            initialize(graph, cost_upper_bound);
+
+            // initialize labels
             this->initialize_labels();
 
             size_t num_phases = 0;
@@ -123,9 +156,13 @@ class Algorithm {
             // recover solutions
             std::vector<Solution> solutions;
             solutions.reserve(solutions_.size());
-            for (auto& [id, solution] : solutions_) {
+            for (auto&& solution : solutions_) {
                 solutions.push_back(std::move(solution));
             }
+
+            // prepare next phase to ensure that all_labels_processed() returns the right value
+            // Also, next solve() is ready to start if needed
+            prepareNextPhase();
 
             // sort solutions
             std::ranges::sort(solutions,
@@ -133,7 +170,7 @@ class Algorithm {
 
             LOG_DEBUG("Number of solutions before resize: ", solutions.size(), '\n');
             LOG_DEBUG("Min cost=",
-                      solutions.empty() ? params_.cost_upper_bound : solutions.front().cost,
+                      solutions.empty() ? cost_upper_bound : solutions.front().cost,
                       "\n");
             LOG_DEBUG("Total time=", timer.elapsed_seconds(), " sec.\n");
 
@@ -145,83 +182,32 @@ class Algorithm {
             return solutions;
         }
 
+        [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
+
     protected:
         bool print_{false};
 
-        virtual void main_loop() {
-            int i = 0;
-
-            while (this->number_of_labels() > 0) {
-                ++i;
-
-                // next label to process
-                auto label_iterator_pair = next_label_iterator();
-
-                // no more label -> break (useful when pulling)
-                if (label_iterator_pair.first == nullptr) {
-                    break;
-                }
-
-                // label dominated -> continue to next one
-                auto& label = *label_iterator_pair.first;
-                if (label.dominated) {
-                    this->label_pool_.release_label(&label);
-                    continue;
-                }
-
-                assert(label.get_end_node());
-
-                // check if we can update the best label or extend
-                if (label.get_end_node()->sink) {
-                    if (label.get_cost() < params_.cost_upper_bound &&
-                        params_.return_dominated_solutions) {
-                        extract_solution(label);
-                        if (solutions_.size() >= params_.stop_after_X_solutions) {
-                            LOG_DEBUG("Stopping after ", solutions_.size(), " solutions.\n");
-                            break;
-                        }
-                    }
-                } else if (!std::isinf(label.get_cost())) {
-                    assert(update_non_dominated_labels(label));
-                    this->total_full_extend_time_.start();
-                    this->extend(&label);
-                    this->total_full_extend_time_.stop();
-                } else {
-                    remove_label(label_iterator_pair.second);
-                    this->label_pool_.release_label(&label);
-                }
-            }
-
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
-        }
-
         virtual void initialize_labels() = 0;
-
-        virtual void prepareNextPhase() {}
-
-        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
-
-        virtual bool test(const Label<ResourceType>& label) = 0;
-        virtual void extend(Label<ResourceType>* label) = 0;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
-        virtual void remove_label(
-            const std::list<Label<ResourceType>*>::iterator& label_iterator) = 0;
+        virtual void prepareNextPhase() {}
 
-        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) = 0;
+        virtual void main_loop() = 0;
+
+        void extract_remaining_solutions() {
+            auto labels_at_sinks = this->get_labels_at_sinks();
+            for (const auto* sink_label : labels_at_sinks) {
+                this->extract_solution(*sink_label);
+            }
+        }
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
         virtual void extract_solution(const Label<ResourceType>& end_label) {
-            // already found solution for this label id
-            if (solutions_.find(end_label.id) != solutions_.end()) {
-                return;
-            }
-
-            if (end_label.get_cost() >= params_.cost_upper_bound) {
+            if (end_label.get_cost() >= cost_upper_bound_) {
                 return;
             }
 
@@ -232,27 +218,26 @@ class Algorithm {
 
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
-                path_node_ids.push_back(this->graph_.get_arc(arc_id).origin->id);
+                path_node_ids.push_back(this->graph_->get_arc(arc_id)->origin->id);
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
-            solutions_.try_emplace(end_label.id,
-                                   end_label.get_cost(),
-                                   std::move(path_node_ids),
-                                   std::move(path_arc_ids));
-        }
+            auto sol =
+                Solution(end_label.get_cost(), std::move(path_node_ids), std::move(path_arc_ids));
 
-        void extract_remaining_solutions() {
-            auto labels_at_sinks = this->get_labels_at_sinks();
-            for (const auto* sink_label : labels_at_sinks) {
-                this->extract_solution(*sink_label);
+            // solution already extracted
+            if (solutions_.contains(sol)) {
+                return;
             }
+
+            solutions_.insert(std::move(sol));
         }
 
         LabelPool<ResourceType> label_pool_;
-        const Graph<ResourceType>& graph_;
+        const Graph<ResourceType>* graph_;
         const AlgorithmParams params_;
 
-        std::map<size_t, Solution> solutions_;
+        double cost_upper_bound_ = std::numeric_limits<double>::infinity();
+        std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
         Timer total_full_extend_time_;

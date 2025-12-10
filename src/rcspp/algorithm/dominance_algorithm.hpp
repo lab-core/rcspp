@@ -5,8 +5,6 @@
 
 #include <algorithm>
 #include <list>
-#include <queue>
-#include <set>
 #include <utility>
 #include <vector>
 
@@ -19,41 +17,75 @@ template <typename ResourceType>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class DominanceAlgorithm : public Algorithm<ResourceType> {
     public:
-        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                           const Graph<ResourceType>& graph, AlgorithmParams params)
-            : Algorithm<ResourceType>(resource_factory, graph, std::move(params)) {
-            for (size_t i = 0; i < graph.get_number_of_nodes(); i++) {
-                non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
-            }
-        }
+        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
+            : Algorithm<ResourceType>(resource_factory, std::move(params)) {}
 
     protected:
         void initialize_labels() override {
-            for (auto source_node_id : this->graph_.get_source_node_ids()) {
-                auto& source_node = this->graph_.get_node(source_node_id);
-                auto& label = this->label_pool_.get_next_label(&source_node);
+            non_dominated_labels_by_node_pos_.clear();
+            for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
+                non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
+            }
 
-                auto& labels = non_dominated_labels_by_node_pos_.at(source_node.pos());
+            for (auto source_node_id : this->graph_->get_source_node_ids()) {
+                auto* source_node = this->graph_->get_node(source_node_id);
+                auto& label = this->label_pool_.get_next_label(source_node);
+
+                auto& labels = non_dominated_labels_by_node_pos_.at(source_node->pos());
                 // it points to the newly inserted element
                 auto label_it = labels.insert(labels.end(), &label);
                 add_new_unprocessed_label(std::make_pair(&label, label_it));
             }
         }
 
-        bool test(const Label<ResourceType>& label) override {
-            // Dominance check
-            ++nb_test_iter_;
-            total_test_time_.start();
-            bool non_dominated = update_non_dominated_labels(label);
-            if (!non_dominated) {
-                ++this->nb_dominated_labels_;
-            }
-            total_test_time_.stop();
+        void main_loop() override {
+            size_t i = 0;
+            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
+                ++i;
 
-            return non_dominated;
+                // next label to process
+                auto label_iterator_pair = next_label_iterator();
+
+                // no more label -> break (useful when pulling)
+                if (label_iterator_pair.first == nullptr) {
+                    break;
+                }
+
+                // label dominated -> continue to next one
+                auto& label = *label_iterator_pair.first;
+                if (label.dominated) {
+                    this->label_pool_.release_label(&label);
+                    continue;
+                }
+
+                assert(label.get_end_node());
+
+                // check if we can update the best label or extend
+                if (label.get_end_node()->sink) {
+                    if (label.get_cost() < this->cost_upper_bound_ &&
+                        this->params_.return_dominated_solutions) {
+                        this->extract_solution(label);
+                        if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                            LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
+                            break;
+                        }
+                    }
+                } else if (!std::isinf(label.get_cost())) {
+                    this->total_full_extend_time_.start();
+                    this->extend(&label);
+                    this->total_full_extend_time_.stop();
+                } else {
+                    remove_label(label_iterator_pair.second);
+                    this->label_pool_.release_label(&label);
+                }
+            }
+
+            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
         }
 
-        void extend(Label<ResourceType>* label_ptr) override {
+        virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
+
+        virtual void extend(Label<ResourceType>* label_ptr) {
             const auto& current_node = label_ptr->get_end_node();
             for (auto arc_ptr : current_node->out_arcs) {
                 extend_label(label_ptr, arc_ptr);
@@ -65,7 +97,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
 
-            if (new_label.is_feasible() && test(new_label)) {
+            bool feasible = new_label.is_feasible();
+            if (feasible && update_non_dominated_labels(new_label)) {
                 // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
                 // feasible and non dominated.
                 auto& non_dominated_labels =
@@ -75,6 +108,11 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     non_dominated_labels.insert(non_dominated_labels.end(), &new_label);
                 add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
             } else {
+                if (!feasible) {
+                    ++this->nb_infeasible_labels_;
+                } else {
+                    ++this->nb_dominated_labels_;
+                }
                 this->label_pool_.release_label(&new_label);
             }
         }
@@ -126,8 +164,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             return path_arc_ids;
         }
 
-        bool update_non_dominated_labels(const Label<ResourceType>& label) override {
+        virtual bool update_non_dominated_labels(const Label<ResourceType>& label) {
             total_update_non_dom_time_.start();
+            ++nb_update_non_dom_iter_;
 
             auto current_node_pos = label.get_end_node()->pos();
             auto& non_dominated_labels_list =
@@ -166,16 +205,15 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             return true;
         }
 
-        void remove_label(
-            const std::list<Label<ResourceType>*>::iterator& label_iterator) override {
+        virtual void remove_label(const std::list<Label<ResourceType>*>::iterator& label_iterator) {
             auto current_node_pos = (*label_iterator)->get_end_node()->pos();
             non_dominated_labels_by_node_pos_.at(current_node_pos).erase(label_iterator);
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
             std::list<Label<ResourceType>*> labels_at_sinks;
-            for (auto sink_node_id : this->graph_.get_sink_node_ids()) {
-                auto node_pos = this->graph_.get_node(sink_node_id).pos();
+            for (auto sink_node_id : this->graph_->get_sink_node_ids()) {
+                auto node_pos = this->graph_->get_node(sink_node_id)->pos();
                 const auto& labels_at_current_sink = non_dominated_labels_by_node_pos_.at(node_pos);
                 labels_at_sinks.insert(labels_at_sinks.end(),
                                        labels_at_current_sink.begin(),
@@ -190,36 +228,25 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
         std::vector<std::list<Label<ResourceType>*>> non_dominated_labels_by_node_pos_;
 
-        Timer total_label_time_;
         Timer total_extend_time_;
-        Timer total_non_dominated_time_;
-        Timer total_test_time_;
-        Timer total_extend_inside_time_;
-        Timer total_assign_label_time_;
-        Timer total_for_time_;
-        Timer total_iteration_time_;
         Timer total_update_non_dom_time_;
-        Timer total_update_non_dom_v2_time_;
-        Timer total_label_pool_time_;
 
-        size_t nb_test_iter_ = 0;
+        size_t nb_infeasible_labels_ = 0;
         size_t nb_update_non_dom_iter_ = 0;
         size_t nb_extend_iter_ = 0;
 };
 
 template <typename ResourceType>
 struct NodeUnprocessedLabelsManager {
-        explicit NodeUnprocessedLabelsManager(size_t num_nodes) {
-            for (size_t i = 0; i < num_nodes; i++) {
-                unprocessed_labels_by_node_pos_.push_back(
-                    std::list<LabelIteratorPair<ResourceType>>());
-                truncated_unprocessed_labels_by_node_pos_.push_back(
-                    std::list<LabelIteratorPair<ResourceType>>());
+        void initialize_unprocessed_labels(size_t num_nodes) {
+            if (unprocessed_labels_by_node_pos_.empty()) {
+                for (size_t i = 0; i < num_nodes; i++) {
+                    unprocessed_labels_by_node_pos_.push_back(
+                        std::list<LabelIteratorPair<ResourceType>>());
+                    truncated_unprocessed_labels_by_node_pos_.push_back(
+                        std::list<LabelIteratorPair<ResourceType>>());
+                }
             }
-            initialize_unprocessed_labels();
-        }
-
-        void initialize_unprocessed_labels() {
             // save unprocessed labels for the current node
             unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_)
                 .splice(unprocessed_labels_by_node_pos_.at(current_unprocessed_node_pos_).end(),
@@ -301,7 +328,7 @@ struct NodeUnprocessedLabelsManager {
                 unprocessed_labels.splice(unprocessed_labels.end(), truncated_labels);
             }
             // restart the loop at the beginning
-            initialize_unprocessed_labels();
+            initialize_unprocessed_labels(unprocessed_labels_by_node_pos_.size());
             assert(check_number_of_unprocessed_labels());
         }
 

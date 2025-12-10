@@ -11,13 +11,13 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/connectivity_matrix.hpp"
-#include "rcspp/algorithm/feasibility_preprocessor.hpp"
-#include "rcspp/algorithm/shortest_path_connectivity_sort.hpp"
-#include "rcspp/algorithm/shortest_path_preprocessor.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
+#include "rcspp/preprocessor/connectivity_matrix.hpp"
+#include "rcspp/preprocessor/feasibility_preprocessor.hpp"
+#include "rcspp/preprocessor/shortest_path_connectivity_sort.hpp"
+#include "rcspp/preprocessor/shortest_path_preprocessor.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
@@ -177,11 +177,28 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
+        template <template <typename> class AlgorithmType, typename... Args>
+        std::unique_ptr<AlgorithmType<ResourceComposition<ResourceTypes...>>> create_algorithm(
+            Args&&... args) {
+            return std::make_unique<AlgorithmType<ResourceComposition<ResourceTypes...>>>(
+                &resource_factory_,
+                std::forward<Args>(args)...);
+        }
+
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
                                     AlgorithmParams params = {}, bool preprocess = true,
                                     int cost_index = 0) {
+            AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
+                                                                           params);
+            return solve(&algorithm, upper_bound, preprocess, cost_index);
+        }
+
+        template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
+        std::vector<Solution> solve(AlgorithmType<ResourceComposition<ResourceTypes...>>* algorithm,
+                                    double upper_bound = std::numeric_limits<double>::infinity(),
+                                    bool preprocess = true, int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -228,11 +245,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
 
             // solve the rcspp
-            params.cost_upper_bound = upper_bound;
-            AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
-                                                                           *this,
-                                                                           params);
-            std::vector<Solution> sols = algorithm.solve();
+            std::vector<Solution> sols = algorithm->solve(this, upper_bound);
 
             // restore the removed arcs for the next resolution
             if (preprocess) {

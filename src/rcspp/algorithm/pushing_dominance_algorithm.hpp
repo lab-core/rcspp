@@ -3,9 +3,7 @@
 
 #pragma once
 
-#include <list>
 #include <utility>
-#include <vector>
 
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 
@@ -17,20 +15,25 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                                   NodeUnprocessedLabelsManager<ResourceType> {
     public:
         PushingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                  const Graph<ResourceType>& graph, AlgorithmParams params)
-            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
-              NodeUnprocessedLabelsManager<ResourceType>(graph.get_number_of_nodes()) {}
+                                  AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, std::move(params)),
+              NodeUnprocessedLabelsManager<ResourceType>() {}
 
         ~PushingDominanceAlgorithm() override = default;
 
     protected:
+        void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            this->initialize_unprocessed_labels(graph->get_number_of_nodes());
+        }
+
         LabelIteratorPair<ResourceType> next_label_iterator() override {
             // if no more labels for the current node, move to the next node with labels
             while (this->current_unprocessed_labels_.empty()) {
                 // move to the next node
                 ++this->current_unprocessed_node_pos_;
                 // if we have looped over all nodes, start again from the beginning
-                if (this->current_unprocessed_node_pos_ >= this->graph_.get_number_of_nodes()) {
+                if (this->current_unprocessed_node_pos_ >= this->graph_->get_number_of_nodes()) {
                     this->current_unprocessed_node_pos_ = 0;
                     ++this->num_loops_;
                 }

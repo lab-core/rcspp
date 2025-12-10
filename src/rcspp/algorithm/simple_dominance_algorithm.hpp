@@ -15,30 +15,34 @@ template <typename ResourceType>
 class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType> {
     public:
         SimpleDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                 const Graph<ResourceType>& graph, AlgorithmParams params)
-            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
-              number_of_extended_labels_per_node_(graph.get_number_of_nodes()) {}
+                                 AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, std::move(params)) {}
 
         ~SimpleDominanceAlgorithm() override = default;
 
     private:
+        void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
+        }
         LabelIteratorPair<ResourceType> next_label_iterator() override {
             LabelIteratorPair<ResourceType> label_iterator_pair;
             while (!unprocessed_labels_.empty()) {
                 label_iterator_pair = unprocessed_labels_.front();
                 unprocessed_labels_.pop_front();
 
-                // truncate/limit the number of labels extended per node
-                size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(
-                    label_iterator_pair.first->get_end_node()->pos());
-                if (num_extended_labels_for_node < this->params_.num_labels_to_extend_by_node) {
-                    ++num_extended_labels_for_node;
-                    break;
-                }
                 // if dominated, release the label
                 if (label_iterator_pair.first->dominated) {
                     this->label_pool_.release_label(label_iterator_pair.first);
                 } else {
+                    // truncate/limit the number of labels extended per node
+                    size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(
+                        label_iterator_pair.first->get_end_node()->pos());
+                    if (num_extended_labels_for_node < this->params_.num_labels_to_extend_by_node) {
+                        ++num_extended_labels_for_node;
+                        break;  // found a label to process
+                    }
+                    // otherwise, store truncated label for next phase
                     unprocessed_truncated_labels_.push_back(label_iterator_pair);
                 }
             }

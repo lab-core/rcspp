@@ -17,16 +17,21 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                                   NodeUnprocessedLabelsManager<ResourceType> {
     public:
         PullingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                  const Graph<ResourceType>& graph, AlgorithmParams params)
-            : DominanceAlgorithm<ResourceType>(resource_factory, graph, std::move(params)),
-              NodeUnprocessedLabelsManager<ResourceType>(graph.get_number_of_nodes()) {}
+                                  AlgorithmParams params)
+            : DominanceAlgorithm<ResourceType>(resource_factory, std::move(params)),
+              NodeUnprocessedLabelsManager<ResourceType>() {}
 
         ~PullingDominanceAlgorithm() override = default;
 
     protected:
+        void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            this->initialize_unprocessed_labels(graph->get_number_of_nodes());
+        }
+
         void main_loop() override {
-            int i = 0;
-            while (number_of_labels() > 0) {
+            size_t i = 0;
+            while (number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
 
                 // save unprocessed labels for the current node
@@ -55,7 +60,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                         assert(this->update_non_dominated_labels(label));
                         // check if sink and update best solution
                         if (label.get_end_node()->sink &&
-                            label.get_cost() < this->params_.cost_upper_bound &&
+                            label.get_cost() < this->cost_upper_bound_ &&
                             this->params_.return_dominated_solutions) {
                             this->extract_solution(label);
                             if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
@@ -82,7 +87,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
         void pull_new_unprocessed_labels() {
             // move to the next node
             ++this->current_unprocessed_node_pos_;
-            if (this->current_unprocessed_node_pos_ >= this->graph_.get_number_of_nodes()) {
+            if (this->current_unprocessed_node_pos_ >= this->graph_->get_number_of_nodes()) {
                 // start a new loop
                 this->current_unprocessed_node_pos_ = 0;
                 ++this->num_loops_;
@@ -114,7 +119,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             this->total_full_extend_time_.start();
 
             const auto& current_node =
-                this->graph_.get_sorted_nodes().at(this->current_unprocessed_node_pos_);
+                this->graph_->get_sorted_nodes().at(this->current_unprocessed_node_pos_);
             for (auto arc_ptr : current_node->in_arcs) {
                 // pull all the unprocessed labels from the origin node
                 const auto& unprocessed_labels =
