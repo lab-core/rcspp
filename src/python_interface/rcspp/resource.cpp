@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "rcspp/resource/base/resource_factory.hpp"
-#include "rcspp/resource/composition/resource_composition.hpp"
+#include "rcspp/resource/composition/resource_base_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"

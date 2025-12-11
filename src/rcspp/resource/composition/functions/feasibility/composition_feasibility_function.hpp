@@ -12,59 +12,42 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionFeasibilityFunction
     : public Clonable<CompositionFeasibilityFunction<ResourceTypes...>,
-                      FeasibilityFunction<ResourceComposition<ResourceTypes...>>> {
+                      FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>> {
     public:
         CompositionFeasibilityFunction() = default;
 
         [[nodiscard]] bool is_feasible(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource_composition) override {
+            const ResourceComposition<ResourceTypes...>& resource_composition) override {
             return feasible_helper(resource_composition,
                                    [](const auto& res_comp) { return res_comp.is_feasible(); });
         }
 
         [[nodiscard]] bool is_back_feasible(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource_composition) override {
+            const ResourceComposition<ResourceTypes...>& resource_composition) override {
             return feasible_helper(resource_composition, [](const auto& res_comp) {
                 return res_comp.is_back_feasible();
             });
         }
 
         [[nodiscard]] bool can_be_merged(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource_composition,
-            const Resource<ResourceComposition<ResourceTypes...>>& back_resource_composition)
-            override {
-            return std::apply(
-                [&](auto&&... args_res) {
-                    return std::apply(
-                        [&](auto&&... args_back_res) {
-                            // The && operator acts as a break in the fold expression.
-                            return (check_merge(args_res, args_back_res) && ...);
-                        },
-                        back_resource_composition.get_resource_components());
-                },
-                resource_composition.get_resource_components());
+            const ResourceComposition<ResourceTypes...>& resource_composition,
+            const ResourceComposition<ResourceTypes...>& back_resource_composition) override {
+            return resource_composition.apply_and(
+                back_resource_composition,
+                [&](const auto& res_vec, const auto& back_res_vec) {
+                    return check_merge(res_vec, back_res_vec);
+                });
         }
 
     private:
         template <typename F>
         [[nodiscard]] bool feasible_helper(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource_composition,
+            const ResourceComposition<ResourceTypes...>& resource_composition,
             const F& feasible_func) const {
-            const auto& resource_components = resource_composition.get_resource_components();
-
-            return std::apply(
-                [&](auto&&... args_res) {
-                    // The && operator acts as a break in the fold expression.
-                    return (check_feasibility(args_res, feasible_func) && ...);
-                },
-                resource_components);
-        }
-
-        template <typename F>
-        [[nodiscard]] bool check_feasibility(const auto& sing_res_vec,
-                                             const F& feasible_func) const {
-            return std::ranges::all_of(sing_res_vec, [&](const auto& res_comp) {
-                return feasible_func(*res_comp);
+            return resource_composition.apply_and([&](auto&& res_vec) {
+                return std::ranges::all_of(res_vec, [&](const auto& res_comp) {
+                    return feasible_func(*res_comp);
+                });
             });
         }
 

@@ -10,6 +10,7 @@
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -38,7 +39,7 @@ class BellmanFordAlgorithm {
         // nodes to any of the given targets (backward)
         // cost = nullopt -> use default arc cost
         template <typename CostResourceType = RealResource, typename... ResourceTypes>
-        static Distance solve(const Graph<ResourceComposition<ResourceTypes...>>& graph_,
+        static Distance solve(const Graph<ResourceBaseComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids,
                               std::optional<size_t> cost_index = std::nullopt,
                               bool forward = true) {
@@ -56,7 +57,7 @@ class BellmanFordAlgorithm {
                             cost_index.value());
                     double origin_cost = origin_cost_resource.get_value();
                     // extend the resource
-                    Resource<ResourceComposition<ResourceTypes...>> resource(
+                    Resource<ResourceBaseComposition<ResourceTypes...>> resource(
                         *arc->destination->resource);
                     arc->extender->extend(*arc->origin->resource, &resource);
                     // fetch the new value of the cost resource

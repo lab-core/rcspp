@@ -15,16 +15,18 @@
 namespace rcspp {
 
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
-class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<ResourceTypes...>> {
+class ShortestPathPreprocessor final
+    : public Preprocessor<ResourceBaseComposition<ResourceTypes...>> {
     public:
-        ShortestPathPreprocessor(Graph<ResourceComposition<ResourceTypes...>>* graph,
+        ShortestPathPreprocessor(Graph<ResourceBaseComposition<ResourceTypes...>>* graph,
                                  double upper_bound, size_t cost_index = 0)
-            : Preprocessor<ResourceComposition<ResourceTypes...>>(graph),
+            : Preprocessor<ResourceBaseComposition<ResourceTypes...>>(graph),
               graph_(graph),
               cost_index_(cost_index),
               upper_bound_(upper_bound) {
             if (std::isinf(upper_bound)) {
-                Preprocessor<ResourceComposition<ResourceTypes...>>::disable_preprocessing_ = true;
+                Preprocessor<ResourceBaseComposition<ResourceTypes...>>::disable_preprocessing_ =
+                    true;
             } else {
                 try {
                     dist_from_sources_ =
@@ -39,8 +41,8 @@ class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<R
                             cost_index,
                             false);
                 } catch (const std::runtime_error&) {
-                    Preprocessor<ResourceComposition<ResourceTypes...>>::disable_preprocessing_ =
-                        true;
+                    Preprocessor<
+                        ResourceBaseComposition<ResourceTypes...>>::disable_preprocessing_ = true;
                 }
             }
         }
@@ -50,9 +52,9 @@ class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<R
         size_t cost_index_;
         double upper_bound_;
         // pointer to the graph for traversal and connectivity queries
-        Graph<ResourceComposition<ResourceTypes...>>* graph_;
+        Graph<ResourceBaseComposition<ResourceTypes...>>* graph_;
 
-        bool remove_arc(const Arc<ResourceComposition<ResourceTypes...>>& arc) override {
+        bool remove_arc(const Arc<ResourceBaseComposition<ResourceTypes...>>& arc) override {
             const CostResourceType& arc_cost_extender =
                 arc.extender->template get_extender_component<CostResourceType>(cost_index_);
             double arc_cost = arc_cost_extender.get_value();

@@ -4,161 +4,164 @@
 #pragma once
 
 #include <algorithm>
-#include <concepts>  // NOLINT(build/include_order)
-#include <iterator>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-#include "rcspp/resource/base/resource_base.hpp"
-#include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/resource/base/resource.hpp"
+#include "rcspp/resource/composition/resource_base_composition.hpp"
 
 namespace rcspp {
-
 template <typename... ResourceTypes>
-    requires(std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
-class ResourceComposition : public ResourceBase<ResourceComposition<ResourceTypes...>> {
-        template <typename... Types>
-        friend class ResourceCompositionFactory;
+class ResourceComposition
+    : public Resource<ResourceBaseComposition<ResourceTypes...>>,  // for the composition
+      public Composition<Resource<ResourceTypes>...> {  // for each component of the composition
+        friend class ResourceCompositionFactory<ResourceTypes...>;
 
     public:
         ResourceComposition() = default;
 
-        explicit ResourceComposition(
-            std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...> resource_base_components)
-            : resource_base_components_(std::move(resource_base_components)) {}
+        ResourceComposition(
+            const ResourceBaseComposition<ResourceTypes...>& resource_base,
+            std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>>
+                dominance_function,
+            std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
+                feasibility_function,
+            std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
+            std::size_t node_id = 0)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(
+                  resource_base, std::move(dominance_function), std::move(feasibility_function),
+                  std::move(cost_function)) {}
 
-        // Copy constructor
-        ResourceComposition(const ResourceComposition& rhs_resource_composition) {
-            // Clone the resources contained in a single vector of resources.
-            const auto clone_res_vec_function = [&](auto& sing_res_vec,
-                                                    const auto& rhs_sing_res_vec) -> auto {
-                std::transform(rhs_sing_res_vec.begin(),
-                               rhs_sing_res_vec.end(),
-                               std::back_inserter(sing_res_vec),
-                               [](const auto& rhs_res) { return rhs_res->clone(); });
-            };
+        ResourceComposition(
+            std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
+                resource_components,
+            std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>>
+                dominance_function,
+            std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
+                feasibility_function,
+            std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
+            std::size_t node_id = 0)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(std::move(dominance_function),
+                                                                  std::move(feasibility_function),
+                                                                  std::move(cost_function).node_id),
+              Composition<Resource<ResourceTypes>...>(std::move(resource_components)) {}
 
-            // Apply clone_res_vec_function to each component of the tuple
-            // resource_base_components_.
-            std::apply(
-                [&](auto&&... args_res_comp) -> auto {
-                    std::apply(
-                        [&](auto&&... args_rhs_res_comp) -> auto {
-                            (clone_res_vec_function(args_res_comp, args_rhs_res_comp), ...);
-                        },
-                        rhs_resource_composition.resource_base_components_);
-                },
-                resource_base_components_);
-        }
+        ResourceComposition(
+            std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>>
+                dominance_function,
+            std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
+                feasibility_function,
+            std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
+            std::size_t node_id = 0)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(
+                  std::move(dominance_function), std::move(feasibility_function),
+                  std::move(cost_function), node_id) {}
 
-        ResourceComposition(ResourceComposition&& rhs_resource_composition)
-            : ResourceBase<ResourceComposition<ResourceTypes...>>() {
-            swap(*this, rhs_resource_composition);
-        }
+        ResourceComposition(
+            const ResourceBaseComposition<ResourceTypes...>& resource_base,
+            DominanceFunction<ResourceComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceComposition<ResourceTypes...>>* cost_function,
+            std::size_t node_id = 0)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(
+                  std::move(dominance_function), std::move(feasibility_function),
+                  std::move(cost_function), node_id) {}
+
+        ResourceComposition(
+            std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
+                resource_components,
+            DominanceFunction<ResourceComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceComposition<ResourceTypes...>>* cost_function,
+            std::size_t node_id = 0)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(
+                  std::move(dominance_function), std::move(feasibility_function),
+                  std::move(cost_function), node_id),
+              Composition<Resource<ResourceTypes>...>(std::move(resource_components)) {}
+
+        ResourceComposition(
+            DominanceFunction<ResourceComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceComposition<ResourceTypes...>>* cost_function,
+            std::size_t node_id = 0)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(
+                  std::move(dominance_function), std::move(feasibility_function),
+                  std::move(cost_function), node_id) {}
+
+        ResourceComposition(ResourceComposition const& rhs_resource)
+            : Resource<ResourceBaseComposition<ResourceTypes...>>(rhs_resource),
+              Composition<Resource<ResourceTypes>...>(rhs_resource) {}
+
+        ResourceComposition(ResourceComposition&& rhs_resource) { swap(*this, rhs_resource); }
 
         ~ResourceComposition() override = default;
 
-        auto operator=(ResourceComposition rhs_resource_composition) -> ResourceComposition& {
-            swap(*this, rhs_resource_composition);
-
+        auto operator=(ResourceComposition rhs_resource) -> auto& {
+            Resource<ResourceBaseComposition<ResourceTypes...>>::swap(*this, rhs_resource);
             return *this;
         }
 
-        // To implement the copy-and-swap idiom
-        friend void swap(ResourceComposition& first, ResourceComposition& second) {
-            using std::swap;
-            swap(first.resource_base_components_, second.resource_base_components_);
+        [[nodiscard]] auto clone_resource() const -> auto {
+            auto res_ptr = std::make_unique<ResourceComposition<ResourceTypes...>>(
+                static_cast<ResourceComposition<ResourceTypes...> const&>(*this));
+            return res_ptr;
         }
 
-        // Add (move) the resource in argument to the right vector of resources (i.e.,
-        // ResourceTypeIndex).
-        template <size_t ResourceTypeIndex, typename ResourceType>
-        auto add_component(std::unique_ptr<ResourceType> resource) -> ResourceType& {
-            return *std::get<ResourceTypeIndex>(resource_base_components_)
-                        .emplace_back(std::move(resource));
+        [[nodiscard]] auto create(const size_t node_id) const -> auto {
+            // Create a resource based on the resources contained in a single vector of resources.
+            const auto create_res_vec_function = [&](auto& sing_new_res_vec,
+                                                     const auto& sing_res_vec) -> auto {
+                std::transform(sing_res_vec.begin(),
+                               sing_res_vec.end(),
+                               std::back_inserter(sing_new_res_vec),
+                               [node_id](const auto& res) { return res->create(node_id); });
+            };
+            std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
+                new_resource_components;
+            this->apply(new_resource_components, create_res_vec_function);
+
+            return std::make_unique<ResourceComposition<ResourceTypes...>>(
+                std::move(new_resource_components),
+                this->dominance_function_->create(node_id),
+                this->feasibility_function_->create(node_id),
+                this->cost_function_->create(node_id),
+                node_id);
         }
 
-        // Construct a resource from a list of arguments associated with a constructor (of
-        // ResourceType).
-        template <size_t ResourceTypeIndex, typename ResourceType, typename TypeTuple>
-        auto add_component(const TypeTuple& resource_initializer) -> ResourceType& {
-            auto res_init_index = std::make_index_sequence<std::tuple_size_v<
-                typename std::remove_reference_t<decltype(resource_initializer)>>>{};
+        [[nodiscard]] auto copy() const
+            -> std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> {
+            // Copy a resource based on the resources contained in a single vector of resources.
+            const auto copy_res_vec_function = [&](auto& sing_new_res_vec,
+                                                   const auto& sing_res_vec) -> auto {
+                std::transform(sing_res_vec.begin(),
+                               sing_res_vec.end(),
+                               std::back_inserter(sing_new_res_vec),
+                               [](const auto& res) { return res->copy(); });
+            };
+            std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
+                new_resource_components;
+            this->apply(new_resource_components, copy_res_vec_function);
 
-            auto resource =
-                make_single_resource<ResourceType>(resource_initializer, res_init_index);
-
-            return *std::get<ResourceTypeIndex>(resource_base_components_)
-                        .emplace_back(std::move(resource));
+            return std::make_unique<ResourceComposition<ResourceTypes...>>(
+                std::move(new_resource_components),
+                this->dominance_function_,
+                this->feasibility_function_,
+                this->cost_function_,
+                this->node_id);
         }
 
-        [[nodiscard]] auto get_type_components()
-            -> std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& {
-            return resource_base_components_;
+        void reset(size_t node_id) {
+            Resource<ResourceBaseComposition<ResourceTypes...>>::reset(node_id);
+            this->for_each_component([node_id](auto&& res) { res->reset(node_id); });
         }
 
-        [[nodiscard]] auto get_type_components() const
-            -> const std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...>& {
-            return resource_base_components_;
+        void reset(const ResourceComposition& other_resource) {
+            Resource<ResourceBaseComposition<ResourceTypes...>>::reset(other_resource.node_id);
+            this->for_each_component(other_resource, [](auto&& res_comp, auto&& other_res_comp) {
+                res_comp.reset(other_res_comp);
+            });
         }
-
-        template <size_t ResourceTypeIndex>
-        [[nodiscard]] auto get_type_components() -> auto& {
-            return std::get<ResourceTypeIndex>(resource_base_components_);
-        }
-
-        template <size_t ResourceTypeIndex>
-        [[nodiscard]] auto get_type_components() const -> const auto& {
-            return std::get<ResourceTypeIndex>(resource_base_components_);
-        }
-
-        template <size_t ResourceTypeIndex>
-        [[nodiscard]] auto get_type_component(size_t resource_index) const -> const auto& {
-            return *(std::get<ResourceTypeIndex>(resource_base_components_)[resource_index]);
-        }
-
-        template <typename ResourceType>
-        [[nodiscard]] auto get_type_components() -> auto& {
-            constexpr size_t ResourceTypeIndex =
-                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
-            return get_type_components<ResourceTypeIndex>();
-        }
-
-        template <typename ResourceType>
-        [[nodiscard]] auto get_type_components() const -> const auto& {
-            constexpr size_t ResourceTypeIndex =
-                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
-            return get_type_components<ResourceTypeIndex>();
-        }
-
-        template <typename ResourceType>
-        [[nodiscard]] auto get_type_component(size_t resource_index) const -> const auto& {
-            constexpr size_t ResourceTypeIndex =
-                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
-            return get_type_component<ResourceTypeIndex>(resource_index);
-        }
-
-        void reset() override {
-            std::apply(
-                [&](auto&&... args_res_comp) -> auto {
-                    (reset_resource_vector(&args_res_comp), ...);
-                },
-                resource_base_components_);
-        }
-
-    private:
-        template <typename ResourceType>
-        static void reset_resource_vector(
-            std::vector<std::unique_ptr<ResourceType>>* resource_vector_ptr) {
-            for (auto& res : *resource_vector_ptr) {
-                (*res).reset();
-            }
-        }
-
-        // Tuple of resource vectors in which each component of the tuple is associated with
-        // a different type of resources from the template arguments (i.e., ResourceTypes...)
-        std::tuple<std::vector<std::unique_ptr<ResourceTypes>>...> resource_base_components_;
 };
 }  // namespace rcspp

@@ -7,6 +7,7 @@
 #include <tuple>
 
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/composition/extender_composition.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
@@ -15,11 +16,11 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionExtensionFunction
     : public Clonable<CompositionExtensionFunction<ResourceTypes...>,
-                      ExtensionFunction<ResourceComposition<ResourceTypes...>>> {
+                      ExtensionFunction<ResourceBaseComposition<ResourceTypes...>>> {
     public:
-        void extend(const Resource<ResourceComposition<ResourceTypes...>>& resource,
-                    const Extender<ResourceComposition<ResourceTypes...>>& extender,
-                    Resource<ResourceComposition<ResourceTypes...>>* extended_resource) override {
+        void extend(const ResourceComposition<ResourceTypes...>& resource,
+                    const ExtenderComposition<ResourceTypes...>& extender,
+                    ResourceComposition<ResourceTypes...>* extended_resource) override {
             extend_helper(
                 resource,
                 extender,
@@ -31,10 +32,9 @@ class CompositionExtensionFunction
                 });
         }
 
-        void extend_back(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceComposition<ResourceTypes...>>& extender,
-            Resource<ResourceComposition<ResourceTypes...>>* extended_resource) override {
+        void extend_back(const ResourceComposition<ResourceTypes...>& resource,
+                         const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
+                         ResourceComposition<ResourceTypes...>* extended_resource) override {
             extend_helper(
                 resource,
                 extender,
@@ -48,27 +48,17 @@ class CompositionExtensionFunction
 
     private:
         template <typename F>
-        void extend_helper(const Resource<ResourceComposition<ResourceTypes...>>& resource,
-                           const Extender<ResourceComposition<ResourceTypes...>>& extender,
-                           Resource<ResourceComposition<ResourceTypes...>>* extended_resource,
+        void extend_helper(const ResourceComposition<ResourceTypes...>& resource,
+                           const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
+                           ResourceComposition<ResourceTypes...>* extended_resource,
                            const F& extend_func) const {
-            auto& resource_components = resource.get_resource_components();
-            auto& extender_components = extender.get_extender_components();
-            auto& extended_resource_components = extended_resource->get_resource_components();
-
-            std::apply(
-                [&](auto&&... args_res) {
-                    std::apply(
-                        [&](auto&&... args_exp) {
-                            std::apply(
-                                [&](auto&&... args_extended) {
-                                    (extend_func(args_res, args_exp, args_extended), ...);
-                                },
-                                extended_resource_components);
-                        },
-                        extender_components);
-                },
-                resource_components);
+            resource.apply(extender, [&](const auto& sing_res_vec, const auto& sing_exp_vec) {
+                std::apply(
+                    [&](auto&&... args_extended) {
+                        (extend_func(sing_res_vec, sing_exp_vec, args_extended), ...);
+                    },
+                    extended_resource->get_components());
+            });
         }
 
         void extend_resource(const auto& sing_res_vec, const auto& sing_exp_vec,

@@ -4,7 +4,6 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 
@@ -15,35 +14,22 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionDominanceFunction
     : public Clonable<CompositionDominanceFunction<ResourceTypes...>,
-                      DominanceFunction<ResourceComposition<ResourceTypes...>>> {
+                      DominanceFunction<ResourceBaseComposition<ResourceTypes...>>> {
     public:
         CompositionDominanceFunction() = default;
 
         [[nodiscard]] bool check_dominance(
-            const Resource<ResourceComposition<ResourceTypes...>>& lhs_resource,
-            const Resource<ResourceComposition<ResourceTypes...>>& rhs_resource) override {
-            return std::apply(
-                [&](auto&&... args_lhs) {
-                    return std::apply(
-                        [&](auto&&... args_rhs) {
-                            // The && operator acts as a break in the fold expression.
-                            return (check_dominance(args_lhs, args_rhs) && ...);
-                        },
-                        rhs_resource.get_resource_components());
-                },
-                lhs_resource.get_resource_components());
-        }
-
-    private:
-        [[nodiscard]] bool check_dominance(const auto& lhs_sing_res_vec,
-                                           const auto& rhs_sing_res_vec) const {
-            for (int i = 0; i < lhs_sing_res_vec.size(); i++) {
-                if (!(*lhs_sing_res_vec[i] <= *rhs_sing_res_vec[i])) {
-                    return false;
-                }
-            }
-
-            return true;
+            const ResourceComposition<ResourceTypes...>& lhs_resource,
+            const ResourceComposition<ResourceTypes...>& rhs_resource) override {
+            return lhs_resource.apply_and(rhs_resource,
+                                          [&](const auto& lhs_sing_res, const auto& rhs_sing_res) {
+                                              for (int i = 0; i < lhs_sing_res.size(); i++) {
+                                                  if (!(*lhs_sing_res[i] <= *rhs_sing_res[i])) {
+                                                      return false;
+                                                  }
+                                              }
+                                              return true;
+                                          });
         }
 };
 }  // namespace rcspp
