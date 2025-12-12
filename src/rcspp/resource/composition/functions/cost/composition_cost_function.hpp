@@ -14,9 +14,11 @@ class CompositionCostFunction
     : public Clonable<CompositionCostFunction<ResourceTypes...>,
                       CostFunction<ResourceBaseComposition<ResourceTypes...>>> {
     public:
-        double get_cost(
-            const ResourceComposition<ResourceTypes...>& resource_composition) const override {
+        double get_cost(const Resource<ResourceBaseComposition<ResourceTypes...>>& resource_comp)
+            const override {
             double total_cost = 0;
+            const auto& resource_composition =
+                static_cast<const ResourceComposition<ResourceTypes...>&>(resource_comp);
             resource_composition.for_each_component(
                 [&](const auto& res_comp) { total_cost += res_comp.get_cost(); });
             return total_cost;

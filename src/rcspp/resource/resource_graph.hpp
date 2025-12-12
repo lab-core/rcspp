@@ -61,7 +61,7 @@ class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function) {
             constexpr size_t ResourceTypeIndex =
-                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+                ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
@@ -82,7 +82,7 @@ class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
         }
 
         Arc<ResourceBaseComposition<ResourceTypes...>>& add_arc(
-            const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
+            const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             size_t origin_node_id, size_t destination_node_id,
             std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
@@ -96,7 +96,7 @@ class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
 
             auto resource_base =
                 resource_factory_
-                    .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
+                    .template make_resource_base<ComponentInitializerTypeTuple_t<ResourceTypes>...>(
                         resource_consumption);
             auto extender = resource_factory_.make_extender(*resource_base, arc);
             arc.extender = std::move(extender);
@@ -105,20 +105,20 @@ class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
 
         template <typename... ExtenderResourceTypes>
         Arc<ResourceBaseComposition<ResourceTypes...>>& add_arc(
-            const std::tuple<ResourceInitializerTypeTuple_t<ExtenderResourceTypes>...>&
+            const std::tuple<ComponentInitializerTypeTuple_t<ExtenderResourceTypes>...>&
                 extender_resource_consumption,
             size_t origin_node_id, size_t destination_node_id,
             std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
             std::vector<Row> dual_rows = {}) {
             // build the full resource consumption tuple from the extender resource consumption
-            std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>
+            std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 (([&] {
                      using ExtenderType =
                          std::tuple_element_t<Is, std::tuple<ExtenderResourceTypes...>>;
                      constexpr size_t ResourceTypeIndex =
-                         ResourceTypeIndex_v<ExtenderType, ResourceTypes...>;
+                         ComponentTypeIndex_v<ExtenderType, ResourceTypes...>;
                      auto& res_vec = std::get<ResourceTypeIndex>(resource_consumption);
                      const auto& res_cons = std::get<Is>(extender_resource_consumption);
                      res_vec.push_back(res_cons);  // push a single resource consumption
@@ -141,7 +141,7 @@ class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
 
         void update_arc(
             Arc<ResourceBaseComposition<ResourceTypes...>>* arc,
-            const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
+            const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             std::optional<double> cost = std::nullopt) {
             resource_factory_.update_extender(arc->extender.get(), resource_consumption);
@@ -154,16 +154,16 @@ class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
         template <typename ResourceType>
         void update_arc(
             Arc<ResourceBaseComposition<ResourceTypes...>>* arc, std::size_t resource_index,
-            const ResourceInitializerTypeTuple_t<ResourceType>& single_resource_consumption,
+            const ComponentInitializerTypeTuple_t<ResourceType>& single_resource_consumption,
             std::optional<double> cost = std::nullopt) {
             constexpr size_t ResourceTypeIndex =
-                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+                ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
 
-            resource_factory_.template update_extender<ResourceInitializerTypeTuple_t<ResourceType>,
-                                                       ResourceTypeIndex>(
-                arc->extender.get(),
-                resource_index,
-                single_resource_consumption);
+            resource_factory_
+                .template update_extender<ComponentInitializerTypeTuple_t<ResourceType>,
+                                          ResourceTypeIndex>(arc->extender.get(),
+                                                             resource_index,
+                                                             single_resource_consumption);
 
             if (cost.has_value()) {
                 arc->cost = cost.value();

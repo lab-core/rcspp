@@ -21,7 +21,10 @@ template <typename... ResourceTypes>
 // requires (std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
 class ResourceCompositionFactory : public ResourceFactory<ResourceBaseComposition<ResourceTypes...>,
                                                           ResourceComposition<ResourceTypes...>>,
-                                   private Composition<ResourceFactory<ResourceTypes>...> {
+                                   public Composition<ResourceFactory<ResourceTypes>...> {
+        using Base = ResourceFactory<ResourceBaseComposition<ResourceTypes...>,
+                                     ResourceComposition<ResourceTypes...>>;
+
     public:
         ResourceCompositionFactory() = default;
 
@@ -33,9 +36,8 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceBaseCompositio
             std::unique_ptr<CostFunction<ResourceBaseComposition<ResourceTypes...>>> cost_function,
             std::unique_ptr<DominanceFunction<ResourceBaseComposition<ResourceTypes...>>>
                 dominance_function)
-            : ResourceFactory<ResourceBaseComposition<ResourceTypes...>>(
-                  std::move(extension_function), std::move(feasibility_function),
-                  std::move(cost_function), std::move(dominance_function)) {}
+            : Base(std::move(extension_function), std::move(feasibility_function),
+                   std::move(cost_function), std::move(dominance_function)) {}
 
         virtual ~ResourceCompositionFactory() = default;
 
@@ -43,34 +45,24 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceBaseCompositio
         std::unique_ptr<ResourceComposition<ResourceTypes...>> make_resource_base(
             const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
             // Function to create each single resource component and set its value
-            auto make_resource_function = [&](const auto& res_init_vec,
-                                              auto& res_comp_vec,
-                                              auto& res_fac_vec) {
+            auto make_resource_function = [&](auto&& res_comp_vec,
+                                              const auto& res_fac_vec,
+                                              const auto& res_init_vec) {
                 for (int i = 0; i < res_init_vec.size(); i++) {
                     const auto& res_init = res_init_vec[i];
 
-                    const auto& res_comp =
-                        res_comp_vec.emplace_back(res_fac_vec[i]->make_resource_base());
+                    auto& res_comp =
+                        res_comp_vec.emplace_back(res_fac_vec.at(i)->make_resource_base());
 
                     auto res_init_index = std::make_index_sequence<
                         std::tuple_size_v<typename std::remove_reference_t<decltype(res_init)>>>{};
 
-                    set_value_single_resource(res_comp, res_init, res_init_index);
+                    set_value_single_resource(res_comp.get(), res_init, res_init_index);
                 }
             };
 
             auto new_resource_composition = this->make_resource();
-            this->apply(new_resource_composition,
-                        [&](auto&& args_res_fac_vec, auto&& args_res_comp_vec) {
-                            std::apply(
-                                [&](auto&&... args_res_init_vec) {
-                                    (make_resource_function(args_res_init_vec,
-                                                            args_res_comp_vec,
-                                                            args_res_fac_vec),
-                                     ...);
-                                },
-                                resource_initializer);
-                        });
+            new_resource_composition->apply(*this, resource_initializer, make_resource_function);
 
             return new_resource_composition;
         }
@@ -79,34 +71,20 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceBaseCompositio
         std::unique_ptr<ExtenderComposition<ResourceTypes...>> make_extender(
             const ResourceComposition<ResourceTypes...>& resource_base,
             const Arc<GraphResourceType>& arc) {
-            const auto& resource_base_components = resource_base.get_type_components();
-
-            auto new_extender_resource_composition =
-                ResourceFactory<ExtenderComposition<ResourceTypes...>,
-                                ResourceBaseComposition<ResourceTypes...>>::make_extender(arc);
-
             auto make_extender_function =
-                [&](const auto& res_base_vec, const auto& res_fac_vec, auto& res_comp_vec) {
+                [&](auto& ext_comp_vec, const auto& res_base_vec, const auto& res_fac_vec) {
                     for (int i = 0; i < res_base_vec.size(); i++) {
                         const auto& res_base = *res_base_vec[i];
                         const auto& res_fac = res_fac_vec[i];
-                        res_comp_vec.emplace_back(res_fac->make_extender(res_base, arc));
+                        ext_comp_vec.emplace_back(res_fac->make_extender(res_base, arc));
                     }
                 };
 
-            this->apply(new_extender_resource_composition,
-                        [&](auto&& args_res_fac_vec, auto&& args_ext_comp_vec) {
-                            std::apply(
-                                [&](auto&&... args_res_base_vec) {
-                                    (make_extender_function(args_res_base_vec,
-                                                            args_res_fac_vec,
-                                                            args_ext_comp_vec),
-                                     ...);
-                                },
-                                resource_base_components);
-                        });
+            auto extender_resource_composition =
+                Base::template make_extender<ExtenderComposition<ResourceTypes...>>(arc);
+            extender_resource_composition->apply(resource_base, *this, make_extender_function);
 
-            return new_extender_resource_composition;
+            return extender_resource_composition;
         }
 
         // Add (move) the resource factory in argument to the right vector of resource factories
@@ -122,48 +100,48 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceBaseCompositio
         }
 
         template <typename... TypeTuples>
-        void update_extender(ExtenderComposition<ResourceTypes...>* extender_resource_composition,
+        void update_extender(Extender<ResourceBaseComposition<ResourceTypes...>>* extender,
                              const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
-            extender_resource_composition->for_each_component(
+            auto* extender_composition =
+                static_cast<ExtenderComposition<ResourceTypes...>*>(extender);
+            extender_composition->for_each_component(
                 resource_initializer,
                 [&](auto&& res_comp, auto&& res_init) {
                     auto res_init_index = std::make_index_sequence<
                         std::tuple_size_v<typename std::remove_reference_t<decltype(res_init)>>>{};
-                    set_value_single_resource(res_comp, res_init, res_init_index);
+                    set_value_single_resource(res_comp.get(), res_init, res_init_index);
                 });
         }
 
         template <typename TypeTuple, size_t ResourceTypeIndex>
-        void update_extender(ExtenderComposition<ResourceTypes...>* extender_composition,
+        void update_extender(Extender<ResourceBaseComposition<ResourceTypes...>>* extender,
                              std::size_t resource_index,
                              const TypeTuple& single_resource_initializer) {
-            const auto& res_comp =
-                extender_composition->get_component<ResourceTypeIndex>(resource_index);
+            auto* extender_composition =
+                static_cast<ExtenderComposition<ResourceTypes...>*>(extender);
+            auto& res_comp =
+                extender_composition->template get_component<ResourceTypeIndex>(resource_index);
             auto res_init_index = std::make_index_sequence<std::tuple_size_v<
                 typename std::remove_reference_t<decltype(single_resource_initializer)>>>{};
-            set_value_single_resource(res_comp, single_resource_initializer, res_init_index);
+            set_value_single_resource(&res_comp, single_resource_initializer, res_init_index);
         }
 
     private:
-        const Resource<ResourceComposition<ResourceTypes...>>& update_resource_prototype() {
-            auto update_prototype_function = [&](const auto& res_fac_vec, auto& prot_res_comp_vec) {
-                prot_res_comp_vec.clear();
-                for (int i = 0; i < res_fac_vec.size(); i++) {
-                    const auto& res_fac = res_fac_vec[i];
-                    prot_res_comp_vec.emplace_back(res_fac->make_resource());
-                }
-            };
-
+        const ResourceComposition<ResourceTypes...>& update_resource_prototype() {
             this->apply(this->resource_prototype_,
-                        [&](auto&& args_res_fac_vec, auto&& args_prot_res_comp_vec) {
-                            update_prototype_function(args_res_fac_vec, args_prot_res_comp_vec);
+                        [&](const auto& res_fac_vec, auto& prot_res_comp_vec) {
+                            prot_res_comp_vec.clear();
+                            for (int i = 0; i < res_fac_vec.size(); i++) {
+                                const auto& res_fac = res_fac_vec[i];
+                                prot_res_comp_vec.emplace_back(res_fac->make_resource());
+                            }
                         });
 
             return *(this->resource_prototype_);
         }
 
         template <typename ResourceType, typename TypeTuple, std::size_t... N>
-        auto set_value_single_resource(const ResourceType& resource,
+        auto set_value_single_resource(ResourceType* resource,
                                        const TypeTuple& resource_initializer,
                                        std::index_sequence<N...> /*unused*/) {
             resource->set_value(std::get<N>(resource_initializer)...);

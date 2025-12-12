@@ -44,12 +44,11 @@ class ExtenderComposition : public Extender<ResourceBaseComposition<ResourceType
                 this->extension_function_->create(arc),
                 arc.id);
 
-            new_extender->apply(new_extender->components_,
-                                [&arc](const auto& extenders, auto& new_extenders) {
-                                    for (const auto& extender : extenders) {
-                                        new_extenders.emplace_back(extender.clone(arc));
-                                    }
-                                });
+            this->apply(new_extender, [&arc](const auto& extenders, auto& new_extenders) {
+                for (const auto& extender : extenders) {
+                    new_extenders.emplace_back(extender.clone(arc));
+                }
+            });
 
             return new_extender;
         }

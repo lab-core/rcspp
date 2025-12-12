@@ -4,6 +4,7 @@
 #pragma once
 
 #include <iostream>
+#include <memory>
 #include <tuple>
 
 #include "rcspp/general/clonable.hpp"
@@ -18,9 +19,17 @@ class CompositionExtensionFunction
     : public Clonable<CompositionExtensionFunction<ResourceTypes...>,
                       ExtensionFunction<ResourceBaseComposition<ResourceTypes...>>> {
     public:
-        void extend(const ResourceComposition<ResourceTypes...>& resource,
-                    const ExtenderComposition<ResourceTypes...>& extender,
-                    ResourceComposition<ResourceTypes...>* extended_resource) override {
+        template <typename GraphResourceType>
+        auto create(const Arc<GraphResourceType>& arc)
+            -> std::unique_ptr<CompositionExtensionFunction> {
+            auto new_extension_function = this->clone();
+            new_extension_function->preprocess(arc.origin->id, arc.destination->id);
+            return new_extension_function;
+        }
+        void extend(
+            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
+            Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource) override {
             extend_helper(
                 resource,
                 extender,
@@ -32,9 +41,10 @@ class CompositionExtensionFunction
                 });
         }
 
-        void extend_back(const ResourceComposition<ResourceTypes...>& resource,
-                         const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
-                         ResourceComposition<ResourceTypes...>* extended_resource) override {
+        void extend_back(
+            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
+            Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource) override {
             extend_helper(
                 resource,
                 extender,
@@ -48,32 +58,33 @@ class CompositionExtensionFunction
 
     private:
         template <typename F>
-        void extend_helper(const ResourceComposition<ResourceTypes...>& resource,
+        void extend_helper(const Resource<ResourceBaseComposition<ResourceTypes...>>& resource,
                            const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
-                           ResourceComposition<ResourceTypes...>* extended_resource,
+                           Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource,
                            const F& extend_func) const {
-            resource.apply(extender, [&](const auto& sing_res_vec, const auto& sing_exp_vec) {
-                std::apply(
-                    [&](auto&&... args_extended) {
-                        (extend_func(sing_res_vec, sing_exp_vec, args_extended), ...);
-                    },
-                    extended_resource->get_components());
-            });
+            const auto& resource_comp =
+                static_cast<const ResourceComposition<ResourceTypes...>&>(resource);
+            const auto& extender_comp =
+                static_cast<const ExtenderComposition<ResourceTypes...>&>(extender);
+            auto* extended_resource_comp =
+                static_cast<ResourceComposition<ResourceTypes...>*>(extended_resource);
+
+            resource_comp.apply(extender_comp, *extended_resource_comp, extend_func);
         }
 
-        void extend_resource(const auto& sing_res_vec, const auto& sing_exp_vec,
+        void extend_resource(const auto& sing_res_vec, const auto& sing_ext_vec,
                              const auto& extended_sing_res_vec) const {
             const std::size_t n = sing_res_vec.size();
             for (std::size_t i = 0; i < n; ++i) {
-                sing_exp_vec[i]->extend(*sing_res_vec[i], extended_sing_res_vec[i].get());
+                sing_ext_vec[i]->extend(*sing_res_vec[i], extended_sing_res_vec[i].get());
             }
         }
 
-        void extend_back_resource(const auto& sing_res_vec, const auto& sing_exp_vec,
+        void extend_back_resource(const auto& sing_res_vec, const auto& sing_ext_vec,
                                   const auto& extended_sing_res_vec) const {
             const std::size_t n = sing_res_vec.size();
             for (std::size_t i = 0; i < n; ++i) {
-                sing_exp_vec[i]->extend_back(*sing_res_vec[i], extended_sing_res_vec[i].get());
+                sing_ext_vec[i]->extend_back(*sing_res_vec[i], extended_sing_res_vec[i].get());
             }
         }
 };
