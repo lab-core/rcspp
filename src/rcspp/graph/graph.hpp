@@ -39,7 +39,7 @@ class Graph {
             for (const auto& [node_id, node_ptr] : nodes_by_id_) {
                 auto& node = new_graph->add_node(node_id, node_ptr->source, node_ptr->sink);
                 node.resource =
-                    node_ptr->resource ? std::move(node_ptr->resource->clone_resource()) : nullptr;
+                    node_ptr->resource ? std::move(node_ptr->resource->clone()) : nullptr;
             }
 
             // copy sorted nodes

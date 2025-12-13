@@ -16,7 +16,7 @@ using namespace rcspp;
 
 using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 using ResourceType =
-    ResourceComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
+    ResourceBaseComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 
 class VRP {
     public:

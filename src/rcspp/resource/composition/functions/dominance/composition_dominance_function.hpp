@@ -19,12 +19,8 @@ class CompositionDominanceFunction
         CompositionDominanceFunction() = default;
 
         [[nodiscard]] bool check_dominance(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& lhs_resource,
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& rhs_resource) override {
-            const auto& lhs_composition =
-                static_cast<const ResourceComposition<ResourceTypes...>&>(lhs_resource);
-            const auto& rhs_composition =
-                static_cast<const ResourceComposition<ResourceTypes...>&>(rhs_resource);
+            const Resource<ResourceBaseComposition<ResourceTypes...>>& lhs_composition,
+            const Resource<ResourceBaseComposition<ResourceTypes...>>& rhs_composition) override {
             return lhs_composition.apply_and(
                 rhs_composition,
                 [&](const auto& lhs_sing_res, const auto& rhs_sing_res) {

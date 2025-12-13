@@ -17,9 +17,7 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
-    requires(std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
-class ResourceBaseComposition
-    : public ResourceBase<ResourceBaseComposition<ResourceTypes...>> {  // just storing the types
+class ResourceBaseComposition : public ResourceBase<ResourceBaseComposition<ResourceTypes...>> {
         template <typename... Types>
         friend class ResourceBaseCompositionFactory;
 

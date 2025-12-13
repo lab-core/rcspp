@@ -7,8 +7,6 @@
 
 #include <memory>
 
-#include "rcspp/resource/base/resource_factory.hpp"
-#include "rcspp/resource/composition/resource_base_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
@@ -16,14 +14,14 @@
 #include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceComposition<RealResource>;
+using ResourceCompositionBase = ResourceBaseComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
 using ConcreteResource = Resource<ResourceCompositionBase>;

@@ -31,7 +31,7 @@ template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
-constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
+constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
 struct AlgorithmParams {
         AlgorithmParams& check() {

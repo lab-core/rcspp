@@ -56,7 +56,7 @@ class ShortestPathPreprocessor final
 
         bool remove_arc(const Arc<ResourceBaseComposition<ResourceTypes...>>& arc) override {
             const CostResourceType& arc_cost_extender =
-                arc.extender->template get_extender_component<CostResourceType>(cost_index_);
+                arc.extender->template get_component<CostResourceType>(cost_index_);
             double arc_cost = arc_cost_extender.get_value();
             return dist_from_sources_.at(arc.origin->id) + arc_cost +
                        dist_to_sinks_.at(arc.destination->id) >

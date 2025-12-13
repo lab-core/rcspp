@@ -65,12 +65,13 @@ template <typename T>
 concept IsComposition = std::derived_from<std::remove_cvref_t<T>, CompositionTag>;
 
 // Composition class that can hold multiple types of components
-template <typename... ComponentTypes>
+template <template <typename> class ComponentClass, typename... BaseTypes>
 class Composition : public CompositionTag {
     public:
         Composition() = default;
 
-        explicit Composition(std::tuple<std::vector<std::unique_ptr<ComponentTypes>>...> components)
+        explicit Composition(
+            std::tuple<std::vector<std::unique_ptr<ComponentClass<BaseTypes>>>...> components)
             : components_(std::move(components)) {}
 
         // Copy constructor
@@ -88,7 +89,7 @@ class Composition : public CompositionTag {
 
         Composition(Composition&& rhs_composition) { swap(*this, rhs_composition); }
 
-        ~Composition() = default;
+        virtual ~Composition() = default;
 
         auto operator=(Composition rhs_composition) -> auto& {
             swap(*this, rhs_composition);
@@ -116,7 +117,7 @@ class Composition : public CompositionTag {
 
         template <typename Func>
         void apply(Func&& func) const {
-            std::apply([&](auto&&... args_comp_vec) -> auto { (func(args_comp_vec), ...); },
+            std::apply([&](const auto&... args_comp_vec) -> auto { (func(args_comp_vec), ...); },
                        components_);
         }
 
@@ -160,7 +161,7 @@ class Composition : public CompositionTag {
         template <typename Func, typename Comp>
         void apply(Comp&& rhs_components, Func&& func) const {
             std::apply(
-                [&](auto&&... args_comp_vec) -> auto {
+                [&](const auto&... args_comp_vec) -> auto {
                     std::apply(
                         [&](auto&&... args_rhs_comp_vec) -> auto {
                             (func(args_comp_vec, args_rhs_comp_vec), ...);
@@ -175,7 +176,7 @@ class Composition : public CompositionTag {
             std::apply(
                 [&](auto&&... args_comp_vec) -> auto {
                     std::apply(
-                        [&](auto&&... args_rhs_comp_vec) -> auto {
+                        [&](const auto&... args_rhs_comp_vec) -> auto {
                             (func(args_comp_vec, args_rhs_comp_vec), ...);
                         },
                         rhs_components);
@@ -186,9 +187,9 @@ class Composition : public CompositionTag {
         template <typename Func, typename Comp>
         void apply(const Comp& rhs_components, Func&& func) const {
             std::apply(
-                [&](auto&&... args_comp_vec) -> auto {
+                [&](const auto&... args_comp_vec) -> auto {
                     std::apply(
-                        [&](auto&&... args_rhs_comp_vec) -> auto {
+                        [&](const auto&... args_rhs_comp_vec) -> auto {
                             (func(args_comp_vec, args_rhs_comp_vec), ...);
                         },
                         rhs_components);
@@ -208,9 +209,9 @@ class Composition : public CompositionTag {
             std::apply(
                 [&](auto&&... args_comp_vec) -> auto {
                     std::apply(
-                        [&](auto&&... args_rhs_comp_vec) -> auto {
+                        [&](const auto&... args_rhs_comp_vec) -> auto {
                             std::apply(
-                                [&](auto&&... args_rhs_comp2_vec) -> auto {
+                                [&](const auto&... args_rhs_comp2_vec) -> auto {
                                     (func(args_comp_vec, args_rhs_comp_vec, args_rhs_comp2_vec),
                                      ...);
                                 },
@@ -225,11 +226,11 @@ class Composition : public CompositionTag {
             requires(IsComposition<Comp>)
         void apply(const Comp& rhs_composition, const Comp2& rhs_composition2, Func&& func) const {
             std::apply(
-                [&](auto&&... args_comp_vec) -> auto {
+                [&](const auto&... args_comp_vec) -> auto {
                     std::apply(
-                        [&](auto&&... args_rhs_comp_vec) -> auto {
+                        [&](const auto&... args_rhs_comp_vec) -> auto {
                             std::apply(
-                                [&](auto&&... args_rhs_comp2_vec) -> auto {
+                                [&](const auto&... args_rhs_comp2_vec) -> auto {
                                     (func(args_comp_vec, args_rhs_comp_vec, args_rhs_comp2_vec),
                                      ...);
                                 },
@@ -244,22 +245,22 @@ class Composition : public CompositionTag {
         template <typename Func>
         bool apply_and(Func&& func) const {
             return std::apply(
-                [&](auto&&... args_comp_vec) -> auto { return (func(args_comp_vec) && ...); },
+                [&](const auto&... args_comp_vec) -> auto { return (func(args_comp_vec) && ...); },
                 components_);
         }
 
         template <typename Func, typename Comp>
             requires(IsComposition<Comp>)
         bool apply_and(const Comp& rhs_composition, Func&& func) const {
-            apply_and(rhs_composition.get_components(), func);
+            return apply_and(rhs_composition.get_components(), func);
         }
 
         template <typename Func, typename Comp>
         bool apply_and(const Comp& rhs_components, Func&& func) const {
             return std::apply(
-                [&](auto&&... args_comp_vec) -> auto {
+                [&](const auto&... args_comp_vec) -> auto {
                     return std::apply(
-                        [&](auto&&... args_rhs_comp_vec) -> auto {
+                        [&](const auto&... args_rhs_comp_vec) -> auto {
                             return (func(args_comp_vec, args_rhs_comp_vec) && ...);
                         },
                         rhs_components);
@@ -271,21 +272,46 @@ class Composition : public CompositionTag {
         template <typename Func>
         void for_each_component(Func&& func) {
             apply([&func](auto&& args_comp_vec) -> auto {
-                std::for_each(args_comp_vec.begin(), args_comp_vec.end(), [&](auto& comp_ptr) {
+                std::for_each(args_comp_vec.begin(), args_comp_vec.end(), [&](auto&& comp_ptr) {
                     func(*comp_ptr);
                 });
             });
         }
 
+        template <typename Func>
+        void for_each_component(Func&& func) const {
+            apply([&func](const auto& args_comp_vec) -> auto {
+                std::for_each(args_comp_vec.begin(),
+                              args_comp_vec.end(),
+                              [&](const auto& comp_ptr) { func(*comp_ptr); });
+            });
+        }
+
+        template <typename Func, typename Comp>
+        void for_each_component(const Comp& rhs_composition, Func&& func) {
+            apply(
+                rhs_composition,
+                [&func](auto&& args_comp_vec, const auto& args_rhs_comp_vec) -> auto {
+                    auto it = args_rhs_comp_vec.begin();
+                    std::for_each(args_comp_vec.begin(), args_comp_vec.end(), [&](auto&& comp_ptr) {
+                        func(*comp_ptr, *it);
+                        ++it;
+                    });
+                });
+        }
+
         template <typename Func, typename Comp>
         void for_each_component(const Comp& rhs_composition, Func&& func) const {
-            apply(rhs_composition, [&func](auto&& args_comp_vec, auto&& args_rhs_comp_vec) -> auto {
-                auto it = args_rhs_comp_vec.begin();
-                std::for_each(args_comp_vec.begin(), args_comp_vec.end(), [&](auto& comp_ptr) {
-                    func(*comp_ptr, **it);
-                    ++it;
-                });
-            });
+            apply(rhs_composition,
+                  [&func](const auto& args_comp_vec, const auto& args_rhs_comp_vec) -> auto {
+                      auto it = args_rhs_comp_vec.begin();
+                      std::for_each(args_comp_vec.begin(),
+                                    args_comp_vec.end(),
+                                    [&](const auto& comp_ptr) {
+                                        func(*comp_ptr, *it);
+                                        ++it;
+                                    });
+                  });
         }
 
         // Getters for components
@@ -314,30 +340,33 @@ class Composition : public CompositionTag {
             return *(std::get<ComponentTypeIndex>(components_).at(index));
         }
 
-        template <typename ComponentType>
+        template <typename BaseType>
         [[nodiscard]] auto get_components() -> auto& {
-            constexpr size_t ComponentTypeIndex =
-                ComponentTypeIndex_v<ComponentType, ComponentTypes...>;
+            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
             return get_components<ComponentTypeIndex>();
         }
 
-        template <typename ComponentType>
+        template <typename BaseType>
         [[nodiscard]] auto get_components() const -> const auto& {
-            constexpr size_t ComponentTypeIndex =
-                ComponentTypeIndex_v<ComponentType, ComponentTypes...>;
+            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
             return get_components<ComponentTypeIndex>();
         }
 
-        template <typename ComponentType>
-        [[nodiscard]] auto get_components(size_t index) const -> const auto& {
-            constexpr size_t ComponentTypeIndex =
-                ComponentTypeIndex_v<ComponentType, ComponentTypes...>;
+        template <typename BaseType>
+        [[nodiscard]] auto get_component(size_t index) -> auto& {
+            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
+            return get_component<ComponentTypeIndex>(index);
+        }
+
+        template <typename BaseType>
+        [[nodiscard]] auto get_component(size_t index) const -> const auto& {
+            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
             return get_component<ComponentTypeIndex>(index);
         }
 
     private:
         // Tuple of resource vectors in which each component of the tuple is associated with
         // a different type from the template arguments (i.e., Components...)
-        std::tuple<std::vector<std::unique_ptr<ComponentTypes>>...> components_;
+        std::tuple<std::vector<std::unique_ptr<ComponentClass<BaseTypes>>>...> components_;
 };
 }  // namespace rcspp

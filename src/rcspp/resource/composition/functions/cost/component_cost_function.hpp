@@ -17,9 +17,7 @@ class ComponentCostFunction
         explicit ComponentCostFunction(size_t resource_index) : resource_index_(resource_index) {}
 
         [[nodiscard]] double get_cost(const Resource<ResourceBaseComposition<ResourceTypes...>>&
-                                          resource_comp) const override {
-            const auto& resource_composition =
-                static_cast<const ResourceComposition<ResourceTypes...>&>(resource_comp);
+                                          resource_composition) const override {
             const auto& resource =
                 resource_composition.template get_component<ResourceTypeIndex>(resource_index_);
 

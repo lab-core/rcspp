@@ -6,6 +6,7 @@
 #include <concepts>
 #include <iostream>
 #include <memory>
+#include <tuple>
 #include <utility>
 
 #include "rcspp/graph/arc.hpp"
@@ -15,9 +16,11 @@
 
 namespace rcspp {
 
-template <typename ResourceType, typename ResourceClass = Resource<ResourceType>>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+template <typename ResourceType>
 class ResourceFactory {
+        using ResourceClass = Resource<ResourceType>;
+        using ExtenderClass = Extender<ResourceType>;
+
     public:
         ResourceFactory()
             : nb_resource_bases_created_(0), nb_resources_created_(0), nb_extenders_created_(0) {}
@@ -47,19 +50,10 @@ class ResourceFactory {
               nb_resources_created_(0),
               nb_extenders_created_(0) {}
 
-        /*ResourceFactory(std::unique_ptr<ResourceType> resource_prototype) :
-          resource_prototype_(std::move(resource_prototype)), nb_resources_created_(0) {
-        }*/
-
-        virtual auto make_resource_base() -> std::unique_ptr<ResourceType> {
-            ++nb_resource_bases_created_;
-            return resource_prototype_->clone();
-        }
-
         // Make a resource from the prototype.
         virtual auto make_resource() -> std::unique_ptr<ResourceClass> {
             ++nb_resources_created_;
-            return resource_prototype_->clone_resource();
+            return resource_prototype_->clone();
         }
 
         // Make a resource from the prototype with node_id.
@@ -76,7 +70,7 @@ class ResourceFactory {
         }
 
         // Make an extender
-        template <typename ExtenderClass = Extender<ResourceType>, typename GraphResourceType>
+        template <typename GraphResourceType>
         auto make_extender(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
             ++nb_extenders_created_;
             return std::make_unique<ExtenderClass>(extension_function_->create(arc), arc.id);
@@ -84,7 +78,7 @@ class ResourceFactory {
 
         // Make an extender
         // clang-format off
-    template <typename ExtenderClass = Extender<ResourceType>, typename GraphResourceType>
+    template <typename GraphResourceType>
          auto make_extender(const ResourceType& resource_base, const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<ExtenderClass> {
             ++nb_extenders_created_;
@@ -93,6 +87,20 @@ class ResourceFactory {
                                                             arc.id);
         }
         // clang-format on
+
+        template <typename... Args, typename GraphResourceType>
+        auto make_extender(const std::tuple<Args...>& resource_initializer,
+                           const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
+            ++nb_extenders_created_;
+            return std::make_unique<ExtenderClass>(
+                std::apply(
+                    [](auto&&... args) {  // unpack arguments
+                        return ResourceType(std::forward<decltype(args)>(args)...);
+                    },
+                    resource_initializer),
+                extension_function_->create(arc),
+                arc.id);
+        }
 
     protected:
         // Create a resource prototype with specific functions (but without resource base).

@@ -16,9 +16,9 @@ class ResourceBase {
 
         virtual ~ResourceBase() = default;
 
-        [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ResourceType> {
-            return std::make_unique<ResourceType>(static_cast<ResourceType const&>(*this));
-        }
+        // [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ResourceType> {
+        //     return std::make_unique<ResourceType>(static_cast<ResourceType const&>(*this));
+        // }
 
         virtual void reset() = 0;
 };

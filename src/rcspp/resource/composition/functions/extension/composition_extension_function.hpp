@@ -58,17 +58,11 @@ class CompositionExtensionFunction
 
     private:
         template <typename F>
-        void extend_helper(const Resource<ResourceBaseComposition<ResourceTypes...>>& resource,
-                           const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
-                           Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource,
-                           const F& extend_func) const {
-            const auto& resource_comp =
-                static_cast<const ResourceComposition<ResourceTypes...>&>(resource);
-            const auto& extender_comp =
-                static_cast<const ExtenderComposition<ResourceTypes...>&>(extender);
-            auto* extended_resource_comp =
-                static_cast<ResourceComposition<ResourceTypes...>*>(extended_resource);
-
+        void extend_helper(
+            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource_comp,
+            const Extender<ResourceBaseComposition<ResourceTypes...>>& extender_comp,
+            Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource_comp,
+            const F& extend_func) const {
             resource_comp.apply(extender_comp, *extended_resource_comp, extend_func);
         }
 

@@ -15,7 +15,7 @@ namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceComposition<RealResource>;
+using ResourceCompositionBase = ResourceBaseComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
 using ConcreteGraph = Graph<ResourceCompositionBase>;
@@ -125,28 +125,28 @@ void init_graph(py::module_& m) {
              py::arg("source") = false,
              py::arg("sink") = false,
              py::return_value_policy::reference)
-        .def(
-            "add_arc",
-            static_cast<Arc<ResourceComposition<RealResource>>& (
-                ResourceGraph<RealResource>::*)(const std::tuple<std::vector<
-                                                    ResourceInitializerTypeTuple_t<RealResource>>>&,
-                                                size_t,
-                                                size_t,
-                                                std::optional<size_t>,
-                                                double,
-                                                std::vector<Row>)>(
-                &ResourceGraph<RealResource>::add_arc),
-            py::arg("resource_consumption"),
-            py::arg("origin_node_id"),
-            py::arg("destination_node_id"),
-            py::arg("id") = std::nullopt,
-            py::arg("cost") = 0.0,
-            py::arg("dual_rows") = std::vector<Row>{},
-            py::return_value_policy::reference)
+        .def("add_arc",
+             static_cast<Arc<ResourceCompositionBase>& (
+                 ResourceGraph<RealResource>::*)(const std::tuple<
+                                                     std::vector<ComponentInitializerTypeTuple_t<
+                                                         RealResource>>>&,
+                                                 size_t,
+                                                 size_t,
+                                                 std::optional<size_t>,
+                                                 double,
+                                                 std::vector<Row>)>(
+                 &ResourceGraph<RealResource>::add_arc),
+             py::arg("resource_consumption"),
+             py::arg("origin_node_id"),
+             py::arg("destination_node_id"),
+             py::arg("id") = std::nullopt,
+             py::arg("cost") = 0.0,
+             py::arg("dual_rows") = std::vector<Row>{},
+             py::return_value_policy::reference)
         .def("update_arc",
              static_cast<void (ResourceGraph<RealResource>::*)(
-                 Arc<ResourceComposition<RealResource>>*,
-                 const std::tuple<std::vector<ResourceInitializerTypeTuple_t<RealResource>>>&,
+                 Arc<ResourceCompositionBase>*,
+                 const std::tuple<std::vector<ComponentInitializerTypeTuple_t<RealResource>>>&,
                  std::optional<double>
                      cost)>(&ResourceGraph<RealResource>::update_arc),
              py::arg("arc"),
