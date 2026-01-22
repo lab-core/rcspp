@@ -76,86 +76,85 @@ std::string print_timer_table(const std::string& instance, const std::vector<Tim
 }
 
 int main(int argc, char* argv[]) {
-    Logger::init(LogLevel::Info);
+    try {
+        Logger::init(LogLevel::Info);
 
-    LOG_TRACE(__FUNCTION__, '\n');
+        LOG_TRACE(__FUNCTION__, '\n');
 
-    // std::vector<std::string> instance_names = {"toy"};
-    std::vector<std::string> instance_names;
-    size_t max_instance_index = 2;
-    if (argc >= 2) {
-        max_instance_index = std::stoull(argv[1]);
-    }
-    if (max_instance_index > 9) {  // NOLINT(readability-magic-numbers)
-        LOG_ERROR("Maximum instance index exceeded, should be <= 9 to match existing instances\n");
+        // std::vector<std::string> instance_names = {"toy"};
+        std::vector<std::string> instance_names;
+        size_t max_instance_index = 2;
+        if (argc >= 2) {
+            max_instance_index = std::stoull(argv[1]);
+        }
+        if (max_instance_index > 9) {  // NOLINT(readability-magic-numbers)
+            LOG_ERROR("Maximum instance index exceeded, should be <= 9 to match existing instances\n");
+            return 1;
+        }
+        for (size_t instance_num = 1; instance_num <= max_instance_index; ++instance_num) {
+            instance_names.emplace_back("C10" + std::to_string(instance_num));
+            instance_names.emplace_back("R10" + std::to_string(instance_num));
+            instance_names.emplace_back("RC10" + std::to_string(instance_num));
+        }
+        std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling", "Diversif"};
+        std::string root_dir = file_parent_dir(__FILE__, 3);
+
+        std::vector<Timer> total_timers;
+        std::string stats;
+        bool first_instance = true;
+        for (const auto& instance_name : instance_names) {
+            std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+            LOG_INFO("Instance: ", instance_path, '\n');
+            InstanceReader instance_reader(instance_path);
+
+            auto instance = instance_reader.read();
+            VRP vrp(instance);
+
+            AlgorithmParams other_params;
+            other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
+            other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
+            auto greedy_algo = vrp.get_graph().create_algorithm<GreedyAlgorithm>(other_params);
+            AlgorithmParams tabu_params;
+            tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
+            tabu_params.max_iterations = 1e6;         // NOLINT(readability-magic-numbers)
+            auto tabu_search_algo =
+                vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
+                                                                        std::move(greedy_algo));
+
+            std::vector<Algorithm<ResourceType>*> algorithms = {tabu_search_algo.get()};
+
+            Timer timer(true);
+            AlgorithmParams params;
+            auto timers = vrp.solve<SimpleDominanceAlgorithm,
+                                    PushingDominanceAlgorithm,
+                                    PullingDominanceAlgorithm>(params, labels.size(), algorithms);
+            timer.stop();
+
+            if (first_instance) {
+                total_timers = timers;
+            } else {
+                for (size_t i = 0; i < timers.size(); ++i) {
+                    total_timers[i] += timers[i];
+                }
+            }
+            auto instance_stats = print_timer_table(instance_name, timers, labels, first_instance);
+            first_instance = false;
+            stats += instance_stats;
+
+            LOG_INFO("Instance: ", instance_name, '\n');
+            LOG_INFO('\n', instance_stats, '\n');
+        }
+
+        auto total_stats = print_timer_table("Total", total_timers, labels, false);
+        LOG_INFO('\n', std::string(80, '='), '\n', stats, std::string(80, '='), '\n', total_stats);
+
+        return 0;
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception caught: ", e.what(), '\n');
+        return 1;
+    } catch (...) {
+        LOG_ERROR("Unknown exception caught\n");
         return 1;
     }
-    for (size_t instance_num = 1; instance_num <= max_instance_index; ++instance_num) {
-        instance_names.emplace_back("C10" + std::to_string(instance_num));
-        instance_names.emplace_back("R10" + std::to_string(instance_num));
-        instance_names.emplace_back("RC10" + std::to_string(instance_num));
-    }
-    std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling", "Diversif"};
-    std::string root_dir = file_parent_dir(__FILE__, 3);
-
-    std::vector<Timer> total_timers;
-    std::string stats;
-    bool first_instance = true;
-    for (const auto& instance_name : instance_names) {
-        std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
-
-        LOG_INFO("Instance: ", instance_path, '\n');
-        InstanceReader instance_reader(instance_path);
-
-        auto instance = instance_reader.read();
-        VRP vrp(instance);
-        // vrp.sort_nodes();
-        // vrp.sort_nodes_by_connectivity();
-        // vrp.sort_nodes_by_min_tw();
-        // vrp.sort_nodes_by_max_tw();
-
-        AlgorithmParams other_params;
-        other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
-        other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
-        auto greedy_algo = vrp.get_graph().create_algorithm<GreedyAlgorithm>(other_params);
-        AlgorithmParams tabu_params;
-        tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
-        tabu_params.max_iterations = 1e6;         // NOLINT(readability-magic-numbers)
-        auto tabu_search_algo =
-            vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
-                                                                    std::move(greedy_algo));
-
-        std::vector<Algorithm<ResourceType>*> algorithms = {tabu_search_algo.get()};
-
-        Timer timer(true);
-        AlgorithmParams params;
-        // params.return_dominated_solutions = true;
-        // params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
-        // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)
-        // params.num_max_phases = 100;
-        // params.max_iterations = 1e6;  // NOLINT(readability-magic-numbers)
-        auto timers = vrp.solve<SimpleDominanceAlgorithm,
-                                PushingDominanceAlgorithm,
-                                PullingDominanceAlgorithm>(params, labels.size(), algorithms);
-        timer.stop();
-
-        if (first_instance) {
-            total_timers = timers;
-        } else {
-            for (size_t i = 0; i < timers.size(); ++i) {
-                total_timers[i] += timers[i];
-            }
-        }
-        auto instance_stats = print_timer_table(instance_name, timers, labels, first_instance);
-        first_instance = false;
-        stats += instance_stats;
-
-        LOG_INFO("Instance: ", instance_name, '\n');
-        LOG_INFO('\n', instance_stats, '\n');
-    }
-
-    auto total_stats = print_timer_table("Total", total_timers, labels, false);
-    LOG_INFO('\n', std::string(80, '='), '\n', stats, std::string(80, '='), '\n', total_stats);
-
-    return 0;
 }

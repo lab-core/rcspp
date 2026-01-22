@@ -112,7 +112,7 @@ class ResourceCompositionFactory
                 [&](auto&& ext_comp, const auto& res_init) {
                     auto res_init_index = std::make_index_sequence<
                         std::tuple_size_v<typename std::remove_reference_t<decltype(res_init)>>>{};
-                    set_value_single_resource(ext_comp, res_init, res_init_index);
+                    set_value_single_resource(&ext_comp, res_init, res_init_index);
                 });
         }
 

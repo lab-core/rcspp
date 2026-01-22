@@ -16,6 +16,7 @@
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace py = pybind11;
 

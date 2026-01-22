@@ -90,7 +90,10 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
         Resource(Resource const& rhs_resource)
             : Prototype(rhs_resource), Composition<Resource, ResourceTypes...>(rhs_resource) {}
 
-        Resource(Resource&& rhs_resource) { swap(*this, rhs_resource); }
+        Resource(Resource&& rhs_resource) noexcept
+            : Prototype(), Composition<Resource, ResourceTypes...>() {
+            swap(*this, rhs_resource);
+        }
 
         auto operator=(Resource rhs_resource) -> auto& {
             swap(*this, rhs_resource);
@@ -99,8 +102,11 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
 
         // To implement the copy-and-swap idiom
         friend void swap(Resource& first, Resource& second) {
-            Prototype::swap(first, second);
-            Composition<Resource, ResourceTypes...>::swap(first, second);
+            using std::swap;
+            swap(static_cast<Prototype&>(first), static_cast<Prototype&>(second));
+            // Use ADL (Argument-Dependent Lookup) to find the friend swap function in Composition
+            using CompositionBase = Composition<Resource, ResourceTypes...>;
+            swap(static_cast<CompositionBase&>(first), static_cast<CompositionBase&>(second));
         }
 
         [[nodiscard]] auto create(const size_t node_id) const -> auto {
@@ -166,4 +172,5 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
             });
         }
 };
+
 }  // namespace rcspp

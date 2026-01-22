@@ -46,6 +46,11 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
 
         Resource(Resource const& rhs_resource) : Prototype(rhs_resource) {}
 
-        Resource(Resource&& rhs_resource) : Prototype(rhs_resource) {}
+        Resource(Resource&& rhs_resource) noexcept : Prototype(std::move(rhs_resource)) {}
+
+        static void swap(Resource& first, Resource& second) noexcept {
+            ResourcePrototype<Resource, ResourceType>::swap(first, second);
+        }
 };
 }  // namespace rcspp
+  

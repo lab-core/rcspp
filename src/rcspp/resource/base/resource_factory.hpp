@@ -120,10 +120,11 @@ class ResourceFactory {
             std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
             std::unique_ptr<CostFunction<ResourceType>> cost_function,
             const ResourceType& resource_base_prototype) -> std::unique_ptr<ResourceClass> {
-            return std::make_unique<ResourceClass>(std::move(dominance_function),
-                                                   std::move(feasibility_function),
-                                                   std::move(cost_function),
-                                                   resource_base_prototype);
+            return std::make_unique<ResourceClass>(
+              resource_base_prototype,
+              std::move(dominance_function),
+              std::move(feasibility_function),
+              std::move(cost_function));
         }
 
         std::unique_ptr<ResourceClass> resource_prototype_;

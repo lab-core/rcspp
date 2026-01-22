@@ -77,12 +77,18 @@ class ResourcePrototype : public ResourceType {
 
         explicit ResourcePrototype(ResourceClass const& rhs_resource)
             : ResourceType(rhs_resource),
-              unique_dominance_function_(rhs_resource.unique_dominance_function_->clone()),
-              unique_feasibility_function_(rhs_resource.unique_feasibility_function_->clone()),
-              unique_cost_function_(rhs_resource.unique_cost_function_->clone()),
-              dominance_function_(unique_dominance_function_.get()),
-              feasibility_function_(unique_feasibility_function_.get()),
-              cost_function_(unique_cost_function_.get()),
+              unique_dominance_function_(rhs_resource.unique_dominance_function_ 
+                  ? rhs_resource.unique_dominance_function_->clone() : nullptr),
+              unique_feasibility_function_(rhs_resource.unique_feasibility_function_ 
+                  ? rhs_resource.unique_feasibility_function_->clone() : nullptr),
+              unique_cost_function_(rhs_resource.unique_cost_function_ 
+                  ? rhs_resource.unique_cost_function_->clone() : nullptr),
+              dominance_function_(unique_dominance_function_ 
+                  ? unique_dominance_function_.get() : rhs_resource.dominance_function_),
+              feasibility_function_(unique_feasibility_function_ 
+                  ? unique_feasibility_function_.get() : rhs_resource.feasibility_function_),
+              cost_function_(unique_cost_function_ 
+                  ? unique_cost_function_.get() : rhs_resource.cost_function_),
               node_id_(rhs_resource.get_node_id()) {}
 
         explicit ResourcePrototype(ResourceClass&& rhs_resource) : ResourcePrototype() {
@@ -97,9 +103,18 @@ class ResourcePrototype : public ResourceType {
         }
 
         // To implement the copy-and-swap idiom
-        friend void swap(ResourcePrototype& first, ResourcePrototype& second) {
+        friend void swap(ResourcePrototype& first, ResourcePrototype& second) noexcept {
             using std::swap;
 
+            // Swap the base ResourceType
+            swap(static_cast<ResourceType&>(first), static_cast<ResourceType&>(second));
+
+            // Swap the unique_ptr members that own the function objects
+            swap(first.unique_dominance_function_, second.unique_dominance_function_);
+            swap(first.unique_feasibility_function_, second.unique_feasibility_function_);
+            swap(first.unique_cost_function_, second.unique_cost_function_);
+            
+            // Swap the raw pointers
             swap(first.dominance_function_, second.dominance_function_);
             swap(first.feasibility_function_, second.feasibility_function_);
             swap(first.cost_function_, second.cost_function_);
@@ -201,10 +216,12 @@ class ResourcePrototype : public ResourceType {
 
         size_t node_id_;
 
+      private:
         [[nodiscard]] ResourceClass& downcast() { return static_cast<ResourceClass&>(*this); }
 
         [[nodiscard]] const ResourceClass& downcast() const {
             return static_cast<ResourceClass const&>(*this);
         }
 };
+
 }  // namespace rcspp

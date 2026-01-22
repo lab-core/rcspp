@@ -12,6 +12,7 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/composition/resource_base_composition.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
+#include "rcspp/utils/logger.hpp"
 
 namespace rcspp {
 

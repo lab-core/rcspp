@@ -87,7 +87,9 @@ class Composition : public CompositionTag {
                         });
         }
 
-        Composition(Composition&& rhs_composition) { swap(*this, rhs_composition); }
+        Composition(Composition&& rhs_composition) noexcept : components_() {
+            swap(*this, rhs_composition);
+        }
 
         virtual ~Composition() = default;
 
@@ -369,4 +371,5 @@ class Composition : public CompositionTag {
         // a different type from the template arguments (i.e., Components...)
         std::tuple<std::vector<std::unique_ptr<ComponentClass<BaseTypes>>>...> components_;
 };
+
 }  // namespace rcspp
