@@ -40,6 +40,7 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual bool intersects(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_union(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_intersection(const Container& /*other*/) const = 0;
+        [[nodiscard]] virtual Container substract(const Container& /*other*/) const = 0;
 
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
 
@@ -120,6 +121,17 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                   std::inserter(result, result.begin()));
             return result;
         }
+
+        [[nodiscard]] Container substract(const Container& other_set) const override {
+            Container result;
+            std::set_difference(this->container_.begin(),
+                                  this->container_.end(),
+                                  other_set.begin(),
+                                  other_set.end(),
+                                  std::inserter(result, result.begin()));
+            return result;
+        }
+
 };
 
 // Proper bitset specialization: implement bitset semantics using word vector
@@ -227,6 +239,21 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             //     out.pop_back();
             // }
             return out;
+        }
+
+        [[nodiscard]] Container substract(const Container& other) const override {
+            const size_t words_this = this->container_.size();
+            const size_t words_other = other.size();
+            Container result(words_this, 0ULL);
+            for (size_t i = 0; i < words_this; ++i) {
+                const uint64_t a = this->container_[i];
+                if (i >= words_other) {
+                    result[i] = a;
+                } else {
+                    result[i] = a & ~other[i];
+                }
+            }
+            return result;
         }
 
         [[nodiscard]] static size_t compute_used_bits(const Container& bits) {

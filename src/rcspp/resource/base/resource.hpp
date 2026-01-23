@@ -476,6 +476,42 @@ class Resource<ResourceComposition<ResourceTypes...>>
                                               node_id);
         }
 
+    [[nodiscard]] auto create(const ResourceComposition<ResourceTypes...>& resource_base, const size_t node_id) const
+            -> std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> {
+            std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
+                new_resource_components;
+
+            // Create a resource based on the resources contained in a single vector of resources.
+            const auto create_res_vec_function = [&](auto& sing_new_res_vec,
+                                                     const auto& sing_res_vec,
+                                                     const auto& sing_res_base_vec) -> auto {
+                for (int i = 0; i < sing_res_vec.size(); i++) {
+                    sing_new_res_vec.push_back(sing_res_vec.at(i)->create(*sing_res_base_vec.at(i), node_id));
+                }
+            };
+
+            // Apply create_res_vec_function to each component of the tuple resource_components_.
+            std::apply(
+                [&](auto&&... args_new_res_comp) -> auto {
+                    std::apply(
+                        [&](auto&&... args_res_comp) -> auto {
+                            std::apply(
+                                [&](auto&&... args_res_base_comp) -> auto {
+                                    (create_res_vec_function(args_new_res_comp, args_res_comp, args_res_base_comp), ...);
+                                },
+                                resource_base.get_type_components());
+                        },
+                        resource_components_);
+                },
+                new_resource_components);
+
+            return std::make_unique<Resource>(std::move(new_resource_components),
+                                              dominance_function_->create(node_id),
+                                              feasibility_function_->create(node_id),
+                                              cost_function_->create(node_id),
+                                              node_id);
+        }
+
         [[nodiscard]] auto copy() const
             -> std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> {
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
