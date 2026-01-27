@@ -9,14 +9,14 @@
 
 namespace rcspp {
 
-  template <typename ResourceType>
-  class SubstractExtensionFunction
-      : public Clonable<SubstractExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
-  public:
-    void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                Resource<ResourceType>* extended_resource) override {
-      auto difference = resource.substract(extender.get_value());
-      extended_resource->set_value(difference);
-    }
-  };
+template <typename ResourceType>
+class SubstractExtensionFunction
+    : public Clonable<SubstractExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    public:
+        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
+                    Resource<ResourceType>* extended_resource) override {
+            auto difference = resource.substract(extender.get_value());
+            extended_resource->set_value(difference);
+        }
+};
 }  // namespace rcspp

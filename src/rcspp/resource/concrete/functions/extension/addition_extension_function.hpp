@@ -12,11 +12,23 @@ namespace rcspp {
 template <typename ResourceType>
 class AdditionExtensionFunction
     : public Clonable<AdditionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+        using ValueType =
+            std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>;
+
     public:
+        explicit AdditionExtensionFunction(std::optional<ValueType> minValue = std::nullopt)
+            : min_value_(minValue) {}
+
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {
             auto sum_value = resource.get_value() + extender.get_value();
             extended_resource->set_value(sum_value);
+            if (min_value_.has_value()) {
+                extended_resource->set_min_value(min_value_.value());
+            }
         }
+
+    private:
+        std::optional<ValueType> min_value_;
 };
 }  // namespace rcspp

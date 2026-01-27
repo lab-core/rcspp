@@ -80,32 +80,33 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             return node;
         }
 
-    Node<ResourceComposition<ResourceTypes...>>& add_resource_node(size_t node_id, const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
+        Node<ResourceComposition<ResourceTypes...>>& add_resource_node(
+            size_t node_id,
+            const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_initializer,
-                bool source = false, bool sink = false) {
+            bool source = false, bool sink = false) {
             auto& node =
                 Graph<ResourceComposition<ResourceTypes...>>::add_node(node_id, source, sink);
             node.resource = resource_factory_.make_resource(node.id, resource_initializer);
             return node;
         }
 
-
-    template <typename... ResourceInitTypes>
-    Node<ResourceComposition<ResourceTypes...>>& add_resource_node(size_t node_id,
-        const std::tuple<ResourceInitializerTypeTuple_t<ResourceInitTypes>...>&
+        template <typename... ResourceInitTypes>
+        Node<ResourceComposition<ResourceTypes...>>& add_resource_node(
+            size_t node_id,
+            const std::tuple<ResourceInitializerTypeTuple_t<ResourceInitTypes>...>&
                 resource_init_values,
-                bool source = false, bool sink = false) {
+            bool source = false, bool sink = false) {
             std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_initializer;
             auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
                 (([&] {
-                     using InitType =
-                         std::tuple_element_t<Is, std::tuple<ResourceInitTypes...>>;
-                    constexpr size_t ResourceTypeIndex =
-                        ResourceTypeIndex_v<InitType, ResourceTypes...>;
-                    auto& res_vec = std::get<ResourceTypeIndex>(resource_initializer);
-                    const auto& res_cons = std::get<Is>(resource_init_values);
-                    res_vec.push_back(res_cons);  // push a single resource consumption
+                     using InitType = std::tuple_element_t<Is, std::tuple<ResourceInitTypes...>>;
+                     constexpr size_t ResourceTypeIndex =
+                         ResourceTypeIndex_v<InitType, ResourceTypes...>;
+                     auto& res_vec = std::get<ResourceTypeIndex>(resource_initializer);
+                     const auto& res_cons = std::get<Is>(resource_init_values);
+                     res_vec.push_back(res_cons);  // push a single resource consumption
                  }()),
                  ...);
             };  // NOLINT

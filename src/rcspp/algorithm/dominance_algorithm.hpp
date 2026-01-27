@@ -23,9 +23,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
     protected:
         void initialize_labels() override {
             non_dominated_labels_by_node_pos_.clear();
-            for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
-                non_dominated_labels_by_node_pos_.push_back(std::list<Label<ResourceType>*>());
-            }
+            non_dominated_labels_by_node_pos_.resize(this->graph_->get_number_of_nodes());
 
             for (auto source_node_id : this->graph_->get_source_node_ids()) {
                 auto* source_node = this->graph_->get_node(source_node_id);

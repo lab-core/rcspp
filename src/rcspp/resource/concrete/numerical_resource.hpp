@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <concepts>
 #include <limits>
 #include <optional>
 
@@ -46,6 +48,8 @@ class NumericalResource : public ResourceBase<NumericalResource<T>> {
         void set_value(T value) { value_ = value; }
 
         void set_value(const NumericalResource<T>& resource) { value_ = resource.value_; }
+
+        void set_min_value(const T& min_value) { value_ = std::max(min_value, value_); }
 
         void add(T value) { value_ += value; }
 

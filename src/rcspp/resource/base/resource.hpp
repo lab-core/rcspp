@@ -190,9 +190,10 @@ class Resource : public ResourceType {
             return new_resource;
         }
 
-        // Create a new resource from a shallow copy of the current ressource.
+        // Create a new resource from a shallow copy of the current resource.
         [[nodiscard]] auto copy() const -> std::unique_ptr<Resource<ResourceType>> {
-            auto new_resource = std::make_unique<Resource>(dominance_function_,
+            auto new_resource = std::make_unique<Resource>(*this,
+                                                           dominance_function_,
                                                            feasibility_function_,
                                                            cost_function_,
                                                            node_id_);
@@ -476,7 +477,8 @@ class Resource<ResourceComposition<ResourceTypes...>>
                                               node_id);
         }
 
-    [[nodiscard]] auto create(const ResourceComposition<ResourceTypes...>& resource_base, const size_t node_id) const
+        [[nodiscard]] auto create(const ResourceComposition<ResourceTypes...>& resource_base,
+                                  const size_t node_id) const
             -> std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> {
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 new_resource_components;
@@ -486,7 +488,8 @@ class Resource<ResourceComposition<ResourceTypes...>>
                                                      const auto& sing_res_vec,
                                                      const auto& sing_res_base_vec) -> auto {
                 for (int i = 0; i < sing_res_vec.size(); i++) {
-                    sing_new_res_vec.push_back(sing_res_vec.at(i)->create(*sing_res_base_vec.at(i), node_id));
+                    sing_new_res_vec.push_back(
+                        sing_res_vec.at(i)->create(*sing_res_base_vec.at(i), node_id));
                 }
             };
 
@@ -497,7 +500,10 @@ class Resource<ResourceComposition<ResourceTypes...>>
                         [&](auto&&... args_res_comp) -> auto {
                             std::apply(
                                 [&](auto&&... args_res_base_comp) -> auto {
-                                    (create_res_vec_function(args_new_res_comp, args_res_comp, args_res_base_comp), ...);
+                                    (create_res_vec_function(args_new_res_comp,
+                                                             args_res_comp,
+                                                             args_res_base_comp),
+                                     ...);
                                 },
                                 resource_base.get_type_components());
                         },

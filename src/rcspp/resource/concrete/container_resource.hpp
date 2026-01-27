@@ -125,13 +125,12 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
         [[nodiscard]] Container substract(const Container& other_set) const override {
             Container result;
             std::set_difference(this->container_.begin(),
-                                  this->container_.end(),
-                                  other_set.begin(),
-                                  other_set.end(),
-                                  std::inserter(result, result.begin()));
+                                this->container_.end(),
+                                other_set.begin(),
+                                other_set.end(),
+                                std::inserter(result, result.begin()));
             return result;
         }
-
 };
 
 // Proper bitset specialization: implement bitset semantics using word vector
