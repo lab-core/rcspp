@@ -22,7 +22,7 @@ class IntersectFeasibilityFunction
                       FeasibilityFunction<ResourceType>> {
     public:
         explicit IntersectFeasibilityFunction(
-             const std::map<size_t, std::set<ValueType>>* forbidden_by_node_id)
+            const std::map<size_t, std::set<ValueType>>* forbidden_by_node_id)
             : forbidden_by_node_id_(forbidden_by_node_id) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {

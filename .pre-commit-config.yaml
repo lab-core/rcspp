@@ -1,3 +1,6 @@
+default_language_version:
+  python: python3.13
+
 repos:
   # -------------------------
   # Pre-commit core hooks
@@ -18,7 +21,7 @@ repos:
   # Python Formatter: Black
   # -------------------------
   - repo: https://github.com/psf/black
-    rev: 25.9.0
+    rev: 26.1.0
     hooks:
       - id: black
         name: Black Python Formatter
@@ -52,7 +55,7 @@ repos:
   # Bandit
   # -------------------------
   - repo: https://github.com/pycqa/bandit
-    rev: 1.8.6
+    rev: 1.9.3
     hooks:
       - id: bandit
         files: ^src/.*\.py$
@@ -88,7 +91,7 @@ repos:
   # Markdownlint
   # -------------------------
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.45.0
+    rev: v0.47.0
     hooks:
       - id: markdownlint
         files: .*\.md$

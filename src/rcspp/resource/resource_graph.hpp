@@ -71,20 +71,22 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                       std::move(dominance_function)));
         }
 
-    template <typename ResourceType>
-    void add_resource(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
-                  std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
-                  std::unique_ptr<CostFunction<ResourceType>> cost_function,
-                  std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
-                  ResourceInitializerTypeTuple_t<ResourceType> default_resource_initializer) {
+        template <typename ResourceType>
+        void add_resource(
+            std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
+            std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
+            std::unique_ptr<CostFunction<ResourceType>> cost_function,
+            std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
+            ResourceInitializerTypeTuple_t<ResourceType> default_resource_initializer) {
             constexpr size_t ResourceTypeIndex =
                 ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
             auto make_prototype = []<typename... Args>(Args&&... args) {
                 return ResourceType(std::forward<Args>(args)...);
-            };
-            ResourceType resource_base_prototype = std::apply(make_prototype, default_resource_initializer);
+            };  // NOLINT
+            ResourceType resource_base_prototype =
+                std::apply(make_prototype, default_resource_initializer);
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
