@@ -15,6 +15,7 @@ class InclusionDominanceFunction
         auto check_dominance(const Resource<ResourceType>& lhs_resource,
                              const Resource<ResourceType>& rhs_resource) -> bool override {
             // lhs_resource dominates rhs_resource if lhs_resource <= rhs_resource
+            // i.e., if rhs_resource includes lhs_resource
             return rhs_resource.includes(lhs_resource.get_value());
         }
 };

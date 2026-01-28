@@ -41,6 +41,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
 
+                if (i % 1000 == 0) {
+                    LOG_DEBUG("Processed ", i, " labels so far...\n");
+                }
+
                 // next label to process
                 auto label_iterator_pair = next_label_iterator();
 
@@ -78,7 +82,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                 }
             }
 
-            LOG_DEBUG("RCSPP: WHILE nb iter: ", i, "\n");
+            LOG_DEBUG("Total number of processed labels: ", i, "\n");
         }
 
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;

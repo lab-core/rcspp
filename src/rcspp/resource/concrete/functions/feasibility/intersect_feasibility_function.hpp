@@ -22,7 +22,7 @@ class IntersectFeasibilityFunction
                       FeasibilityFunction<ResourceType>> {
     public:
         explicit IntersectFeasibilityFunction(
-            const std::map<size_t, std::set<ValueType>>& forbidden_by_node_id)
+             const std::map<size_t, std::set<ValueType>>* forbidden_by_node_id)
             : forbidden_by_node_id_(forbidden_by_node_id) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
@@ -30,11 +30,14 @@ class IntersectFeasibilityFunction
         }
 
     private:
-        const std::map<size_t, std::set<ValueType>>& forbidden_by_node_id_;
+        const std::map<size_t, std::set<ValueType>>* const forbidden_by_node_id_;
         ResourceType forbidden_;
 
         void preprocess(size_t node_id) override {
-            forbidden_.set_value(forbidden_by_node_id_.at(node_id));
+            auto it = forbidden_by_node_id_->find(node_id);
+            if (it != forbidden_by_node_id_->end()) {
+                forbidden_.set_value(it->second);
+            }
         }
 };
 }  // namespace rcspp

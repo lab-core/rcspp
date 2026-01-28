@@ -170,7 +170,8 @@ class Resource : public ResourceType {
         [[nodiscard]] auto create(const size_t node_id) const
             -> std::unique_ptr<Resource<ResourceType>> {
             auto new_resource =
-                std::make_unique<Resource>(unique_dominance_function_->create(node_id),
+                std::make_unique<Resource>(*this,
+                                           unique_dominance_function_->create(node_id),
                                            unique_feasibility_function_->create(node_id),
                                            unique_cost_function_->create(node_id),
                                            node_id);

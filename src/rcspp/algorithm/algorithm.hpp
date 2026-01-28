@@ -131,7 +131,7 @@ class Algorithm {
         virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
                                             double cost_upper_bound) {
             // initialization
-            Timer timer;
+            Timer timer(true);
             initialize(graph, cost_upper_bound);
 
             // initialize labels

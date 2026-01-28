@@ -273,6 +273,14 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
         [[nodiscard]] const Container& words() const { return this->container_; }
 
+    [[nodiscard]] size_t size() const override {
+            size_t ones_cnt = 0;
+            for (const uint64_t w : this->container_) {
+                ones_cnt += static_cast<size_t>(std::popcount(w));
+            }
+            return ones_cnt;
+        }
+
     private:
         // storage is inherited from ContainerResource as `container_`.
 
