@@ -74,6 +74,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                     }
                 }
             }
+
+            LOG_DEBUG("Total number of extended labels: ", this->num_extended_labels_, "\n");
         }
 
         LabelIteratorPair<ResourceType> next_label_iterator() override {

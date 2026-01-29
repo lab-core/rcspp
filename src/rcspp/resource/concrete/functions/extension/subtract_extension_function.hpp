@@ -10,8 +10,8 @@
 namespace rcspp {
 
 template <typename ResourceType>
-class SubstractExtensionFunction
-    : public Clonable<SubstractExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+class SubtractExtensionFunction
+    : public Clonable<SubtractExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
     public:
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {

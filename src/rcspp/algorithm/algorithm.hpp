@@ -153,6 +153,8 @@ class Algorithm {
                 }
             }
 
+            LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
+
             // recover solutions
             std::vector<Solution> solutions;
             solutions.reserve(solutions_.size());
@@ -240,6 +242,7 @@ class Algorithm {
         std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
+        size_t num_extended_labels_ = 0;
         Timer total_full_extend_time_;
 };
 }  // namespace rcspp

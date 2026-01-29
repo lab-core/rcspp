@@ -41,10 +41,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
 
-                if (i % 1000 == 0) {
-                    LOG_DEBUG("Processed ", i, " labels so far...\n");
-                }
-
                 // next label to process
                 auto label_iterator_pair = next_label_iterator();
 
@@ -81,8 +77,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     this->label_pool_.release_label(&label);
                 }
             }
-
-            LOG_DEBUG("Total number of processed labels: ", i, "\n");
         }
 
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
@@ -98,6 +92,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                                   const Arc<ResourceType>* arc_ptr) {
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
+
+            if (++this->num_extended_labels_ % 10000 == 0) {
+                LOG_DEBUG("Processed ", this->num_extended_labels_, " labels so far...\n");
+            }
 
             bool feasible = new_label.is_feasible();
             if (feasible && update_non_dominated_labels(new_label)) {
