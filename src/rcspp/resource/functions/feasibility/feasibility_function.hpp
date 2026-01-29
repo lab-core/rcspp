@@ -18,6 +18,10 @@ class FeasibilityFunction {
 
         virtual auto is_feasible(const Resource<ResourceType>& resource) -> bool = 0;
 
+        virtual auto is_reachable(const Resource<ResourceType>& resource, size_t node_id) -> bool {
+            return true;
+        }
+
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<FeasibilityFunction> = 0;
 
         virtual auto create(const size_t node_id) -> std::unique_ptr<FeasibilityFunction> {

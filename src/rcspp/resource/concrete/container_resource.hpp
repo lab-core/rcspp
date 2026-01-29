@@ -25,7 +25,6 @@ class ContainerResource : public ResourceBase<DerivedType> {
     public:
         ContainerResource() = default;
         explicit ContainerResource(Container container) : container_(std::move(container)) {}
-        explicit ContainerResource(const Container& container) : container_(container) {}
 
         [[nodiscard]] const Container& get_value() const { return container_; }
         virtual void set_value(Container container) { container_ = std::move(container); }
@@ -61,8 +60,6 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
         SetResource() = default;
         explicit SetResource(Container container)
             : ContainerResource<Container, Derived, ValueType>(std::move(container)) {}
-        explicit SetResource(const Container& container)
-            : ContainerResource<Container, Derived, ValueType>(container) {}
 
         void add(const ValueType& value) override { this->container_.insert(value); }
         void add(const Container& c) override { this->container_.insert(c.begin(), c.end()); }

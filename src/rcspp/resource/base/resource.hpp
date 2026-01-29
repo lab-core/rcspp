@@ -160,6 +160,11 @@ class Resource : public ResourceType {
             return feasibility_function_->is_feasible(*this);
         }
 
+        // Return true if the resource can reach node_id
+        [[nodiscard]] auto is_reachable(size_t node_id) const -> bool {
+            return feasibility_function_->is_reachable(*this, node_id);
+        }
+
         [[nodiscard]] auto clone_resource() const -> std::unique_ptr<Resource<ResourceType>> {
             return std::make_unique<Resource<ResourceType>>(
                 static_cast<Resource<ResourceType> const&>(*this));
@@ -434,6 +439,11 @@ class Resource<ResourceComposition<ResourceTypes...>>
         // Return true if the resource is feasible
         [[nodiscard]] auto is_feasible() const -> bool {
             return feasibility_function_->is_feasible(*this);
+        }
+
+        // Return true if the resource can reach node_id
+        [[nodiscard]] auto is_reachable(size_t node_id) const -> bool {
+            return feasibility_function_->is_reachable(*this, node_id);
         }
 
         [[nodiscard]] auto clone_resource() const

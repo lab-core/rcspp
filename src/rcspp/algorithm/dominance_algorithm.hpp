@@ -90,6 +90,11 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
+            // check if arc is not reachable
+            if (!label_ptr->is_reachable(arc_ptr->destination->id)) {
+                return;
+            }
+
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
 

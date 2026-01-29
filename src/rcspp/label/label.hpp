@@ -63,6 +63,11 @@ class Label {
         // Return true if the label is feasible
         [[nodiscard]] bool is_feasible() const { return resource_->is_feasible(); }
 
+        // Return true if the label can reach the given node
+        [[nodiscard]] bool is_reachable(size_t node_id) const {
+            return resource_->is_reachable(node_id);
+        }
+
         [[nodiscard]] Resource<ResourceType>& get_resource() const { return *resource_; }
 
         [[nodiscard]] const Node<ResourceType>* get_end_node() const { return end_node_; }

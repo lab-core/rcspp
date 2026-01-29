@@ -31,6 +31,11 @@ class TimeWindowFeasibilityFunction
             return resource.get_value() <= max_time_window_;
         }
 
+        // auto is_reachable(const Resource<ResourceType>& resource, size_t node_id) -> bool
+        // override {
+        //     return resource.get_value() <= max_time_window_;
+        // }
+
     private:
         const std::map<size_t, ValueType>* const max_time_window_by_node_id_;
 
