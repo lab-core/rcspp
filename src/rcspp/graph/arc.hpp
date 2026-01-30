@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -48,5 +49,16 @@ class Arc {
         double cost;
 
         std::vector<Row> dual_rows;
+
+        [[nodiscard]] std::string str() const {
+            std::stringstream ss;
+            ss << "Arc(id=" << id << ", origin=" << origin->id
+               << ", destination=" << destination->id << ", cost=" << cost << ")\n";
+            return ss.str();
+        }
 };
+template <typename ResourceType>
+std::ostream& operator<<(std::ostream& os, const Arc<ResourceType>& arc) {
+    return os << arc.str();
+}
 }  // namespace rcspp

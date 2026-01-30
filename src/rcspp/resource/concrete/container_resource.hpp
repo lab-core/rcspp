@@ -42,6 +42,7 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual Container substract(const Container& /*other*/) const = 0;
 
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
+        [[nodiscard]] virtual bool empty() const { return container_.empty(); }
 
         void reset() override { this->container_.clear(); }
 
@@ -276,6 +277,15 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
                 ones_cnt += static_cast<size_t>(std::popcount(w));
             }
             return ones_cnt;
+        }
+
+        [[nodiscard]] bool empty() const override {
+            for (const uint64_t w : this->container_) {
+                if (w != 0ULL) {
+                    return false;
+                }
+            }
+            return true;
         }
 
     private:

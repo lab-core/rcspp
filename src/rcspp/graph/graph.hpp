@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <ranges>  // NOLINT(build/include_order)
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -272,6 +273,16 @@ class Graph {
 
         [[nodiscard]] bool is_modified() const { return modified_; }
 
+        [[nodiscard]] std::string str() const {
+            std::stringstream ss;
+            ss << "Graph with " << get_number_of_nodes() << " nodes and " << get_number_of_arcs()
+               << " arcs.\n";
+            for (const auto& [node_id, node_ptr] : nodes_by_id_) {
+                ss << *node_ptr << "\n";
+            }
+            return ss.str();
+        }
+
     private:
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> arcs_by_id_;
         std::map<size_t, std::unique_ptr<Node<ResourceType>>> nodes_by_id_;
@@ -325,4 +336,9 @@ class Graph {
             return removed_arcs_by_id_.erase(it);
         }
 };
+
+template <typename ResourceType>
+std::ostream& operator<<(std::ostream& os, const Graph<ResourceType>& graph) {
+    return os << graph.str();
+}
 }  // namespace rcspp
