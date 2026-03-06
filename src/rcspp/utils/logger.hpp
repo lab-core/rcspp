@@ -57,9 +57,13 @@ class Logger {
 
         LogLevel level() const { return level_; }
 
+        bool is_level_active(LogLevel lvl) const {
+            return static_cast<int>(lvl) >= static_cast<int>(level_);
+        }
+
         template <typename... Args>
         void log(LogLevel lvl, Args&&... args) {
-            if (static_cast<int>(lvl) < static_cast<int>(level_)) {
+            if (!is_level_active(lvl)) {
                 return;
             }
 
@@ -182,5 +186,12 @@ class Logger {
 #define LOG_WARN(...) ::rcspp::Logger::instance().warn(__VA_ARGS__)
 #define LOG_ERROR(...) ::rcspp::Logger::instance().error(__VA_ARGS__)
 #define LOG_FATAL(...) ::rcspp::Logger::instance().fatal(__VA_ARGS__)
+
+#define LOG_TRACE_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Trace)
+#define LOG_DEBUG_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Debug)
+#define LOG_INFO_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Info)
+#define LOG_WARN_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Warn)
+#define LOG_ERROR_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Error)
+#define LOG_FATAL_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Fatal)
 
 }  // namespace rcspp

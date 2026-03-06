@@ -153,9 +153,10 @@ class Algorithm {
                 }
             }
 
-            LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
-
-            print_labels();
+            if (LOG_DEBUG_ACTIVE()) {
+                LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
+                print_labels();
+            }
 
             // recover solutions
             std::vector<Solution> solutions;
