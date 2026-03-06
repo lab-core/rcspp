@@ -115,7 +115,7 @@ void init_resource(py::module_& m) {
                                                           max_time.cast<double>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowExtensionFunction<RealResource>(g_min_time_window_by_node_id);
+                 return TimeWindowExtensionFunction<RealResource>(&g_min_time_window_by_node_id);
              }),
              py::arg("min_time_window_by_arc_id"));
 
@@ -132,7 +132,7 @@ void init_resource(py::module_& m) {
                                                           max_time.cast<double>());
                  }
                  // Return an object referencing the global map
-                 return TimeWindowFeasibilityFunction<RealResource>(g_max_time_window_by_node_id);
+                 return TimeWindowFeasibilityFunction<RealResource>(&g_max_time_window_by_node_id);
              }),
              py::arg("max_time_window_by_node_id"));
 

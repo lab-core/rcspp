@@ -73,8 +73,8 @@ RGraph* resource_graph,
 
     // Time
     resource_graph->add_resource<RealResource>(
-        std::make_unique<TimeWindowExtensionFunction<RealResource>>(min_time_window_by_node_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(max_time_window_by_node_id_),
+        std::make_unique<TimeWindowExtensionFunction<RealResource>>(&min_time_window_by_node_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(&max_time_window_by_node_id_),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 

@@ -29,7 +29,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             this->initialize_unprocessed_labels(graph->get_number_of_nodes());
         }
 
-        void main_loop() override {
+        void main_loop() override {  // NOLINT
             size_t i = 0;
             while (number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;

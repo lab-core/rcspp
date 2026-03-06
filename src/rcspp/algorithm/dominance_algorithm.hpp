@@ -98,7 +98,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
 
-            if (++this->num_extended_labels_ % 10000 == 0) {
+            if (++this->num_extended_labels_ % 10000 == 0) {  // NOLINT
                 LOG_DEBUG("Processed ", this->num_extended_labels_, " labels so far...\n");
             }
 
@@ -122,7 +122,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             }
         }
 
-        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
+        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {  // NOLINT
             std::list<size_t> path_arc_ids;
 
             auto in_arc_ptr = label.get_in_arc();

@@ -114,7 +114,12 @@ void init_graph(py::module_& m) {
     py::class_<ResourceGraph<RealResource>, ConcreteGraph>(m, "ResourceGraph")
         .def(py::init<>())
         .def("add_real_resource",
-             &ResourceGraph<RealResource>::add_resource<RealResource>,
+             static_cast<void (ResourceGraph<RealResource>::*)(
+                 std::unique_ptr<ExtensionFunction<RealResource>>,
+                 std::unique_ptr<FeasibilityFunction<RealResource>>,
+                 std::unique_ptr<CostFunction<RealResource>>,
+                 std::unique_ptr<DominanceFunction<RealResource>>)>(
+                 &ResourceGraph<RealResource>::add_resource<RealResource>),
              py::arg("extension_function"),
              py::arg("feasibility_function"),
              py::arg("cost_function"),

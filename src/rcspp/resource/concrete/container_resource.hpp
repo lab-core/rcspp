@@ -301,19 +301,15 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         }
 
         [[nodiscard]] bool empty() const override {
-            for (const uint64_t w : this->container_) {
-                if (w != 0ULL) {
-                    return false;
-                }
-            }
-            return true;
+            return std::ranges::all_of(this->container_,
+                                       [](const uint64_t w) { return w == 0ULL; });
         }
 
         [[nodiscard]] std::set<ValueType> to_set() const {
             std::set<ValueType> result;
             for (size_t i = 0; i < this->container_.size(); ++i) {
                 uint64_t w = this->container_[i];
-                for (size_t bit = 0; bit < 64; ++bit) {
+                for (size_t bit = 0; bit < 64; ++bit) {                       // NOLINT
                     if ((w & (1ULL << bit)) != 0ULL) {                        // NOLINT
                         result.insert(static_cast<ValueType>(i * 64 + bit));  // NOLINT
                     }
