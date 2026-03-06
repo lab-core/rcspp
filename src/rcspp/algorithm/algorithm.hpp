@@ -155,6 +155,8 @@ class Algorithm {
 
             LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
 
+            print_labels();
+
             // recover solutions
             std::vector<Solution> solutions;
             solutions.reserve(solutions_.size());
@@ -205,6 +207,8 @@ class Algorithm {
         }
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
+
+        virtual void print_labels() const {}
 
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 

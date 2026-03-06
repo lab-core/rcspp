@@ -6,15 +6,16 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-#include "../../utils/logger.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/utils/logger.hpp"
 
 namespace rcspp {
 
@@ -642,6 +643,10 @@ class Resource<ResourceComposition<ResourceTypes...>>
                         resource.resource_components_);
                 },
                 resource_components_);
+        }
+
+        [[nodiscard]] std::string to_string() const override {
+            return ResourceComposition<ResourceTypes...>::to_string(resource_components_);
         }
 
     private:

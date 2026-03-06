@@ -42,7 +42,7 @@ class ReachableCompositionFeasibilityFunction
         //             resource_components);
         //     }
 
-    private:
+    protected:
         size_t reachable_resource_index_;
 
         bool check_reachability(const auto& sing_res_vec, size_t node_id) {

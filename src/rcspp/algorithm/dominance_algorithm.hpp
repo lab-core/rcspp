@@ -134,10 +134,14 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
                 const Label<ResourceType>* current_label_ptr = &label;
 
-                while (prev_node_ptr != nullptr && !prev_node_ptr->source) {
+                while (prev_node_ptr != nullptr) {
                     bool found = false;
                     for (const auto label_ptr :
                          non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
+                        // if cannot reach the current label from this label, skip it
+                        if (!label_ptr->is_reachable(in_arc_ptr->origin->id)) {
+                            continue;
+                        }
                         auto& next_label_ref =
                             this->label_pool_.get_next_label(in_arc_ptr->destination);
                         label_ptr->extend(*in_arc_ptr, &next_label_ref);
@@ -150,16 +154,24 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     }
 
                     if (!found) {
-                        LOG_ERROR("Error while extracting path: could not find previous label.\n");
-                        return {};
-                    }
-
-                    in_arc_ptr = current_label_ptr->get_in_arc();
-                    if (in_arc_ptr != nullptr) {
-                        path_arc_ids.push_back(in_arc_ptr->id);
-                        prev_node_ptr = in_arc_ptr->origin;
+                        // if at source, we find a feasible path.
+                        // We check only here to authorize to pass several time by the source if
+                        // needed
+                        if (prev_node_ptr->source) {
+                            prev_node_ptr = nullptr;
+                        } else {  // otherwise, no feasible path has been found
+                            LOG_ERROR(
+                                "Error while extracting path: could not find previous label.\n");
+                            return {};
+                        }
                     } else {
-                        prev_node_ptr = nullptr;
+                        in_arc_ptr = current_label_ptr->get_in_arc();
+                        if (in_arc_ptr != nullptr) {
+                            path_arc_ids.push_back(in_arc_ptr->id);
+                            prev_node_ptr = in_arc_ptr->origin;
+                        } else {
+                            prev_node_ptr = nullptr;
+                        }
                     }
                 }
             }
@@ -226,6 +238,16 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             }
 
             return labels_at_sinks;
+        }
+
+        void print_labels() const override {
+            LOG_DEBUG("All non dominated labels by node:\n");
+            for (size_t pos = 0; pos < non_dominated_labels_by_node_pos_.size(); pos++) {
+                LOG_DEBUG("Node ", this->graph_->get_sorted_nodes().at(pos)->id, ":\n");
+                for (auto label_ptr : non_dominated_labels_by_node_pos_.at(pos)) {
+                    LOG_DEBUG("  ", label_ptr->get_resource().to_string(), "\n");
+                }
+            }
         }
 
         virtual void add_new_unprocessed_label(

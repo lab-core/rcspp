@@ -189,6 +189,20 @@ class Graph {
             return it->second.get();
         }
 
+        [[nodiscard]] std::vector<Arc<ResourceType>*> get_arcs(size_t ori_id,
+                                                               size_t dest_id) const {
+            std::vector<Arc<ResourceType>*> arcs;
+            auto* ori = get_node(ori_id);
+            if (ori != nullptr) {
+                for (auto* arc : ori->out_arcs) {
+                    if (arc->destination->id == dest_id) {
+                        arcs.push_back(arc);
+                    }
+                }
+            }
+            return arcs;
+        }
+
         [[nodiscard]] std::vector<size_t> get_node_ids() const {
             auto node_ids_ranges = std::views::keys(nodes_by_id_);
 

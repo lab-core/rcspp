@@ -8,6 +8,8 @@
 #include <cstdint>  // NOLINT
 #include <iterator>
 #include <set>
+#include <sstream>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -45,6 +47,25 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual bool empty() const { return container_.empty(); }
 
         void reset() override { this->container_.clear(); }
+
+        [[nodiscard]] std::string to_string() const override { return to_string(container_); }
+
+        template <typename C>
+        [[nodiscard]] std::string to_string(const C& list) const {
+            std::ostringstream oss;
+            oss << "{";
+            bool first = true;
+            for (auto v : list) {
+                if (first) {
+                    first = false;
+                } else {
+                    oss << ",";
+                }
+                oss << v;
+            }
+            oss << "}";
+            return oss.str();
+        }
 
     protected:
         Container container_;
@@ -286,6 +307,23 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
                 }
             }
             return true;
+        }
+
+        [[nodiscard]] std::set<ValueType> to_set() const {
+            std::set<ValueType> result;
+            for (size_t i = 0; i < this->container_.size(); ++i) {
+                uint64_t w = this->container_[i];
+                for (size_t bit = 0; bit < 64; ++bit) {
+                    if ((w & (1ULL << bit)) != 0ULL) {                        // NOLINT
+                        result.insert(static_cast<ValueType>(i * 64 + bit));  // NOLINT
+                    }
+                }
+            }
+            return result;
+        }
+
+        [[nodiscard]] std::string to_string() const override {
+            return ContainerResource<Container, Derived, ValueType>::to_string(to_set());
         }
 
     private:

@@ -7,6 +7,7 @@
 #include <concepts>
 #include <limits>
 #include <optional>
+#include <string>
 
 #include "rcspp/resource/base/resource_base.hpp"
 
@@ -54,6 +55,8 @@ class NumericalResource : public ResourceBase<NumericalResource<T>> {
         void add(T value) { value_ += value; }
 
         void reset() override { value_ = 0; }
+
+        [[nodiscard]] std::string to_string() const override { return std::to_string(value_); }
 
         [[nodiscard]] bool leq(const NumericalResource<T>& other) const {
             return leq(other.get_value());
