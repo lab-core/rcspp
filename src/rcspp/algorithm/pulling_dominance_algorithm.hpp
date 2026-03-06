@@ -57,7 +57,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else {
-                        assert(this->update_non_dominated_labels(label));
                         // check if sink and update best solution
                         if (label.get_end_node()->sink) {
                             LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
