@@ -18,7 +18,7 @@ find_path(GUROBI_INCLUDE_DIRS
 
 # Core (C) library (names differ by version)
 find_library(GUROBI_LIBRARY
-    NAMES gurobi gurobi120 gurobi110 gurobi100
+    NAMES gurobi gurobi130 gurobi120 gurobi110 gurobi100
     HINTS ${_GUROBI_HINTS}
     PATH_SUFFIXES lib
 )
