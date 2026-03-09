@@ -8,14 +8,21 @@
 
 namespace rcspp {
 
-template <typename ContainerResourceType>
-class ContainDominanceFunction : public Clonable<ContainDominanceFunction<ContainerResourceType>,
-                                                 DominanceFunction<ContainerResourceType>> {
-    public:
-        auto check_dominance(const Resource<ContainerResourceType>& lhs_resource,
-                             const Resource<ContainerResourceType>& rhs_resource) -> bool override {
-            // lhs_resource dominates rhs_resource if lhs_resource contains rhs_resource
-            return lhs_resource.includes(rhs_resource.get_value());
-        }
-};
+  template <typename ResourceType>
+  class ContainDominanceFunction
+      : public Clonable<ContainDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
+  public:
+    auto check_dominance(const Resource<ResourceType>& lhs_resource,
+                         const Resource<ResourceType>& rhs_resource) -> bool override {
+      // lhs_resource dominates rhs_resource if lhs_resource <= rhs_resource
+      // i.e., if lhs_resource contains rhs_resource
+      return lhs_resource.includes(rhs_resource.get_value());
+    }
+
+    auto fast_check_dominance(const Resource<ResourceType>& lhs_resource,
+                              const Resource<ResourceType>& rhs_resource, double delta)
+        -> bool override {
+      return rhs_resource.size() <= lhs_resource.size() + delta;
+    }
+  };
 }  // namespace rcspp

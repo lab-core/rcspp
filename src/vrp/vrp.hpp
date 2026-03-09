@@ -32,9 +32,10 @@ class VRP {
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
         template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{},  // NOLINT
-                                 std::optional<size_t> numAlgos = std::nullopt,
-                                 std::vector<Algorithm<ResourceType>*> algorithms = {}) {  // NOLINT
+        std::vector<Timer> solve(
+            AlgorithmParams<ResourceType> params = AlgorithmParams<ResourceType>{},  // NOLINT
+            std::optional<size_t> numAlgos = std::nullopt,
+            std::vector<Algorithm<ResourceType>*> algorithms = {}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
             size_t num_total_algos = sizeof...(AlgorithmTypes) + 1 + algorithms.size();
@@ -239,7 +240,7 @@ class VRP {
 
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id, AlgorithmParams params = {}) {
+            const std::map<size_t, double>& dual_by_id, AlgorithmParams<ResourceType> params = {}) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);

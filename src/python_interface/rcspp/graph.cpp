@@ -165,7 +165,7 @@ void init_graph(py::module_& m) {
         .def("solve",
              &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithm>,
              py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
-             py::arg("params") = AlgorithmParams{},
+             py::arg("params") = AlgorithmParams<RealResource>{},
              py::arg("preprocess") = true,
              py::arg("cost_index") = 0)
         .def("process_feasibility", &ResourceGraph<RealResource>::process_feasibility);

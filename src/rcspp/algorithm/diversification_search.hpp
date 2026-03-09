@@ -36,13 +36,13 @@ namespace rcspp {
  * Usage: Construct with a resource factory, algorithm parameters, and a unique_ptr to the wrapped
  * algorithm.
  */
-template <typename ResourceType>
-class DiversificationSearch : public Algorithm<ResourceType> {
+template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
+class DiversificationSearch : public Algorithm<ResourceType, LabelsType> {
     public:
         DiversificationSearch(ResourceFactory<ResourceType>* resource_factory,
-                              AlgorithmParams params,
-                              std::unique_ptr<Algorithm<ResourceType>> algo = nullptr)
-            : Algorithm<ResourceType>(resource_factory, std::move(params)),
+                              AlgorithmParams<LabelsType> params,
+                              std::unique_ptr<Algorithm<ResourceType, LabelsType>> algo = nullptr)
+            : Algorithm<ResourceType, LabelsType>(resource_factory, std::move(params)),
               algo_(std::move(algo)),
               rnd_(std::random_device{}()) {  // NOLINT(whitespace/braces)
             rnd_.seed(this->params_.seed);
@@ -53,7 +53,8 @@ class DiversificationSearch : public Algorithm<ResourceType> {
                 alg_params.stop_after_X_solutions = 1;  // only need one solution per iteration
                 alg_params.max_iterations = 20;  // ensure early termination if needed // NOLINT
                 algo_ =
-                    std::make_unique<GreedyAlgorithm<ResourceType>>(resource_factory, alg_params);
+                    std::make_unique<GreedyAlgorithm<ResourceType, LabelsType>>(resource_factory,
+                                                                                alg_params);
             }
         }
 
@@ -63,7 +64,7 @@ class DiversificationSearch : public Algorithm<ResourceType> {
         // runs up to max_iterations or stop_after_X_solutions.
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            Algorithm<ResourceType, LabelsType>::initialize(graph, cost_upper_bound);
             graph_copy_ = std::move(graph->clone());
         }
         void main_loop() override {
@@ -159,7 +160,7 @@ class DiversificationSearch : public Algorithm<ResourceType> {
 
     private:
         std::unique_ptr<Graph<ResourceType>> graph_copy_;
-        std::unique_ptr<Algorithm<ResourceType>> algo_;
+        std::unique_ptr<Algorithm<ResourceType, LabelsType>> algo_;
         std::map<size_t, size_t> removed_tabu_arc_ids_;
         size_t tabu_tenure_extra_{0};
         std::mt19937_64 rnd_;

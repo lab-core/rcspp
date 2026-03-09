@@ -17,9 +17,11 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/buckets.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/timer.hpp"
 
 namespace rcspp {
@@ -33,7 +35,10 @@ using LabelIteratorPair =
 
 constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
+template <typename LabelsType>
 struct AlgorithmParams {
+        explicit AlgorithmParams(LabelsType labels = LabelsType()) : labels(std::move(labels)) {}
+
         AlgorithmParams& check() {
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
                 LOG_WARN(
@@ -69,6 +74,9 @@ struct AlgorithmParams {
         // for using label pool (should normally always be true)
         bool use_pool = true;
 
+        // Container to store labels, could be overridden with Buckets
+        const LabelsType labels;
+
         // for truncated labeling
         size_t num_labels_to_extend_by_node = MAX_INT;
 
@@ -87,11 +95,12 @@ struct AlgorithmParams {
         int seed = 0;
 };
 
-template <typename ResourceType>
+template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
     public:
-        Algorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
+        Algorithm(ResourceFactory<ResourceType>* resource_factory,
+                  AlgorithmParams<LabelsType> params)
             : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
               graph_(nullptr),
               params_(std::move(params.check())) {}
@@ -241,7 +250,7 @@ class Algorithm {
 
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
-        const AlgorithmParams params_;
+        const AlgorithmParams<LabelsType> params_;
 
         double cost_upper_bound_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;

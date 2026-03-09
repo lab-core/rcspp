@@ -114,11 +114,11 @@ int main(int argc, char* argv[]) {
         // vrp.sort_nodes_by_min_tw();
         // vrp.sort_nodes_by_max_tw();
 
-        AlgorithmParams other_params;
+        AlgorithmParams<ResourceType> other_params;
         other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
         other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
         auto greedy_algo = vrp.get_graph().create_algorithm<GreedyAlgorithm>(other_params);
-        AlgorithmParams tabu_params;
+        AlgorithmParams<ResourceType> tabu_params;
         tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         tabu_params.max_iterations = 1e6;         // NOLINT(readability-magic-numbers)
         auto tabu_search_algo =
@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
         std::vector<Algorithm<ResourceType>*> algorithms = {tabu_search_algo.get()};
 
         Timer timer(true);
-        AlgorithmParams params;
+        AlgorithmParams<ResourceType> params;
         // params.return_dominated_solutions = true;
         // params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
         // params.num_labels_to_extend_by_node = 10;  // NOLINT(readability-magic-numbers)

@@ -165,6 +165,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             for (auto idx : indices) {
                 add(idx);
             }
+            size_ = indices.size();
         }
 
         // convenience setter from an index set
@@ -174,11 +175,13 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             for (auto idx : indices) {
                 add(idx);
             }
+            size_ = indices.size();
         }
 
         void set_value(Container container) override {
             ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(
                 std::move(container));
+            compute_size();
         }
 
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division
@@ -187,6 +190,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         void add(const ValueType& idx) override {
             ensure_size(idx + 1);
             this->container_[idx >> 6] |= (1ULL << (idx & 63));  // NOLINT
+            ++size_;
         }
 
         void add(const Container& other_words) override {
@@ -196,12 +200,14 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             for (size_t i = 0; i < other_words_count; ++i) {
                 this->container_[i] |= other_words[i];
             }
+            compute_size();
         }
 
         void remove(const ValueType& idx) override {
             if (idx < 64 * this->container_.size()) {                 // avoid out-of-bounds  NOLINT
                 this->container_[idx >> 6] &= ~(1ULL << (idx & 63));  // NOLINT
             }
+            --size_;
         }
 
         [[nodiscard]] bool contains(const ValueType& idx) const override {
@@ -292,12 +298,13 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
         [[nodiscard]] const Container& words() const { return this->container_; }
 
-        [[nodiscard]] size_t size() const override {
-            size_t ones_cnt = 0;
+        [[nodiscard]] size_t size() const override { return size_; }
+
+        void compute_size() {
+            size_ = 0;
             for (const uint64_t w : this->container_) {
-                ones_cnt += static_cast<size_t>(std::popcount(w));
+                size_ += static_cast<size_t>(std::popcount(w));
             }
-            return ones_cnt;
         }
 
         [[nodiscard]] bool empty() const override {
@@ -324,6 +331,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
     private:
         // storage is inherited from ContainerResource as `container_`.
+        size_t size_;
 
         void ensure_size(ValueType requested_nb_bits) {
             const size_t new_words = (requested_nb_bits + 63) / 64;

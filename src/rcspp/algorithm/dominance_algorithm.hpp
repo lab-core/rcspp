@@ -14,17 +14,21 @@
 
 namespace rcspp {
 
-template <typename ResourceType>
+template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class DominanceAlgorithm : public Algorithm<ResourceType> {
+class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
     public:
-        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
-            : Algorithm<ResourceType>(resource_factory, std::move(params)) {}
+        DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                           AlgorithmParams<LabelsType> params)
+            : Algorithm<ResourceType, LabelsType>(resource_factory, std::move(params)) {}
 
     protected:
         void initialize_labels() override {
             non_dominated_labels_by_node_pos_.clear();
-            non_dominated_labels_by_node_pos_.resize(this->graph_->get_number_of_nodes());
+            non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
+            for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
+                non_dominated_labels_by_node_pos_.emplace_back(this->params_.labels.copy());
+            }
 
             for (auto source_node_id : this->graph_->get_source_node_ids()) {
                 auto* source_node = this->graph_->get_node(source_node_id);
@@ -227,16 +231,15 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
             LOG_DEBUG("All non dominated labels by node:\n");
             for (size_t pos = 0; pos < non_dominated_labels_by_node_pos_.size(); pos++) {
                 LOG_DEBUG("Node ", this->graph_->get_sorted_nodes().at(pos)->id, ":\n");
-                for (auto label_ptr : non_dominated_labels_by_node_pos_.at(pos).get_labels()) {
-                    LOG_DEBUG("  ", label_ptr->get_resource().to_string(), "\n");
-                }
+                non_dominated_labels_by_node_pos_.at(pos).print_labels();
             }
         }
 
         virtual void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
-        std::vector<Buckets<ResourceType>> non_dominated_labels_by_node_pos_;
+        // Use the template LabelsType
+        std::vector<LabelsType> non_dominated_labels_by_node_pos_;
 
         Timer total_extend_time_;
         Timer total_update_non_dom_time_;
