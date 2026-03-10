@@ -20,8 +20,8 @@ class InclusionDominanceFunction
             return rhs_resource.includes(lhs_resource.get_value());
         }
 
-        auto fast_check_dominance(const Resource<ResourceType>& lhs_resource,
-                                  const Resource<ResourceType>& rhs_resource, double delta)
+        auto fast_check_dominance(const Resource<ContainerResourceType>& lhs_resource,
+                                  const Resource<ContainerResourceType>& rhs_resource, double delta)
             -> bool override {
             return lhs_resource.size() <= rhs_resource.size() + delta;
         }
