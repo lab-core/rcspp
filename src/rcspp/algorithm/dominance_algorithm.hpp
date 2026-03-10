@@ -9,18 +9,18 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
-#include "rcspp/algorithm/buckets.hpp"
+#include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/label/label_pool.hpp"
 
 namespace rcspp {
 
-template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
+class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     public:
         DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                           AlgorithmParams<LabelsType> params)
-            : Algorithm<ResourceType, LabelsType>(resource_factory, std::move(params)) {}
+                           AlgorithmParams<LabelContainerType> params)
+            : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
     protected:
         void initialize_labels() override {
@@ -239,12 +239,12 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
         /*
-         * NOTE: this vector stores LabelsType by value. In initialize_labels() we
+         * NOTE: this vector stores LabelContainerType by value. In initialize_labels() we
          * currently create each entry with `*params_.labels.copy()` which constructs
-         * a value of the base type (LabelsType). If `params_.labels` is actually a
+         * a value of the base type (LabelContainerType). If `params_.labels` is actually a
          * derived concrete type (e.g. `Buckets<...>`), dereferencing the polymorphic
          * `clone()` will create an object of the concrete type but then the value is
-         * used to initialize a `LabelsType` object — this may perform object slicing
+         * used to initialize a `LabelContainerType` object — this may perform object slicing
          * (derived-to-base), removing derived-specific data and behavior.
          *
          * If you want to preserve the dynamic (derived) type and avoid slicing,
@@ -253,7 +253,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
          * and then store clones directly:
          *    non_dominated_labels_by_node_pos_.push_back(params_.labels.clone());
          */
-        std::vector<LabelsType> non_dominated_labels_by_node_pos_;
+        std::vector<LabelContainerType> non_dominated_labels_by_node_pos_;
 
         Timer total_extend_time_;
         Timer total_update_non_dom_time_;

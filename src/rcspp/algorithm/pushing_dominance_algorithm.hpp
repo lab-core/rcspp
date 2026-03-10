@@ -9,21 +9,22 @@
 
 namespace rcspp {
 
-template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelsType>,
+class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType>,
                                   NodeUnprocessedLabelsManager<ResourceType> {
     public:
         PushingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                  AlgorithmParams<LabelsType> params)
-            : DominanceAlgorithm<ResourceType, LabelsType>(resource_factory, std::move(params)),
+                                  AlgorithmParams<LabelContainerType> params)
+            : DominanceAlgorithm<ResourceType, LabelContainerType>(resource_factory,
+                                                                   std::move(params)),
               NodeUnprocessedLabelsManager<ResourceType>() {}
 
         ~PushingDominanceAlgorithm() override = default;
 
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Algorithm<ResourceType, LabelsType>::initialize(graph, cost_upper_bound);
+            Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             this->initialize_unprocessed_labels(graph->get_number_of_nodes());
         }
 

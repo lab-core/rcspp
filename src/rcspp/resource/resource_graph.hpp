@@ -229,30 +229,35 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
-        template <template <typename> class AlgorithmType, typename... Args>
-        std::unique_ptr<AlgorithmType<RComp>> create_algorithm(Args&&... args) {
-            return std::make_unique<AlgorithmType<RComp>>(&resource_factory_,
-                                                          std::forward<Args>(args)...);
+        template <template <typename, typename> class AlgorithmType,
+                  typename LabelContainerType = LabelList<RComp>, typename... Args>
+        std::unique_ptr<AlgorithmType<RComp, LabelContainerType>> create_algorithm(Args&&... args) {
+            return std::make_unique<AlgorithmType<RComp, LabelContainerType>>(
+                &resource_factory_,
+                std::forward<Args>(args)...);
         }
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource, typename LabelsType = Labels<RComp>>
-        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    AlgorithmParams<LabelsType> params = {}, bool preprocess = true,
-                                    int cost_index = 0) {
-            AlgorithmType<RComp, LabelsType> algorithm(&resource_factory_, params);
-            return solve<AlgorithmType<RComp, LabelsType>, CostResourceType>(&algorithm,
-                                                                             upper_bound,
-                                                                             preprocess,
-                                                                             cost_index);
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<RComp>>
+        std::vector<Solution> solve(
+            double upper_bound = std::numeric_limits<double>::infinity(),
+            AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
+            bool preprocess = true, int cost_index = 0) {
+            AlgorithmType<RComp, LabelContainerType> algorithm(&resource_factory_, params);
+            return solve<AlgorithmType<RComp, LabelContainerType>, CostResourceType>(&algorithm,
+                                                                                     upper_bound,
+                                                                                     preprocess,
+                                                                                     cost_index);
         }
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource, typename LabelsType = Labels<RComp>>
-        std::vector<Solution> solve(AlgorithmParams<LabelsType> params, bool preprocess = true,
-                                    int cost_index = 0) {
-            AlgorithmType<RComp, LabelsType> algorithm(&resource_factory_, params);
-            return solve<AlgorithmType<RComp, LabelsType>, CostResourceType>(
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<RComp>>
+        std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
+                                    bool preprocess = true, int cost_index = 0) {
+            AlgorithmType<RComp, LabelContainerType> algorithm(&resource_factory_, params);
+            return solve<AlgorithmType<RComp, LabelContainerType>, CostResourceType>(
                 &algorithm,
                 std::numeric_limits<double>::infinity(),
                 preprocess,

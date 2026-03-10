@@ -154,7 +154,7 @@ class Resource : public ResourceType {
         }
 
         // Check distance from the resource to another
-        auto is_lower(const Resource& rhs_resource, double delta = 0) const -> bool {
+        [[nodiscard]] auto is_lower(const Resource& rhs_resource, double delta = 0) const -> bool {
             return dominance_function_->fast_check_dominance(*this, rhs_resource, delta);
         }
 
