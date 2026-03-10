@@ -170,10 +170,10 @@ void init_graph(py::module_& m) {
                    params,
                bool preprocess,
                int cost_index) {
-                self.template solve<SimpleDominanceAlgorithm>(upper_bound,
-                                                              std::move(params),
-                                                              preprocess,
-                                                              cost_index);
+                return self.template solve<SimpleDominanceAlgorithm>(upper_bound,
+                                                                     std::move(params),
+                                                                     preprocess,
+                                                                     cost_index);
             },
             py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
             py::arg("params") = AlgorithmParams<LabelList<ResourceCompositionBase>>(),

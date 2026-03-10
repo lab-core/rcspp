@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <list>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 

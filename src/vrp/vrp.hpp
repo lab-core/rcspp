@@ -36,7 +36,7 @@ class VRP {
         std::vector<Timer> solve(                        // NOLINT
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
-            std::vector<Algorithm<ResourceType>*> algorithms = {}) {  // NOLINT
+            std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
             size_t num_total_algos = sizeof...(AlgorithmTypes) + 1 + algorithms.size();
