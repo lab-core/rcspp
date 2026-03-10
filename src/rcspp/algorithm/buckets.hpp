@@ -18,24 +18,25 @@ class Labels {
 
     public:
         explicit Labels() = default;
+        virtual ~Labels() = default;
 
         Labels copy() const { return Labels(); }
 
         [[nodiscard]] const std::list<Label<ResourceType>*>& get_labels() const { return labels_; }
 
-        LabelPosition add_label(Label<ResourceType>* label) {
+        virtual LabelPosition add_label(Label<ResourceType>* label) {
             return labels_.insert(labels_.end(), label);
         }
 
-        void erase_label(const LabelPosition& pos) { labels_.erase(pos); }
+        virtual void erase_label(const LabelPosition& pos) { labels_.erase(pos); }
 
-        void print_labels() const {
+        virtual void print_labels() const {
             for (auto label_ptr : labels_) {
                 LOG_DEBUG("  ", label_ptr, ": ", label_ptr->get_resource().to_string(), "\n");
             }
         }
 
-        size_t remove_dominated_labels(const Label<ResourceType>& label) {
+        virtual size_t remove_dominated_labels(const Label<ResourceType>& label) {
             // Remove all dominated label
             size_t removed = 0;
             for (auto non_dominated_label_it = labels_.begin();
@@ -51,7 +52,7 @@ class Labels {
             return removed;
         }
 
-        bool is_dominated(const Label<ResourceType>& label) const {
+        virtual bool is_dominated(const Label<ResourceType>& label) const {
             for (const auto non_dominated_label_ptr : labels_) {
                 if (&label == non_dominated_label_ptr) {
                     continue;
@@ -113,7 +114,7 @@ class Buckets : public Labels<ResourceType> {
             return Buckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
         }
 
-        LabelPosition add_label(Label<ResourceType>* label) {
+        LabelPosition add_label(Label<ResourceType>* label) override {
             const auto& label_bucket_resource = get_bucket_resource(*label);
             auto bit = buckets_.begin();
             while (bit != buckets_.end()) {
@@ -151,7 +152,7 @@ class Buckets : public Labels<ResourceType> {
             return pos;
         }
 
-        void erase_label(const LabelPosition& pos) {
+        void erase_label(const LabelPosition& pos) override {
             // find the bucket containing the erased label
             const auto& label_bucket_resource = get_bucket_resource(**pos);
             auto bit = std::find_if(buckets_.begin(), buckets_.end(), [&](const auto& bucket) {
@@ -177,7 +178,7 @@ class Buckets : public Labels<ResourceType> {
             }
         }
 
-        size_t remove_dominated_labels(const Label<ResourceType>& label) {
+        size_t remove_dominated_labels(const Label<ResourceType>& label) override {
             // if no bucket, no label, return 0
             if (buckets_.empty()) {
                 return 0;
@@ -185,6 +186,7 @@ class Buckets : public Labels<ResourceType> {
 
             // Remove all dominated label (starting by upper buckets). Lower buckets cannot be
             // dominated
+            num_labels_ += this->labels_.size();
             size_t removed = 0;
             const auto& label_bucket_resource = get_bucket_resource(label);
             const auto& label_sort_resource = get_sort_resource(label);
@@ -202,6 +204,7 @@ class Buckets : public Labels<ResourceType> {
                 auto new_begin = bucket.end;
                 bool reached_begin = false;
                 while (!reached_begin) {
+                    ++num_visited_labels_;
                     --non_dominated_label_it;
                     reached_begin = (non_dominated_label_it == bucket.begin);
                     if (&label != *non_dominated_label_it && label <= **non_dominated_label_it) {
@@ -210,11 +213,14 @@ class Buckets : public Labels<ResourceType> {
                         non_dominated_label_it = this->labels_.erase(non_dominated_label_it);
                         ++removed;
                     } else {
-                        if (!(get_sort_resource(**non_dominated_label_it) <= label_sort_resource)) {
-                            new_begin = bucket.begin;  // not modified as breaking before reaching
-                                                       // begin or erasing it
-                            // if the sort resource of the current label does not dominate the label
-                            // sort resource, we can stop
+                        // if not dominated, check if we can stop by comparing the sort resource of
+                        // the current label with the label to remove. If the current label sort
+                        // resource does not dominate the label sort resource, we can stop as the
+                        // following labels in the bucket are sorted by the sort resource and cannot
+                        // be dominated.
+                        if (!(label_sort_resource <= get_sort_resource(**non_dominated_label_it))) {
+                            // not modified as breaking before reaching begin or erasing the bucket
+                            new_begin = bucket.begin;
                             break;
                         }
                         new_begin = non_dominated_label_it;  // update begin flag of the bucket
@@ -237,7 +243,7 @@ class Buckets : public Labels<ResourceType> {
             return removed;
         }
 
-        bool is_dominated(const Label<ResourceType>& label) const {
+        bool is_dominated(const Label<ResourceType>& label) const override {
             // if no bucket, no label, return false
             if (buckets_.empty()) {
                 return false;
@@ -260,10 +266,10 @@ class Buckets : public Labels<ResourceType> {
                     if (**it <= label) {
                         return true;
                     }
+                    // if the sort resource of the current label does not dominate the label
+                    // sort resource, we can stop, as the following labels in the bucket are
+                    // sorted by the sort resource and cannot dominate
                     if (!(get_sort_resource(**it) <= label_sort_resource)) {
-                        // if the sort resource of the current label does not dominate the label
-                        // sort resource, we can stop, as the following labels in the bucket are
-                        // sorted by the sort resource and cannot dominate
                         break;
                     }
                 }
@@ -272,11 +278,19 @@ class Buckets : public Labels<ResourceType> {
             return false;
         }
 
+        void print_labels() const override {
+            Labels<ResourceType>::print_labels();
+            LOG_DEBUG("Ratio of visits: ", num_visited_labels_ * 1.0 / num_labels_, "\n");
+        }
+
     private:
         size_t range_buckets_;
         size_t bucket_resource_index_;
         size_t sort_resource_index_;
         std::list<Bucket<Resource<BucketResource>>> buckets_;
+
+        size_t num_labels_{0};
+        size_t num_visited_labels_{0};
 
         const Resource<BucketResource>& get_bucket_resource(
             const Label<ResourceType>& label) const {

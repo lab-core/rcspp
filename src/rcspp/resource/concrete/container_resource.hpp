@@ -181,7 +181,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         void set_value(Container container) override {
             ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(
                 std::move(container));
-            compute_size();
+            size_ = compute_size();
         }
 
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division
@@ -200,7 +200,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             for (size_t i = 0; i < other_words_count; ++i) {
                 this->container_[i] |= other_words[i];
             }
-            compute_size();
+            size_ = compute_size();
         }
 
         void remove(const ValueType& idx) override {
@@ -300,11 +300,12 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
         [[nodiscard]] size_t size() const override { return size_; }
 
-        void compute_size() {
-            size_ = 0;
+        [[nodiscard]] size_t compute_size() const {
+            size_t size = 0;
             for (const uint64_t w : this->container_) {
-                size_ += static_cast<size_t>(std::popcount(w));
+                size += static_cast<size_t>(std::popcount(w));
             }
+            return size;
         }
 
         [[nodiscard]] bool empty() const override {
