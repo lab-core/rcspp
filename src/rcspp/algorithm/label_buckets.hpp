@@ -324,10 +324,8 @@ class LabelBuckets : public LabelList<ResourceType> {
             // update previous end to the end of the current bucket, as the current bucket will be
             // removed
             if (bit != buckets_.begin()) {
-                // the new end is the begin of the next bucket if exists, otherwise the end of the
-                // list of labels
-                auto new_end =
-                    std::next(bit) != buckets_.end() ? std::next(bit)->begin : this->labels_.end();
+                // the new end is the end of the removed bucket, as the following bucket will be
+                // after the removed bucket
                 std::prev(bit)->update_end(bit->end);
             }
             // erase the bucket and return the next bucket position
