@@ -139,7 +139,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
                     for (const auto label_ptr :
                          non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos())) {
                         // if cannot reach the current label from this label, skip it
-                        if (!label_ptr->is_reachable(in_arc_ptr->origin->id)) {
+                        if (!label_ptr->is_reachable(in_arc_ptr->destination->id)) {
                             continue;
                         }
                         auto& next_label_ref =
@@ -155,7 +155,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType> {
 
                     if (!found) {
                         // if at source, we find a feasible path.
-                        // We check only here to authorize to pass several time by the source if
+                        // We check only here to authorize to pass several times by the source if
                         // needed
                         if (prev_node_ptr->source) {
                             prev_node_ptr = nullptr;

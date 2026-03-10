@@ -162,8 +162,8 @@ class Resource : public ResourceType {
         }
 
         // Return true if the resource can reach node_id
-        [[nodiscard]] auto is_reachable(size_t node_id) const -> bool {
-            return feasibility_function_->is_reachable(*this, node_id);
+        [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
+            return feasibility_function_->is_reachable(*this, destination_node_id);
         }
 
         [[nodiscard]] auto clone_resource() const -> std::unique_ptr<Resource<ResourceType>> {
@@ -443,8 +443,8 @@ class Resource<ResourceComposition<ResourceTypes...>>
         }
 
         // Return true if the resource can reach node_id
-        [[nodiscard]] auto is_reachable(size_t node_id) const -> bool {
-            return feasibility_function_->is_reachable(*this, node_id);
+        [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
+            return feasibility_function_->is_reachable(*this, destination_node_id);
         }
 
         [[nodiscard]] auto clone_resource() const

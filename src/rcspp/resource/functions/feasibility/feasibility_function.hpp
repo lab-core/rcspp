@@ -18,7 +18,8 @@ class FeasibilityFunction {
 
         virtual auto is_feasible(const Resource<ResourceType>& resource) -> bool = 0;
 
-        virtual auto is_reachable(const Resource<ResourceType>& resource, size_t node_id) -> bool {
+        virtual auto is_reachable(const Resource<ResourceType>& resource,
+                                  size_t destination_node_id) -> bool {
             return true;
         }
 

@@ -105,7 +105,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             return node;
         }
 
-        Node<ResourceComposition<ResourceTypes...>>& add_resource_node(
+        Node<ResourceComposition<ResourceTypes...>>& add_node(
             size_t node_id,
             const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_initializer,
@@ -117,7 +117,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         template <typename... ResourceInitTypes>
-        Node<ResourceComposition<ResourceTypes...>>& add_resource_node(
+        Node<ResourceComposition<ResourceTypes...>>& add_node(
             size_t node_id,
             const std::tuple<ResourceInitializerTypeTuple_t<ResourceInitTypes>...>&
                 resource_init_values,
@@ -137,7 +137,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             };  // NOLINT
             apply_indices(std::make_index_sequence<sizeof...(ResourceInitTypes)>{});
 
-            return add_resource_node(node_id, resource_initializer, source, sink);
+            return add_node(node_id, resource_initializer, source, sink);
         }
 
         Arc<ResourceComposition<ResourceTypes...>>& add_arc(

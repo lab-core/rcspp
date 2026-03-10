@@ -14,21 +14,26 @@
 namespace rcspp {
 
 // Deduce the container/value type by calling get_value() on the concrete Resource
-template <typename ResourceType>
-class ReachableFeasibilityFunction : public Clonable<ReachableFeasibilityFunction<ResourceType>,
-                                                     FeasibilityFunction<ResourceType>> {
+template <typename ContainerResourceType>
+class ReachableFeasibilityFunction
+    : public Clonable<ReachableFeasibilityFunction<ContainerResourceType>,
+                      FeasibilityFunction<ContainerResourceType>> {
     public:
-        explicit ReachableFeasibilityFunction(const ResourceType* const checked_nodes)
+        explicit ReachableFeasibilityFunction(const ContainerResourceType* checked_nodes)
             : checked_nodes_(checked_nodes) {}
 
-        auto is_feasible(const Resource<ResourceType>& resource) -> bool override { return true; }
+        auto is_feasible(const Resource<ContainerResourceType>& resource) -> bool override {
+            return true;
+        }
 
-        auto is_reachable(const Resource<ResourceType>& resource, size_t node_id) -> bool override {
+        auto is_reachable(const Resource<ContainerResourceType>& resource,
+                          size_t destination_node_id) -> bool override {
             // either not to be checked (i.e., not required) or contained in the reachable set
-            return !checked_nodes_->contains(node_id) || resource.contains(node_id);
+            return !checked_nodes_->contains(destination_node_id) ||
+                   resource.contains(destination_node_id);
         }
 
     private:
-        const ResourceType* const checked_nodes_;
+        const ContainerResourceType* const checked_nodes_;
 };
 }  // namespace rcspp

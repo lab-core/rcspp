@@ -15,7 +15,7 @@ class SubtractExtensionFunction
     public:
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {
-            auto difference = resource.substract(extender.get_value());
+            auto difference = resource.subtract(extender.get_value());
             extended_resource->set_value(difference);
         }
 };

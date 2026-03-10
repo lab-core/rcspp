@@ -125,7 +125,9 @@ void init_graph(py::module_& m) {
              py::arg("cost_function"),
              py::arg("dominance_function"))
         .def("add_node",
-             &ResourceGraph<RealResource>::add_node,
+             static_cast<Node<ResourceComposition<RealResource>>& (
+                 ResourceGraph<RealResource>::*)(size_t, bool, bool)>(
+                 &ResourceGraph<RealResource>::add_node),
              py::arg("id"),
              py::arg("source") = false,
              py::arg("sink") = false,

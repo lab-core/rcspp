@@ -34,7 +34,15 @@ class TimeWindowExtensionFunction
         ValueType min_time_window_{0};
 
         void preprocess(size_t /* origin_id */, size_t destination_id) override {
-            min_time_window_ = min_time_window_by_dest_id_->at(destination_id);
+            if (min_time_window_by_dest_id_ == nullptr) {
+                return;
+            }
+            auto it = min_time_window_by_dest_id_->find(destination_id);
+            // if found, update min_time_window_
+            // else, keep min_time_window_ to it's initial value (0 by default)
+            if (it != min_time_window_by_dest_id_->end()) {
+                min_time_window_ = it->second;
+            }
         }
 };
 }  // namespace rcspp

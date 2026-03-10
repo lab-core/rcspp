@@ -12,18 +12,20 @@
 
 namespace rcspp {
 
-template <typename ResourceType,
+template <typename ContainerResourceType,
           typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
-class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<ResourceType, ValueType>,
-                                                ExtensionFunction<ResourceType>> {
+              std::decay_t<decltype(std::declval<Resource<ContainerResourceType>>().get_value())>>
+class NgPathExtensionFunction
+    : public Clonable<NgPathExtensionFunction<ContainerResourceType, ValueType>,
+                      ExtensionFunction<ContainerResourceType>> {
     public:
         explicit NgPathExtensionFunction(
-            const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_origin_id)
+            const std::map<size_t, std::set<ValueType>>* ng_neighborhood_by_origin_id)
             : ng_neighborhood_by_origin_id_(ng_neighborhood_by_origin_id) {}
 
-        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* extended_resource) override {
+        void extend(const Resource<ContainerResourceType>& resource,
+                    const Extender<ContainerResourceType>& extender,
+                    Resource<ContainerResourceType>* extended_resource) override {
             // keep only the nodes in the neighborhood of the origin node of the arc
             auto intersection_container = resource.get_intersection(ng_neighborhood_.get_value());
             // then, add the extender value (which is the origin node of the arc normally)
@@ -33,11 +35,20 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
 
     private:
         // neighborhood of the origin node of the arc
-        const std::map<size_t, std::set<ValueType>>& ng_neighborhood_by_origin_id_;
-        ResourceType ng_neighborhood_;
+        const std::map<size_t, std::set<ValueType>>* const ng_neighborhood_by_origin_id_;
+        ContainerResourceType ng_neighborhood_;
 
         void preprocess(size_t origin_id, size_t /* destination_id */) override {
-            ng_neighborhood_.set_value(ng_neighborhood_by_origin_id_.at(origin_id));
+            if (ng_neighborhood_by_origin_id_ == nullptr) {
+                return;
+            }
+            auto it = ng_neighborhood_by_origin_id_->find(origin_id);
+            // if found, update ng_neighborhood_
+            // else, keep ng_neighborhood_ to it's initial value (empty, i.e., reset the
+            // neighborhood)
+            if (it == ng_neighborhood_by_origin_id_->end()) {
+                ng_neighborhood_.set_value(it->second);
+            }
         }
 };
 

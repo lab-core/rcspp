@@ -178,7 +178,11 @@ class Graph {
         }
 
         [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
-            return nodes_by_id_.at(node_id).get();
+            auto it = nodes_by_id_.find(node_id);
+            if (it == nodes_by_id_.end()) {
+                return nullptr;
+            }
+            return it->second.get();
         }
 
         [[nodiscard]] Arc<ResourceType>* get_arc(size_t arc_id) const {

@@ -20,7 +20,9 @@ class ReachableCompositionExtensionFunction
                       ExtensionFunction<ResourceComposition<ResourceTypes...>>> {
     public:
         explicit ReachableCompositionExtensionFunction(size_t reachable_resource_index)
-            : reachable_resource_index_(reachable_resource_index) {}
+            : reachable_resource_index_(reachable_resource_index) {
+            throw std::runtime_error("ReachableCompositionExtensionFunction: Not implemented");
+        }
 
     protected:
         size_t reachable_resource_index_;
@@ -30,18 +32,19 @@ class ReachableCompositionExtensionFunction
             const Resource<ResourceComposition<ResourceTypes...>>& resource,
             const Extender<ResourceComposition<ResourceTypes...>>& extender,
             Resource<ResourceComposition<ResourceTypes...>>* extended_resource) override {
-            auto& extended_reachable_resource_ =
+            throw std::runtime_error("ReachableCompositionExtensionFunction: Not implemented");
+            auto& extended_reachable_resource =
                 extended_resource->template get_resource_component<ReachableResourceType>(
                     reachable_resource_index_);
             // // get an empty copy of same type
             // ReachableResourceType new_reachable_nodes;
-            // for (auto node_id : extended_reachable_resource_.iterable()) {
+            // for (auto node_id : extended_reachable_resource.iterable()) {
             //     if (extended_resource->is_reachable(node_id)) {
             //         new_reachable_nodes.add(node_id);
             //     }
             // }
             // // set the new reachable nodes
-            // extended_reachable_resource_.set_value(new_reachable_nodes.get_value());
+            // extended_reachable_resource.set_value(new_reachable_nodes.get_value());
         }
 
         bool check_reachability(const auto& sing_res_vec, size_t node_id) {

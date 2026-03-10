@@ -41,7 +41,7 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual bool intersects(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_union(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_intersection(const Container& /*other*/) const = 0;
-        [[nodiscard]] virtual Container substract(const Container& /*other*/) const = 0;
+        [[nodiscard]] virtual Container subtract(const Container& /*other*/) const = 0;
 
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
         [[nodiscard]] virtual bool empty() const { return container_.empty(); }
@@ -141,7 +141,7 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
             return result;
         }
 
-        [[nodiscard]] Container substract(const Container& other_set) const override {
+        [[nodiscard]] Container subtract(const Container& other_set) const override {
             Container result;
             std::set_difference(this->container_.begin(),
                                 this->container_.end(),
@@ -259,7 +259,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             return out;
         }
 
-        [[nodiscard]] Container substract(const Container& other) const override {
+        [[nodiscard]] Container subtract(const Container& other) const override {
             const size_t words_this = this->container_.size();
             const size_t words_other = other.size();
             Container result(words_this, 0ULL);

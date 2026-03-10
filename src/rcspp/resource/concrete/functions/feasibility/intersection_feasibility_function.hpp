@@ -14,18 +14,18 @@
 namespace rcspp {
 
 // Deduce the container/value type by calling get_value() on the concrete Resource
-template <typename ResourceType,
+template <typename ContainerResourceType,
           typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
-class IntersectFeasibilityFunction
-    : public Clonable<IntersectFeasibilityFunction<ResourceType, ValueType>,
-                      FeasibilityFunction<ResourceType>> {
+              std::decay_t<decltype(std::declval<Resource<ContainerResourceType>>().get_value())>>
+class IntersectionFeasibilityFunction
+    : public Clonable<IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
+                      FeasibilityFunction<ContainerResourceType>> {
     public:
-        explicit IntersectFeasibilityFunction(
+        explicit IntersectionFeasibilityFunction(
             const std::map<size_t, std::set<ValueType>>* values_by_node_id, bool forbidden = true)
             : values_by_node_id_(values_by_node_id), forbidden_(forbidden) {}
 
-        auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        auto is_feasible(const Resource<ContainerResourceType>& resource) -> bool override {
             if (empty_) {
                 return true;  // no values to check, always feasible
             }
@@ -36,11 +36,14 @@ class IntersectFeasibilityFunction
 
     private:
         const std::map<size_t, std::set<ValueType>>* const values_by_node_id_;
-        ResourceType values_;
-        bool forbidden_;  // values are forbidden or required
-        bool empty_;
+        ContainerResourceType values_;
+        bool forbidden_;     // values are forbidden or required
+        bool empty_ = true;  // to avoid checking intersection if no values to check
 
         void preprocess(size_t node_id) override {
+            if (values_by_node_id_ == nullptr) {
+                return;
+            }
             auto it = values_by_node_id_->find(node_id);
             if (it != values_by_node_id_->end()) {
                 values_.set_value(it->second);
