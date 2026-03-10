@@ -228,9 +228,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
         }
 
         void print_labels() const override {
-            LOG_DEBUG("All non dominated labels by node:\n");
+            LOG_TRACE("All non dominated labels by node:\n");
             for (size_t pos = 0; pos < non_dominated_labels_by_node_pos_.size(); pos++) {
-                LOG_DEBUG("Node ", this->graph_->get_sorted_nodes().at(pos)->id, ":\n");
+                LOG_TRACE("Node ", this->graph_->get_sorted_nodes().at(pos)->id, ":\n");
                 non_dominated_labels_by_node_pos_.at(pos).print_labels();
             }
         }

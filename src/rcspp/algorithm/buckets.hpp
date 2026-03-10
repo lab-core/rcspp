@@ -31,8 +31,10 @@ class Labels {
         virtual void erase_label(const LabelPosition& pos) { labels_.erase(pos); }
 
         virtual void print_labels() const {
-            for (auto label_ptr : labels_) {
-                LOG_DEBUG("  ", label_ptr, ": ", label_ptr->get_resource().to_string(), "\n");
+            if (LOG_TRACE_ACTIVE()) {
+                for (auto label_ptr : labels_) {
+                    LOG_TRACE("  ", label_ptr, ": ", label_ptr->get_resource().to_string(), "\n");
+                }
             }
         }
 
