@@ -103,7 +103,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
 
-            if (++this->num_extended_labels_ % 10000 == 0) {  // NOLINT
+            if (++this->num_extended_labels_ % 100000 == 0) {  // NOLINT
+                print_labels();
                 LOG_DEBUG("Processed ", this->num_extended_labels_, " labels so far...\n");
             }
 
@@ -228,10 +229,12 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelsType> {
         }
 
         void print_labels() const override {
-            LOG_TRACE("All non dominated labels by node:\n");
-            for (size_t pos = 0; pos < non_dominated_labels_by_node_pos_.size(); pos++) {
-                LOG_TRACE("Node ", this->graph_->get_sorted_nodes().at(pos)->id, ":\n");
-                non_dominated_labels_by_node_pos_.at(pos).print_labels();
+            if (LOG_TRACE_ACTIVE()) {
+                LOG_TRACE("All non dominated labels by node:\n");
+                for (size_t pos = 0; pos < non_dominated_labels_by_node_pos_.size(); pos++) {
+                    LOG_TRACE("Node ", this->graph_->get_sorted_nodes().at(pos)->id, ":\n");
+                    non_dominated_labels_by_node_pos_.at(pos).print_labels();
+                }
             }
         }
 

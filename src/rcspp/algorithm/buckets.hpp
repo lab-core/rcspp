@@ -282,7 +282,7 @@ class Buckets : public Labels<ResourceType> {
 
         void print_labels() const override {
             Labels<ResourceType>::print_labels();
-            LOG_DEBUG("Ratio of visits: ", num_visited_labels_ * 1.0 / num_labels_, "\n");
+            LOG_TRACE("Ratio of visits: ", num_visited_labels_ * 1.0 / num_labels_, "\n");
         }
 
     private:
