@@ -131,7 +131,7 @@ class Algorithm {
         virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
                                             double cost_upper_bound) {
             // initialization
-            Timer timer;
+            Timer timer(true);
             initialize(graph, cost_upper_bound);
 
             // initialize labels
@@ -151,6 +151,11 @@ class Algorithm {
                 } else {
                     break;
                 }
+            }
+
+            if (LOG_DEBUG_ACTIVE()) {
+                LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
+                print_labels();
             }
 
             // recover solutions
@@ -204,6 +209,8 @@ class Algorithm {
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
+        virtual void print_labels() const {}
+
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
         virtual void extract_solution(const Label<ResourceType>& end_label) {
@@ -240,6 +247,7 @@ class Algorithm {
         std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
+        size_t num_extended_labels_ = 0;
         Timer total_full_extend_time_;
 };
 }  // namespace rcspp

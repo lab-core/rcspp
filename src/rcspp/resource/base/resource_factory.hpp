@@ -68,6 +68,12 @@ class ResourceFactory {
             return resource_prototype_->create(node_id);
         }
 
+        virtual auto make_resource(size_t node_id, const ResourceType& resource_base)
+            -> std::unique_ptr<Resource<ResourceType>> {
+            ++nb_resources_created_;
+            return resource_prototype_->create(resource_base, node_id);
+        }
+
         // Make a resource from another resource by copying its resource function objects.
         virtual auto make_resource(const Resource<ResourceType>& resource)
             -> std::unique_ptr<Resource<ResourceType>> {

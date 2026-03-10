@@ -27,7 +27,7 @@ add_custom_command(
   DEPENDS ${HEADERS_FILES}
   COMMAND ${CMAKE_COMMAND}
           -DREPO_SRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
-          -DREPO_REL_DIR=${CMAKE_SOURCE_DIR}/src
+          -DREPO_REL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/..
           -DREPO_BUILD_DIR=${BUILD_INCLUDE_DIR}
           -DOUT_FILE=${RCSPP_UMBRELLA_HEADER}
           -P "${CMAKE_CURRENT_SOURCE_DIR}/generate_umbrella_include.cmake"
@@ -65,4 +65,4 @@ add_dependencies(${LIB} generate_umbrella_header)
 # Set library version
 set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
-target_include_directories(${LIB} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(${LIB} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

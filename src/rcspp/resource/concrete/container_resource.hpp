@@ -8,6 +8,8 @@
 #include <cstdint>  // NOLINT
 #include <iterator>
 #include <set>
+#include <sstream>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -25,7 +27,6 @@ class ContainerResource : public ResourceBase<DerivedType> {
     public:
         ContainerResource() = default;
         explicit ContainerResource(Container container) : container_(std::move(container)) {}
-        explicit ContainerResource(const Container& container) : container_(container) {}
 
         [[nodiscard]] const Container& get_value() const { return container_; }
         virtual void set_value(Container container) { container_ = std::move(container); }
@@ -40,10 +41,31 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual bool intersects(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_union(const Container& /*other*/) const = 0;
         [[nodiscard]] virtual Container get_intersection(const Container& /*other*/) const = 0;
+        [[nodiscard]] virtual Container subtract(const Container& /*other*/) const = 0;
 
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
+        [[nodiscard]] virtual bool empty() const { return container_.empty(); }
 
         void reset() override { this->container_.clear(); }
+
+        [[nodiscard]] std::string to_string() const override { return to_string(container_); }
+
+        template <typename C>
+        [[nodiscard]] std::string to_string(const C& list) const {
+            std::ostringstream oss;
+            oss << "{";
+            bool first = true;
+            for (auto v : list) {
+                if (first) {
+                    first = false;
+                } else {
+                    oss << ",";
+                }
+                oss << v;
+            }
+            oss << "}";
+            return oss.str();
+        }
 
     protected:
         Container container_;
@@ -60,8 +82,6 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
         SetResource() = default;
         explicit SetResource(Container container)
             : ContainerResource<Container, Derived, ValueType>(std::move(container)) {}
-        explicit SetResource(const Container& container)
-            : ContainerResource<Container, Derived, ValueType>(container) {}
 
         void add(const ValueType& value) override { this->container_.insert(value); }
         void add(const Container& c) override { this->container_.insert(c.begin(), c.end()); }
@@ -118,6 +138,16 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                   other_set.begin(),
                                   other_set.end(),
                                   std::inserter(result, result.begin()));
+            return result;
+        }
+
+        [[nodiscard]] Container subtract(const Container& other_set) const override {
+            Container result;
+            std::set_difference(this->container_.begin(),
+                                this->container_.end(),
+                                other_set.begin(),
+                                other_set.end(),
+                                std::inserter(result, result.begin()));
             return result;
         }
 };
@@ -229,6 +259,21 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             return out;
         }
 
+        [[nodiscard]] Container subtract(const Container& other) const override {
+            const size_t words_this = this->container_.size();
+            const size_t words_other = other.size();
+            Container result(words_this, 0ULL);
+            for (size_t i = 0; i < words_this; ++i) {
+                const uint64_t a = this->container_[i];
+                if (i >= words_other) {
+                    result[i] = a;
+                } else {
+                    result[i] = a & ~other[i];
+                }
+            }
+            return result;
+        }
+
         [[nodiscard]] static size_t compute_used_bits(const Container& bits) {
             for (size_t i = bits.size(); i > 0; --i) {
                 const uint64_t w = bits[i - 1];
@@ -246,6 +291,36 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         }
 
         [[nodiscard]] const Container& words() const { return this->container_; }
+
+        [[nodiscard]] size_t size() const override {
+            size_t ones_cnt = 0;
+            for (const uint64_t w : this->container_) {
+                ones_cnt += static_cast<size_t>(std::popcount(w));
+            }
+            return ones_cnt;
+        }
+
+        [[nodiscard]] bool empty() const override {
+            return std::ranges::all_of(this->container_,
+                                       [](const uint64_t w) { return w == 0ULL; });
+        }
+
+        [[nodiscard]] std::set<ValueType> to_set() const {
+            std::set<ValueType> result;
+            for (size_t i = 0; i < this->container_.size(); ++i) {
+                uint64_t w = this->container_[i];
+                for (size_t bit = 0; bit < 64; ++bit) {                       // NOLINT
+                    if ((w & (1ULL << bit)) != 0ULL) {                        // NOLINT
+                        result.insert(static_cast<ValueType>(i * 64 + bit));  // NOLINT
+                    }
+                }
+            }
+            return result;
+        }
+
+        [[nodiscard]] std::string to_string() const override {
+            return ContainerResource<Container, Derived, ValueType>::to_string(to_set());
+        }
 
     private:
         // storage is inherited from ContainerResource as `container_`.

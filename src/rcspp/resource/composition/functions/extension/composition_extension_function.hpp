@@ -55,14 +55,21 @@ class CompositionExtensionFunction
                         extender_components);
                 },
                 resource_components);
+
+            post_extend(resource, extender, extended_resource);
         }
 
-    private:
+    protected:
         void extend_resource(const auto& sing_res_vec, const auto& sing_exp_vec,
                              const auto& extended_sing_res_vec) const {
             for (int i = 0; i < sing_res_vec.size(); i++) {
                 sing_exp_vec[i]->extend(*sing_res_vec[i], extended_sing_res_vec[i].get());
             }
         }
+
+        virtual void post_extend(
+            const Resource<ResourceComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceComposition<ResourceTypes...>>& extender,
+            Resource<ResourceComposition<ResourceTypes...>>* extended_resource) {}
 };
 }  // namespace rcspp

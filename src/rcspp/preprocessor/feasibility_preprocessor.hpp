@@ -35,6 +35,8 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
                     arc->extender->extend(*previous_resource, new_resource.get());
 
                     // find the smallest feasible resource
+                    // ensure to always have an initial resource value that can be feasible for some
+                    // resources with a min for example
                     if (new_resource->is_feasible()) {
                         initial_resources.emplace_back(std::move(new_resource));
                     }

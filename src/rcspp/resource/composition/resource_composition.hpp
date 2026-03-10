@@ -7,6 +7,7 @@
 #include <concepts>  // NOLINT(build/include_order)
 #include <iterator>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -146,6 +147,29 @@ class ResourceComposition : public ResourceBase<ResourceComposition<ResourceType
                     (reset_resource_vector(&args_res_comp), ...);
                 },
                 resource_base_components_);
+        }
+
+        [[nodiscard]] std::string to_string() const override {
+            return to_string(resource_base_components_);
+        }
+
+        template <typename... RTypes>
+        [[nodiscard]] std::string to_string(
+            const std::tuple<std::vector<std::unique_ptr<RTypes>>...>& components) const {
+            std::string result;
+            auto to_string = [&](const auto& sing_res_vec) {
+                for (const auto& res : sing_res_vec) {
+                    result += res->to_string() + ", ";
+                }
+            };
+            std::apply([&](auto&&... args_res_vec) -> auto { (to_string(args_res_vec), ...); },
+                       components);
+
+            if (result.size() > 2) {
+                result.resize(result.size() - 2);
+            }
+
+            return result;
         }
 
     private:

@@ -380,8 +380,8 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     // Time
     using TimeResource = RealResource;
     resource_graph->add_resource<TimeResource>(
-        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(min_time_window_by_node_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(max_time_window_by_node_id_),
+        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(&min_time_window_by_node_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(&max_time_window_by_node_id_),
         std::make_unique<ValueCostFunction<TimeResource>>(),
         std::make_unique<ValueDominanceFunction<TimeResource>>());
 

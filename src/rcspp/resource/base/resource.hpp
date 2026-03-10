@@ -6,15 +6,16 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-#include "../../utils/logger.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/utils/logger.hpp"
 
 namespace rcspp {
 
@@ -160,6 +161,11 @@ class Resource : public ResourceType {
             return feasibility_function_->is_feasible(*this);
         }
 
+        // Return true if the resource can reach node_id
+        [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
+            return feasibility_function_->is_reachable(*this, destination_node_id);
+        }
+
         [[nodiscard]] auto clone_resource() const -> std::unique_ptr<Resource<ResourceType>> {
             return std::make_unique<Resource<ResourceType>>(
                 static_cast<Resource<ResourceType> const&>(*this));
@@ -170,7 +176,8 @@ class Resource : public ResourceType {
         [[nodiscard]] auto create(const size_t node_id) const
             -> std::unique_ptr<Resource<ResourceType>> {
             auto new_resource =
-                std::make_unique<Resource>(unique_dominance_function_->create(node_id),
+                std::make_unique<Resource>(*this,
+                                           unique_dominance_function_->create(node_id),
                                            unique_feasibility_function_->create(node_id),
                                            unique_cost_function_->create(node_id),
                                            node_id);
@@ -190,9 +197,10 @@ class Resource : public ResourceType {
             return new_resource;
         }
 
-        // Create a new resource from a shallow copy of the current ressource.
+        // Create a new resource from a shallow copy of the current resource.
         [[nodiscard]] auto copy() const -> std::unique_ptr<Resource<ResourceType>> {
-            auto new_resource = std::make_unique<Resource>(dominance_function_,
+            auto new_resource = std::make_unique<Resource>(*this,
+                                                           dominance_function_,
                                                            feasibility_function_,
                                                            cost_function_,
                                                            node_id_);
@@ -434,6 +442,11 @@ class Resource<ResourceComposition<ResourceTypes...>>
             return feasibility_function_->is_feasible(*this);
         }
 
+        // Return true if the resource can reach node_id
+        [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
+            return feasibility_function_->is_reachable(*this, destination_node_id);
+        }
+
         [[nodiscard]] auto clone_resource() const
             -> std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> {
             auto res_ptr = std::make_unique<Resource<ResourceComposition<ResourceTypes...>>>(
@@ -464,6 +477,47 @@ class Resource<ResourceComposition<ResourceTypes...>>
                     std::apply(
                         [&](auto&&... args_res_comp) -> auto {
                             (create_res_vec_function(args_new_res_comp, args_res_comp), ...);
+                        },
+                        resource_components_);
+                },
+                new_resource_components);
+
+            return std::make_unique<Resource>(std::move(new_resource_components),
+                                              dominance_function_->create(node_id),
+                                              feasibility_function_->create(node_id),
+                                              cost_function_->create(node_id),
+                                              node_id);
+        }
+
+        [[nodiscard]] auto create(const ResourceComposition<ResourceTypes...>& resource_base,
+                                  const size_t node_id) const
+            -> std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> {
+            std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
+                new_resource_components;
+
+            // Create a resource based on the resources contained in a single vector of resources.
+            const auto create_res_vec_function = [&](auto& sing_new_res_vec,
+                                                     const auto& sing_res_vec,
+                                                     const auto& sing_res_base_vec) -> auto {
+                for (int i = 0; i < sing_res_vec.size(); i++) {
+                    sing_new_res_vec.push_back(
+                        sing_res_vec.at(i)->create(*sing_res_base_vec.at(i), node_id));
+                }
+            };
+
+            // Apply create_res_vec_function to each component of the tuple resource_components_.
+            std::apply(
+                [&](auto&&... args_new_res_comp) -> auto {
+                    std::apply(
+                        [&](auto&&... args_res_comp) -> auto {
+                            std::apply(
+                                [&](auto&&... args_res_base_comp) -> auto {
+                                    (create_res_vec_function(args_new_res_comp,
+                                                             args_res_comp,
+                                                             args_res_base_comp),
+                                     ...);
+                                },
+                                resource_base.get_type_components());
                         },
                         resource_components_);
                 },
@@ -526,6 +580,11 @@ class Resource<ResourceComposition<ResourceTypes...>>
             return *(std::get<ResourceTypeIndex>(resource_components_)[resource_index]);
         }
 
+        template <size_t ResourceTypeIndex>
+        [[nodiscard]] auto get_resource_component(size_t resource_index) -> auto& {
+            return *(std::get<ResourceTypeIndex>(resource_components_)[resource_index]);
+        }
+
         template <typename ResourceType>
         [[nodiscard]] auto get_resource_components() -> auto& {
             constexpr size_t ResourceTypeIndex =
@@ -542,6 +601,13 @@ class Resource<ResourceComposition<ResourceTypes...>>
 
         template <typename ResourceType>
         [[nodiscard]] auto get_resource_component(size_t resource_index) const -> const auto& {
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+            return get_resource_component<ResourceTypeIndex>(resource_index);
+        }
+
+        template <typename ResourceType>
+        [[nodiscard]] auto get_resource_component(size_t resource_index) -> auto& {
             constexpr size_t ResourceTypeIndex =
                 ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             return get_resource_component<ResourceTypeIndex>(resource_index);
@@ -577,6 +643,10 @@ class Resource<ResourceComposition<ResourceTypes...>>
                         resource.resource_components_);
                 },
                 resource_components_);
+        }
+
+        [[nodiscard]] std::string to_string() const override {
+            return ResourceComposition<ResourceTypes...>::to_string(resource_components_);
         }
 
     private:

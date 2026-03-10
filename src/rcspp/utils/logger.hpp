@@ -31,13 +31,13 @@ class Logger {
         // Initialize logger: set level, enable console, optional file path
         static void init(LogLevel level = LogLevel::Info, bool to_console = true,
                          const std::string& file_path = {}) {
-            Logger::instance().initialize(level, to_console, file_path);
+            Logger::instance().initialize(std::move(level), to_console, file_path);
         }
 
         void initialize(LogLevel level = LogLevel::Info, bool to_console = true,
                         const std::string& file_path = {}) {
             std::scoped_lock<std::mutex> lock(mu_);
-            level_ = level;
+            level_ = std::move(level);
             to_console_ = to_console;
             if (!file_path.empty()) {
                 file_stream_.open(file_path, std::ios::app);
@@ -52,14 +52,16 @@ class Logger {
 
         void set_level(LogLevel level) {
             std::scoped_lock<std::mutex> lock(mu_);
-            level_ = level;
+            level_ = std::move(level);
         }
 
         LogLevel level() const { return level_; }
 
+        bool is_level_active(const LogLevel& lvl) const { return lvl >= level_; }
+
         template <typename... Args>
-        void log(LogLevel lvl, Args&&... args) {
-            if (static_cast<int>(lvl) < static_cast<int>(level_)) {
+        void log(const LogLevel& lvl, Args&&... args) {
+            if (!is_level_active(lvl)) {
                 return;
             }
 
@@ -124,7 +126,7 @@ class Logger {
             return ss.str();
         }
 
-        static const char* level_name(LogLevel l) {
+        static const char* level_name(const LogLevel& l) {
             switch (l) {
                 case LogLevel::Trace:
                     return "TRACE";
@@ -142,7 +144,7 @@ class Logger {
             return "UNK  ";
         }
 
-        static const char* color_for(LogLevel l) {
+        static const char* color_for(const LogLevel& l) {
             switch (l) {
                 case LogLevel::Trace:
                     return "\033[37m";  // light gray
@@ -162,7 +164,7 @@ class Logger {
 
         static const char* color_reset() { return "\033[0m"; }
 
-        static std::string make_header(LogLevel lvl) {
+        static std::string make_header(const LogLevel& lvl) {
             std::ostringstream ss;
             ss << '[' << now_timestamp() << "]" << '[' << level_name(lvl) << "] ";
             return ss.str();
@@ -182,5 +184,12 @@ class Logger {
 #define LOG_WARN(...) ::rcspp::Logger::instance().warn(__VA_ARGS__)
 #define LOG_ERROR(...) ::rcspp::Logger::instance().error(__VA_ARGS__)
 #define LOG_FATAL(...) ::rcspp::Logger::instance().fatal(__VA_ARGS__)
+
+#define LOG_TRACE_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Trace)
+#define LOG_DEBUG_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Debug)
+#define LOG_INFO_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Info)
+#define LOG_WARN_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Warn)
+#define LOG_ERROR_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Error)
+#define LOG_FATAL_ACTIVE() ::rcspp::Logger::instance().is_level_active(::rcspp::LogLevel::Fatal)
 
 }  // namespace rcspp

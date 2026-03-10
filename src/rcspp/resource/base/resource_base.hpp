@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <string>
 #include <utility>
 
 namespace rcspp {
@@ -21,5 +22,7 @@ class ResourceBase {
         }
 
         virtual void reset() = 0;
+
+        [[nodiscard]] virtual std::string to_string() const = 0;
 };
 }  // namespace rcspp

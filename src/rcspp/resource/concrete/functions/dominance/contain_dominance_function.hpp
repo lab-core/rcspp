@@ -9,15 +9,13 @@
 namespace rcspp {
 
 template <typename ContainerResourceType>
-class InclusionDominanceFunction
-    : public Clonable<InclusionDominanceFunction<ContainerResourceType>,
-                      DominanceFunction<ContainerResourceType>> {
+class ContainDominanceFunction : public Clonable<ContainDominanceFunction<ContainerResourceType>,
+                                                 DominanceFunction<ContainerResourceType>> {
     public:
         auto check_dominance(const Resource<ContainerResourceType>& lhs_resource,
                              const Resource<ContainerResourceType>& rhs_resource) -> bool override {
-            // lhs_resource dominates rhs_resource if lhs_resource <= rhs_resource
-            // i.e., if rhs_resource includes lhs_resource
-            return rhs_resource.includes(lhs_resource.get_value());
+            // lhs_resource dominates rhs_resource if lhs_resource contains rhs_resource
+            return lhs_resource.includes(rhs_resource.get_value());
         }
 };
 }  // namespace rcspp
