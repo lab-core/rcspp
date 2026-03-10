@@ -50,7 +50,7 @@ class Arc {
 
         std::vector<Row> dual_rows;
 
-        [[nodiscard]] std::string str() const {
+        [[nodiscard]] std::string to_string() const {
             std::stringstream ss;
             ss << "Arc(id=" << id << ", origin=" << origin->id
                << ", destination=" << destination->id << ", cost=" << cost << ")\n";
@@ -59,6 +59,6 @@ class Arc {
 };
 template <typename ResourceType>
 std::ostream& operator<<(std::ostream& os, const Arc<ResourceType>& arc) {
-    return os << arc.str();
+    return os << arc.to_string();
 }
 }  // namespace rcspp

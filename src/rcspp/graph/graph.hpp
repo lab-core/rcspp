@@ -291,7 +291,7 @@ class Graph {
 
         [[nodiscard]] bool is_modified() const { return modified_; }
 
-        [[nodiscard]] std::string str() const {
+        [[nodiscard]] std::string to_string() const {
             std::stringstream ss;
             ss << "Graph with " << get_number_of_nodes() << " nodes and " << get_number_of_arcs()
                << " arcs.\n";
@@ -357,6 +357,6 @@ class Graph {
 
 template <typename ResourceType>
 std::ostream& operator<<(std::ostream& os, const Graph<ResourceType>& graph) {
-    return os << graph.str();
+    return os << graph.to_string();
 }
 }  // namespace rcspp

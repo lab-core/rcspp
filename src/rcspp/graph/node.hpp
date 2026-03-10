@@ -48,7 +48,7 @@ class Node {
             }
         }
 
-        [[nodiscard]] std::string str() const {
+        [[nodiscard]] std::string to_string() const {
             std::stringstream ss;
             ss << "Node(id=" << id;
             if (source) {
@@ -77,6 +77,6 @@ class Node {
 };
 template <typename ResourceType>
 std::ostream& operator<<(std::ostream& os, const Node<ResourceType>& node) {
-    return os << node.str();
+    return os << node.to_string();
 }
 }  // namespace rcspp
