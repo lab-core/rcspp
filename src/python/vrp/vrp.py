@@ -13,11 +13,11 @@ from vrp.instance import Customer, Instance
 from rcspp.graph import ResourceGraph, Solution
 from rcspp.resource import (
     MinMaxFeasibilityFunction,
-    RealAdditionExpansionFunction,
+    RealAdditionExtensionFunction,
     RealTrivialFeasibilityFunction,
     RealValueCostFunction,
     RealValueDominanceFunction,
-    TimeWindowExpansionFunction,
+    TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
 )
 
@@ -27,7 +27,7 @@ class VRP:
 
     def __init__(self, instance: Instance):
         self.__instance = instance
-        self.__min_time_window_by_arc_id = {}
+        self.__min_time_window_by_node_id = {}
         self.__max_time_window_by_node_id = {}
         self.__path_id = 0
         self.__time_window_by_customer_id = self.initialize_time_windows()
@@ -53,30 +53,9 @@ class VRP:
         sink_id = len(customers_by_id)
         time_window_by_customer_id[sink_id] = (0.0, math.inf)
 
-        arc_id = 0
-        for customer_orig_id, customer_orig in customers_by_id.items():
-            for customer_dest_id, customer_dest in customers_by_id.items():
-                if customer_orig_id != customer_dest_id:
-                    # Default values
-                    min_time = 0.0
-                    max_time = math.inf
-                    if customer_dest_id in time_window_by_customer_id:
-                        min_time, max_time = time_window_by_customer_id[customer_dest_id]
-
-                    self.__min_time_window_by_arc_id[arc_id] = min_time
-                    self.__max_time_window_by_node_id[customer_dest_id] = max_time
-
-                    arc_id += 1
-
-            # Handle arcs to sink
-            min_time, max_time = 0.0, math.inf
-            if sink_id in time_window_by_customer_id:
-                min_time, max_time = time_window_by_customer_id[sink_id]
-
-            self.__min_time_window_by_arc_id[arc_id] = min_time
-            self.__max_time_window_by_node_id[sink_id] = max_time
-
-            arc_id += 1
+        for customer_dest_id, (min_time, max_time) in time_window_by_customer_id.items():
+            self.__min_time_window_by_node_id[customer_dest_id] = min_time
+            self.__max_time_window_by_node_id[customer_dest_id] = max_time
 
         return time_window_by_customer_id
 
@@ -284,7 +263,7 @@ class VRP:
         resource_graph = ResourceGraph()
 
         # print(f"Add distance resource...")
-        distance_expansion_function = RealAdditionExpansionFunction()
+        distance_expansion_function = RealAdditionExtensionFunction()
         distance_feasibility_function = RealTrivialFeasibilityFunction()
         distance_cost_function = RealValueCostFunction()
         distance_dominance_function = RealValueDominanceFunction()
@@ -297,7 +276,7 @@ class VRP:
         )
 
         # print(f"Add time resource...")
-        time_expansion_function = TimeWindowExpansionFunction(self.__min_time_window_by_arc_id)
+        time_expansion_function = TimeWindowExtensionFunction(self.__min_time_window_by_node_id)
         time_feasibility_function = TimeWindowFeasibilityFunction(self.__max_time_window_by_node_id)
         time_cost_function = RealValueCostFunction()
         time_dominance_function = RealValueDominanceFunction()
@@ -310,7 +289,7 @@ class VRP:
         )
 
         # print(f"Add demand resource...")
-        demand_expansion_function = RealAdditionExpansionFunction()
+        demand_expansion_function = RealAdditionExtensionFunction()
         demand_feasibility_function = MinMaxFeasibilityFunction(0.0, self.__instance.get_capacity())
         demand_cost_function = RealValueCostFunction()
         demand_dominance_function = RealValueDominanceFunction()
@@ -446,10 +425,9 @@ class VRP:
         return mp_solution
 
     def solve_subproblem(self, dual_by_id: Optional[dict[int, float]] = None):
-        if self.__subproblem_graph is None:
-            self.__subproblem_graph = self.construct_resource_graph(dual_by_id)
-        else:
-            self.update_resource_graph(self.__subproblem_graph, dual_by_id)
+        # Rebuild the subproblem graph each iteration. The in-place C++ update path
+        # currently triggers a native crash on the second solve.
+        self.__subproblem_graph = self.construct_resource_graph(dual_by_id)
 
         # subproblem = Subproblem(resource_graph)
 

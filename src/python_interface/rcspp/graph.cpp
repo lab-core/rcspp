@@ -25,6 +25,33 @@ using ConcreteArc = Arc<ResourceCompositionBase>;
 using ConcreteExtender = Extender<ResourceCompositionBase>;
 
 void init_graph(py::module_& m) {
+    py::class_<Row>(m, "Row")
+        .def(py::init<>())
+        .def(py::init([](size_t index, long double coefficient) {
+                 return Row{index, coefficient};
+             }),
+             py::arg("index"),
+             py::arg("coefficient"))
+        .def_readwrite("index", &Row::index)
+        .def_readwrite("coefficient", &Row::coefficient);
+
+    py::class_<AlgorithmParams>(m, "AlgorithmParams")
+        .def(py::init<>())
+        .def("check", &AlgorithmParams::check, py::return_value_policy::reference_internal)
+        .def("could_be_non_optimal", &AlgorithmParams::could_be_non_optimal)
+        .def_readwrite("stop_after_X_solutions", &AlgorithmParams::stop_after_X_solutions)
+        .def_readwrite("return_dominated_solutions",
+                       &AlgorithmParams::return_dominated_solutions)
+        .def_readwrite("use_pool", &AlgorithmParams::use_pool)
+        .def_readwrite("num_labels_to_extend_by_node",
+                       &AlgorithmParams::num_labels_to_extend_by_node)
+        .def_readwrite("num_max_phases", &AlgorithmParams::num_max_phases)
+        .def_readwrite("max_iterations", &AlgorithmParams::max_iterations)
+        .def_readwrite("tabu_tenure", &AlgorithmParams::tabu_tenure)
+        .def_readwrite("forbidden_tabu", &AlgorithmParams::forbidden_tabu)
+        .def_readwrite("tabu_random_noise", &AlgorithmParams::tabu_random_noise)
+        .def_readwrite("seed", &AlgorithmParams::seed);
+
     py::class_<ConcreteGraph>(m, "Graph")
         .def(py::init<>())
         .def("add_node",

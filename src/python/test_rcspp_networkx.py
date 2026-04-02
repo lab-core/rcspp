@@ -24,11 +24,11 @@ from vrp.instance_reader import InstanceReader
 from rcspp.graph import ResourceGraph
 from rcspp.resource import (
     MinMaxFeasibilityFunction,
-    RealAdditionExpansionFunction,
+    RealAdditionExtensionFunction,
     RealTrivialFeasibilityFunction,
     RealValueCostFunction,
     RealValueDominanceFunction,
-    TimeWindowExpansionFunction,
+    TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
 )
 
@@ -38,7 +38,7 @@ def construct_resource_graph():
 
     resource_graph = ResourceGraph()
 
-    distance_expansion_function = RealAdditionExpansionFunction()
+    distance_expansion_function = RealAdditionExtensionFunction()
     distance_feasibility_function = RealTrivialFeasibilityFunction()
     distance_cost_function = RealValueCostFunction()
     distance_dominance_function = RealValueDominanceFunction()
@@ -52,7 +52,7 @@ def construct_resource_graph():
 
     print("add_real_resource: 1")
 
-    time_expansion_function = RealAdditionExpansionFunction()
+    time_expansion_function = RealAdditionExtensionFunction()
     time_feasibility_function = RealTrivialFeasibilityFunction()
     time_cost_function = RealValueCostFunction()
     time_dominance_function = RealValueDominanceFunction()
@@ -66,7 +66,7 @@ def construct_resource_graph():
 
     print("add_real_resource: 2")
 
-    demand_expansion_function = RealAdditionExpansionFunction()
+    demand_expansion_function = RealAdditionExtensionFunction()
     demand_feasibility_function = MinMaxFeasibilityFunction(0.0, 500.0)
     demand_cost_function = RealValueCostFunction()
     demand_dominance_function = RealValueDominanceFunction()

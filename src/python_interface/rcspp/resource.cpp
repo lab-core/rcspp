@@ -117,7 +117,7 @@ void init_resource(py::module_& m) {
                  // Return an object referencing the global map
                  return TimeWindowExtensionFunction<RealResource>(&g_min_time_window_by_node_id);
              }),
-             py::arg("min_time_window_by_arc_id"));
+             py::arg("min_time_window_by_node_id"));
 
     static std::map<size_t, double> g_max_time_window_by_node_id;
 
@@ -140,4 +140,7 @@ void init_resource(py::module_& m) {
                FeasibilityFunction<RealResource>,
                py::smart_holder>(m, "RealTrivialFeasibilityFunction")
         .def(py::init<>());
+
+    m.attr("RealAdditionExpansionFunction") = m.attr("RealAdditionExtensionFunction");
+    m.attr("TimeWindowExpansionFunction") = m.attr("TimeWindowExtensionFunction");
 }
