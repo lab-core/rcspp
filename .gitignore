@@ -2,3 +2,6 @@
 out/*
 *.dll
 instances/duals/
+build/*
+env/*
+
