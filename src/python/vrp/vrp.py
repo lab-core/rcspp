@@ -35,7 +35,11 @@ class VRP:
         self.add_nodes_and_arcs(self.__resource_graph)
         self.__paths = []
         self.__total_subproblem_time = 0.0
+        self.__total_problem_time = 0.0
         self.__subproblem_graph = None
+        self.__cost_history = []
+        self.__dual_values_history = []
+        self.__reduced_cost_history = []
 
     def initialize_time_windows(self):
         # print("initialize_time_windows")
@@ -355,7 +359,7 @@ class VRP:
         return cost
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
-        mp_solution = MPSolution()
+        time_start = time.time()
 
         self.generate_initial_paths()
 
@@ -379,6 +383,8 @@ class VRP:
             master_solution = master_problem.solve(True)
 
             dual_by_id = master_solution.dual_by_var_id
+            self.__cost_history.append(master_solution.cost)
+            self.__dual_values_history.append(dual_by_id)
 
             subproblem_time_start = time.time()
             solutions = self.solve_subproblem(dual_by_id)
@@ -404,6 +410,7 @@ class VRP:
                     negative_red_cost_solutions.append(sol)
 
             self.add_paths(negative_red_cost_solutions)
+            self.__reduced_cost_history.append(min_reduced_cost)
 
             nb_iter += 1
 
@@ -421,8 +428,12 @@ class VRP:
         master_solution = master_problem.solve()
 
         master_solution.dual_by_var_id = final_dual_by_id
+        self.__cost_history.append(master_solution.cost)
 
-        return mp_solution
+        self.__total_problem_time = time.time() - time_start
+        print(f"Time ratio subproblem/total: {self.__total_subproblem_time / self.__total_problem_time} | Total time: {self.__total_problem_time} s")
+
+        return master_solution
 
     def solve_subproblem(self, dual_by_id: Optional[dict[int, float]] = None):
         # Rebuild the subproblem graph each iteration. The in-place C++ update path
@@ -438,3 +449,12 @@ class VRP:
         print(f"Solve: {time_end - time_start}")
 
         return solutions
+    
+    def get_cost_history(self):
+        return self.__cost_history
+    
+    def get_dual_values_history(self):
+        return self.__dual_values_history
+    
+    def get_reduced_cost_history(self):
+        return self.__reduced_cost_history
