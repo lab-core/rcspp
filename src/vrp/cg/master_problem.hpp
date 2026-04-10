@@ -6,6 +6,7 @@
 
 #include <map>
 #include <vector>
+#include <memory>
 
 #include "mp_solution.hpp"
 #include "path.hpp"
