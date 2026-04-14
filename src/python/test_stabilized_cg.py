@@ -1,0 +1,67 @@
+#  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+#  All rights reserved.
+
+# flake8: noqa
+
+import os
+import sys
+
+os_name = sys.platform
+
+if os_name == 'win32':
+    relative_path = "../../out/build/x64-release/lib/"
+    absolute_path = os.path.abspath(relative_path)
+    os.add_dll_directory(absolute_path)
+    sys.path.append(absolute_path)
+
+    rcspp_path = relative_path + "/rcspp/"
+    sys.path.append(rcspp_path)
+elif os_name == 'darwin':
+    relative_path = "../../out/build/x64-release/lib/"
+    absolute_path = os.path.abspath(relative_path)
+    os.add_dll_directory(absolute_path)
+    sys.path.append(absolute_path)
+
+    rcspp_path = relative_path + "/rcspp/"
+    sys.path.append(rcspp_path)
+elif os_name == 'linux':
+    relative_path = "../../build/lib/"
+    absolute_path = os.path.abspath(relative_path)
+    if "LD_LIBRARY_PATH" in os.environ:
+        os.environ["LD_LIBRARY_PATH"] = f"{absolute_path}:{os.environ['LD_LIBRARY_PATH']}"
+    else:
+        os.environ["LD_LIBRARY_PATH"] = absolute_path
+    sys.path.append(absolute_path)
+
+    rcspp_path = relative_path
+    sys.path.append(rcspp_path)
+else:
+    print(f"OS inconnu: {os_name}")
+
+from vrp.instance_reader import InstanceReader
+
+from vrp.stabilized_vrp import StabilizedVRP
+from vrp.vrp import VRP
+from solution_formatter import format_solution, print_solution
+
+dual_box_centre = {1: 0.032854030441683335, 2: 10.412550131590592, 3: 0.7300667720610932, 4: 14.93845246985353, 5: 11.437119666629261, 6: 22.360679774997898, 7: 16.695383097886896, 8: 22.822810509050328, 9: 17.668217157041685, 10: 18.42402975609845, 11: 36.854255688550765, 12: 14.759628027757834, 13: 0.37881359084654775, 14: 17.983758891860255, 15: 28.33767935383692, 16: 16.55431346480279, 17: 15.41027097521166, 18: 5.643166555396945, 19: 25.828899597677037, 20: 25.969797041245926, 21: 13.918484301686494, 22: 26.311995581413527, 23: 10.702830330430956, 24: 17.196491498017238, 25: 18.541019662496836, 26: 14.770461680797919, 27: 0.18486144410054806, 28: 3.746267486103811, 29: 23.53200955940409, 30: 16.202016784325966, 31: 15.381470608902525, 32: 18.800532573023066, 33: 13.50941312748579, 34: 18.470334794173027, 35: 27.94808016418129, 36: 19.579608472353527, 37: 9.525649582087727, 38: 41.02198256170436, 39: 11.537598988230528, 40: 13.416407864998735, 41: 33.27580151909285, 42: 4.871391429110901, 43: 23.860493055038646, 44: 17.621984088602964, 45: 20.967540949200522, 46: 18.245965591226792, 47: 30.60241476378781, 48: 6.255748192461198, 49: 28.98190531995428, 50: 12.734639813893274, 51: 15.204158587728227, 52: 13.286315049451723, 53: 8.94427190999916, 54: 27.916293298596813, 55: 16.157424986663827, 56: 10.786099538788932, 57: 14.370216114800058, 58: 0.8598568524964563, 59: 4.459029093372745, 60: 4.989665820307401, 61: 10.229758144466036, 62: 14.95450732707613, 63: 6.128894319353833, 64: 65.97920447007913, 65: 55.89015009928626, 66: 45.32844379991249, 67: 53.21968665469315, 68: 16.448590156747123, 69: 11.31253934284355, 70: 0.24796954769490398, 71: 4.399715793171126, 72: 5.0383737812415035, 73: 3.798492460081988, 74: 11.991154918837879, 75: 16.39797661816955, 76: 2.3062447516320645, 77: 2.827238493414974, 78: 22.8399825018167, 79: 25.690242527387355, 80: 0.31456756702186794, 81: 28.943919550858805, 82: 23.874299298029516, 83: 10.229758144466036, 84: 32.47421655086977, 85: 25.9808344591909, 86: 37.174126459563695, 87: 30.255152180604796, 88: 17.92515424571674, 89: 0.027628760817471232, 90: 7.0710678118654755, 91: 5.239433179324806, 92: 3.0877177700718903, 93: 3.8152348045290836, 94: 23.94766222502346, 95: 4.669700855561107, 96: 7.222742943681453, 97: 5.850656720874625, 98: 5.601208613436196, 99: 9.758227582958952, 100: 5.964699803301713}
+
+if __name__ == "__main__":
+    print("Read instance...")
+    instance_name = "R101"
+    instance_path = "../../instances/" + instance_name + ".txt"
+    instance_reader = InstanceReader(instance_path)
+    instance = instance_reader.read()
+
+    print("Construct VRP")
+    svrp = StabilizedVRP(instance, dual_box_centre)
+    print("Construct VRP ...Done")
+
+    stabilized_solution = svrp.solve()
+
+    text = format_solution(stabilized_solution, svrp._VRP__paths, svrp.depot_id_,
+                       instance_name="R101", author="arthus")
+    with open("R101_stabilizedsolution2.txt", "w") as f:
+        f.write(text)
+
+
