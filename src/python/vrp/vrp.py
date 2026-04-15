@@ -40,6 +40,9 @@ class VRP:
         self.__cost_history = []
         self.__dual_values_history = []
         self.__reduced_cost_history = []
+        self.__n_iterations = 0
+        self.__lp_cost = 0.0
+        self.final_dual_by_id = {}
 
     def initialize_time_windows(self):
         # print("initialize_time_windows")
@@ -358,14 +361,50 @@ class VRP:
 
         return cost
 
-    def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
-        time_start = time.time()
 
-        self.generate_initial_paths()
+    def column_generation_iteration(self, subproblem_max_nb_solutions: Optional[int] = None, master_problem: Optional[MasterProblem] = None):
+        if master_problem is None:
+            master_problem = MasterProblem(self.__instance.get_demand_customers_id())
 
+        master_problem.construct_model(self.__paths)
+
+        master_solution = master_problem.solve(True)        
+
+        dual_by_id = master_solution.dual_by_var_id
+        self.__cost_history.append(master_solution.cost)
+        self.__dual_values_history.append(dual_by_id)
+
+        subproblem_time_start = time.time()
+        solutions = self.solve_subproblem(dual_by_id)
+        subproblem_time_end = time.time()
+        self.__total_subproblem_time += subproblem_time_end - subproblem_time_start
+
+        if len(solutions) > 0:
+            print(f"Solution RCSPP cost: {solutions[0].cost}")
+        else:
+            print("No solution found!")
+
+        if subproblem_max_nb_solutions is not None:
+            nb_solutions = min(subproblem_max_nb_solutions, len(solutions))
+            solutions = solutions[:nb_solutions]
+
+        negative_red_cost_solutions = []
+
+        min_reduced_cost = math.inf
+        for sol in solutions:
+            if sol.cost < min_reduced_cost:
+                min_reduced_cost = sol.cost
+            if sol.cost < -self.EPSILON:
+                negative_red_cost_solutions.append(sol)
+
+        if min_reduced_cost >= -self.EPSILON:
+                self.final_dual_by_id = master_solution.dual_by_var_id
+
+        return master_solution, negative_red_cost_solutions, min_reduced_cost
+
+
+    def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         min_reduced_cost = -math.inf
-
-        final_dual_by_id = {}
 
         nb_iter = 0
         while min_reduced_cost < -self.EPSILON:
@@ -377,58 +416,43 @@ class VRP:
             print("*********************************************")
 
             master_problem = MasterProblem(self.__instance.get_demand_customers_id())
-
-            master_problem.construct_model(self.__paths)
-
-            master_solution = master_problem.solve(True)
-
-            dual_by_id = master_solution.dual_by_var_id
-            self.__cost_history.append(master_solution.cost)
-            self.__dual_values_history.append(dual_by_id)
-
-            subproblem_time_start = time.time()
-            solutions = self.solve_subproblem(dual_by_id)
-            subproblem_time_end = time.time()
-            self.__total_subproblem_time += subproblem_time_end - subproblem_time_start
-
-            if len(solutions) > 0:
-                print(f"Solution RCSPP cost: {solutions[0].cost}")
-            else:
-                print("No solution found!")
-
-            if subproblem_max_nb_solutions is not None:
-                nb_solutions = min(subproblem_max_nb_solutions, len(solutions))
-                solutions = solutions[:nb_solutions]
-
-            negative_red_cost_solutions = []
-
-            min_reduced_cost = math.inf
-            for sol in solutions:
-                if sol.cost < min_reduced_cost:
-                    min_reduced_cost = sol.cost
-                if sol.cost < -self.EPSILON:
-                    negative_red_cost_solutions.append(sol)
+            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
 
             self.add_paths(negative_red_cost_solutions)
             self.__reduced_cost_history.append(min_reduced_cost)
 
             nb_iter += 1
 
-            if min_reduced_cost >= -self.EPSILON:
-                final_dual_by_id = master_solution.dual_by_var_id
+        self.__n_iterations = nb_iter
+        return master_solution
 
-        print("\n*********************************************\n")
-        print(
-            f"nb_iter={nb_iter} | min_reduced_cost={min_reduced_cost} " f"| EPSILON={self.EPSILON}"
-        )
-        print("\n*********************************************\n")
 
+    def last_iteration(self):
         master_problem = MasterProblem(self.__instance.get_demand_customers_id())
         master_problem.construct_model(self.__paths)
         master_solution = master_problem.solve()
 
-        master_solution.dual_by_var_id = final_dual_by_id
+        master_solution.dual_by_var_id = self.final_dual_by_id
         self.__cost_history.append(master_solution.cost)
+        return master_solution
+
+
+    def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
+        time_start = time.time()
+
+        self.generate_initial_paths()
+
+        master_solution = self.cg_iterations(subproblem_max_nb_solutions)
+
+        print("\n*********************************************\n")
+        print(
+            f"nb_iter={self.__n_iterations} | min_reduced_cost={self.__reduced_cost_history[-1] if self.__reduced_cost_history else 0.0} " f"| EPSILON={self.EPSILON}"
+        )
+        print("\n*********************************************\n")
+
+        self.__lp_cost = master_solution.cost
+
+        master_solution = self.last_iteration()
 
         self.__total_problem_time = time.time() - time_start
         print(f"Time ratio subproblem/total: {self.__total_subproblem_time / self.__total_problem_time} | Total time: {self.__total_problem_time} s")
@@ -458,3 +482,12 @@ class VRP:
     
     def get_reduced_cost_history(self):
         return self.__reduced_cost_history
+    
+    def get_n_iterations(self):
+        return self.__n_iterations
+    def get_lp_cost(self):
+        return self.__lp_cost
+    def get_total_problem_time(self):
+        return self.__total_problem_time
+    def get_total_subproblem_time(self):
+        return self.__total_subproblem_time

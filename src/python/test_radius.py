@@ -17,39 +17,20 @@ R101_dual_optimal_solution = {1: 0.032854030441683335, 2: 10.412550131590592, 3:
 if __name__ == "__main__":
     
     print("Read instance...")
-    instances_name = ["R101", "R102", "R103", "R104", "R105", "C101", "C102", "C103", "C104", "C105", "RC101", "RC102", "RC103", "RC104", "RC105"]
-    
+    instances_name = "R101"
+    instance_path = "../../instances/" + instances_name + ".txt"
+    instance_reader = InstanceReader(instance_path)
+    instance = instance_reader.read()
+    radius = [100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001]
     solutions = {}
 
-    for name in instances_name:
-        instance_path = "../../instances/" + name + ".txt"
-        instance_reader = InstanceReader(instance_path)
-        instance = instance_reader.read()
-        print(f"\n\n====================\n Instance: {name}\n====================\n\n")
-
-        vrp = VRP(instance)
-        solution = vrp.solve()
-        formatted_solution = format_solution(
-            solution,
-            vrp._VRP__paths,
-            vrp.depot_id_,
-            instance_name=name,
-            author="arthus",
-        )
-        with open(f"/home/jullarth/Documents/Solutions/Multiple_instances/{name}_no_stabilization.txt", "w") as f:
-            f.write(formatted_solution)
-        solutions[name] = {"radius": 0.0, 
-                        "n_iter": vrp.get_n_iterations(), 
-                        "total_time": vrp.get_total_problem_time(),
-                        "lp_cost": vrp.get_lp_cost(),
-                        "solution_cost": solution.cost,
-                        "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time()
-                        }
+    for r in radius:
         
-        dual_optimal_solution = solution.dual_by_var_id
+        print(f"\n\n====================\n Radius: {r}\n====================\n\n")
+
         
         print("Construct VRP")
-        svrp = DualBoxVRP(instance, dual_optimal_solution, box_radius=1.0)
+        svrp = DualBoxVRP(instance, R101_dual_optimal_solution, box_radius=r)
         print("Construct VRP ...Done")
 
         stabilized_solution = svrp.solve()
@@ -58,23 +39,41 @@ if __name__ == "__main__":
             stabilized_solution,
             svrp._VRP__paths,
             svrp.depot_id_,
-            instance_name=name,
+            instance_name=instances_name,
             author="arthus",
         )
-        with open(f"/home/jullarth/Documents/Solutions/Multiple_instances/{name}_1.0.txt", "w") as f:
+        with open(f"/home/jullarth/Documents/Solutions/R101_radius/{instances_name}_{r}.txt", "w") as f:
             f.write(formatted_solution)
-        solutions[name+"_1.0"] = {"radius": 1.0, 
+        solutions[instances_name+f"_{r}"] = {"radius": r, 
                         "n_iter": svrp.get_n_iterations(), 
                         "total_time": svrp.get_total_problem_time(),
                         "lp_cost": svrp.get_lp_cost(),
                         "solution_cost": stabilized_solution.cost,
                         "time_ratio": svrp.get_total_subproblem_time()/svrp.get_total_problem_time(),
-                        "dual_optimal_solution": dual_optimal_solution
+                        "nb_added_columns": len(svrp._VRP__paths)
                         }
         
-             
+    vrp = VRP(instance)
+    solution = vrp.solve()
+    formatted_solution = format_solution(
+        solution,
+        vrp._VRP__paths,
+        vrp.depot_id_,
+        instance_name=instances_name,
+        author="arthus",
+    )
+    with open(f"/home/jullarth/Documents/Solutions/R101_radius/{instances_name}_no_stabilization.txt", "w") as f:
+        f.write(formatted_solution)
+    solutions[instances_name+"_no_stabilization"] = {"radius": 0.0, 
+                    "n_iter": vrp.get_n_iterations(), 
+                    "total_time": vrp.get_total_problem_time(),
+                    "lp_cost": vrp.get_lp_cost(),
+                    "solution_cost": solution.cost,
+                    "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time(),
+                    "nb_added_columns": len(vrp._VRP__paths)
+                    }     
     
-    with open(f"/home/jullarth/Documents/Solutions/Multiple_instances/summary.json", "w") as f:
+    with open(f"/home/jullarth/Documents/Solutions/R101_radius/summary.json", "w") as f:
         json.dump(solutions, f, indent=4)
     print(solutions)
 

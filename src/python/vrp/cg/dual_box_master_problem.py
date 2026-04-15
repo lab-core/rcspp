@@ -2,7 +2,7 @@ from gurobipy import GRB, LinExpr, Model
 from vrp.cg.mp_solution import MPSolution
 from vrp.cg.master_problem import MasterProblem
 
-class ModifiedMasterProblem(MasterProblem):
+class DualBoxMasterProblem(MasterProblem):
     def __init__(self, node_ids, dual_box_center, dual_box_radius):
         super().__init__(node_ids)
         self.left_special_var_by_id = {}
