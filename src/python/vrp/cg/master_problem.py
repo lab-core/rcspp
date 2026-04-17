@@ -25,7 +25,7 @@ class MasterProblem:
     def add_variables(self, paths):
         for path in paths:
             path_var_name = f"y_{path.id}"
-            path_var = self.model_.addVar(lb=0.0, ub=1.0, vtype=GRB.BINARY, name=path_var_name)
+            path_var = self.model_.addVar(lb=0.0, ub=GRB.INFINITY, vtype=GRB.BINARY, name=path_var_name)
             self.__path_variables_by_id[path.id] = path_var
             self.__paths_by_id[path.id] = path
 
