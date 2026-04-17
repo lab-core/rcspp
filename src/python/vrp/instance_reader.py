@@ -2,11 +2,13 @@
 #  All rights reserved.
 
 from vrp.instance import Instance
+import json
 
 
 class InstanceReader:
     def __init__(self, file_path: str):
         self.file_path_ = file_path
+        self.solutions = None
 
     def read(self) -> Instance:
         print("InstanceReader::read()")
@@ -71,3 +73,16 @@ class InstanceReader:
                 dual_by_var_id[id] = dual_value
 
         return dual_by_var_id
+    
+    def read_dual_optimal(self, instance_name:str, duals_file_dir: str) -> dict[int, float]:
+        if self.solutions is None:
+            with open(duals_file_dir+"summary.json", "r") as f:
+                self.solutions = json.load(f)
+        dual_by_id_str: dict[str, float] = self.solutions[instance_name+"_1.0"]["dual_optimal_solution"]
+        dual_by_id:dict[int, float] = {}
+
+        for i in dual_by_id_str:
+            dual_by_id[int(i)] = dual_by_id_str[i]
+
+        return dual_by_id
+

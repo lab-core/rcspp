@@ -76,3 +76,6 @@ class Instance:
 
     def get_capacity(self) -> int:
         return self.__capacity
+    
+    def get_name(self) -> str:
+        return self.__name
