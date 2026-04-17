@@ -7,10 +7,6 @@ from import_rscpp_lib import import_rscpp_lib
 import_rscpp_lib()
 
 from vrp.instance_reader import InstanceReader
-from vrp.dual_box_vrp import DualBoxVRP
-from vrp.vrp import VRP
-from solution_formatter import format_solution
-import json
 from test_utils import *
 from utils import add_gaussian_noise
 

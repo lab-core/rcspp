@@ -3,19 +3,18 @@ from vrp.cg.mp_solution import MPSolution
 from vrp.cg.master_problem import MasterProblem
 
 class DualBoxMasterProblem(MasterProblem):
-    def __init__(self, node_ids, dual_box_center, dual_box_radius, perturbation=0.0):
+    def __init__(self, node_ids, dual_box_center, dual_box_radius, penalty=None):
         super().__init__(node_ids)
         self.left_special_var_by_id = {}
         self.right_special_var_by_id = {}
-        self.perturbation_ = perturbation
-        if perturbation > 0.0:
-            self.perturbation_values_ = [perturbation for i in range(len(node_ids))]
-            self.have_perturbation_ = True
-            self.__left_perturbation_constraints_by_id = {}
-            self.__right_perturbation_constraints_by_id = {}
+        self.penalty = penalty
+        self.penalty_values_ = [self.penalty for i in range(len(node_ids))]
+        if self.penalty is not None and isinstance(self.penalty, float):
+            self.have_penalty_ = True
+            self.__left_penalty_constraints_by_id = {}
+            self.__right_penalty_constraints_by_id = {}
         else:
-            self.perturbation_values_ = None
-            self.have_perturbation_ = False
+            self.have_penalty_ = False
         if isinstance(dual_box_center, dict):
             self.dual_box_center_ = [dual_box_center[node_id] for node_id in node_ids]
         else:
@@ -83,18 +82,18 @@ class DualBoxMasterProblem(MasterProblem):
         constr = self.model_.addConstr(constr_lin_expr_lhs == constr_lin_expr_rhs, name=constr_name)
         self._MasterProblem__node_constraints_by_id[node_id] = constr
 
-        if self.have_perturbation_:
+        if self.have_penalty_:
             left_constr_lin_expr = LinExpr()
             left_constr_lin_expr += self.left_special_var_by_id[node_id]
-            left_constr_lin_expr -= self.perturbation_values_[i]
-            left_constr = self.model_.addConstr(left_constr_lin_expr <= 0, name=f"c_left_perturb_{node_id}")
+            left_constr_lin_expr -= self.penalty_values_[i]
+            left_constr = self.model_.addConstr(left_constr_lin_expr <= 0, name=f"c_left_penalty_{node_id}")
             right_constr_lin_expr = LinExpr()
             right_constr_lin_expr += self.right_special_var_by_id[node_id]
-            right_constr_lin_expr -= self.perturbation_values_[i]
-            right_constr = self.model_.addConstr(right_constr_lin_expr <= 0, name=f"c_right_perturb_{node_id}")
+            right_constr_lin_expr -= self.penalty_values_[i]
+            right_constr = self.model_.addConstr(right_constr_lin_expr <= 0, name=f"c_right_penalty_{node_id}")
             
-            self.__left_perturbation_constraints_by_id[node_id] = left_constr
-            self.__right_perturbation_constraints_by_id[node_id] = right_constr
+            self.__left_penalty_constraints_by_id[node_id] = left_constr
+            self.__right_penalty_constraints_by_id[node_id] = right_constr
 
 
     def extract_solution(self, model, dual=False):
