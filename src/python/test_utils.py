@@ -96,5 +96,5 @@ def average_dicts(dict_list):
     return averages
 
 def save_dict_to_json(dir:str, filename:str, d:dict):
-    with open(f"/home/jullarth/Documents/Solutions/{dir}/{filename}.json", "w") as f:
+    with open(f"../../../Solutions/{dir}/{filename}.json", "w") as f:
         json.dump(d, f, indent=4)

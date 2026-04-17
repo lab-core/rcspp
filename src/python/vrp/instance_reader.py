@@ -74,11 +74,11 @@ class InstanceReader:
 
         return dual_by_var_id
     
-    def read_dual_optimal(self, instance_name:str, duals_file_dir: str) -> dict[int, float]:
+    def read_dual_optimal(self, instance_name:str) -> dict[int, float]:
         if self.solutions is None:
-            with open(duals_file_dir+"summary.json", "r") as f:
+            with open("../../instances/duals/duaux_optimaux.json", "r") as f:
                 self.solutions = json.load(f)
-        dual_by_id_str: dict[str, float] = self.solutions[instance_name+"_1.0"]["dual_optimal_solution"]
+        dual_by_id_str: dict[str, float] = self.solutions[instance_name]
         dual_by_id:dict[int, float] = {}
 
         for i in dual_by_id_str:

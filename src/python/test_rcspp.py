@@ -18,9 +18,9 @@ if __name__ == "__main__":
     instance_path = "../../instances/" + instance_name + ".txt"
     instance_reader = InstanceReader(instance_path)
     instance = instance_reader.read()
-    dual_optimal_solution = instance_reader.read_dual_optimal(instance_name, "/home/jullarth/Documents/Solutions/Multiple_instances/")
+    dual_optimal_solution = instance_reader.read_dual_optimal(instance.get_name())
 
-    alphas = [1/10 for i in range(1, 10)]
+    alphas = [1/10 for i in range(1, 2)]
 
     for alpha in alphas:
         vrp, solution, sol_dict = vrp_instance(instance, smoothing=alpha, smoothing_center=dual_optimal_solution)

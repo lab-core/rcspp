@@ -28,7 +28,7 @@ if __name__ == "__main__":
         instance_path = "../../instances/" + name + ".txt"
         instance_reader = InstanceReader(instance_path)
         instance = instance_reader.read()
-        dual_optimal_solution = instance_reader.read_dual_optimal(name, "/home/jullarth/Documents/Solutions/Multiple_instances/")
+        dual_optimal_solution = instance_reader.read_dual_optimal(instance.get_name())
 
         print(f"\n\n====================\n Instance: {name}\n====================\n\n")
 
