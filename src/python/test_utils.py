@@ -1,4 +1,5 @@
 from vrp.dual_box_vrp import DualBoxVRP
+from vrp.vrp import VRP
 from solution_formatter import format_solution
 import json
 
@@ -29,6 +30,38 @@ def vrp_dual_box_instance(instance, dual_box_centre, radius, penalty=None, save=
                         "nb_added_columns": len(vrp._VRP__paths),
                         "penalty": (penalty if penalty is not None else False),
                         "n_meta_iter": vrp.meta_iteration
+                        }
+
+    return vrp, solution, solution_dict
+
+def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, dir=""):
+    print("Construct VRP")
+    vrp = VRP(instance)
+    print("Construct VRP ...Done")
+
+    if smoothing is not None:
+        vrp.enable_smoothing(smoothing_center, smoothing)
+
+    solution = vrp.solve()
+
+    formatted_solution = format_solution(
+                solution,
+                vrp._VRP__paths,
+                vrp.depot_id_,
+                instance_name=instance.get_name(),
+                author="arthus",
+            )
+    if save:
+        with open(f"/home/jullarth/Documents/Solutions/{dir}/{instance.get_name()}.txt", "w") as f:
+           f.write(formatted_solution)
+
+    solution_dict = {"smoothing": smoothing, 
+                        "n_iter": vrp.get_n_iterations(), 
+                        "total_time": vrp.get_total_problem_time(),
+                        "lp_cost": vrp.get_lp_cost(),
+                        "solution_cost": solution.cost,
+                        "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time(),
+                        "nb_added_columns": len(vrp._VRP__paths)
                         }
 
     return vrp, solution, solution_dict

@@ -43,6 +43,7 @@ class VRP:
         self.__n_iterations = 0
         self.__lp_cost = 0.0
         self.final_dual_by_id = {}
+        self.__smoothing = False
 
     def initialize_time_windows(self):
         # print("initialize_time_windows")
@@ -266,6 +267,19 @@ class VRP:
             (customer2.pos_x - customer1.pos_x) ** 2 + (customer2.pos_y - customer1.pos_y) ** 2
         )
 
+    def convex_combinaison_to_dict(self, dict1:dict, dict2:dict, alpha:float) -> dict:
+        if not 0 <= alpha <= 1:
+            raise ValueError("Alpha must be between 0 and 1")
+        
+        if dict1.keys() != dict2.keys():
+            raise ValueError("Dicts must have the same keys")
+
+        combinaison = {}
+        for key in dict1:
+            combinaison[key] = alpha*dict1[key] + (1-alpha)*dict2[key]
+
+        return combinaison
+
     def construct_resource_graph(self, dual_by_id: Optional[dict[int, float]] = None):
         resource_graph = ResourceGraph()
 
@@ -361,23 +375,8 @@ class VRP:
 
         return cost
 
-
-    def column_generation_iteration(self, subproblem_max_nb_solutions: Optional[int] = None, master_problem: Optional[MasterProblem] = None):
-        if master_problem is None:
-            master_problem = MasterProblem(self.__instance.get_demand_customers_id())
-
-        master_problem.construct_model(self.__paths)
-
-        master_solution = master_problem.solve(True)        
-
-        dual_by_id = master_solution.dual_by_var_id
-        self.__cost_history.append(master_solution.cost)
-        self.__dual_values_history.append(dual_by_id)
-
-        subproblem_time_start = time.time()
+    def get_negative_reduced_cost_column(self, dual_by_id:dict[int, float], subproblem_max_nb_solutions: Optional[int] = None):
         solutions = self.solve_subproblem(dual_by_id)
-        subproblem_time_end = time.time()
-        self.__total_subproblem_time += subproblem_time_end - subproblem_time_start
 
         if len(solutions) > 0:
             print(f"Solution RCSPP cost: {solutions[0].cost}")
@@ -396,21 +395,39 @@ class VRP:
                 min_reduced_cost = sol.cost
             if sol.cost < -self.EPSILON:
                 negative_red_cost_solutions.append(sol)
+        return negative_red_cost_solutions, min_reduced_cost
+
+    def column_generation_iteration(self, subproblem_max_nb_solutions: Optional[int] = None, master_problem: Optional[MasterProblem] = None):
+        if master_problem is None:
+            master_problem = MasterProblem(self.__instance.get_demand_customers_id())
+
+        master_problem.construct_model(self.__paths)
+
+        master_solution = master_problem.solve(True)        
+
+        dual_by_id = master_solution.dual_by_var_id
+        self.__cost_history.append(master_solution.cost)
+        self.__dual_values_history.append(dual_by_id)
+
+        if self.__smoothing:
+            self.__last_outer_point = dual_by_id
+            dual_by_id = self.convex_combinaison_to_dict(self.__smoothing_center, dual_by_id, self.__smoothing_parameter)
+            self.__smoothing_parameter *= 0.5
+
+        negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
 
         if min_reduced_cost >= -self.EPSILON:
-                self.final_dual_by_id = master_solution.dual_by_var_id
+            self.final_dual_by_id = master_solution.dual_by_var_id
 
         return master_solution, negative_red_cost_solutions, min_reduced_cost
-
 
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         min_reduced_cost = -math.inf
 
-        nb_iter = 0
         while min_reduced_cost < -self.EPSILON:
             print("*********************************************")
             print(
-                f"nb_iter={nb_iter} | min_reduced_cost={min_reduced_cost} "
+                f"nb_iter={self.__n_iterations} | min_reduced_cost={min_reduced_cost} "
                 f"| EPSILON={self.EPSILON}"
             )
             print("*********************************************")
@@ -421,11 +438,15 @@ class VRP:
             self.add_paths(negative_red_cost_solutions)
             self.__reduced_cost_history.append(min_reduced_cost)
 
-            nb_iter += 1
+            self.__n_iterations += 1
+        
+            if self.__smoothing:
+                if min_reduced_cost >= -self.EPSILON:
+                    self.__smoothing_center = self.final_dual_by_id
+                    negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(self.__last_outer_point, subproblem_max_nb_solutions)
 
-        self.__n_iterations = nb_iter
+
         return master_solution
-
 
     def last_iteration(self):
         master_problem = MasterProblem(self.__instance.get_demand_customers_id())
@@ -436,14 +457,15 @@ class VRP:
         self.__cost_history.append(master_solution.cost)
         return master_solution
 
-
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
         time_start = time.time()
 
         self.generate_initial_paths()
 
-        master_solution = self.cg_iterations(subproblem_max_nb_solutions)
+        self.__n_iterations = 0
 
+        master_solution = self.cg_iterations(subproblem_max_nb_solutions)
+                
         print("\n*********************************************\n")
         print(
             f"nb_iter={self.__n_iterations} | min_reduced_cost={self.__reduced_cost_history[-1] if self.__reduced_cost_history else 0.0} " f"| EPSILON={self.EPSILON}"
@@ -462,18 +484,27 @@ class VRP:
     def solve_subproblem(self, dual_by_id: Optional[dict[int, float]] = None):
         # Rebuild the subproblem graph each iteration. The in-place C++ update path
         # currently triggers a native crash on the second solve.
+        subproblem_time_start = time.time()
         self.__subproblem_graph = self.construct_resource_graph(dual_by_id)
 
         # subproblem = Subproblem(resource_graph)
 
-        time_start = time.time()
         solutions = self.__subproblem_graph.solve()
-        time_end = time.time()
 
-        print(f"Solve: {time_end - time_start}")
+        subproblem_time_end = time.time()
+        self.__total_subproblem_time += subproblem_time_end - subproblem_time_start
+        print(f"Solve: {subproblem_time_end - subproblem_time_start}")
 
         return solutions
-    
+
+    def enable_smoothing(self, convex_center: dict, alpha:float):
+        self.__smoothing_parameter = alpha
+        self.__smoothing_center = convex_center
+        self.__smoothing = True
+
+    def disable_smoothing(self):
+        self.__smoothing = False
+
     def get_cost_history(self):
         return self.__cost_history
     
@@ -485,9 +516,12 @@ class VRP:
     
     def get_n_iterations(self):
         return self.__n_iterations
+
     def get_lp_cost(self):
         return self.__lp_cost
+
     def get_total_problem_time(self):
         return self.__total_problem_time
+
     def get_total_subproblem_time(self):
         return self.__total_subproblem_time
