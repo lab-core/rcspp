@@ -3,8 +3,8 @@ from vrp.cg.mp_solution import MPSolution
 from vrp.cg.master_problem import MasterProblem
 
 class DualBoxMasterProblem(MasterProblem):
-    def __init__(self, node_ids, dual_box_center, dual_box_radius, penalty=None):
-        super().__init__(node_ids)
+    def __init__(self, node_ids, dual_box_center, dual_box_radius, penalty=None, verbose=True):
+        super().__init__(node_ids, verbose=verbose)
         self.left_special_var_by_id = {}
         self.right_special_var_by_id = {}
         self.penalty = penalty

@@ -1,14 +1,21 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
-from gurobipy import GRB, LinExpr, Model
+from gurobipy import GRB, LinExpr, Model, Env
 from vrp.cg.mp_solution import MPSolution
 
 
 class MasterProblem:
-    def __init__(self, node_ids):
+    def __init__(self, node_ids, verbose=True):
         self.node_ids_ = node_ids
-        self.model_ = Model("master_problem")
+        self.verbose = verbose
+        if not self.verbose:
+            with Env(empty=True) as env:
+                env.setParam('OutputFlag', 0)
+                env.start()
+                self.model_ = Model("master_problem", env=env)
+        else:
+            self.model_ = Model("master_problem")
 
         # Maps
         self.__path_variables_by_id = {}
@@ -78,7 +85,8 @@ class MasterProblem:
         dual_by_var_id = {}
 
         if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
-            print(f"model.Status={model.Status} vs GRB.OPTIMAL={GRB.OPTIMAL}")
+            if self.verbose:
+                print(f"model.Status={model.Status} vs GRB.OPTIMAL={GRB.OPTIMAL}")
             # Variable values
             for path_id, path_var in self.__path_variables_by_id.items():
                 model_path_var = model_variables_by_var_name[

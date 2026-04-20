@@ -3,9 +3,9 @@ from vrp.vrp import VRP
 from solution_formatter import format_solution
 import json
 
-def vrp_dual_box_instance(instance, dual_box_centre, radius, penalty=None, save=False, dir=""):
+def vrp_dual_box_instance(instance, dual_box_centre, radius, penalty=None, save=False, dir="", verbose=True):
     print("Construct VRP")
-    vrp = DualBoxVRP(instance, dual_box_centre, radius, penalty)
+    vrp = DualBoxVRP(instance, dual_box_centre, radius, penalty, verbose=verbose)
     print("Construct VRP ...Done")
 
     solution = vrp.solve()
@@ -34,9 +34,9 @@ def vrp_dual_box_instance(instance, dual_box_centre, radius, penalty=None, save=
 
     return vrp, solution, solution_dict
 
-def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, dir=""):
+def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, dir="", verbose=True):
     print("Construct VRP")
-    vrp = VRP(instance)
+    vrp = VRP(instance, verbose=verbose)
     print("Construct VRP ...Done")
 
     if smoothing is not None:

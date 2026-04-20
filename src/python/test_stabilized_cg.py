@@ -42,17 +42,12 @@ if __name__ == "__main__":
         
         for i in range(10):
             dual_box_centre = add_gaussian_noise(dual_optimal_solution, 0.0, 0.5)
-            svrp_without_penalty, solution_without_penalty, swp_dict = vrp_dual_box_instance(instance, dual_box_centre, radius)
-            swp_dict["perturbation"] = True
-            solutions[name+f"_{i}_without_penalty"] = swp_dict
-            swp_list.append(swp_dict)
 
             svrp_with_penalty, solution_with_penalty, sp_dict = vrp_dual_box_instance(instance, dual_box_centre, radius, penalty)
             sp_dict["perturbation"] = True
             solutions[name+f"_{i}_with_penalty"] = sp_dict
             sp_list.append(sp_dict)
         
-        means[name+"_without_penalty"] = average_dicts(swp_list)
         means[name+"_with_penalty"] = average_dicts(sp_list)
         
         

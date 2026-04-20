@@ -10,8 +10,8 @@ from vrp.instance import Instance
 from vrp.vrp import VRP
 
 class DualBoxVRP(VRP):
-    def __init__(self, instance: Instance, dual_box_center: dict, box_radius: float = 100.0, penalty: float = 0.0):
-        super().__init__(instance)
+    def __init__(self, instance: Instance, dual_box_center: dict, box_radius: float = 100.0, penalty: float = 0.0, verbose=True):
+        super().__init__(instance, verbose)
         self.dual_box_center_ = dual_box_center
         self.dual_box_radius_ = [box_radius for _ in self._VRP__instance.get_demand_customers_id()]
         self.penalty_value = penalty
@@ -53,15 +53,18 @@ class DualBoxVRP(VRP):
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         min_reduced_cost = -math.inf
 
-        while min_reduced_cost < -self.EPSILON:
-            print("*********************************************")
-            print(
+        while min_reduced_cost < -self.EPSILON and self._VRP__n_iterations <= 1000:
+            if self._VRP__verbose:
+                print("*********************************************")
+                print(
                 f"nb_iter={self._VRP__n_iterations} | min_reduced_cost={min_reduced_cost} "
                 f"| EPSILON={self.EPSILON}"
             )
-            print("*********************************************")
+                print("*********************************************")
+            else: 
+                print(f"------------------------------------------------------------------ Iter: {self._VRP__n_iterations}------------------")
 
-            master_problem = DualBoxMasterProblem(self._VRP__instance.get_demand_customers_id(), self.dual_box_center_, self.dual_box_radius_, self.penalty_value)
+            master_problem = DualBoxMasterProblem(self._VRP__instance.get_demand_customers_id(), self.dual_box_center_, self.dual_box_radius_, self.penalty_value, verbose=self._VRP__verbose)
             master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
 
             self.add_paths(negative_red_cost_solutions)
