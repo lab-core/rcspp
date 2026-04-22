@@ -19,7 +19,7 @@ from rcspp.resource import (
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
 )
-
+from utils import *
 
 class VRP:
     EPSILON = 0.00000001
@@ -427,20 +427,10 @@ class VRP:
         min_reduced_cost = -math.inf
 
         while True:
-            if self.__verbose:
-                print("*********************************************")
-                print(
-                    f"nb_iter={self.__n_iterations} | min_reduced_cost={min_reduced_cost} "
-                    f"| EPSILON={self.EPSILON}"
-                )
-                print("*********************************************")
-            else: 
-                print(f"------------------------------------------------------------------ Iter: {self.__n_iterations}------------------")
+            self.print_begin_iteration(min_reduced_cost)
 
             if self.__smoothing:
                 self.__smoothing_parameter = max(0, 1- self.__mis_price_k*(1-self.__smoothing_parameter))
-                if self.__smoothing_parameter == 0:
-                    print("Nul smoothing parameter")
 
             master_problem = MasterProblem(self.__instance.get_demand_customers_id(), self.__verbose)
             master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
@@ -451,12 +441,23 @@ class VRP:
             self.__n_iterations += 1
         
             if self.__smoothing:
+                print(self.__smoothing_parameter)
                 if min_reduced_cost >= -self.EPSILON:
                     self.__smoothing_center = self.final_dual_by_id
                     negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(self.__last_outer_point, subproblem_max_nb_solutions)
                     self.__mis_price_k += 1
                     print("Mis Price")
-                self.__mis_price_k = 1
+                else:
+                    self.__mis_price_k = 1
+                    g = self.compute_subgradient(negative_red_cost_solutions[0])
+                    out_minus_in = dict_addition(self.__last_outer_point, dict_scalar_mult(self.__smoothing_center, -1))
+                    dot = dict_dot_product(g, out_minus_in)
+                    if dot > 0:
+                        self.increase_alpha()
+                    else:
+                        self.decrease_alpha()
+                    
+
 
             if min_reduced_cost > -self.EPSILON:
                 break
@@ -523,6 +524,22 @@ class VRP:
     def disable_smoothing(self):
         self.__smoothing = False
 
+    def increase_alpha(self):
+        self.__smoothing_parameter = self.__smoothing_parameter + (1-self.__smoothing_parameter)*0.1
+
+    def decrease_alpha(self):
+        self.__smoothing_parameter = max(0, self.__smoothing_parameter-0.1)
+
+    def compute_subgradient(self, neg_cost_sol):
+        g = {}
+        for i in self.__instance.get_demand_customers_id():
+            if i in neg_cost_sol.path_node_ids:
+               ai = 1
+            else:
+                ai = 0
+            g[i] = 1 - ai
+        return g
+
     def get_cost_history(self):
         return self.__cost_history
     
@@ -543,3 +560,18 @@ class VRP:
 
     def get_total_subproblem_time(self):
         return self.__total_subproblem_time
+    
+    def compute_first_lagrangian_bound(self, dual):
+        center_reduced_cost_solution = self.solve_subproblem(dual)
+        self.best_lagrangian_lb = sum([i for i in dual.values()]) + self.__instance.get_nb_vehicles() * center_reduced_cost_solution[0].cost
+
+    def print_begin_iteration(self, min_reduced_cost):
+        if self.__verbose:
+            print("*********************************************")
+            print(
+                    f"nb_iter={self.__n_iterations} | min_reduced_cost={min_reduced_cost} "
+                    f"| EPSILON={self.EPSILON}"
+                )
+            print("*********************************************")
+        else: 
+            print(f"------------------------------------------------------------------ Iter: {self.__n_iterations}------------------")

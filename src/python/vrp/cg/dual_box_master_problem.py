@@ -3,12 +3,11 @@ from vrp.cg.mp_solution import MPSolution
 from vrp.cg.master_problem import MasterProblem
 
 class DualBoxMasterProblem(MasterProblem):
-    def __init__(self, node_ids, dual_box_center, dual_box_radius, penalty=None, verbose=True):
+    def __init__(self, node_ids, dual_box_center, dual_box_radius:float, penalty=None, verbose=True):
         super().__init__(node_ids, verbose=verbose)
         self.left_special_var_by_id = {}
         self.right_special_var_by_id = {}
         self.penalty = penalty
-        self.penalty_values_ = [self.penalty for i in range(len(node_ids))]
         if self.penalty is not None and isinstance(self.penalty, float):
             self.have_penalty_ = True
             self.__left_penalty_constraints_by_id = {}
@@ -19,10 +18,7 @@ class DualBoxMasterProblem(MasterProblem):
             self.dual_box_center_ = [dual_box_center[node_id] for node_id in node_ids]
         else:
             self.dual_box_center_ = dual_box_center
-        if isinstance(dual_box_radius, dict):
-            self.dual_box_radius_ = [dual_box_radius[node_id] for node_id in node_ids]
-        else:
-            self.dual_box_radius_ = dual_box_radius
+        self.dual_box_radius = dual_box_radius
     
     def add_variables(self, paths):
         super().add_variables(paths)
@@ -56,8 +52,8 @@ class DualBoxMasterProblem(MasterProblem):
             node_id = self.node_ids_[i]
             special_var_left = self.left_special_var_by_id[node_id]
             special_var_right = self.right_special_var_by_id[node_id]
-            self._MasterProblem__objective_lin_expr += (self.dual_box_radius_[i] - self.dual_box_center_[i])*special_var_left
-            self._MasterProblem__objective_lin_expr += (self.dual_box_radius_[i] + self.dual_box_center_[i])*special_var_right
+            self._MasterProblem__objective_lin_expr += (self.dual_box_radius - self.dual_box_center_[i])*special_var_left
+            self._MasterProblem__objective_lin_expr += (self.dual_box_radius + self.dual_box_center_[i])*special_var_right
 
         self.model_.setObjective(self._MasterProblem__objective_lin_expr)
 
@@ -85,11 +81,11 @@ class DualBoxMasterProblem(MasterProblem):
         if self.have_penalty_:
             left_constr_lin_expr = LinExpr()
             left_constr_lin_expr += self.left_special_var_by_id[node_id]
-            left_constr_lin_expr -= self.penalty_values_[i]
+            left_constr_lin_expr -= self.penalty
             left_constr = self.model_.addConstr(left_constr_lin_expr <= 0, name=f"c_left_penalty_{node_id}")
             right_constr_lin_expr = LinExpr()
             right_constr_lin_expr += self.right_special_var_by_id[node_id]
-            right_constr_lin_expr -= self.penalty_values_[i]
+            right_constr_lin_expr -= self.penalty
             right_constr = self.model_.addConstr(right_constr_lin_expr <= 0, name=f"c_right_penalty_{node_id}")
             
             self.__left_penalty_constraints_by_id[node_id] = left_constr
