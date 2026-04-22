@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <list>
+#include <string>
 #include <utility>
 
 #include "rcspp/algorithm/algorithm.hpp"
@@ -119,6 +120,10 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelsType> {
             auto* end_node = label->get_end_node();
             std::list<Label<ResourceType>*> all_labels;
             for (auto* arc : end_node->out_arcs) {
+                // check if can reach this destination node
+                if (!label->is_reachable(arc->destination->id)) {
+                    continue;
+                }
                 // extend along arc
                 auto& new_label = this->label_pool_.get_next_label(arc->destination);
                 label->extend(*arc, &new_label);
@@ -170,6 +175,15 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelsType> {
             auto first = labels.front();
             labels.pop_front();
             path_.emplace_back(first, std::move(labels));
+        }
+
+        [[nodiscard]] std::string to_string() const {
+            std::stringstream ss;
+            size_t n = path_.size();
+            for (const auto& p : path_) {
+                ss << p.first->get_end_node()->id << (--n == 0 ? "" : " -> ");
+            }
+            return ss.str();
         }
 
         std::list<std::pair<Label<ResourceType>*, std::list<Label<ResourceType>*>>> path_;

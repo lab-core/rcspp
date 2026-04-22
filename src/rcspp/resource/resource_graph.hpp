@@ -96,7 +96,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         Node<RComp>& add_node(size_t node_id, bool source = false, bool sink = false) override {
             auto& node = Graph<RComp>::add_node(node_id, source, sink);
-            node.resource = resource_factory_.make_resource(node.id);
+            node.resource = resource_factory_.create_resource(node.id);
 
             return node;
         }
@@ -107,7 +107,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 resource_initializer,
             bool source = false, bool sink = false) {
             auto& node = Graph<RComp>::add_node(node_id, source, sink);
-            node.resource = resource_factory_.make_resource(node.id, resource_initializer);
+            node.resource = resource_factory_.create_resource(node.id, resource_initializer);
             return node;
         }
 

@@ -63,22 +63,28 @@ class ResourceFactory {
         }
 
         // Make a resource from the prototype with node_id.
-        virtual auto make_resource(size_t node_id) -> std::unique_ptr<Resource<ResourceType>> {
+        virtual auto create_resource(size_t node_id) -> std::unique_ptr<Resource<ResourceType>> {
             ++nb_resources_created_;
             return resource_prototype_->create(node_id);
         }
 
-        virtual auto make_resource(size_t node_id, const ResourceType& resource_base)
+        virtual auto create_resource(size_t node_id, const ResourceType& resource_base)
             -> std::unique_ptr<Resource<ResourceType>> {
             ++nb_resources_created_;
             return resource_prototype_->create(resource_base, node_id);
         }
 
         // Make a resource from another resource by copying its resource function objects.
-        virtual auto make_resource(const Resource<ResourceType>& resource)
+        virtual auto copy_resource(const Resource<ResourceType>& resource)
             -> std::unique_ptr<Resource<ResourceType>> {
             ++nb_resources_created_;
             return resource.copy();
+        }
+
+        // Make a resource from a node by copying its resource object.
+        virtual auto copy_resource(const Node<ResourceType>& node)
+            -> std::unique_ptr<Resource<ResourceType>> {
+            return copy_resource(*node.resource);
         }
 
         // Make an extender

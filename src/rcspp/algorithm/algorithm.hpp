@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -219,6 +220,15 @@ class Algorithm {
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
         virtual void print_labels() const {}
+
+        virtual std::string path_to_string(const Label<ResourceType>& label) {
+            auto path = get_path_arc_ids(label);
+            std::stringstream ss;
+            for (const size_t arc_id : path) {
+                ss << graph_->get_arc(arc_id)->destination->id << " ";
+            }
+            return ss.str();
+        }
 
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 

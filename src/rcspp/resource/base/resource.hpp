@@ -230,7 +230,6 @@ class Resource : public ResourceType {
             ResourceType::reset();
 
             node_id_ = resource.node_id_;
-
             dominance_function_ = resource.dominance_function_;
             feasibility_function_ = resource.feasibility_function_;
             cost_function_ = resource.cost_function_;
@@ -622,6 +621,9 @@ class Resource<ResourceComposition<ResourceTypes...>>
             // LOG_TRACE(__FUNCTION__, '\n');
 
             node_id_ = node_id;
+            dominance_function_->reset(node_id);
+            feasibility_function_->reset(node_id);
+            cost_function_->reset(node_id);
 
             auto reset_function = [&](auto& sing_res_vec) -> auto {
                 for (auto& res : sing_res_vec) {
@@ -638,6 +640,9 @@ class Resource<ResourceComposition<ResourceTypes...>>
             // LOG_TRACE(__FUNCTION__, '\n');
 
             node_id_ = resource.node_id_;
+            dominance_function_ = resource.dominance_function_;
+            feasibility_function_ = resource.feasibility_function_;
+            cost_function_ = resource.cost_function_;
 
             std::apply(
                 [&](auto&&... args_res_comp) -> auto {
