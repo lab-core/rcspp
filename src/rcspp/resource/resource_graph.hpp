@@ -144,10 +144,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             auto& arc =
                 Graph<RComp>::add_arc(origin_node_id, destination_node_id, arc_id, cost, dual_rows);
 
-            auto resource_base =
-                resource_factory_
-                    .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
-                        resource_consumption);
+            auto resource_base = resource_factory_.template create_resource_base<
+                ResourceInitializerTypeTuple_t<ResourceTypes>...>(resource_consumption);
             auto extender = resource_factory_.make_extender(*resource_base, arc);
             arc.extender = std::move(extender);
             return arc;
