@@ -24,7 +24,7 @@ class DualBoxVRP(VRP):
         max_special_var_value = math.inf
         stabilized_iter_solution = None
 
-        while max_special_var_value > self.EPSILON:
+        while True:
             if stabilized_iter_solution is not None:
                 self.dual_box_center_ = stabilized_iter_solution.dual_by_var_id
 
@@ -40,6 +40,9 @@ class DualBoxVRP(VRP):
                     self.penalty_value = 0
             
             self.meta_iteration += 1
+
+            if max_special_var_value < self.EPSILON:
+                break
             
         self._VRP__lp_cost = stabilized_iter_solution.cost
 
@@ -53,7 +56,7 @@ class DualBoxVRP(VRP):
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         min_reduced_cost = -math.inf
 
-        while min_reduced_cost < -self.EPSILON and self._VRP__n_iterations <= 1000:
+        while True:
             if self._VRP__verbose:
                 print("*********************************************")
                 print(
@@ -70,5 +73,8 @@ class DualBoxVRP(VRP):
             self.add_paths(negative_red_cost_solutions)
 
             self._VRP__n_iterations += 1
+
+            if min_reduced_cost > -self.EPSILON or self._VRP__n_iterations > 1000:
+                break
             
         return master_solution

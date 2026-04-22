@@ -419,14 +419,14 @@ class VRP:
         negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
 
         if min_reduced_cost >= -self.EPSILON:
-            self.final_dual_by_id = master_solution.dual_by_var_id
+            self.final_dual_by_id = dual_by_id
 
         return master_solution, negative_red_cost_solutions, min_reduced_cost
 
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         min_reduced_cost = -math.inf
 
-        while min_reduced_cost < -self.EPSILON:
+        while True:
             if self.__verbose:
                 print("*********************************************")
                 print(
@@ -457,6 +457,9 @@ class VRP:
                     self.__mis_price_k += 1
                     print("Mis Price")
                 self.__mis_price_k = 1
+
+            if min_reduced_cost > -self.EPSILON:
+                break
 
 
         return master_solution
