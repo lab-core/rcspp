@@ -47,6 +47,9 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 // check if we can update the best label or extend
                 if (label->get_end_node()->sink) {
                     if (label->get_cost() < this->cost_upper_bound_) {
+                        if (label->get_cost() < this->best_cost_upper_bound_) {
+                            this->best_cost_upper_bound_ = label->get_cost();
+                        }
                         this->extract_solution(*label);
                         if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
                             LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");

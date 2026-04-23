@@ -73,6 +73,9 @@ struct AlgorithmParams {
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
 
+        // if true, prune label if greater than the best upper bound
+        bool prune_based_on_upper_bound_ = false;
+
         // for using label pool (should normally always be true)
         bool use_pool = true;
 
@@ -135,6 +138,7 @@ class Algorithm {
 
             graph_ = graph;
             cost_upper_bound_ = cost_upper_bound;
+            best_cost_upper_bound_ = cost_upper_bound;
             label_pool_.clear();
             solutions_.clear();
         }
@@ -264,6 +268,7 @@ class Algorithm {
         const AlgorithmParams<LabelContainerType> params_;
 
         double cost_upper_bound_ = std::numeric_limits<double>::infinity();
+        double best_cost_upper_bound_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};

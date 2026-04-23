@@ -60,17 +60,29 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     this->label_pool_.release_label(&label);
                     continue;
                 }
+                if (this->params_.prune_based_on_upper_bound_ &&
+                    label.get_cost() >= this->best_cost_upper_bound_) {
+                    remove_label(label_iterator_pair.second);
+                    this->label_pool_.release_label(&label);
+                    continue;
+                }
 
                 assert(label.get_end_node());
 
                 // check if we can update the best label or extend
                 if (label.get_end_node()->sink) {
-                    if (label.get_cost() < this->cost_upper_bound_ &&
-                        this->params_.return_dominated_solutions) {
-                        this->extract_solution(label);
-                        if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
-                            LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
-                            break;
+                    if (label.get_cost() < this->cost_upper_bound_) {
+                        if (label.get_cost() < this->best_cost_upper_bound_) {
+                            this->best_cost_upper_bound_ = label.get_cost();
+                        }
+                        if (this->params_.return_dominated_solutions) {
+                            this->extract_solution(label);
+                            if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                                LOG_DEBUG("Stopping after ",
+                                          this->solutions_.size(),
+                                          " solutions.\n");
+                                break;
+                            }
                         }
                     }
                 } else if (!std::isinf(label.get_cost())) {

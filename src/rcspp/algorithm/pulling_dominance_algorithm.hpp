@@ -52,6 +52,12 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                     if (label.dominated) {
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
+                    } else if (this->params_.prune_based_on_upper_bound_ &&
+                               label.get_cost() >= this->cost_upper_bound_) {
+                        // label cost too high -> continue to next one
+                        this->remove_label(it->second);
+                        this->label_pool_.release_label(&label);
+                        it = erase_unprocessed_label(it);  // erase label
                     } else if (std::isinf(label.get_cost())) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
@@ -61,15 +67,19 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                         // check if sink and update best solution
                         if (label.get_end_node()->sink) {
                             LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
-                            if (label.get_cost() < this->cost_upper_bound_ &&
-                                this->params_.return_dominated_solutions) {
-                                this->extract_solution(label);
-                                if (this->solutions_.size() >=
-                                    this->params_.stop_after_X_solutions) {
-                                    LOG_DEBUG("Stopping after ",
-                                              this->solutions_.size(),
-                                              " solutions.\n");
-                                    return;
+                            if (label.get_cost() < this->cost_upper_bound_) {
+                                if (label.get_cost() < this->best_cost_upper_bound_) {
+                                    this->best_cost_upper_bound_ = label.get_cost();
+                                }
+                                if (this->params_.return_dominated_solutions) {
+                                    this->extract_solution(label);
+                                    if (this->solutions_.size() >=
+                                        this->params_.stop_after_X_solutions) {
+                                        LOG_DEBUG("Stopping after ",
+                                                  this->solutions_.size(),
+                                                  " solutions.\n");
+                                        break;
+                                    }
                                 }
                             }
                         }
