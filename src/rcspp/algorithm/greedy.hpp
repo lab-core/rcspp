@@ -28,12 +28,12 @@ namespace rcspp {
  * graphs where full enumeration is computationally expensive, and a balance between speed and
  * solution quality is desired.
  */
-template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
-class GreedyAlgorithm : public Algorithm<ResourceType, LabelsType> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     public:
         GreedyAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                        AlgorithmParams<LabelsType> params)
-            : Algorithm<ResourceType, LabelsType>(resource_factory, std::move(params)) {}
+                        AlgorithmParams<LabelContainerType> params)
+            : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
     protected:
         void main_loop() override {

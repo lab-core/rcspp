@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/buckets.hpp"
+#include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
@@ -36,9 +36,10 @@ using LabelIteratorPair =
 
 constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
-template <typename LabelsType>
+template <typename LabelContainerType>
 struct AlgorithmParams {
-        explicit AlgorithmParams(LabelsType labels = LabelsType()) : labels(std::move(labels)) {}
+        explicit AlgorithmParams(LabelContainerType labels = LabelContainerType())
+            : labels(std::move(labels)) {}
 
         AlgorithmParams& check() {
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
@@ -76,7 +77,7 @@ struct AlgorithmParams {
         bool use_pool = true;
 
         // Container to store labels, could be overridden with Buckets
-        const LabelsType labels;
+        const LabelContainerType labels;
 
         // for truncated labeling
         size_t num_labels_to_extend_by_node = MAX_INT;
@@ -96,12 +97,12 @@ struct AlgorithmParams {
         int seed = 0;
 };
 
-template <typename ResourceType, typename LabelsType = Labels<ResourceType>>
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
     public:
         Algorithm(ResourceFactory<ResourceType>* resource_factory,
-                  AlgorithmParams<LabelsType> params)
+                  AlgorithmParams<LabelContainerType> params)
             : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
               graph_(nullptr),
               params_(std::move(params.check())) {}
@@ -260,7 +261,7 @@ class Algorithm {
 
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
-        const AlgorithmParams<LabelsType> params_;
+        const AlgorithmParams<LabelContainerType> params_;
 
         double cost_upper_bound_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;

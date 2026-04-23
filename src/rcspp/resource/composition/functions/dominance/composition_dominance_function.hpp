@@ -40,7 +40,7 @@ class CompositionDominanceFunction
             const Resource<ResourceComposition<ResourceTypes...>>& rhs_resource,
             double delta) override {
             throw std::logic_error(
-                "ComponentDominanceFunction::fast_check_dominance() not implemented.");
+                "CompositionDominanceFunction::fast_check_dominance() not implemented.");
         }
 
     private:

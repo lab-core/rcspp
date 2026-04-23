@@ -161,11 +161,10 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         using Derived = BitsetResource<T>;
 
         BitsetResource() = default;
-        explicit BitsetResource(const std::set<ValueType>& indices) {
+        explicit BitsetResource(const std::set<ValueType>& indices) : size_(indices.size()) {
             for (auto idx : indices) {
                 add(idx);
             }
-            size_ = indices.size();
         }
 
         // convenience setter from an index set
@@ -188,7 +187,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         // by 64 (floor). In this bitset code it computes which 64-bit word (slot) contains bit
         // number idx. The companion idx & 63 computes idx % 64 (bit offset inside that word).
         void add(const ValueType& idx) override {
-            ensure_size(idx + 1);
+            ensure_words_size(idx + 1);
             this->container_[idx >> 6] |= (1ULL << (idx & 63));  // NOLINT
             ++size_;
         }
@@ -196,7 +195,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         void add(const Container& other_words) override {
             // OR the other words into this bitset
             const size_t other_words_count = other_words.size();
-            ensure_size(other_words_count * 64);  // NOLINT
+            ensure_words_size(other_words_count * 64);  // NOLINT
             for (size_t i = 0; i < other_words_count; ++i) {
                 this->container_[i] |= other_words[i];
             }
@@ -308,10 +307,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             return size;
         }
 
-        [[nodiscard]] bool empty() const override {
-            return std::ranges::all_of(this->container_,
-                                       [](const uint64_t w) { return w == 0ULL; });
-        }
+        [[nodiscard]] bool empty() const override { return size_ == 0; }
 
         [[nodiscard]] std::set<ValueType> to_set() const {
             std::set<ValueType> result;
@@ -334,7 +330,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         // storage is inherited from ContainerResource as `container_`.
         size_t size_;
 
-        void ensure_size(ValueType requested_nb_bits) {
+        void ensure_words_size(ValueType requested_nb_bits) {
             const size_t new_words = (requested_nb_bits + 63) / 64;
             if (this->container_.size() < new_words) {
                 this->container_.resize(new_words, 0ULL);

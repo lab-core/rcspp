@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <list>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -13,14 +14,14 @@
 namespace rcspp {
 
 template <class ResourceType>
-class Labels {
+class LabelList {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
 
     public:
-        explicit Labels() = default;
-        virtual ~Labels() = default;
+        explicit LabelList() = default;
+        virtual ~LabelList() = default;
 
-        Labels copy() const { return Labels(); }
+        [[nodiscard]] LabelList copy() const { return LabelList(); }
 
         [[nodiscard]] const std::list<Label<ResourceType>*>& get_labels() const { return labels_; }
 
@@ -54,7 +55,7 @@ class Labels {
             return removed;
         }
 
-        virtual bool is_dominated(const Label<ResourceType>& label) const {
+        [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label) const {
             for (const auto non_dominated_label_ptr : labels_) {
                 if (&label == non_dominated_label_ptr) {
                     continue;
@@ -71,7 +72,7 @@ class Labels {
 };
 
 template <typename BucketResource, typename SortResource, typename ResourceType>
-class Buckets : public Labels<ResourceType> {
+class LabelBuckets : public LabelList<ResourceType> {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
 
         template <class RType>
@@ -107,13 +108,13 @@ class Buckets : public Labels<ResourceType> {
         using BucketPosition = std::list<Bucket<Resource<BucketResource>>>::iterator;
 
     public:
-        Buckets(size_t range_buckets, size_t bucket_resource_index, size_t sort_resource_index)
+        LabelBuckets(size_t range_buckets, size_t bucket_resource_index, size_t sort_resource_index)
             : range_buckets_(range_buckets),
               bucket_resource_index_(bucket_resource_index),
               sort_resource_index_(sort_resource_index) {}
 
-        Buckets copy() const {
-            return Buckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
+        LabelBuckets copy() const {
+            return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
         }
 
         LabelPosition add_label(Label<ResourceType>* label) override {
@@ -281,7 +282,7 @@ class Buckets : public Labels<ResourceType> {
         }
 
         void print_labels() const override {
-            Labels<ResourceType>::print_labels();
+            LabelList<ResourceType>::print_labels();
             LOG_TRACE("Ratio of visits: ", num_visited_labels_ * 1.0 / num_labels_, "\n");
         }
 
@@ -324,10 +325,8 @@ class Buckets : public Labels<ResourceType> {
             // update previous end to the end of the current bucket, as the current bucket will be
             // removed
             if (bit != buckets_.begin()) {
-                // the new end is the begin of the next bucket if exists, otherwise the end of the
-                // list of labels
-                auto new_end =
-                    std::next(bit) != buckets_.end() ? std::next(bit)->begin : this->labels_.end();
+                // the new end is the end of the removed bucket, as the following bucket will be
+                // after the removed bucket
                 std::prev(bit)->update_end(bit->end);
             }
             // erase the bucket and return the next bucket position
