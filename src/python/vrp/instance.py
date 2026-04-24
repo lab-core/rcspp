@@ -79,3 +79,39 @@ class Instance:
     
     def get_name(self) -> str:
         return self.__name
+    
+    def write_to_file(self, filepath: str) -> None:
+        """Écrit l'instance dans un fichier au format Solomon."""
+        with open(filepath, "w") as f:
+            # Nom de l'instance
+            f.write(f"{self.__name or 'INSTANCE'}\n\n")
+
+            # Section véhicules
+            f.write("VEHICLE\n")
+            f.write(f"NUMBER     CAPACITY\n")
+            f.write(f"{self.__nb_vehicles:>8}{self.__capacity:>11}\n\n")
+
+            # Section clients
+            f.write("CUSTOMER\n")
+            f.write(
+                f"{'CUST NO.':>8}{'XCOORD.':>10}{'YCOORD.':>10}"
+                f"{'DEMAND':>10}{'READY TIME':>12}{'DUE DATE':>10}{'SERVICE':>10}{'TIME':>7}\n"
+            )
+            f.write(" \n")
+
+            # Dépôt en premier, puis les clients
+            depot = self.get_depot_customer()
+            all_ids = [depot.id] + self.__demand_customers_id
+
+            for cid in all_ids:
+                c = self.__customers_by_id[cid]
+                f.write(
+                    f"{c.id:>5}"
+                    f"{int(c.pos_x):>9}"
+                    f"{int(c.pos_y):>11}"
+                    f"{c.demand:>11}"
+                    f"{c.ready_time:>12}"
+                    f"{c.due_time:>11}"
+                    f"{c.service_time:>11}"
+                    f"   \n"
+                )

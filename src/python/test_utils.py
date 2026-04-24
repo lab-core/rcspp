@@ -1,10 +1,13 @@
+from import_rscpp_lib import import_rscpp_lib
+import_rscpp_lib()
+
 from vrp.dual_box_vrp import DualBoxVRP
 from vrp.vrp import VRP
 from solution_formatter import format_solution
 import json
 import math
 
-def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, save=False, dir="", verbose=True, subproblem_max_nb_solutions=None):
+def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, save=False, dir="", verbose=True):
     print("Construct VRP")
     vrp = DualBoxVRP(instance, dual_box_centre, kappa, verbose=verbose)
     print("Construct VRP ...Done")
@@ -55,8 +58,7 @@ def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, di
         with open(f"/home/jullarth/Documents/Solutions/{dir}/{instance.get_name()}.txt", "w") as f:
            f.write(formatted_solution)
 
-    solution_dict = {"smoothing": smoothing, 
-                        "n_iter": vrp.get_n_iterations(), 
+    solution_dict = {   "n_iter": vrp.get_n_iterations(), 
                         "total_time": vrp.get_total_problem_time(),
                         "lp_cost": vrp.get_lp_cost(),
                         "solution_cost": solution.cost,
@@ -156,3 +158,13 @@ def min_dicts(dict_list):
 def save_dict_to_json(dir:str, filename:str, d:dict):
     with open(f"../../../Solutions/{dir}/{filename}.json", "w") as f:
         json.dump(d, f, indent=4)
+
+def read_instances_name(filpath:str) -> list[str]:
+    file = f"../../instances/{filpath}.txt"
+    names = []
+
+    with open(file, "r") as f:
+        for line in f:
+            names.append(line.strip())
+
+    return names
