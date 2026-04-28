@@ -19,7 +19,7 @@ from rcspp.resource import (
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
 )
-from utils import *
+from utils.utils import *
 
 class VRP:
     EPSILON = 0.00000001

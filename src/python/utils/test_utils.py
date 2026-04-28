@@ -1,15 +1,15 @@
-from import_rscpp_lib import import_rscpp_lib
+from utils.import_rscpp_lib import import_rscpp_lib
 import_rscpp_lib()
 
 from vrp.dual_box_vrp import DualBoxVRP
 from vrp.vrp import VRP
-from solution_formatter import format_solution
+from utils.solution_formatter import format_solution
 import json
 import math
 
-def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, save=False, dir="", verbose=True):
+def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, penalty=0.9, save=False, dir="", verbose=True):
     print("Construct VRP")
-    vrp = DualBoxVRP(instance, dual_box_centre, kappa, verbose=verbose)
+    vrp = DualBoxVRP(instance, dual_box_centre, kappa, penalty=penalty, verbose=verbose)
     print("Construct VRP ...Done")
 
     solution = vrp.solve()
@@ -19,7 +19,7 @@ def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, save=False, dir=""
                 vrp._VRP__paths,
                 vrp.depot_id_,
                 instance_name=instance.get_name(),
-                author="arthus",
+                author="ajdepommerol",
             )
     if save:
         with open(f"/home/jullarth/Documents/Solutions/{dir}/{instance.get_name()}.txt", "w") as f:
@@ -52,7 +52,7 @@ def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, di
                 vrp._VRP__paths,
                 vrp.depot_id_,
                 instance_name=instance.get_name(),
-                author="arthus",
+                author="ajdepommerol",
             )
     if save:
         with open(f"/home/jullarth/Documents/Solutions/{dir}/{instance.get_name()}.txt", "w") as f:
@@ -156,8 +156,19 @@ def min_dicts(dict_list):
     return min_d
 
 def save_dict_to_json(dir:str, filename:str, d:dict):
-    with open(f"../../../Solutions/{dir}/{filename}.json", "w") as f:
-        json.dump(d, f, indent=4)
+    file_path = f"../../../Solutions/{dir}/{filename}.json"
+    
+    existing_data = {}
+    try:
+        with open(file_path, "r") as f:
+            existing_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    
+    existing_data.update(d)
+    
+    with open(file_path, "w") as f:
+        json.dump(existing_data, f, indent=4)
 
 def read_instances_name(filpath:str) -> list[str]:
     file = f"../../instances/{filpath}.txt"

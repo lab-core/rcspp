@@ -15,6 +15,10 @@ class InstanceReader:
         nb_vehicles = 0
         capacity = 0
 
+        if "_" in self.file_path_:
+            path = self.file_path_.split("/")
+            self.file_path_ = "/".join(path[:-1]) + "/generated/" + path[-1]
+
         print(f"file_path_={self.file_path_}")
 
         with open(self.file_path_, "r") as f:

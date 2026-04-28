@@ -8,7 +8,7 @@ from typing import Optional
 from vrp.cg.dual_box_master_problem import DualBoxMasterProblem
 from vrp.instance import Instance
 from vrp.vrp import VRP
-from utils import dict_l1_norm
+from utils.utils import dict_l1_norm
 
 class DualBoxVRP(VRP):
     def __init__(self, instance: Instance, dual_box_center: dict, kappa=1, penalty = 1000, verbose=True):
