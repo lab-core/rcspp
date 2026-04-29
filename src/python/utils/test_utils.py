@@ -1,45 +1,65 @@
-from utils.import_rscpp_lib import import_rscpp_lib
-import_rscpp_lib()
-
+import utils.rscpp_lib
 from vrp.stabilized_vrp import StabilizedVRP
 from vrp.vrp import VRP
 from utils.solution_formatter import format_solution
 from utils.definitions import INSTANCES_DIR, SOLUTIONS_DIR
 import json
 import math
+import os
 
-def vrp_stabilized_instance(instance, dual_box_centre = None, save=False, dir="", verbose=True):
+def _ensure_parent_dir(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+
+def _save_formatted_solution(vrp, solution, instance, save, dir):
+    formatted_solution = format_solution(
+        solution,
+        vrp._VRP__paths,
+        vrp.depot_id_,
+        instance_name=instance.get_name(),
+        author="ajdepommerol",
+    )
+    if save:
+        file_path = f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt"
+        _ensure_parent_dir(file_path)
+        with open(file_path, "w") as f:
+            f.write(formatted_solution)
+
+
+def _dump_dual_history(vrp, instance, dir):
+    dual_history = vrp.get_dual_values_history()
+    file_path = f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json"
+    _ensure_parent_dir(file_path)
+    with open(file_path, "w") as f:
+        json.dump(dual_history, f)
+
+
+def _build_solution_dict(vrp, solution, extra_fields=None):
+    solution_dict = {
+        "n_iter": vrp.get_n_iterations(),
+        "total_time": vrp.get_total_problem_time(),
+        "lp_cost": vrp.get_lp_cost(),
+        "solution_cost": solution.cost,
+        "time_ratio": vrp.get_total_subproblem_time() / vrp.get_total_problem_time(),
+        "nb_added_columns": len(vrp._VRP__paths),
+    }
+    if extra_fields:
+        solution_dict.update(extra_fields)
+    return solution_dict
+
+
+def vrp_stabilized_instance(instance, dual_box_centre=None, save=False, dir="", verbose=True):
     print("Construct VRP")
     vrp = StabilizedVRP(instance, dual_box_centre, verbose=verbose)
     print("Construct VRP ...Done")
 
     solution = vrp.solve()
-
-    formatted_solution = format_solution(
-                solution,
-                vrp._VRP__paths,
-                vrp.depot_id_,
-                instance_name=instance.get_name(),
-                author="ajdepommerol",
-            )
-    if save:
-        with open(f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
-           f.write(formatted_solution)
-
-    solution_dict = {   "n_iter": vrp.get_n_iterations(), 
-                        "total_time": vrp.get_total_problem_time(),
-                        "lp_cost": vrp.get_lp_cost(),
-                        "solution_cost": solution.cost,
-                        "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time(),
-                        "nb_added_columns": len(vrp._VRP__paths),
-                        "n_meta_iter": vrp.meta_iteration
-                        }
-    
-    dual_history = vrp.get_dual_values_history()
-    with open(f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
-        json.dump(dual_history, f)
+    _save_formatted_solution(vrp, solution, instance, save, dir)
+    solution_dict = _build_solution_dict(vrp, solution, {"n_meta_iter": vrp.meta_iteration})
+    _dump_dual_history(vrp, instance, dir)
 
     return solution_dict
+
 
 def vrp_instance(instance, smoothing=None, save=False, dir="", verbose=True):
     print("Construct VRP")
@@ -50,29 +70,9 @@ def vrp_instance(instance, smoothing=None, save=False, dir="", verbose=True):
         vrp.enable_smoothing(smoothing)
 
     solution = vrp.solve()
-
-    formatted_solution = format_solution(
-                solution,
-                vrp._VRP__paths,
-                vrp.depot_id_,
-                instance_name=instance.get_name(),
-                author="ajdepommerol",
-            )
-    if save:
-        with open(f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
-           f.write(formatted_solution)
-
-    solution_dict = {   "n_iter": vrp.get_n_iterations(), 
-                        "total_time": vrp.get_total_problem_time(),
-                        "lp_cost": vrp.get_lp_cost(),
-                        "solution_cost": solution.cost,
-                        "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time(),
-                        "nb_added_columns": len(vrp._VRP__paths)
-                        }
-    
-    dual_history = vrp.get_dual_values_history()
-    with open(f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
-        json.dump(dual_history, f)
+    _save_formatted_solution(vrp, solution, instance, save, dir)
+    solution_dict = _build_solution_dict(vrp, solution)
+    _dump_dual_history(vrp, instance, dir)
 
     return vrp, solution, solution_dict
 

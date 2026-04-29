@@ -6,7 +6,6 @@ import time
 from typing import Optional
 
 from vrp.cg.dual_box_master_problem import DualBoxMasterProblem
-from vrp.cg.master_problem import MasterProblem
 from vrp.instance import Instance
 from vrp.vrp import VRP
 from utils.utils import dict_l1_norm
@@ -23,7 +22,6 @@ class StabilizedVRP(VRP):
         time_start = time.time()
         self.generate_initial_paths()
         max_special_var_value = math.inf
-        stabilized_iter_solution = None
 
         if self.dual_estimate is None:
             self.first_iteration(subproblem_max_nb_solutions)
@@ -81,7 +79,8 @@ class StabilizedVRP(VRP):
 
             self._VRP__n_iterations += 1
 
-            if min_reduced_cost > -self.EPSILON or self._VRP__n_iterations > 1000:
+            if min_reduced_cost > -self.EPSILON:
                 break
             
+        self._VRP__lp_cost = master_solution.cost
         return master_solution

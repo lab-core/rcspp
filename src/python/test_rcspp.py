@@ -16,6 +16,6 @@ if __name__ == "__main__":
     instance_reader = InstanceReader(instance_path)
     instance = instance_reader.read()
 
-    _, _, sol_dict = vrp_instance(instance, dir="test", verbose=False)
+    sol_dict = vrp_stabilized_instance(instance, dir="test", verbose=False)
 
     print(sol_dict)

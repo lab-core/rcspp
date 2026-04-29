@@ -461,7 +461,7 @@ class VRP:
             if min_reduced_cost > -self.EPSILON:
                 break
 
-
+        self.__lp_cost = master_solution.cost
         return master_solution
 
     def last_iteration(self):
@@ -484,14 +484,6 @@ class VRP:
             self.first_iteration(subproblem_max_nb_solutions)
 
         master_solution = self.cg_iterations(subproblem_max_nb_solutions)
-                
-        print("\n*********************************************\n")
-        print(
-            f"nb_iter={self.__n_iterations} | min_reduced_cost={self.__reduced_cost_history[-1] if self.__reduced_cost_history else 0.0} " f"| EPSILON={self.EPSILON}"
-        )
-        print("\n*********************************************\n")
-
-        self.__lp_cost = master_solution.cost
 
         master_solution = self.last_iteration()
 
