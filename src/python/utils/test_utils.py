@@ -4,6 +4,7 @@ import_rscpp_lib()
 from vrp.stabilized_vrp import StabilizedVRP
 from vrp.vrp import VRP
 from utils.solution_formatter import format_solution
+from utils.definitions import INSTANCES_DIR, SOLUTIONS_DIR
 import json
 import math
 
@@ -22,7 +23,7 @@ def vrp_stabilized_instance(instance, dual_box_centre = None, save=False, dir=""
                 author="ajdepommerol",
             )
     if save:
-        with open(f"/home/jullarth/Documents/Solutions/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
+        with open(f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
            f.write(formatted_solution)
 
     solution_dict = {   "n_iter": vrp.get_n_iterations(), 
@@ -35,7 +36,7 @@ def vrp_stabilized_instance(instance, dual_box_centre = None, save=False, dir=""
                         }
     
     dual_history = vrp.get_dual_values_history()
-    with open(f"/home/jullarth/Documents/Solutions/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
+    with open(f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
         json.dump(dual_history, f)
 
     return solution_dict
@@ -58,7 +59,7 @@ def vrp_instance(instance, smoothing=None, save=False, dir="", verbose=True):
                 author="ajdepommerol",
             )
     if save:
-        with open(f"/home/jullarth/Documents/Solutions/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
+        with open(f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
            f.write(formatted_solution)
 
     solution_dict = {   "n_iter": vrp.get_n_iterations(), 
@@ -70,7 +71,7 @@ def vrp_instance(instance, smoothing=None, save=False, dir="", verbose=True):
                         }
     
     dual_history = vrp.get_dual_values_history()
-    with open(f"/home/jullarth/Documents/Solutions/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
+    with open(f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
         json.dump(dual_history, f)
 
     return vrp, solution, solution_dict
@@ -163,7 +164,7 @@ def min_dicts(dict_list):
     return min_d
 
 def save_dict_to_json(dir:str, filename:str, d:dict):
-    file_path = f"../../../Solutions/{dir}/{filename}.json"
+    file_path = f"{SOLUTIONS_DIR}/{dir}/{filename}.json"
     
     existing_data = {}
     try:
@@ -177,8 +178,8 @@ def save_dict_to_json(dir:str, filename:str, d:dict):
     with open(file_path, "w") as f:
         json.dump(existing_data, f, indent=4)
 
-def read_instances_name(filpath:str) -> list[str]:
-    file = f"../../instances/{filpath}.txt"
+def read_instances_name(filename:str) -> list[str]:
+    file = f"{INSTANCES_DIR}/{filename}.txt"
     names = []
 
     with open(file, "r") as f:

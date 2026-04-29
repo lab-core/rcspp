@@ -3,6 +3,7 @@
 
 from vrp.instance import Instance
 import json
+from utils.definitions import *
 
 
 class InstanceReader:
@@ -24,7 +25,7 @@ class InstanceReader:
                 Itype = "R"
             elif "C" in instance_name:
                 Itype = "C"
-            self.file_path_ = "/".join(path[:-1]) + f"/generated/{Itype}/{path[-1]}"
+            self.file_path_ = f"{GENERATED_INSTANCES_DIR}/{Itype}/{path[-1]}"
 
         print(f"file_path_={self.file_path_}")
 
@@ -87,7 +88,7 @@ class InstanceReader:
     
     def read_dual_optimal(self, instance_name:str) -> dict[int, float]:
         if self.solutions is None:
-            with open("../../instances/duals/duaux_optimaux.json", "r") as f:
+            with open(OPTIMAL_DUAL_FILE, "r") as f:
                 self.solutions = json.load(f)
         dual_by_id_str: dict[str, float] = self.solutions[instance_name]
         dual_by_id:dict[int, float] = {}

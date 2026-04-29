@@ -5,6 +5,7 @@
 
 from vrp.instance_reader import InstanceReader
 from utils.test_utils import *
+from utils.definitions import INSTANCES_DIR
 
 
 
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     alphas = [i/10 for i in range(1, 10)]
 
     for name in instances_name:
-        instance_path = "../../instances/" + name + ".txt"
+        instance_path = INSTANCES_DIR + name + ".txt"
         instance_reader = InstanceReader(instance_path)
         instance = instance_reader.read()
         dual_optimal_solution = instance_reader.read_dual_optimal(instance.get_name())

@@ -4,6 +4,7 @@ import os
 import sys
 from utils.test_utils import *
 from vrp.instance_reader import InstanceReader
+from utils.definitions import INSTANCES_DIR
 
 dir = "all_solutions"
 verbose = True
@@ -38,11 +39,9 @@ base_instances = read_instances_name("instances_name")
 new_instances = read_instances_name("generated/instances_name")
 all_instances = base_instances + new_instances
 
-instance_dir = "../../instances/"
-
 instance_name = all_instances[instance_index]
 
-reader = InstanceReader(f"{instance_dir}{instance_name}.txt")
+reader = InstanceReader(f"{INSTANCES_DIR}{instance_name}.txt")
 instance = reader.read()
 
 solutions = {}

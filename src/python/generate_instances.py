@@ -1,11 +1,11 @@
 from vrp.instance import Instance
 from vrp.instance_reader import InstanceReader
 from utils.test_utils import *
+from utils.definitions import INSTANCES_DIR
 import random
 
 base_instances = read_instances_name("instances_name")
 
-instance_dir = "../../instances/"
 generated_instances_names = []
 nR = 0
 nC = 0
@@ -14,7 +14,7 @@ nRC = 0
 
 for name in base_instances:
 
-    instance_path = instance_dir + name + ".txt"
+    instance_path = INSTANCES_DIR + name + ".txt"
     reader = InstanceReader(instance_path)
     base_instance = reader.read()
 
@@ -65,7 +65,7 @@ for name in base_instances:
             c= customers_by_id[id]
             new_instance.add_customer(id, c.pos_x, c.pos_y, c.demand, c.ready_time, c.due_time, c.service_time, False)
 
-        new_instance.write_to_file(f"{instance_dir}/generated/{Itype}/{new_instance_name}.txt")
+        new_instance.write_to_file(f"{INSTANCES_DIR}/generated/{Itype}/{new_instance_name}.txt")
         generated_instances_names.append(new_instance_name)
     
     print(f"Generated {len(tirages)} instances for base instance {name}.")
@@ -75,6 +75,6 @@ print(f"Number of R instances: {nR}")
 print(f"Number of C instances: {nC}")
 print(f"Number of RC instances: {nRC}")
 
-with open(f"{instance_dir}/generated/instances_name.txt", "a") as f:
+with open(f"{INSTANCES_DIR}/generated/instances_name.txt", "a") as f:
     for n in generated_instances_names:
         f.write(n + "\n")

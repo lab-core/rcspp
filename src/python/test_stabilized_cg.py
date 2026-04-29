@@ -5,6 +5,7 @@
 
 from vrp.instance_reader import InstanceReader
 from utils.test_utils import *
+from utils.definitions import INSTANCES_DIR
 
 
 
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     kappas = [i for i in range(1, 2000, 50)]
 
     for name in instances_name:
-        instance_path = "../../instances/" + name + ".txt"
+        instance_path = INSTANCES_DIR + name + ".txt"
         instance_reader = InstanceReader(instance_path)
         instance = instance_reader.read()
         dual_optimal_solution = instance_reader.read_dual_optimal(instance.get_name())
@@ -28,7 +29,7 @@ if __name__ == "__main__":
 
         for p in kappas:
             print(f"\n\n====================\n Kappa: {p}\n====================\n\n")
-            solution_dict = vrp_dual_box_instance(instance, dual_optimal_solution, penalty=p, kappa=p, verbose=False)
+            solution_dict = vrp_stabilized_instance(instance, dual_optimal_solution, penalty=p, kappa=p, verbose=False)
             solutions[f"{name}_{p}"] = solution_dict
 
     save_dict_to_json(dir, "summary_variation_kappa_epsilon", solutions)
