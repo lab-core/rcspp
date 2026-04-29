@@ -3,14 +3,9 @@
 
 #pragma once
 
-#include <algorithm>
-#include <list>
-#include <string>
 #include <utility>
 
-#include "rcspp/algorithm/algorithm.hpp"
-#include "rcspp/graph/graph.hpp"
-#include "rcspp/label/label.hpp"
+#include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
 
 namespace rcspp {
 
@@ -27,13 +22,17 @@ namespace rcspp {
  * solutions, but may not guarantee optimality in all cases. It is particularly useful for large
  * graphs where full enumeration is computationally expensive, and a balance between speed and
  * solution quality is desired.
+ *
+ * The DFS path/sibling/backtrack mechanics live in @ref BacktrackingDiveAlgorithm; this class only
+ * supplies the main loop. The default cost-ascending child selection is inherited unchanged.
  */
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
-class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
+class GreedyAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelContainerType> {
     public:
         GreedyAlgorithm(ResourceFactory<ResourceType>* resource_factory,
                         AlgorithmParams<LabelContainerType> params)
-            : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
+            : BacktrackingDiveAlgorithm<ResourceType, LabelContainerType>(resource_factory,
+                                                                          std::move(params)) {}
 
     protected:
         void main_loop() override {
@@ -41,10 +40,10 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
 
-                // get the label
-                auto* label = path_.back().first;
+                // current top of the path
+                auto* label = this->path_.back().first;
 
-                // check if we can update the best label or extend
+                // record solution if at sink
                 if (label->get_end_node()->sink) {
                     if (label->get_cost() < this->cost_upper_bound_) {
                         if (label->get_cost() < this->best_cost_upper_bound_) {
@@ -58,138 +57,32 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     }
                 }
 
-                // next label to process
-                extend();
+                // advance: dive deeper greedily, or backtrack to a sibling on dead-end
+                advance();
             }
 
             LOG_DEBUG("GreedyAlgorithm: WHILE nb iter: ", i, "\n");
         }
 
-        void initialize_labels() override {
-            std::list<Label<ResourceType>*> sources;
-            for (auto source_node_id : this->graph_->get_source_node_ids()) {
-                auto* source_node = this->graph_->get_node(source_node_id);
-                auto& label = this->label_pool_.get_next_label(source_node);
-                sources.push_back(&label);
-            }
-
-            if (sources.empty()) {
-                return;
-            }
-
-            // store the sources: take the first element out, then move the remaining list
-            path_.clear();
-            add_labels_to_path(std::move(sources));
-        }
-
-        [[nodiscard]] size_t number_of_labels() const override { return path_.size(); }
-
-        void extend() {
-            // Note: do NOT keep a reference to path_.back() across pop_back() calls
-            // (that'd be a dangling reference). Re-query path_.back() each loop.
-            // try to extend the label greedily
-            while (!path_.empty()) {
+        /// Greedy advance step: keep extending the deepest label until it cannot
+        /// be extended further; if the very first attempt fails, backtrack and
+        /// switch to the next sibling. After one call either @c path_ is empty,
+        /// or the top has just been replaced (either by a deeper label or a
+        /// sibling at the same depth).
+        void advance() {
+            while (!this->path_.empty()) {
                 bool extended = false;
-                while (extend_label(path_.back().first)) {
-                    extended = true;  // successfully extended
+                while (this->extend_label(this->path_.back().first)) {
+                    extended = true;
                 }
                 if (extended) {
-                    break;  // successfully dive, move to next label
-                }
-
-                // need to backtrack until we find a node with remaining siblings
-                while (!path_.empty() && path_.back().second.empty()) {
-                    // release the label at this depth and pop
-                    this->label_pool_.release_label(path_.back().first);
-                    path_.pop_back();
-                }
-
-                if (path_.empty()) {
-                    // no more labels to extend
                     return;
                 }
-
-                // there is at least one sibling at current depth: release current label and switch
-                this->label_pool_.release_label(path_.back().first);
-                auto next_label = path_.back().second.front();
-                path_.back().second.pop_front();
-                path_.back().first = next_label;
-                // loop and try to extend the new current label
-            }
-        }
-
-        bool extend_label(Label<ResourceType>* label) {
-            // create all possible extensions
-            auto* end_node = label->get_end_node();
-            std::list<Label<ResourceType>*> all_labels;
-            for (auto* arc : end_node->out_arcs) {
-                // check if can reach this destination node
-                if (!label->is_reachable(arc->destination->id)) {
-                    continue;
-                }
-                // extend along arc
-                auto& new_label = this->label_pool_.get_next_label(arc->destination);
-                label->extend(*arc, &new_label);
-                // check feasibility
-                if (new_label.is_feasible()) {
-                    // successful extension
-                    all_labels.push_back(&new_label);
-                } else {
-                    // release label
-                    this->label_pool_.release_label(&new_label);
+                if (!this->backtrack()) {
+                    return;
                 }
             }
-
-            if (all_labels.empty()) {
-                return false;
-            }
-
-            // sort the labels by cost
-            all_labels.sort([](Label<ResourceType>* l1, Label<ResourceType>* l2) {
-                return l1->get_cost() < l2->get_cost();
-            });
-
-            // keep best label first
-            add_labels_to_path(std::move(all_labels));
-
-            return true;
         }
-
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
-            return {};
-        }
-
-        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
-            std::list<size_t> path_arc_ids;
-            for (const auto& p : path_) {
-                auto* l = p.first;
-                auto* in_arc = l->get_in_arc();
-                if (in_arc != nullptr) {
-                    path_arc_ids.push_back(in_arc->id);
-                }
-                if (l == &label) {
-                    break;
-                }
-            }
-            return path_arc_ids;
-        }
-
-        void add_labels_to_path(std::list<Label<ResourceType>*> labels) {
-            auto first = labels.front();
-            labels.pop_front();
-            path_.emplace_back(first, std::move(labels));
-        }
-
-        [[nodiscard]] std::string to_string() const {
-            std::stringstream ss;
-            size_t n = path_.size();
-            for (const auto& p : path_) {
-                ss << p.first->get_end_node()->id << (--n == 0 ? "" : " -> ");
-            }
-            return ss.str();
-        }
-
-        std::list<std::pair<Label<ResourceType>*, std::list<Label<ResourceType>*>>> path_;
 };
 
 }  // namespace rcspp

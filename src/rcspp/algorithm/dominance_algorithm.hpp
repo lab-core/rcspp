@@ -72,6 +72,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 // check if we can update the best label or extend
                 if (label.get_end_node()->sink) {
                     if (label.get_cost() < this->cost_upper_bound_) {
+                        LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
                         if (label.get_cost() < this->best_cost_upper_bound_) {
                             this->best_cost_upper_bound_ = label.get_cost();
                         }
@@ -179,6 +180,12 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         } else {  // otherwise, no feasible path has been found
                             LOG_ERROR(
                                 "Error while extracting path: could not find previous label.\n");
+                            if (this->params_.prune_based_on_upper_bound_ &&
+                                label.get_cost() >= this->best_cost_upper_bound_) {
+                                LOG_WARN(
+                                    "Consider disabling pruning based on upper bound to avoid this "
+                                    "issue, previous label may have been pruned.\n");
+                            }
                             return {};
                         }
                     } else {

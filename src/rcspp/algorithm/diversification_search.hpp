@@ -4,14 +4,13 @@
 #pragma once
 
 #include <list>
-#include <map>
 #include <memory>
-#include <random>
 #include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/tabu_list.hpp"
 
 namespace rcspp {
 
@@ -45,9 +44,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> algo = nullptr)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)),
               algo_(std::move(algo)),
-              rnd_(std::random_device{}()) {  // NOLINT(whitespace/braces)
-            rnd_.seed(this->params_.seed);
-
+              tabu_(this->params_.seed) {
             if (algo_ == nullptr) {
                 // create algorithm params
                 auto alg_params = this->params_;
@@ -104,21 +101,14 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                     added = true;
                 }
 
-                // increase tenure
+                // grow extra tenure when no novel solution was added (matches the
+                // original heuristic; success leaves the extra tenure unchanged)
                 if (!added) {
-                    tabu_tenure_extra_ = 1 + (2 * tabu_tenure_extra_);
+                    tabu_.grow_extra();
                 }
 
-                // decrease tenure and remove expired
-                for (auto it = removed_tabu_arc_ids_.begin(); it != removed_tabu_arc_ids_.end();) {
-                    if (it->second == 0) {
-                        graph_copy_->restore_arc(it->first);
-                        it = removed_tabu_arc_ids_.erase(it);
-                    } else {
-                        --(it->second);
-                        ++it;
-                    }
-                }
+                // decrement tenures and restore arcs whose tenure expired
+                tabu_.age([&](size_t arc_id) { graph_copy_->restore_arc(arc_id); });
             }
 
             LOG_DEBUG("DiversificationSearch: WHILE nb iter: ", i, "\n");
@@ -133,14 +123,8 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                     this->params_.forbidden_tabu.contains(arc->destination->id)) {
                     continue;
                 }
-                // remove arc and add to tabu list
                 if (graph_copy_->remove_arc(arc_id)) {
-                    size_t tenure = this->params_.tabu_tenure + tabu_tenure_extra_;
-                    if (this->params_.tabu_random_noise) {
-                        std::uniform_int_distribution<int> dist(tenure > 1 ? -1 : 0, 1);
-                        tenure += dist(rnd_);
-                    }
-                    removed_tabu_arc_ids_[arc_id] = tenure;
+                    tabu_.add(arc_id, this->params_.tabu_tenure, this->params_.tabu_random_noise);
                 }
             }
         }
@@ -162,9 +146,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
     private:
         std::unique_ptr<Graph<ResourceType>> graph_copy_;
         std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> algo_;
-        std::map<size_t, size_t> removed_tabu_arc_ids_;
-        size_t tabu_tenure_extra_{0};
-        std::mt19937_64 rnd_;
+        TabuList tabu_;
 };
 
 }  // namespace rcspp
