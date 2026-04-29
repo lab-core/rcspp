@@ -7,11 +7,14 @@
 
 namespace py = pybind11;
 
+void init_logger(py::module_&);
 void init_graph(py::module_&);
 void init_resource(py::module_&);
 
 PYBIND11_MODULE(rcsppy, m) {
     m.doc() = "RCSPP module";
+
+    init_logger(m);
 
     auto graph_submodule = m.def_submodule("graph", "Graph-related classes");
     init_graph(graph_submodule);
