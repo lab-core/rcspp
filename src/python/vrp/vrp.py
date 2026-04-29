@@ -436,7 +436,6 @@ class VRP:
             master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
 
             self.add_paths(negative_red_cost_solutions)
-            self.__reduced_cost_history.append(min_reduced_cost)
 
             self.__n_iterations += 1
         
@@ -481,6 +480,9 @@ class VRP:
 
         self.__n_iterations = 0
 
+        if self.__smoothing:
+            self.first_iteration(subproblem_max_nb_solutions)
+
         master_solution = self.cg_iterations(subproblem_max_nb_solutions)
                 
         print("\n*********************************************\n")
@@ -515,9 +517,8 @@ class VRP:
 
         return solutions
 
-    def enable_smoothing(self, convex_center: dict, alpha:float):
+    def enable_smoothing(self, alpha:float):
         self.__smoothing_parameter = alpha
-        self.__smoothing_center = convex_center
         self.__smoothing = True
         self.__mis_price_k = 1
 
@@ -575,3 +576,25 @@ class VRP:
             print("*********************************************")
         else: 
             print(f"------------------------------------------------------------------ Iter: {self.__n_iterations}------------------")
+
+    def first_iteration(self, subproblem_max_nb_solutions: Optional[int] = None):
+        master_problem = MasterProblem(self.__instance.get_demand_customers_id(), verbose=self.__verbose)
+        master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
+
+        dual_by_id = master_solution.dual_by_var_id
+
+        if self.__smoothing:
+            self.__smoothing_center = dual_by_id
+            self.__last_outer_point = dual_by_id
+
+        self.dual_box_center_ = dual_by_id
+        self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
+
+        negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
+
+        self.add_paths(negative_red_cost_solutions)
+
+        lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self.__instance.get_nb_vehicles() *min_reduced_cost
+        self.best_lagrangian_lb = lb
+
+        self.__n_iterations += 1

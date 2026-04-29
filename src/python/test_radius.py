@@ -3,9 +3,6 @@
 
 # flake8: noqa
 
-from utils.import_rscpp_lib import import_rscpp_lib
-import_rscpp_lib()
-
 from vrp.instance_reader import InstanceReader
 from utils.test_utils import *
 

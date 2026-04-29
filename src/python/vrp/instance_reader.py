@@ -17,7 +17,14 @@ class InstanceReader:
 
         if "_" in self.file_path_:
             path = self.file_path_.split("/")
-            self.file_path_ = "/".join(path[:-1]) + "/generated/" + path[-1]
+            instance_name = path[-1].split(".")[0]
+            if "RC" in instance_name:
+                Itype = "RC"
+            elif "R" in instance_name:
+                Itype = "R"
+            elif "C" in instance_name:
+                Itype = "C"
+            self.file_path_ = "/".join(path[:-1]) + f"/generated/{Itype}/{path[-1]}"
 
         print(f"file_path_={self.file_path_}")
 

@@ -1,15 +1,15 @@
 from utils.import_rscpp_lib import import_rscpp_lib
 import_rscpp_lib()
 
-from vrp.dual_box_vrp import DualBoxVRP
+from vrp.stabilized_vrp import StabilizedVRP
 from vrp.vrp import VRP
 from utils.solution_formatter import format_solution
 import json
 import math
 
-def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, penalty=0.9, save=False, dir="", verbose=True):
+def vrp_stabilized_instance(instance, dual_box_centre = None, save=False, dir="", verbose=True):
     print("Construct VRP")
-    vrp = DualBoxVRP(instance, dual_box_centre, kappa, penalty=penalty, verbose=verbose)
+    vrp = StabilizedVRP(instance, dual_box_centre, verbose=verbose)
     print("Construct VRP ...Done")
 
     solution = vrp.solve()
@@ -22,7 +22,7 @@ def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, penalty=0.9, save=
                 author="ajdepommerol",
             )
     if save:
-        with open(f"/home/jullarth/Documents/Solutions/{dir}/{instance.get_name()}.txt", "w") as f:
+        with open(f"/home/jullarth/Documents/Solutions/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
            f.write(formatted_solution)
 
     solution_dict = {   "n_iter": vrp.get_n_iterations(), 
@@ -31,19 +31,22 @@ def vrp_dual_box_instance(instance, dual_box_centre, kappa=1, penalty=0.9, save=
                         "solution_cost": solution.cost,
                         "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time(),
                         "nb_added_columns": len(vrp._VRP__paths),
-                        "n_meta_iter": vrp.meta_iteration,
-                        "kappa": kappa
+                        "n_meta_iter": vrp.meta_iteration
                         }
+    
+    dual_history = vrp.get_dual_values_history()
+    with open(f"/home/jullarth/Documents/Solutions/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
+        json.dump(dual_history, f)
 
     return solution_dict
 
-def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, dir="", verbose=True):
+def vrp_instance(instance, smoothing=None, save=False, dir="", verbose=True):
     print("Construct VRP")
     vrp = VRP(instance, verbose=verbose)
     print("Construct VRP ...Done")
 
     if smoothing is not None:
-        vrp.enable_smoothing(smoothing_center, smoothing)
+        vrp.enable_smoothing(smoothing)
 
     solution = vrp.solve()
 
@@ -55,7 +58,7 @@ def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, di
                 author="ajdepommerol",
             )
     if save:
-        with open(f"/home/jullarth/Documents/Solutions/{dir}/{instance.get_name()}.txt", "w") as f:
+        with open(f"/home/jullarth/Documents/Solutions/{dir}/solutions/{instance.get_name()}.txt", "w") as f:
            f.write(formatted_solution)
 
     solution_dict = {   "n_iter": vrp.get_n_iterations(), 
@@ -65,6 +68,10 @@ def vrp_instance(instance, smoothing=None, smoothing_center=None, save=False, di
                         "time_ratio": vrp.get_total_subproblem_time()/vrp.get_total_problem_time(),
                         "nb_added_columns": len(vrp._VRP__paths)
                         }
+    
+    dual_history = vrp.get_dual_values_history()
+    with open(f"/home/jullarth/Documents/Solutions/{dir}/dual_history/{instance.get_name()}.json", "w") as f:
+        json.dump(dual_history, f)
 
     return vrp, solution, solution_dict
 

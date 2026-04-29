@@ -6,24 +6,31 @@ import time
 from typing import Optional
 
 from vrp.cg.dual_box_master_problem import DualBoxMasterProblem
+from vrp.cg.master_problem import MasterProblem
 from vrp.instance import Instance
 from vrp.vrp import VRP
 from utils.utils import dict_l1_norm
 
-class DualBoxVRP(VRP):
-    def __init__(self, instance: Instance, dual_box_center: dict, kappa=1, penalty = 1000, verbose=True):
+class StabilizedVRP(VRP):
+    def __init__(self, instance: Instance, dual_estimate = None, verbose=True):
         super().__init__(instance, verbose)
-        self.dual_box_center_ = dual_box_center
-        self.box_radius = dict_l1_norm(dual_box_center)/kappa
-        self.penalty_value = penalty
+        self.kappa = 1
+        self.penalty_value = 0.9
         self.meta_iteration = 0
-        self.compute_first_lagrangian_bound(dual_box_center)
+        self.dual_estimate = dual_estimate
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
         time_start = time.time()
         self.generate_initial_paths()
         max_special_var_value = math.inf
         stabilized_iter_solution = None
+
+        if self.dual_estimate is None:
+            self.first_iteration(subproblem_max_nb_solutions)
+        else:
+            self.dual_box_center_ = self.dual_estimate
+            self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
+            self.best_lagrangian_lb = self.compute_first_lagrangian_bound(self.dual_box_center_)
 
         while True:
             stabilized_iter_solution = self.cg_iterations(subproblem_max_nb_solutions)
@@ -53,14 +60,10 @@ class DualBoxVRP(VRP):
         min_reduced_cost = -math.inf
 
         while True:
-            print(self.box_radius)
             self.print_begin_iteration(min_reduced_cost)
             
             master_problem = DualBoxMasterProblem(self._VRP__instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value, verbose=self._VRP__verbose)
             master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
-
-            #values = [value for var, value in master_solution.value_by_var_id.items() if isinstance(var, int)]
-            #print(f"Nombre de vehicules ? : {sum(values)}")
             
             lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self._VRP__instance.get_nb_vehicles() *min_reduced_cost
             if lb > self.best_lagrangian_lb:
