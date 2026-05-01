@@ -10,7 +10,6 @@
 #include <set>
 #include <sstream>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -161,7 +160,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         using Derived = BitsetResource<T>;
 
         BitsetResource() = default;
-        explicit BitsetResource(const std::set<ValueType>& indices) : size_(0) {
+        explicit BitsetResource(const std::set<ValueType>& indices) {
             for (auto idx : indices) {
                 add(idx);
             }
@@ -171,10 +170,10 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         // -> necessary for an initializer with a set (i.e. ResourceInitializerTypeTuple)
         void set_value(const std::set<ValueType>& indices) {
             this->container_.clear();
+            size_ = 0;
             for (auto idx : indices) {
                 add(idx);
             }
-            size_ = indices.size();
         }
 
         void set_value(Container container) override {
@@ -207,10 +206,13 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         }
 
         void remove(const ValueType& idx) override {
-            if (idx < 64 * this->container_.size()) {                 // avoid out-of-bounds  NOLINT
-                this->container_[idx >> 6] &= ~(1ULL << (idx & 63));  // NOLINT
+            if (idx < 64 * this->container_.size()) {     // avoid out-of-bounds  NOLINT
+                const uint64_t bit = 1ULL << (idx & 63);  // NOLINT
+                if (this->container_[idx >> 6] & bit) {   // NOLINT
+                    this->container_[idx >> 6] &= ~bit;   // NOLINT
+                    --size_;
+                }
             }
-            --size_;
         }
 
         [[nodiscard]] bool contains(const ValueType& idx) const override {
@@ -332,7 +334,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
     private:
         // storage is inherited from ContainerResource as `container_`.
-        size_t size_;
+        size_t size_{0};
 
         void ensure_words_size(ValueType requested_nb_bits) {
             const size_t new_words = (requested_nb_bits + 63) / 64;
