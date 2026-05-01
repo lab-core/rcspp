@@ -161,7 +161,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         using Derived = BitsetResource<T>;
 
         BitsetResource() = default;
-        explicit BitsetResource(const std::set<ValueType>& indices) : size_(indices.size()) {
+        explicit BitsetResource(const std::set<ValueType>& indices) : size_(0) {
             for (auto idx : indices) {
                 add(idx);
             }
@@ -186,10 +186,14 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division
         // by 64 (floor). In this bitset code it computes which 64-bit word (slot) contains bit
         // number idx. The companion idx & 63 computes idx % 64 (bit offset inside that word).
+        // Only add the value, if not already present
         void add(const ValueType& idx) override {
             ensure_words_size(idx + 1);
-            this->container_[idx >> 6] |= (1ULL << (idx & 63));  // NOLINT
-            ++size_;
+            const uint64_t bit = 1ULL << (idx & 63);    // NOLINT
+            if (!(this->container_[idx >> 6] & bit)) {  // NOLINT
+                this->container_[idx >> 6] |= bit;      // NOLINT
+                ++size_;
+            }
         }
 
         void add(const Container& other_words) override {

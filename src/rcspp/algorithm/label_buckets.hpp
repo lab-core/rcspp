@@ -84,16 +84,16 @@ class LabelBuckets : public LabelList<ResourceType> {
                 const RType* begin_value;
                 double range;
 
-                bool is_within_bucket(const RType& value) const {
+                [[nodiscard]] bool is_within_bucket(const RType& value) const {
                     // neither before, nor after the bucket
                     return !is_before_bucket(value) && !is_after_bucket(value);
                 }
 
-                bool is_before_bucket(const RType& value) const {
+                [[nodiscard]] bool is_before_bucket(const RType& value) const {
                     return !begin_value->is_lower(value);
                 }
 
-                bool is_after_bucket(const RType& value) const {
+                [[nodiscard]] bool is_after_bucket(const RType& value) const {
                     return begin_value->is_lower(value, -range);
                 }
 
@@ -113,7 +113,7 @@ class LabelBuckets : public LabelList<ResourceType> {
               bucket_resource_index_(bucket_resource_index),
               sort_resource_index_(sort_resource_index) {}
 
-        LabelBuckets copy() const {
+        [[nodiscard]] LabelBuckets copy() const {
             return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
         }
 
@@ -124,7 +124,7 @@ class LabelBuckets : public LabelList<ResourceType> {
                 auto& bucket = *bit;
                 if (bucket.is_before_bucket(label_bucket_resource)) {
                     // Insert a new bucket before the current one and insert the label there
-                    LabelPosition pos = this->labels_.insert(bucket.begin, label);
+                    auto pos = this->labels_.insert(bucket.begin, label);
                     insert_bucket(bit, pos, &label_bucket_resource);
                     return pos;
                 }
@@ -148,7 +148,7 @@ class LabelBuckets : public LabelList<ResourceType> {
                         ++it;
                     }
                     // insert label at the right position in the list of labels
-                    LabelPosition pos = this->labels_.insert(it, label);
+                    auto pos = this->labels_.insert(it, label);
 
                     // update begin if necessary
                     if (it == bucket.begin) {
@@ -161,7 +161,7 @@ class LabelBuckets : public LabelList<ResourceType> {
             }
 
             // Insert a new bucket at the end of the list and insert the label there
-            LabelPosition pos = this->labels_.insert(this->labels_.end(), label);
+            auto pos = this->labels_.insert(this->labels_.end(), label);
             insert_bucket(buckets_.end(), pos, &label_bucket_resource);
             return pos;
         }
@@ -255,7 +255,7 @@ class LabelBuckets : public LabelList<ResourceType> {
             return removed;
         }
 
-        bool is_dominated(const Label<ResourceType>& label) const override {
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& label) const override {
             // if no bucket, no label, return false
             if (buckets_.empty()) {
                 return false;
@@ -304,12 +304,13 @@ class LabelBuckets : public LabelList<ResourceType> {
         size_t num_labels_{0};
         size_t num_visited_labels_{0};
 
-        const Resource<BucketResource>& get_bucket_resource(
+        [[nodiscard]] const Resource<BucketResource>& get_bucket_resource(
             const Label<ResourceType>& label) const {
             return get_resource<BucketResource>(label, bucket_resource_index_);
         }
 
-        const Resource<SortResource>& get_sort_resource(const Label<ResourceType>& label) const {
+        [[nodiscard]] const Resource<SortResource>& get_sort_resource(
+            const Label<ResourceType>& label) const {
             return get_resource<SortResource>(label, sort_resource_index_);
         }
 
@@ -357,8 +358,8 @@ class LabelBuckets : public LabelList<ResourceType> {
         }
 
         template <class RType>
-        static const Resource<RType>& get_resource(const Label<ResourceType>& label,
-                                                   size_t resource_index) {
+        [[nodiscard]] static const Resource<RType>& get_resource(const Label<ResourceType>& label,
+                                                                 size_t resource_index) {
             return label.get_resource().template get_resource_component<RType>(resource_index);
         }
 };

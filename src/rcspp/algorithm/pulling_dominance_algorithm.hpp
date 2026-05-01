@@ -53,7 +53,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (this->params_.prune_based_on_upper_bound_ &&
-                               label.get_cost() >= this->cost_upper_bound_) {
+                               label.get_cost() >= this->best_cost_upper_bound_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_label(&label);
@@ -78,7 +78,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                                         LOG_DEBUG("Stopping after ",
                                                   this->solutions_.size(),
                                                   " solutions.\n");
-                                        break;
+                                        return;
                                     }
                                 }
                             }

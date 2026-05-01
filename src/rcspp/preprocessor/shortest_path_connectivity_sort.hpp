@@ -102,7 +102,7 @@ class ShortestPathConnectivitySort {
                 // check if one is the predecessor of the other
                 auto arcs12 = graph->get_arcs(node1->id, node2->id);
                 auto arcs21 = graph->get_arcs(node2->id, node1->id);
-                if (arcs12.size() != arcs12.size()) {
+                if (arcs12.size() != arcs21.size()) {
                     return arcs12.size() < arcs21.size();  // less arc going from node1 -> node2
                 }
 

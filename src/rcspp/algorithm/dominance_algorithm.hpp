@@ -41,7 +41,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
-        void main_loop() override {
+        void main_loop() override {  // NOLINT
             size_t i = 0;
             while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
@@ -81,7 +81,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                                 LOG_DEBUG("Stopping after ",
                                           this->solutions_.size(),
                                           " solutions.\n");
-                                break;
+                                return;
                             }
                         }
                     }
