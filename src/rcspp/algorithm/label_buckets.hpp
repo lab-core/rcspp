@@ -129,6 +129,17 @@ class LabelBuckets : public LabelList<ResourceType> {
                     return pos;
                 }
                 if (bucket.is_within_bucket(label_bucket_resource)) {
+                    // If the label is also at-or-after the next bucket, let the next bucket own it.
+                    // This prevents new labels from landing in an overlapping range and keeps each
+                    // bucket's effective coverage clipped to [begin_value,
+                    // next_bucket.begin_value).
+                    auto next_bit = std::next(bit);
+                    if (next_bit != buckets_.end() &&
+                        !next_bit->is_before_bucket(label_bucket_resource)) {
+                        ++bit;
+                        continue;
+                    }
+
                     // Insert the label in the correct position within the bucket based on the sort
                     // resource
                     const auto& label_sort_resource = get_sort_resource(*label);
@@ -156,28 +167,26 @@ class LabelBuckets : public LabelList<ResourceType> {
         }
 
         void erase_label(const LabelPosition& pos) override {
-            // find the bucket containing the erased label
-            const auto& label_bucket_resource = get_bucket_resource(**pos);
+            // Find the bucket whose begin equals pos before erasing (pos is valid here).
+            // Iterator comparison is used instead of is_within_bucket because begin_value can drift
+            // after update_bucket_begin calls, making range-based lookup return the wrong bucket.
             auto bit = std::find_if(buckets_.begin(), buckets_.end(), [&](const auto& bucket) {
-                return bucket.is_within_bucket(label_bucket_resource);
+                return bucket.begin == pos;
             });
-            if (bit == buckets_.end()) {
-                throw std::runtime_error("Label not found in any bucket");
-            }
 
             // erase the label from the list of labels
             auto it = this->labels_.erase(pos);
 
-            // update the bucket begin if first element
-            // remove the bucket if containing only the label
-            auto& bucket = *bit;
-            if (pos == bucket.begin) {
-                // if contains only the label, remove the bucket
-                if (it == bucket.end) {
-                    remove_bucket(bit);
-                } else {
-                    update_bucket_begin(bit, it);
-                }
+            // if pos was interior to a bucket (not any bucket's begin), nothing to update
+            if (bit == buckets_.end()) {
+                return;
+            }
+
+            // pos was the begin of *bit; remove or advance the bucket
+            if (it == bit->end) {
+                remove_bucket(bit);
+            } else {
+                update_bucket_begin(bit, it);
             }
         }
 
