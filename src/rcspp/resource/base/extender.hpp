@@ -32,6 +32,14 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
                  const size_t arc_id)
             : Prototype(std::move(extension_function), arc_id) {}
 
+        template <typename GraphResourceType>
+        [[nodiscard]] auto clone(const Arc<GraphResourceType>& arc) const
+            -> std::unique_ptr<Extender> {
+            return std::make_unique<Extender>(this->value_,
+                                              this->extension_function_->create(arc),
+                                              arc.id);
+        }
+
         // Resource extension
         void extend(const Resource<ResourceType>& resource,
                     Resource<ResourceType>* extended_resource) const {

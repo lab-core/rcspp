@@ -6,7 +6,7 @@
 #include <limits>
 #include <optional>
 
-#include "rcspp/resource/base/resource_value.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
@@ -37,7 +37,7 @@ bool value_lt(T lhs, T rhs) noexcept {
 }
 
 template <typename T>
-class NumericalResource : public ResourceValue<NumericalResource<T>> {
+class NumericalResource {
     public:
         explicit NumericalResource(T value = 0) : value_(value) {}
 
@@ -49,7 +49,7 @@ class NumericalResource : public ResourceValue<NumericalResource<T>> {
 
         void add(T value) { value_ += value; }
 
-        void reset() override { value_ = 0; }
+        void reset() { value_ = 0; }
 
         [[nodiscard]] bool leq(const NumericalResource<T>& other) const {
             return leq(other.get_value());

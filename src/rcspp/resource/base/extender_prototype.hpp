@@ -10,14 +10,14 @@
 #include <vector>
 
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/utils/logger.hpp"
 
 namespace rcspp {
 
 template <typename ExtenderClass, typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class ExtenderPrototype {
     public:
         ExtenderPrototype() : value_(), extension_function_(nullptr), arc_id_(0) {}
@@ -53,14 +53,6 @@ class ExtenderPrototype {
         [[nodiscard]] auto get_value() -> ResourceType& { return value_; }
 
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
-
-        template <typename GraphResourceType>
-        [[nodiscard]] auto clone(const Arc<GraphResourceType>& arc) const
-            -> std::unique_ptr<ExtenderClass> {
-            return std::make_unique<ExtenderClass>(value_,
-                                                   extension_function_->create(arc),
-                                                   arc.id);
-        }
 
     protected:
         ResourceType value_;

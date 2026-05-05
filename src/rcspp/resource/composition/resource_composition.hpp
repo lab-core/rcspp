@@ -12,16 +12,16 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/composition/composition.hpp"
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 template <typename... ResourceTypes>
-    requires(std::derived_from<ResourceTypes, ResourceValue<ResourceTypes>> && ...)
-class Resource<ResourceValueComposition<ResourceTypes...>>
-    : public ResourcePrototype<Resource<ResourceValueComposition<ResourceTypes...>>,
-                               ResourceValueComposition<ResourceTypes...>>,
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
+class Resource<ResourceTypeComposition<ResourceTypes...>>
+    : public ResourcePrototype<Resource<ResourceTypeComposition<ResourceTypes...>>,
+                               ResourceTypeComposition<ResourceTypes...>>,
       public Composition<Resource, ResourceTypes...> {
-        using Prototype = ResourcePrototype<Resource, ResourceValueComposition<ResourceTypes...>>;
+        using Prototype = ResourcePrototype<Resource, ResourceTypeComposition<ResourceTypes...>>;
 
     public:
         Resource() = default;
@@ -29,22 +29,22 @@ class Resource<ResourceValueComposition<ResourceTypes...>>
         Resource(
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 resource_components,
-            std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>>
                 dominance_function,
-            std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>>
                 feasibility_function,
-            std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> cost_function,
+            std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> cost_function,
             std::size_t node_id = 0)
             : Prototype(std::move(dominance_function), std::move(feasibility_function),
                         std::move(cost_function), node_id),
               Composition<Resource, ResourceTypes...>(std::move(resource_components)) {}
 
         Resource(
-            std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>>
                 dominance_function,
-            std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>>
                 feasibility_function,
-            std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> cost_function,
+            std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> cost_function,
             std::size_t node_id = 0)
             : Prototype(std::move(dominance_function), std::move(feasibility_function),
                         std::move(cost_function), node_id) {}
@@ -52,17 +52,17 @@ class Resource<ResourceValueComposition<ResourceTypes...>>
         Resource(
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 resource_components,
-            DominanceFunction<ResourceValueComposition<ResourceTypes...>>* dominance_function,
-            FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>* feasibility_function,
-            CostFunction<ResourceValueComposition<ResourceTypes...>>* cost_function,
+            DominanceFunction<ResourceTypeComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceTypeComposition<ResourceTypes...>>* cost_function,
             std::size_t node_id = 0)
             : Prototype(dominance_function, feasibility_function, cost_function, node_id),
               Composition<Resource, ResourceTypes...>(std::move(resource_components)) {}
 
         Resource(
-            DominanceFunction<ResourceValueComposition<ResourceTypes...>>* dominance_function,
-            FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>* feasibility_function,
-            CostFunction<ResourceValueComposition<ResourceTypes...>>* cost_function,
+            DominanceFunction<ResourceTypeComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceTypeComposition<ResourceTypes...>>* cost_function,
             std::size_t node_id = 0)
             : Prototype(dominance_function, feasibility_function, cost_function, node_id) {}
 

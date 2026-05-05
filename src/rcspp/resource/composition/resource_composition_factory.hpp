@@ -13,28 +13,28 @@
 #include "rcspp/resource/composition/functions/dominance/composition_dominance_function.hpp"
 #include "rcspp/resource/composition/functions/extension/composition_extension_function.hpp"
 #include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
 template <typename... ResourceTypes>
 class ResourceCompositionFactory
-    : public ResourceFactory<ResourceValueComposition<ResourceTypes...>>,
+    : public ResourceFactory<ResourceTypeComposition<ResourceTypes...>>,
       public Composition<ResourceFactory, ResourceTypes...> {
-        using Base = ResourceFactory<ResourceValueComposition<ResourceTypes...>>;
-        using ResourceClass = Resource<ResourceValueComposition<ResourceTypes...>>;
-        using ExtenderClass = Extender<ResourceValueComposition<ResourceTypes...>>;
+        using Base = ResourceFactory<ResourceTypeComposition<ResourceTypes...>>;
+        using ResourceClass = Resource<ResourceTypeComposition<ResourceTypes...>>;
+        using ExtenderClass = Extender<ResourceTypeComposition<ResourceTypes...>>;
 
     public:
         ResourceCompositionFactory() = default;
 
         ResourceCompositionFactory(
-            std::unique_ptr<ExtensionFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>>
                 extension_function,
-            std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>>
                 feasibility_function,
-            std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> cost_function,
-            std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>>
+            std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> cost_function,
+            std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>>
                 dominance_function)
             : Base(std::move(extension_function), std::move(feasibility_function),
                    std::move(cost_function), std::move(dominance_function)) {}

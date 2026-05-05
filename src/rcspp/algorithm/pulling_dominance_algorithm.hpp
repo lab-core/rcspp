@@ -12,7 +12,7 @@
 
 namespace rcspp {
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                                   NodeUnprocessedLabelsManager<ResourceType> {
     public:

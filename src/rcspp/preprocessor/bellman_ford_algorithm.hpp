@@ -39,7 +39,7 @@ class BellmanFordAlgorithm {
         // nodes to any of the given targets (backward)
         // cost = nullopt -> use default arc cost
         template <typename CostResourceType = RealResource, typename... ResourceTypes>
-        static Distance solve(const Graph<ResourceValueComposition<ResourceTypes...>>& graph_,
+        static Distance solve(const Graph<ResourceTypeComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids,
                               std::optional<size_t> cost_index = std::nullopt,
                               bool forward = true) {
@@ -57,7 +57,7 @@ class BellmanFordAlgorithm {
                             cost_index.value());
                     double origin_cost = origin_cost_resource.get_value().get_value();
                     // extend the resource
-                    Resource<ResourceValueComposition<ResourceTypes...>> resource(
+                    Resource<ResourceTypeComposition<ResourceTypes...>> resource(
                         *arc->destination->resource);
                     arc->extender->extend(*arc->origin->resource, &resource);
                     // fetch the new value of the cost resource

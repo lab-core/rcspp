@@ -13,28 +13,24 @@ namespace rcspp {
 
 // Specialization for ResourceComposition
 template <typename... ResourceTypes>
-    requires(std::derived_from<ResourceTypes, ResourceValue<ResourceTypes>> && ...)
-class Extender<ResourceValueComposition<ResourceTypes...>>
-    : public ExtenderPrototype<Extender<ResourceValueComposition<ResourceTypes...>>,
-                               ResourceValueComposition<ResourceTypes...>>,
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
+class Extender<ResourceTypeComposition<ResourceTypes...>>
+    : public ExtenderPrototype<Extender<ResourceTypeComposition<ResourceTypes...>>,
+                               ResourceTypeComposition<ResourceTypes...>>,
       public Composition<Extender, ResourceTypes...> {
-        using ResourceType = ResourceValueComposition<ResourceTypes...>;
+        using ResourceType = ResourceTypeComposition<ResourceTypes...>;
         using Prototype = ExtenderPrototype<Extender, ResourceType>;
 
     public:
         Extender() = default;
-
-        Extender(const ResourceType& resource_values,
-                 std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
-                 const size_t arc_id)
-            : Prototype(resource_values, std::move(extension_function), arc_id) {}
 
         Extender(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                  const size_t arc_id)
             : Prototype(std::move(extension_function), arc_id) {}
 
         [[nodiscard]] auto clone(const Arc<ResourceType>& arc) const -> auto {
-            auto new_extender = Prototype::clone(arc);
+            auto new_extender =
+                std::make_unique<Extender>(this->extension_function_->create(arc), arc.id);
             this->apply(*new_extender, [&arc](const auto& extenders, auto& new_extenders) {
                 for (const auto& extender : extenders) {
                     new_extenders.emplace_back(extender->clone(arc));

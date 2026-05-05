@@ -15,14 +15,14 @@ namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceValueComposition<RealResource>;
+using ResourceType = ResourceTypeComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
-using ConcreteGraph = Graph<ResourceCompositionBase>;
-using ConcreteNode = Node<ResourceCompositionBase>;
-using ConcreteArc = Arc<ResourceCompositionBase>;
+using ConcreteGraph = Graph<ResourceType>;
+using ConcreteNode = Node<ResourceType>;
+using ConcreteArc = Arc<ResourceType>;
 
-using ConcreteExtender = Extender<ResourceCompositionBase>;
+using ConcreteExtender = Extender<ResourceType>;
 
 void init_graph(py::module_& m) {
     py::class_<ConcreteGraph>(m, "Graph")
@@ -126,7 +126,7 @@ void init_graph(py::module_& m) {
              py::arg("sink") = false,
              py::return_value_policy::reference)
         .def("add_arc",
-             static_cast<Arc<ResourceCompositionBase>& (
+             static_cast<Arc<ResourceType>& (
                  ResourceGraph<RealResource>::*)(const std::tuple<
                                                      std::vector<ComponentInitializerTypeTuple_t<
                                                          RealResource>>>&,
@@ -145,7 +145,7 @@ void init_graph(py::module_& m) {
              py::return_value_policy::reference)
         .def("update_arc",
              static_cast<void (ResourceGraph<RealResource>::*)(
-                 Arc<ResourceCompositionBase>*,
+                 Arc<ResourceType>*,
                  const std::tuple<std::vector<ComponentInitializerTypeTuple_t<RealResource>>>&,
                  std::optional<double>
                      cost)>(&ResourceGraph<RealResource>::update_arc),

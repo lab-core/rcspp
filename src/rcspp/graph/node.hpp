@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/base/resource_value.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
@@ -16,11 +16,11 @@ template <typename ResourceType>
 class Arc;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Graph;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Node {
     public:
         explicit Node(size_t node_id, bool source, bool sink)

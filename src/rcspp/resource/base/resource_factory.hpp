@@ -12,7 +12,7 @@
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/base/resource_value.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 

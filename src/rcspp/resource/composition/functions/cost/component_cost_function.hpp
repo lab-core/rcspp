@@ -12,11 +12,11 @@ namespace rcspp {
 template <size_t ResourceTypeIndex, typename... ResourceTypes>
 class ComponentCostFunction
     : public Clonable<ComponentCostFunction<ResourceTypeIndex, ResourceTypes...>,
-                      CostFunction<ResourceValueComposition<ResourceTypes...>>> {
+                      CostFunction<ResourceTypeComposition<ResourceTypes...>>> {
     public:
         explicit ComponentCostFunction(size_t resource_index) : resource_index_(resource_index) {}
 
-        [[nodiscard]] double get_cost(const Resource<ResourceValueComposition<ResourceTypes...>>&
+        [[nodiscard]] double get_cost(const Resource<ResourceTypeComposition<ResourceTypes...>>&
                                           resource_composition) const override {
             const auto& resource =
                 resource_composition.template get_component<ResourceTypeIndex>(resource_index_);

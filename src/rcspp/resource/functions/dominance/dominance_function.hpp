@@ -6,7 +6,7 @@
 #include <memory>
 #include <utility>
 
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
@@ -38,19 +38,19 @@ class DominanceFunction {
 // Specialization for ResourceBaseComposition: functions receive the full Resource object
 // since the composition tag carries no values of its own.
 template <typename... ResourceTypes>
-class DominanceFunction<ResourceValueComposition<ResourceTypes...>> {
+class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~DominanceFunction() = default;
 
         [[nodiscard]] virtual auto check_dominance(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& lhs_resource,
-            const Resource<ResourceValueComposition<ResourceTypes...>>& rhs_resource) -> bool = 0;
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& lhs_resource,
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& rhs_resource) -> bool = 0;
 
         [[nodiscard]] virtual auto clone() const
-            -> std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>> = 0;
+            -> std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
         auto create(const size_t node_id)
-            -> std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>> {
+            -> std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_dominance_function = clone();
             new_dominance_function->preprocess(node_id);
             return new_dominance_function;

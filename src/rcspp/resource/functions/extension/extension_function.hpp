@@ -7,7 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
@@ -48,28 +48,28 @@ class ExtensionFunction {
 
 // Specialization for ResourceBaseComposition: extension functions receive the full Resource object.
 template <typename... ResourceTypes>
-class ExtensionFunction<ResourceValueComposition<ResourceTypes...>> {
+class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~ExtensionFunction() = default;
 
         virtual void extend(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceValueComposition<ResourceTypes...>>& extender,
-            Resource<ResourceValueComposition<ResourceTypes...>>* extended_resource) = 0;
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
+            Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
         virtual void extend_back(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceValueComposition<ResourceTypes...>>& extender,
-            Resource<ResourceValueComposition<ResourceTypes...>>* extended_resource) {
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
+            Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) {
             extend(resource, extender, extended_resource);
         }
 
         [[nodiscard]] virtual auto clone() const
-            -> std::unique_ptr<ExtensionFunction<ResourceValueComposition<ResourceTypes...>>> = 0;
+            -> std::unique_ptr<ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
         template <typename GraphResourceType>
         auto create(const Arc<GraphResourceType>& arc)
-            -> std::unique_ptr<ExtensionFunction<ResourceValueComposition<ResourceTypes...>>> {
+            -> std::unique_ptr<ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_extension_function = clone();
             new_extension_function->preprocess(arc.origin->id, arc.destination->id);
             return new_extension_function;

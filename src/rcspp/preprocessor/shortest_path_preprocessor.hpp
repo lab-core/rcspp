@@ -17,16 +17,16 @@ namespace rcspp {
 
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
 class ShortestPathPreprocessor final
-    : public Preprocessor<ResourceValueComposition<ResourceTypes...>> {
+    : public Preprocessor<ResourceTypeComposition<ResourceTypes...>> {
     public:
-        ShortestPathPreprocessor(Graph<ResourceValueComposition<ResourceTypes...>>* graph,
+        ShortestPathPreprocessor(Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
                                  double upper_bound, size_t cost_index = 0)
-            : Preprocessor<ResourceValueComposition<ResourceTypes...>>(graph),
+            : Preprocessor<ResourceTypeComposition<ResourceTypes...>>(graph),
               graph_(graph),
               cost_index_(cost_index),
               upper_bound_(upper_bound) {
             if (std::isinf(upper_bound)) {
-                Preprocessor<ResourceValueComposition<ResourceTypes...>>::disable_preprocessing_ =
+                Preprocessor<ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ =
                     true;
             } else {
                 try {
@@ -43,7 +43,7 @@ class ShortestPathPreprocessor final
                             false);
                 } catch (const std::runtime_error&) {
                     Preprocessor<
-                        ResourceValueComposition<ResourceTypes...>>::disable_preprocessing_ = true;
+                        ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ = true;
                 }
             }
         }
@@ -53,9 +53,9 @@ class ShortestPathPreprocessor final
         size_t cost_index_;
         double upper_bound_;
         // pointer to the graph for traversal and connectivity queries
-        Graph<ResourceValueComposition<ResourceTypes...>>* graph_;
+        Graph<ResourceTypeComposition<ResourceTypes...>>* graph_;
 
-        bool remove_arc(const Arc<ResourceValueComposition<ResourceTypes...>>& arc) override {
+        bool remove_arc(const Arc<ResourceTypeComposition<ResourceTypes...>>& arc) override {
             const auto& arc_cost_extender =
                 arc.extender->template get_component<CostResourceType>(cost_index_);
             double arc_cost = arc_cost_extender.get_value().get_value();

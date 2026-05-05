@@ -10,16 +10,16 @@
 #include <utility>
 #include <vector>
 
-#include "../../utils/logger.hpp"
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/utils/logger.hpp"
 
 namespace rcspp {
 
 template <typename ResourceClass, typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class ResourcePrototype {
     public:
         ResourcePrototype()

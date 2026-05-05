@@ -14,8 +14,8 @@ template <typename CostResourceType = RealResource, typename... ResourceTypes>
 class ShortestPathConnectivitySort {
     public:
         explicit ShortestPathConnectivitySort(
-            Graph<ResourceValueComposition<ResourceTypes...>>* graph,
-            ConnectivityMatrix<ResourceValueComposition<ResourceTypes...>>* cm,
+            Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
+            ConnectivityMatrix<ResourceTypeComposition<ResourceTypes...>>* cm,
             std::optional<size_t> cost_index = std::nullopt) {  // use default cost if nullopt
             // compute shortest path distances from sources and to sinks
             bool distances_computed = true;
@@ -49,8 +49,8 @@ class ShortestPathConnectivitySort {
             }
 
             // order based on shortest path distances
-            graph->sort_nodes([&](const Node<ResourceValueComposition<ResourceTypes...>>* node1,
-                                  const Node<ResourceValueComposition<ResourceTypes...>>* node2) {
+            graph->sort_nodes([&](const Node<ResourceTypeComposition<ResourceTypes...>>* node1,
+                                  const Node<ResourceTypeComposition<ResourceTypes...>>* node2) {
                 // sources first
                 if (node1->source ^ node2->source) {
                     return node1->source;

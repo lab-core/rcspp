@@ -4,7 +4,7 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 
 namespace rcspp {
@@ -12,9 +12,9 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionCostFunction
     : public Clonable<CompositionCostFunction<ResourceTypes...>,
-                      CostFunction<ResourceValueComposition<ResourceTypes...>>> {
+                      CostFunction<ResourceTypeComposition<ResourceTypes...>>> {
     public:
-        double get_cost(const Resource<ResourceValueComposition<ResourceTypes...>>&
+        double get_cost(const Resource<ResourceTypeComposition<ResourceTypes...>>&
                             resource_composition) const override {
             double total_cost = 0;
             resource_composition.for_each_component(

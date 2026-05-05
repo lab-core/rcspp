@@ -20,7 +20,7 @@
 namespace rcspp {
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Graph {
     public:
         Graph() = default;

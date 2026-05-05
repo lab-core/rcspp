@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
@@ -46,29 +46,29 @@ class FeasibilityFunction {
 
 // Specialization for ResourceBaseComposition: functions receive the full Resource object.
 template <typename... ResourceTypes>
-class FeasibilityFunction<ResourceValueComposition<ResourceTypes...>> {
+class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~FeasibilityFunction() = default;
 
         [[nodiscard]] virtual auto is_feasible(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& resource) -> bool = 0;
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource) -> bool = 0;
 
         [[nodiscard]] virtual auto is_back_feasible(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& resource) -> bool {
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource) -> bool {
             return is_feasible(resource);
         }
 
         [[nodiscard]] virtual auto can_be_merged(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& resource,
-            const Resource<ResourceValueComposition<ResourceTypes...>>& back_resource) -> bool {
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource) -> bool {
             throw std::runtime_error("FeasibilityFunction::merge not implemented");
         };
 
         [[nodiscard]] virtual auto clone() const
-            -> std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>> = 0;
+            -> std::unique_ptr<FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
         virtual auto create(const size_t node_id)
-            -> std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>> {
+            -> std::unique_ptr<FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_feasibility_function = clone();
             new_feasibility_function->preprocess(node_id);
             return new_feasibility_function;

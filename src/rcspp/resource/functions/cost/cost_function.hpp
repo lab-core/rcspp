@@ -6,7 +6,7 @@
 #include <memory>
 #include <utility>
 
-#include "rcspp/resource/composition/resource_value_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
@@ -36,19 +36,19 @@ class CostFunction {
 
 // Specialization for ResourceBaseComposition: functions receive the full Resource object.
 template <typename... ResourceTypes>
-class CostFunction<ResourceValueComposition<ResourceTypes...>> {
+class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~CostFunction() = default;
 
         [[nodiscard]] virtual auto get_cost(
-            const Resource<ResourceValueComposition<ResourceTypes...>>& resource) const
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource) const
             -> double = 0;
 
         [[nodiscard]] virtual auto clone() const
-            -> std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> = 0;
+            -> std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
         auto create(const size_t node_id)
-            -> std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> {
+            -> std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_cost_function = clone();
             new_cost_function->preprocess(node_id);
             return new_cost_function;

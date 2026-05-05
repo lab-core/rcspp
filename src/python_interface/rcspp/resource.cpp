@@ -22,11 +22,11 @@ namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceValueComposition<RealResource>;
+using ResourceType = ResourceTypeComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
-using ConcreteResource = Resource<ResourceCompositionBase>;
-using ConcreteFactory = ResourceFactory<ResourceCompositionBase>;
+using ConcreteResource = Resource<ResourceType>;
+using ConcreteFactory = ResourceFactory<ResourceType>;
 
 using RealResourceFactoryBase = ResourceFactory<RealResource>;
 
