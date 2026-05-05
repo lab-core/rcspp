@@ -45,6 +45,20 @@ class ResourcePrototype : public ResourceType {
               cost_function_(unique_cost_function_.get()),
               node_id_(node_id) {}
 
+        ResourcePrototype(ResourceType&& resource_base,
+                          std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
+                          std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
+                          std::unique_ptr<CostFunction<ResourceType>> cost_function,
+                          std::size_t node_id = 0)
+            : ResourceType(std::move(resource_base)),
+              unique_dominance_function_(std::move(dominance_function)),
+              unique_feasibility_function_(std::move(feasibility_function)),
+              unique_cost_function_(std::move(cost_function)),
+              dominance_function_(unique_dominance_function_.get()),
+              feasibility_function_(unique_feasibility_function_.get()),
+              cost_function_(unique_cost_function_.get()),
+              node_id_(node_id) {}
+
         ResourcePrototype(std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                           std::unique_ptr<CostFunction<ResourceType>> cost_function,
@@ -67,6 +81,16 @@ class ResourcePrototype : public ResourceType {
               cost_function_(std::move(cost_function)),
               node_id_(node_id) {}
 
+        ResourcePrototype(ResourceType&& resource_base,
+                          DominanceFunction<ResourceType>* dominance_function,
+                          FeasibilityFunction<ResourceType>* feasibility_function,
+                          CostFunction<ResourceType>* cost_function, std::size_t node_id = 0)
+            : ResourceType(std::move(resource_base)),
+              dominance_function_(std::move(dominance_function)),
+              feasibility_function_(std::move(feasibility_function)),
+              cost_function_(std::move(cost_function)),
+              node_id_(node_id) {}
+
         ResourcePrototype(DominanceFunction<ResourceType>* dominance_function,
                           FeasibilityFunction<ResourceType>* feasibility_function,
                           CostFunction<ResourceType>* cost_function, std::size_t node_id = 0)
@@ -77,18 +101,22 @@ class ResourcePrototype : public ResourceType {
 
         explicit ResourcePrototype(ResourceClass const& rhs_resource)
             : ResourceType(rhs_resource),
-              unique_dominance_function_(rhs_resource.unique_dominance_function_ 
-                  ? rhs_resource.unique_dominance_function_->clone() : nullptr),
-              unique_feasibility_function_(rhs_resource.unique_feasibility_function_ 
-                  ? rhs_resource.unique_feasibility_function_->clone() : nullptr),
-              unique_cost_function_(rhs_resource.unique_cost_function_ 
-                  ? rhs_resource.unique_cost_function_->clone() : nullptr),
-              dominance_function_(unique_dominance_function_ 
-                  ? unique_dominance_function_.get() : rhs_resource.dominance_function_),
-              feasibility_function_(unique_feasibility_function_ 
-                  ? unique_feasibility_function_.get() : rhs_resource.feasibility_function_),
-              cost_function_(unique_cost_function_ 
-                  ? unique_cost_function_.get() : rhs_resource.cost_function_),
+              unique_dominance_function_(rhs_resource.unique_dominance_function_
+                                             ? rhs_resource.unique_dominance_function_->clone()
+                                             : nullptr),
+              unique_feasibility_function_(rhs_resource.unique_feasibility_function_
+                                               ? rhs_resource.unique_feasibility_function_->clone()
+                                               : nullptr),
+              unique_cost_function_(rhs_resource.unique_cost_function_
+                                        ? rhs_resource.unique_cost_function_->clone()
+                                        : nullptr),
+              dominance_function_(unique_dominance_function_ ? unique_dominance_function_.get()
+                                                             : rhs_resource.dominance_function_),
+              feasibility_function_(unique_feasibility_function_
+                                        ? unique_feasibility_function_.get()
+                                        : rhs_resource.feasibility_function_),
+              cost_function_(unique_cost_function_ ? unique_cost_function_.get()
+                                                   : rhs_resource.cost_function_),
               node_id_(rhs_resource.get_node_id()) {}
 
         explicit ResourcePrototype(ResourceClass&& rhs_resource) : ResourcePrototype() {
@@ -113,7 +141,7 @@ class ResourcePrototype : public ResourceType {
             swap(first.unique_dominance_function_, second.unique_dominance_function_);
             swap(first.unique_feasibility_function_, second.unique_feasibility_function_);
             swap(first.unique_cost_function_, second.unique_cost_function_);
-            
+
             // Swap the raw pointers
             swap(first.dominance_function_, second.dominance_function_);
             swap(first.feasibility_function_, second.feasibility_function_);
@@ -216,7 +244,7 @@ class ResourcePrototype : public ResourceType {
 
         size_t node_id_;
 
-      private:
+    private:
         [[nodiscard]] ResourceClass& downcast() { return static_cast<ResourceClass&>(*this); }
 
         [[nodiscard]] const ResourceClass& downcast() const {

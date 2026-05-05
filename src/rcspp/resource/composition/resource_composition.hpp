@@ -11,6 +11,7 @@
 
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_prototype.hpp"
+#include "rcspp/resource/composition/composition.hpp"
 #include "rcspp/resource/composition/resource_base_composition.hpp"
 
 namespace rcspp {
@@ -18,25 +19,14 @@ template <typename... ResourceTypes>
     requires(std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
 class Resource<ResourceBaseComposition<ResourceTypes...>>
     : public ResourcePrototype<Resource<ResourceBaseComposition<ResourceTypes...>>,
-                               ResourceBaseComposition<ResourceTypes...>>,  // for the composition
-      public Composition<Resource, ResourceTypes...> {  // for each component of the composition
+                               ResourceBaseComposition<ResourceTypes...>>,
+      public Composition<Resource, ResourceTypes...> {
         using Prototype = ResourcePrototype<Resource, ResourceBaseComposition<ResourceTypes...>>;
 
     public:
         Resource() = default;
 
         Resource(
-            const ResourceBaseComposition<ResourceTypes...>& resource_base,
-            std::unique_ptr<DominanceFunction<ResourceBaseComposition<ResourceTypes...>>>
-                dominance_function,
-            std::unique_ptr<FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>>
-                feasibility_function,
-            std::unique_ptr<CostFunction<ResourceBaseComposition<ResourceTypes...>>> cost_function,
-            std::size_t node_id = 0)
-            : Prototype(resource_base, std::move(dominance_function),
-                        std::move(feasibility_function), std::move(cost_function)) {}
-
-        Resource(
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 resource_components,
             std::unique_ptr<DominanceFunction<ResourceBaseComposition<ResourceTypes...>>>
@@ -60,23 +50,13 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
                         std::move(cost_function), node_id) {}
 
         Resource(
-            const ResourceBaseComposition<ResourceTypes...>& resource_base,
-            DominanceFunction<ResourceBaseComposition<ResourceTypes...>>* dominance_function,
-            FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>* feasibility_function,
-            CostFunction<ResourceBaseComposition<ResourceTypes...>>* cost_function,
-            std::size_t node_id = 0)
-            : Prototype(std::move(dominance_function), std::move(feasibility_function),
-                        std::move(cost_function), node_id) {}
-
-        Resource(
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 resource_components,
             DominanceFunction<ResourceBaseComposition<ResourceTypes...>>* dominance_function,
             FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>* feasibility_function,
             CostFunction<ResourceBaseComposition<ResourceTypes...>>* cost_function,
             std::size_t node_id = 0)
-            : Prototype(std::move(dominance_function), std::move(feasibility_function),
-                        std::move(cost_function), node_id),
+            : Prototype(dominance_function, feasibility_function, cost_function, node_id),
               Composition<Resource, ResourceTypes...>(std::move(resource_components)) {}
 
         Resource(
@@ -84,9 +64,10 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
             FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>* feasibility_function,
             CostFunction<ResourceBaseComposition<ResourceTypes...>>* cost_function,
             std::size_t node_id = 0)
-            : Prototype(std::move(dominance_function), std::move(feasibility_function),
-                        std::move(cost_function), node_id) {}
+            : Prototype(dominance_function, feasibility_function, cost_function, node_id) {}
 
+        // Deep-copies both the prototype (function objects) and the composition (component
+        // resources).
         Resource(Resource const& rhs_resource)
             : Prototype(rhs_resource), Composition<Resource, ResourceTypes...>(rhs_resource) {}
 
@@ -100,27 +81,24 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
             return *this;
         }
 
-        // To implement the copy-and-swap idiom
         friend void swap(Resource& first, Resource& second) {
             using std::swap;
             swap(static_cast<Prototype&>(first), static_cast<Prototype&>(second));
-            // Use ADL (Argument-Dependent Lookup) to find the friend swap function in Composition
-            using CompositionBase = Composition<Resource, ResourceTypes...>;
-            swap(static_cast<CompositionBase&>(first), static_cast<CompositionBase&>(second));
+            swap(static_cast<Composition<Resource, ResourceTypes...>&>(first),
+                 static_cast<Composition<Resource, ResourceTypes...>&>(second));
         }
 
         [[nodiscard]] auto create(const size_t node_id) const -> auto {
-            // Create a resource based on the resources contained in a single vector of resources.
-            auto create_res_vec_function = [&](const auto& sing_res_vec,
-                                               auto& sing_new_res_vec) -> auto {
-                std::transform(sing_res_vec.begin(),
-                               sing_res_vec.end(),
-                               std::back_inserter(sing_new_res_vec),
-                               [node_id](const auto& res) { return res->create(node_id); });
-            };
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 new_resource_components;
-            this->apply(new_resource_components, create_res_vec_function);
+            this->apply(new_resource_components,
+                        [&](const auto& sing_res_vec, auto& sing_new_res_vec) {
+                            std::transform(
+                                sing_res_vec.begin(),
+                                sing_res_vec.end(),
+                                std::back_inserter(sing_new_res_vec),
+                                [node_id](const auto& res) { return res->create(node_id); });
+                        });
 
             return std::make_unique<Resource>(std::move(new_resource_components),
                                               this->dominance_function_->create(node_id),
@@ -130,17 +108,15 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
         }
 
         [[nodiscard]] auto copy() const -> std::unique_ptr<Resource> {
-            // Copy a resource based on the resources contained in a single vector of resources.
-            const auto copy_res_vec_function = [&](const auto& sing_res_vec,
-                                                   auto& sing_new_res_vec) -> auto {
-                std::transform(sing_res_vec.begin(),
-                               sing_res_vec.end(),
-                               std::back_inserter(sing_new_res_vec),
-                               [](const auto& res) { return res->copy(); });
-            };
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 new_resource_components;
-            this->apply(new_resource_components, copy_res_vec_function);
+            this->apply(new_resource_components,
+                        [&](const auto& sing_res_vec, auto& sing_new_res_vec) {
+                            std::transform(sing_res_vec.begin(),
+                                           sing_res_vec.end(),
+                                           std::back_inserter(sing_new_res_vec),
+                                           [](const auto& res) { return res->copy(); });
+                        });
 
             return std::make_unique<Resource>(std::move(new_resource_components),
                                               this->dominance_function_,
@@ -149,16 +125,7 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
                                               this->node_id_);
         }
 
-        [[nodiscard]] auto clone() const -> auto {
-            auto new_ressource = Prototype::clone();
-            this->apply(*new_ressource, [](const auto& resources, auto& new_resources) {
-                for (const auto& resource : resources) {
-                    new_resources.emplace_back(resource->clone());
-                }
-            });
-
-            return new_ressource;
-        }
+        [[nodiscard]] auto clone() const -> auto { return Prototype::clone(); }
 
         void reset(size_t node_id) {
             Prototype::reset(node_id);

@@ -9,6 +9,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "rcspp/resource/composition/composition.hpp"
+
 namespace rcspp {
 
 /* Definitions of different useful ResourceType */

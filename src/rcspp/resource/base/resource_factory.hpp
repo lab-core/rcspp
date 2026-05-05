@@ -69,6 +69,20 @@ class ResourceFactory {
             return resource.copy();
         }
 
+        // Make a resource from the prototype, initialized from an initializer tuple.
+        template <typename... Args>
+        auto make_resource(const std::tuple<Args...>& resource_initializer)
+            -> std::unique_ptr<ResourceClass> {
+            ++nb_resources_created_;
+            auto new_resource = resource_prototype_->clone();
+            std::apply(
+                [&new_resource](auto&&... args) {
+                    new_resource->set_value(std::forward<decltype(args)>(args)...);
+                },
+                resource_initializer);
+            return new_resource;
+        }
+
         // Make an extender
         template <typename GraphResourceType>
         auto make_extender(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
@@ -120,11 +134,10 @@ class ResourceFactory {
             std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
             std::unique_ptr<CostFunction<ResourceType>> cost_function,
             const ResourceType& resource_base_prototype) -> std::unique_ptr<ResourceClass> {
-            return std::make_unique<ResourceClass>(
-              resource_base_prototype,
-              std::move(dominance_function),
-              std::move(feasibility_function),
-              std::move(cost_function));
+            return std::make_unique<ResourceClass>(resource_base_prototype,
+                                                   std::move(dominance_function),
+                                                   std::move(feasibility_function),
+                                                   std::move(cost_function));
         }
 
         std::unique_ptr<ResourceClass> resource_prototype_;
