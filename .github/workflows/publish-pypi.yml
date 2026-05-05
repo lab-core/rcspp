@@ -41,7 +41,10 @@ jobs:
         uses: pypa/cibuildwheel@v2.21.3
         env:
           CIBW_BUILD: cp311-* cp312-*
-          CIBW_SKIP: pp* *-musllinux_*
+          CIBW_SKIP: pp* *-musllinux_* *-win32 *_i686
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_WINDOWS: AMD64
+          CIBW_ENVIRONMENT_WINDOWS: CMAKE_GENERATOR=Ninja CC=cl CXX=cl
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
@@ -90,7 +93,9 @@ jobs:
       - name: Validate publish target
         run: |
           echo "Selected ref: ${{ github.ref }}"
-          if [ "${{ inputs.repository }}" = "pypi" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "Push trigger publishes to TestPyPI only."
+          elif [ "${{ inputs.repository }}" = "pypi" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "PyPI publishing is restricted to refs/heads/main."
             exit 1
           fi
@@ -103,14 +108,14 @@ jobs:
           path: dist
 
       - name: Publish to TestPyPI
-        if: inputs.repository == 'testpypi'
+        if: github.event_name == 'push' || inputs.repository == 'testpypi'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
           repository-url: https://test.pypi.org/legacy/
 
       - name: Publish to PyPI
-        if: inputs.repository == 'pypi'
+        if: github.event_name != 'push' && inputs.repository == 'pypi'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist

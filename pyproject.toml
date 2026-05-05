@@ -2,7 +2,6 @@
 requires = [
   "scikit-build-core>=0.10",
   "pybind11>=2.13",
-  "ninja>=1.11",
 ]
 build-backend = "scikit_build_core.build"
 
@@ -51,14 +50,19 @@ cmake.args = [
 
 [tool.cibuildwheel]
 build = ["cp311-*", "cp312-*"]
-skip = ["pp*", "*-musllinux_*"]
+skip = ["pp*", "*-musllinux_*", "*-win32", "*_i686"]
 build-verbosity = 1
 test-requires = ["networkx>=3,<4"]
 test-command = "python -c \"import rcspp; from rcspp.graph import ResourceGraph\""
 
 [tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
 manylinux-x86_64-image = "manylinux_2_28"
 manylinux-aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+environment = { CMAKE_GENERATOR = "Ninja", CC = "cl", CXX = "cl" }
 
 [tool.black]
 line-length = 100
