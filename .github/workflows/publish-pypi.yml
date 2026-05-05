@@ -1,6 +1,9 @@
 name: publish-pypi
 
 on:
+  push:
+    branches:
+      - package-pypi
   workflow_dispatch:
     inputs:
       repository:
