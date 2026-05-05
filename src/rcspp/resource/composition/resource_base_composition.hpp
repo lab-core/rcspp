@@ -7,6 +7,7 @@
 
 namespace rcspp {
 
+// Just a placeholder to store the template types
 template <typename... ResourceTypes>
 class ResourceBaseComposition : public ResourceBase<ResourceBaseComposition<ResourceTypes...>> {
     public:

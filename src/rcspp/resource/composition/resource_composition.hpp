@@ -81,7 +81,7 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
             return *this;
         }
 
-        friend void swap(Resource& first, Resource& second) {
+        friend void swap(Resource& first, Resource& second) noexcept {
             using std::swap;
             swap(static_cast<Prototype&>(first), static_cast<Prototype&>(second));
             swap(static_cast<Composition<Resource, ResourceTypes...>&>(first),
