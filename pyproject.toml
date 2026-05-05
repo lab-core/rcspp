@@ -41,8 +41,6 @@ Issues = "https://github.com/lab-core/rcspp/issues"
 cmake.version = ">=3.26"
 build-dir = "build/{wheel_tag}"
 cmake.args = [
-  "-G",
-  "Ninja",
   "-DUSE_PYTHON=ON",
   "-DUSE_TESTS=OFF",
   "-DUSE_VRP=OFF",
@@ -62,7 +60,7 @@ manylinux-aarch64-image = "manylinux_2_28"
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
-environment = { CMAKE_GENERATOR = "Ninja", CC = "cl", CXX = "cl" }
+environment = { CMAKE_GENERATOR = "Visual Studio 17 2022", CMAKE_GENERATOR_PLATFORM = "x64" }
 
 [tool.black]
 line-length = 100

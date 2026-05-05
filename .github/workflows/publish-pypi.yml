@@ -44,7 +44,7 @@ jobs:
           CIBW_SKIP: pp* *-musllinux_* *-win32 *_i686
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_ARCHS_WINDOWS: AMD64
-          CIBW_ENVIRONMENT_WINDOWS: CMAKE_GENERATOR=Ninja CC=cl CXX=cl
+          CIBW_ENVIRONMENT_WINDOWS: CMAKE_GENERATOR="Visual Studio 17 2022" CMAKE_GENERATOR_PLATFORM=x64
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
@@ -85,7 +85,7 @@ jobs:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.repository }}
+      name: ${{ github.event_name == 'push' && 'testpypi' || inputs.repository }}
     permissions:
       id-token: write
 
