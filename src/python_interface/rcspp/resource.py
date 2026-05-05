@@ -1,9 +1,7 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
-import importlib
-
-_ext = importlib.import_module("rcsppy")
+from . import _core as _ext
 
 # Directly re-export everything from resource submodule
 globals().update(

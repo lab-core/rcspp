@@ -1,13 +1,11 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
-import importlib
+from typing import Optional
 
-_ext = importlib.import_module("rcsppy")
+import networkx as nx
 
-from typing import Optional  # noqa: E402
-
-import networkx as nx  # noqa: E402
+from . import _core as _ext
 
 
 class ResourceGraph(_ext.graph.ResourceGraph):
