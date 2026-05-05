@@ -227,7 +227,7 @@ class Resource : public ResourceType {
         // Reset the resource and copy the function objects from the resource passed as argument.
         void reset(const Resource<ResourceType>& resource) {
             // Reset the associated ResourceBase.
-            ResourceType::reset();
+            ResourceType::set_value(resource.get_value());
 
             node_id_ = resource.node_id_;
             dominance_function_ = resource.dominance_function_;

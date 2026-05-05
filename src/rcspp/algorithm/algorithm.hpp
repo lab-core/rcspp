@@ -27,6 +27,25 @@
 
 namespace rcspp {
 
+enum class AlgorithmStatus {
+    COMPLETE,       // all labels processed
+    TIMEOUT,        // wall-clock timeout reached
+    MAX_SOLUTIONS,  // stop_after_X_solutions reached
+    MAX_PHASES,     // num_max_phases exhausted with labels still remaining
+};
+
+struct SolveResult {
+        std::vector<Solution> solutions;
+        AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+
+        [[nodiscard]] std::string status_string() const {
+            return status == AlgorithmStatus::COMPLETE        ? "complete"
+                   : status == AlgorithmStatus::TIMEOUT       ? "timeout"
+                   : status == AlgorithmStatus::MAX_SOLUTIONS ? "max_solutions"
+                                                              : "max_phases";
+        }
+};
+
 template <typename ResourceType>
 using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 
@@ -64,7 +83,8 @@ struct AlgorithmParams {
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            return ((stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT));
+            return ((stop_after_X_solutions < MAX_INT) ||
+                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s));
         }
 
         // stop after finding X solutions (not going to optimality)
@@ -92,12 +112,17 @@ struct AlgorithmParams {
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
 
+        // wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s
+        double timeout_s = std::numeric_limits<double>::infinity();
+
         // for tabu search algorithms
         size_t tabu_tenure = 5;  // NOLINT
         std::set<size_t> forbidden_tabu;
         bool tabu_random_noise = true;
 
         int seed = 0;
+
+        double tolerance = 1e-9;
 };
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
@@ -143,17 +168,18 @@ class Algorithm {
             solutions_.clear();
         }
 
-        virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
-                                            double cost_upper_bound) {
+        virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             // initialization
             Timer timer(true);
+            timed_out_ = false;
+            solve_timer_ = &timer;
             initialize(graph, cost_upper_bound);
 
             // initialize labels
             this->initialize_labels();
 
             size_t num_phases = 0;
-            while (solutions_.size() < params_.stop_after_X_solutions && number_of_labels() > 0) {
+            while (!should_stop() && number_of_labels() > 0) {
                 // main labeling loop
                 main_loop();
 
@@ -167,6 +193,8 @@ class Algorithm {
                     break;
                 }
             }
+
+            solve_timer_ = nullptr;
 
             if (LOG_DEBUG_ACTIVE()) {
                 LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
@@ -199,7 +227,19 @@ class Algorithm {
                 solutions.resize(params_.stop_after_X_solutions);
             }
 
-            return solutions;
+            // determine exit status
+            AlgorithmStatus status;
+            if (timed_out_) {
+                status = AlgorithmStatus::TIMEOUT;
+            } else if (number_of_labels() == 0) {
+                status = AlgorithmStatus::COMPLETE;
+            } else if (solutions.size() >= params_.stop_after_X_solutions) {
+                status = AlgorithmStatus::MAX_SOLUTIONS;
+            } else {
+                status = AlgorithmStatus::MAX_PHASES;
+            }
+
+            return {std::move(solutions), status};
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
@@ -263,6 +303,19 @@ class Algorithm {
             solutions_.insert(std::move(sol));
         }
 
+        bool is_time_out() {
+            if (!this->timed_out_ &&
+                this->solve_timer_->elapsed_seconds() >= this->params_.timeout_s) {
+                this->timed_out_ = true;
+            }
+            return this->timed_out_;
+        }
+
+        bool should_stop(size_t iteration = 0) {
+            return iteration >= this->params_.max_iterations ||
+                   this->solutions_.size() >= this->params_.stop_after_X_solutions || is_time_out();
+        }
+
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
         const AlgorithmParams<LabelContainerType> params_;
@@ -274,5 +327,8 @@ class Algorithm {
         size_t nb_dominated_labels_{0};
         size_t num_extended_labels_ = 0;
         Timer total_full_extend_time_;
+
+        bool timed_out_ = false;
+        const Timer* solve_timer_ = nullptr;  // points to solve()'s timer; null outside solve()
 };
 }  // namespace rcspp

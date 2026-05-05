@@ -56,14 +56,18 @@ class NumericalResource : public ResourceBase<NumericalResource<T>> {
 
         [[nodiscard]] std::string to_string() const override { return std::to_string(value_); }
 
-        [[nodiscard]] bool leq(const NumericalResource<T>& other) const {
+        [[nodiscard]] bool leq(const NumericalResource& other) const {
             return leq(other.get_value());
+        }
+
+        [[nodiscard]] bool leq(const NumericalResource& other, double delta) const {
+            return leq(other.get_value() + delta);
         }
 
         // bool operator<=(const NumericalResource<T>& other) const {
         [[nodiscard]] bool leq(T other_value) const { return value_leq(value_, other_value); }
 
-        [[nodiscard]] bool geq(const NumericalResource<T>& other) const {
+        [[nodiscard]] bool geq(const NumericalResource& other) const {
             return geq(other.get_value());
         }
 

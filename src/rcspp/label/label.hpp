@@ -74,7 +74,19 @@ class Label {
 
         [[nodiscard]] const Arc<ResourceType>* get_in_arc() const { return in_arc_; }
 
+        void set_prev_label(Label<ResourceType>* predecessor) {
+            prev_label = predecessor;
+            ++predecessor->ref_count;
+        }
+
         bool dominated;
+
+        // Predecessor label set at extension time; valid as long as ref_count keeps it pinned.
+        Label<ResourceType>* prev_label = nullptr;
+        // Number of alive successors that reference this label as their predecessor.
+        uint8_t ref_count = 0;
+        // True when the algorithm wanted to release this label but ref_count was > 0.
+        bool pending_release = false;
 
     private:
         // Resource consumed by the label.

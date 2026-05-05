@@ -238,7 +238,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<RComp>>
-        std::vector<Solution> solve(
+        SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, int cost_index = 0) {
@@ -252,8 +252,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<RComp>>
-        std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
-                                    bool preprocess = true, int cost_index = 0) {
+        SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
+                          int cost_index = 0) {
             AlgorithmType<RComp, LabelContainerType> algorithm(&resource_factory_, params);
             return solve<AlgorithmType<RComp, LabelContainerType>, CostResourceType>(
                 &algorithm,
@@ -263,9 +263,9 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         template <typename AlgorithmType, typename CostResourceType = RealResource>
-        std::vector<Solution> solve(AlgorithmType* algorithm,
-                                    double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, int cost_index = 0) {
+        SolveResult solve(AlgorithmType* algorithm,
+                          double upper_bound = std::numeric_limits<double>::infinity(),
+                          bool preprocess = true, int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -311,7 +311,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             }
 
             // solve the rcspp
-            std::vector<Solution> sols = algorithm->solve(this, upper_bound);
+            SolveResult result = algorithm->solve(this, upper_bound);
 
             // restore the removed arcs for the next resolution
             if (preprocess) {
@@ -321,7 +321,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 this->track_modifications();  // mark as unmodified after restoring arcs
             }
 
-            return sols;
+            return result;
         }
 
         void process_feasibility() {

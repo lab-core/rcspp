@@ -51,11 +51,37 @@ class LabelPool {
             }
             ++nb_labels_;
 
+            // reset also prev label
+            label_ptr->prev_label = nullptr;
+            label_ptr->ref_count = 0;
+            label_ptr->pending_release = false;
+
             return *label_ptr;
         }
 
         void release_label(Label<ResourceType>* label_ptr) {
             available_labels_.push_back(label_ptr);
+        }
+
+        // Release label respecting the predecessor reference count. If this label is still
+        // referenced by alive successors, mark it pending and return; otherwise release it and
+        // cascade up the prev_label chain as predecessors become unreferenced.
+        void release_with_ref_count(Label<ResourceType>* label_ptr) {
+            while (label_ptr != nullptr) {
+                if (label_ptr->ref_count > 0) {
+                    label_ptr->pending_release = true;
+                    break;
+                }
+                Label<ResourceType>* prev = label_ptr->prev_label;
+                if (prev != nullptr) {
+                    --prev->ref_count;
+                }
+                release_label(label_ptr);
+                if (prev == nullptr || !prev->pending_release) {
+                    break;
+                }
+                label_ptr = prev;
+            }
         }
 
         void release_all_labels() {

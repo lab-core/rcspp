@@ -32,7 +32,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (number_of_labels() > 0 && i < this->params_.max_iterations) {
+            while (number_of_labels() > 0 && !this->should_stop(i)) {
                 ++i;
 
                 // save unprocessed labels for the current node
@@ -53,7 +53,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (this->params_.prune_based_on_upper_bound_ &&
-                               label.get_cost() >= this->best_cost_upper_bound_) {
+                               label.get_cost() - this->params_.tolerance >=
+                                   this->best_cost_upper_bound_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_label(&label);
@@ -68,18 +69,15 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                         if (label.get_end_node()->sink) {
                             LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
                             if (label.get_cost() < this->cost_upper_bound_) {
-                                if (label.get_cost() < this->best_cost_upper_bound_) {
+                                if (label.get_cost() + this->params_.tolerance <
+                                    this->best_cost_upper_bound_) {
                                     this->best_cost_upper_bound_ = label.get_cost();
+                                    LOG_INFO("Found a better solution with cost ",
+                                             label.get_cost(),
+                                             "\n");
                                 }
                                 if (this->params_.return_dominated_solutions) {
                                     this->extract_solution(label);
-                                    if (this->solutions_.size() >=
-                                        this->params_.stop_after_X_solutions) {
-                                        LOG_DEBUG("Stopping after ",
-                                                  this->solutions_.size(),
-                                                  " solutions.\n");
-                                        break;
-                                    }
                                 }
                             }
                         }

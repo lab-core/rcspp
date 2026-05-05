@@ -37,7 +37,7 @@ class GreedyAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelCont
     protected:
         void main_loop() override {
             size_t i = 0;
-            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
+            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
                 ++i;
 
                 // current top of the path
@@ -46,14 +46,12 @@ class GreedyAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelCont
                 // record solution if at sink
                 if (label->get_end_node()->sink) {
                     if (label->get_cost() < this->cost_upper_bound_) {
-                        if (label->get_cost() < this->best_cost_upper_bound_) {
+                        if (label->get_cost() + this->params_.tolerance <
+                            this->best_cost_upper_bound_) {
                             this->best_cost_upper_bound_ = label->get_cost();
+                            LOG_INFO("Found a better solution with cost ", label->get_cost(), "\n");
                         }
                         this->extract_solution(*label);
-                        if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
-                            LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
-                            break;
-                        }
                     }
                 }
 

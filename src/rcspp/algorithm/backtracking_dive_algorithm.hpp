@@ -164,41 +164,16 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
         /// as the new "current" and the rest become its siblings), and @p rejects
         /// holds any labels that should be released by the caller.
         ///
-        /// The default implementation orders children via @ref child_comparator —
-        /// cost-ascending, with a forward-progress preference when the graph has
-        /// sorted nodes — and produces no rejects.
+        /// The default implementation sorts ascending by label cost and produces
+        /// no rejects — i.e. classic greedy extension order.
         virtual void select_children(Label<ResourceType>* parent,
                                      std::list<Label<ResourceType>*>& feasible,
                                      std::list<Label<ResourceType>*>& rejects) {
+            (void)parent;
             (void)rejects;
-            feasible.sort(child_comparator(parent));
-        }
-
-        /// Comparator used to order feasible children. When the graph has sorted
-        /// nodes (`graph_->are_nodes_sorted()`), arcs that move *forward* in the
-        /// sort (destination position > parent position) are preferred over those
-        /// that move backward; within each group, ordering is cost-ascending. With
-        /// no sorted nodes, falls back to pure cost-ascending order.
-        ///
-        /// Rationale: the host code typically sorts nodes to reflect a good tour
-        /// layout (source first, sink last, required nodes in between in a sensible
-        /// order). Following that layout during a dive produces tours that match
-        /// the user's heuristic intent and avoids "jump to a cheap-but-late node
-        /// then have to backtrack to early ones" pathologies of pure cost-greedy.
-        [[nodiscard]] auto child_comparator(const Label<ResourceType>* parent) const {
-            const bool sorted = (this->graph_ != nullptr) && this->graph_->are_nodes_sorted();
-            const size_t parent_pos =
-                (sorted && parent != nullptr) ? parent->get_end_node()->pos() : 0;
-            return [sorted, parent_pos](Label<ResourceType>* a, Label<ResourceType>* b) {
-                if (sorted) {
-                    const bool fa = (a->get_end_node()->pos() > parent_pos);
-                    const bool fb = (b->get_end_node()->pos() > parent_pos);
-                    if (fa != fb) {
-                        return fa;  // forward arcs first
-                    }
-                }
+            feasible.sort([](Label<ResourceType>* a, Label<ResourceType>* b) {
                 return a->get_cost() < b->get_cost();
-            };
+            });
         }
 
         // ------------------------------------------------------------------

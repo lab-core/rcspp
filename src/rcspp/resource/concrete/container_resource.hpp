@@ -46,6 +46,18 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
         [[nodiscard]] virtual bool empty() const { return container_.empty(); }
 
+        [[nodiscard]] bool leq(const ContainerResource& other) const {
+            return size() <= other.size();
+        }
+
+        [[nodiscard]] bool leq(const ContainerResource& other, double delta) const {
+            return size() <= other.size() + delta;
+        }
+
+        [[nodiscard]] bool geq(const ContainerResource& other) const {
+            return size() >= other.size();
+        }
+
         void reset() override { this->container_.clear(); }
 
         [[nodiscard]] std::string to_string() const override { return to_string(container_); }

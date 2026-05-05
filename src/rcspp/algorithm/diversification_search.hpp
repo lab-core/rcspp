@@ -76,8 +76,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             }
 
             size_t i = 0;
-            while (i < this->params_.max_iterations &&
-                   this->solutions_.size() < this->params_.stop_after_X_solutions) {
+            while (!this->should_stop(i)) {
                 ++i;
 
                 // solve (important to clear the label pool, as the graph is changing)

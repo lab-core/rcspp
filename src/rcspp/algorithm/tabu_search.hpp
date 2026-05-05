@@ -76,12 +76,10 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                 chosen = std::move(tabu_only);
             }
 
-            // Use the base comparator: forward-progress preference (when the
-            // graph has sorted nodes) plus cost-ascending. Forward arcs match
-            // the user-supplied node ordering's intended tour layout, biasing
-            // each dive toward sensible source→required→sink progress instead
-            // of "cheap-but-late jump then backtrack".
-            chosen.sort(this->child_comparator(parent));
+            (void)parent;
+            chosen.sort([](Label<ResourceType>* a, Label<ResourceType>* b) {
+                return a->get_cost() < b->get_cost();
+            });
             feasible = std::move(chosen);
         }
 
@@ -97,8 +95,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
             }
 
             size_t i = 0;
-            while (i < this->params_.max_iterations &&
-                   this->solutions_.size() < this->params_.stop_after_X_solutions) {
+            while (!this->should_stop(i)) {
                 ++i;
 
                 bool reached_sink = dive_to_sink();
@@ -106,8 +103,12 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                     auto* sink_label = this->path_.back().first;
                     bool added = false;
                     if (sink_label->get_cost() < this->cost_upper_bound_) {
-                        if (sink_label->get_cost() < this->best_cost_upper_bound_) {
+                        if (sink_label->get_cost() + this->params_.tolerance <
+                            this->best_cost_upper_bound_) {
                             this->best_cost_upper_bound_ = sink_label->get_cost();
+                            LOG_INFO("Found a better solution with cost ",
+                                     sink_label->get_cost(),
+                                     "\n");
                         }
                         size_t before = this->solutions_.size();
                         this->extract_solution(*sink_label);
