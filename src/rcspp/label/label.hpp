@@ -18,7 +18,7 @@ template <typename ResourceType>
 class LabelFactory;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
 class Label {
         friend class LabelFactory<ResourceType>;
 

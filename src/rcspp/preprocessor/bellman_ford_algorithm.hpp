@@ -39,7 +39,7 @@ class BellmanFordAlgorithm {
         // nodes to any of the given targets (backward)
         // cost = nullopt -> use default arc cost
         template <typename CostResourceType = RealResource, typename... ResourceTypes>
-        static Distance solve(const Graph<ResourceBaseComposition<ResourceTypes...>>& graph_,
+        static Distance solve(const Graph<ResourceValueComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids,
                               std::optional<size_t> cost_index = std::nullopt,
                               bool forward = true) {
@@ -52,18 +52,18 @@ class BellmanFordAlgorithm {
                 // fetch cost
                 // get the origin cost of the cost resource
                 if (cost_index.has_value()) {
-                    const CostResourceType& origin_cost_resource =
+                    const auto& origin_cost_resource =
                         arc->origin->resource->template get_component<CostResourceType>(
                             cost_index.value());
-                    double origin_cost = origin_cost_resource.get_value();
+                    double origin_cost = origin_cost_resource.get_value().get_value();
                     // extend the resource
-                    Resource<ResourceBaseComposition<ResourceTypes...>> resource(
+                    Resource<ResourceValueComposition<ResourceTypes...>> resource(
                         *arc->destination->resource);
                     arc->extender->extend(*arc->origin->resource, &resource);
                     // fetch the new value of the cost resource
-                    const CostResourceType& cost_resource =
+                    const auto& cost_resource =
                         resource.template get_component<CostResourceType>(cost_index.value());
-                    double cost = cost_resource.get_value();
+                    double cost = cost_resource.get_value().get_value();
                     // compute the weight, i.e., cost difference
                     arc_relaxations.emplace_back(arc->origin->id,
                                                  arc->destination->id,

@@ -12,10 +12,9 @@
 
 namespace rcspp {
 
-// Deduce the container/value type by calling get_value() on the concrete Resource
+// Deduce the container/value type by calling get_value() on the concrete ResourceType
 template <typename ResourceType,
-          typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class IntersectFeasibilityFunction
     : public Clonable<IntersectFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
@@ -24,13 +23,12 @@ class IntersectFeasibilityFunction
             const std::map<size_t, ValueType>& forbidden_by_node_id)
             : forbidden_by_node_id_(forbidden_by_node_id) {}
 
-        [[nodiscard]] auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return !resource.intersects(forbidden_.get_value());
         }
 
-        [[nodiscard]] auto can_be_merged(const Resource<ResourceType>& resource,
-                                         const Resource<ResourceType>& back_resource)
-            -> bool override {
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
             // ensure that no node is in the intersection, as they would normally be visited on both
             // sides in this case
             return !resource.intersects(back_resource.get_value());

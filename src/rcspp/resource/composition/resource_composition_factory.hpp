@@ -13,28 +13,28 @@
 #include "rcspp/resource/composition/functions/dominance/composition_dominance_function.hpp"
 #include "rcspp/resource/composition/functions/extension/composition_extension_function.hpp"
 #include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
-#include "rcspp/resource/composition/resource_base_composition.hpp"
+#include "rcspp/resource/composition/resource_value_composition.hpp"
 
 namespace rcspp {
 
 template <typename... ResourceTypes>
 class ResourceCompositionFactory
-    : public ResourceFactory<ResourceBaseComposition<ResourceTypes...>>,
+    : public ResourceFactory<ResourceValueComposition<ResourceTypes...>>,
       public Composition<ResourceFactory, ResourceTypes...> {
-        using Base = ResourceFactory<ResourceBaseComposition<ResourceTypes...>>;
-        using ResourceClass = Resource<ResourceBaseComposition<ResourceTypes...>>;
-        using ExtenderClass = Extender<ResourceBaseComposition<ResourceTypes...>>;
+        using Base = ResourceFactory<ResourceValueComposition<ResourceTypes...>>;
+        using ResourceClass = Resource<ResourceValueComposition<ResourceTypes...>>;
+        using ExtenderClass = Extender<ResourceValueComposition<ResourceTypes...>>;
 
     public:
         ResourceCompositionFactory() = default;
 
         ResourceCompositionFactory(
-            std::unique_ptr<ExtensionFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<ExtensionFunction<ResourceValueComposition<ResourceTypes...>>>
                 extension_function,
-            std::unique_ptr<FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>>
                 feasibility_function,
-            std::unique_ptr<CostFunction<ResourceBaseComposition<ResourceTypes...>>> cost_function,
-            std::unique_ptr<DominanceFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> cost_function,
+            std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>>
                 dominance_function)
             : Base(std::move(extension_function), std::move(feasibility_function),
                    std::move(cost_function), std::move(dominance_function)) {}
@@ -100,15 +100,15 @@ class ResourceCompositionFactory
         void update_extender(ExtenderClass* extender_composition,
                              const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
             static_cast<Composition<Extender, ResourceTypes...>&>(*extender_composition)
-                .for_each_component(
-                    resource_initializer,
-                    [](auto&& ext_comp, const auto& res_init) {
-                        std::apply(
-                            [&ext_comp](auto&&... args) {
-                                ext_comp.set_value(std::forward<decltype(args)>(args)...);
-                            },
-                            res_init);
-                    });
+                .for_each_component(resource_initializer,
+                                    [](auto&& ext_comp, const auto& res_init) {
+                                        std::apply(
+                                            [&ext_comp](auto&&... args) {
+                                                ext_comp.get_value().set_value(
+                                                    std::forward<decltype(args)>(args)...);
+                                            },
+                                            res_init);
+                                    });
         }
 
         template <typename TypeTuple, size_t ResourceTypeIndex>
@@ -119,7 +119,7 @@ class ResourceCompositionFactory
                     .template get_component<ResourceTypeIndex>(resource_index);
             std::apply(
                 [&res_comp](auto&&... args) {
-                    res_comp.set_value(std::forward<decltype(args)>(args)...);
+                    res_comp.get_value().set_value(std::forward<decltype(args)>(args)...);
                 },
                 single_resource_initializer);
         }

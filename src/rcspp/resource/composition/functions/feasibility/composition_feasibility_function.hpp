@@ -12,18 +12,18 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionFeasibilityFunction
     : public Clonable<CompositionFeasibilityFunction<ResourceTypes...>,
-                      FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>> {
+                      FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>> {
     public:
         CompositionFeasibilityFunction() = default;
 
-        [[nodiscard]] bool is_feasible(const Resource<ResourceBaseComposition<ResourceTypes...>>&
+        [[nodiscard]] bool is_feasible(const Resource<ResourceValueComposition<ResourceTypes...>>&
                                            resource_composition) override {
             return feasible_helper(resource_composition,
                                    [](const auto& res_comp) { return res_comp.is_feasible(); });
         }
 
         [[nodiscard]] bool is_back_feasible(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource_composition)
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource_composition)
             override {
             return feasible_helper(resource_composition, [](const auto& res_comp) {
                 return res_comp.is_back_feasible();
@@ -31,8 +31,8 @@ class CompositionFeasibilityFunction
         }
 
         [[nodiscard]] bool can_be_merged(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource_composition,
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& back_resource_composition)
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource_composition,
+            const Resource<ResourceValueComposition<ResourceTypes...>>& back_resource_composition)
             override {
             return resource_composition.apply_and(
                 back_resource_composition,
@@ -49,7 +49,7 @@ class CompositionFeasibilityFunction
     private:
         template <typename F>
         [[nodiscard]] bool feasible_helper(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource_composition,
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource_composition,
             const F& feasible_func) const {
             return resource_composition.apply_and([&](const auto& res_vec) {
                 return std::ranges::all_of(res_vec, [&](const auto& res_comp) {

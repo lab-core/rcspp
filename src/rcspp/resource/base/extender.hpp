@@ -17,10 +17,10 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
         using Prototype = ExtenderPrototype<Extender, ResourceType>;
 
     public:
-        Extender(const ResourceType& resource_base,
+        Extender(const ResourceType& resource_value,
                  std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                  const size_t arc_id)
-            : Prototype(resource_base, std::move(extension_function), arc_id) {}
+            : Prototype(resource_value, std::move(extension_function), arc_id) {}
 
         template <typename... Args>
         Extender(const std::tuple<Args...>& resource_initializer,
@@ -31,5 +31,20 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
         Extender(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                  const size_t arc_id)
             : Prototype(std::move(extension_function), arc_id) {}
+
+        // Resource extension
+        void extend(const Resource<ResourceType>& resource,
+                    Resource<ResourceType>* extended_resource) const {
+            this->extension_function_->extend(resource.get_value(),
+                                              this->value_,
+                                              &extended_resource->get_value());
+        }
+
+        void extend_back(const Resource<ResourceType>& resource,
+                         Resource<ResourceType>* extended_resource) const {
+            this->extension_function_->extend_back(resource.get_value(),
+                                                   this->value_,
+                                                   &extended_resource->get_value());
+        }
 };
 }  // namespace rcspp

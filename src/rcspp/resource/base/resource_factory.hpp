@@ -12,7 +12,7 @@
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_value.hpp"
 
 namespace rcspp {
 
@@ -29,10 +29,10 @@ class ResourceFactory {
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
-                        const ResourceType& resource_base_prototype)
+                        const ResourceType& resource_value_prototype)
             : resource_prototype_(make_resource_prototype(
                   std::move(dominance_function), std::move(feasibility_function),
-                  std::move(cost_function), resource_base_prototype)),
+                  std::move(cost_function), resource_value_prototype)),
               extension_function_(std::move(extension_function)),
               nb_resource_bases_created_(0),
               nb_resources_created_(0),
@@ -93,10 +93,10 @@ class ResourceFactory {
         // Make an extender
         // clang-format off
     template <typename GraphResourceType>
-         auto make_extender(const ResourceType& resource_base, const Arc<GraphResourceType>& arc)
+         auto make_extender(const ResourceType& resource_value, const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<ExtenderClass> {
             ++nb_extenders_created_;
-            return std::make_unique<ExtenderClass>(resource_base,
+            return std::make_unique<ExtenderClass>(resource_value,
                                                             extension_function_->create(arc),
                                                             arc.id);
         }
@@ -133,8 +133,8 @@ class ResourceFactory {
             std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
             std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
             std::unique_ptr<CostFunction<ResourceType>> cost_function,
-            const ResourceType& resource_base_prototype) -> std::unique_ptr<ResourceClass> {
-            return std::make_unique<ResourceClass>(resource_base_prototype,
+            const ResourceType& resource_value_prototype) -> std::unique_ptr<ResourceClass> {
+            return std::make_unique<ResourceClass>(resource_value_prototype,
                                                    std::move(dominance_function),
                                                    std::move(feasibility_function),
                                                    std::move(cost_function));

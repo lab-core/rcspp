@@ -12,16 +12,16 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/composition/composition.hpp"
-#include "rcspp/resource/composition/resource_base_composition.hpp"
+#include "rcspp/resource/composition/resource_value_composition.hpp"
 
 namespace rcspp {
 template <typename... ResourceTypes>
-    requires(std::derived_from<ResourceTypes, ResourceBase<ResourceTypes>> && ...)
-class Resource<ResourceBaseComposition<ResourceTypes...>>
-    : public ResourcePrototype<Resource<ResourceBaseComposition<ResourceTypes...>>,
-                               ResourceBaseComposition<ResourceTypes...>>,
+    requires(std::derived_from<ResourceTypes, ResourceValue<ResourceTypes>> && ...)
+class Resource<ResourceValueComposition<ResourceTypes...>>
+    : public ResourcePrototype<Resource<ResourceValueComposition<ResourceTypes...>>,
+                               ResourceValueComposition<ResourceTypes...>>,
       public Composition<Resource, ResourceTypes...> {
-        using Prototype = ResourcePrototype<Resource, ResourceBaseComposition<ResourceTypes...>>;
+        using Prototype = ResourcePrototype<Resource, ResourceValueComposition<ResourceTypes...>>;
 
     public:
         Resource() = default;
@@ -29,22 +29,22 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
         Resource(
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 resource_components,
-            std::unique_ptr<DominanceFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>>
                 dominance_function,
-            std::unique_ptr<FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>>
                 feasibility_function,
-            std::unique_ptr<CostFunction<ResourceBaseComposition<ResourceTypes...>>> cost_function,
+            std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> cost_function,
             std::size_t node_id = 0)
             : Prototype(std::move(dominance_function), std::move(feasibility_function),
                         std::move(cost_function), node_id),
               Composition<Resource, ResourceTypes...>(std::move(resource_components)) {}
 
         Resource(
-            std::unique_ptr<DominanceFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<DominanceFunction<ResourceValueComposition<ResourceTypes...>>>
                 dominance_function,
-            std::unique_ptr<FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>>
+            std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>>
                 feasibility_function,
-            std::unique_ptr<CostFunction<ResourceBaseComposition<ResourceTypes...>>> cost_function,
+            std::unique_ptr<CostFunction<ResourceValueComposition<ResourceTypes...>>> cost_function,
             std::size_t node_id = 0)
             : Prototype(std::move(dominance_function), std::move(feasibility_function),
                         std::move(cost_function), node_id) {}
@@ -52,17 +52,17 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
         Resource(
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 resource_components,
-            DominanceFunction<ResourceBaseComposition<ResourceTypes...>>* dominance_function,
-            FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>* feasibility_function,
-            CostFunction<ResourceBaseComposition<ResourceTypes...>>* cost_function,
+            DominanceFunction<ResourceValueComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceValueComposition<ResourceTypes...>>* cost_function,
             std::size_t node_id = 0)
             : Prototype(dominance_function, feasibility_function, cost_function, node_id),
               Composition<Resource, ResourceTypes...>(std::move(resource_components)) {}
 
         Resource(
-            DominanceFunction<ResourceBaseComposition<ResourceTypes...>>* dominance_function,
-            FeasibilityFunction<ResourceBaseComposition<ResourceTypes...>>* feasibility_function,
-            CostFunction<ResourceBaseComposition<ResourceTypes...>>* cost_function,
+            DominanceFunction<ResourceValueComposition<ResourceTypes...>>* dominance_function,
+            FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>* feasibility_function,
+            CostFunction<ResourceValueComposition<ResourceTypes...>>* cost_function,
             std::size_t node_id = 0)
             : Prototype(dominance_function, feasibility_function, cost_function, node_id) {}
 
@@ -137,6 +137,29 @@ class Resource<ResourceBaseComposition<ResourceTypes...>>
             this->for_each_component(other_composition, [](auto&& res_comp, auto&& other_res_comp) {
                 res_comp.reset(*other_res_comp);
             });
+        }
+
+        // Check dominance — passes value_ for simple types, full Resource for composition types
+        auto operator<=(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_dominance(*this, rhs_resource);
+        }
+
+        // Return resource cost
+        [[nodiscard]] auto get_cost() const -> double {
+            return this->cost_function_->get_cost(*this);
+        }
+
+        // Return true if the resource is feasible
+        [[nodiscard]] auto is_feasible() const -> bool {
+            return this->feasibility_function_->is_feasible(*this);
+        }
+
+        [[nodiscard]] auto is_back_feasible() const -> bool {
+            return this->feasibility_function_->is_back_feasible(*this);
+        }
+
+        [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
+            return this->feasibility_function_->can_be_merged(*this, back_resource);
         }
 };
 

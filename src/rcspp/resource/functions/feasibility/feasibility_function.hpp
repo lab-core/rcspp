@@ -4,7 +4,10 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
+
+#include "rcspp/resource/composition/resource_value_composition.hpp"
 
 namespace rcspp {
 
@@ -16,16 +19,14 @@ class FeasibilityFunction {
     public:
         virtual ~FeasibilityFunction() = default;
 
-        [[nodiscard]] virtual auto is_feasible(const Resource<ResourceType>& resource) -> bool = 0;
+        [[nodiscard]] virtual auto is_feasible(const ResourceType& resource) -> bool = 0;
 
-        [[nodiscard]] virtual auto is_back_feasible(const Resource<ResourceType>& resource)
-            -> bool {
+        [[nodiscard]] virtual auto is_back_feasible(const ResourceType& resource) -> bool {
             return is_feasible(resource);
         }
 
-        [[nodiscard]] virtual auto can_be_merged(const Resource<ResourceType>& resource,
-                                                 const Resource<ResourceType>& back_resource)
-            -> bool {
+        [[nodiscard]] virtual auto can_be_merged(const ResourceType& resource,
+                                                 const ResourceType& back_resource) -> bool {
             throw std::runtime_error("FeasibilityFunction::merge not implemented");
         };
 
@@ -42,4 +43,41 @@ class FeasibilityFunction {
     protected:
         virtual void preprocess(size_t node_id) {}
 };
+
+// Specialization for ResourceBaseComposition: functions receive the full Resource object.
+template <typename... ResourceTypes>
+class FeasibilityFunction<ResourceValueComposition<ResourceTypes...>> {
+    public:
+        virtual ~FeasibilityFunction() = default;
+
+        [[nodiscard]] virtual auto is_feasible(
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource) -> bool = 0;
+
+        [[nodiscard]] virtual auto is_back_feasible(
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource) -> bool {
+            return is_feasible(resource);
+        }
+
+        [[nodiscard]] virtual auto can_be_merged(
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource,
+            const Resource<ResourceValueComposition<ResourceTypes...>>& back_resource) -> bool {
+            throw std::runtime_error("FeasibilityFunction::merge not implemented");
+        };
+
+        [[nodiscard]] virtual auto clone() const
+            -> std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>> = 0;
+
+        virtual auto create(const size_t node_id)
+            -> std::unique_ptr<FeasibilityFunction<ResourceValueComposition<ResourceTypes...>>> {
+            auto new_feasibility_function = clone();
+            new_feasibility_function->preprocess(node_id);
+            return new_feasibility_function;
+        }
+
+        virtual void reset(const size_t node_id) { preprocess(node_id); }
+
+    protected:
+        virtual void preprocess(size_t node_id) {}
+};
+
 }  // namespace rcspp

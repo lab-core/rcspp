@@ -15,7 +15,7 @@ namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceBaseComposition<RealResource>;
+using ResourceCompositionBase = ResourceValueComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
 using ConcreteGraph = Graph<ResourceCompositionBase>;

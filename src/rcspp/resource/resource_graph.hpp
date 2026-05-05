@@ -19,16 +19,16 @@
 #include "rcspp/preprocessor/shortest_path_connectivity_sort.hpp"
 #include "rcspp/preprocessor/shortest_path_preprocessor.hpp"
 #include "rcspp/resource/composition/functions/cost/component_cost_function.hpp"
-#include "rcspp/resource/composition/resource_base_composition.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
+#include "rcspp/resource/composition/resource_value_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
 template <typename... ResourceTypes>
-class ResourceGraph : public Graph<ResourceBaseComposition<ResourceTypes...>> {
-        using ResourceCompositionType = ResourceBaseComposition<ResourceTypes...>;
+class ResourceGraph : public Graph<ResourceValueComposition<ResourceTypes...>> {
+        using ResourceCompositionType = ResourceValueComposition<ResourceTypes...>;
 
     public:
         ResourceGraph(

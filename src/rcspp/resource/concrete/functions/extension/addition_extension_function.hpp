@@ -13,9 +13,9 @@ template <typename ResourceType>
 class AdditionExtensionFunction
     : public Clonable<AdditionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
     public:
-        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* extended_resource) override {
-            auto sum_value = resource.get_value() + extender.get_value();
+        void extend(const ResourceType& resource, const ResourceType& extender_value,
+                    ResourceType* extended_resource) override {
+            auto sum_value = resource.get_value() + extender_value.get_value();
             extended_resource->set_value(sum_value);
         }
 };

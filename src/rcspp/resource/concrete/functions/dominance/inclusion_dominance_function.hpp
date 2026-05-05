@@ -12,9 +12,8 @@ template <typename ResourceType>
 class InclusionDominanceFunction
     : public Clonable<InclusionDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
     public:
-        [[nodiscard]] auto check_dominance(const Resource<ResourceType>& lhs_resource,
-                                           const Resource<ResourceType>& rhs_resource)
-            -> bool override {
+        [[nodiscard]] auto check_dominance(const ResourceType& lhs_resource,
+                                           const ResourceType& rhs_resource) -> bool override {
             // lhs_resource dominates rhs_resource if lhs_resource <= rhs_resource
             return rhs_resource.includes(lhs_resource.get_value());
         }

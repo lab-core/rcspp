@@ -13,9 +13,9 @@ template <typename ResourceType>
 class UnionExtensionFunction
     : public Clonable<UnionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
     public:
-        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* extended_resource) override {
-            auto union_value = resource.get_union(extender.get_value());
+        void extend(const ResourceType& resource, const ResourceType& extender_value,
+                    ResourceType* extended_resource) override {
+            auto union_value = resource.get_union(extender_value.get_value());
             extended_resource->set_value(union_value);
         }
 };

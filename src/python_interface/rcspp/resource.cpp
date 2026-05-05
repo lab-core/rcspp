@@ -14,15 +14,15 @@
 #include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 #include "rcspp/resource/resource_traits.hpp"
-#include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceBaseComposition<RealResource>;
+using ResourceCompositionBase = ResourceValueComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
 using ConcreteResource = Resource<ResourceCompositionBase>;

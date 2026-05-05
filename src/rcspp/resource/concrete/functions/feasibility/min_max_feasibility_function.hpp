@@ -12,8 +12,7 @@
 namespace rcspp {
 
 template <typename ResourceType,
-          typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
@@ -22,13 +21,12 @@ class MinMaxFeasibilityFunction
                                   bool merge_by_increasing_value = true)
             : min_(min), max_(max), merge_by_increasing_value_(merge_by_increasing_value) {}
 
-        [[nodiscard]] auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return resource.geq(min_) && resource.leq(max_);
         }
 
-        [[nodiscard]] auto can_be_merged(const Resource<ResourceType>& resource,
-                                         const Resource<ResourceType>& back_resource)
-            -> bool override {
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
             if (merge_by_increasing_value_) {
                 return resource.get_value() <= back_resource.get_value();
             }

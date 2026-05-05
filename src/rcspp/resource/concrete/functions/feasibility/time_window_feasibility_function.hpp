@@ -13,8 +13,7 @@
 namespace rcspp {
 
 template <typename ResourceType,
-          typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class TimeWindowFeasibilityFunction
     : public Clonable<TimeWindowFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
@@ -24,18 +23,16 @@ class TimeWindowFeasibilityFunction
             : time_window_by_node_id_(time_window_by_node_id),
               max_time_window_(std::numeric_limits<ValueType>::max() / 2) {}  // prevent overflow
 
-        [[nodiscard]] auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return resource.get_value() <= max_time_window_;
         }
 
-        [[nodiscard]] auto is_back_feasible(const Resource<ResourceType>& resource)
-            -> bool override {
+        [[nodiscard]] auto is_back_feasible(const ResourceType& resource) -> bool override {
             return resource.get_value() >= min_time_window_;
         }
 
-        [[nodiscard]] auto can_be_merged(const Resource<ResourceType>& resource,
-                                         const Resource<ResourceType>& back_resource)
-            -> bool override {
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
             return resource.get_value() <= back_resource.get_value();
         }
 

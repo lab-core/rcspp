@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_value.hpp"
 
 namespace rcspp {
 
@@ -21,11 +21,11 @@ namespace rcspp {
 // ValueT is the logical value type of the resource (e.g. for a bitset resource
 // the container element_type is uint64_t but the logical value type is size_t).
 template <typename Container, typename DerivedType, typename ValueType>
-class ContainerResource : public ResourceBase<DerivedType> {
+class ContainerResource : public ResourceValue<DerivedType> {
     public:
         ContainerResource() = default;
         explicit ContainerResource(Container container) : container_(std::move(container)) {}
-        //explicit ContainerResource(const Container& container) : container_(container) {}
+        // explicit ContainerResource(const Container& container) : container_(container) {}
 
         [[nodiscard]] const Container& get_value() const { return container_; }
         virtual void set_value(Container container) { container_ = std::move(container); }

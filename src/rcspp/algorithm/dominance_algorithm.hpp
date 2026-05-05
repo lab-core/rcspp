@@ -14,7 +14,7 @@
 namespace rcspp {
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
 class DominanceAlgorithm : public Algorithm<ResourceType> {
     public:
         DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)

@@ -13,12 +13,12 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionExtensionFunction
     : public Clonable<CompositionExtensionFunction<ResourceTypes...>,
-                      ExtensionFunction<ResourceBaseComposition<ResourceTypes...>>> {
+                      ExtensionFunction<ResourceValueComposition<ResourceTypes...>>> {
     public:
         void extend(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
-            Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource) override {
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceValueComposition<ResourceTypes...>>& extender,
+            Resource<ResourceValueComposition<ResourceTypes...>>* extended_resource) override {
             extended_resource->apply(
                 resource,
                 extender,
@@ -30,9 +30,9 @@ class CompositionExtensionFunction
         }
 
         void extend_back(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceBaseComposition<ResourceTypes...>>& extender,
-            Resource<ResourceBaseComposition<ResourceTypes...>>* extended_resource) override {
+            const Resource<ResourceValueComposition<ResourceTypes...>>& resource,
+            const Extender<ResourceValueComposition<ResourceTypes...>>& extender,
+            Resource<ResourceValueComposition<ResourceTypes...>>* extended_resource) override {
             extended_resource->apply(
                 resource,
                 extender,

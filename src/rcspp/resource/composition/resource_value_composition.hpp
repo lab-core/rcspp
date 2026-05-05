@@ -3,16 +3,17 @@
 
 #pragma once
 
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_value.hpp"
 
 namespace rcspp {
 
 // Just a placeholder to store the template types
 template <typename... ResourceTypes>
-class ResourceBaseComposition : public ResourceBase<ResourceBaseComposition<ResourceTypes...>> {
+class ResourceValueComposition : public ResourceValue<ResourceValueComposition<ResourceTypes...>> {
     public:
-        ResourceBaseComposition() = default;
+        ResourceValueComposition() = default;
 
         void reset() override {}
 };
+
 }  // namespace rcspp

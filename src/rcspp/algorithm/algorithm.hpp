@@ -88,7 +88,7 @@ struct AlgorithmParams {
 };
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires std::derived_from<ResourceType, ResourceValue<ResourceType>>
 class Algorithm {
     public:
         Algorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)

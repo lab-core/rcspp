@@ -14,13 +14,13 @@ namespace rcspp {
 template <typename... ResourceTypes>
 class CompositionDominanceFunction
     : public Clonable<CompositionDominanceFunction<ResourceTypes...>,
-                      DominanceFunction<ResourceBaseComposition<ResourceTypes...>>> {
+                      DominanceFunction<ResourceValueComposition<ResourceTypes...>>> {
     public:
         CompositionDominanceFunction() = default;
 
         [[nodiscard]] bool check_dominance(
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& lhs_composition,
-            const Resource<ResourceBaseComposition<ResourceTypes...>>& rhs_composition) override {
+            const Resource<ResourceValueComposition<ResourceTypes...>>& lhs_composition,
+            const Resource<ResourceValueComposition<ResourceTypes...>>& rhs_composition) override {
             return lhs_composition.apply_and(
                 rhs_composition,
                 [&](const auto& lhs_sing_res, const auto& rhs_sing_res) {

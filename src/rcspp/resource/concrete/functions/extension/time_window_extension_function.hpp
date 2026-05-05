@@ -13,8 +13,7 @@
 namespace rcspp {
 
 template <typename ResourceType,
-          typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class TimeWindowExtensionFunction
     : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
                       ExtensionFunction<ResourceType>> {
@@ -23,17 +22,16 @@ class TimeWindowExtensionFunction
             const std::map<size_t, std::pair<ValueType, ValueType>>& time_window_by_node_id)
             : time_window_by_node_id_(time_window_by_node_id) {}
 
-        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* extended_resource) override {
-            auto sum_value = resource.get_value() + extender.get_value();
+        void extend(const ResourceType& resource, const ResourceType& extender_value,
+                    ResourceType* extended_resource) override {
+            auto sum_value = resource.get_value() + extender_value.get_value();
             sum_value = std::max(min_time_window_, sum_value);
             extended_resource->set_value(sum_value);
         }
 
-        void extend_back(const Resource<ResourceType>& resource,
-                         const Extender<ResourceType>& extender,
-                         Resource<ResourceType>* extended_resource) override {
-            auto sum_value = resource.get_value() + extender.get_value();
+        void extend_back(const ResourceType& resource, const ResourceType& extender_value,
+                         ResourceType* extended_resource) override {
+            auto sum_value = resource.get_value() + extender_value.get_value();
             sum_value = std::min(max_time_window_, sum_value);
             extended_resource->set_value(sum_value);
         }

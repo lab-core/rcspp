@@ -13,13 +13,12 @@ template <typename ResourceType>
 class TrivialFeasibilityFunction
     : public Clonable<TrivialFeasibilityFunction<ResourceType>, FeasibilityFunction<ResourceType>> {
     public:
-        [[nodiscard]] auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return true;
         }
 
-        [[nodiscard]] auto can_be_merged(const Resource<ResourceType>& resource,
-                                         const Resource<ResourceType>& back_resource)
-            -> bool override {
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
             return true;
         }
 };

@@ -10,11 +10,11 @@
 namespace rcspp {
 
 template <typename ResourceType>
-class ResourceBase {
+class ResourceValue {
     public:
-        ResourceBase() = default;
+        ResourceValue() = default;
 
-        virtual ~ResourceBase() = default;
+        virtual ~ResourceValue() = default;
 
         // [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ResourceType> {
         //     return std::make_unique<ResourceType>(static_cast<ResourceType const&>(*this));

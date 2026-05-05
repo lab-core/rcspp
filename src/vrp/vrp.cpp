@@ -200,42 +200,45 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         solutions_boost = solve_with_boost(dual_by_id);
         total_subproblem_time_boost_.stop();
 
-        LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
-        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
-
-        // RCSPP can be better as it uses int for some resources (e.g., load, time)
-        if (abs(solutions_rcspp[0].cost - solutions_boost[0].cost) > COST_COMPARISON_EPSILON) {
-            LOG_ERROR("RCSPP solution is different from BOOST:",
-                      solutions_rcspp[0].cost,
-                      " vs ",
-                      solutions_boost[0].cost,
-                      "\n");
-            // break;
-        }
-
-        std::vector<Solution> solutions;
-        if (use_boost) {
-            solutions = solutions_boost;
-        } else {
-            solutions = solutions_rcspp;
-        }
-
-        if (subproblem_max_nb_solutions != std::nullopt) {
-            auto nb_solutions = std::min(subproblem_max_nb_solutions.value(), solutions.size());
-            solutions = std::vector<Solution>(solutions.begin(), solutions.begin() + nb_solutions);
-        }
-
+        min_reduced_cost = 0;
         std::vector<Solution> negative_red_cost_solutions;
 
-        min_reduced_cost = std::numeric_limits<double>::infinity();
-        for (const auto& sol : solutions) {
-            min_reduced_cost = std::min(min_reduced_cost, sol.cost);
-            if (sol.cost < -EPSILON) {
-                negative_red_cost_solutions.push_back(sol);
-            }
-        }
+        if (!solutions_boost.empty() && !solutions_rcspp.empty()) {
+            LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
+            LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
 
-        add_paths(&master_problem, negative_red_cost_solutions);
+            // RCSPP can be better as it uses int for some resources (e.g., load, time)
+            if (abs(solutions_rcspp[0].cost - solutions_boost[0].cost) > COST_COMPARISON_EPSILON) {
+                LOG_ERROR("RCSPP solution is different from BOOST:",
+                          solutions_rcspp[0].cost,
+                          " vs ",
+                          solutions_boost[0].cost,
+                          "\n");
+                // break;
+            }
+
+            std::vector<Solution> solutions;
+            if (use_boost) {
+                solutions = solutions_boost;
+            } else {
+                solutions = solutions_rcspp;
+            }
+
+            if (subproblem_max_nb_solutions != std::nullopt) {
+                auto nb_solutions = std::min(subproblem_max_nb_solutions.value(), solutions.size());
+                solutions =
+                    std::vector<Solution>(solutions.begin(), solutions.begin() + nb_solutions);
+            }
+
+            for (const auto& sol : solutions) {
+                min_reduced_cost = std::min(min_reduced_cost, sol.cost);
+                if (sol.cost < -EPSILON) {
+                    negative_red_cost_solutions.push_back(sol);
+                }
+            }
+
+            add_paths(&master_problem, negative_red_cost_solutions);
+        }
 
         ++nb_iter;
 
