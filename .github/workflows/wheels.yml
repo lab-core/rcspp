@@ -32,7 +32,7 @@ jobs:
         env:
           CIBW_BUILD: cp311-* cp312-*
           CIBW_SKIP: pp* *-musllinux_* *-win32 *_i686
-          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_ENVIRONMENT_WINDOWS: CMAKE_GENERATOR="Visual Studio 17 2022" CMAKE_GENERATOR_PLATFORM=x64
 
