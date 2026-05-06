@@ -54,8 +54,18 @@ class ResourceCompositionFactory
         template <typename... TypeTuples>
         std::unique_ptr<Resource<ResourceTypeComposition<ResourceTypes...>>> make_resource(
             size_t node_id, const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
-            auto new_resource = make_resource(resource_initializer);
-            new_resource->reset(node_id);
+            // Reset for node_id first (preprocess functions), then apply initializer values
+            auto new_resource = make_resource(node_id);
+            static_cast<Composition<Resource, ResourceTypes...>&>(*new_resource)
+                .for_each_component(resource_initializer,
+                                    [](auto&& res_comp, const auto& res_init) {
+                                        std::apply(
+                                            [&res_comp](auto&&... args) {
+                                                res_comp.set_value(
+                                                    std::forward<decltype(args)>(args)...);
+                                            },
+                                            res_init);
+                                    });
             return new_resource;
         }
 

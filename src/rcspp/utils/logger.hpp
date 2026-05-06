@@ -126,11 +126,13 @@ class Logger {
             std::tm tm_buf;
             std::tm* tm_ptr = nullptr;
 #if defined(_MSC_VER)
-            // MSVC
+            // MSVC: use thread-safe localtime_s
             localtime_s(&tm_buf, &t);
             tm_ptr = &tm_buf;
 #else
-            tm_ptr = std::localtime(&t);
+            // POSIX: use thread-safe localtime_r
+            localtime_r(&t, &tm_buf);
+            tm_ptr = &tm_buf;
 #endif
             ss << std::put_time(tm_ptr, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0')
                << std::setw(3) << ms.count();

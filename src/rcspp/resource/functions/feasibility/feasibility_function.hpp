@@ -27,7 +27,7 @@ class FeasibilityFunction {
 
         [[nodiscard]] virtual auto can_be_merged(const ResourceType& resource,
                                                  const ResourceType& back_resource) -> bool {
-            throw std::runtime_error("FeasibilityFunction::merge not implemented");
+            throw std::runtime_error("FeasibilityFunction::can_be_merged not implemented");
         };
 
         virtual auto is_reachable(const Resource<ResourceType>& resource,
@@ -66,7 +66,7 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto can_be_merged(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource) -> bool {
-            throw std::runtime_error("FeasibilityFunction::merge not implemented");
+            throw std::runtime_error("FeasibilityFunction::can_be_merged not implemented");
         };
 
         virtual auto is_reachable(

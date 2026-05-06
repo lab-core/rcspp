@@ -117,7 +117,7 @@ void init_resource(py::module_& m) {
                  // Return an object referencing the global map
                  return TimeWindowExtensionFunction<RealResource>(g_e_time_window_by_node_id);
              }),
-             py::arg("time_window_by_arc_id"));
+             py::arg("time_window_by_node_id"));
 
     static std::map<size_t, std::pair<double, double>> g_f_time_window_by_node_id;
 

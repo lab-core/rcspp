@@ -203,6 +203,15 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         min_reduced_cost = 0;
         std::vector<Solution> negative_red_cost_solutions;
 
+        // Select solutions from the chosen solver first
+        std::vector<Solution> solutions;
+        if (use_boost) {
+            solutions = solutions_boost;
+        } else {
+            solutions = solutions_rcspp;
+        }
+
+        // Cross-check both solvers only when both return results
         if (!solutions_boost.empty() && !solutions_rcspp.empty()) {
             LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
             LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
@@ -216,14 +225,9 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
                           "\n");
                 // break;
             }
+        }
 
-            std::vector<Solution> solutions;
-            if (use_boost) {
-                solutions = solutions_boost;
-            } else {
-                solutions = solutions_rcspp;
-            }
-
+        if (!solutions.empty()) {
             if (subproblem_max_nb_solutions != std::nullopt) {
                 auto nb_solutions = std::min(subproblem_max_nb_solutions.value(), solutions.size());
                 solutions =
@@ -302,14 +306,13 @@ std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
             std::pair<double, double>{customer.ready_time, customer.due_time});
     }
 
-    const auto& source_customer = customers_by_id.at(0);
-    time_window_by_customer_id.emplace(
+    time_window_by_customer_id.insert_or_assign(
         0,
-        std::pair<double, double>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
+        std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
     size_t sink_id = customers_by_id.size();
-    time_window_by_customer_id.emplace(
+    time_window_by_customer_id.insert_or_assign(
         sink_id,
-        std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
+        std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
     node_set_by_node_id_.emplace(0, std::set<size_t>{0});
     node_set_by_node_id_.emplace(sink_id, std::set<size_t>{});
 

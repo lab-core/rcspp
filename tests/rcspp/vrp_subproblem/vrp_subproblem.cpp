@@ -27,17 +27,16 @@ std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windo
     for (const auto& [customer_id, customer] : customers_by_id) {
         time_window_by_customer_id.emplace(
             customer_id,
-            std::pair<int, int>{customer.ready_time, customer.due_time});
+            std::pair<double, double>{customer.ready_time, customer.due_time});
     }
 
-    const auto& source_customer = customers_by_id.at(0);
-    time_window_by_customer_id.emplace(
+    time_window_by_customer_id.insert_or_assign(
     0,
-    std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
+    std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
     size_t sink_id = customers_by_id.size();
-    time_window_by_customer_id.emplace(
+    time_window_by_customer_id.insert_or_assign(
         sink_id,
-        std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
+        std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
 
     return time_window_by_customer_id;
 }
