@@ -80,6 +80,62 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return node;
         }
 
+        template <typename ResourceType>
+        void add_resource(
+            std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
+            std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
+            std::unique_ptr<CostFunction<ResourceType>> cost_function,
+            std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
+            ComponentInitializerTypeTuple_t<ResourceType> default_resource_initializer) {
+            constexpr size_t ResourceTypeIndex =
+                ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
+            using ResourceFactoryType = ResourceFactory<ResourceType>;
+            auto make_prototype = []<typename... Args>(Args&&... args) {
+                return ResourceType(std::forward<Args>(args)...);
+            };  // NOLINT
+            ResourceType resource_base_prototype =
+                std::apply(make_prototype, default_resource_initializer);
+            resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
+                std::make_unique<ResourceFactoryType>(std::move(extension_function),
+                                                      std::move(feasibility_function),
+                                                      std::move(cost_function),
+                                                      std::move(dominance_function),
+                                                      resource_base_prototype));
+        }
+
+        Node<ResourceCompositionType>& add_node(
+            size_t node_id,
+            const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
+                resource_initializer,
+            bool source = false, bool sink = false) {
+            auto& node = Graph<ResourceCompositionType>::add_node(node_id, source, sink);
+            node.resource = resource_factory_.make_resource(node.id, resource_initializer);
+            return node;
+        }
+
+        template <typename... ResourceInitTypes>
+        Node<ResourceCompositionType>& add_node(
+            size_t node_id,
+            const std::tuple<ComponentInitializerTypeTuple_t<ResourceInitTypes>...>&
+                resource_init_values,
+            bool source = false, bool sink = false) {
+            std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>
+                resource_initializer;
+            auto apply_indices = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                (([&] {
+                     using InitType = std::tuple_element_t<Is, std::tuple<ResourceInitTypes...>>;
+                     constexpr size_t ResourceTypeIndex =
+                         ComponentTypeIndex_v<InitType, ResourceTypes...>;
+                     auto& res_vec = std::get<ResourceTypeIndex>(resource_initializer);
+                     const auto& res_cons = std::get<Is>(resource_init_values);
+                     res_vec.push_back(res_cons);
+                 }()),
+                 ...);
+            };  // NOLINT
+            apply_indices(std::make_index_sequence<sizeof...(ResourceInitTypes)>{});
+            return add_node(node_id, resource_initializer, source, sink);
+        }
+
         Arc<ResourceCompositionType>& add_arc(
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,

@@ -45,6 +45,20 @@ class ResourceCompositionFactory
             return Base::make_resource(node_id);
         }
 
+        std::unique_ptr<Resource<ResourceTypeComposition<ResourceTypes...>>> make_resource(
+            size_t node_id,
+            const ResourceTypeComposition<ResourceTypes...>& /*resource_initializer*/) override {
+            return Base::make_resource(node_id);
+        }
+
+        template <typename... TypeTuples>
+        std::unique_ptr<Resource<ResourceTypeComposition<ResourceTypes...>>> make_resource(
+            size_t node_id, const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
+            auto new_resource = make_resource(resource_initializer);
+            new_resource->reset(node_id);
+            return new_resource;
+        }
+
         template <typename... TypeTuples>
         std::unique_ptr<ResourceClass> make_resource(
             const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {

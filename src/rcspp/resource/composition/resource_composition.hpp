@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -88,6 +89,13 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
                  static_cast<Composition<Resource, ResourceTypes...>&>(second));
         }
 
+        // Override: composition has no value to copy; just delegate to create(node_id).
+        [[nodiscard]] auto create(
+            const ResourceTypeComposition<ResourceTypes...>& /*resource_value*/,
+            const size_t node_id) const -> std::unique_ptr<Resource> {
+            return create(node_id);
+        }
+
         [[nodiscard]] auto create(const size_t node_id) const -> auto {
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 new_resource_components;
@@ -160,6 +168,10 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
 
         [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
             return this->feasibility_function_->can_be_merged(*this, back_resource);
+        }
+
+        [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
+            return this->feasibility_function_->is_reachable(*this, destination_node_id);
         }
 };
 

@@ -9,12 +9,13 @@
 
 namespace rcspp {
 
-template <typename ResourceType>
-class UnionExtensionFunction
-    : public Clonable<UnionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+template <typename ContainerResourceType>
+class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerResourceType>,
+                                               ExtensionFunction<ContainerResourceType>> {
     public:
-        void extend(const ResourceType& resource, const ResourceType& extender_value,
-                    ResourceType* extended_resource) override {
+        void extend(const ContainerResourceType& resource,
+                    const ContainerResourceType& extender_value,
+                    ContainerResourceType* extended_resource) override {
             auto union_value = resource.get_union(extender_value.get_value());
             extended_resource->set_value(union_value);
         }

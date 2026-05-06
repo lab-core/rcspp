@@ -74,5 +74,9 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
             return this->feasibility_function_->can_be_merged(this->value_, back_resource.value_);
         }
+
+        [[nodiscard]] auto is_reachable(size_t destination_node_id) const -> bool {
+            return this->feasibility_function_->is_reachable(*this, destination_node_id);
+        }
 };
 }  // namespace rcspp

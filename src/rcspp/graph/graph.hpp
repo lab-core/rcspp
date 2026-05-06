@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <ranges>  // NOLINT(build/include_order)
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -177,7 +178,11 @@ class Graph {
         }
 
         [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
-            return nodes_by_id_.at(node_id).get();
+            auto it = nodes_by_id_.find(node_id);
+            if (it == nodes_by_id_.end()) {
+                return nullptr;
+            }
+            return it->second.get();
         }
 
         [[nodiscard]] Arc<ResourceType>* get_arc(size_t arc_id) const {
@@ -186,6 +191,20 @@ class Graph {
                 return nullptr;
             }
             return it->second.get();
+        }
+
+        [[nodiscard]] std::vector<Arc<ResourceType>*> get_arcs(size_t ori_id,
+                                                               size_t dest_id) const {
+            std::vector<Arc<ResourceType>*> arcs;
+            auto* ori = get_node(ori_id);
+            if (ori != nullptr) {
+                for (auto* arc : ori->out_arcs) {
+                    if (arc->destination->id == dest_id) {
+                        arcs.push_back(arc);
+                    }
+                }
+            }
+            return arcs;
         }
 
         [[nodiscard]] std::vector<size_t> get_node_ids() const {
@@ -272,6 +291,16 @@ class Graph {
 
         [[nodiscard]] bool is_modified() const { return modified_; }
 
+        [[nodiscard]] std::string to_string() const {
+            std::stringstream ss;
+            ss << "Graph with " << get_number_of_nodes() << " nodes and " << get_number_of_arcs()
+               << " arcs.\n";
+            for (const auto& [node_id, node_ptr] : nodes_by_id_) {
+                ss << *node_ptr << "\n";
+            }
+            return ss.str();
+        }
+
     private:
         std::map<size_t, std::unique_ptr<Arc<ResourceType>>> arcs_by_id_;
         std::map<size_t, std::unique_ptr<Node<ResourceType>>> nodes_by_id_;
@@ -325,4 +354,9 @@ class Graph {
             return removed_arcs_by_id_.erase(it);
         }
 };
+
+template <typename ResourceType>
+std::ostream& operator<<(std::ostream& os, const Graph<ResourceType>& graph) {
+    return os << graph.to_string();
+}
 }  // namespace rcspp

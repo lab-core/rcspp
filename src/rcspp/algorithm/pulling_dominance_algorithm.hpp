@@ -29,7 +29,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
             this->initialize_unprocessed_labels(graph->get_number_of_nodes());
         }
 
-        void main_loop() override {
+        void main_loop() override {  // NOLINT
             size_t i = 0;
             while (number_of_labels() > 0 && i < this->params_.max_iterations) {
                 ++i;
@@ -59,15 +59,18 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                     } else {
                         assert(this->update_non_dominated_labels(label));
                         // check if sink and update best solution
-                        if (label.get_end_node()->sink &&
-                            label.get_cost() < this->cost_upper_bound_ &&
-                            this->params_.return_dominated_solutions) {
-                            this->extract_solution(label);
-                            if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
-                                LOG_DEBUG("Stopping after ",
-                                          this->solutions_.size(),
-                                          " solutions.\n");
-                                return;
+                        if (label.get_end_node()->sink) {
+                            LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
+                            if (label.get_cost() < this->cost_upper_bound_ &&
+                                this->params_.return_dominated_solutions) {
+                                this->extract_solution(label);
+                                if (this->solutions_.size() >=
+                                    this->params_.stop_after_X_solutions) {
+                                    LOG_DEBUG("Stopping after ",
+                                              this->solutions_.size(),
+                                              " solutions.\n");
+                                    return;
+                                }
                             }
                         }
                         ++it;  // move to next label

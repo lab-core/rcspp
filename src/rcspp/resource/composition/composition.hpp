@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -314,6 +315,17 @@ class Composition : public CompositionTag {
                                         ++it;
                                     });
                   });
+        }
+
+        [[nodiscard]] std::string to_string() const {
+            std::string result;
+            for_each_component([&](auto&& c) { result += c.get_value().to_string() + ", "; });
+
+            if (result.size() > 2) {
+                result.resize(result.size() - 2);
+            }
+
+            return result;
         }
 
         // Getters for components

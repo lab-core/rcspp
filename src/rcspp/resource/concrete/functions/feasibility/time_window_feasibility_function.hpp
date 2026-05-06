@@ -39,8 +39,8 @@ class TimeWindowFeasibilityFunction
     private:
         const std::map<size_t, std::pair<ValueType, ValueType>>& time_window_by_node_id_;
 
-        ValueType min_time_window_;
-        ValueType max_time_window_;
+        ValueType min_time_window_{};
+        ValueType max_time_window_{};
 
         void preprocess(size_t node_id) override {
             auto& tw = time_window_by_node_id_.at(node_id);

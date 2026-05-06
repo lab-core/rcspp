@@ -30,6 +30,11 @@ class FeasibilityFunction {
             throw std::runtime_error("FeasibilityFunction::merge not implemented");
         };
 
+        virtual auto is_reachable(const Resource<ResourceType>& resource,
+                                  size_t destination_node_id) -> bool {
+            return true;
+        }
+
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<FeasibilityFunction> = 0;
 
         virtual auto create(const size_t node_id) -> std::unique_ptr<FeasibilityFunction> {
@@ -63,6 +68,12 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource) -> bool {
             throw std::runtime_error("FeasibilityFunction::merge not implemented");
         };
+
+        virtual auto is_reachable(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/,
+            size_t /*destination_node_id*/) -> bool {
+            return true;
+        }
 
         [[nodiscard]] virtual auto clone() const
             -> std::unique_ptr<FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;

@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "rcspp/resource/base/resource.hpp"
@@ -47,8 +48,35 @@ class Node {
             }
         }
 
+        [[nodiscard]] std::string to_string() const {
+            std::stringstream ss;
+            ss << "Node(id=" << id;
+            if (source) {
+                ss << ", source";
+            }
+            if (sink) {
+                ss << ", sink";
+            }
+            ss << ")\n";
+            ss << "    predecessors: [";
+            for (const auto* arc : in_arcs) {
+                ss << arc->origin->id << " ";
+            }
+            ss << "]\n";
+            ss << "    successors: [";
+            for (const auto* arc : out_arcs) {
+                ss << arc->destination->id << " ";
+            }
+            ss << "]";
+            return ss.str();
+        }
+
     private:
         friend class Graph<ResourceType>;
         std::optional<size_t> pos_;
 };
+template <typename ResourceType>
+std::ostream& operator<<(std::ostream& os, const Node<ResourceType>& node) {
+    return os << node.to_string();
+}
 }  // namespace rcspp
