@@ -44,7 +44,6 @@ class VRP:
 
         self.__time_window_by_customer_id = self.initialize_time_windows()
         self.__resource_graph = self.construct_resource_graph()
-        self.add_nodes_and_arcs(self.__resource_graph)
 
     def initialize_time_windows(self):
         # print("initialize_time_windows")
@@ -481,7 +480,9 @@ class VRP:
         self.__n_iterations = 0
 
         if self.__smoothing:
+            self.__smoothing = False
             self.first_iteration(subproblem_max_nb_solutions)
+            self.__smoothing = True
 
         master_solution = self.cg_iterations(subproblem_max_nb_solutions)
 
@@ -575,12 +576,12 @@ class VRP:
 
         dual_by_id = master_solution.dual_by_var_id
 
-        if self.__smoothing:
-            self.__smoothing_center = dual_by_id
-            self.__last_outer_point = dual_by_id
+        self.__smoothing_center = dual_by_id
+        self.__last_outer_point = dual_by_id
 
         self.dual_box_center_ = dual_by_id
-        self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
+        if hasattr(self, 'kappa'):
+            self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
 
         negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
 

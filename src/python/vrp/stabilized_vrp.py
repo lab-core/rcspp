@@ -26,9 +26,11 @@ class StabilizedVRP(VRP):
         if self.dual_estimate is None:
             self.first_iteration(subproblem_max_nb_solutions)
         else:
+            if self._VRP__verbose:
+                print("Using provided dual estimate to initialize the dual box master problem")
             self.dual_box_center_ = self.dual_estimate
             self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
-            self.best_lagrangian_lb = self.compute_first_lagrangian_bound(self.dual_box_center_)
+            self.compute_first_lagrangian_bound(self.dual_box_center_)
 
         while True:
             stabilized_iter_solution = self.cg_iterations(subproblem_max_nb_solutions)
@@ -40,7 +42,7 @@ class StabilizedVRP(VRP):
             if max_special_var_value > self.EPSILON:
                 self.penalty_value = self.penalty_value/10
                 if self.penalty_value < self.EPSILON:
-                    self.penalty_value = None
+                    self.penalty_value = 0.0
             
             self.meta_iteration += 1
 
