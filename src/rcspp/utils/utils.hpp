@@ -8,10 +8,10 @@
 #include <typeinfo>
 
 #if defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER))
-#  include <cxxabi.h>
-#  define RCSPP_HAS_CXA_DEMANGLE 1
+#include <cxxabi.h>
+#define RCSPP_HAS_CXA_DEMANGLE 1
 #else
-#  define RCSPP_HAS_CXA_DEMANGLE 0
+#define RCSPP_HAS_CXA_DEMANGLE 0
 #endif
 
 namespace rcspp {

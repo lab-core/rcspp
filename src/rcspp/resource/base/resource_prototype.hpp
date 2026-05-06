@@ -179,7 +179,8 @@ class ResourcePrototype {
             return new_resource;
         }
 
-        [[nodiscard]] auto create(const ResourceType& resource_value, const size_t node_id) const
+        [[nodiscard]] auto create(const ResourceType& resource_value,
+                                  const size_t node_id) const  // NOLINT
             -> std::unique_ptr<ResourceClass> {
             auto new_resource =
                 std::make_unique<ResourceClass>(resource_value,

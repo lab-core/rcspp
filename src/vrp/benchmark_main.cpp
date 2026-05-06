@@ -88,7 +88,8 @@ int main(int argc, char* argv[]) {
             max_instance_index = std::stoull(argv[1]);
         }
         if (max_instance_index > 9) {  // NOLINT(readability-magic-numbers)
-            LOG_ERROR("Maximum instance index exceeded, should be <= 9 to match existing instances\n");
+            LOG_ERROR(
+                "Maximum instance index exceeded, should be <= 9 to match existing instances\n");
             return 1;
         }
         for (size_t instance_num = 1; instance_num <= max_instance_index; ++instance_num) {
