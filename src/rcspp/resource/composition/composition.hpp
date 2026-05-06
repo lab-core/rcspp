@@ -317,6 +317,51 @@ class Composition : public CompositionTag {
                   });
         }
 
+        template <typename Func, typename Comp1, typename Comp2>
+        void for_each_component(const Comp1& rhs1, const Comp2& rhs2, Func&& func) {
+            apply(rhs1, rhs2, [&func](auto& vec, const auto& rhs1_vec, const auto& rhs2_vec) {
+                auto it1 = rhs1_vec.begin();
+                auto it2 = rhs2_vec.begin();
+                for (auto& ptr : vec) {
+                    func(*ptr, **it1, **it2);
+                    ++it1;
+                    ++it2;
+                }
+            });
+        }
+
+        template <typename Func, typename Comp1, typename Comp2>
+        void for_each_component(const Comp1& rhs1, const Comp2& rhs2, Func&& func) const {
+            apply(rhs1, rhs2, [&func](const auto& vec, const auto& rhs1_vec, const auto& rhs2_vec) {
+                auto it1 = rhs1_vec.begin();
+                auto it2 = rhs2_vec.begin();
+                for (const auto& ptr : vec) {
+                    func(*ptr, **it1, **it2);
+                    ++it1;
+                    ++it2;
+                }
+            });
+        }
+
+        template <typename Func>
+        bool for_each_component_and(Func&& func) const {
+            return apply_and([&func](const auto& comp_vec) {
+                return std::all_of(comp_vec.begin(), comp_vec.end(), [&](const auto& comp_ptr) {
+                    return func(*comp_ptr);
+                });
+            });
+        }
+
+        template <typename Func, typename Comp>
+        bool for_each_component_and(const Comp& rhs, Func&& func) const {
+            return apply_and(rhs, [&func](const auto& comp_vec, const auto& rhs_comp_vec) {
+                auto it = rhs_comp_vec.begin();
+                return std::all_of(comp_vec.begin(), comp_vec.end(), [&](const auto& comp_ptr) {
+                    return func(*comp_ptr, **it++);
+                });
+            });
+        }
+
         [[nodiscard]] std::string to_string() const {
             std::string result;
             for_each_component([&](auto&& c) { result += c.get_value().to_string() + ", "; });

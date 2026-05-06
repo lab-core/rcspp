@@ -34,16 +34,9 @@ class CompositionFeasibilityFunction
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource_composition)
             override {
-            return resource_composition.apply_and(
+            return resource_composition.for_each_component_and(
                 back_resource_composition,
-                [&](const auto& res_vec, const auto& back_res_vec) {
-                    for (int i = 0; i < res_vec.size(); i++) {
-                        if (!res_vec[i]->can_be_merged(*back_res_vec[i])) {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
+                [](const auto& res, const auto& back_res) { return res.can_be_merged(back_res); });
         }
 
     private:
@@ -51,11 +44,8 @@ class CompositionFeasibilityFunction
         [[nodiscard]] bool feasible_helper(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
             const F& feasible_func) const {
-            return resource_composition.apply_and([&](const auto& res_vec) {
-                return std::ranges::all_of(res_vec, [&](const auto& res_comp) {
-                    return feasible_func(*res_comp);
-                });
-            });
+            return resource_composition.for_each_component_and(
+                [&](const auto& res) { return feasible_func(res); });
         }
 };
 }  // namespace rcspp

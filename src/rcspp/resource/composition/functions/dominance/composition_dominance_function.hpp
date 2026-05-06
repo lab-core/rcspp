@@ -21,16 +21,9 @@ class CompositionDominanceFunction
         [[nodiscard]] bool check_dominance(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& lhs_composition,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& rhs_composition) override {
-            return lhs_composition.apply_and(
+            return lhs_composition.for_each_component_and(
                 rhs_composition,
-                [&](const auto& lhs_sing_res, const auto& rhs_sing_res) {
-                    for (int i = 0; i < lhs_sing_res.size(); i++) {
-                        if (!(*lhs_sing_res[i] <= *rhs_sing_res[i])) {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
+                [](const auto& lhs_res, const auto& rhs_res) { return lhs_res <= rhs_res; });
         }
 };
 }  // namespace rcspp

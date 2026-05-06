@@ -19,26 +19,20 @@ class CompositionExtensionFunction
     public:
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {
-            extended_resource->apply(
+            extended_resource->for_each_component(
                 resource,
                 extender,
-                [](auto& ext_res_vec, const auto& res_vec, const auto& exp_vec) {
-                    for (size_t i = 0; i < exp_vec.size(); ++i) {
-                        exp_vec[i]->extend(*res_vec[i], ext_res_vec[i].get());
-                    }
-                });
+                [](auto& ext_res, const auto& res, const auto& exp) { exp.extend(res, &ext_res); });
         }
 
         void extend_back(const Resource<ResourceType>& resource,
                          const Extender<ResourceType>& extender,
                          Resource<ResourceType>* extended_resource) override {
-            extended_resource->apply(
+            extended_resource->for_each_component(
                 resource,
                 extender,
-                [](auto& ext_res_vec, const auto& res_vec, const auto& exp_vec) {
-                    for (size_t i = 0; i < exp_vec.size(); ++i) {
-                        exp_vec[i]->extend_back(*res_vec[i], ext_res_vec[i].get());
-                    }
+                [](auto& ext_res, const auto& res, const auto& exp) {
+                    exp.extend_back(res, &ext_res);
                 });
         }
 };
