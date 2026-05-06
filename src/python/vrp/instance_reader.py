@@ -16,17 +16,6 @@ class InstanceReader:
         nb_vehicles = 0
         capacity = 0
 
-        if "_" in self.file_path_:
-            path = self.file_path_.split("/")
-            instance_name = path[-1].split(".")[0]
-            if "RC" in instance_name:
-                Itype = "RC"
-            elif "R" in instance_name:
-                Itype = "R"
-            elif "C" in instance_name:
-                Itype = "C"
-            self.file_path_ = f"{GENERATED_INSTANCES_DIR}/{Itype}/{path[-1]}"
-
         print(f"file_path_={self.file_path_}")
 
         with open(self.file_path_, "r") as f:
@@ -85,16 +74,3 @@ class InstanceReader:
                 dual_by_var_id[id] = dual_value
 
         return dual_by_var_id
-    
-    def read_dual_optimal(self, instance_name:str) -> dict[int, float]:
-        if self.solutions is None:
-            with open(OPTIMAL_DUAL_FILE, "r") as f:
-                self.solutions = json.load(f)
-        dual_by_id_str: dict[str, float] = self.solutions[instance_name]
-        dual_by_id:dict[int, float] = {}
-
-        for i in dual_by_id_str:
-            dual_by_id[int(i)] = dual_by_id_str[i]
-
-        return dual_by_id
-

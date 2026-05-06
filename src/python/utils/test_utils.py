@@ -6,10 +6,10 @@ from utils.definitions import INSTANCES_DIR, SOLUTIONS_DIR
 import json
 import math
 import os
+from vrp.instance import Instance
 
-def _ensure_parent_dir(path):
+def ensure_parent_dir(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-
 
 def _save_formatted_solution(vrp, solution, instance, save, dir):
     formatted_solution = format_solution(
@@ -21,7 +21,7 @@ def _save_formatted_solution(vrp, solution, instance, save, dir):
     )
     if save:
         file_path = f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt"
-        _ensure_parent_dir(file_path)
+        ensure_parent_dir(file_path)
         with open(file_path, "w") as f:
             f.write(formatted_solution)
 
@@ -29,7 +29,7 @@ def _save_formatted_solution(vrp, solution, instance, save, dir):
 def _dump_dual_history(vrp, instance, dir):
     dual_history = vrp.get_dual_values_history()
     file_path = f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json"
-    _ensure_parent_dir(file_path)
+    ensure_parent_dir(file_path)
     with open(file_path, "w") as f:
         json.dump(dual_history, f)
 
@@ -48,7 +48,7 @@ def _build_solution_dict(vrp, solution, extra_fields=None):
     return solution_dict
 
 
-def vrp_stabilized_instance(instance, dual_box_centre=None, save=False, dir="", verbose=True):
+def vrp_stabilized_instance(instance: Instance, dual_box_centre=None, save=False, dir="", verbose=True):
     print("Construct VRP")
     vrp = StabilizedVRP(instance, dual_box_centre, verbose=verbose)
     print("Construct VRP ...Done")
@@ -61,7 +61,7 @@ def vrp_stabilized_instance(instance, dual_box_centre=None, save=False, dir="", 
     return solution_dict
 
 
-def vrp_instance(instance, smoothing=None, save=False, dir="", verbose=True):
+def vrp_instance(instance: Instance, smoothing=None, save=False, dir="", verbose=True):
     print("Construct VRP")
     vrp = VRP(instance, verbose=verbose)
     print("Construct VRP ...Done")
@@ -164,7 +164,7 @@ def min_dicts(dict_list):
     return min_d
 
 def save_dict_to_json(dir:str, filename:str, d:dict):
-    file_path = f"{SOLUTIONS_DIR}/{dir}/{filename}.json"
+    file_path = f"{dir}{filename}.json"
     
     existing_data = {}
     try:
@@ -178,12 +178,14 @@ def save_dict_to_json(dir:str, filename:str, d:dict):
     with open(file_path, "w") as f:
         json.dump(existing_data, f, indent=4)
 
-def read_instances_name(filename:str) -> list[str]:
-    file = f"{INSTANCES_DIR}/{filename}.txt"
+def read_instances_name(filepath:str) -> list[str]:
     names = []
 
-    with open(file, "r") as f:
+    with open(filepath, "r") as f:
         for line in f:
             names.append(line.strip())
 
     return names
+
+def str_dict_to_int(d: dict):
+    return {int(key):value for key, value in d.items()}
