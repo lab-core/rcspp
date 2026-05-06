@@ -1,10 +1,10 @@
 from vrp.instance import Instance
 from vrp.instance_reader import InstanceReader
-from utils.test_utils import *
-from utils.definitions import INSTANCES_DIR
+from utils.test_utils import ensure_parent_dir, read_instances_name
+from utils.definitions import INSTANCES_DIR, DATASETS_DIR
 import random
 
-base_instances = read_instances_name("instances_name")
+base_instances = read_instances_name(f"{INSTANCES_DIR}instances_name.txt")
 
 generated_instances_names = []
 nR = 0
@@ -22,6 +22,7 @@ for name in base_instances:
     nb_customers = len(base_instance.get_demand_customers_id())
     customers_by_id = base_instance.get_customers_by_id()
     depot = base_instance.get_depot_customer()
+    nb_customers = len(base_instance.get_customers_by_id())
 
     if "RC" in name:
         nb_tirages = 782
@@ -36,13 +37,13 @@ for name in base_instances:
         Itype = "R"
         nR += 1
     
-    n = 20  # nombre de clients à sélectionner pour chaque instance générée
+    n = 40  # nombre de clients à sélectionner pour chaque instance générée
 
     tirages = []
     tirages_sets = []
 
     while len(tirages) < nb_tirages:
-        tirage = random.sample(range(1, 100), n)
+        tirage = random.sample(range(1, nb_customers), n)
         tirage.sort()
         tirage_set = frozenset(tirage)
 
@@ -52,20 +53,21 @@ for name in base_instances:
             tirages_sets.append(tirage_set)
         else:
             print(f"Tirage {tirage} déjà existant, génération d'un nouveau tirage...")  
-            tirage = random.sample(range(1, 100), n)
+            tirage = random.sample(range(1, nb_customers), n)
             tirage.sort()
             tirage_set = frozenset(tirage)
 
     for i, tirage in enumerate(tirages, 1):
         new_instance_name = f"{name}_{i}"
-        new_instance = Instance(base_instance.get_nb_vehicles(), base_instance.get_capacity()//2, new_instance_name)
+        new_instance = Instance(base_instance.get_nb_vehicles(), base_instance.get_capacity()//5, new_instance_name)
         new_instance.add_customer(depot.id, depot.pos_x, depot.pos_y, depot.demand, depot.ready_time, depot.due_time, depot.service_time, True)
         for i in range(len(tirage)):
-            id = tirage[i]
+            id = i+1
             c= customers_by_id[id]
             new_instance.add_customer(id, c.pos_x, c.pos_y, c.demand, c.ready_time, c.due_time, c.service_time, False)
 
-        new_instance.write_to_file(f"{INSTANCES_DIR}/generated/{Itype}/{new_instance_name}.txt")
+        ensure_parent_dir(f"{DATASETS_DIR}dataset_{n}/Instances/{Itype}/")
+        new_instance.write_to_file(f"{DATASETS_DIR}dataset_{n}/Instances/{Itype}/{new_instance_name}.txt")
         generated_instances_names.append(new_instance_name)
     
     print(f"Generated {len(tirages)} instances for base instance {name}.")
@@ -75,6 +77,7 @@ print(f"Number of R instances: {nR}")
 print(f"Number of C instances: {nC}")
 print(f"Number of RC instances: {nRC}")
 
-with open(f"{INSTANCES_DIR}/generated/instances_name.txt", "a") as f:
+ensure_parent_dir(f"{DATASETS_DIR}dataset_{n}/Instances/")
+with open(f"{DATASETS_DIR}dataset_{n}/Instances/instances_name.txt", "a") as f:
     for n in generated_instances_names:
         f.write(n + "\n")
