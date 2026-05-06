@@ -2,7 +2,6 @@ import utils.rscpp_lib
 from vrp.stabilized_vrp import StabilizedVRP
 from vrp.vrp import VRP
 from utils.solution_formatter import format_solution
-from utils.definitions import INSTANCES_DIR, SOLUTIONS_DIR
 import json
 import math
 import os
@@ -20,7 +19,7 @@ def _save_formatted_solution(vrp, solution, instance, save, dir):
         author="ajdepommerol",
     )
     if save:
-        file_path = f"{SOLUTIONS_DIR}/{dir}/solutions/{instance.get_name()}.txt"
+        file_path = f"{dir}solutions/{instance.get_name()}.txt"
         ensure_parent_dir(file_path)
         with open(file_path, "w") as f:
             f.write(formatted_solution)
@@ -28,7 +27,7 @@ def _save_formatted_solution(vrp, solution, instance, save, dir):
 
 def _dump_dual_history(vrp, instance, dir):
     dual_history = vrp.get_dual_values_history()
-    file_path = f"{SOLUTIONS_DIR}/{dir}/dual_history/{instance.get_name()}.json"
+    file_path = f"{dir}/dual_history/{instance.get_name()}.json"
     ensure_parent_dir(file_path)
     with open(file_path, "w") as f:
         json.dump(dual_history, f)
@@ -163,18 +162,17 @@ def min_dicts(dict_list):
     
     return min_d
 
-def save_dict_to_json(dir:str, filename:str, d:dict):
+def save_dict_to_json(dir: str, filename: str, d: dict):
     file_path = f"{dir}{filename}.json"
-    
     existing_data = {}
     try:
         with open(file_path, "r") as f:
             existing_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
-    
+        
     existing_data.update(d)
-    
+        
     with open(file_path, "w") as f:
         json.dump(existing_data, f, indent=4)
 
