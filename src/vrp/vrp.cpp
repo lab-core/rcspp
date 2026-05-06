@@ -203,14 +203,6 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         min_reduced_cost = 0;
         std::vector<Solution> negative_red_cost_solutions;
 
-        // Select solutions from the chosen solver first
-        std::vector<Solution> solutions;
-        if (use_boost) {
-            solutions = solutions_boost;
-        } else {
-            solutions = solutions_rcspp;
-        }
-
         // Cross-check both solvers only when both return results
         if (!solutions_boost.empty() && !solutions_rcspp.empty()) {
             LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
@@ -225,6 +217,14 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
                           "\n");
                 // break;
             }
+        }
+
+        // Select solutions from the chosen solver; move to avoid unnecessary copy
+        std::vector<Solution> solutions;
+        if (use_boost) {
+            solutions = std::move(solutions_boost);
+        } else {
+            solutions = std::move(solutions_rcspp);
         }
 
         if (!solutions.empty()) {
