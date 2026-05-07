@@ -38,6 +38,7 @@ class BellmanFordAlgorithm {
         // nodes to any of the given targets (backward)
         // cost = nullopt -> use default arc cost
         template <typename CostResourceType = RealResource, typename... ResourceTypes>
+            requires is_numerical_resource_v<CostResourceType>
         static Distance solve(const Graph<ResourceComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids,
                               std::optional<size_t> cost_index = std::nullopt,

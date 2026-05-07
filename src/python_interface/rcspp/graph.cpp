@@ -14,7 +14,10 @@
 #include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
+#include "rcspp/resource/concrete/container_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_graph.hpp"
+#include "resource_types.hpp"
 
 namespace py = pybind11;
 
@@ -23,16 +26,18 @@ using namespace rcspp;
 // ─── Concrete type aliases ────────────────────────────────────────────────────
 
 using RealRC = ResourceComposition<RealResource>;
-using IntRC = ResourceComposition<IntResource>;
-using RealIntRC = ResourceComposition<RealResource, IntResource>;
-
 using RealGraph = Graph<RealRC>;
-using IntGraph = Graph<IntRC>;
-using RealIntGraph = Graph<RealIntRC>;
-
 using RealRG = ResourceGraph<RealResource>;
-using IntRG = ResourceGraph<IntResource>;
+
+using RealIntRC = ResourceComposition<RealResource, IntResource>;
 using RealIntRG = ResourceGraph<RealResource, IntResource>;
+
+// Universal graph — covers all Python-meaningful types; used as fallback when no
+// narrower binding exists for a requested combination.
+using AllRC = ResourceComposition<RealResource, IntResource, RealSetResource, IntSetResource,
+                                  UIntBitsetResource>;
+using AllRG =
+    ResourceGraph<RealResource, IntResource, RealSetResource, IntSetResource, UIntBitsetResource>;
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 // Add new algorithms here only; dispatch is driven automatically.
@@ -80,17 +85,18 @@ std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub,
 }
 
 // ─── Resource type → pybind11 method name ────────────────────────────────────
+// Generated for all resource types via X-macro.
 
 template <typename T>
 constexpr const char* add_resource_method_name();
-template <>
-constexpr const char* add_resource_method_name<RealResource>() {
-    return "add_real_resource";
-}
-template <>
-constexpr const char* add_resource_method_name<IntResource>() {
-    return "add_int_resource";
-}
+
+#define GEN_ADD_RESOURCE_NAME(name, scalar, RT)            \
+    template <>                                            \
+    constexpr const char* add_resource_method_name<RT>() { \
+        return "add_" #name "_resource";                   \
+    }
+RCSPP_ALL_RESOURCES(GEN_ADD_RESOURCE_NAME)
+#undef GEN_ADD_RESOURCE_NAME
 
 // ─── Helper: bind common Graph base methods ───────────────────────────────────
 
@@ -163,7 +169,7 @@ template <typename RG, typename RC, typename... ResourceTypes>
 void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
     using AddArcTuple = std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>;
 
-    // add_real_resource / add_int_resource — one per resource type via fold
+    // add_<type>_resource — one per resource type via fold
     (bind_add_resource<RG, RC, ResourceTypes>(rg), ...);
 
     rg.def("add_arc",
@@ -200,10 +206,8 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
     }
 }
 
-// ─── Helper: build the full block for a set of internal (prefixed) types ──────
-// Registers the minimal Node, Arc, plain Graph, and ResourceGraph under the
-// given Python names. Used for every resource combination except the primary
-// RealResource graph, which has its own fully-exposed public types.
+// ─── Helper: build the full block for a set of resource types ─────────────────
+// Registers Node, Arc, plain Graph, and ResourceGraph under the given Python names.
 
 template <typename RG, typename RC, typename CostRC, typename... ResourceTypes>
 void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* graph_name,
@@ -236,6 +240,27 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
     rg.def(py::init<>());
     bind_resource_graph_impl<RG, RC, ResourceTypes...>(rg);
 }
+
+// ─── Macros: bind single-resource graph blocks ───────────────────────────────
+// Numerical: CostRC = RT (real/int/uint have a meaningful cost resource).
+// Container: CostRC = RealResource (containers don't have a numeric cost resource;
+//            RealResource satisfies requires, and the "not in pack" guard skips preprocessing).
+
+#define BIND_SINGLE_NUMERICAL_RG(name, scalar, RT)                                 \
+    bind_resource_graph_block<ResourceGraph<RT>, ResourceComposition<RT>, RT, RT>( \
+        m,                                                                         \
+        "_" #name "_resource_graph",                                               \
+        "_" #name "_graph",                                                        \
+        "_" #name "_node",                                                         \
+        "_" #name "_arc");
+
+#define BIND_SINGLE_CONTAINER_RG(name, scalar, RT)                                           \
+    bind_resource_graph_block<ResourceGraph<RT>, ResourceComposition<RT>, RealResource, RT>( \
+        m,                                                                                   \
+        "_" #name "_resource_graph",                                                         \
+        "_" #name "_graph",                                                                  \
+        "_" #name "_node",                                                                   \
+        "_" #name "_arc");
 
 // ─── init_graph ───────────────────────────────────────────────────────────────
 
@@ -282,7 +307,7 @@ void init_graph(py::module_& m) {
         .def_readwrite("path_arc_ids", &Solution::path_arc_ids);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // RealResource graph types — primary bindings with full Node/Arc exposure
+    // RealResource — primary bindings with full Node/Arc/Graph public exposure
     // ══════════════════════════════════════════════════════════════════════════
 
     {
@@ -343,30 +368,46 @@ void init_graph(py::module_& m) {
         .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows);
 
     {
-        py::class_<RealRG, RealGraph> rg(m, "_RealResourceGraph");
+        py::class_<RealRG, RealGraph> rg(m, "_real_resource_graph");
         bind_rg_methods<RealRG, RealRC>(rg);
         rg.def(py::init<>());
         bind_resource_graph_impl<RealRG, RealRC, RealResource>(rg);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // IntResource graph types
+    // All other single-resource graphs — generated via X-macro
     // ══════════════════════════════════════════════════════════════════════════
 
-    bind_resource_graph_block<IntRG, IntRC, IntResource, IntResource>(m,
-                                                                      "_IntResourceGraph",
-                                                                      "_IntGraph",
-                                                                      "_IntNode",
-                                                                      "_IntArc");
+    BIND_SINGLE_NUMERICAL_RG(int, int, IntResource)
+    BIND_SINGLE_NUMERICAL_RG(uint, unsigned int, UIntResource)
+    BIND_SINGLE_CONTAINER_RG(real_set, double, RealSetResource)
+    BIND_SINGLE_CONTAINER_RG(int_set, int, IntSetResource)
+    BIND_SINGLE_CONTAINER_RG(uint_set, unsigned int, UIntSetResource)
+    BIND_SINGLE_CONTAINER_RG(size_t_set, size_t, SizeTSetResource)
+    BIND_SINGLE_CONTAINER_RG(uint_bitset, unsigned int, UIntBitsetResource)
+    BIND_SINGLE_CONTAINER_RG(size_t_bitset, size_t, SizeTBitsetResource)
 
     // ══════════════════════════════════════════════════════════════════════════
-    // RealResource + IntResource mixed graph types
+    // Mixed graphs (common combinations)
     // ══════════════════════════════════════════════════════════════════════════
 
     bind_resource_graph_block<RealIntRG, RealIntRC, RealResource, RealResource, IntResource>(
         m,
-        "_RealIntResourceGraph",
-        "_RealIntGraph",
-        "_RealIntNode",
-        "_RealIntArc");
+        "_real_int_resource_graph",
+        "_real_int_graph",
+        "_real_int_node",
+        "_real_int_arc");
+
+    bind_resource_graph_block<AllRG,
+                              AllRC,
+                              RealResource,
+                              RealResource,
+                              IntResource,
+                              RealSetResource,
+                              IntSetResource,
+                              UIntBitsetResource>(m,
+                                                  "_all_resource_graph",
+                                                  "_all_graph",
+                                                  "_all_node",
+                                                  "_all_arc");
 }

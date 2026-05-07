@@ -81,4 +81,12 @@ struct ResourceInitializerTypeTuple<BitsetResource<T>> {
 
 using UIntBitsetResource = BitsetResource<unsigned int>;
 using SizeTBitsetResource = BitsetResource<size_t>;
+
+// Type trait: true iff T is NumericalResource<U> for some U
+template <typename T>
+struct is_numerical_resource : std::false_type {};
+template <typename T>
+struct is_numerical_resource<NumericalResource<T>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_numerical_resource_v = is_numerical_resource<T>::value;
 }  // namespace rcspp

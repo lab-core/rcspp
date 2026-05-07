@@ -11,6 +11,7 @@
 
 namespace rcspp {
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
+    requires is_numerical_resource_v<CostResourceType>
 class ShortestPathConnectivitySort {
     public:
         explicit ShortestPathConnectivitySort(

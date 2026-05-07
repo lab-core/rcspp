@@ -231,6 +231,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         // sort nodes by connectivity, break cycles on cost
         template <template <typename, typename...> class SortType = ShortestPathConnectivitySort,
                   typename CostResourceType = RealResource>
+            requires is_numerical_resource_v<CostResourceType>
         void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,
                                                               &connectivityMatrix_,
@@ -247,6 +248,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource>
+            requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
                                     AlgorithmParams params = {}, bool preprocess = true,
                                     int cost_index = 0) {
@@ -259,6 +261,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
+            requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(AlgorithmType<ResourceComposition<ResourceTypes...>>* algorithm,
                                     double upper_bound = std::numeric_limits<double>::infinity(),
                                     bool preprocess = true, int cost_index = 0) {
@@ -286,21 +289,24 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                     connectivityMatrix_.compute_bitmatrix();
                 }
 
-                // if not sorted, use default sort by connectivity
-                if (!this->are_nodes_sorted()) {
-                    this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
-                                                              CostResourceType>();
-                }
+                // shortest-path preprocessing requires a numerical cost resource in the pack
+                if constexpr (is_numerical_resource_v<CostResourceType> &&
+                              ResourceTypeIndex<CostResourceType, ResourceTypes...>::value != -1) {
+                    // if not sorted, use default sort by connectivity
+                    if (!this->are_nodes_sorted()) {
+                        this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
+                                                                  CostResourceType>();
+                    }
 
-                // remove some arcs before solving the problem
-                // the deleted arcs will be restored after the solve
-                auto preprocessor =
-                    std::make_unique<ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
-                        this,
-                        upper_bound,
-                        cost_index);
-                preprocessor->preprocess();
-                preprocessors.emplace_back(std::move(preprocessor));
+                    // remove some arcs before solving the problem
+                    // the deleted arcs will be restored after the solve
+                    auto preprocessor = std::make_unique<
+                        ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(this,
+                                                                                      upper_bound,
+                                                                                      cost_index);
+                    preprocessor->preprocess();
+                    preprocessors.emplace_back(std::move(preprocessor));
+                }
             }
 
             // if not sorted, use default sort (by id)
@@ -339,6 +345,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         template <typename CostResourceType = RealResource>
+            requires is_numerical_resource_v<CostResourceType>
         void update_reduced_costs(const std::vector<double>& duals, size_t cost_index = 0) {
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;

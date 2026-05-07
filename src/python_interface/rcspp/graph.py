@@ -7,6 +7,7 @@ from typing import Optional
 import networkx as nx
 
 from . import _core as _ext
+from ._resource_types import ALIASES, ALL, CPP_NAME, FULL, FULL_CLASS, MIXED, canonical
 from .resource import _GenericFunctionDescriptor
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
@@ -19,77 +20,132 @@ _ALGORITHM_MAP = {
 # Kept for backward compatibility
 ALGORITHMS = tuple(_ALGORITHM_MAP)
 
-# Ordered resource-type signature → internal C++ class name
-_RG_CLASS = {
-    ("real",): "_RealResourceGraph",
-    ("int",): "_IntResourceGraph",
-    ("real", "int"): "_RealIntResourceGraph",
-    ("int", "real"): "_RealIntResourceGraph",  # C++ slot order is (real, int)
-}
+# Canonical resource type names exposed through add_<type>_resource methods.
+_ALL_RESOURCE_TYPES = ALL
+
+
+def _rg_class_name(*cpp_types: str) -> str:
+    """Derive the C++ binding class name from C++ type name(s)."""
+    return "_" + "_".join(cpp_types) + "_resource_graph"
+
+
+# ── Type-signature → C++ class-name lookup table ─────────────────────────────
+# Keys are tuples of canonical Python type names; values are C++ binding class names.
+# Only combinations that are actually compiled in C++ are registered
+# (verified via hasattr at module load time).
+
+_RG_CLASS: dict[tuple[str, ...], str] = {}
+
+# Single-resource graphs
+for _rt in ALL:
+    _cpp = CPP_NAME.get(_rt, _rt)
+    _cls = _rg_class_name(_cpp)
+    if hasattr(_ext.graph, _cls):
+        _RG_CLASS[(_rt,)] = _cls
+
+# Mixed pairs — auto-generated; permutations of a pair map to the same C++ class.
+for _combo in MIXED:
+    _cpp_combo = tuple(CPP_NAME.get(t, t) for t in _combo)
+    _cls = _rg_class_name(*_cpp_combo)
+    if hasattr(_ext.graph, _cls):
+        _RG_CLASS[_combo] = _cls
+        if len(_combo) == 2 and _combo[::-1] != _combo:
+            _RG_CLASS[_combo[::-1]] = _cls
+
+# Universal (all-types) graph — always present as the catch-all fallback.
+if hasattr(_ext.graph, FULL_CLASS):
+    _RG_CLASS[FULL] = FULL_CLASS
 
 
 class ResourceGraph:
     """Factory that defers C++ ResourceGraph instantiation until the first graph
     operation, picking the right template from the resources added via
-    :meth:`add_real_resource` / :meth:`add_int_resource`."""
+    :meth:`add_real_resource` / :meth:`add_int_resource` / etc."""
 
     def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
-        self._pending: list[tuple] = []  # ('real'|'int', ext, feas, cost, dom)
+        self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
         self._graph = None  # actual C++ object, created lazily
+        # Set after _ensure_graph(): the canonical slot tuple of the C++ class
+        # and the canonical tuple of user-registered types (may differ when
+        # a superset graph is chosen as fallback).
+        self._graph_canonical: tuple[str, ...] = ()
+        self._registered_canonical: tuple[str, ...] = ()
         if nx_graph is not None:
             self.from_networkx(nx_graph)
 
     # ── Resource registration ─────────────────────────────────────────────────
 
     @staticmethod
-    def _resolve(fn, resource_type: str):
-        """Instantiate a typed C++ function if *fn* is a generic descriptor."""
+    def _resolve(fn, canonical_type: str):
+        """Instantiate a typed C++ function object if *fn* is a generic descriptor.
+
+        ``canonical_type`` is translated to the C++ prefix via ``CPP_NAME``
+        before the C++ class is looked up.
+        """
         if isinstance(fn, _GenericFunctionDescriptor):
-            return fn.create(resource_type)
+            cpp_type = CPP_NAME.get(canonical_type, canonical_type)
+            return fn.create(cpp_type)
         return fn
-
-    def add_real_resource(
-        self, extension_function, feasibility_function, cost_function, dominance_function
-    ):
-        ext = self._resolve(extension_function, "real")
-        feas = self._resolve(feasibility_function, "real")
-        cost = self._resolve(cost_function, "real")
-        dom = self._resolve(dominance_function, "real")
-        if self._graph is not None:
-            self._graph.add_real_resource(ext, feas, cost, dom)
-        else:
-            self._pending.append(("real", ext, feas, cost, dom))
-
-    def add_int_resource(
-        self, extension_function, feasibility_function, cost_function, dominance_function
-    ):
-        ext = self._resolve(extension_function, "int")
-        feas = self._resolve(feasibility_function, "int")
-        cost = self._resolve(cost_function, "int")
-        dom = self._resolve(dominance_function, "int")
-        if self._graph is not None:
-            self._graph.add_int_resource(ext, feas, cost, dom)
-        else:
-            self._pending.append(("int", ext, feas, cost, dom))
 
     # ── Lazy construction ─────────────────────────────────────────────────────
 
     def _ensure_graph(self):
         if self._graph is not None:
             return
-        # Build a de-duplicated ordered tuple of resource types seen
+
         seen: dict[str, None] = {}
         for r in self._pending:
             seen[r[0]] = None
-        types = tuple(seen)
-        cls_name = _RG_CLASS.get(types, "_RealResourceGraph")
+        requested = frozenset(seen)
+        types = canonical(*requested)
+
+        cls_name = _RG_CLASS.get(types)
+        selected_combo = types
+
+        if cls_name is None:
+            # Find the smallest C++ class that is a superset of the requested types.
+            candidates = sorted(
+                ((combo, cls) for combo, cls in _RG_CLASS.items() if requested <= frozenset(combo)),
+                key=lambda x: len(x[0]),
+            )
+            if not candidates:
+                raise ValueError(
+                    f"No C++ ResourceGraph is bound for resource combination {types!r}. "
+                    f"Available combinations: {sorted(_RG_CLASS)}"
+                )
+            selected_combo, cls_name = candidates[0]
+
+        self._graph_canonical = selected_combo
+        self._registered_canonical = types
+
         self._graph = getattr(_ext.graph, cls_name)()
         for r_type, ext, feas, cost, dom in self._pending:
-            if r_type == "real":
-                self._graph.add_real_resource(ext, feas, cost, dom)
-            else:
-                self._graph.add_int_resource(ext, feas, cost, dom)
+            cpp_name = CPP_NAME.get(r_type, r_type)
+            getattr(self._graph, f"add_{cpp_name}_resource")(ext, feas, cost, dom)
         self._pending.clear()
+
+    # ── Consumption-tuple expansion ───────────────────────────────────────────
+
+    def _expand_consumption(self, consumption: tuple) -> tuple:
+        """Expand a partial resource-consumption tuple to the full graph's N-slot tuple.
+
+        When using a superset graph (e.g. _all_resource_graph for a real+int_set
+        problem), the user passes a K-element tuple for K registered types.  This
+        expands it to the N-element tuple the C++ graph expects, inserting empty lists
+        for unregistered slots.
+        """
+        graph_types = self._graph_canonical
+        reg_types = self._registered_canonical
+        result: list = [[] for _ in graph_types]
+        for i, rt in enumerate(reg_types):
+            slot = graph_types.index(rt)
+            if i < len(consumption):
+                result[slot] = consumption[i]
+        return tuple(result)
+
+    @property
+    def _needs_expansion(self) -> bool:
+        return self._graph_canonical != self._registered_canonical
 
     # ── Explicit forwarding for common operations ─────────────────────────────
 
@@ -97,13 +153,19 @@ class ResourceGraph:
         self._ensure_graph()
         return self._graph.add_node(*args, **kwargs)
 
-    def add_arc(self, *args, **kwargs):
+    def add_arc(self, first, *args, **kwargs):
         self._ensure_graph()
-        return self._graph.add_arc(*args, **kwargs)
+        # Expand partial consumption tuples when a superset graph is used.
+        # A tuple/list first argument is a resource-consumption; int/Node is an origin id.
+        if self._needs_expansion and isinstance(first, (tuple, list)):
+            first = self._expand_consumption(first)
+        return self._graph.add_arc(first, *args, **kwargs)
 
-    def update_arc(self, *args, **kwargs):
+    def update_arc(self, arc, resource_consumption, *args, **kwargs):
         self._ensure_graph()
-        return self._graph.update_arc(*args, **kwargs)
+        if self._needs_expansion:
+            resource_consumption = self._expand_consumption(resource_consumption)
+        return self._graph.update_arc(arc, resource_consumption, *args, **kwargs)
 
     def get_arc(self, arc_id):
         self._ensure_graph()
@@ -205,6 +267,37 @@ class ResourceGraph:
             else:
                 self._ensure_graph()
                 self._graph.add_arc(int(u), int(v), arc_id, cost, dual_rows)
+
+
+# ── Generate add_<type>_resource methods ─────────────────────────────────────
+
+
+def _make_add_resource_method(canonical_type: str):
+    def add_resource_method(
+        self, extension_function, feasibility_function, cost_function, dominance_function
+    ):
+        if self._graph is not None:
+            raise RuntimeError(
+                f"Cannot call add_{canonical_type}_resource after the graph has been "
+                "initialized (i.e. after the first add_node / add_arc / solve call). "
+                "Add all resources before performing any graph operation."
+            )
+        ext = self._resolve(extension_function, canonical_type)
+        feas = self._resolve(feasibility_function, canonical_type)
+        cost = self._resolve(cost_function, canonical_type)
+        dom = self._resolve(dominance_function, canonical_type)
+        self._pending.append((canonical_type, ext, feas, cost, dom))
+
+    add_resource_method.__name__ = f"add_{canonical_type}_resource"
+    return add_resource_method
+
+
+for _rt in _ALL_RESOURCE_TYPES:
+    setattr(ResourceGraph, f"add_{_rt}_resource", _make_add_resource_method(_rt))
+
+# Backward-compat: old C++-flavoured names delegate to the canonical method.
+for _alias, _canonical_type in ALIASES.items():
+    setattr(ResourceGraph, f"add_{_alias}_resource", _make_add_resource_method(_canonical_type))
 
 
 # Re-export all public graph submodule symbols (Row, AlgorithmParams, Solution, …)

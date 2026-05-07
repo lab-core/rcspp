@@ -15,6 +15,7 @@
 namespace rcspp {
 
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
+    requires is_numerical_resource_v<CostResourceType>
 class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<ResourceTypes...>> {
     public:
         ShortestPathPreprocessor(Graph<ResourceComposition<ResourceTypes...>>* graph,

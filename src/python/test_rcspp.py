@@ -11,16 +11,23 @@ relative_path = "../../cmake-build-release/src/python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
 
 from rcspp.graph import Algorithm, AlgorithmParams, ResourceGraph
-from rcspp.resource import (  # Generic (type-unspecialized) wrappers – resolved to the right C++ template; automatically by add_real_resource / add_int_resource.; Real-resource–only functions
+from rcspp.resource import (  # Generic (type-unspecialized) wrappers — resolved to the right C++ template; automatically by add_real_resource / add_int_resource / add_real_set_resource / etc.; Real-resource–only functions
     AdditionExtensionFunction,
+    ContainDominanceFunction,
+    InclusionDominanceFunction,
+    IntersectionExtensionFunction,
     MinMaxFeasibilityFunction,
     RealAdditionExtensionFunction,
     RealTrivialFeasibilityFunction,
     RealValueCostFunction,
     RealValueDominanceFunction,
+    SizeFeasibilityFunction,
+    SubtractExtensionFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
+    TrivialCostFunction,
     TrivialFeasibilityFunction,
+    UnionExtensionFunction,
     ValueCostFunction,
     ValueDominanceFunction,
 )
@@ -222,6 +229,99 @@ def example_algorithm_params():
     assert len(sols_one) == 1, f"Expected exactly 1 solution, got {len(sols_one)}"
 
 
+# ── Example 6: UIntResource (unsigned integer distance, min ≤ 3 hops) ────────
+
+
+def example_uint_resource():
+    """4-node graph with one unsigned-int resource (hop count ≤ 3)."""
+    rg = ResourceGraph()
+    rg.add_uint_resource(
+        AdditionExtensionFunction(),
+        MinMaxFeasibilityFunction(0, 3),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2)
+    rg.add_node(3, sink=True)
+
+    rg.add_arc(([(1,)],), 0, 1)
+    rg.add_arc(([(1,)],), 0, 2)
+    rg.add_arc(([(1,)],), 1, 3)
+    rg.add_arc(([(1,)],), 2, 3)
+    rg.add_arc(([(1,)],), 1, 2)  # 0→1→2→3 costs 3 hops — still feasible
+
+    sols = rg.solve()
+    print_solutions("uint-resource", sols)
+    assert len(sols) >= 1, "Expected at least one solution"
+    assert sols[0].cost <= 3.0, f"Expected cost ≤ 3, got {sols[0].cost}"
+
+
+# ── Example 7: SetResource (forbidden-node tracking via set union) ────────────
+# Resource tracks the set of visited nodes.  A path that revisits node 1 (via
+# 0→1→2→1→3) would be a cycle and should be pruned by the hop limit or the
+# graph itself.  Here we use a simpler two-hop path to demonstrate set semantics.
+
+
+def example_set_resource():
+    """3-node graph: int_set resource tracking visited nodes (InclusionDominance)."""
+    rg = ResourceGraph()
+    # int_set: accumulate visited node IDs; smaller set dominates larger set
+    rg.add_int_set_resource(
+        UnionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        TrivialCostFunction(),  # path cost comes from arc.cost, not the set resource
+        InclusionDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+
+    # resource_consumption: tuple of lists-per-resource-type; each element is a set
+    rg.add_arc(([({1},)],), 0, 1, cost=5.0)
+    rg.add_arc(([({2},)],), 1, 2, cost=3.0)
+    rg.add_arc(([({2},)],), 0, 2, cost=10.0)
+
+    sols = rg.solve()
+    print_solutions("int-set resource", sols)
+    assert len(sols) >= 1, "Expected at least one solution"
+
+
+# ── Example 8: BitsetResource (NG-path style forbidden-node set) ─────────────
+# uint_bitset encodes a set of forbidden node IDs in a compact bitset.
+# We use SizeFeasibilityFunction to ensure the accumulated set has at most 2 elements.
+
+
+def example_bitset_resource():
+    """4-node graph: uint_bitset resource tracking forbidden nodes."""
+    rg = ResourceGraph()
+    rg.add_uint_bitset_resource(
+        UnionExtensionFunction(),
+        SizeFeasibilityFunction(0, 2),  # allow at most 2 distinct nodes in the set
+        TrivialCostFunction(),
+        ContainDominanceFunction(),  # lhs dominates rhs if lhs ⊇ rhs
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2)
+    rg.add_node(3, sink=True)
+
+    # Each arc adds its destination node to the bitset
+    rg.add_arc(([({1},)],), 0, 1, cost=5.0)
+    rg.add_arc(([({2},)],), 0, 2, cost=3.0)
+    rg.add_arc(([({3},)],), 1, 3, cost=4.0)
+    rg.add_arc(([({3},)],), 2, 3, cost=6.0)
+    rg.add_arc(([({2},)],), 1, 2, cost=1.0)  # 0→1→2→3 accumulates 3 nodes → pruned
+
+    sols = rg.solve()
+    print_solutions("uint-bitset resource", sols)
+    assert len(sols) >= 1, "Expected at least one solution"
+    # Each solution must visit at most 2 non-source nodes
+    for s in sols:
+        assert len(s.path_node_ids) - 1 <= 2, f"Size constraint violated: {s.path_node_ids}"
+
+
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -249,5 +349,20 @@ if __name__ == "__main__":
     print("Example 5: AlgorithmParams customization")
     print("=" * 60)
     example_algorithm_params()
+
+    print("\n" + "=" * 60)
+    print("Example 6: UIntResource")
+    print("=" * 60)
+    example_uint_resource()
+
+    print("\n" + "=" * 60)
+    print("Example 7: SetResource (int_set)")
+    print("=" * 60)
+    example_set_resource()
+
+    print("\n" + "=" * 60)
+    print("Example 8: BitsetResource (uint_bitset)")
+    print("=" * 60)
+    example_bitset_resource()
 
     print("\nAll examples passed.")
