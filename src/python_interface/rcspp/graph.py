@@ -7,7 +7,7 @@ from typing import Optional
 import networkx as nx
 
 from . import _core as _ext
-from ._resource_types import ALIASES, ALL, CPP_NAME, FULL, FULL_CLASS, MIXED, canonical
+from ._resource_types import ALIASES, ALL, CPP_NAME, canonical
 from .resource import _GenericFunctionDescriptor
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
@@ -23,38 +23,51 @@ ALGORITHMS = tuple(_ALGORITHM_MAP)
 # Canonical resource type names exposed through add_<type>_resource methods.
 _ALL_RESOURCE_TYPES = ALL
 
-
-def _rg_class_name(*cpp_types: str) -> str:
-    """Derive the C++ binding class name from C++ type name(s)."""
-    return "_" + "_".join(cpp_types) + "_resource_graph"
-
-
 # ── Type-signature → C++ class-name lookup table ─────────────────────────────
-# Keys are tuples of canonical Python type names; values are C++ binding class names.
-# Only combinations that are actually compiled in C++ are registered
-# (verified via hasattr at module load time).
+# Built by scanning _ext.graph for _*_resource_graph classes and parsing their
+# names back to canonical Python-type tuples.  Adding a new combination to
+# graph.cpp automatically makes it available here — no Python changes needed.
+
+# Reverse of CPP_NAME: C++ prefix → Python name (e.g. "uint_bitset" → "bitset").
+# Types without a CPP_NAME entry map to themselves.
+_CPP_TO_PY: dict[str, str] = {cpp: py for py, cpp in CPP_NAME.items()}
+# Sorted longest-first so the greedy parser never confuses "real" with "real_set".
+_CPP_NAMES: list[str] = sorted([CPP_NAME.get(t, t) for t in ALL], key=len, reverse=True)
+
+
+def _parse_rg_class(attr: str) -> tuple[str, ...] | None:
+    """Parse a _*_resource_graph attribute name into a canonical Python-type tuple.
+
+    Returns None when the name contains a C++ type not in the Python registry
+    (e.g. ``_uint_resource_graph`` — uint is an ALIAS for int, not a Python type).
+    """
+    suffix = "_resource_graph"
+    if not (attr.startswith("_") and attr.endswith(suffix)):
+        return None
+    inner = attr[1 : -len(suffix)]
+    py_types: list[str] = []
+    while inner:
+        for cpp in _CPP_NAMES:
+            if inner == cpp:
+                py_types.append(_CPP_TO_PY.get(cpp, cpp))
+                inner = ""
+                break
+            if inner.startswith(cpp + "_"):
+                py_types.append(_CPP_TO_PY.get(cpp, cpp))
+                inner = inner[len(cpp) + 1 :]
+                break
+        else:
+            return None
+    return canonical(*py_types) if py_types else None
+
 
 _RG_CLASS: dict[tuple[str, ...], str] = {}
 
-# Single-resource graphs
-for _rt in ALL:
-    _cpp = CPP_NAME.get(_rt, _rt)
-    _cls = _rg_class_name(_cpp)
-    if hasattr(_ext.graph, _cls):
-        _RG_CLASS[(_rt,)] = _cls
-
-# Mixed pairs — auto-generated; permutations of a pair map to the same C++ class.
-for _combo in MIXED:
-    _cpp_combo = tuple(CPP_NAME.get(t, t) for t in _combo)
-    _cls = _rg_class_name(*_cpp_combo)
-    if hasattr(_ext.graph, _cls):
-        _RG_CLASS[_combo] = _cls
-        if len(_combo) == 2 and _combo[::-1] != _combo:
-            _RG_CLASS[_combo[::-1]] = _cls
-
-# Universal (all-types) graph — always present as the catch-all fallback.
-if hasattr(_ext.graph, FULL_CLASS):
-    _RG_CLASS[FULL] = FULL_CLASS
+_py_type_set = set(ALL)
+for _attr in dir(_ext.graph):
+    _types = _parse_rg_class(_attr)
+    if _types is not None and all(t in _py_type_set for t in _types):
+        _RG_CLASS[_types] = _attr
 
 
 class ResourceGraph:
@@ -65,11 +78,11 @@ class ResourceGraph:
     def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
         self._graph = None  # actual C++ object, created lazily
-        # Set after _ensure_graph(): the canonical slot tuple of the C++ class
-        # and the canonical tuple of user-registered types (may differ when
-        # a superset graph is chosen as fallback).
+        # Set after _ensure_graph():
+        #   _graph_canonical    – full slot tuple of the chosen C++ class (canonical order)
+        #   _registered_order   – types in the order the user called add_<type>_resource()
         self._graph_canonical: tuple[str, ...] = ()
-        self._registered_canonical: tuple[str, ...] = ()
+        self._registered_order: tuple[str, ...] = ()
         if nx_graph is not None:
             self.from_networkx(nx_graph)
 
@@ -93,10 +106,15 @@ class ResourceGraph:
         if self._graph is not None:
             return
 
-        seen: dict[str, None] = {}
+        # Preserve registration order (first occurrence of each type in _pending).
+        reg_order: list[str] = []
+        seen_set: set[str] = set()
         for r in self._pending:
-            seen[r[0]] = None
-        requested = frozenset(seen)
+            if r[0] not in seen_set:
+                reg_order.append(r[0])
+                seen_set.add(r[0])
+
+        requested = frozenset(reg_order)
         types = canonical(*requested)
 
         cls_name = _RG_CLASS.get(types)
@@ -116,7 +134,7 @@ class ResourceGraph:
             selected_combo, cls_name = candidates[0]
 
         self._graph_canonical = selected_combo
-        self._registered_canonical = types
+        self._registered_order = tuple(reg_order)
 
         self._graph = getattr(_ext.graph, cls_name)()
         for r_type, ext, feas, cost, dom in self._pending:
@@ -124,28 +142,34 @@ class ResourceGraph:
             getattr(self._graph, f"add_{cpp_name}_resource")(ext, feas, cost, dom)
         self._pending.clear()
 
-    # ── Consumption-tuple expansion ───────────────────────────────────────────
+    # ── Consumption-tuple reordering ──────────────────────────────────────────
 
-    def _expand_consumption(self, consumption: tuple) -> tuple:
-        """Expand a partial resource-consumption tuple to the full graph's N-slot tuple.
+    def reorder_consumption(self, consumption: tuple) -> tuple:
+        """Map a resource-consumption tuple to the slot order expected by the C++ graph.
 
-        When using a superset graph (e.g. _all_resource_graph for a real+int_set
-        problem), the user passes a K-element tuple for K registered types.  This
-        expands it to the N-element tuple the C++ graph expects, inserting empty lists
-        for unregistered slots.
+        The user provides one element per registered resource **in the order they called
+        add_<type>_resource()**.  This function places each element into the correct
+        slot of the C++ graph's N-type tuple, inserting empty lists for resource types
+        that were not registered by the user (superset-graph fallback).
+
+        Example — graph has slots (real=0, int=1, real_set=2, int_set=3, bitset=4), user
+        registered int_set then real (indices 0 and 1 in their tuple):
+
+        reorder_consumption(([({3},)], [(5.0,)])) # → ([(5.0,)], [], [], [({3},)], [])
         """
         graph_types = self._graph_canonical
-        reg_types = self._registered_canonical
+        reg_order = self._registered_order
         result: list = [[] for _ in graph_types]
-        for i, rt in enumerate(reg_types):
+        for i, rt in enumerate(reg_order):
             slot = graph_types.index(rt)
             if i < len(consumption):
                 result[slot] = consumption[i]
         return tuple(result)
 
     @property
-    def _needs_expansion(self) -> bool:
-        return self._graph_canonical != self._registered_canonical
+    def _needs_reorder(self) -> bool:
+        """True when the user's registration order differs from the C++ slot order."""
+        return self._registered_order != self._graph_canonical
 
     # ── Explicit forwarding for common operations ─────────────────────────────
 
@@ -155,16 +179,16 @@ class ResourceGraph:
 
     def add_arc(self, first, *args, **kwargs):
         self._ensure_graph()
-        # Expand partial consumption tuples when a superset graph is used.
+        # Reorder/expand the resource-consumption tuple when needed.
         # A tuple/list first argument is a resource-consumption; int/Node is an origin id.
-        if self._needs_expansion and isinstance(first, (tuple, list)):
-            first = self._expand_consumption(first)
+        if self._needs_reorder and isinstance(first, (tuple, list)):
+            first = self.reorder_consumption(first)
         return self._graph.add_arc(first, *args, **kwargs)
 
     def update_arc(self, arc, resource_consumption, *args, **kwargs):
         self._ensure_graph()
-        if self._needs_expansion:
-            resource_consumption = self._expand_consumption(resource_consumption)
+        if self._needs_reorder:
+            resource_consumption = self.reorder_consumption(resource_consumption)
         return self._graph.update_arc(arc, resource_consumption, *args, **kwargs)
 
     def get_arc(self, arc_id):

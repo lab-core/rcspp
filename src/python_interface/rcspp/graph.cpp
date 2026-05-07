@@ -29,16 +29,6 @@ using RealRC = ResourceComposition<RealResource>;
 using RealGraph = Graph<RealRC>;
 using RealRG = ResourceGraph<RealResource>;
 
-using RealIntRC = ResourceComposition<RealResource, IntResource>;
-using RealIntRG = ResourceGraph<RealResource, IntResource>;
-
-// Universal graph — covers all Python-meaningful types; used as fallback when no
-// narrower binding exists for a requested combination.
-using AllRC = ResourceComposition<RealResource, IntResource, RealSetResource, IntSetResource,
-                                  UIntBitsetResource>;
-using AllRG =
-    ResourceGraph<RealResource, IntResource, RealSetResource, IntSetResource, UIntBitsetResource>;
-
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 // Add new algorithms here only; dispatch is driven automatically.
 
@@ -97,6 +87,61 @@ constexpr const char* add_resource_method_name();
     }
 RCSPP_ALL_RESOURCES(GEN_ADD_RESOURCE_NAME)
 #undef GEN_ADD_RESOURCE_NAME
+
+// ─── Python type name per resource type ──────────────────────────────────────
+// Returns the prefix used in Python class names ("real", "int", "uint_bitset", …).
+
+template <typename T>
+constexpr const char* py_type_name();
+
+#define GEN_PY_TYPE_NAME(name, scalar, RT)     \
+    template <>                                \
+    constexpr const char* py_type_name<RT>() { \
+        return #name;                          \
+    }
+RCSPP_ALL_RESOURCES(GEN_PY_TYPE_NAME)
+#undef GEN_PY_TYPE_NAME
+
+// ─── CostRC auto-selection ────────────────────────────────────────────────────
+// Picks the first numerical resource in the pack; falls back to RealResource sentinel.
+
+template <typename... RTs>
+struct SelectCostRC {
+        using type = RealResource;
+};
+
+template <typename RT, typename... RTs>
+struct SelectCostRC<RT, RTs...> {
+        using type = std::conditional_t<is_numerical_resource_v<RT>, RT,
+                                        typename SelectCostRC<RTs...>::type>;
+};
+
+// ─── Forward declaration (definition follows bind_resource_graph_block) ───────
+template <typename CostRC, typename... RTs>
+void bind_mixed_rg(py::module_& m, const char* name);
+
+// ─── Auto class-name builder and binder ──────────────────────────────────────
+
+template <typename... RTs>
+std::string auto_mix_name() {
+    std::vector<const char*> names = {py_type_name<RTs>()...};
+    std::string s;
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (i > 0) {
+            s += '_';
+        }
+        s += names[i];
+    }
+    return s;
+}
+
+template <typename... RTs>
+void bind_auto_rg(py::module_& m) {
+    using CostRC = typename SelectCostRC<RTs...>::type;
+    bind_mixed_rg<CostRC, RTs...>(m, auto_mix_name<RTs...>().c_str());
+}
+
+#define BIND_MIX(...) bind_auto_rg<__VA_ARGS__>(m)
 
 // ─── Helper: bind common Graph base methods ───────────────────────────────────
 
@@ -241,6 +286,27 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
     bind_resource_graph_impl<RG, RC, ResourceTypes...>(rg);
 }
 
+// ─── Helper: bind a mixed-resource graph under a derived Python name ─────────
+// CostRC   — the resource type used for cost-based preprocessing (must be numerical).
+// RTs...   — the full ordered resource-type pack (same as template arguments to ResourceGraph).
+// name     — the middle part of the Python class name; the binding registers
+//            "_<name>_resource_graph", "_<name>_graph", "_<name>_node", "_<name>_arc".
+
+template <typename CostRC, typename... RTs>
+void bind_mixed_rg(py::module_& m, const char* name) {
+    using RC = ResourceComposition<RTs...>;
+    using RG = ResourceGraph<RTs...>;
+    std::string rg = std::string("_") + name + "_resource_graph";
+    std::string g = std::string("_") + name + "_graph";
+    std::string n = std::string("_") + name + "_node";
+    std::string a = std::string("_") + name + "_arc";
+    bind_resource_graph_block<RG, RC, CostRC, RTs...>(m,
+                                                      rg.c_str(),
+                                                      g.c_str(),
+                                                      n.c_str(),
+                                                      a.c_str());
+}
+
 // ─── Macros: bind single-resource graph blocks ───────────────────────────────
 // Numerical: CostRC = RT (real/int/uint have a meaningful cost resource).
 // Container: CostRC = RealResource (containers don't have a numeric cost resource;
@@ -380,34 +446,54 @@ void init_graph(py::module_& m) {
 
     BIND_SINGLE_NUMERICAL_RG(int, int, IntResource)
     BIND_SINGLE_NUMERICAL_RG(uint, unsigned int, UIntResource)
-    BIND_SINGLE_CONTAINER_RG(real_set, double, RealSetResource)
-    BIND_SINGLE_CONTAINER_RG(int_set, int, IntSetResource)
-    BIND_SINGLE_CONTAINER_RG(uint_set, unsigned int, UIntSetResource)
-    BIND_SINGLE_CONTAINER_RG(size_t_set, size_t, SizeTSetResource)
-    BIND_SINGLE_CONTAINER_RG(uint_bitset, unsigned int, UIntBitsetResource)
-    BIND_SINGLE_CONTAINER_RG(size_t_bitset, size_t, SizeTBitsetResource)
+    // BIND_SINGLE_CONTAINER_RG(real_set, double, RealSetResource)
+    // BIND_SINGLE_CONTAINER_RG(int_set, int, IntSetResource)
+    // BIND_SINGLE_CONTAINER_RG(uint_set, unsigned int, UIntSetResource)
+    // BIND_SINGLE_CONTAINER_RG(size_t_set, size_t, SizeTSetResource)
+    // BIND_SINGLE_CONTAINER_RG(uint_bitset, unsigned int, UIntBitsetResource)
+    // BIND_SINGLE_CONTAINER_RG(size_t_bitset, size_t, SizeTBitsetResource)
 
     // ══════════════════════════════════════════════════════════════════════════
-    // Mixed graphs (common combinations)
+    // Mixed graphs — all non-trivial subsets of (real, int, real_set, int_set,
+    // uint_bitset), grouped by size.  CostRC = first numerical type in the pack,
+    // or RealResource as a sentinel for all-container combos (preprocessing is
+    // skipped by the "not in pack" if-constexpr guard in resource_graph.hpp).
+    //
+    // The Python class name is "_<t1>_<t2>_..._resource_graph" where each ti is
+    // the C++ prefix (real, int, real_set, int_set, uint_bitset).
     // ══════════════════════════════════════════════════════════════════════════
 
-    bind_resource_graph_block<RealIntRG, RealIntRC, RealResource, RealResource, IntResource>(
-        m,
-        "_real_int_resource_graph",
-        "_real_int_graph",
-        "_real_int_node",
-        "_real_int_arc");
+    // clang-format off
+    // ── Pairs (2-type) ────────────────────────────────────────────────────────
+    BIND_MIX(RealResource, IntResource);
+    BIND_MIX(RealResource, RealSetResource);
+    BIND_MIX(RealResource, IntSetResource);
+    BIND_MIX(RealResource, UIntBitsetResource);
+    BIND_MIX(IntResource,  RealSetResource);
+    BIND_MIX(IntResource,  IntSetResource);
+    BIND_MIX(IntResource,  UIntBitsetResource);
 
-    bind_resource_graph_block<AllRG,
-                              AllRC,
-                              RealResource,
-                              RealResource,
-                              IntResource,
-                              RealSetResource,
-                              IntSetResource,
-                              UIntBitsetResource>(m,
-                                                  "_all_resource_graph",
-                                                  "_all_graph",
-                                                  "_all_node",
-                                                  "_all_arc");
+    // ── Triples (3-type) ──────────────────────────────────────────────────────
+    BIND_MIX(RealResource, IntResource,     RealSetResource);
+    BIND_MIX(RealResource, IntResource,     IntSetResource);
+    BIND_MIX(RealResource, IntResource,     UIntBitsetResource);
+    BIND_MIX(RealResource, RealSetResource, IntSetResource);
+    BIND_MIX(RealResource, RealSetResource, UIntBitsetResource);
+    BIND_MIX(RealResource, IntSetResource,  UIntBitsetResource);
+    BIND_MIX(IntResource,  RealSetResource, IntSetResource);
+    BIND_MIX(IntResource,  RealSetResource, UIntBitsetResource);
+    BIND_MIX(IntResource,  IntSetResource,  UIntBitsetResource);
+
+    // ── Quadruples (4-type) ───────────────────────────────────────────────────
+    // BIND_MIX(RealResource, IntResource,     RealSetResource, IntSetResource);
+    // BIND_MIX(RealResource, IntResource,     RealSetResource, UIntBitsetResource);
+    // BIND_MIX(RealResource, IntResource,     IntSetResource,  UIntBitsetResource);
+    // BIND_MIX(RealResource, RealSetResource, IntSetResource,  UIntBitsetResource);
+    // BIND_MIX(IntResource,  RealSetResource, IntSetResource,  UIntBitsetResource);
+
+    // ── Universal (all 5 types) ───────────────────────────────────────────────
+    BIND_MIX(RealResource, IntResource, RealSetResource, IntSetResource, UIntBitsetResource);
+    // clang-format on
+
+#undef BIND_MIX
 }
