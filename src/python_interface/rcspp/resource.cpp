@@ -18,6 +18,7 @@
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace py = pybind11;
 
@@ -143,4 +144,40 @@ void init_resource(py::module_& m) {
 
     m.attr("RealAdditionExpansionFunction") = m.attr("RealAdditionExtensionFunction");
     m.attr("TimeWindowExpansionFunction") = m.attr("TimeWindowExtensionFunction");
+
+    // ── IntResource abstract function bases ──────────────────────────────────
+
+    py::class_<CostFunction<IntResource>, py::smart_holder>(m, "CostFunctionIntResource");
+    py::class_<DominanceFunction<IntResource>, py::smart_holder>(m, "DominanceFunctionIntResource");
+    py::class_<ExtensionFunction<IntResource>, py::smart_holder>(m, "ExtensionFunctionIntResource");
+    py::class_<FeasibilityFunction<IntResource>, py::smart_holder>(
+        m,
+        "FeasibilityFunctionIntResource");
+
+    // ── IntResource concrete functions ───────────────────────────────────────
+
+    py::class_<ValueCostFunction<IntResource>, CostFunction<IntResource>, py::smart_holder>(
+        m,
+        "IntValueCostFunction")
+        .def(py::init<>());
+
+    py::class_<ValueDominanceFunction<IntResource>,
+               DominanceFunction<IntResource>,
+               py::smart_holder>(m, "IntValueDominanceFunction")
+        .def(py::init<>());
+
+    py::class_<AdditionExtensionFunction<IntResource>,
+               ExtensionFunction<IntResource>,
+               py::smart_holder>(m, "IntAdditionExtensionFunction")
+        .def(py::init<>());
+
+    py::class_<MinMaxFeasibilityFunction<IntResource>,
+               FeasibilityFunction<IntResource>,
+               py::smart_holder>(m, "IntMinMaxFeasibilityFunction")
+        .def(py::init<int, int>(), py::arg("min_value"), py::arg("max_value"));
+
+    py::class_<TrivialFeasibilityFunction<IntResource>,
+               FeasibilityFunction<IntResource>,
+               py::smart_holder>(m, "IntTrivialFeasibilityFunction")
+        .def(py::init<>());
 }

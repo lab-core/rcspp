@@ -252,7 +252,10 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                     int cost_index = 0) {
             AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
                                                                            params);
-            return solve(&algorithm, upper_bound, preprocess, cost_index);
+            return this->template solve<CostResourceType>(&algorithm,
+                                                          upper_bound,
+                                                          preprocess,
+                                                          cost_index);
         }
 
         template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
@@ -285,7 +288,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
                 // if not sorted, use default sort by connectivity
                 if (!this->are_nodes_sorted()) {
-                    this->sort_nodes_by_connectivity();
+                    this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
+                                                              CostResourceType>();
                 }
 
                 // remove some arcs before solving the problem
@@ -344,7 +348,10 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                     reduced_cost -= dual_row.coefficient * dual_value;
                 }
 
-                update_arc<CostResourceType>(arc_ptr.get(), cost_index, reduced_cost);
+                update_arc<CostResourceType>(
+                    arc_ptr.get(),
+                    cost_index,
+                    ResourceInitializerTypeTuple_t<CostResourceType>{reduced_cost});
             }
         }
 
