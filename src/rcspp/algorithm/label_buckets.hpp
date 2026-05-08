@@ -339,10 +339,7 @@ class LabelBuckets : public LabelList<ResourceType> {
             if (begin_bucket_resource == nullptr) {
                 begin_bucket_resource = &get_bucket_resource(**begin);
             }
-            Bucket<Resource<BucketResource>> new_bucket(begin,
-                                                        begin_bucket_resource,
-                                                        range_buckets_);
-            buckets_.insert(bit, new_bucket);
+            buckets_.emplace(bit, begin, begin_bucket_resource, range_buckets_);
         }
 
         BucketPosition remove_bucket(const BucketPosition& bit) {
