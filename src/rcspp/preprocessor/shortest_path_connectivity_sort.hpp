@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <utility>
 #include <unordered_map>
+#include <utility>
 
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
 #include "rcspp/preprocessor/connectivity_matrix.hpp"
@@ -16,8 +16,7 @@ class ShortestPathConnectivitySort {
     private:
         struct DirectArcKeyHash {
                 size_t operator()(const std::pair<size_t, size_t>& key) const noexcept {
-                    return std::hash<size_t>{}(key.first) ^
-                           (std::hash<size_t>{}(key.second) << 1);
+                    return std::hash<size_t>{}(key.first) ^ (std::hash<size_t>{}(key.second) << 1);
                 }
         };
 
