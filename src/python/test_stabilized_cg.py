@@ -8,28 +8,28 @@ from utils.test_utils import *
 from utils.definitions import INSTANCES_DIR
 
 
+dir = "all_solutions"
+verbose = True
 
-if __name__ == "__main__":
-    dir = "Ref_stabilized_cg"
-    
-    print("Read instance...")
-    instances_name = ["R101", "R102", "R103", "R104", "R105", "C101", "C102", "C103", "C104", "C105", "RC101", "RC102", "RC103", "RC104", "RC105"]
+
+#base_instances = read_instances_name("instances_name")
+new_instances = read_instances_name("generated/instances_name")
+#all_instances = base_instances + new_instances
+all_instances = new_instances
+
+for instance_name in all_instances:
+
+    reader = InstanceReader(f"{INSTANCES_DIR}{instance_name}.txt")
+    instance = reader.read()
 
     solutions = {}
 
-    kappas = [i for i in range(1, 2000, 50)]
+    solutions_file = f"classic_solutions"
 
-    for name in instances_name:
-        instance_path = INSTANCES_DIR + name + ".txt"
-        instance_reader = InstanceReader(instance_path)
-        instance = instance_reader.read()
-        dual_optimal_solution = instance_reader.read_dual_optimal(instance.get_name())
+    dual_optimal_solutions = {}
+    vrp, solution, solution_dict = vrp_instance(instance, save=True, dir=dir, verbose=verbose)
+    dual_optimal_solutions[instance_name] = solution.dual_by_var_id
+    save_dict_to_json(dir, "optimal_dual", dual_optimal_solutions)
 
-        print(f"\n\n====================\n Instance: {name}\n====================\n\n")
-
-        for p in kappas:
-            print(f"\n\n====================\n Kappa: {p}\n====================\n\n")
-            solution_dict = vrp_stabilized_instance(instance, dual_optimal_solution, penalty=p, kappa=p, verbose=False)
-            solutions[f"{name}_{p}"] = solution_dict
-
-    save_dict_to_json(dir, "summary_variation_kappa_epsilon", solutions)
+    solutions[instance_name] = solution_dict
+    save_dict_to_json(dir, solutions_file, solutions)
