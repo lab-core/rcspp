@@ -212,17 +212,27 @@ class LabelBuckets : public LabelList<ResourceType> {
                     break;
                 }
                 // check if the labels can be dominated in the bucket
+                auto original_begin = bucket.begin;
                 auto non_dominated_label_it = bucket.end;
                 auto new_begin = bucket.end;
                 bool reached_begin = false;
+                bool begin_erased = false;
+                auto replacement_begin = bucket.end;
                 while (!reached_begin) {
                     ++num_visited_labels_;
                     --non_dominated_label_it;
-                    reached_begin = (non_dominated_label_it == bucket.begin);
-                    if (&label != *non_dominated_label_it && label <= **non_dominated_label_it) {
+                    auto current = non_dominated_label_it;
+                    reached_begin = (current == original_begin);
+                    if (&label != *current && label <= **current) {
                         // remove the dominated label
-                        (*non_dominated_label_it)->dominated = true;
-                        non_dominated_label_it = this->labels_.erase(non_dominated_label_it);
+                        (*current)->dominated = true;
+                        bool current_is_begin = (current == original_begin);
+                        auto next_it = this->labels_.erase(current);
+                        if (current_is_begin) {
+                            begin_erased = true;
+                            replacement_begin = next_it;
+                        }
+                        non_dominated_label_it = next_it;
                         ++removed;
                     } else {
                         // if not dominated, check if we can stop by comparing the sort resource of
@@ -230,19 +240,23 @@ class LabelBuckets : public LabelList<ResourceType> {
                         // resource does not dominate the label sort resource, we can stop as the
                         // following labels in the bucket are sorted by the sort resource and cannot
                         // be dominated.
-                        if (!(label_sort_resource <= get_sort_resource(**non_dominated_label_it))) {
+                        if (!(label_sort_resource <= get_sort_resource(**current))) {
                             // not modified as breaking before reaching begin or erasing the bucket
-                            new_begin = bucket.begin;
+                            new_begin = original_begin;
                             break;
                         }
-                        new_begin = non_dominated_label_it;  // update begin flag of the bucket
+                        new_begin = current;  // update begin flag of the bucket
                     }
                 }
 
                 // update or erase the bucket if necessary
-                // remove empty bucket if either no labels anymore or the new end is at the end of
-                // the previous bucket
-                if (new_begin != bucket.begin) {
+                if (begin_erased) {
+                    if (replacement_begin == bucket.end) {
+                        bit = remove_bucket(bit);
+                    } else {
+                        update_bucket_begin(bit, replacement_begin);
+                    }
+                } else if (new_begin != original_begin) {
                     if (new_begin == bucket.end) {
                         // all labels in the bucket are dominated, we can remove the bucket
                         bit = remove_bucket(bit);
