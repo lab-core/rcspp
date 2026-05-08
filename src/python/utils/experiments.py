@@ -57,10 +57,40 @@ def run_instance(instance: Instance, method:str, dataset_dir:str, verbose=True):
     save_dict_to_json(dir, instance_name, solution_dict)
     print(f"Saved solutions to {dir}{instance_name}")
 
+def run_prediction_instance(instance: Instance, model_name:str, dataset_dir:str, verbose=True):
+    instance_name = instance.get_name()
+    prediction_dir = f"{dataset_dir}Solutions/{model_name}_predictions/"
+    prediction_filename = f"{instance_name}.json"
+    prediction_solution_dir = f"{dataset_dir}Solutions/{model_name}_solutions/"
+
+    ensure_parent_dir(prediction_dir)
+
+    dataset = ""
+
+    if prediction_filename in os.listdir(prediction_dir + "test/"):
+        dataset = "test"
+    elif prediction_filename in os.listdir(prediction_dir + "train/"):
+        dataset = "train"
+    else:
+        print(f"No predictions for this instane in the model: {model_name}")
+        return True
+
+    prediction_dir += dataset + "/"
+    prediction_solution_dir += dataset + "/"
+
+  
+    with open(prediction_dir+prediction_filename, "r") as f:
+            predicted_solution = json.load(f)
+    
+    predicted_solution = str_dict_to_int(predicted_solution[instance_name])
+
+    solution_dict = vrp_stabilized_instance(instance, dual_box_centre=predicted_solution, dir=prediction_solution_dir, verbose=verbose)
+    save_dict_to_json(prediction_solution_dir, instance_name, solution_dict)
+    print(f"Saved solutions to {prediction_solution_dir}{instance_name}")
 
 def aggregate_results(dataset_dir: str, method: str):
     dir = f"{dataset_dir}Solutions/{method}/"
-    output_path = f"{dir}{method}_solutions.json"
+    output_path = f"{dataset_dir}Solutions/{method}_solutions.json"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     archive_dir = f"{dir}archive/"
     os.makedirs(archive_dir, exist_ok=True)
@@ -79,7 +109,7 @@ def aggregate_results(dataset_dir: str, method: str):
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for fname, fpath in individual_files:
             zf.write(fpath, fname)
-            os.remove(fpath)
+            #os.remove(fpath)
 
     with open(output_path, "w") as f:
         json.dump(aggregated, f, indent=4)
