@@ -306,7 +306,9 @@ class LabelBuckets : public LabelList<ResourceType> {
 
         void print_labels() const override {
             LabelList<ResourceType>::print_labels();
-            LOG_TRACE("Ratio of visits: ", num_visited_labels_ * 1.0 / num_labels_, "\n");
+            const double visit_ratio =
+                num_labels_ == 0 ? 0.0 : num_visited_labels_ * 1.0 / num_labels_;
+            LOG_TRACE("Ratio of visits: ", visit_ratio, "\n");
         }
 
     private:
