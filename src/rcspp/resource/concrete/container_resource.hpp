@@ -182,6 +182,11 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             size_ = compute_size();
         }
 
+        void reset() override {
+            this->container_.clear();
+            size_ = 0;
+        }
+
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division
         // by 64 (floor). In this bitset code it computes which 64-bit word (slot) contains bit
         // number idx. The companion idx & 63 computes idx % 64 (bit offset inside that word).
