@@ -1,0 +1,44 @@
+[
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/src/rcspp",
+  "command": "/usr/bin/c++ -Drcspp_EXPORTS -I/home/runner/work/rcspp/rcspp/src/rcspp/.. -std=c++23 -fPIC -o CMakeFiles/rcspp.dir/utils/timer.cpp.o -c /home/runner/work/rcspp/rcspp/src/rcspp/utils/timer.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/src/rcspp/utils/timer.cpp",
+  "output": "src/rcspp/CMakeFiles/rcspp.dir/utils/timer.cpp.o"
+},
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/tests/rcspp",
+  "command": "/usr/bin/c++  -I/home/runner/work/rcspp/rcspp/src -std=c++23 -o CMakeFiles/tests-rcspp.dir/test_main.cpp.o -c /home/runner/work/rcspp/rcspp/tests/rcspp/test_main.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/tests/rcspp/test_main.cpp",
+  "output": "tests/rcspp/CMakeFiles/tests-rcspp.dir/test_main.cpp.o"
+},
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/tests/rcspp",
+  "command": "/usr/bin/c++  -I/home/runner/work/rcspp/rcspp/src -std=c++23 -o CMakeFiles/tests-rcspp.dir/vrp_subproblem/vrp_subproblem.cpp.o -c /home/runner/work/rcspp/rcspp/tests/rcspp/vrp_subproblem/vrp_subproblem.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/tests/rcspp/vrp_subproblem/vrp_subproblem.cpp",
+  "output": "tests/rcspp/CMakeFiles/tests-rcspp.dir/vrp_subproblem/vrp_subproblem.cpp.o"
+},
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/tests/rcspp",
+  "command": "/usr/bin/c++  -I/home/runner/work/rcspp/rcspp/src -std=c++23 -o CMakeFiles/tests-rcspp.dir/__/__/src/rcspp/utils/timer.cpp.o -c /home/runner/work/rcspp/rcspp/src/rcspp/utils/timer.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/src/rcspp/utils/timer.cpp",
+  "output": "tests/rcspp/CMakeFiles/tests-rcspp.dir/__/__/src/rcspp/utils/timer.cpp.o"
+},
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/tests/rcspp",
+  "command": "/usr/bin/c++  -I/home/runner/work/rcspp/rcspp/src -std=c++23 -o CMakeFiles/tests-rcspp.dir/__/__/src/vrp/instance_reader.cpp.o -c /home/runner/work/rcspp/rcspp/src/vrp/instance_reader.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/src/vrp/instance_reader.cpp",
+  "output": "tests/rcspp/CMakeFiles/tests-rcspp.dir/__/__/src/vrp/instance_reader.cpp.o"
+},
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/tests/rcspp",
+  "command": "/usr/bin/c++  -I/home/runner/work/rcspp/rcspp/src -std=c++23 -o CMakeFiles/tests-rcspp.dir/__/__/src/vrp/instance.cpp.o -c /home/runner/work/rcspp/rcspp/src/vrp/instance.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/src/vrp/instance.cpp",
+  "output": "tests/rcspp/CMakeFiles/tests-rcspp.dir/__/__/src/vrp/instance.cpp.o"
+},
+{
+  "directory": "/home/runner/work/rcspp/rcspp/build/tests/rcspp",
+  "command": "/usr/bin/c++  -I/home/runner/work/rcspp/rcspp/src -std=c++23 -o CMakeFiles/tests-rcspp.dir/__/__/src/vrp/customer.cpp.o -c /home/runner/work/rcspp/rcspp/src/vrp/customer.cpp",
+  "file": "/home/runner/work/rcspp/rcspp/src/vrp/customer.cpp",
+  "output": "tests/rcspp/CMakeFiles/tests-rcspp.dir/__/__/src/vrp/customer.cpp.o"
+}
+]

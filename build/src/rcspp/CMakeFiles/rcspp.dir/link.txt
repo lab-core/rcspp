@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -Wl,--dependency-file=CMakeFiles/rcspp.dir/link.d -shared -Wl,-soname,librcspp.so.0.1 -o ../../lib/librcspp.so.0.1 CMakeFiles/rcspp.dir/utils/timer.cpp.o

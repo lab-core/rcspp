@@ -143,15 +143,6 @@ class ConnectivityMatrix {
                         adj[i].push_back(it->second);
                     }
                 }
-                for (const auto arc_ptr : node->in_arcs) {
-                    const auto it = id_to_index_.find(arc_ptr->origin->id);
-                    if (it != id_to_index_.end()) {
-                        auto it2 = std::ranges::find(adj[i], it->second);
-                        if (it2 == adj[i].end()) {
-                            adj[i].push_back(it->second);
-                        }
-                    }
-                }
             }
 
             // Tarjan's algorithm (iterative) to compute strongly connected components (SCCs)
