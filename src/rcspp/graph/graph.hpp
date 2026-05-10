@@ -291,12 +291,17 @@ class Graph {
 
         [[nodiscard]] bool is_modified() const { return modified_; }
 
-        [[nodiscard]] std::string to_string() const {
+        [[nodiscard]] std::string to_string(bool print_arcs = false) const {
             std::stringstream ss;
             ss << "Graph with " << get_number_of_nodes() << " nodes and " << get_number_of_arcs()
                << " arcs.\n";
             for (const auto& [node_id, node_ptr] : nodes_by_id_) {
                 ss << *node_ptr << "\n";
+            }
+            if (print_arcs) {
+                for (const auto& [arc_id, arc_ptr] : arcs_by_id_) {
+                    ss << *arc_ptr;
+                }
             }
             return ss.str();
         }

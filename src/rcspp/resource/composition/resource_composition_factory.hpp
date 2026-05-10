@@ -196,6 +196,13 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
             set_value_single_resource(res_comp, single_resource_initializer, res_init_index);
         }
 
+        template <typename ResourceType>
+        [[nodiscard]] size_t get_num_resource_type() const {
+            constexpr size_t ResourceTypeIndex =
+                ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
+            return std::get<ResourceTypeIndex>(resource_factory_components_).size();
+        }
+
     private:
         std::tuple<std::vector<std::unique_ptr<ResourceFactory<ResourceTypes>>>...>
             resource_factory_components_;

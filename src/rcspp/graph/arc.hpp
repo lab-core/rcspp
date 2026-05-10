@@ -53,7 +53,11 @@ class Arc {
         [[nodiscard]] std::string to_string() const {
             std::stringstream ss;
             ss << "Arc(id=" << id << ", origin=" << origin->id
-               << ", destination=" << destination->id << ", cost=" << cost << ")\n";
+               << ", destination=" << destination->id << ", cost=" << cost;
+            if (extender) {
+                ss << ", extender=[" << extender->to_string() << "]";
+            }
+            ss << ")\n";
             return ss.str();
         }
 };

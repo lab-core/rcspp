@@ -42,6 +42,15 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                   std::move(cost_function), std::move(dominance_function))),
               connectivityMatrix_(this) {}
 
+        ResourceGraph(
+            std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function)
+            : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
+                  std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
+                  std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
+                  std::move(cost_function),
+                  std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
+              connectivityMatrix_(this) {}
+
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
                   std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
@@ -262,9 +271,11 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(AlgorithmType<ResourceComposition<ResourceTypes...>>* algorithm,
-                                    double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, int cost_index = 0) {
+        std::vector<Solution> solve(
+            AlgorithmType<ResourceComposition<ResourceTypes...>>*
+                algorithm,  // NOLINT(readability-function-cognitive-complexity)
+            double upper_bound = std::numeric_limits<double>::infinity(), bool preprocess = true,
+            int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -292,20 +303,40 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 // shortest-path preprocessing requires a numerical cost resource in the pack
                 if constexpr (is_numerical_resource_v<CostResourceType> &&
                               ResourceTypeIndex<CostResourceType, ResourceTypes...>::value != -1) {
-                    // if not sorted, use default sort by connectivity
-                    if (!this->are_nodes_sorted()) {
-                        this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
-                                                                  CostResourceType>();
-                    }
+                    // check if the cost index is correct
+                    if (cost_index < 0) {
+                        LOG_WARN("ResourceGraph::solve: cost_index cannot be negative.");
+                    } else if (cost_index >=
+                               resource_factory_
+                                   .template get_num_resource_type<CostResourceType>()) {
+                        // check if not the default value
+                        if (cost_index > 0) {
+                            LOG_WARN(
+                                "ResourceGraph::solve: cost_index is out of bounds for the number "
+                                "of "
+                                "extender components of the cost resource. ",
+                                cost_index,
+                                " for a length of ",
+                                resource_factory_
+                                    .template get_num_resource_type<CostResourceType>());
+                        }
+                    } else {
+                        // if not sorted, use default sort by connectivity
+                        if (!this->are_nodes_sorted()) {
+                            this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
+                                                                      CostResourceType>();
+                        }
 
-                    // remove some arcs before solving the problem
-                    // the deleted arcs will be restored after the solve
-                    auto preprocessor = std::make_unique<
-                        ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(this,
-                                                                                      upper_bound,
-                                                                                      cost_index);
-                    preprocessor->preprocess();
-                    preprocessors.emplace_back(std::move(preprocessor));
+                        // remove some arcs before solving the problem
+                        // the deleted arcs will be restored after the solve
+                        auto preprocessor = std::make_unique<
+                            ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
+                            this,
+                            upper_bound,
+                            cost_index);
+                        preprocessor->preprocess();
+                        preprocessors.emplace_back(std::move(preprocessor));
+                    }
                 }
             }
 

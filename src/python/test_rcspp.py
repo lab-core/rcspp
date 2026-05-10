@@ -10,6 +10,7 @@ import sys
 relative_path = "../../cmake-build-release/src/python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
 
+from rcspp import LogLevel, set_log_level
 from rcspp.graph import Algorithm, AlgorithmParams, ResourceGraph
 from rcspp.resource import (  # Generic (type-unspecialized) wrappers — resolved to the right C++ template; automatically by add_real_resource / add_int_resource / add_real_set_resource / etc.; Real-resource–only functions
     AdditionExtensionFunction,
@@ -59,12 +60,11 @@ def example_real_resource():
     rg.add_node(2)
     rg.add_node(3, sink=True)
 
-    # resource_consumption: tuple of lists-per-resource-type
-    rg.add_arc(([(10.0,)],), 0, 1, cost=10.0)
-    rg.add_arc(([(20.0,)],), 0, 2, cost=20.0)
-    rg.add_arc(([(15.0,)],), 1, 3, cost=15.0)
-    rg.add_arc(([(5.0,)],), 2, 3, cost=5.0)
-    rg.add_arc(([(30.0,)],), 1, 2, cost=30.0)
+    rg.add_arc(10.0, 0, 1, cost=10.0)
+    rg.add_arc((20.0,), 0, 2, cost=20.0)
+    rg.add_arc((15.0,), 1, 3, cost=15.0)
+    rg.add_arc((5.0,), 2, 3, cost=5.0)
+    rg.add_arc((30.0,), 1, 2, cost=30.0)
 
     sols = rg.solve()
     print_solutions("real-resource", sols)
@@ -91,11 +91,11 @@ def example_int_resource():
     rg.add_node(2)
     rg.add_node(3, sink=True)
 
-    rg.add_arc(([(1,)],), 0, 1)
-    rg.add_arc(([(1,)],), 0, 2)
-    rg.add_arc(([(1,)],), 1, 3)
-    rg.add_arc(([(1,)],), 2, 3)
-    rg.add_arc(([(1,)],), 1, 2)  # 0→1→2→3 would be 3 hops → infeasible
+    rg.add_arc((1,), 0, 1)
+    rg.add_arc((1,), 0, 2)
+    rg.add_arc((1,), 1, 3)
+    rg.add_arc((1,), 2, 3)
+    rg.add_arc((1,), 1, 2)  # 0→1→2→3 would be 3 hops → infeasible
 
     sols = rg.solve()
     print_solutions("int-resource", sols)
@@ -131,13 +131,12 @@ def example_mixed_resources():
     rg.add_node(2)
     rg.add_node(3, sink=True)
 
-    # add_arc takes (real_consumptions, int_consumptions) per resource type
-    rg.add_arc(([(10.0,)], [(1,)]), 0, 1, cost=10.0)
-    rg.add_arc(([(20.0,)], [(1,)]), 0, 2, cost=20.0)
-    rg.add_arc(([(15.0,)], [(1,)]), 1, 3, cost=15.0)
-    rg.add_arc(([(5.0,)], [(1,)]), 2, 3, cost=5.0)
+    rg.add_arc((10.0, 1), 0, 1, cost=10.0)
+    rg.add_arc((20.0, 1), 0, 2, cost=20.0)
+    rg.add_arc((15.0, 1), 1, 3, cost=15.0)
+    rg.add_arc((5.0, 1), 2, 3, cost=5.0)
     # 3-hop path 0→1→2→3 violates the hop constraint (3 > 2) and must be pruned
-    rg.add_arc(([(1.0,)], [(1,)]), 1, 2, cost=1.0)
+    rg.add_arc((1.0, 1), 1, 2, cost=1.0)
 
     sols = rg.solve()
     print_solutions("mixed real+int resources", sols)
@@ -176,9 +175,9 @@ def example_time_windows():
     rg.add_node(1)
     rg.add_node(2, sink=True)
 
-    rg.add_arc(([(5.0,), (8.0,)],), 0, 1, cost=5.0)  # arrives at node 1 at time 8
-    rg.add_arc(([(10.0,), (12.0,)],), 0, 2, cost=10.0)  # arrives at sink at time 12
-    rg.add_arc(([(3.0,), (15.0,)],), 1, 2, cost=3.0)  # from 1 to sink
+    rg.add_arc((5.0, 8.0), 0, 1, cost=5.0)  # arrives at node 1 at time 8
+    rg.add_arc((10.0, 12.0), 0, 2, cost=10.0)  # arrives at sink at time 12
+    rg.add_arc((3.0, 15.0), 1, 2, cost=3.0)  # from 1 to sink
 
     sols = rg.solve()
     print_solutions("time-window", sols)
@@ -203,9 +202,9 @@ def example_algorithm_params():
     rg.add_node(1)
     rg.add_node(2, sink=True)
 
-    rg.add_arc(([(5.0,)],), 0, 1, cost=5.0)
-    rg.add_arc(([(3.0,)],), 1, 2, cost=3.0)
-    rg.add_arc(([(10.0,)],), 0, 2, cost=10.0)
+    rg.add_arc((5.0,), 0, 1, cost=5.0)
+    rg.add_arc((3.0,), 1, 2, cost=3.0)
+    rg.add_arc((10.0,), 0, 2, cost=10.0)
 
     # Enum values: Algorithm.Simple, Algorithm.Pulling, Algorithm.Greedy
     sols_simple = rg.solve(Algorithm.Simple)
@@ -246,11 +245,11 @@ def example_uint_resource():
     rg.add_node(2)
     rg.add_node(3, sink=True)
 
-    rg.add_arc(([(1,)],), 0, 1)
-    rg.add_arc(([(1,)],), 0, 2)
-    rg.add_arc(([(1,)],), 1, 3)
-    rg.add_arc(([(1,)],), 2, 3)
-    rg.add_arc(([(1,)],), 1, 2)  # 0→1→2→3 costs 3 hops — still feasible
+    rg.add_arc((1,), 0, 1)
+    rg.add_arc((1,), 0, 2)
+    rg.add_arc((1,), 1, 3)
+    rg.add_arc((1,), 2, 3)
+    rg.add_arc((1,), 1, 2)  # 0→1→2→3 costs 3 hops — still feasible
 
     sols = rg.solve()
     print_solutions("uint-resource", sols)
@@ -265,23 +264,31 @@ def example_uint_resource():
 
 
 def example_set_resource():
-    """3-node graph: int_set resource tracking visited nodes (InclusionDominance)."""
+    """3-node graph: real cost + int_set resource tracking visited nodes (InclusionDominance)."""
     rg = ResourceGraph()
-    # int_set: accumulate visited node IDs; smaller set dominates larger set
+    # real resource 0: accumulated arc cost (optimisation objective)
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    # int_set resource 1: accumulate visited node IDs; smaller set dominates larger set
     rg.add_int_set_resource(
         UnionExtensionFunction(),
         TrivialFeasibilityFunction(),
-        TrivialCostFunction(),  # path cost comes from arc.cost, not the set resource
+        TrivialCostFunction(),
         InclusionDominanceFunction(),
     )
     rg.add_node(0, source=True)
     rg.add_node(1)
     rg.add_node(2, sink=True)
 
-    # resource_consumption: tuple of lists-per-resource-type; each element is a set
-    rg.add_arc(([({1},)],), 0, 1, cost=5.0)
-    rg.add_arc(([({2},)],), 1, 2, cost=3.0)
-    rg.add_arc(([({2},)],), 0, 2, cost=10.0)
+    rg.add_arc((5.0, {1, 3}), 0, 1, cost=5.0)
+    rg.add_arc((3.0, {2}), 1, 2, cost=3.0)
+    rg.add_arc((10.0, {2, 3}), 0, 2, cost=10.0)
+
+    print(rg)
 
     sols = rg.solve()
     print_solutions("int-set resource", sols)
@@ -294,8 +301,16 @@ def example_set_resource():
 
 
 def example_bitset_resource():
-    """4-node graph: uint_bitset resource tracking forbidden nodes."""
+    """4-node graph: real cost + uint_bitset resource tracking forbidden nodes."""
     rg = ResourceGraph()
+    # real resource 0: accumulated arc cost (optimisation objective)
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    # uint_bitset resource 1: forbidden-node set, at most 2 distinct nodes
     rg.add_uint_bitset_resource(
         UnionExtensionFunction(),
         SizeFeasibilityFunction(0, 2),  # allow at most 2 distinct nodes in the set
@@ -308,11 +323,11 @@ def example_bitset_resource():
     rg.add_node(3, sink=True)
 
     # Each arc adds its destination node to the bitset
-    rg.add_arc(([({1},)],), 0, 1, cost=5.0)
-    rg.add_arc(([({2},)],), 0, 2, cost=3.0)
-    rg.add_arc(([({3},)],), 1, 3, cost=4.0)
-    rg.add_arc(([({3},)],), 2, 3, cost=6.0)
-    rg.add_arc(([({2},)],), 1, 2, cost=1.0)  # 0→1→2→3 accumulates 3 nodes → pruned
+    rg.add_arc((5.0, {1}), 0, 1, cost=5.0)
+    rg.add_arc((3.0, {2}), 0, 2, cost=3.0)
+    rg.add_arc((4.0, {3}), 1, 3, cost=4.0)
+    rg.add_arc((6.0, {3}), 2, 3, cost=6.0)
+    rg.add_arc((1.0, {2}), 1, 2, cost=1.0)  # 0→1→2→3 accumulates 3 nodes → pruned
 
     sols = rg.solve()
     print_solutions("uint-bitset resource", sols)
@@ -325,6 +340,7 @@ def example_bitset_resource():
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    set_log_level(LogLevel.Trace)
     print("=" * 60)
     print("Example 1: single RealResource")
     print("=" * 60)

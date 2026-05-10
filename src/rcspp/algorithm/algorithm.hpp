@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
@@ -79,6 +80,9 @@ struct AlgorithmParams {
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
 
+        // pointer to an external flag; if set to true the algorithm will stop early (e.g. SIGINT)
+        std::atomic<bool>* interrupted = nullptr;
+
         // for tabu search algorithms
         size_t tabu_tenure = 5;  // NOLINT
         std::set<size_t> forbidden_tabu;
@@ -139,6 +143,9 @@ class Algorithm {
 
             size_t num_phases = 0;
             while (solutions_.size() < params_.stop_after_X_solutions && number_of_labels() > 0) {
+                if (is_interrupted()) {
+                    break;
+                }
                 // main labeling loop
                 main_loop();
 
@@ -188,6 +195,11 @@ class Algorithm {
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
+
+        [[nodiscard]] bool is_interrupted() const {
+            return params_.interrupted != nullptr &&
+                   params_.interrupted->load(std::memory_order_relaxed);
+        }
 
     protected:
         bool print_{false};

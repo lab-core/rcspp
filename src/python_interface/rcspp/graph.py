@@ -83,6 +83,7 @@ class ResourceGraph:
         #   _registered_order   – types in the order the user called add_<type>_resource()
         self._graph_canonical: tuple[str, ...] = ()
         self._registered_order: tuple[str, ...] = ()
+        self._full_registration_order: list[str] = []  # per-instance, incl. duplicates
         if nx_graph is not None:
             self.from_networkx(nx_graph)
 
@@ -114,6 +115,17 @@ class ResourceGraph:
                 reg_order.append(r[0])
                 seen_set.add(r[0])
 
+        full_reg_order = [r[0] for r in self._pending]
+
+        # The first registered resource must be a cost resource (real or int).
+        if not full_reg_order:
+            raise ValueError("At least one resource must be registered before using the graph.")
+        if full_reg_order[0] not in ("real", "int"):
+            raise ValueError(
+                f"The first registered resource must be a cost resource ('real' or 'int'), "
+                f"got {full_reg_order[0]!r}. Register a real or int resource before any other type."
+            )
+
         requested = frozenset(reg_order)
         types = canonical(*requested)
 
@@ -135,6 +147,7 @@ class ResourceGraph:
 
         self._graph_canonical = selected_combo
         self._registered_order = tuple(reg_order)
+        self._full_registration_order = full_reg_order
 
         self._graph = getattr(_ext.graph, cls_name)()
         for r_type, ext, feas, cost, dom in self._pending:
@@ -156,6 +169,7 @@ class ResourceGraph:
         registered int_set then real (indices 0 and 1 in their tuple):
 
         reorder_consumption(([({3},)], [(5.0,)])) # → ([(5.0,)], [], [], [({3},)], [])
+        reorder_consumption((({3},), (5.0,)))     # same, compact style
         """
         graph_types = self._graph_canonical
         reg_order = self._registered_order
@@ -173,23 +187,52 @@ class ResourceGraph:
 
     # ── Explicit forwarding for common operations ─────────────────────────────
 
+    def _normalize_consumption(self, consumption):
+        """Normalise a resource-consumption argument into canonical-ordered per-type
+        lists.
+
+        Returns a tuple with one list per canonical C++ slot, ready to pass to C++.
+        Reordering is always applied.
+
+        **Flat style** — one element per registered *instance* in the exact order
+        ``add_<type>_resource`` was called (duplicates included).  A tuple value is
+        passed as-is (multi-component initialiser); any other value is wrapped in a
+        1-tuple::
+
+            (1, 5.0, (3, 5), {4})
+            # add_int / add_real / add_int / add_set were called in that order
+            # → ([(1,), (3,5)], [(5.0,)], [({4},)]) after canonical reordering
+        """
+        if not isinstance(consumption, tuple):
+            consumption = (consumption,)
+        if len(consumption) != len(self._full_registration_order):
+            raise ValueError(
+                f"Expected {len(self._full_registration_order)} resource components in "
+                f"consumption, got {len(consumption)}. The number of components must "
+                f"match the number of registered resources (including duplicates) and "
+                f"their order must match the order in which add_<type>_resource() was "
+                f"called."
+            )
+        result: list = [[] for _ in self._graph_canonical]
+        for i, item in enumerate(consumption):
+            rt = self._full_registration_order[i]
+            slot = self._graph_canonical.index(rt)
+            result[slot].append(item if isinstance(item, tuple) else (item,))
+        return tuple(result)
+
     def add_node(self, *args, **kwargs):
         self._ensure_graph()
         return self._graph.add_node(*args, **kwargs)
 
-    def add_arc(self, first, *args, **kwargs):
+    def add_arc(self, resource_consumption, *args, **kwargs):
         self._ensure_graph()
-        # Reorder/expand the resource-consumption tuple when needed.
-        # A tuple/list first argument is a resource-consumption; int/Node is an origin id.
-        if self._needs_reorder and isinstance(first, (tuple, list)):
-            first = self.reorder_consumption(first)
-        return self._graph.add_arc(first, *args, **kwargs)
+        norm_res_cons = self._normalize_consumption(resource_consumption)
+        return self._graph.add_arc(norm_res_cons, *args, **kwargs)
 
     def update_arc(self, arc, resource_consumption, *args, **kwargs):
         self._ensure_graph()
-        if self._needs_reorder:
-            resource_consumption = self.reorder_consumption(resource_consumption)
-        return self._graph.update_arc(arc, resource_consumption, *args, **kwargs)
+        norm_res_cons = self._normalize_consumption(resource_consumption)
+        return self._graph.update_arc(arc, norm_res_cons, *args, **kwargs)
 
     def get_arc(self, arc_id):
         self._ensure_graph()
@@ -218,7 +261,9 @@ class ResourceGraph:
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.
-            cost_index: Index of the cost resource.
+            cost_index: Index within the cost resource type (the first ``real``
+                or ``int`` slot in canonical order that the user registered).
+                Defaults to 0.
         """
         if params is None:
             params = _ext.graph.AlgorithmParams()
@@ -262,6 +307,19 @@ class ResourceGraph:
             duals_list = list(duals)
         self._graph.update_reduced_costs(duals_list, cost_index)
 
+    # ── String representation ─────────────────────────────────────────────────
+
+    def to_string(self, print_arcs: bool = True) -> str:
+        if self._graph is None:
+            return ""
+        return self._graph.to_string(print_arcs)
+
+    def __str__(self) -> str:
+        return self.to_string()
+
+    def __repr__(self) -> str:
+        return self.to_string()
+
     # ── Transparent delegation for everything else ────────────────────────────
 
     def __getattr__(self, name: str):
@@ -280,7 +338,7 @@ class ResourceGraph:
         for u, v, data in nx_graph.edges(data=True):
             resource_init = None
             if "resource" in data:
-                resource_init = ([(res,) for res in data["resource"]],)
+                resource_init = tuple(data["resource"])
 
             arc_id = data.get("id")
             cost = data.get("cost", 0.0)
@@ -305,6 +363,11 @@ def _make_add_resource_method(canonical_type: str):
                 f"Cannot call add_{canonical_type}_resource after the graph has been "
                 "initialized (i.e. after the first add_node / add_arc / solve call). "
                 "Add all resources before performing any graph operation."
+            )
+        if len(self._pending) == 0 and canonical_type not in ("real", "int"):
+            raise ValueError(
+                f"The first registered resource must be a cost resource ('real' or 'int'), "
+                f"got {canonical_type!r}. Register a real or int resource before any other type."
             )
         ext = self._resolve(extension_function, canonical_type)
         feas = self._resolve(feasibility_function, canonical_type)

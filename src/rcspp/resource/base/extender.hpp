@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -157,6 +158,20 @@ class Extender<ResourceComposition<ResourceTypes...>>
             constexpr size_t ResourceTypeIndex =
                 ResourceTypeIndex_v<ResourceType, ResourceTypes...>;
             return get_extender_component<ResourceTypeIndex>(resource_index);
+        }
+
+        [[nodiscard]] std::string to_string() const override {
+            std::string result;
+            auto fn = [&](const auto& ext_vec) {
+                for (const auto& ext : ext_vec) {
+                    result += ext->to_string() + ", ";
+                }
+            };
+            std::apply([&](const auto&... vecs) { (fn(vecs), ...); }, extender_components_);
+            if (result.size() > 2) {
+                result.resize(result.size() - 2);
+            }
+            return result;
         }
 
     private:

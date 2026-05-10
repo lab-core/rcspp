@@ -7,6 +7,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <atomic>
+#include <csignal>
 #include <limits>
 #include <memory>
 #include <tuple>
@@ -22,6 +24,21 @@
 namespace py = pybind11;
 
 using namespace rcspp;
+
+// ─── SIGINT interruptibility for Python ───────────────────────────────────────
+// When solve() is called from Python, the GIL is released so that Python's signal
+// handler can fire. A lightweight C-level handler sets this flag; the labeling loop
+// checks it and exits early. After solve() returns the GIL is re-acquired and, if
+// the flag is set, KeyboardInterrupt is raised in Python.
+//
+// Limitation: concurrent solves from different threads share this flag.  All ongoing
+// solves will be interrupted when Ctrl-C is pressed, which is the expected behaviour.
+
+static std::atomic<bool> g_py_interrupted{false};
+
+static void py_sigint_handler(int /*sig*/) {
+    g_py_interrupted.store(true, std::memory_order_relaxed);
+}
 
 // ─── Concrete type aliases ────────────────────────────────────────────────────
 
@@ -156,7 +173,10 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
         .def("number_of_nodes", &G::get_number_of_nodes)
         .def("number_of_arcs", &G::get_number_of_arcs)
         .def("is_source", &G::is_source, py::arg("node_id"))
-        .def("is_sink", &G::is_sink, py::arg("node_id"));
+        .def("is_sink", &G::is_sink, py::arg("node_id"))
+        .def("to_string", &G::to_string, py::arg("print_arcs") = false)
+        .def("__str__", [](const G& g) { return g.to_string(); })
+        .def("__repr__", [](const G& g) { return g.to_string(); });
 }
 
 // ─── Helper: bind common ResourceGraph methods (algorithm dispatch included) ──
@@ -176,8 +196,30 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
         .def("get_resource_factory", &RG::get_resource_factory, py::return_value_policy::reference)
         .def(
             "solve",
-            [](RG& rg, SolverAlgorithm alg, double ub, AlgorithmParams p, bool pre, int ci) {
-                return dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci);
+            [](RG& rg, SolverAlgorithm alg, double ub, AlgorithmParams p, bool pre, int ci)
+                -> std::vector<Solution> {
+                p.interrupted = &g_py_interrupted;
+                g_py_interrupted.store(false, std::memory_order_relaxed);
+
+                // Replace Python's SIGINT handler with our lightweight flag-setter so the
+                // C++ loop can be interrupted while the GIL is released.
+                auto* old_sigint = std::signal(SIGINT, py_sigint_handler);
+
+                std::vector<Solution> result;
+                {
+                    py::gil_scoped_release release;
+                    result = dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci);
+                }
+
+                if (old_sigint != SIG_ERR) {
+                    std::signal(SIGINT, old_sigint);
+                }
+
+                if (g_py_interrupted.load(std::memory_order_relaxed)) {
+                    PyErr_SetNone(PyExc_KeyboardInterrupt);
+                    throw py::error_already_set();
+                }
+                return result;
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
             py::arg("upper_bound") = INF,
@@ -260,7 +302,9 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
     py::class_<Node<RC>>(m, node_name)
         .def_readonly("id", &Node<RC>::id)
         .def_readonly("source", &Node<RC>::source)
-        .def_readonly("sink", &Node<RC>::sink);
+        .def_readonly("sink", &Node<RC>::sink)
+        .def("__str__", &Node<RC>::to_string)
+        .def("__repr__", &Node<RC>::to_string);
 
     py::class_<Arc<RC>>(m, arc_name)
         .def_readonly("id", &Arc<RC>::id)
@@ -273,7 +317,9 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
             [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },
             py::return_value_policy::reference)
         .def_readwrite("cost", &Arc<RC>::cost)
-        .def_readwrite("dual_rows", &Arc<RC>::dual_rows);
+        .def_readwrite("dual_rows", &Arc<RC>::dual_rows)
+        .def("__str__", &Arc<RC>::to_string)
+        .def("__repr__", &Arc<RC>::to_string);
 
     {
         py::class_<Graph<RC>> g(m, graph_name);
@@ -417,7 +463,9 @@ void init_graph(py::module_& m) {
         .def_readonly("sink", &Node<RealRC>::sink)
         .def_readwrite("in_arcs", &Node<RealRC>::in_arcs)
         .def_readwrite("out_arcs", &Node<RealRC>::out_arcs)
-        .def_readwrite("resource", &Node<RealRC>::resource);
+        .def_readwrite("resource", &Node<RealRC>::resource)
+        .def("__str__", &Node<RealRC>::to_string)
+        .def("__repr__", &Node<RealRC>::to_string);
 
     py::class_<Arc<RealRC>>(m, "Arc")
         .def_readonly("id", &Arc<RealRC>::id)
@@ -431,27 +479,23 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
-        .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows);
+        .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows)
+        .def("__str__", &Arc<RealRC>::to_string)
+        .def("__repr__", &Arc<RealRC>::to_string);
 
+    // ── Real resource graph — explicit block to avoid re-registering Node/Arc/Graph
     {
         py::class_<RealRG, RealGraph> rg(m, "_real_resource_graph");
-        bind_rg_methods<RealRG, RealRC>(rg);
+        bind_rg_methods<RealRG, RealRC, RealResource>(rg);
         rg.def(py::init<>());
         bind_resource_graph_impl<RealRG, RealRC, RealResource>(rg);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // All other single-resource graphs — generated via X-macro
+    // Single-resource graphs — generated via X-macro
     // ══════════════════════════════════════════════════════════════════════════
 
     BIND_SINGLE_NUMERICAL_RG(int, int, IntResource)
-    BIND_SINGLE_NUMERICAL_RG(uint, unsigned int, UIntResource)
-    // BIND_SINGLE_CONTAINER_RG(real_set, double, RealSetResource)
-    // BIND_SINGLE_CONTAINER_RG(int_set, int, IntSetResource)
-    // BIND_SINGLE_CONTAINER_RG(uint_set, unsigned int, UIntSetResource)
-    // BIND_SINGLE_CONTAINER_RG(size_t_set, size_t, SizeTSetResource)
-    // BIND_SINGLE_CONTAINER_RG(uint_bitset, unsigned int, UIntBitsetResource)
-    // BIND_SINGLE_CONTAINER_RG(size_t_bitset, size_t, SizeTBitsetResource)
 
     // ══════════════════════════════════════════════════════════════════════════
     // Mixed graphs — all non-trivial subsets of (real, int, real_set, int_set,
@@ -464,6 +508,7 @@ void init_graph(py::module_& m) {
     // ══════════════════════════════════════════════════════════════════════════
 
     // clang-format off
+
     // ── Pairs (2-type) ────────────────────────────────────────────────────────
     BIND_MIX(RealResource, IntResource);
     BIND_MIX(RealResource, RealSetResource);
@@ -476,20 +521,7 @@ void init_graph(py::module_& m) {
     // ── Triples (3-type) ──────────────────────────────────────────────────────
     BIND_MIX(RealResource, IntResource,     RealSetResource);
     BIND_MIX(RealResource, IntResource,     IntSetResource);
-    BIND_MIX(RealResource, IntResource,     UIntBitsetResource);
-    BIND_MIX(RealResource, RealSetResource, IntSetResource);
-    BIND_MIX(RealResource, RealSetResource, UIntBitsetResource);
     BIND_MIX(RealResource, IntSetResource,  UIntBitsetResource);
-    BIND_MIX(IntResource,  RealSetResource, IntSetResource);
-    BIND_MIX(IntResource,  RealSetResource, UIntBitsetResource);
-    BIND_MIX(IntResource,  IntSetResource,  UIntBitsetResource);
-
-    // ── Quadruples (4-type) ───────────────────────────────────────────────────
-    // BIND_MIX(RealResource, IntResource,     RealSetResource, IntSetResource);
-    // BIND_MIX(RealResource, IntResource,     RealSetResource, UIntBitsetResource);
-    // BIND_MIX(RealResource, IntResource,     IntSetResource,  UIntBitsetResource);
-    // BIND_MIX(RealResource, RealSetResource, IntSetResource,  UIntBitsetResource);
-    // BIND_MIX(IntResource,  RealSetResource, IntSetResource,  UIntBitsetResource);
 
     // ── Universal (all 5 types) ───────────────────────────────────────────────
     BIND_MIX(RealResource, IntResource, RealSetResource, IntSetResource, UIntBitsetResource);
