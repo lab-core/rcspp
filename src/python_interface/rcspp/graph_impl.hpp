@@ -1,0 +1,365 @@
+// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+// All rights reserved.
+
+#pragma once
+
+// Must be defined before any pybind11 header is included.
+#define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
+
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
+#include <atomic>
+#include <limits>
+#include <memory>
+#include <tuple>
+
+#include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
+#include "rcspp/algorithm/simple_dominance_algorithm.hpp"
+#include "rcspp/graph/graph.hpp"
+#include "rcspp/resource/concrete/container_resource.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/resource_graph.hpp"
+#include "resource_types.hpp"
+
+namespace py = pybind11;
+
+using namespace rcspp;
+
+// ─── SIGINT globals (defined in graph.cpp) ────────────────────────────────────
+// g_py_interrupted: set by the C signal handler; polled by the labelling loop.
+// g_active_calls:   counts long-running C++ bindings holding the release guard.
+extern std::atomic<bool> g_py_interrupted;
+extern std::atomic<int> g_active_calls;
+
+// ─── run_interruptible ────────────────────────────────────────────────────────
+// Releases the GIL, calls f(), re-acquires the GIL, then raises KeyboardInterrupt
+// if g_py_interrupted was set during the call.  Handles both void and non-void callables.
+template <typename F>
+auto run_interruptible(F&& f) {
+    auto check = [] {
+        if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
+            PyErr_SetNone(PyExc_KeyboardInterrupt);
+            throw py::error_already_set();
+        }
+    };
+    if constexpr (std::is_void_v<std::invoke_result_t<F>>) {
+        {
+            py::gil_scoped_release release;
+            std::forward<F>(f)();
+        }
+        check();
+    } else {
+        auto result = [&] {
+            py::gil_scoped_release release;
+            return std::forward<F>(f)();
+        }();
+        check();
+        return result;
+    }
+}
+
+// ─── Algorithm dispatch table ─────────────────────────────────────────────────
+
+enum class SolverAlgorithm { Simple, Pulling, Greedy };
+
+template <SolverAlgorithm E, template <typename> class Algo>
+struct AlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC>
+        static std::vector<Solution> run(RG& rg, double ub, AlgorithmParams p, bool pre, int ci) {
+            return rg.template solve<Algo, CostRC>(ub, p, pre, ci);
+        }
+};
+
+using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
+                                  AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
+                                  AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>>;
+
+template <typename RG, typename CostRC, typename... Entries>
+std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub,
+                                              AlgorithmParams p, bool pre, int ci,
+                                              std::tuple<Entries...>* /*tag*/) {
+    std::vector<Solution> result;
+    [[maybe_unused]] bool matched =
+        ((Entries::value == alg
+              ? (result = Entries::template run<RG, CostRC>(rg, ub, p, pre, ci), true)
+              : false) ||
+         ...);
+    return result;
+}
+
+template <typename RG, typename CostRC>
+std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
+                                         bool pre, int ci) {
+    p.interrupted = &g_py_interrupted;
+    g_py_interrupted.store(false, std::memory_order_relaxed);
+    g_active_calls.fetch_add(1, std::memory_order_relaxed);
+    auto result = dispatch_algorithm_impl<RG, CostRC>(alg,
+                                                      rg,
+                                                      ub,
+                                                      p,
+                                                      pre,
+                                                      ci,
+                                                      static_cast<AlgorithmTable*>(nullptr));
+    g_active_calls.fetch_sub(1, std::memory_order_relaxed);
+    return result;
+}
+
+// ─── Resource type → pybind11 method name ────────────────────────────────────
+
+template <typename T>
+constexpr const char* add_resource_method_name();
+
+#define GEN_ADD_RESOURCE_NAME(name, scalar, RT)                   \
+    template <>                                                   \
+    inline constexpr const char* add_resource_method_name<RT>() { \
+        return "add_" #name "_resource";                          \
+    }
+RCSPP_ALL_RESOURCES(GEN_ADD_RESOURCE_NAME)
+#undef GEN_ADD_RESOURCE_NAME
+
+// ─── Python type name per resource type ──────────────────────────────────────
+
+template <typename T>
+constexpr const char* py_type_name();
+
+#define GEN_PY_TYPE_NAME(name, scalar, RT)            \
+    template <>                                       \
+    inline constexpr const char* py_type_name<RT>() { \
+        return #name;                                 \
+    }
+RCSPP_ALL_RESOURCES(GEN_PY_TYPE_NAME)
+#undef GEN_PY_TYPE_NAME
+
+// ─── CostRC auto-selection ────────────────────────────────────────────────────
+// Picks the first numerical resource in the pack; falls back to RealResource sentinel.
+
+template <typename... RTs>
+struct SelectCostRC {
+        using type = RealResource;
+};
+
+template <typename RT, typename... RTs>
+struct SelectCostRC<RT, RTs...> {
+        using type = std::conditional_t<is_numerical_resource_v<RT>, RT,
+                                        typename SelectCostRC<RTs...>::type>;
+};
+
+// ─── Helper: bind common Graph base methods ───────────────────────────────────
+
+template <typename G>
+py::class_<G>& bind_graph_methods(py::class_<G>& c) {
+    return c.def("get_node", &G::get_node, py::arg("id"), py::return_value_policy::reference)
+        .def("get_arc", &G::get_arc, py::arg("id"), py::return_value_policy::reference)
+        .def("node_ids", &G::get_node_ids)
+        .def("arc_ids", &G::get_arc_ids)
+        .def("source_node_ids", &G::get_source_node_ids)
+        .def("sink_node_ids", &G::get_sink_node_ids)
+        .def("number_of_nodes", &G::get_number_of_nodes)
+        .def("number_of_arcs", &G::get_number_of_arcs)
+        .def("is_source", &G::is_source, py::arg("node_id"))
+        .def("is_sink", &G::is_sink, py::arg("node_id"))
+        .def("to_string", &G::to_string, py::arg("print_arcs") = false)
+        .def("__str__", [](const G& g) { return g.to_string(); })
+        .def("__repr__", [](const G& g) { return g.to_string(); });
+}
+
+// ─── Helper: bind common ResourceGraph methods ────────────────────────────────
+
+template <typename RG, typename RC, typename CostRC = RealResource>
+py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
+    using N = Node<RC>;
+    constexpr double INF = std::numeric_limits<double>::infinity();
+
+    return c
+        .def("add_node",
+             static_cast<N& (RG::*)(size_t, bool, bool)>(&RG::add_node),
+             py::arg("id"),
+             py::arg("source") = false,
+             py::arg("sink") = false,
+             py::return_value_policy::reference)
+        .def("get_resource_factory", &RG::get_resource_factory, py::return_value_policy::reference)
+        .def(
+            "solve",
+            [](RG& rg, SolverAlgorithm alg, double ub, AlgorithmParams p, bool pre, int ci)
+                -> std::vector<Solution> {
+                return run_interruptible(
+                    [&] { return dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci); });
+            },
+            py::arg("algorithm") = SolverAlgorithm::Simple,
+            py::arg("upper_bound") = INF,
+            py::arg("params") = AlgorithmParams{},
+            py::arg("preprocess") = true,
+            py::arg("cost_index") = 0)
+        .def("process_feasibility",
+             [](RG& rg) { run_interruptible([&] { rg.process_feasibility(); }); })
+        .def(
+            "is_connected",
+            [](RG& rg, size_t o, size_t d) {
+                return run_interruptible([&] { return rg.is_connected(o, d); });
+            },
+            py::arg("origin_node_id"),
+            py::arg("destination_node_id"));
+}
+
+// ─── Helper: bind one add_resource method ────────────────────────────────────
+
+template <typename RG, typename RC, typename ResourceType>
+void bind_add_resource(py::class_<RG, Graph<RC>>& rg) {
+    rg.def(add_resource_method_name<ResourceType>(),
+           static_cast<void (RG::*)(std::unique_ptr<ExtensionFunction<ResourceType>>,
+                                    std::unique_ptr<FeasibilityFunction<ResourceType>>,
+                                    std::unique_ptr<CostFunction<ResourceType>>,
+                                    std::unique_ptr<DominanceFunction<ResourceType>>)>(
+               &RG::template add_resource<ResourceType>),
+           py::arg("extension_function"),
+           py::arg("feasibility_function"),
+           py::arg("cost_function"),
+           py::arg("dominance_function"));
+}
+
+// ─── Helper: bind resource-specific methods ───────────────────────────────────
+
+template <typename RG, typename RC, typename... ResourceTypes>
+void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
+    using AddArcTuple = std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>;
+
+    (bind_add_resource<RG, RC, ResourceTypes>(rg), ...);
+
+    rg.def("add_arc",
+           static_cast<Arc<RC>& (RG::*)(const AddArcTuple&,
+                                        size_t,
+                                        size_t,
+                                        std::optional<size_t>,
+                                        double,
+                                        std::vector<Row>)>(&RG::add_arc),
+           py::arg("resource_consumption"),
+           py::arg("origin_node_id"),
+           py::arg("destination_node_id"),
+           py::arg("id") = std::nullopt,
+           py::arg("cost") = 0.0,
+           py::arg("dual_rows") = std::vector<Row>{},
+           py::return_value_policy::reference);
+
+    rg.def("update_arc",
+           static_cast<void (RG::*)(Arc<RC>*, const AddArcTuple&, std::optional<double>)>(
+               &RG::update_arc),
+           py::arg("arc"),
+           py::arg("resource_consumption"),
+           py::arg("cost") = std::nullopt);
+
+    if constexpr ((std::is_same_v<ResourceTypes, RealResource> || ...)) {
+        rg.def(
+            "update_reduced_costs",
+            [](RG& rg, const std::vector<double>& duals, size_t cost_index) {
+                run_interruptible(
+                    [&] { rg.template update_reduced_costs<RealResource>(duals, cost_index); });
+            },
+            py::arg("duals"),
+            py::arg("cost_index") = 0);
+    }
+}
+
+// ─── Helper: build the full block for a set of resource types ─────────────────
+
+template <typename RG, typename RC, typename CostRC, typename... ResourceTypes>
+void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* graph_name,
+                               const char* node_name, const char* arc_name) {
+    py::class_<Node<RC>>(m, node_name)
+        .def_readonly("id", &Node<RC>::id)
+        .def_readonly("source", &Node<RC>::source)
+        .def_readonly("sink", &Node<RC>::sink)
+        .def("__str__", &Node<RC>::to_string)
+        .def("__repr__", &Node<RC>::to_string);
+
+    py::class_<Arc<RC>>(m, arc_name)
+        .def_readonly("id", &Arc<RC>::id)
+        .def(
+            "origin",
+            [](const Arc<RC>& a) -> Node<RC>* { return a.origin; },
+            py::return_value_policy::reference)
+        .def(
+            "destination",
+            [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },
+            py::return_value_policy::reference)
+        .def_readwrite("cost", &Arc<RC>::cost)
+        .def_readwrite("dual_rows", &Arc<RC>::dual_rows)
+        .def("__str__", &Arc<RC>::to_string)
+        .def("__repr__", &Arc<RC>::to_string);
+
+    {
+        py::class_<Graph<RC>> g(m, graph_name);
+        bind_graph_methods(g);
+    }
+
+    py::class_<RG, Graph<RC>> rg(m, rg_name);
+    bind_rg_methods<RG, RC, CostRC>(rg);
+    rg.def(py::init<>());
+    bind_resource_graph_impl<RG, RC, ResourceTypes...>(rg);
+}
+
+// ─── Helper: bind a mixed-resource graph ─────────────────────────────────────
+
+template <typename CostRC, typename... RTs>
+void bind_mixed_rg(py::module_& m, const char* name) {
+    using RC = ResourceComposition<RTs...>;
+    using RG = ResourceGraph<RTs...>;
+    std::string rg = std::string("_") + name + "_resource_graph";
+    std::string g = std::string("_") + name + "_graph";
+    std::string n = std::string("_") + name + "_node";
+    std::string a = std::string("_") + name + "_arc";
+    bind_resource_graph_block<RG, RC, CostRC, RTs...>(m,
+                                                      rg.c_str(),
+                                                      g.c_str(),
+                                                      n.c_str(),
+                                                      a.c_str());
+}
+
+// ─── Auto class-name builder and binder ──────────────────────────────────────
+
+template <typename... RTs>
+std::string auto_mix_name() {
+    std::vector<const char*> names = {py_type_name<RTs>()...};
+    std::string s;
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (i > 0) {
+            s += '_';
+        }
+        s += names[i];
+    }
+    return s;
+}
+
+template <typename... RTs>
+void bind_auto_rg(py::module_& m) {
+    using CostRC = typename SelectCostRC<RTs...>::type;
+    bind_mixed_rg<CostRC, RTs...>(m, auto_mix_name<RTs...>().c_str());
+}
+
+#define BIND_MIX(...) bind_auto_rg<__VA_ARGS__>(m)
+
+// ─── Macros: bind single-resource graph blocks ───────────────────────────────
+
+// clang-format off
+#define BIND_SINGLE_NUMERICAL_RG(name, scalar, RT)                                 \
+    bind_resource_graph_block<ResourceGraph<RT>, ResourceComposition<RT>, RT, RT>( \
+        m,                                                                         \
+        "_" #name "_resource_graph",                                               \
+        "_" #name "_graph",                                                        \
+        "_" #name "_node",                                                         \
+        "_" #name "_arc");
+
+#define BIND_SINGLE_CONTAINER_RG(name, scalar, RT)                                           \
+    bind_resource_graph_block<ResourceGraph<RT>, ResourceComposition<RT>, RealResource, RT>( \
+        m,                                                                                   \
+        "_" #name "_resource_graph",                                                         \
+        "_" #name "_graph",                                                                  \
+        "_" #name "_node",                                                                   \
+        "_" #name "_arc");
+// clang-format on
+
+// ─── Forward declarations for sub-init functions ─────────────────────────────
+void init_graph_mix2(py::module_&);
+void init_graph_mix3(py::module_&);

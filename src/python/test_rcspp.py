@@ -338,7 +338,117 @@ def example_bitset_resource():
         assert len(s.path_node_ids) - 1 <= 2, f"Size constraint violated: {s.path_node_ids}"
 
 
-# ── Example 9: SIGINT handler ─────────────────────────────────────────────────
+# ── Example 10: Pulling algorithm with truncated labeling ────────────────────
+# num_labels_to_extend_by_node limits how many labels are processed per node
+# per phase.  num_max_phases allows the algorithm to iterate and recover labels
+# that were truncated in earlier phases, converging towards the optimal solution.
+
+
+def example_pulling_truncated():
+    """Pulling algorithm with num_labels_to_extend_by_node and num_max_phases."""
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2)
+    rg.add_node(3, sink=True)
+
+    # Two paths: short 0→1→3 (cost 2, optimal) and long 0→2→3 (cost 20)
+    rg.add_arc((1.0,), 0, 1, cost=1.0)
+    rg.add_arc((10.0,), 0, 2, cost=10.0)
+    rg.add_arc((1.0,), 1, 3, cost=1.0)
+    rg.add_arc((10.0,), 2, 3, cost=10.0)
+
+    # Full solve finds the optimal path
+    sols_full = rg.solve(Algorithm.Pulling)
+    print_solutions("Pulling (full)", sols_full)
+    assert math.isclose(sols_full[0].cost, 2.0, abs_tol=1e-6)
+
+    # Truncated to 1 label/node with 1 phase — may explore fewer paths but still
+    # finds a feasible solution.
+    params = AlgorithmParams()
+    params.num_labels_to_extend_by_node = 1
+    params.num_max_phases = 1
+    params.stop_after_X_solutions = 1
+    sols_trunc = rg.solve(Algorithm.Pulling, params=params)
+    print_solutions("Pulling (1 label/node, 1 phase)", sols_trunc)
+    assert len(sols_trunc) >= 1, "Expected at least one solution with truncated Pulling"
+
+    # Multiple phases restore truncated labels and let the algorithm converge;
+    # with enough phases the optimal cost is recovered.
+    params2 = AlgorithmParams()
+    params2.num_labels_to_extend_by_node = 1
+    params2.num_max_phases = 5
+    sols_phases = rg.solve(Algorithm.Pulling, params=params2)
+    print_solutions("Pulling (1 label/node, 5 phases)", sols_phases)
+    assert len(sols_phases) >= 1
+    assert math.isclose(
+        sols_phases[0].cost, 2.0, abs_tol=1e-6
+    ), f"Expected optimal cost 2.0 after 5 phases, got {sols_phases[0].cost}"
+
+
+# ── Example 11: max_iterations and return_dominated_solutions ─────────────────
+# max_iterations terminates the labelling loop early; solutions are then
+# extracted from whatever labels have already reached sink nodes.
+# return_dominated_solutions=True makes the loop extract solutions as labels
+# hit sinks (instead of waiting until after the loop), enabling early stopping
+# via stop_after_X_solutions without having to run main_loop to completion.
+
+
+def example_advanced_params():
+    """Demonstrates max_iterations and return_dominated_solutions."""
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    # Graph: direct path 0→2 (cost 5) and optimal path 0→1→2 (cost 3).
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+    rg.add_arc((5.0,), 0, 2, cost=5.0)  # direct, suboptimal
+    rg.add_arc((1.0,), 0, 1, cost=1.0)
+    rg.add_arc((2.0,), 1, 2, cost=2.0)  # optimal path: cost 3
+
+    # Full solve: optimal cost 3
+    sols_full = rg.solve(Algorithm.Simple)
+    print_solutions("Simple (full)", sols_full)
+    assert math.isclose(sols_full[0].cost, 3.0, abs_tol=1e-6)
+
+    # max_iterations=1: only the source label is processed in the main loop.
+    # The direct arc 0→2 adds cost-5 label to the sink, which extract_remaining_solutions
+    # picks up.  The indirect path via node 1 is not yet explored → suboptimal result.
+    params = AlgorithmParams()
+    params.max_iterations = 1
+    sols_early = rg.solve(Algorithm.Simple, params=params)
+    print_solutions("Simple (max_iterations=1)", sols_early)
+    assert len(sols_early) == 1
+    assert math.isclose(
+        sols_early[0].cost, 5.0, abs_tol=1e-6
+    ), f"Expected cost 5.0 with max_iterations=1, got {sols_early[0].cost}"
+
+    # return_dominated_solutions=True + stop_after_X_solutions=1:
+    # the main loop extracts the first non-dominated label that reaches the sink
+    # (cost 3, the optimal) and stops immediately.
+    params2 = AlgorithmParams()
+    params2.return_dominated_solutions = True
+    params2.stop_after_X_solutions = 1
+    sols_first = rg.solve(Algorithm.Simple, params=params2)
+    print_solutions("Simple (return_dominated=True, stop_after=1)", sols_first)
+    assert len(sols_first) == 1
+    assert math.isclose(
+        sols_first[0].cost, 3.0, abs_tol=1e-6
+    ), f"Expected cost 3.0 with return_dominated_solutions, got {sols_first[0].cost}"
+
+
+# ── Example 12: SIGINT handler ────────────────────────────────────────────────
 # Uses ContainDominanceFunction on a uint_bitset resource to prevent all label
 # pruning: every arc carries a unique bit, so every partial path has a distinct
 # bitset and no label ever dominates another, forcing 2^(N-2) labels to be kept.
@@ -450,7 +560,17 @@ if __name__ == "__main__":
     example_bitset_resource()
 
     print("\n" + "=" * 60)
-    print("Example 9: SIGINT handler")
+    print("Example 10: Pulling with truncated labeling")
+    print("=" * 60)
+    example_pulling_truncated()
+
+    print("\n" + "=" * 60)
+    print("Example 11: max_iterations and return_dominated_solutions")
+    print("=" * 60)
+    example_advanced_params()
+
+    print("\n" + "=" * 60)
+    print("Example 12: SIGINT handler")
     print("=" * 60)
     example_sigint_handler()
     print("KeyboardInterrupt raised as expected.")
