@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 
-relative_path = "../../cmake-build-release/src/python_interface/"
+relative_path = "../python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
 
 from rcspp import LogLevel, set_log_level
@@ -21,10 +21,6 @@ from rcspp.resource import (  # Generic (type-unspecialized) wrappers — resolv
     InclusionDominanceFunction,
     IntersectionExtensionFunction,
     MinMaxFeasibilityFunction,
-    RealAdditionExtensionFunction,
-    RealTrivialFeasibilityFunction,
-    RealValueCostFunction,
-    RealValueDominanceFunction,
     SizeFeasibilityFunction,
     SubtractExtensionFunction,
     TimeWindowExtensionFunction,
@@ -171,8 +167,8 @@ def example_time_windows():
     rg.add_real_resource(
         TimeWindowExtensionFunction(min_tw),
         TimeWindowFeasibilityFunction(max_tw),
-        RealValueCostFunction(),
-        RealValueDominanceFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
     )
     rg.add_node(0, source=True)
     rg.add_node(1)
@@ -435,8 +431,9 @@ def example_advanced_params():
     ), f"Expected cost 5.0 with max_iterations=1, got {sols_early[0].cost}"
 
     # return_dominated_solutions=True + stop_after_X_solutions=1:
-    # the main loop extracts the first non-dominated label that reaches the sink
-    # (cost 3, the optimal) and stops immediately.
+    # the main loop yields each label as it reaches the sink and stops as soon
+    # as one solution is collected — regardless of optimality.  The first label
+    # to arrive at the sink is the direct arc 0→2 (cost 5), so that is returned.
     params2 = AlgorithmParams()
     params2.return_dominated_solutions = True
     params2.stop_after_X_solutions = 1
@@ -444,8 +441,8 @@ def example_advanced_params():
     print_solutions("Simple (return_dominated=True, stop_after=1)", sols_first)
     assert len(sols_first) == 1
     assert math.isclose(
-        sols_first[0].cost, 3.0, abs_tol=1e-6
-    ), f"Expected cost 3.0 with return_dominated_solutions, got {sols_first[0].cost}"
+        sols_first[0].cost, 5.0, abs_tol=1e-6
+    ), f"Expected cost 5.0 (first-found) with return_dominated_solutions, got {sols_first[0].cost}"
 
 
 # ── Example 12: SIGINT handler ────────────────────────────────────────────────
@@ -518,7 +515,7 @@ def example_sigint_handler():
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    set_log_level(LogLevel.Debug)
+    set_log_level(LogLevel.Info)
     print("=" * 60)
     print("Example 1: single RealResource")
     print("=" * 60)

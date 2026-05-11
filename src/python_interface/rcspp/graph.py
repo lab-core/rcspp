@@ -330,6 +330,43 @@ class ResourceGraph:
     # ── NetworkX integration ──────────────────────────────────────────────────
 
     def from_networkx(self, nx_graph: nx.DiGraph):
+        # ── Structural validation ─────────────────────────────────────────────
+        source_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("source") is True]
+        sink_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("sink") is True]
+        if not source_nodes:
+            raise ValueError(
+                "NetworkX graph has no source node. "
+                "Set source=True on at least one node:\n"
+                "  G.nodes[node_id]['source'] = True\n"
+                "  or G.add_node(node_id, source=True)"
+            )
+        if not sink_nodes:
+            raise ValueError(
+                "NetworkX graph has no sink node. "
+                "Set sink=True on at least one node:\n"
+                "  G.nodes[node_id]['sink'] = True\n"
+                "  or G.add_node(node_id, sink=True)"
+            )
+
+        # ── Arc resource validation ───────────────────────────────────────────
+        # If resources have been registered every arc must carry a 'resource' tuple;
+        # otherwise the C++ binding would be called with the wrong argument types.
+        resources_registered = bool(self._pending) or (self._graph is not None)
+        if resources_registered:
+            missing = [(u, v) for u, v, d in nx_graph.edges(data=True) if "resource" not in d]
+            if missing:
+                n_res = len(self._pending) or len(self._full_registration_order)
+                pairs = ", ".join(f"({u} → {v})" for u, v in missing[:5])
+                if len(missing) > 5:
+                    pairs += f" … ({len(missing) - 5} more)"
+                raise ValueError(
+                    f"{len(missing)} arc(s) are missing a 'resource' attribute, "
+                    f"but {n_res} resource(s) are registered: {pairs}.\n"
+                    f"Provide resource consumption for every arc:\n"
+                    f"  G.add_edge(u, v, resource=(val1, val2, ...))"
+                )
+
+        # ── Build graph ───────────────────────────────────────────────────────
         for node_id, data in nx_graph.nodes(data=True):
             source = data.get("source", False) is True
             sink = data.get("sink", False) is True
