@@ -26,18 +26,71 @@ namespace py = pybind11;
 using namespace rcspp;
 
 // ─── SIGINT interruptibility for Python ───────────────────────────────────────
-// When solve() is called from Python, the GIL is released so that Python's signal
-// handler can fire. A lightweight C-level handler sets this flag; the labeling loop
-// checks it and exits early. After solve() returns the GIL is re-acquired and, if
-// the flag is set, KeyboardInterrupt is raised in Python.
+// The handler is installed ONCE at module import time (from the main thread, via
+// init_sigint_handler() called in PYBIND11_MODULE).
 //
-// Limitation: concurrent solves from different threads share this flag.  All ongoing
-// solves will be interrupted when Ctrl-C is pressed, which is the expected behaviour.
+// Any long-running C++ binding that releases the GIL follows this pattern:
+//
+//   { py::gil_scoped_release _; result = dispatch_algorithm<>(...); }
+//   // dispatch_algorithm wires g_py_interrupted + manages g_active_calls
+//   if (g_py_interrupted.exchange(false)) { raise KeyboardInterrupt; }
+//
+// The g_active_calls counter tells the handler whether a C++ call is in
+// progress.  When it is, the handler sets the flag but does NOT forward to
+// Python's trampoline — the binding raises KeyboardInterrupt itself once the
+// GIL is re-acquired.  When no call is active, the handler forwards so that
+// ordinary Ctrl-C still raises KeyboardInterrupt in Python code.
 
 static std::atomic<bool> g_py_interrupted{false};
+static std::atomic<int> g_active_calls{0};
+static struct sigaction g_old_sigint_sa{};
 
-static void py_sigint_handler(int /*sig*/) {
+static void py_sigint_handler(int sig) {
     g_py_interrupted.store(true, std::memory_order_relaxed);
+    // Forward to Python's handler only when no C++ call holds the guard;
+    // otherwise we raise KeyboardInterrupt ourselves after the call returns.
+    if (g_active_calls.load(std::memory_order_relaxed) == 0) {
+        auto* h = g_old_sigint_sa.sa_handler;
+        if (h != nullptr && h != SIG_DFL && h != SIG_IGN) {
+            h(sig);
+        }
+    }
+}
+
+// Called once from PYBIND11_MODULE (main thread) to install the handler.
+void init_sigint_handler() {
+    struct sigaction new_sa{};
+    new_sa.sa_handler = py_sigint_handler;
+    sigemptyset(&new_sa.sa_mask);
+    new_sa.sa_flags = 0;  // no SA_RESTART — let the signal interrupt blocking calls
+    sigaction(SIGINT, &new_sa, &g_old_sigint_sa);
+}
+
+// Releases the GIL, calls f(), re-acquires the GIL, then raises KeyboardInterrupt
+// if g_py_interrupted was set during the call.  Handles both void and non-void callables.
+// Usage: return run_interruptible([&]{…});   (void callable: just call without return)
+template <typename F>
+auto run_interruptible(F&& f) {
+    auto check = [] {
+        if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
+            PyErr_SetNone(PyExc_KeyboardInterrupt);
+            throw py::error_already_set();
+        }
+    };
+    if constexpr (std::is_void_v<std::invoke_result_t<F>>) {
+        {
+            py::gil_scoped_release release;
+            std::forward<F>(f)();
+        }
+        check();
+    } else {
+        auto result = [&] {
+            py::gil_scoped_release release;
+            return std::forward<F>(f)();
+        }();
+        check();
+        return result;
+    }
 }
 
 // ─── Concrete type aliases ────────────────────────────────────────────────────
@@ -82,13 +135,21 @@ std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, doubl
 template <typename RG, typename CostRC>
 std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
                                          bool pre, int ci) {
-    return dispatch_algorithm_impl<RG, CostRC>(alg,
-                                               rg,
-                                               ub,
-                                               p,
-                                               pre,
-                                               ci,
-                                               static_cast<AlgorithmTable*>(nullptr));
+    // Wire up the global interrupt flag and track that a C++ call is active so
+    // the signal handler knows not to forward to Python's handler (which would
+    // cause a double KeyboardInterrupt in the calling thread).
+    p.interrupted = &g_py_interrupted;
+    g_py_interrupted.store(false, std::memory_order_relaxed);
+    g_active_calls.fetch_add(1, std::memory_order_relaxed);
+    auto result = dispatch_algorithm_impl<RG, CostRC>(alg,
+                                                      rg,
+                                                      ub,
+                                                      p,
+                                                      pre,
+                                                      ci,
+                                                      static_cast<AlgorithmTable*>(nullptr));
+    g_active_calls.fetch_sub(1, std::memory_order_relaxed);
+    return result;
 }
 
 // ─── Resource type → pybind11 method name ────────────────────────────────────
@@ -198,46 +259,23 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             "solve",
             [](RG& rg, SolverAlgorithm alg, double ub, AlgorithmParams p, bool pre, int ci)
                 -> std::vector<Solution> {
-                p.interrupted = &g_py_interrupted;
-                g_py_interrupted.store(false, std::memory_order_relaxed);
-
-                // Install our flag-setter as the SIGINT handler for the duration of the
-                // solve.  sigaction() is used instead of signal() because POSIX only
-                // specifies signal() behaviour for single-threaded programs; sigaction() is
-                // safe to call from any thread.  SA_RESTART is intentionally cleared so that
-                // the signal can interrupt the solve thread's execution without restarting
-                // any pending syscall it may be in.
-                struct sigaction new_sa{};
-                new_sa.sa_handler = py_sigint_handler;
-                sigemptyset(&new_sa.sa_mask);
-                new_sa.sa_flags = 0;
-                struct sigaction old_sa{};
-                sigaction(SIGINT, &new_sa, &old_sa);
-
-                std::vector<Solution> result;
-                {
-                    py::gil_scoped_release release;
-                    result = dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci);
-                }
-
-                sigaction(SIGINT, &old_sa, nullptr);
-
-                if (g_py_interrupted.load(std::memory_order_relaxed)) {
-                    PyErr_SetNone(PyExc_KeyboardInterrupt);
-                    throw py::error_already_set();
-                }
-                return result;
+                return run_interruptible(
+                    [&] { return dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci); });
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
             py::arg("upper_bound") = INF,
             py::arg("params") = AlgorithmParams{},
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
-        .def("process_feasibility", &RG::process_feasibility)
-        .def("is_connected",
-             &RG::is_connected,
-             py::arg("origin_node_id"),
-             py::arg("destination_node_id"));
+        .def("process_feasibility",
+             [](RG& rg) { run_interruptible([&] { rg.process_feasibility(); }); })
+        .def(
+            "is_connected",
+            [](RG& rg, size_t o, size_t d) {
+                return run_interruptible([&] { return rg.is_connected(o, d); });
+            },
+            py::arg("origin_node_id"),
+            py::arg("destination_node_id"));
 }
 
 // ─── Helper: bind one add_resource method for a specific resource type ────────
@@ -293,7 +331,8 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
         rg.def(
             "update_reduced_costs",
             [](RG& rg, const std::vector<double>& duals, size_t cost_index) {
-                rg.template update_reduced_costs<RealResource>(duals, cost_index);
+                run_interruptible(
+                    [&] { rg.template update_reduced_costs<RealResource>(duals, cost_index); });
             },
             py::arg("duals"),
             py::arg("cost_index") = 0);
@@ -499,9 +538,8 @@ void init_graph(py::module_& m) {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // Single-resource graphs — generated via X-macro
+    // Single-resource graphs — generated via X-macro -> RealResource is generated by default
     // ══════════════════════════════════════════════════════════════════════════
-
     BIND_SINGLE_NUMERICAL_RG(int, int, IntResource)
 
     // ══════════════════════════════════════════════════════════════════════════

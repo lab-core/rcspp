@@ -11,9 +11,14 @@ namespace py = pybind11;
 
 void init_graph(py::module_&);
 void init_resource(py::module_&);
+void init_sigint_handler();
 
 PYBIND11_MODULE(_core, m) {
     m.doc() = "RCSPP module";
+
+    // Install the SIGINT handler once, from the main thread (import time).
+    // This must happen before any background thread calls solve().
+    init_sigint_handler();
 
     auto graph_submodule = m.def_submodule("graph", "Graph-related classes");
     init_graph(graph_submodule);
