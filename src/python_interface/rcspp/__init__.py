@@ -37,11 +37,13 @@ if not _glob.glob(_os.path.join(_pkg_dir, "_core*")):
 del _glob, _imputil, _os, _sys, _pkg_dir
 
 from . import graph, logger, resource  # noqa: E402
+from ._core.graph import check_interrupted  # noqa: E402
 from .graph import ResourceGraph  # noqa: E402
 from .logger import LogLevel, get_log_level, init_logger, set_log_level  # noqa: E402
 
 __all__ = [
     "ResourceGraph",
+    "check_interrupted",
     "graph",
     "resource",
     "logger",

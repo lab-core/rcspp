@@ -89,7 +89,6 @@ template <typename RG, typename CostRC>
 std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
                                          bool pre, int ci) {
     p.interrupted = &g_py_interrupted;
-    g_py_interrupted.store(false, std::memory_order_relaxed);
     g_active_calls.fetch_add(1, std::memory_order_relaxed);
     auto result = dispatch_algorithm_impl<RG, CostRC>(alg,
                                                       rg,

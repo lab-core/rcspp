@@ -37,6 +37,19 @@ static void py_sigint_handler(int sig) {
     }
 }
 
+// Called from Python between long-running steps (e.g. CG iterations) to raise
+// KeyboardInterrupt if a SIGINT was received since the last solve() call.
+// Also processes any pending Python signals via PyErr_CheckSignals.
+void py_check_interrupted() {
+    if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
+        PyErr_SetNone(PyExc_KeyboardInterrupt);
+        throw py::error_already_set();
+    }
+    if (PyErr_CheckSignals() != 0) {
+        throw py::error_already_set();
+    }
+}
+
 // Called once from PYBIND11_MODULE (main thread) to install the handler.
 void init_sigint_handler() {
 #ifndef _WIN32
@@ -59,6 +72,10 @@ using RealRG = ResourceGraph<RealResource>;
 // ─── init_graph ───────────────────────────────────────────────────────────────
 
 void init_graph(py::module_& m) {
+    m.def("check_interrupted",
+          &py_check_interrupted,
+          "Raise KeyboardInterrupt if a SIGINT was received since the last solve.");
+
     // ── Algorithm enum ────────────────────────────────────────────────────────
 
     py::enum_<SolverAlgorithm>(m, "Algorithm")

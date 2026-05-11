@@ -105,3 +105,29 @@ jobs:
           Pop-Location
           Set-Location $env:GITHUB_WORKSPACE
           & $testPath
+
+      - name: Install Python test dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: python3 -m pip install --user -r src/python/requirements.txt
+
+      - name: Install Python test dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python -m pip install --user -r src/python/requirements.txt
+
+      - name: Run Python tests (Linux/macOS)
+        if: runner.os != 'Windows'
+        working-directory: src/python
+        run: |
+          python3 test_rcspp.py
+          python3 test_rcspp_networkx.py
+          python3 test_vrp.py
+
+      - name: Run Python tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: src/python
+        run: |
+          python test_rcspp.py
+          python test_rcspp_networkx.py
+          python test_vrp.py

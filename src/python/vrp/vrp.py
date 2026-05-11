@@ -5,19 +5,19 @@ import math
 import time
 from typing import Optional
 
-from vrp.cg.master_problem import MasterProblem
 from vrp.cg.path import Path
 from vrp.instance import Customer, Instance
 
 from rcspp.graph import ResourceGraph, Row, Solution
 from rcspp.resource import (
+    AdditionExtensionFunction,
     MinMaxFeasibilityFunction,
-    RealAdditionExtensionFunction,
-    RealTrivialFeasibilityFunction,
-    RealValueCostFunction,
-    RealValueDominanceFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
+    TrivialCostFunction,
+    TrivialFeasibilityFunction,
+    ValueCostFunction,
+    ValueDominanceFunction,
 )
 
 
@@ -62,26 +62,26 @@ class VRP:
 
         # Resource 0: distance / reduced cost (used as the optimisation objective)
         resource_graph.add_real_resource(
-            RealAdditionExtensionFunction(),
-            RealTrivialFeasibilityFunction(),
-            RealValueCostFunction(),
-            RealValueDominanceFunction(),
+            AdditionExtensionFunction(),
+            TrivialFeasibilityFunction(),
+            ValueCostFunction(),
+            ValueDominanceFunction(),
         )
 
         # Resource 1: cumulative travel time (time-window feasibility)
         resource_graph.add_real_resource(
             TimeWindowExtensionFunction(self.__min_time_window_by_node_id),
             TimeWindowFeasibilityFunction(self.__max_time_window_by_node_id),
-            RealValueCostFunction(),
-            RealValueDominanceFunction(),
+            TrivialCostFunction(),
+            ValueDominanceFunction(),
         )
 
         # Resource 2: cumulative demand (capacity feasibility)
         resource_graph.add_real_resource(
-            RealAdditionExtensionFunction(),
+            AdditionExtensionFunction(),
             MinMaxFeasibilityFunction(0.0, self.__instance.get_capacity()),
-            RealValueCostFunction(),
-            RealValueDominanceFunction(),
+            TrivialCostFunction(),
+            ValueDominanceFunction(),
         )
 
         self._add_nodes_and_arcs(resource_graph)
@@ -101,7 +101,9 @@ class VRP:
         arc_id = 0
         for customer_orig_id, customer_orig in customers_by_id.items():
             for customer_dest_id, customer_dest in customers_by_id.items():
-                if customer_orig_id != customer_dest_id:
+                # Skip self-loops and arcs back to the depot source; the return
+                # to depot is represented by the explicit arc to the sink below.
+                if customer_orig_id != customer_dest_id and not customer_dest.depot:
                     self._add_arc(
                         resource_graph,
                         customer_orig_id,
@@ -143,7 +145,7 @@ class VRP:
             dual_rows = [] if orig.depot else [Row(orig_id, 1.0)]
 
         resource_graph.add_arc(
-            ([(base_cost,), (travel_time,), (demand,)],),
+            (base_cost, travel_time, demand),
             orig_id,
             dest_id,
             arc_id,
@@ -161,21 +163,26 @@ class VRP:
     def generate_initial_paths(self):
         depot = self.__instance.get_depot_customer()
         customers_by_id = self.__instance.get_customers_by_id()
+        sink_id = len(customers_by_id)
         for customer_id in self.__instance.get_demand_customers_id():
             customer = customers_by_id[customer_id]
             path_cost = self.calculate_distance(depot, customer) + self.calculate_distance(
                 customer, depot
             )
-            path = Path(self.__path_id, path_cost, [depot.id, customer_id, depot.id])
+            path = Path(self.__path_id, path_cost, [depot.id, customer_id, sink_id])
             self.__paths.append(path)
             self.__path_id += 1
         return self.__paths
 
     def add_paths(self, solutions: list[Solution]):
+        new_paths = []
         for solution in solutions:
             cost = self.calculate_solution_cost(solution)
-            self.__paths.append(Path(self.__path_id, cost, solution.path_node_ids))
+            path = Path(self.__path_id, cost, solution.path_node_ids)
+            self.__paths.append(path)
             self.__path_id += 1
+            new_paths.append(path)
+        return new_paths
 
     def calculate_solution_cost(self, solution: Solution) -> float:
         """Return the true (non-reduced) cost by summing base arc costs."""
@@ -184,7 +191,12 @@ class VRP:
     # ── Column generation ─────────────────────────────────────────────────────
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
+        from vrp.cg.master_problem import MasterProblem  # requires mip
+
         self.generate_initial_paths()
+
+        master = MasterProblem(self.__instance.get_demand_customers_id())
+        master.add_paths(self.__paths)
 
         min_reduced_cost = -math.inf
         final_dual_by_id: dict[int, float] = {}
@@ -195,9 +207,7 @@ class VRP:
             print(f"iter={nb_iter}  min_rc={min_reduced_cost:.6f}")
             print("*" * 45)
 
-            master = MasterProblem(self.__instance.get_demand_customers_id())
-            master.construct_model(self.__paths)
-            mp_sol = master.solve(True)
+            mp_sol = master.solve(relax=True)
             dual_by_id = mp_sol.dual_by_var_id
 
             t0 = time.time()
@@ -213,7 +223,10 @@ class VRP:
                 solutions = solutions[:subproblem_max_nb_solutions]
 
             min_reduced_cost = min((s.cost for s in solutions), default=math.inf)
-            self.add_paths([s for s in solutions if s.cost < -self.EPSILON])
+
+            improving = [s for s in solutions if s.cost < -self.EPSILON]
+            new_paths = self.add_paths(improving)
+            master.add_paths(new_paths)
 
             nb_iter += 1
             if min_reduced_cost >= -self.EPSILON:
@@ -221,9 +234,7 @@ class VRP:
 
         print(f"\niter={nb_iter}  min_rc={min_reduced_cost:.6f}\n")
 
-        master = MasterProblem(self.__instance.get_demand_customers_id())
-        master.construct_model(self.__paths)
-        mp_sol = master.solve()
+        mp_sol = master.solve(relax=False)
         mp_sol.dual_by_var_id = final_dual_by_id
         return mp_sol
 
@@ -239,3 +250,49 @@ class VRP:
         solutions = self.__resource_graph.solve()
         print(f"Solve: {time.time() - t0:.3f}s")
         return solutions
+
+
+# ── CLI entry point ───────────────────────────────────────────────────────────
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Solve a VRPTW instance via column generation "
+        "(RCSPP subproblem + Gurobi master)."
+    )
+    parser.add_argument("instance", help="Path to the VRPTW instance file.")
+    parser.add_argument(
+        "--max-solutions",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Maximum number of subproblem solutions to add per CG iteration (default: unlimited).",
+    )
+    parser.add_argument(
+        "--subproblem-only",
+        action="store_true",
+        help="Run only the RCSPP subproblem with zero duals (no Gurobi required).",
+    )
+    args = parser.parse_args()
+
+    from vrp.instance_reader import InstanceReader
+
+    inst = InstanceReader(args.instance).read()
+    vrp = VRP(inst)
+
+    if args.subproblem_only:
+        print("Running subproblem with zero duals...")
+        solutions = vrp.solve_subproblem({})
+        print(f"\n{len(solutions)} solution(s):")
+        for i, s in enumerate(solutions):
+            print(f"  [{i}] cost={s.cost:.4f}  path={s.path_node_ids}")
+    else:
+        mp_sol = vrp.solve(subproblem_max_nb_solutions=args.max_solutions)
+        print(f"\nFinal LP objective: {mp_sol.cost:.4f}")
+        print(f"Total subproblem time: {vrp._VRP__total_subproblem_time:.3f}s")
+
+
+if __name__ == "__main__":
+    main()

@@ -380,8 +380,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
                 for (const auto& dual_row : arc_ptr->dual_rows) {
-                    const auto dual_value = duals.at(dual_row.index);
-
+                    const auto dual_value =
+                        dual_row.index < duals.size() ? duals[dual_row.index] : 0.0;
                     reduced_cost -= dual_row.coefficient * dual_value;
                 }
 

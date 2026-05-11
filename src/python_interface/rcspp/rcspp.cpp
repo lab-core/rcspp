@@ -2,10 +2,10 @@
 // All rights reserved.
 
 #define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
+#include "rcspp/rcspp.hpp"
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
-#include "rcspp/utils/logger.hpp"
 
 namespace py = pybind11;
 

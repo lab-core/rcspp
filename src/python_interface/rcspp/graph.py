@@ -235,6 +235,7 @@ class ResourceGraph:
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
         """
+        _ext.graph.check_interrupted()
         if params is None:
             params = _ext.graph.AlgorithmParams()
         self._ensure_graph()
@@ -269,10 +270,11 @@ class ResourceGraph:
         """
         self._ensure_graph()
         if isinstance(duals, dict):
-            if not duals:
-                return
-            max_idx = max(duals.keys())
-            duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
+            if duals:
+                max_idx = max(duals.keys())
+                duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
+            else:
+                duals_list = []  # C++ treats out-of-range indices as 0 → resets to base costs
         else:
             duals_list = list(duals)
         self._graph.update_reduced_costs(duals_list, cost_index)

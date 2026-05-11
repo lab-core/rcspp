@@ -8,23 +8,7 @@
 #include <map>
 #include <memory>
 
-#include "rcspp/resource/base/resource_factory.hpp"
-#include "rcspp/resource/concrete/container_resource.hpp"
-#include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/contain_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/inclusion_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/intersection_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/subtract_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/union_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/size_feasibility_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/concrete/numerical_resource.hpp"
-#include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
-#include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
+#include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
 
 namespace py = pybind11;
