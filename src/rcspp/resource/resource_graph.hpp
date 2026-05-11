@@ -271,9 +271,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(
-            AlgorithmType<ResourceComposition<ResourceTypes...>>*
-                algorithm,  // NOLINT(readability-function-cognitive-complexity)
+        std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
+            AlgorithmType<ResourceComposition<ResourceTypes...>>* algorithm,
             double upper_bound = std::numeric_limits<double>::infinity(), bool preprocess = true,
             int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {

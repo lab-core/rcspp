@@ -201,9 +201,18 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                 p.interrupted = &g_py_interrupted;
                 g_py_interrupted.store(false, std::memory_order_relaxed);
 
-                // Replace Python's SIGINT handler with our lightweight flag-setter so the
-                // C++ loop can be interrupted while the GIL is released.
-                auto* old_sigint = std::signal(SIGINT, py_sigint_handler);
+                // Install our flag-setter as the SIGINT handler for the duration of the
+                // solve.  sigaction() is used instead of signal() because POSIX only
+                // specifies signal() behaviour for single-threaded programs; sigaction() is
+                // safe to call from any thread.  SA_RESTART is intentionally cleared so that
+                // the signal can interrupt the solve thread's execution without restarting
+                // any pending syscall it may be in.
+                struct sigaction new_sa{};
+                new_sa.sa_handler = py_sigint_handler;
+                sigemptyset(&new_sa.sa_mask);
+                new_sa.sa_flags = 0;
+                struct sigaction old_sa{};
+                sigaction(SIGINT, &new_sa, &old_sa);
 
                 std::vector<Solution> result;
                 {
@@ -211,9 +220,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                     result = dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci);
                 }
 
-                if (old_sigint != SIG_ERR) {
-                    std::signal(SIGINT, old_sigint);
-                }
+                sigaction(SIGINT, &old_sa, nullptr);
 
                 if (g_py_interrupted.load(std::memory_order_relaxed)) {
                     PyErr_SetNone(PyExc_KeyboardInterrupt);

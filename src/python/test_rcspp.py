@@ -5,7 +5,10 @@
 
 import math
 import os
+import signal
 import sys
+import threading
+import time
 
 relative_path = "../../cmake-build-release/src/python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
@@ -288,8 +291,6 @@ def example_set_resource():
     rg.add_arc((3.0, {2}), 1, 2, cost=3.0)
     rg.add_arc((10.0, {2, 3}), 0, 2, cost=10.0)
 
-    print(rg)
-
     sols = rg.solve()
     print_solutions("int-set resource", sols)
     assert len(sols) >= 1, "Expected at least one solution"
@@ -337,10 +338,77 @@ def example_bitset_resource():
         assert len(s.path_node_ids) - 1 <= 2, f"Size constraint violated: {s.path_node_ids}"
 
 
+# ── Example 9: SIGINT handler ─────────────────────────────────────────────────
+# Uses ContainDominanceFunction on a uint_bitset resource to prevent all label
+# pruning: every arc carries a unique bit, so every partial path has a distinct
+# bitset and no label ever dominates another, forcing 2^(N-2) labels to be kept.
+# A background thread fires SIGINT partway through and the test asserts that
+# solve() raises KeyboardInterrupt promptly.
+#
+# N=13 → 78 arcs, ~200ms solve on a typical machine.  The signal fires at 50ms,
+# well inside the solve, making the test reliable without being slow.
+
+
+def example_sigint_handler():
+    """Test that SIGINT during a long solve() raises KeyboardInterrupt."""
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    # ContainDominanceFunction: A dominates B only if A.set ⊇ B.set.
+    # Each arc carries a unique bit → all partial paths have incomparable
+    # bitsets → no pruning → exponential label count → long solve.
+    rg.add_uint_bitset_resource(
+        UnionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        TrivialCostFunction(),
+        ContainDominanceFunction(),
+    )
+
+    N = 200
+    for i in range(N):
+        rg.add_node(i, source=(i == 0), sink=(i == N - 1))
+
+    arc_id = 0
+    for i in range(N):
+        for j in range(i + 1, N):
+            rg.add_arc((float(j - i), {arc_id}), i, j, cost=float(j - i))
+            arc_id += 1
+
+    # Run solve() in a background thread and interrupt it with SIGINT sent
+    # directly to that thread via pthread_kill.  Targeting the solve thread
+    # (rather than os.kill(getpid(), …) which lets the OS pick a recipient)
+    # makes the test deterministic: the signal is guaranteed to land in the
+    # C++ loop where our flag-setter handler is active.
+    raised = False
+    solve_tid = [None]
+    thread_started = threading.Event()
+
+    def run_solve():
+        nonlocal raised
+        solve_tid[0] = threading.get_ident()
+        thread_started.set()
+        try:
+            rg.solve()
+        except KeyboardInterrupt:
+            raised = True
+
+    t = threading.Thread(target=run_solve, daemon=True)
+    t.start()
+    thread_started.wait()  # ensure tid is captured before we use it
+    signal.pthread_kill(solve_tid[0], signal.SIGINT)
+    t.join(timeout=3.0)
+
+    assert raised, "Expected KeyboardInterrupt from SIGINT during solve()"
+
+
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    set_log_level(LogLevel.Trace)
+    set_log_level(LogLevel.Debug)
     print("=" * 60)
     print("Example 1: single RealResource")
     print("=" * 60)
@@ -380,5 +448,11 @@ if __name__ == "__main__":
     print("Example 8: BitsetResource (uint_bitset)")
     print("=" * 60)
     example_bitset_resource()
+
+    print("\n" + "=" * 60)
+    print("Example 9: SIGINT handler")
+    print("=" * 60)
+    example_sigint_handler()
+    print("KeyboardInterrupt raised as expected.")
 
     print("\nAll examples passed.")
