@@ -23,17 +23,3 @@ _ORDER: dict[str, int] = {name: i for i, name in enumerate(ALL)}
 def canonical(*types: str) -> tuple[str, ...]:
     """Return *types* sorted into canonical C++ template-slot order."""
     return tuple(sorted(types, key=lambda t: _ORDER[t]))
-
-
-# ── Backward-compatibility aliases ────────────────────────────────────────────
-# Maps old/C++-specific user-facing names → canonical Python type names.
-# add_<alias>_resource() still works but internally uses the canonical type.
-ALIASES: dict[str, str] = {
-    "uint": "int",
-    "uint_set": "int_set",
-    "size_t_set": "int_set",
-    "uint_bitset": "bitset",
-    "size_t_bitset": "bitset",
-    # "float":   "real",    # uncomment to accept "float" as alias for "real"
-    # "integer": "int",
-}

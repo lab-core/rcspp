@@ -14,13 +14,7 @@
 #include <memory>
 #include <tuple>
 
-#include "rcspp/algorithm/greedy.hpp"
-#include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
-#include "rcspp/algorithm/simple_dominance_algorithm.hpp"
-#include "rcspp/graph/graph.hpp"
-#include "rcspp/resource/concrete/container_resource.hpp"
-#include "rcspp/resource/concrete/numerical_resource.hpp"
-#include "rcspp/resource/resource_graph.hpp"
+#include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
 
 namespace py = pybind11;
@@ -62,7 +56,7 @@ auto run_interruptible(F&& f) {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pulling, Greedy };
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy };
 
 template <SolverAlgorithm E, template <typename> class Algo>
 struct AlgoEntry {
@@ -74,6 +68,7 @@ struct AlgoEntry {
 };
 
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
+                                  AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>>;
 
@@ -361,5 +356,5 @@ void bind_auto_rg(py::module_& m) {
 // clang-format on
 
 // ─── Forward declarations for sub-init functions ─────────────────────────────
-void init_graph_mix2(py::module_&);
-void init_graph_mix3(py::module_&);
+void init_graph_mix2(py::module_& /*m*/);
+void init_graph_mix3(py::module_& /*m*/);

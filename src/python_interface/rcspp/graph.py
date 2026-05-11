@@ -7,12 +7,13 @@ from typing import Optional
 import networkx as nx
 
 from . import _core as _ext
-from ._resource_types import ALIASES, ALL, CPP_NAME, canonical
+from ._resource_types import ALL, CPP_NAME, canonical
 from .resource import _GenericFunctionDescriptor
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
 _ALGORITHM_MAP = {
     "simple": lambda: _ext.graph.Algorithm.Simple,
+    "pushing": lambda: _ext.graph.Algorithm.Pushing,
     "pulling": lambda: _ext.graph.Algorithm.Pulling,
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
 }
@@ -39,7 +40,6 @@ def _parse_rg_class(attr: str) -> tuple[str, ...] | None:
     """Parse a _*_resource_graph attribute name into a canonical Python-type tuple.
 
     Returns None when the name contains a C++ type not in the Python registry
-    (e.g. ``_uint_resource_graph`` — uint is an ALIAS for int, not a Python type).
     """
     suffix = "_resource_graph"
     if not (attr.startswith("_") and attr.endswith(suffix)):
@@ -155,36 +155,6 @@ class ResourceGraph:
             getattr(self._graph, f"add_{cpp_name}_resource")(ext, feas, cost, dom)
         self._pending.clear()
 
-    # ── Consumption-tuple reordering ──────────────────────────────────────────
-
-    def reorder_consumption(self, consumption: tuple) -> tuple:
-        """Map a resource-consumption tuple to the slot order expected by the C++ graph.
-
-        The user provides one element per registered resource **in the order they called
-        add_<type>_resource()**.  This function places each element into the correct
-        slot of the C++ graph's N-type tuple, inserting empty lists for resource types
-        that were not registered by the user (superset-graph fallback).
-
-        Example — graph has slots (real=0, int=1, real_set=2, int_set=3, bitset=4), user
-        registered int_set then real (indices 0 and 1 in their tuple):
-
-        reorder_consumption(([({3},)], [(5.0,)])) # → ([(5.0,)], [], [], [({3},)], [])
-        reorder_consumption((({3},), (5.0,)))     # same, compact style
-        """
-        graph_types = self._graph_canonical
-        reg_order = self._registered_order
-        result: list = [[] for _ in graph_types]
-        for i, rt in enumerate(reg_order):
-            slot = graph_types.index(rt)
-            if i < len(consumption):
-                result[slot] = consumption[i]
-        return tuple(result)
-
-    @property
-    def _needs_reorder(self) -> bool:
-        """True when the user's registration order differs from the C++ slot order."""
-        return self._registered_order != self._graph_canonical
-
     # ── Explicit forwarding for common operations ─────────────────────────────
 
     def _normalize_consumption(self, consumption):
@@ -255,9 +225,9 @@ class ResourceGraph:
         """Solve the RCSPP.
 
         Args:
-            algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pulling``,
-                ``Algorithm.Greedy``, or the equivalent strings
-                ``'simple'``, ``'pulling'``, ``'greedy'``.
+            algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
+                ``Algorithm.Pulling``, ``Algorithm.Greedy``, or the equivalent strings
+                ``'simple'``, ``'pushing'``, `'pulling'``, ``'greedy'``.
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.
@@ -373,19 +343,17 @@ class ResourceGraph:
             self.add_node(int(node_id), source, sink)
 
         for u, v, data in nx_graph.edges(data=True):
-            resource_init = None
-            if "resource" in data:
-                resource_init = tuple(data["resource"])
+            if "resource" not in data:
+                raise ValueError(
+                    f"Arc ({u} → {v}) is missing 'resource' attribute. Provide resource "
+                    f"consumption for every arc:\n  G.add_edge(u, v, resource=(val1, val2, ...))"
+                )
 
+            resource_init = tuple(data["resource"])
             arc_id = data.get("id")
             cost = data.get("cost", 0.0)
             dual_rows = data.get("dual_rows", [])
-
-            if resource_init is not None:
-                self.add_arc(resource_init, int(u), int(v), arc_id, cost, dual_rows)
-            else:
-                self._ensure_graph()
-                self._graph.add_arc(int(u), int(v), arc_id, cost, dual_rows)
+            self.add_arc(resource_init, int(u), int(v), arc_id, cost, dual_rows)
 
 
 # ── Generate add_<type>_resource methods ─────────────────────────────────────
@@ -418,10 +386,6 @@ def _make_add_resource_method(canonical_type: str):
 
 for _rt in _ALL_RESOURCE_TYPES:
     setattr(ResourceGraph, f"add_{_rt}_resource", _make_add_resource_method(_rt))
-
-# Backward-compat: old C++-flavoured names delegate to the canonical method.
-for _alias, _canonical_type in ALIASES.items():
-    setattr(ResourceGraph, f"add_{_alias}_resource", _make_add_resource_method(_canonical_type))
 
 
 # Re-export all public graph submodule symbols (Row, AlgorithmParams, Solution, …)

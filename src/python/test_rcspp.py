@@ -65,6 +65,8 @@ def example_real_resource():
     rg.add_arc((5.0,), 2, 3, cost=5.0)
     rg.add_arc((30.0,), 1, 2, cost=30.0)
 
+    print(rg)
+
     sols = rg.solve()
     print_solutions("real-resource", sols)
     assert len(sols) >= 1, "Expected at least one solution"
@@ -205,14 +207,16 @@ def example_algorithm_params():
     rg.add_arc((3.0,), 1, 2, cost=3.0)
     rg.add_arc((10.0,), 0, 2, cost=10.0)
 
-    # Enum values: Algorithm.Simple, Algorithm.Pulling, Algorithm.Greedy
+    # Enum values: Algorithm.Simple, Algorithm.Pushing, Algorithm.Pulling, Algorithm.Greedy
     sols_simple = rg.solve(Algorithm.Simple)
+    sols_pushing = rg.solve(Algorithm.Pushing)
     sols_pulling = rg.solve(Algorithm.Pulling)
     sols_greedy = rg.solve(Algorithm.Greedy)
     # String aliases are also accepted for convenience
     sols_str = rg.solve("simple")
 
     print_solutions("Algorithm.Simple", sols_simple)
+    print_solutions("Algorithm.Pushing", sols_pushing)
     print_solutions("Algorithm.Pulling", sols_pulling)
     print_solutions("Algorithm.Greedy", sols_greedy)
 
@@ -225,35 +229,6 @@ def example_algorithm_params():
     sols_one = rg.solve(Algorithm.Simple, params=params)
     print_solutions("stop_after_X_solutions=1", sols_one)
     assert len(sols_one) == 1, f"Expected exactly 1 solution, got {len(sols_one)}"
-
-
-# ── Example 6: UIntResource (unsigned integer distance, min ≤ 3 hops) ────────
-
-
-def example_uint_resource():
-    """4-node graph with one unsigned-int resource (hop count ≤ 3)."""
-    rg = ResourceGraph()
-    rg.add_uint_resource(
-        AdditionExtensionFunction(),
-        MinMaxFeasibilityFunction(0, 3),
-        ValueCostFunction(),
-        ValueDominanceFunction(),
-    )
-    rg.add_node(0, source=True)
-    rg.add_node(1)
-    rg.add_node(2)
-    rg.add_node(3, sink=True)
-
-    rg.add_arc((1,), 0, 1)
-    rg.add_arc((1,), 0, 2)
-    rg.add_arc((1,), 1, 3)
-    rg.add_arc((1,), 2, 3)
-    rg.add_arc((1,), 1, 2)  # 0→1→2→3 costs 3 hops — still feasible
-
-    sols = rg.solve()
-    print_solutions("uint-resource", sols)
-    assert len(sols) >= 1, "Expected at least one solution"
-    assert sols[0].cost <= 3.0, f"Expected cost ≤ 3, got {sols[0].cost}"
 
 
 # ── Example 7: SetResource (forbidden-node tracking via set union) ────────────
@@ -308,7 +283,7 @@ def example_bitset_resource():
         ValueDominanceFunction(),
     )
     # uint_bitset resource 1: forbidden-node set, at most 2 distinct nodes
-    rg.add_uint_bitset_resource(
+    rg.add_bitset_resource(
         UnionExtensionFunction(),
         SizeFeasibilityFunction(0, 2),  # allow at most 2 distinct nodes in the set
         TrivialCostFunction(),
@@ -468,7 +443,7 @@ def example_sigint_handler():
     # ContainDominanceFunction: A dominates B only if A.set ⊇ B.set.
     # Each arc carries a unique bit → all partial paths have incomparable
     # bitsets → no pruning → exponential label count → long solve.
-    rg.add_uint_bitset_resource(
+    rg.add_bitset_resource(
         UnionExtensionFunction(),
         TrivialFeasibilityFunction(),
         TrivialCostFunction(),
@@ -515,7 +490,7 @@ def example_sigint_handler():
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    set_log_level(LogLevel.Info)
+    set_log_level(LogLevel.Debug)
     print("=" * 60)
     print("Example 1: single RealResource")
     print("=" * 60)
@@ -540,11 +515,6 @@ if __name__ == "__main__":
     print("Example 5: AlgorithmParams customization")
     print("=" * 60)
     example_algorithm_params()
-
-    print("\n" + "=" * 60)
-    print("Example 6: UIntResource")
-    print("=" * 60)
-    example_uint_resource()
 
     print("\n" + "=" * 60)
     print("Example 7: SetResource (int_set)")
