@@ -10,27 +10,44 @@
 // Declared extern in graph_impl.hpp; defined here (one TU owns the storage).
 std::atomic<bool> g_py_interrupted{false};
 std::atomic<int> g_active_calls{0};
+
+#ifndef _WIN32
 static struct sigaction g_old_sigint_sa{};
+#else
+// POSIX sigaction is unavailable on Windows; store the handler returned by signal().
+static void (*g_old_sigint_handler)(int) = SIG_DFL;
+#endif
 
 static void py_sigint_handler(int sig) {
     g_py_interrupted.store(true, std::memory_order_relaxed);
     // Forward to Python's handler only when no C++ call is active; otherwise
     // the binding raises KeyboardInterrupt itself after re-acquiring the GIL.
     if (g_active_calls.load(std::memory_order_relaxed) == 0) {
+#ifndef _WIN32
         auto* h = g_old_sigint_sa.sa_handler;
         if (h != nullptr && h != SIG_DFL && h != SIG_IGN) {
             h(sig);
         }
+#else
+        if (g_old_sigint_handler != SIG_DFL && g_old_sigint_handler != SIG_IGN &&
+            g_old_sigint_handler != SIG_ERR) {
+            g_old_sigint_handler(sig);
+        }
+#endif
     }
 }
 
 // Called once from PYBIND11_MODULE (main thread) to install the handler.
 void init_sigint_handler() {
-    struct sigaction new_sa{};
+#ifndef _WIN32
+    struct sigaction new_sa{};  // NOLINT
     new_sa.sa_handler = py_sigint_handler;
     sigemptyset(&new_sa.sa_mask);
     new_sa.sa_flags = 0;  // no SA_RESTART — let the signal interrupt blocking calls
     sigaction(SIGINT, &new_sa, &g_old_sigint_sa);
+#else
+    g_old_sigint_handler = signal(SIGINT, py_sigint_handler);
+#endif
 }
 
 // ─── Concrete type aliases ────────────────────────────────────────────────────
