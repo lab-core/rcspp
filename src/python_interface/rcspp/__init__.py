@@ -7,20 +7,27 @@
 # into sys.modules so the subsequent relative import (from . import _core) works.
 
 import glob as _glob
+import importlib.machinery as _impmach
 import importlib.util as _imputil
 import os as _os
 import sys as _sys
 
 _pkg_dir = _os.path.dirname(_os.path.abspath(__file__))
 
-if not _glob.glob(_os.path.join(_pkg_dir, "_core*")):
+if not [
+    f for f in _glob.glob(_os.path.join(_pkg_dir, "_core*"))
+    if _os.path.splitext(f)[1] in _impmach.EXTENSION_SUFFIXES
+]:
     _root = _pkg_dir
     _found = False
     for _ in range(6):
         _root = _os.path.dirname(_root)
         for _build in ("cmake-build-release", "cmake-build-debug", "build", "out"):
             _candidate = _os.path.join(_root, _build, "src", "python_interface", "rcspp")
-            _hits = _glob.glob(_os.path.join(_candidate, "_core*"))
+            _hits = [
+                f for f in _glob.glob(_os.path.join(_candidate, "_core*"))
+                if _os.path.splitext(f)[1] in _impmach.EXTENSION_SUFFIXES
+            ]
             if _hits:
                 # Pre-register the extension in sys.modules before relative imports run.
                 _spec = _imputil.spec_from_file_location("rcspp._core", _hits[0])
@@ -34,7 +41,7 @@ if not _glob.glob(_os.path.join(_pkg_dir, "_core*")):
         if _found:
             break
 
-del _glob, _imputil, _os, _sys, _pkg_dir
+del _glob, _impmach, _imputil, _os, _sys, _pkg_dir
 
 from . import graph, logger, resource  # noqa: E402
 from ._core.graph import check_interrupted  # noqa: E402
