@@ -120,9 +120,9 @@ class ResourceGraph:
         # The first registered resource must be a cost resource (real or int).
         if not full_reg_order:
             raise ValueError("At least one resource must be registered before using the graph.")
-        if full_reg_order[0] not in ("real", "int"):
+        if full_reg_order[0] != "real":
             raise ValueError(
-                f"The first registered resource must be a cost resource ('real' or 'int'), "
+                f"The first registered resource must be a real resource for the cost, "
                 f"got {full_reg_order[0]!r}. Register a real or int resource before any other type."
             )
 

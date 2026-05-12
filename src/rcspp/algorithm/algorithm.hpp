@@ -4,10 +4,10 @@
 #pragma once
 
 #include <algorithm>
-#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <list>
@@ -80,8 +80,8 @@ struct AlgorithmParams {
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
 
-        // pointer to an external flag; if set to true the algorithm will stop early (e.g. SIGINT)
-        std::atomic<bool>* interrupted = nullptr;
+        // callable returning true if the algorithm should stop early (e.g. SIGINT)
+        std::function<bool()> should_stop;
 
         // for tabu search algorithms
         size_t tabu_tenure = 5;  // NOLINT
@@ -197,8 +197,7 @@ class Algorithm {
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
 
         [[nodiscard]] bool is_interrupted() const {
-            return params_.interrupted != nullptr &&
-                   params_.interrupted->load(std::memory_order_relaxed);
+            return params_.should_stop && params_.should_stop();
         }
 
     protected:

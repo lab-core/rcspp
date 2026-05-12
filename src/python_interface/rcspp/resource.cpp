@@ -98,31 +98,27 @@ void init_resource(py::module_& m) {
     // ── Real-only: time-window functions ──────────────────────────────────────
     // These use node-ID maps; not generalisable to other numeric types.
 
-    static std::map<size_t, double> g_min_time_window_by_node_id;
-
     py::class_<TimeWindowExtensionFunction<RealResource>,
                ExtensionFunction<RealResource>,
                py::smart_holder>(m, "TimeWindowExtensionFunction")
         .def(py::init([](const py::dict& min_tw_by_node) {
-                 g_min_time_window_by_node_id.clear();
+                 std::map<size_t, double> map;
                  for (const auto& [k, v] : min_tw_by_node) {
-                     g_min_time_window_by_node_id.emplace(k.cast<size_t>(), v.cast<double>());
+                     map.emplace(k.cast<size_t>(), v.cast<double>());
                  }
-                 return TimeWindowExtensionFunction<RealResource>(&g_min_time_window_by_node_id);
+                 return TimeWindowExtensionFunction<RealResource>(std::move(map));
              }),
              py::arg("min_time_window_by_node_id"));
-
-    static std::map<size_t, double> g_max_time_window_by_node_id;
 
     py::class_<TimeWindowFeasibilityFunction<RealResource>,
                FeasibilityFunction<RealResource>,
                py::smart_holder>(m, "TimeWindowFeasibilityFunction")
         .def(py::init([](const py::dict& max_tw_by_node) {
-                 g_max_time_window_by_node_id.clear();
+                 std::map<size_t, double> map;
                  for (const auto& [k, v] : max_tw_by_node) {
-                     g_max_time_window_by_node_id.emplace(k.cast<size_t>(), v.cast<double>());
+                     map.emplace(k.cast<size_t>(), v.cast<double>());
                  }
-                 return TimeWindowFeasibilityFunction<RealResource>(&g_max_time_window_by_node_id);
+                 return TimeWindowFeasibilityFunction<RealResource>(std::move(map));
              }),
              py::arg("max_time_window_by_node_id"));
 

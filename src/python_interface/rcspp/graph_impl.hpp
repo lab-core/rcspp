@@ -30,29 +30,47 @@ extern std::atomic<int> g_active_calls;
 // ─── run_interruptible ────────────────────────────────────────────────────────
 // Releases the GIL, calls f(), re-acquires the GIL, then raises KeyboardInterrupt
 // if g_py_interrupted was set during the call.  Handles both void and non-void callables.
-template <typename F>
-auto run_interruptible(F&& f) {
-    auto check = [] {
-        if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
-            PyErr_SetNone(PyExc_KeyboardInterrupt);
-            throw py::error_already_set();
+class ActiveCall {
+    private:
+        struct ActiveCallGuard {
+                ActiveCallGuard() { g_active_calls.fetch_add(1, std::memory_order_relaxed); }
+                ~ActiveCallGuard() {
+                    g_active_calls.fetch_sub(1, std::memory_order_relaxed);
+                    check_if_throw_error();
+                }
+                ActiveCallGuard(const ActiveCallGuard&) = delete;
+                ActiveCallGuard& operator=(const ActiveCallGuard&) = delete;
+        };
+
+    public:
+        static bool any_active() { return g_active_calls.load(std::memory_order_relaxed) > 0; }
+
+        template <typename F>
+        static auto run_interruptible(F&& f) {
+            ActiveCallGuard guard;
+            if constexpr (std::is_void_v<std::invoke_result_t<F>>) {
+                {
+                    py::gil_scoped_release release;
+                    std::forward<F>(f)();
+                }
+            } else {
+                auto result = [&] {
+                    py::gil_scoped_release release;
+                    return std::forward<F>(f)();
+                }();
+                return result;
+            }
         }
-    };
-    if constexpr (std::is_void_v<std::invoke_result_t<F>>) {
-        {
-            py::gil_scoped_release release;
-            std::forward<F>(f)();
+
+        static void mark_interrupted() { g_py_interrupted.store(true, std::memory_order_relaxed); }
+
+        static void check_if_throw_error() {
+            if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
+                PyErr_SetNone(PyExc_KeyboardInterrupt);
+                throw py::error_already_set();
+            }
         }
-        check();
-    } else {
-        auto result = [&] {
-            py::gil_scoped_release release;
-            return std::forward<F>(f)();
-        }();
-        check();
-        return result;
-    }
-}
+};
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
@@ -88,17 +106,14 @@ std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, doubl
 template <typename RG, typename CostRC>
 std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
                                          bool pre, int ci) {
-    p.interrupted = &g_py_interrupted;
-    g_active_calls.fetch_add(1, std::memory_order_relaxed);
-    auto result = dispatch_algorithm_impl<RG, CostRC>(alg,
-                                                      rg,
-                                                      ub,
-                                                      p,
-                                                      pre,
-                                                      ci,
-                                                      static_cast<AlgorithmTable*>(nullptr));
-    g_active_calls.fetch_sub(1, std::memory_order_relaxed);
-    return result;
+    // p.should_stop = [] { return g_py_interrupted.load(std::memory_order_relaxed); };
+    return dispatch_algorithm_impl<RG, CostRC>(alg,
+                                               rg,
+                                               ub,
+                                               p,
+                                               pre,
+                                               ci,
+                                               static_cast<AlgorithmTable*>(nullptr));
 }
 
 // ─── Resource type → pybind11 method name ────────────────────────────────────
@@ -179,7 +194,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             "solve",
             [](RG& rg, SolverAlgorithm alg, double ub, AlgorithmParams p, bool pre, int ci)
                 -> std::vector<Solution> {
-                return run_interruptible(
+                return ActiveCall::run_interruptible(
                     [&] { return dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci); });
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
@@ -188,11 +203,11 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def("process_feasibility",
-             [](RG& rg) { run_interruptible([&] { rg.process_feasibility(); }); })
+             [](RG& rg) { ActiveCall::run_interruptible([&] { rg.process_feasibility(); }); })
         .def(
             "is_connected",
             [](RG& rg, size_t o, size_t d) {
-                return run_interruptible([&] { return rg.is_connected(o, d); });
+                return ActiveCall::run_interruptible([&] { return rg.is_connected(o, d); });
             },
             py::arg("origin_node_id"),
             py::arg("destination_node_id"));
@@ -248,7 +263,7 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
         rg.def(
             "update_reduced_costs",
             [](RG& rg, const std::vector<double>& duals, size_t cost_index) {
-                run_interruptible(
+                ActiveCall::run_interruptible(
                     [&] { rg.template update_reduced_costs<RealResource>(duals, cost_index); });
             },
             py::arg("duals"),

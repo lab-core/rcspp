@@ -19,10 +19,10 @@ static void (*g_old_sigint_handler)(int) = SIG_DFL;
 #endif
 
 static void py_sigint_handler(int sig) {
-    g_py_interrupted.store(true, std::memory_order_relaxed);
+    ActiveCall::mark_interrupted();
     // Forward to Python's handler only when no C++ call is active; otherwise
     // the binding raises KeyboardInterrupt itself after re-acquiring the GIL.
-    if (g_active_calls.load(std::memory_order_relaxed) == 0) {
+    if (!ActiveCall::any_active()) {
 #ifndef _WIN32
         auto* h = g_old_sigint_sa.sa_handler;
         if (h != nullptr && h != SIG_DFL && h != SIG_IGN) {
@@ -41,10 +41,7 @@ static void py_sigint_handler(int sig) {
 // KeyboardInterrupt if a SIGINT was received since the last solve() call.
 // Also processes any pending Python signals via PyErr_CheckSignals.
 void py_check_interrupted() {
-    if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
-        PyErr_SetNone(PyExc_KeyboardInterrupt);
-        throw py::error_already_set();
-    }
+    ActiveCall::check_if_throw_error();
     if (PyErr_CheckSignals() != 0) {
         throw py::error_already_set();
     }
@@ -178,11 +175,6 @@ void init_graph(py::module_& m) {
         rg.def(py::init<>());
         bind_resource_graph_impl<RealRG, RealRC, RealResource>(rg);
     }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // Single-resource graphs (generated via X-macro; RealResource bound above)
-    // ══════════════════════════════════════════════════════════════════════════
-    BIND_SINGLE_NUMERICAL_RG(int, int, IntResource)
 
     // ══════════════════════════════════════════════════════════════════════════
     // Mixed-resource graphs — split across graph_mix2.cpp and graph_mix3.cpp
