@@ -34,16 +34,27 @@ target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp)
 # Find all .py files in rcspp (recursively)
 file(GLOB_RECURSE PYTHON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.py")
 
+# Build per-file copy rules with explicit OUTPUT so CMake re-copies whenever a
+# .py file changes, without requiring the C++ extension to rebuild.
+set(PYTHON_COPY_OUTPUTS "")
 foreach(PY_FILE IN LISTS PYTHON_SOURCES)
   file(RELATIVE_PATH REL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/rcspp" "${PY_FILE}")
   get_filename_component(REL_DIR "${REL_PATH}" DIRECTORY)
+  set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_PATH}")
+  list(APPEND PYTHON_COPY_OUTPUTS "${OUT_FILE}")
 
   add_custom_command(
-    TARGET ${PYTHON_EXTENSION_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PYTHON_EXTENSION_NAME}>/${REL_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PY_FILE}" "$<TARGET_FILE_DIR:${PYTHON_EXTENSION_NAME}>/${REL_PATH}"
+    OUTPUT "${OUT_FILE}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PY_FILE}" "${OUT_FILE}"
+    DEPENDS "${PY_FILE}"
+    COMMENT "Copying ${REL_PATH} to build tree"
   )
 endforeach()
+
+# Dedicated target that drives all .py copies; rebuilds only when sources change.
+add_custom_target(copy_python_sources ALL DEPENDS ${PYTHON_COPY_OUTPUTS})
+add_dependencies(${PYTHON_EXTENSION_NAME} copy_python_sources)
 
 # Copy the core shared library next to the extension for local runs on platforms
 # where the Python extension depends on the rcspp shared library.
