@@ -10,6 +10,7 @@
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 

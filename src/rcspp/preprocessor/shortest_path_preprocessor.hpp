@@ -11,6 +11,7 @@
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
 #include "rcspp/preprocessor/preprocessor.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
