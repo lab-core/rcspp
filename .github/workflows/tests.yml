@@ -55,7 +55,7 @@ jobs:
         run: |
           mkdir -p $BUILD_DIR
           cd $BUILD_DIR
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_PYTHON=ON ..
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
@@ -63,7 +63,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path $env:BUILD_DIR | Out-Null
           Push-Location $env:BUILD_DIR
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_PYTHON=ON ..
           Pop-Location
 
       - name: Build (Linux/macOS)
