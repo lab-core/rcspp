@@ -478,6 +478,10 @@ def example_sigint_handler():
         except KeyboardInterrupt:
             raised = True
 
+    if not hasattr(signal, "pthread_kill"):
+        # signal.pthread_kill is a POSIX-only API; skip on Windows.
+        return
+
     t = threading.Thread(target=run_solve, daemon=True)
     t.start()
     thread_started.wait()  # ensure tid is captured before we use it
