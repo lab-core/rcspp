@@ -21,7 +21,7 @@ class ShortestPathConnectivitySort {
         };
 
     public:
-        explicit ShortestPathConnectivitySort(
+        explicit ShortestPathConnectivitySort(  // NOLINT
             Graph<ResourceComposition<ResourceTypes...>>* graph,
             ConnectivityMatrix<ResourceComposition<ResourceTypes...>>* cm,
             std::optional<size_t> cost_index = std::nullopt) {  // use default cost if nullopt

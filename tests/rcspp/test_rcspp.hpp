@@ -42,7 +42,6 @@ bool test_rcspp() {
     std::string root_dir = file_parent_dir(__FILE__, 3);
   std::string instance_path = root_dir+"/instances/" + instance_name + ".txt";
 
-  LOG_INFO("Instance: ", instance_path, '\n');
   InstanceReader instance_reader(instance_path);
   auto instance = instance_reader.read();
 
@@ -81,7 +80,6 @@ bool test_rcspp_non_integer_dual_row_coef() {
     std::string root_dir = file_parent_dir(__FILE__, 3);
     std::string instance_path = root_dir+"/instances/" + instance_name + ".txt";
 
-    LOG_INFO("Instance: ", instance_path, '\n');
     InstanceReader instance_reader(instance_path);
     auto instance = instance_reader.read();
 

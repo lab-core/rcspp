@@ -212,56 +212,35 @@ class LabelBuckets : public LabelList<ResourceType> {
                     break;
                 }
                 // check if the labels can be dominated in the bucket
-                auto original_begin = bucket.begin;
-                auto non_dominated_label_it = bucket.end;
-                auto new_begin = bucket.end;
+                auto current_label_it = bucket.end;
                 bool reached_begin = false;
-                bool begin_erased = false;
-                auto replacement_begin = bucket.end;
                 while (!reached_begin) {
                     ++num_visited_labels_;
-                    --non_dominated_label_it;
-                    auto current = non_dominated_label_it;
-                    reached_begin = (current == original_begin);
-                    if (&label != *current && label <= **current) {
-                        // remove the dominated label
-                        (*current)->dominated = true;
-                        bool current_is_begin = (current == original_begin);
-                        auto next_it = this->labels_.erase(current);
-                        if (current_is_begin) {
-                            begin_erased = true;
-                            replacement_begin = next_it;
+                    --current_label_it;
+                    reached_begin = (current_label_it == bucket.begin);
+                    auto current = *current_label_it;
+                    if (&label != current && label <= *current) {
+                        // remove the dominated current label
+                        current->dominated = true;
+                        current_label_it = this->labels_.erase(current_label_it);
+                        // if this is the first label of the bucket, update the bucket
+                        if (reached_begin) {
+                            if (current_label_it == bucket.end) {
+                                // all labels in the bucket are dominated, we can remove the bucket
+                                bit = remove_bucket(bit);
+                            } else {
+                                // update the begin
+                                update_bucket_begin(bit, current_label_it);
+                            }
                         }
-                        non_dominated_label_it = next_it;
                         ++removed;
-                    } else {
+                    } else if (!(label_sort_resource <= get_sort_resource(*current))) {
                         // if not dominated, check if we can stop by comparing the sort resource of
                         // the current label with the label to remove. If the current label sort
                         // resource does not dominate the label sort resource, we can stop as the
                         // following labels in the bucket are sorted by the sort resource and cannot
                         // be dominated.
-                        if (!(label_sort_resource <= get_sort_resource(**current))) {
-                            // not modified as breaking before reaching begin or erasing the bucket
-                            new_begin = original_begin;
-                            break;
-                        }
-                        new_begin = current;  // update begin flag of the bucket
-                    }
-                }
-
-                // update or erase the bucket if necessary
-                if (begin_erased) {
-                    if (replacement_begin == bucket.end) {
-                        bit = remove_bucket(bit);
-                    } else {
-                        update_bucket_begin(bit, replacement_begin);
-                    }
-                } else if (new_begin != original_begin) {
-                    if (new_begin == bucket.end) {
-                        // all labels in the bucket are dominated, we can remove the bucket
-                        bit = remove_bucket(bit);
-                    } else {
-                        update_bucket_begin(bit, new_begin);
+                        break;
                     }
                 }
             }
