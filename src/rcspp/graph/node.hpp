@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
