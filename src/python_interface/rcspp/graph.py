@@ -77,6 +77,7 @@ class ResourceGraph:
 
     def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
+        self._refs: list = []  # keep Python wrappers alive against GC
         self._graph = None  # actual C++ object, created lazily
         # Set after _ensure_graph():
         #   _graph_canonical    – full slot tuple of the chosen C++ class (canonical order)
@@ -153,6 +154,7 @@ class ResourceGraph:
         for r_type, ext, feas, cost, dom in self._pending:
             cpp_name = CPP_NAME.get(r_type, r_type)
             getattr(self._graph, f"add_{cpp_name}_resource")(ext, feas, cost, dom)
+            self._refs.extend([ext, feas, cost, dom])
         self._pending.clear()
 
     # ── Explicit forwarding for common operations ─────────────────────────────
@@ -211,6 +213,20 @@ class ResourceGraph:
     def get_node(self, node_id):
         self._ensure_graph()
         return self._graph.get_node(node_id)
+
+    def sort_nodes(self, comp=None):
+        """Sort graph nodes in place.
+
+        Args:
+            comp: Optional callable ``(node1, node2) -> bool`` returning True when
+                *node1* should come before *node2*.  When omitted, nodes are sorted
+                by ascending ``node.id``.
+        """
+        self._ensure_graph()
+        if comp is None:
+            self._graph.sort_nodes()
+        else:
+            self._graph.sort_nodes(comp)
 
     # ── Algorithm dispatch ────────────────────────────────────────────────────
 

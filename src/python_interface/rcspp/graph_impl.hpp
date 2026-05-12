@@ -106,7 +106,7 @@ std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, doubl
 template <typename RG, typename CostRC>
 std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
                                          bool pre, int ci) {
-    // p.should_stop = [] { return g_py_interrupted.load(std::memory_order_relaxed); };
+    p.should_stop = [] { return g_py_interrupted.load(std::memory_order_relaxed); };
     return dispatch_algorithm_impl<RG, CostRC>(alg,
                                                rg,
                                                ub,
@@ -172,7 +172,16 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
         .def("is_sink", &G::is_sink, py::arg("node_id"))
         .def("to_string", &G::to_string, py::arg("print_arcs") = false)
         .def("__str__", [](const G& g) { return g.to_string(); })
-        .def("__repr__", [](const G& g) { return g.to_string(); });
+        .def("__repr__", [](const G& g) { return g.to_string(); })
+        .def("sort_nodes", [](G& g) { g.sort_nodes(); })
+        .def(
+            "sort_nodes",
+            [](G& g, py::function comp) {
+                g.sort_nodes([comp](const auto* n1, const auto* n2) -> bool {
+                    return py::cast<bool>(comp(n1, n2));
+                });
+            },
+            py::arg("comp"));
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────

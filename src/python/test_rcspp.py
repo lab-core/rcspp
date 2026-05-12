@@ -17,19 +17,24 @@ from rcspp import LogLevel, set_log_level
 from rcspp.graph import Algorithm, AlgorithmParams, ResourceGraph
 from rcspp.resource import (  # Generic (type-unspecialized) wrappers — resolved to the right C++ template; automatically by add_real_resource / add_int_resource / add_real_set_resource / etc.; Real-resource–only functions
     AdditionExtensionFunction,
+    AdditionExtensionFunction_real,
     ContainDominanceFunction,
     InclusionDominanceFunction,
     IntersectionExtensionFunction,
     MinMaxFeasibilityFunction,
+    MinMaxFeasibilityFunction_real,
     SizeFeasibilityFunction,
     SubtractExtensionFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
     TrivialCostFunction,
     TrivialFeasibilityFunction,
+    TrivialFeasibilityFunction_real,
     UnionExtensionFunction,
     ValueCostFunction,
+    ValueCostFunction_real,
     ValueDominanceFunction,
+    ValueDominanceFunction_real,
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -73,18 +78,27 @@ def example_real_resource():
     assert math.isclose(sols[0].cost, 25.0, abs_tol=1e-6), f"Expected cost 25, got {sols[0].cost}"
 
 
-# ── Example 2: single IntResource (hop count minimization) ───────────────────
-# The integer resource IS the objective: minimize total hops.
-# A 3-hop path that exceeds the budget of 2 is infeasible.
+# ── Example 2: Real (cost) + IntResource (hop constraint) ────────────────────
+# Real resource 0 counts hops (1.0 per arc) and is the optimisation objective.
+# Int resource 1 also counts hops and enforces the feasibility budget of ≤ 2.
+# A 3-hop path exceeds the int budget and is pruned.
 
 
 def example_int_resource():
-    """4-node graph: minimize hops (int resource), budget ≤ 2."""
+    """4-node graph: minimize hops (real cost), hop count constrained by int resource (≤ 2)."""
     rg = ResourceGraph()
+    # Real resource 0: cost (1.0 per arc = hop count), must always be registered first.
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    # Int resource 1: hop count ≤ 2 (feasibility constraint only)
     rg.add_int_resource(
         AdditionExtensionFunction(),
-        MinMaxFeasibilityFunction(0, 2),  # ≤ 2 hops
-        ValueCostFunction(),  # cost = accumulated hops
+        MinMaxFeasibilityFunction(0, 2),
+        TrivialCostFunction(),
         ValueDominanceFunction(),
     )
     rg.add_node(0, source=True)
@@ -92,16 +106,16 @@ def example_int_resource():
     rg.add_node(2)
     rg.add_node(3, sink=True)
 
-    rg.add_arc((1,), 0, 1)
-    rg.add_arc((1,), 0, 2)
-    rg.add_arc((1,), 1, 3)
-    rg.add_arc((1,), 2, 3)
-    rg.add_arc((1,), 1, 2)  # 0→1→2→3 would be 3 hops → infeasible
+    rg.add_arc((1.0, 1), 0, 1, cost=1.0)
+    rg.add_arc((1.0, 1), 0, 2, cost=1.0)
+    rg.add_arc((1.0, 1), 1, 3, cost=1.0)
+    rg.add_arc((1.0, 1), 2, 3, cost=1.0)
+    rg.add_arc((1.0, 1), 1, 2, cost=1.0)  # 0→1→2→3 would be 3 hops → infeasible
 
     sols = rg.solve()
     print_solutions("int-resource", sols)
     assert len(sols) >= 1, "Expected at least one solution"
-    # Both direct paths (0→1→3, 0→2→3) cost 2 hops; the 3-hop path is pruned.
+    # Both direct paths (0→1→3, 0→2→3) cost 2.0; the 3-hop path is pruned.
     assert math.isclose(sols[0].cost, 2.0, abs_tol=1e-6), f"Expected cost 2, got {sols[0].cost}"
 
 
@@ -229,6 +243,60 @@ def example_algorithm_params():
     sols_one = rg.solve(Algorithm.Simple, params=params)
     print_solutions("stop_after_X_solutions=1", sols_one)
     assert len(sols_one) == 1, f"Expected exactly 1 solution, got {len(sols_one)}"
+
+
+# ── Example 6: sort_nodes ─────────────────────────────────────────────────────
+# sort_nodes() reorders the internal node processing sequence used by the
+# labelling algorithms.  Calling it before solve() overrides the default
+# shortest-path connectivity sort done by preprocessing.
+# A custom comparator ``(n1, n2) -> bool`` returns True when n1 should come
+# before n2 (same contract as C++ std::sort comparators).
+
+
+def example_sort_nodes():
+    """Demonstrate sort_nodes with default and custom comparator."""
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    # Add nodes in non-sequential order to make the sort non-trivial.
+    rg.add_node(3, sink=True)
+    rg.add_node(1)
+    rg.add_node(0, source=True)
+    rg.add_node(2)
+
+    rg.add_arc((1.0,), 0, 1, cost=1.0)
+    rg.add_arc((2.0,), 1, 2, cost=2.0)
+    rg.add_arc((3.0,), 2, 3, cost=3.0)
+    rg.add_arc((8.0,), 0, 3, cost=8.0)  # longer direct path
+
+    # ── Default sort: ascending node.id ──────────────────────────────────────
+    rg.sort_nodes()
+    for node_id in [0, 1, 2, 3]:
+        pos = rg.get_node(node_id).pos()
+        assert pos == node_id, f"Default sort: expected node {node_id} at pos {node_id}, got {pos}"
+
+    # ── Custom comparator: descending id ─────────────────────────────────────
+    rg.sort_nodes(lambda n1, n2: n1.id > n2.id)
+    for node_id in [0, 1, 2, 3]:
+        expected_pos = 3 - node_id  # id=3 → pos=0, id=0 → pos=3
+        pos = rg.get_node(node_id).pos()
+        assert (
+            pos == expected_pos
+        ), f"Custom sort: expected node {node_id} at pos {expected_pos}, got {pos}"
+    print(f"  Node positions after descending sort: {[rg.get_node(i).pos() for i in range(4)]}")
+
+    # Restore a sensible order and verify that solve() still finds the optimal path.
+    rg.sort_nodes()
+    sols = rg.solve(preprocess=False)  # skip preprocessing to keep the manual sort
+    print_solutions("sort-nodes", sols)
+    assert len(sols) >= 1, "Expected at least one solution after sort_nodes"
+    assert math.isclose(
+        sols[0].cost, 6.0, abs_tol=1e-6
+    ), f"Expected optimal cost 6.0 (0→1→2→3), got {sols[0].cost}"
 
 
 # ── Example 7: SetResource (forbidden-node tracking via set union) ────────────
@@ -492,6 +560,128 @@ def example_sigint_handler():
     assert raised, "Expected KeyboardInterrupt from SIGINT during solve()"
 
 
+# ── Example 13: resource refs survive GC ─────────────────────────────────────
+# When function objects are created in a helper and only passed to the graph
+# (no user-held reference afterwards), the Python GC must not collect them
+# while the ResourceGraph is alive.  ResourceGraph._refs is the safety net.
+#
+# The test uses the typed C++ classes (e.g. AdditionExtensionFunction_real)
+# rather than the generic Python descriptors so that we can take weakrefs to
+# the exact objects that end up stored inside the C++ graph.
+
+
+def test_resource_refs_survive_gc():
+    """Two-part GC safety test for resource function objects.
+
+    Part A — C++ wrapper objects (AdditionExtensionFunction_real etc.) must stay alive
+    while the ResourceGraph is alive, because the C++ internals may call clone() on them
+    at any time.  ResourceGraph._refs is the safety net.
+
+    Part B — Time-window maps passed as Python dicts must be COPIED into the C++
+    OwnedTimeWindowExtFn / OwnedTimeWindowFeasFn objects.  After the helper returns and
+    GC runs, the Python dicts should be collectable (C++ no longer holds a reference to
+    them), and the graph must still solve correctly.
+    """
+    import gc
+    import weakref
+
+    # ── Part A: wrapper objects stay alive via _refs ──────────────────────────
+
+    weak_refs: dict[str, weakref.ref] = {}
+
+    def build_graph_a():
+        """Wrapper objects created here; only the graph is returned."""
+        rg = ResourceGraph()
+        ext = AdditionExtensionFunction_real()
+        feas = MinMaxFeasibilityFunction_real(0.0, 50.0)
+        cost = ValueCostFunction_real()
+        dom = ValueDominanceFunction_real()
+        weak_refs["ext"] = weakref.ref(ext)
+        weak_refs["feas"] = weakref.ref(feas)
+        weak_refs["cost"] = weakref.ref(cost)
+        weak_refs["dom"] = weakref.ref(dom)
+        rg.add_real_resource(ext, feas, cost, dom)
+        rg.add_node(0, source=True)
+        rg.add_node(1, sink=True)
+        rg.add_arc(5.0, 0, 1, cost=5.0)
+        return rg  # ext / feas / cost / dom leave scope here
+
+    rg_a = build_graph_a()
+    gc.collect()
+    gc.collect()
+
+    for name, ref in weak_refs.items():
+        assert ref() is not None, (
+            f"'{name}' was garbage collected while the ResourceGraph is still alive. "
+            "ResourceGraph._refs must keep resource function wrappers live."
+        )
+
+    sols = rg_a.solve()
+    assert len(sols) == 1 and math.isclose(sols[0].cost, 5.0, abs_tol=1e-6)
+
+    del rg_a
+    gc.collect()
+    gc.collect()
+    for name, ref in weak_refs.items():
+        assert ref() is None, f"'{name}' should be collectable after the ResourceGraph is deleted."
+
+    # ── Part B: time-window dicts are copied by C++, not held by reference ───
+    # Plain dicts don't support weakref, so use a subclass that does.
+
+    class TrackedDict(dict):
+        pass
+
+    tw_refs: dict[str, weakref.ref] = {}
+
+    def build_graph_b():
+        """Time-window maps created here; only the graph is returned."""
+        min_tw = TrackedDict({1: 5.0, 2: 0.0})
+        max_tw = TrackedDict({1: 20.0, 2: 30.0})
+        tw_refs["min_tw"] = weakref.ref(min_tw)
+        tw_refs["max_tw"] = weakref.ref(max_tw)
+
+        rg = ResourceGraph()
+        rg.add_real_resource(
+            AdditionExtensionFunction(),
+            TrivialFeasibilityFunction(),
+            ValueCostFunction(),
+            ValueDominanceFunction(),
+        )
+        rg.add_real_resource(
+            TimeWindowExtensionFunction(min_tw),
+            TimeWindowFeasibilityFunction(max_tw),
+            ValueCostFunction(),
+            ValueDominanceFunction(),
+        )
+        rg.add_node(0, source=True)
+        rg.add_node(1)
+        rg.add_node(2, sink=True)
+        rg.add_arc((5.0, 8.0), 0, 1, cost=5.0)
+        rg.add_arc((10.0, 12.0), 0, 2, cost=10.0)
+        rg.add_arc((3.0, 15.0), 1, 2, cost=3.0)
+        return rg  # min_tw, max_tw leave scope here
+
+    rg_b = build_graph_b()
+
+    # Force collection — C++ owns copies of the maps, so the Python dicts should
+    # now be unreachable and collected.
+    gc.collect()
+    gc.collect()
+
+    for name, ref in tw_refs.items():
+        assert ref() is None, (
+            f"Python dict '{name}' is still alive after build_graph returned. "
+            "OwnedTimeWindowExtFn / OwnedTimeWindowFeasFn must copy the map, "
+            "not hold a reference to the Python dict."
+        )
+
+    # Functional check: graph must still solve correctly with its internal map copies.
+    # Optimal path is 0→1→2 (cost 5+3=8); direct 0→2 costs 10.
+    sols = rg_b.solve()
+    assert len(sols) >= 1
+    assert math.isclose(sols[0].cost, 8.0, abs_tol=1e-6)
+
+
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -502,7 +692,7 @@ if __name__ == "__main__":
     example_real_resource()
 
     print("\n" + "=" * 60)
-    print("Example 2: single IntResource")
+    print("Example 2: Real + IntResource (hop constraint)")
     print("=" * 60)
     example_int_resource()
 
@@ -520,6 +710,11 @@ if __name__ == "__main__":
     print("Example 5: AlgorithmParams customization")
     print("=" * 60)
     example_algorithm_params()
+
+    print("\n" + "=" * 60)
+    print("Example 6: sort_nodes")
+    print("=" * 60)
+    example_sort_nodes()
 
     print("\n" + "=" * 60)
     print("Example 7: SetResource (int_set)")
@@ -542,7 +737,12 @@ if __name__ == "__main__":
     example_advanced_params()
 
     print("\n" + "=" * 60)
-    print("Example 12: SIGINT handler")
+    print("Example 12: ref and garbage collector")
+    print("=" * 60)
+    test_resource_refs_survive_gc()
+
+    print("\n" + "=" * 60)
+    print("Example 13: SIGINT handler")
     print("=" * 60)
     example_sigint_handler()
     print("KeyboardInterrupt raised as expected.")

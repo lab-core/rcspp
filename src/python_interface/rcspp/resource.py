@@ -25,6 +25,16 @@ def _get_fn(fn_name: str, resource_type: str):
     return cls
 
 
+def _get_map_ref(resource_type: str):
+    """Look up a typed C++ class by resource type, raising TypeError if absent."""
+    cls = getattr(_ext.resource, f"MapRef_{resource_type}", None)
+    if cls is None:
+        raise TypeError(
+            f"MapRef_{resource_type} is not available for resource type {resource_type}"
+        )
+    return cls
+
+
 # ── Numerical + container: trivial ───────────────────────────────────────────
 
 
@@ -63,6 +73,24 @@ class MinMaxFeasibilityFunction(_GenericFunctionDescriptor):
 
     def create(self, resource_type: str):
         return _get_fn("MinMaxFeasibilityFunction", resource_type)(self.min_value, self.max_value)
+
+
+class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
+    def __init__(self, min_tw_by_node: dict):
+        self.min_tw_by_node = min_tw_by_node
+
+    def create(self, resource_type: str):
+        map = _get_map_ref(resource_type)(self.min_tw_by_node)
+        return _get_fn("TimeWindowExtensionFunction", resource_type)(map)
+
+
+class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
+    def __init__(self, max_tw_by_node: dict):
+        self.max_tw_by_node = max_tw_by_node
+
+    def create(self, resource_type: str):
+        map = _get_map_ref(resource_type)(self.max_tw_by_node)
+        return _get_fn("TimeWindowFeasibilityFunction", resource_type)(map)
 
 
 # ── Container only ────────────────────────────────────────────────────────────
@@ -112,6 +140,8 @@ _overridden = {
     "TrivialFeasibilityFunction",
     "TrivialCostFunction",
     "MinMaxFeasibilityFunction",
+    "TimeWindowExtensionFunction",
+    "TimeWindowFeasibilityFunction",
     "UnionExtensionFunction",
     "IntersectionExtensionFunction",
     "SubtractExtensionFunction",
