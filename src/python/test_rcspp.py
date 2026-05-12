@@ -433,6 +433,10 @@ def example_advanced_params():
 
 def example_sigint_handler():
     """Test that SIGINT during a long solve() raises KeyboardInterrupt."""
+    if not hasattr(signal, "pthread_kill"):
+        # signal.pthread_kill is a POSIX-only API; skip on Windows.
+        return
+
     rg = ResourceGraph()
     rg.add_real_resource(
         AdditionExtensionFunction(),
@@ -450,7 +454,7 @@ def example_sigint_handler():
         ContainDominanceFunction(),
     )
 
-    N = 200
+    N = 13
     for i in range(N):
         rg.add_node(i, source=(i == 0), sink=(i == N - 1))
 
@@ -478,13 +482,10 @@ def example_sigint_handler():
         except KeyboardInterrupt:
             raised = True
 
-    if not hasattr(signal, "pthread_kill"):
-        # signal.pthread_kill is a POSIX-only API; skip on Windows.
-        return
-
     t = threading.Thread(target=run_solve, daemon=True)
     t.start()
     thread_started.wait()  # ensure tid is captured before we use it
+    time.sleep(0.05)  # give solve() time to enter the C++ loop before firing
     signal.pthread_kill(solve_tid[0], signal.SIGINT)
     t.join(timeout=3.0)
 
