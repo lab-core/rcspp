@@ -12,6 +12,7 @@
 #include <atomic>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <tuple>
 
 #include "rcspp/rcspp.hpp"
@@ -34,10 +35,7 @@ class ActiveCall {
     private:
         struct ActiveCallGuard {
                 ActiveCallGuard() { g_active_calls.fetch_add(1, std::memory_order_relaxed); }
-                ~ActiveCallGuard() {
-                    g_active_calls.fetch_sub(1, std::memory_order_relaxed);
-                    check_if_throw_error();
-                }
+                ~ActiveCallGuard() { g_active_calls.fetch_sub(1, std::memory_order_relaxed); }
                 ActiveCallGuard(const ActiveCallGuard&) = delete;
                 ActiveCallGuard& operator=(const ActiveCallGuard&) = delete;
         };
@@ -45,20 +43,27 @@ class ActiveCall {
     public:
         static bool any_active() { return g_active_calls.load(std::memory_order_relaxed) > 0; }
 
+        static bool is_interrupted() { return g_py_interrupted.load(std::memory_order_relaxed); }
+
         template <typename F>
         static auto run_interruptible(F&& f) {
-            ActiveCallGuard guard;
-            if constexpr (std::is_void_v<std::invoke_result_t<F>>) {
+            using R = std::invoke_result_t<F>;
+            if constexpr (std::is_void_v<R>) {
                 {
+                    ActiveCallGuard guard;
                     py::gil_scoped_release release;
                     std::forward<F>(f)();
                 }
+                check_if_throw_error();
             } else {
-                auto result = [&] {
+                std::optional<R> result;
+                {
+                    ActiveCallGuard guard;
                     py::gil_scoped_release release;
-                    return std::forward<F>(f)();
-                }();
-                return result;
+                    result.emplace(std::forward<F>(f)());
+                }
+                check_if_throw_error();
+                return std::move(*result);
             }
         }
 
@@ -106,7 +111,9 @@ std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, doubl
 template <typename RG, typename CostRC>
 std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
                                          bool pre, int ci) {
-    p.should_stop = [] { return g_py_interrupted.load(std::memory_order_relaxed); };
+    // it's necessary to implement a function to retrieve from python if a signal has been received
+    // to stop
+    p.should_stop = &ActiveCall::is_interrupted;
     return dispatch_algorithm_impl<RG, CostRC>(alg,
                                                rg,
                                                ub,
@@ -211,15 +218,11 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             py::arg("params") = AlgorithmParams{},
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
-        .def("process_feasibility",
-             [](RG& rg) { ActiveCall::run_interruptible([&] { rg.process_feasibility(); }); })
-        .def(
-            "is_connected",
-            [](RG& rg, size_t o, size_t d) {
-                return ActiveCall::run_interruptible([&] { return rg.is_connected(o, d); });
-            },
-            py::arg("origin_node_id"),
-            py::arg("destination_node_id"));
+        .def("preprocess_feasibility", &RG::process_feasibility)
+        .def("is_connected",
+             &RG::is_connected,
+             py::arg("origin_node_id"),
+             py::arg("destination_node_id"));
 }
 
 // ─── Helper: bind one add_resource method ────────────────────────────────────
