@@ -74,7 +74,7 @@ def test_subproblem_zero_duals():
     """Subproblem with zero duals finds at least one feasible route."""
     inst = make_tiny_instance()
     vrp = VRP(inst)
-    sols = vrp.solve_subproblem({})
+    sols = vrp.solve_subproblem()
 
     assert len(sols) >= 1, "Expected at least one solution from the subproblem"
     sink = _sink_id(inst)
@@ -95,7 +95,7 @@ def test_subproblem_with_duals():
     inst = make_tiny_instance()
     vrp = VRP(inst)
 
-    sols_zero = vrp.solve_subproblem({})
+    sols_zero = vrp.solve_subproblem()
     assert sols_zero, "No solution with zero duals"
     cost_zero = sols_zero[0].cost
 
@@ -132,7 +132,7 @@ def test_time_window_infeasibility():
     )
 
     vrp = VRP(inst)
-    sols = vrp.solve_subproblem({})
+    sols = vrp.solve_subproblem()
 
     # No solution may visit customer 2 (due_time=0 makes it unreachable)
     for s in sols:
@@ -159,7 +159,7 @@ def test_capacity_feasibility():
     )
 
     vrp = VRP(inst)
-    sols = vrp.solve_subproblem({})
+    sols = vrp.solve_subproblem()
 
     assert sols, "Expected at least one solution"
     for s in sols:
@@ -184,7 +184,7 @@ def test_c101_5_subproblem():
     inst = InstanceReader(instance_path).read()
     vrp = VRP(inst)
 
-    sols = vrp.solve_subproblem({})
+    sols = vrp.solve_subproblem()
     assert sols, "Expected at least one solution for C101_5"
 
     sink = _sink_id(inst)

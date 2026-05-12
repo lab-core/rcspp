@@ -266,10 +266,9 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         template <typename AlgorithmType, typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(
-            AlgorithmType* algorithm,  // NOLINT(readability-function-cognitive-complexity)
-            double upper_bound = std::numeric_limits<double>::infinity(), bool preprocess = true,
-            int cost_index = 0) {
+        std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
+            AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
+            bool preprocess = true, int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -371,8 +370,20 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
                 for (const auto& dual_row : arc_ptr->dual_rows) {
-                    const auto dual_value = duals.at(dual_row.index);
-                    reduced_cost -= dual_row.coefficient * dual_value;
+                    try {
+                        const auto dual_value = duals.at(dual_row.index);
+                        reduced_cost -= dual_row.coefficient * dual_value;
+                    } catch (const std::out_of_range& e) {
+                        LOG_ERROR(
+                            "ResourceGraph::update_reduced_costs: Caught out_of_range exception "
+                            "for "
+                            "dual index ",
+                            dual_row.index,
+                            ": ",
+                            e.what(),
+                            ".");
+                        throw;
+                    }
                 }
 
                 update_arc<CostResourceType>(arc_ptr.get(), cost_index, reduced_cost);

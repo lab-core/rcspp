@@ -93,21 +93,28 @@ void init_graph(py::module_& m) {
         .def_readwrite("index", &Row::index)
         .def_readwrite("coefficient", &Row::coefficient);
 
-    py::class_<AlgorithmParams>(m, "AlgorithmParams")
+    py::class_<PyAlgorithmParams>(m, "AlgorithmParams")
         .def(py::init<>())
-        .def("check", &AlgorithmParams::check, py::return_value_policy::reference_internal)
-        .def("could_be_non_optimal", &AlgorithmParams::could_be_non_optimal)
-        .def_readwrite("stop_after_X_solutions", &AlgorithmParams::stop_after_X_solutions)
-        .def_readwrite("return_dominated_solutions", &AlgorithmParams::return_dominated_solutions)
-        .def_readwrite("use_pool", &AlgorithmParams::use_pool)
+        .def("check", &PyAlgorithmParams::check, py::return_value_policy::reference_internal)
+        .def("could_be_non_optimal", &PyAlgorithmParams::could_be_non_optimal)
+        .def_readwrite("stop_after_X_solutions", &PyAlgorithmParams::stop_after_X_solutions)
+        .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)
+        .def_readwrite("use_pool", &PyAlgorithmParams::use_pool)
         .def_readwrite("num_labels_to_extend_by_node",
-                       &AlgorithmParams::num_labels_to_extend_by_node)
-        .def_readwrite("num_max_phases", &AlgorithmParams::num_max_phases)
-        .def_readwrite("max_iterations", &AlgorithmParams::max_iterations)
-        .def_readwrite("tabu_tenure", &AlgorithmParams::tabu_tenure)
-        .def_readwrite("forbidden_tabu", &AlgorithmParams::forbidden_tabu)
-        .def_readwrite("tabu_random_noise", &AlgorithmParams::tabu_random_noise)
-        .def_readwrite("seed", &AlgorithmParams::seed);
+                       &PyAlgorithmParams::num_labels_to_extend_by_node)
+        .def_readwrite("num_max_phases", &PyAlgorithmParams::num_max_phases)
+        .def_readwrite("max_iterations", &PyAlgorithmParams::max_iterations)
+        .def_readwrite("tabu_tenure", &PyAlgorithmParams::tabu_tenure)
+        .def_readwrite("forbidden_tabu", &PyAlgorithmParams::forbidden_tabu)
+        .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
+        .def_readwrite("seed", &PyAlgorithmParams::seed);
+
+    py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
+        .def(py::init<>())
+        .def_readwrite("range_buckets", &PyBucketAlgorithmParams::range_buckets)
+        .def_readwrite("bucket_resource_index", &PyBucketAlgorithmParams::bucket_resource_index)
+        .def_readwrite("sort_resource_index", &PyBucketAlgorithmParams::sort_resource_index)
+        .def_readwrite("bucket_resource_type", &PyBucketAlgorithmParams::bucket_resource_type);
 
     py::class_<Solution>(m, "Solution")
         .def(py::init<>())
@@ -171,7 +178,7 @@ void init_graph(py::module_& m) {
     // ── Real resource graph — explicit block to avoid re-registering Node/Arc/Graph
     {
         py::class_<RealRG, RealGraph> rg(m, "_real_resource_graph");
-        bind_rg_methods<RealRG, RealRC, RealResource>(rg);
+        bind_rg_methods<RealRG, RealRC, RealResource, RealResource>(rg);
         rg.def(py::init<>());
         bind_resource_graph_impl<RealRG, RealRC, RealResource>(rg);
     }

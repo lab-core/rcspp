@@ -77,16 +77,34 @@ class ActiveCall {
         }
 };
 
+// ─── Python-facing non-template AlgorithmParams ──────────────────────────────
+
+struct PyAlgorithmParams : AlgorithmBaseParams {
+        template <typename LC>
+        [[nodiscard]] AlgorithmParams<LC> to_params(LC label_container = LC{}) const {
+            AlgorithmParams<LC> p(*this, std::move(label_container));
+            return p;
+        }
+};
+
+struct PyBucketAlgorithmParams : PyAlgorithmParams {
+        size_t range_buckets = 100;  // NOLINT(readability-magic-numbers)
+        size_t bucket_resource_index = 0;
+        size_t sort_resource_index = 0;
+        std::string bucket_resource_type;  // empty = use CostRC; "real", "int", etc. for explicit
+};
+
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
 enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy };
 
-template <SolverAlgorithm E, template <typename> class Algo>
+template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
         static constexpr SolverAlgorithm value = E;
-        template <typename RG, typename CostRC>
-        static std::vector<Solution> run(RG& rg, double ub, AlgorithmParams p, bool pre, int ci) {
-            return rg.template solve<Algo, CostRC>(ub, p, pre, ci);
+        template <typename RG, typename CostRC, typename LC>
+        static std::vector<Solution> run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre,
+                                         int ci) {
+            return rg.template solve<Algo, CostRC, LC>(ub, std::move(p), pre, ci);
         }
 };
 
@@ -95,32 +113,30 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>>;
 
-template <typename RG, typename CostRC, typename... Entries>
+template <typename RG, typename CostRC, typename LC, typename... Entries>
 std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub,
-                                              AlgorithmParams p, bool pre, int ci,
+                                              AlgorithmParams<LC> p, bool pre, int ci,
                                               std::tuple<Entries...>* /*tag*/) {
     std::vector<Solution> result;
     [[maybe_unused]] bool matched =
         ((Entries::value == alg
-              ? (result = Entries::template run<RG, CostRC>(rg, ub, p, pre, ci), true)
+              ? (result = Entries::template run<RG, CostRC, LC>(rg, ub, p, pre, ci), true)
               : false) ||
          ...);
     return result;
 }
 
-template <typename RG, typename CostRC>
-std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams p,
-                                         bool pre, int ci) {
-    // it's necessary to implement a function to retrieve from python if a signal has been received
-    // to stop
+template <typename RG, typename CostRC, typename LC>
+std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub,
+                                         AlgorithmParams<LC> p, bool pre, int ci) {
     p.should_stop = &ActiveCall::is_interrupted;
-    return dispatch_algorithm_impl<RG, CostRC>(alg,
-                                               rg,
-                                               ub,
-                                               p,
-                                               pre,
-                                               ci,
-                                               static_cast<AlgorithmTable*>(nullptr));
+    return dispatch_algorithm_impl<RG, CostRC, LC>(alg,
+                                                   rg,
+                                                   ub,
+                                                   p,
+                                                   pre,
+                                                   ci,
+                                                   static_cast<AlgorithmTable*>(nullptr));
 }
 
 // ─── Resource type → pybind11 method name ────────────────────────────────────
@@ -148,6 +164,51 @@ constexpr const char* py_type_name();
     }
 RCSPP_ALL_RESOURCES(GEN_PY_TYPE_NAME)
 #undef GEN_PY_TYPE_NAME
+
+// ─── Bucket solve dispatcher ──────────────────────────────────────────────────
+// Selects LabelBuckets<RT, RT, RC> based on py_p.bucket_resource_type.
+// Empty string → use CostRC (default). Non-numerical types are skipped.
+
+template <typename RG, typename RC, typename CostRC, typename... ResourceTypes>
+std::vector<Solution> run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
+                                       const PyBucketAlgorithmParams& py_p, bool pre, int ci) {
+    if (py_p.bucket_resource_type.empty()) {
+        using BucketLC = LabelBuckets<CostRC, CostRC, RC>;
+        BucketLC lc(py_p.range_buckets, py_p.bucket_resource_index, py_p.sort_resource_index);
+        auto p = py_p.template to_params<BucketLC>(std::move(lc));
+        return dispatch_algorithm<RG, CostRC, BucketLC>(alg, rg, ub, std::move(p), pre, ci);
+    }
+
+    const std::string& type_name = py_p.bucket_resource_type;
+    std::vector<Solution> result;
+    bool matched = false;
+
+    if constexpr (sizeof...(ResourceTypes) > 0) {
+        auto try_type = [&]<typename RT>() -> bool {
+            if constexpr (!is_numerical_resource_v<RT>) {
+                return false;
+            } else {
+                if (type_name != py_type_name<RT>()) {
+                    return false;
+                }
+                using BucketLC = LabelBuckets<RT, CostRC, RC>;
+                BucketLC lc(py_p.range_buckets,
+                            py_p.bucket_resource_index,
+                            py_p.sort_resource_index);
+                auto p = py_p.template to_params<BucketLC>(std::move(lc));
+                result =
+                    dispatch_algorithm<RG, CostRC, BucketLC>(alg, rg, ub, std::move(p), pre, ci);
+                return true;
+            }
+        };
+        matched = (try_type.template operator()<ResourceTypes>() || ...);
+    }
+
+    if (!matched) {
+        throw py::value_error("Unknown or non-numerical bucket_resource_type: '" + type_name + "'");
+    }
+    return result;
+}
 
 // ─── CostRC auto-selection ────────────────────────────────────────────────────
 // Picks the first numerical resource in the pack; falls back to RealResource sentinel.
@@ -192,8 +253,9 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────
+// ResourceTypes: the resource types in the graph (used to dispatch LabelBuckets).
 
-template <typename RG, typename RC, typename CostRC = RealResource>
+template <typename RG, typename RC, typename CostRC = RealResource, typename... ResourceTypes>
 py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
     using N = Node<RC>;
     constexpr double INF = std::numeric_limits<double>::infinity();
@@ -208,14 +270,42 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
         .def("get_resource_factory", &RG::get_resource_factory, py::return_value_policy::reference)
         .def(
             "solve",
-            [](RG& rg, SolverAlgorithm alg, double ub, AlgorithmParams p, bool pre, int ci)
-                -> std::vector<Solution> {
-                return ActiveCall::run_interruptible(
-                    [&] { return dispatch_algorithm<RG, CostRC>(alg, rg, ub, p, pre, ci); });
+            [](RG& rg,
+               SolverAlgorithm alg,
+               double ub,
+               const PyBucketAlgorithmParams& py_p,
+               bool pre,
+               int ci) -> std::vector<Solution> {
+                return ActiveCall::run_interruptible([&] {
+                    return run_bucket_solve<RG, RC, CostRC, ResourceTypes...>(alg,
+                                                                              rg,
+                                                                              ub,
+                                                                              py_p,
+                                                                              pre,
+                                                                              ci);
+                });
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
             py::arg("upper_bound") = INF,
-            py::arg("params") = AlgorithmParams{},
+            py::arg("params"),
+            py::arg("preprocess") = true,
+            py::arg("cost_index") = 0)
+        .def(
+            "solve",
+            [](RG& rg,
+               SolverAlgorithm alg,
+               double ub,
+               const PyAlgorithmParams& py_p,
+               bool pre,
+               int ci) -> std::vector<Solution> {
+                using LC = LabelList<RC>;
+                auto p = py_p.template to_params<LC>();
+                return ActiveCall::run_interruptible(
+                    [&] { return dispatch_algorithm<RG, CostRC, LC>(alg, rg, ub, p, pre, ci); });
+            },
+            py::arg("algorithm") = SolverAlgorithm::Simple,
+            py::arg("upper_bound") = INF,
+            py::arg("params") = PyAlgorithmParams{},
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def("preprocess_feasibility", &RG::process_feasibility)
@@ -316,7 +406,7 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
     }
 
     py::class_<RG, Graph<RC>> rg(m, rg_name);
-    bind_rg_methods<RG, RC, CostRC>(rg);
+    bind_rg_methods<RG, RC, CostRC, ResourceTypes...>(rg);
     rg.def(py::init<>());
     bind_resource_graph_impl<RG, RC, ResourceTypes...>(rg);
 }

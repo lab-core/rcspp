@@ -14,7 +14,7 @@ relative_path = "../python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
 
 from rcspp import LogLevel, set_log_level
-from rcspp.graph import Algorithm, AlgorithmParams, ResourceGraph
+from rcspp.graph import Algorithm, AlgorithmParams, BucketAlgorithmParams, ResourceGraph
 from rcspp.resource import (  # Generic (type-unspecialized) wrappers — resolved to the right C++ template; automatically by add_real_resource / add_int_resource / add_real_set_resource / etc.; Real-resource–only functions
     AdditionExtensionFunction,
     AdditionExtensionFunction_real,
@@ -682,6 +682,108 @@ def test_resource_refs_survive_gc():
     assert math.isclose(sols[0].cost, 8.0, abs_tol=1e-6)
 
 
+# ── Example 14: BucketAlgorithmParams ────────────────────────────────────────
+# BucketAlgorithmParams swaps the flat LabelList for LabelBuckets, which groups
+# labels into resource-value ranges and sorts within each bucket to speed up
+# dominance checks.  Results must be identical to solving with AlgorithmParams.
+# bucket_resource_type selects which numerical resource drives the bucket
+# boundaries; empty string (default) uses the graph's cost resource (CostRC).
+
+
+def example_bucket_labels():
+    """BucketAlgorithmParams produces the same optimal solutions as AlgorithmParams."""
+    # ── Single real resource ──────────────────────────────────────────────────
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        MinMaxFeasibilityFunction(0.0, 20.0),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2)
+    rg.add_node(3, sink=True)
+    rg.add_arc((5.0,), 0, 1, cost=5.0)
+    rg.add_arc((3.0,), 1, 2, cost=3.0)
+    rg.add_arc((2.0,), 2, 3, cost=2.0)
+    rg.add_arc((10.0,), 0, 3, cost=10.0)  # suboptimal direct path
+
+    reference = rg.solve(params=AlgorithmParams())
+    assert reference, "reference solve returned no solutions"
+    ref_cost = reference[0].cost
+
+    # Default BucketAlgorithmParams (bucket/sort resource = CostRC = real)
+    bp_default = BucketAlgorithmParams()
+    bp_default.range_buckets = 5
+    sols_default = rg.solve(params=bp_default)
+    print_solutions("BucketAlgorithmParams default", sols_default)
+    assert sols_default, "bucket solve (default) returned no solutions"
+    assert math.isclose(
+        sols_default[0].cost, ref_cost, abs_tol=1e-6
+    ), f"bucket default cost {sols_default[0].cost} != reference {ref_cost}"
+
+    # Explicit bucket_resource_type='real'
+    bp_real = BucketAlgorithmParams()
+    bp_real.range_buckets = 5
+    bp_real.bucket_resource_type = "real"
+    sols_real = rg.solve(params=bp_real)
+    print_solutions("BucketAlgorithmParams bucket_resource_type='real'", sols_real)
+    assert math.isclose(
+        sols_real[0].cost, ref_cost, abs_tol=1e-6
+    ), f"bucket real cost {sols_real[0].cost} != reference {ref_cost}"
+
+    # ── Real + Int resources: bucket by 'int' ─────────────────────────────────
+    rg2 = ResourceGraph()
+    rg2.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg2.add_int_resource(
+        AdditionExtensionFunction(),
+        MinMaxFeasibilityFunction(0, 10),
+        TrivialCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg2.add_node(0, source=True)
+    rg2.add_node(1)
+    rg2.add_node(2, sink=True)
+    rg2.add_arc((4.0, 3), 0, 1, cost=4.0)
+    rg2.add_arc((3.0, 2), 1, 2, cost=3.0)
+    rg2.add_arc((9.0, 6), 0, 2, cost=9.0)
+
+    ref2 = rg2.solve(params=AlgorithmParams())
+    assert ref2
+    ref2_cost = ref2[0].cost
+
+    bp_int = BucketAlgorithmParams()
+    bp_int.range_buckets = 3
+    bp_int.bucket_resource_type = "int"
+    sols_int = rg2.solve(params=bp_int)
+    print_solutions("BucketAlgorithmParams bucket_resource_type='int'", sols_int)
+    assert sols_int, "bucket solve (int) returned no solutions"
+    assert math.isclose(
+        sols_int[0].cost, ref2_cost, abs_tol=1e-6
+    ), f"bucket int cost {sols_int[0].cost} != reference {ref2_cost}"
+
+    # ── Invalid bucket_resource_type raises ValueError ────────────────────────
+    bp_bad = BucketAlgorithmParams()
+    bp_bad.bucket_resource_type = "not_a_type"
+    try:
+        rg.solve(params=bp_bad)
+        assert False, "Expected ValueError for unknown bucket_resource_type"
+    except ValueError:
+        pass  # expected
+
+    # ── BucketAlgorithmParams inherits all AlgorithmParams fields ─────────────
+    bp_inh = BucketAlgorithmParams()
+    bp_inh.stop_after_X_solutions = 1
+    sols_one = rg.solve(params=bp_inh)
+    assert len(sols_one) == 1, f"Expected 1 solution, got {len(sols_one)}"
+
+
 # ── Run all examples ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -746,5 +848,10 @@ if __name__ == "__main__":
     print("=" * 60)
     example_sigint_handler()
     print("KeyboardInterrupt raised as expected.")
+
+    print("\n" + "=" * 60)
+    print("Example 14: BucketAlgorithmParams")
+    print("=" * 60)
+    example_bucket_labels()
 
     print("\nAll examples passed.")

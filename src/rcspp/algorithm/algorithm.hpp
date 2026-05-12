@@ -38,12 +38,8 @@ using LabelIteratorPair =
 
 constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
-template <typename LabelContainerType>
-struct AlgorithmParams {
-        explicit AlgorithmParams(LabelContainerType labels = LabelContainerType())
-            : labels(std::move(labels)) {}
-
-        AlgorithmParams& check() {
+struct AlgorithmBaseParams {
+        void check() const {  // NOLINT(readability-make-member-function-const)
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
                 LOG_WARN(
                     "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
@@ -62,7 +58,6 @@ struct AlgorithmParams {
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "stop_after_X_solutions to a lower value.\n");
             }
-            return *this;
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
@@ -80,9 +75,6 @@ struct AlgorithmParams {
 
         // for using label pool (should normally always be true)
         bool use_pool = true;
-
-        // Container to store labels, could be overridden with Buckets
-        const LabelContainerType labels;
 
         // for truncated labeling
         size_t num_labels_to_extend_by_node = MAX_INT;
@@ -105,6 +97,19 @@ struct AlgorithmParams {
         int seed = 0;
 };
 
+template <typename LabelContainerType>
+struct AlgorithmParams : AlgorithmBaseParams {
+        explicit AlgorithmParams(LabelContainerType labels = LabelContainerType())
+            : AlgorithmBaseParams(), labels(std::move(labels)) {}
+
+        explicit AlgorithmParams(AlgorithmBaseParams base_params,
+                                 LabelContainerType labels = LabelContainerType())
+            : AlgorithmBaseParams(std::move(base_params)), labels(std::move(labels)) {}
+
+        // Container to store labels, could be overridden with Buckets
+        const LabelContainerType labels;
+};
+
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Algorithm {
@@ -113,7 +118,9 @@ class Algorithm {
                   AlgorithmParams<LabelContainerType> params)
             : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
               graph_(nullptr),
-              params_(std::move(params.check())) {}
+              params_(std::move(params)) {
+            params_.check();
+        }
 
         virtual ~Algorithm() = default;
 

@@ -244,7 +244,8 @@ class VRP:
         The graph is built once in ``__init__``; only extender resource 0
         (the cost resource) is rewritten each iteration.
         """
-        self.__resource_graph.update_reduced_costs(dual_by_id or {})
+        if dual_by_id is not None:
+            self.__resource_graph.update_reduced_costs(dual_by_id)
 
         t0 = time.time()
         solutions = self.__resource_graph.solve()
