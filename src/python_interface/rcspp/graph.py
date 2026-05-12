@@ -118,13 +118,13 @@ class ResourceGraph:
 
         full_reg_order = [r[0] for r in self._pending]
 
-        # The first registered resource must be a cost resource (real or int).
+        # The first registered resource must be a real-valued cost resource.
         if not full_reg_order:
             raise ValueError("At least one resource must be registered before using the graph.")
         if full_reg_order[0] != "real":
             raise ValueError(
                 f"The first registered resource must be a real resource for the cost, "
-                f"got {full_reg_order[0]!r}. Register a real or int resource before any other type."
+                f"got {full_reg_order[0]!r}. Register a real resource before any other type."
             )
 
         requested = frozenset(reg_order)
