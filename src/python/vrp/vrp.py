@@ -285,7 +285,7 @@ def main() -> None:
 
     if args.subproblem_only:
         print("Running subproblem with zero duals...")
-        solutions = vrp.solve_subproblem({})
+        solutions = vrp.solve_subproblem()
         print(f"\n{len(solutions)} solution(s):")
         for i, s in enumerate(solutions):
             print(f"  [{i}] cost={s.cost:.4f}  path={s.path_node_ids}")
