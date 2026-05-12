@@ -34,6 +34,15 @@ class CompositionDominanceFunction
                 lhs_resource.get_resource_components());
         }
 
+        // Use to check (partial) dominance quickly. Useful for more complex data structure
+        bool fast_check_dominance(
+            const Resource<ResourceComposition<ResourceTypes...>>& lhs_resource,
+            const Resource<ResourceComposition<ResourceTypes...>>& rhs_resource,
+            double delta) override {
+            throw std::logic_error(
+                "CompositionDominanceFunction::fast_check_dominance() not implemented.");
+        }
+
     private:
         bool check_dominance(const auto& lhs_sing_res_vec, const auto& rhs_sing_res_vec) {
             for (int i = 0; i < lhs_sing_res_vec.size(); i++) {

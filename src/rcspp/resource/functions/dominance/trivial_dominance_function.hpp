@@ -16,5 +16,14 @@ class TrivialDominanceFunction
                              const Resource<ResourceType>& rhs_resource) override {
             return true;
         }
+
+        // clang-format off
+        // Use to check (partial) dominance quickly. Useful for more complex data structure
+        bool fast_check_dominance(const Resource<ResourceType>& lhs_resource,
+                                  const Resource<ResourceType>& rhs_resource,
+                                  double delta) override {
+            return true;
+        }
+        // clang-format on
 };
 }  // namespace rcspp

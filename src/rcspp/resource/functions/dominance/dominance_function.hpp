@@ -19,6 +19,13 @@ class DominanceFunction {
         virtual auto check_dominance(const Resource<ResourceType>& lhs_resource,
                                      const Resource<ResourceType>& rhs_resource) -> bool = 0;
 
+        // clang-format off
+        // Use to check (partial) dominance quickly. Useful for more complex data structure
+        virtual auto fast_check_dominance(const Resource<ResourceType>& lhs_resource,
+                                          const Resource<ResourceType>& rhs_resource, double delta)
+            -> bool = 0;
+        // clang-format on
+
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<DominanceFunction> = 0;
 
         auto create(const size_t node_id) -> std::unique_ptr<DominanceFunction> {

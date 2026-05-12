@@ -10,19 +10,20 @@
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
-template <typename ResourceType>
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
-class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType> {
+class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType> {
     public:
         SimpleDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                 AlgorithmParams params)
-            : DominanceAlgorithm<ResourceType>(resource_factory, std::move(params)) {}
+                                 AlgorithmParams<LabelContainerType> params)
+            : DominanceAlgorithm<ResourceType, LabelContainerType>(resource_factory,
+                                                                   std::move(params)) {}
 
         ~SimpleDominanceAlgorithm() override = default;
 
     private:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
         }
         LabelIteratorPair<ResourceType> next_label_iterator() override {

@@ -125,7 +125,7 @@ void init_graph(py::module_& m) {
              py::arg("cost_function"),
              py::arg("dominance_function"))
         .def("add_node",
-             static_cast<Node<ResourceComposition<RealResource>>& (
+             static_cast<Node<ResourceCompositionBase>& (
                  ResourceGraph<RealResource>::*)(size_t, bool, bool)>(
                  &ResourceGraph<RealResource>::add_node),
              py::arg("id"),
@@ -134,7 +134,7 @@ void init_graph(py::module_& m) {
              py::return_value_policy::reference)
         .def(
             "add_arc",
-            static_cast<Arc<ResourceComposition<RealResource>>& (
+            static_cast<Arc<ResourceCompositionBase>& (
                 ResourceGraph<RealResource>::*)(const std::tuple<std::vector<
                                                     ResourceInitializerTypeTuple_t<RealResource>>>&,
                                                 size_t,
@@ -152,7 +152,7 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def("update_arc",
              static_cast<void (ResourceGraph<RealResource>::*)(
-                 Arc<ResourceComposition<RealResource>>*,
+                 Arc<ResourceCompositionBase>*,
                  const std::tuple<std::vector<ResourceInitializerTypeTuple_t<RealResource>>>&,
                  std::optional<double>
                      cost)>(&ResourceGraph<RealResource>::update_arc),
@@ -162,12 +162,23 @@ void init_graph(py::module_& m) {
         .def("get_resource_factory",
              &ResourceGraph<RealResource>::get_resource_factory,
              py::return_value_policy::reference)
-        .def("solve",
-             &ResourceGraph<RealResource>::solve<SimpleDominanceAlgorithm>,
-             py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
-             py::arg("params") = AlgorithmParams{},
-             py::arg("preprocess") = true,
-             py::arg("cost_index") = 0)
+        .def(
+            "solve",
+            [](ResourceGraph<RealResource>& self,
+               double upper_bound,
+               AlgorithmParams<LabelList<ResourceCompositionBase>>
+                   params,
+               bool preprocess,
+               int cost_index) {
+                return self.template solve<SimpleDominanceAlgorithm>(upper_bound,
+                                                                     std::move(params),
+                                                                     preprocess,
+                                                                     cost_index);
+            },
+            py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
+            py::arg("params") = AlgorithmParams<LabelList<ResourceCompositionBase>>(),
+            py::arg("preprocess") = true,
+            py::arg("cost_index") = 0)
         .def("process_feasibility", &ResourceGraph<RealResource>::process_feasibility);
     // TODO(patrick): Add other methods as needed, in particular sort_nodes with a lambda
 }

@@ -1,4 +1,5 @@
 #include "test_main.hpp"
+#include "test_label_buckets.hpp"
 
 #include <iostream>
 
@@ -18,10 +19,15 @@ int main() {
     passed += p.first;
     total += p.second;
 
-    // Test graph creation and graph update with non integer dual 
+    // Test graph creation and graph update with non integer dual
     // row coefficients, and solving the RCSPP
     p =
     all_tests_rcspp_non_integer_dual_row_coef<SimpleDominanceAlgorithm, PushingDominanceAlgorithm, PullingDominanceAlgorithm>();
+    passed += p.first;
+    total += p.second;
+
+    // Test LabelBuckets (BucketLabelList) operations
+    p = all_tests_label_buckets();
     passed += p.first;
     total += p.second;
 
