@@ -28,27 +28,16 @@ namespace rcspp {
 
 template <typename... ResourceTypes>
 class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
+        using RComp = ResourceComposition<ResourceTypes...>;
+
     public:
-        ResourceGraph(
-            std::unique_ptr<ExtensionFunction<ResourceComposition<ResourceTypes...>>>
-                extension_function,
-            std::unique_ptr<FeasibilityFunction<ResourceComposition<ResourceTypes...>>>
-                feasibility_function,
-            std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function,
-            std::unique_ptr<DominanceFunction<ResourceComposition<ResourceTypes...>>>
-                dominance_function)
+        ResourceGraph(std::unique_ptr<ExtensionFunction<RComp>> extension_function,
+                      std::unique_ptr<FeasibilityFunction<RComp>> feasibility_function,
+                      std::unique_ptr<CostFunction<RComp>> cost_function,
+                      std::unique_ptr<DominanceFunction<RComp>> dominance_function)
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
                   std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function))),
-              connectivityMatrix_(this) {}
-
-        ResourceGraph(
-            std::unique_ptr<CostFunction<ResourceComposition<ResourceTypes...>>> cost_function)
-            : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
-                  std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
-                  std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
-                  std::move(cost_function),
-                  std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
               connectivityMatrix_(this) {}
 
         ResourceGraph()
@@ -105,28 +94,25 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                       resource_base_prototype));
         }
 
-        Node<ResourceComposition<ResourceTypes...>>& add_node(size_t node_id, bool source = false,
-                                                              bool sink = false) override {
-            auto& node =
-                Graph<ResourceComposition<ResourceTypes...>>::add_node(node_id, source, sink);
-            node.resource = resource_factory_.make_resource(node.id);
+        Node<RComp>& add_node(size_t node_id, bool source = false, bool sink = false) override {
+            auto& node = Graph<RComp>::add_node(node_id, source, sink);
+            node.resource = resource_factory_.create_resource(node.id);
 
             return node;
         }
 
-        Node<ResourceComposition<ResourceTypes...>>& add_node(
+        Node<RComp>& add_node(
             size_t node_id,
             const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_initializer,
             bool source = false, bool sink = false) {
-            auto& node =
-                Graph<ResourceComposition<ResourceTypes...>>::add_node(node_id, source, sink);
-            node.resource = resource_factory_.make_resource(node.id, resource_initializer);
+            auto& node = Graph<RComp>::add_node(node_id, source, sink);
+            node.resource = resource_factory_.create_resource(node.id, resource_initializer);
             return node;
         }
 
         template <typename... ResourceInitTypes>
-        Node<ResourceComposition<ResourceTypes...>>& add_node(
+        Node<RComp>& add_node(
             size_t node_id,
             const std::tuple<ResourceInitializerTypeTuple_t<ResourceInitTypes>...>&
                 resource_init_values,
@@ -149,29 +135,24 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             return add_node(node_id, resource_initializer, source, sink);
         }
 
-        Arc<ResourceComposition<ResourceTypes...>>& add_arc(
+        Arc<RComp>& add_arc(
             const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             size_t origin_node_id, size_t destination_node_id,
             std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
             std::vector<Row> dual_rows = {}) {
-            auto& arc = Graph<ResourceComposition<ResourceTypes...>>::add_arc(origin_node_id,
-                                                                              destination_node_id,
-                                                                              arc_id,
-                                                                              cost,
-                                                                              dual_rows);
+            auto& arc =
+                Graph<RComp>::add_arc(origin_node_id, destination_node_id, arc_id, cost, dual_rows);
 
-            auto resource_base =
-                resource_factory_
-                    .template make_resource_base<ResourceInitializerTypeTuple_t<ResourceTypes>...>(
-                        resource_consumption);
+            auto resource_base = resource_factory_.template create_resource_base<
+                ResourceInitializerTypeTuple_t<ResourceTypes>...>(resource_consumption);
             auto extender = resource_factory_.make_extender(*resource_base, arc);
             arc.extender = std::move(extender);
             return arc;
         }
 
         template <typename... ExtenderResourceTypes>
-        Arc<ResourceComposition<ResourceTypes...>>& add_arc(
+        Arc<RComp>& add_arc(
             const std::tuple<ResourceInitializerTypeTuple_t<ExtenderResourceTypes>...>&
                 extender_resource_consumption,
             size_t origin_node_id, size_t destination_node_id,
@@ -207,7 +188,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         void update_arc(
-            Arc<ResourceComposition<ResourceTypes...>>* arc,
+            Arc<RComp>* arc,
             const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             std::optional<double> cost = std::nullopt) {
@@ -220,7 +201,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
 
         template <typename ResourceType>
         void update_arc(
-            Arc<ResourceComposition<ResourceTypes...>>* arc, std::size_t resource_index,
+            Arc<RComp>* arc, std::size_t resource_index,
             const ResourceInitializerTypeTuple_t<ResourceType>& single_resource_consumption,
             std::optional<double> cost = std::nullopt) {
             constexpr size_t ResourceTypeIndex =
@@ -247,32 +228,46 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
-        template <template <typename> class AlgorithmType, typename... Args>
-        std::unique_ptr<AlgorithmType<ResourceComposition<ResourceTypes...>>> create_algorithm(
-            Args&&... args) {
-            return std::make_unique<AlgorithmType<ResourceComposition<ResourceTypes...>>>(
+        template <template <typename, typename> class AlgorithmType,
+                  typename LabelContainerType = LabelList<RComp>, typename... Args>
+        std::unique_ptr<AlgorithmType<RComp, LabelContainerType>> create_algorithm(Args&&... args) {
+            return std::make_unique<AlgorithmType<RComp, LabelContainerType>>(
                 &resource_factory_,
                 std::forward<Args>(args)...);
         }
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource>
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<RComp>>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    AlgorithmParams params = {}, bool preprocess = true,
-                                    int cost_index = 0) {
-            AlgorithmType<ResourceComposition<ResourceTypes...>> algorithm(&resource_factory_,
-                                                                           params);
-            return this->template solve<CostResourceType>(&algorithm,
-                                                          upper_bound,
-                                                          preprocess,
-                                                          cost_index);
+        std::vector<Solution> solve(
+            double upper_bound = std::numeric_limits<double>::infinity(),
+            AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
+            bool preprocess = true, int cost_index = 0) {
+            AlgorithmType<RComp, LabelContainerType> algorithm(&resource_factory_, params);
+            return solve<AlgorithmType<RComp, LabelContainerType>, CostResourceType>(&algorithm,
+                                                                                     upper_bound,
+                                                                                     preprocess,
+                                                                                     cost_index);
         }
 
-        template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<RComp>>
+        std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
+                                    bool preprocess = true, int cost_index = 0) {
+            AlgorithmType<RComp, LabelContainerType> algorithm(&resource_factory_, params);
+            return solve<AlgorithmType<RComp, LabelContainerType>, CostResourceType>(
+                &algorithm,
+                std::numeric_limits<double>::infinity(),
+                preprocess,
+                cost_index);
+        }
+
+        template <typename AlgorithmType, typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
-            AlgorithmType<ResourceComposition<ResourceTypes...>>* algorithm,
+        std::vector<Solution> solve(
+            AlgorithmType* algorithm,  // NOLINT(readability-function-cognitive-complexity)
             double upper_bound = std::numeric_limits<double>::infinity(), bool preprocess = true,
             int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
@@ -289,8 +284,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                 return {};
             }
 
-            std::vector<std::unique_ptr<Preprocessor<ResourceComposition<ResourceTypes...>>>>
-                preprocessors;
+            std::vector<std::unique_ptr<Preprocessor<RComp>>> preprocessors;
             if (preprocess) {
                 // if graph has been modified, try to remove some arcs based on feasibility
                 // initialize or update connectivity matrix
@@ -312,8 +306,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                         if (cost_index > 0) {
                             LOG_WARN(
                                 "ResourceGraph::solve: cost_index is out of bounds for the number "
-                                "of "
-                                "extender components of the cost resource. ",
+                                "of extender components of the cost resource. ",
                                 cost_index,
                                 " for a length of ",
                                 resource_factory_
@@ -359,9 +352,7 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         }
 
         void process_feasibility() {
-            FeasibilityPreprocessor<ResourceComposition<ResourceTypes...>> feasibility_preprocessor(
-                &resource_factory_,
-                this);
+            FeasibilityPreprocessor<RComp> feasibility_preprocessor(&resource_factory_, this);
             feasibility_preprocessor.preprocess();
         }
 
@@ -380,21 +371,17 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
                 for (const auto& dual_row : arc_ptr->dual_rows) {
-                    const auto dual_value =
-                        dual_row.index < duals.size() ? duals[dual_row.index] : 0.0;
+                    const auto dual_value = duals.at(dual_row.index);
                     reduced_cost -= dual_row.coefficient * dual_value;
                 }
 
-                update_arc<CostResourceType>(
-                    arc_ptr.get(),
-                    cost_index,
-                    ResourceInitializerTypeTuple_t<CostResourceType>{reduced_cost});
+                update_arc<CostResourceType>(arc_ptr.get(), cost_index, reduced_cost);
             }
         }
 
     private:
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
-        ConnectivityMatrix<ResourceComposition<ResourceTypes...>> connectivityMatrix_;
+        ConnectivityMatrix<RComp> connectivityMatrix_;
         std::mutex mutex_;
 };
 }  // namespace rcspp

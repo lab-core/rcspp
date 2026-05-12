@@ -37,43 +37,44 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
 
         virtual ~ResourceCompositionFactory() = default;
 
-        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource() override {
-            return ResourceFactory<ResourceComposition<ResourceTypes...>>::make_resource();
+        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> create_resource()
+            override {
+            return ResourceFactory<ResourceComposition<ResourceTypes...>>::create_resource();
         }
 
-        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource(
+        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> create_resource(
             size_t node_id) override {
-            return ResourceFactory<ResourceComposition<ResourceTypes...>>::make_resource(node_id);
+            return ResourceFactory<ResourceComposition<ResourceTypes...>>::create_resource(node_id);
         }
 
-        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource(
+        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> create_resource(
             size_t node_id,
             const ResourceComposition<ResourceTypes...>& resource_initializer) override {
-            return ResourceFactory<ResourceComposition<ResourceTypes...>>::make_resource(
+            return ResourceFactory<ResourceComposition<ResourceTypes...>>::create_resource(
                 node_id,
                 resource_initializer);
         }
 
         template <typename... TypeTuples>
-        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> make_resource(
+        std::unique_ptr<Resource<ResourceComposition<ResourceTypes...>>> create_resource(
             size_t node_id, const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
-            auto new_resource_initializer = make_resource_base(resource_initializer);
-            return make_resource(node_id, *new_resource_initializer);
+            auto new_resource_initializer = create_resource_base(resource_initializer);
+            return create_resource(node_id, *new_resource_initializer);
         }
 
         template <typename... TypeTuples>
-        std::unique_ptr<ResourceComposition<ResourceTypes...>> make_resource_base(
+        std::unique_ptr<ResourceComposition<ResourceTypes...>> create_resource_base(
             const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
-            auto new_resource_composition = make_resource();
+            auto new_resource_composition = create_resource();
 
-            auto make_resource_function = [&](const auto& res_init_vec,
-                                              auto& res_comp_vec,
-                                              auto& res_fac_vec) {
+            auto create_resource_function = [&](const auto& res_init_vec,
+                                                auto& res_comp_vec,
+                                                auto& res_fac_vec) {
                 for (int i = 0; i < res_init_vec.size(); i++) {
                     const auto& res_init = res_init_vec[i];
 
                     const auto& res_comp =
-                        res_comp_vec.emplace_back(res_fac_vec[i]->make_resource_base());
+                        res_comp_vec.emplace_back(res_fac_vec[i]->create_resource_base());
 
                     auto res_init_index = std::make_index_sequence<
                         std::tuple_size_v<typename std::remove_reference_t<decltype(res_init)>>>{};
@@ -88,9 +89,9 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                         [&](auto&&... args_res_comp_vec) {
                             std::apply(
                                 [&](auto&&... args_res_fac_vec) {
-                                    (make_resource_function(args_res_init_vec,
-                                                            args_res_comp_vec,
-                                                            args_res_fac_vec),
+                                    (create_resource_function(args_res_init_vec,
+                                                              args_res_comp_vec,
+                                                              args_res_fac_vec),
                                      ...);
                                 },
                                 resource_factory_components_);
@@ -217,7 +218,7 @@ class ResourceCompositionFactory : public ResourceFactory<ResourceComposition<Re
                 for (int i = 0; i < res_fac_vec.size(); i++) {
                     const auto& res_fac = res_fac_vec[i];
 
-                    prot_res_comp_vec.emplace_back(res_fac->make_resource());
+                    prot_res_comp_vec.emplace_back(res_fac->create_resource());
                 }
             };
 

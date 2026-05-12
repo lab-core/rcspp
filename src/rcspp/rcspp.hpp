@@ -5,6 +5,7 @@
 #include "rcspp/algorithm/diversification_search.hpp"
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 #include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"

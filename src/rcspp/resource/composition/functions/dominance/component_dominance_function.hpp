@@ -29,6 +29,15 @@ class ComponentDominanceFunction
             return lhs_component_resource <= rhs_component_resource;
         }
 
+        // Use to check (partial) dominance quickly. Useful for more complex data structure
+        bool fast_check_dominance(
+            const Resource<ResourceComposition<ResourceTypes...>>& lhs_resource,
+            const Resource<ResourceComposition<ResourceTypes...>>& rhs_resource,
+            double delta) override {
+            throw std::logic_error(
+                "ComponentDominanceFunction::fast_check_dominance() not implemented.");
+        }
+
     private:
         size_t resource_index_;
 };

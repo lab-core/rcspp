@@ -23,5 +23,13 @@ class ValueDominanceFunction
                              const Resource<ResourceType>& rhs_resource) -> bool override {
             return lhs_resource.leq(rhs_resource.get_value());
         }
+
+        // clang-format off
+        auto fast_check_dominance(const Resource<ResourceType>& lhs_resource,
+                                  const Resource<ResourceType>& rhs_resource, double delta)
+            -> bool override {
+            return lhs_resource.leq(rhs_resource.get_value() + delta);
+        }
+        // clang-format on
 };
 }  // namespace rcspp

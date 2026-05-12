@@ -24,14 +24,14 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
                 // if source, add default resource
                 if (node->source) {
                     initial_resources_by_node_id_[node_id].emplace_back(
-                        resource_factory->make_resource(node_id));
+                        resource_factory->copy_resource(*node));
                     continue;
                 }
                 // loop through the in arcs to find all feasible initial resource
                 auto& initial_resources = initial_resources_by_node_id_[node_id];
                 for (auto* arc : node->in_arcs) {
-                    auto previous_resource = resource_factory->make_resource(arc->origin->id);
-                    auto new_resource = resource_factory->make_resource(node_id);
+                    auto previous_resource = resource_factory->copy_resource(*arc->origin);
+                    auto new_resource = resource_factory->copy_resource(*node);
                     arc->extender->extend(*previous_resource, new_resource.get());
 
                     // find the smallest feasible resource
@@ -50,7 +50,7 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
             initial_resources_by_node_id_;
         bool remove_arc(const Arc<ResourceType>& arc) override {
             // extend the initial resources
-            auto extended_resource = resource_factory_->make_resource(arc.destination->id);
+            auto extended_resource = resource_factory_->copy_resource(*arc.destination);
             for (auto& resource : initial_resources_by_node_id_[arc.origin->id]) {
                 arc.extender->extend(*resource, extended_resource.get());
                 if (extended_resource->is_feasible()) {
