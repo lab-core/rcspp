@@ -24,9 +24,9 @@ using namespace rcspp;
 //        py::arg("map_ref"),
 //        py::keep_alive<1, 2>())   // keep MapRef alive as long as the Fn object
 //
-// py::keep_alive<0, 1> means:
-//   Nurse  = 1 → the newly constructed C++ function object
-//   Patient = 2 → map_ref (first constructor argument)
+// py::keep_alive<1, 2> means for a constructor:
+//   Nurse  = 1 → self (the newly constructed C++ function object)
+//   Patient = 2 → map_ref (the first explicit constructor argument)
 // The patient (MapRef) lives at least until the nurse (function object) is freed.
 // Combined with ResourceGraph._refs keeping the function object's Python wrapper
 // alive, the map is guaranteed live for the entire graph lifetime.
