@@ -17,4 +17,3 @@ PointerAlignment: Left
 IndentAccessModifiers: true
 IndentCaseLabels: true
 AccessModifierOffset: -1
-SpaceBeforeCpp11BracedList: false

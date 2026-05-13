@@ -64,9 +64,7 @@ class MasterProblem:
             for nid in path.visited_nodes:
                 visit_counts[nid] = visit_counts.get(nid, 0) + 1
             coeffs = {
-                nid: float(visit_counts[nid])
-                for nid in self.node_ids_
-                if nid in visit_counts
+                nid: float(visit_counts[nid]) for nid in self.node_ids_ if nid in visit_counts
             }
             self._columns.append((path.id, path.cost, coeffs))
             self._column_ids.add(path.id)

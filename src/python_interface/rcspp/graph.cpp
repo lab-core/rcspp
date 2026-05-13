@@ -12,7 +12,7 @@ std::atomic<bool> g_py_interrupted{false};
 std::atomic<int> g_active_calls{0};
 
 #ifndef _WIN32
-static struct sigaction g_old_sigint_sa{};
+static struct sigaction g_old_sigint_sa = {};
 #else
 // POSIX sigaction is unavailable on Windows; store the handler returned by signal().
 static void (*g_old_sigint_handler)(int) = SIG_DFL;
@@ -50,7 +50,7 @@ void py_check_interrupted() {
 // Called once from PYBIND11_MODULE (main thread) to install the handler.
 void init_sigint_handler() {
 #ifndef _WIN32
-    struct sigaction new_sa{};  // NOLINT
+    struct sigaction new_sa = {};  // NOLINT
     new_sa.sa_handler = py_sigint_handler;
     sigemptyset(&new_sa.sa_mask);
     new_sa.sa_flags = 0;  // no SA_RESTART — let the signal interrupt blocking calls
