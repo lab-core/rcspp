@@ -374,12 +374,11 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
                     if (dual_row.index < duals.size()) {
                         dual_value = duals[dual_row.index];
                     } else {
-                        LOG_DEBUG(
-                            "ResourceGraph::update_reduced_costs: dual index ",
-                            dual_row.index,
-                            " is out of range (duals size = ",
-                            duals.size(),
-                            "); treating as 0.0.");
+                        LOG_DEBUG("ResourceGraph::update_reduced_costs: dual index ",
+                                  dual_row.index,
+                                  " is out of range (duals size = ",
+                                  duals.size(),
+                                  "); treating as 0.0.");
                     }
                     reduced_cost -= dual_row.coefficient * dual_value;
                 }
