@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - package-pypi
+      - python-params
   workflow_dispatch:
     inputs:
       repository:
