@@ -387,9 +387,9 @@ def _make_add_resource_method(canonical_type: str):
                 "initialized (i.e. after the first add_node / add_arc / solve call). "
                 "Add all resources before performing any graph operation."
             )
-        if len(self._pending) == 0 and canonical_type not in ("real", "int"):
+        if len(self._pending) == 0 and canonical_type != "real":
             raise ValueError(
-                f"The first registered resource must be a cost resource ('real' or 'int'), "
+                f"The first registered resource must be a cost resource ('real'), "
                 f"got {canonical_type!r}. Register a real resource before any other type."
             )
         ext = self._resolve(extension_function, canonical_type)
