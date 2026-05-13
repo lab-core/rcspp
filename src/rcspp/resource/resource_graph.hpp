@@ -370,20 +370,9 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
                 for (const auto& dual_row : arc_ptr->dual_rows) {
-                    try {
-                        const auto dual_value = duals.at(dual_row.index);
-                        reduced_cost -= dual_row.coefficient * dual_value;
-                    } catch (const std::out_of_range& e) {
-                        LOG_ERROR(
-                            "ResourceGraph::update_reduced_costs: Caught out_of_range exception "
-                            "for "
-                            "dual index ",
-                            dual_row.index,
-                            ": ",
-                            e.what(),
-                            ".");
-                        throw;
-                    }
+                    const double dual_value =
+                        dual_row.index < duals.size() ? duals[dual_row.index] : 0.0;
+                    reduced_cost -= dual_row.coefficient * dual_value;
                 }
 
                 update_arc<CostResourceType>(arc_ptr.get(), cost_index, reduced_cost);
