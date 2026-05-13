@@ -57,12 +57,18 @@ endif()
 # Compile the dynamic library --------------------------------------------------
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(LIB ${PROJECT_NAME})
-add_library(${LIB} SHARED ${SOURCE_FILES} ${HEADERS_FILES})
 
-# Ensure umbrella header is generated before building the library
+# OBJECT library: compiled once, shared by rcspp shared lib and _core.pyd.
+# Linking _core.pyd against rcspp_objects bakes the symbols in directly so the
+# Python extension has no runtime dependency on rcspp.dll.
+add_library(rcspp_objects OBJECT ${SOURCE_FILES})
+add_dependencies(rcspp_objects generate_umbrella_header)
+set_target_properties(rcspp_objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_features(rcspp_objects PUBLIC cxx_std_23)
+target_include_directories(rcspp_objects PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+add_library(${LIB} SHARED ${HEADERS_FILES})
+target_link_libraries(${LIB} PRIVATE rcspp_objects)
 add_dependencies(${LIB} generate_umbrella_header)
-
-# Set library version
 set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
-target_include_directories(${LIB} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

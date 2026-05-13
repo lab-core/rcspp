@@ -14,18 +14,6 @@ import sys as _sys
 
 _pkg_dir = _os.path.dirname(_os.path.abspath(__file__))
 
-# On Python 3.8+/Windows, pre-load rcspp.dll from the package directory
-# (installed-wheel case) so it is in-process before _core.pyd is imported.
-if _sys.platform == "win32":
-    import ctypes as _ctypes
-
-    _rcspp_in_pkg = _os.path.join(_pkg_dir, "rcspp.dll")
-    if _os.path.exists(_rcspp_in_pkg):
-        _ctypes.WinDLL(_rcspp_in_pkg)
-    del _ctypes, _rcspp_in_pkg
-if hasattr(_os, "add_dll_directory"):
-    _os.add_dll_directory(_pkg_dir)
-
 if not [
     f
     for f in _glob.glob(_os.path.join(_pkg_dir, "_core*"))
@@ -43,37 +31,6 @@ if not [
                 if _os.path.splitext(f)[1] in _impmach.EXTENSION_SUFFIXES
             ]
             if _hits:
-                # On Windows, pre-load rcspp.dll by absolute path via ctypes so
-                # it is already in the process module list when _core.pyd is
-                # loaded.  This sidesteps Python 3.8+ DLL-search-path
-                # restrictions entirely: once a DLL is mapped, Windows finds it
-                # by name without any directory search.
-                if _sys.platform == "win32":
-                    import ctypes as _ctypes
-
-                    for _dll_dir in [
-                        _candidate,
-                        _os.path.join(_root, _build, "bin", "Release"),
-                        _os.path.join(_root, _build, "bin", "Debug"),
-                        _os.path.join(_root, _build, "bin"),
-                    ]:
-                        _rcspp_dll = _os.path.join(_dll_dir, "rcspp.dll")
-                        if _os.path.exists(_rcspp_dll):
-                            _ctypes.WinDLL(_rcspp_dll)
-                            break
-                    del _ctypes
-                # Also register DLL directories for any other transitive deps.
-                if hasattr(_os, "add_dll_directory"):
-                    for _dll_dir in [
-                        _candidate,
-                        _os.path.join(_root, _build, "bin"),
-                        _os.path.join(_root, _build, "bin", "Release"),
-                        _os.path.join(_root, _build, "bin", "Debug"),
-                        _os.path.join(_root, _build, "bin", "RelWithDebInfo"),
-                        _os.path.join(_root, _build, "bin", "MinSizeRel"),
-                    ]:
-                        if _os.path.isdir(_dll_dir):
-                            _os.add_dll_directory(_dll_dir)
                 # Pre-register the extension in sys.modules before relative imports run.
                 _spec = _imputil.spec_from_file_location("rcspp._core", _hits[0])
                 _mod = _imputil.module_from_spec(_spec)

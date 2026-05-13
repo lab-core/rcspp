@@ -41,7 +41,7 @@ endif()
 target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link the core C++ library
-target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp)
+target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
 
 # Find all .py files in rcspp (recursively)
 file(GLOB_RECURSE PYTHON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.py")
@@ -68,20 +68,7 @@ endforeach()
 add_custom_target(copy_python_sources ALL DEPENDS ${PYTHON_COPY_OUTPUTS})
 add_dependencies(${PYTHON_EXTENSION_NAME} copy_python_sources)
 
-# Copy the core shared library next to the extension for local runs on platforms
-# where the Python extension depends on the rcspp shared library.
-add_custom_command(TARGET ${PYTHON_EXTENSION_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:rcspp>"
-            "$<TARGET_FILE_DIR:${PYTHON_EXTENSION_NAME}>"
-)
-
 install(TARGETS ${PYTHON_EXTENSION_NAME}
-    LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME}
-    RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME}
-)
-
-install(TARGETS rcspp
     LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME}
     RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME}
 )
