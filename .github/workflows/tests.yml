@@ -63,9 +63,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $pythonExe = (python -c "import sys; print(sys.executable)")
           New-Item -ItemType Directory -Force -Path $env:BUILD_DIR | Out-Null
           Push-Location $env:BUILD_DIR
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_PYTHON=ON ..
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUSE_PYTHON=ON "-DPython_EXECUTABLE=$pythonExe" ..
           Pop-Location
 
       - name: Build (Linux/macOS)

@@ -6,44 +6,46 @@
 # at src/python_interface/) the compiled _core extension is absent.  Pre-load it
 # into sys.modules so the subsequent relative import (from . import _core) works.
 
-import glob as _glob
-import importlib.machinery as _impmach
 import importlib.util as _imputil
 import os as _os
 import sys as _sys
+import sysconfig as _sysconfig
 
 _pkg_dir = _os.path.dirname(_os.path.abspath(__file__))
+# EXT_SUFFIX is version+platform specific: e.g. ".cp311-win_amd64.pyd", ".cpython-311-linux-gnu.so"
+_ext_suffix = _sysconfig.get_config_var("EXT_SUFFIX") or ".so"
 
-if not [
-    f
-    for f in _glob.glob(_os.path.join(_pkg_dir, "_core*"))
-    if _os.path.splitext(f)[1] in _impmach.EXTENSION_SUFFIXES
-]:
+if not _os.path.exists(_os.path.join(_pkg_dir, f"_core{_ext_suffix}")):
     _root = _pkg_dir
     _found = False
     for _ in range(6):
         _root = _os.path.dirname(_root)
         for _build in ("cmake-build-release", "cmake-build-debug", "build", "out"):
             _candidate = _os.path.join(_root, _build, "src", "python_interface", "rcspp")
-            _hits = [
-                f
-                for f in _glob.glob(_os.path.join(_candidate, "_core*"))
-                if _os.path.splitext(f)[1] in _impmach.EXTENSION_SUFFIXES
-            ]
-            if _hits:
-                # Pre-register the extension in sys.modules before relative imports run.
-                _spec = _imputil.spec_from_file_location("rcspp._core", _hits[0])
+            _core_path = _os.path.join(_candidate, f"_core{_ext_suffix}")
+            if _os.path.exists(_core_path):
+                if _sys.platform == "win32":
+                    # Pre-load the extension with unrestricted DLL search (LoadLibraryW via
+                    # ctypes) so its dependencies are in the process module list before
+                    # Python's extension loader uses LOAD_LIBRARY_SEARCH_DEFAULT_DIRS.
+                    import ctypes as _ctypes
+
+                    try:
+                        _ctypes.CDLL(_core_path)
+                    except OSError:
+                        pass
+                    del _ctypes
+                _spec = _imputil.spec_from_file_location("rcspp._core", _core_path)
                 _mod = _imputil.module_from_spec(_spec)
                 _sys.modules["rcspp._core"] = _mod
                 _spec.loader.exec_module(_mod)
-                # Also extend __path__ so any other build-dir submodules resolve.
                 __path__.append(_candidate)
                 _found = True
                 break
         if _found:
             break
 
-del _glob, _impmach, _imputil, _os, _sys, _pkg_dir
+del _imputil, _os, _sys, _sysconfig, _pkg_dir, _ext_suffix
 
 from . import graph, logger, resource  # noqa: E402
 from ._core.graph import check_interrupted  # noqa: E402
