@@ -1,10 +1,6 @@
 name: publish-pypi
 
 on:
-  push:
-    branches:
-      - package-pypi
-      - python-params
   workflow_dispatch:
     inputs:
       repository:
@@ -86,7 +82,7 @@ jobs:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.event_name == 'push' && 'testpypi' || inputs.repository }}
+      name: ${{ inputs.repository }}
     permissions:
       id-token: write
 
@@ -94,9 +90,7 @@ jobs:
       - name: Validate publish target
         run: |
           echo "Selected ref: ${{ github.ref }}"
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "Push trigger publishes to TestPyPI only."
-          elif [ "${{ inputs.repository }}" = "pypi" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          if [ "${{ inputs.repository }}" = "pypi" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "PyPI publishing is restricted to refs/heads/main."
             exit 1
           fi
@@ -109,14 +103,15 @@ jobs:
           path: dist
 
       - name: Publish to TestPyPI
-        if: github.event_name == 'push' || inputs.repository == 'testpypi'
+        if: inputs.repository == 'testpypi'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
           repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
       - name: Publish to PyPI
-        if: github.event_name != 'push' && inputs.repository == 'pypi'
+        if: inputs.repository == 'pypi'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
