@@ -82,11 +82,11 @@ jobs:
           path: dist/*.tar.gz
 
   publish:
-    name: Publish to ${{ inputs.repository }}
+    name: Publish to ${{ inputs.repository || 'testpypi' }}
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.repository }}
+      name: ${{ inputs.repository || 'testpypi' }}
     permissions:
       id-token: write
 
@@ -94,7 +94,7 @@ jobs:
       - name: Validate publish target
         run: |
           echo "Selected ref: ${{ github.ref }}"
-          if [ "${{ inputs.repository }}" = "pypi" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          if [ "${{ inputs.repository || 'testpypi' }}" = "pypi" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "PyPI publishing is restricted to refs/heads/main."
             exit 1
           fi
@@ -107,7 +107,7 @@ jobs:
           path: dist
 
       - name: Publish to TestPyPI
-        if: inputs.repository == 'testpypi'
+        if: ${{ (inputs.repository || 'testpypi') == 'testpypi' }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
