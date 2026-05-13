@@ -95,7 +95,7 @@ void init_graph(py::module_& m) {
 
     py::class_<PyAlgorithmParams>(m, "AlgorithmParams")
         .def(py::init<>())
-        .def("check", &PyAlgorithmParams::check, py::return_value_policy::reference_internal)
+        .def("check", &PyAlgorithmParams::check)
         .def("could_be_non_optimal", &PyAlgorithmParams::could_be_non_optimal)
         .def_readwrite("stop_after_X_solutions", &PyAlgorithmParams::stop_after_X_solutions)
         .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)

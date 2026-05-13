@@ -9,6 +9,24 @@ set(_GUROBI_HINTS
     $ENV{GUROBI_HOME}
 )
 
+# Auto-discover standard install locations when no hint is provided
+if(APPLE)
+    file(GLOB _GUROBI_MACOS_HINTS
+        "/Library/gurobi*/macos_universal2"
+        "/Library/gurobi*/macos_arm64"
+        "/Library/gurobi*/mac64"
+    )
+    list(SORT _GUROBI_MACOS_HINTS ORDER DESCENDING)
+    list(APPEND _GUROBI_HINTS ${_GUROBI_MACOS_HINTS})
+elseif(UNIX)
+    file(GLOB _GUROBI_LINUX_HINTS
+        "/opt/gurobi*/linux64"
+        "/opt/gurobi*"
+    )
+    list(SORT _GUROBI_LINUX_HINTS ORDER DESCENDING)
+    list(APPEND _GUROBI_HINTS ${_GUROBI_LINUX_HINTS})
+endif()
+
 # Include directories (both headers live in same include dir)
 find_path(GUROBI_INCLUDE_DIRS
     NAMES gurobi_c.h
@@ -18,7 +36,7 @@ find_path(GUROBI_INCLUDE_DIRS
 
 # Core (C) library (names differ by version)
 find_library(GUROBI_LIBRARY
-    NAMES gurobi gurobi120 gurobi110 gurobi100
+    NAMES gurobi gurobi130 gurobi120 gurobi110 gurobi100
     HINTS ${_GUROBI_HINTS}
     PATH_SUFFIXES lib
 )
@@ -127,14 +145,15 @@ find_package_handle_standard_args(GUROBI
 )
 
 if(NOT GUROBI_FOUND)
-    message(FATAL_ERROR "Failed to locate Gurobi core library.")
+    message(STATUS "Gurobi core library not found; VRP targets will be skipped.")
+    return()
 endif()
 
 # If C++ header present and required, enforce at least a release lib
 if(GUROBI_REQUIRE_CXX AND GUROBI_CXX_INCLUDE_DIR AND NOT GUROBI_CXX_LIBRARY_RELEASE)
-    message(FATAL_ERROR
-        "Gurobi C++ header found at ${GUROBI_CXX_INCLUDE_DIR} but no matching C++ library was found.\n"
-        "Searched variants: gurobi_c++md2017 / mdd / mt / mtd.\n"
+    message(WARNING
+        "Gurobi C++ header found at ${GUROBI_CXX_INCLUDE_DIR} but no matching C++ library was found. "
+        "Searched variants: gurobi_c++md2017 / mdd / mt / mtd. "
         "Check that these files exist in <GUROBI_HOME>/lib or pass -DGUROBI_CXX_LIBRARY=<path>."
     )
 endif()

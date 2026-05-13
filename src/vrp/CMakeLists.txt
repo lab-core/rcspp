@@ -2,38 +2,37 @@
 
 project(rcspp-vrp LANGUAGES CXX)
 
-# Make sure our custom FindGUROBI.cmake is found
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+# Use the canonical FindGUROBI.cmake from src/cmake
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/src/cmake")
 
 # Boost -----------------------------------------------------------------------
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-# Use only header-only Boost components to avoid linker errors
-find_package(Boost REQUIRED)
-if(Boost_FOUND)
-  message(STATUS "Boost found: ${Boost_VERSION}")
+find_package(Boost CONFIG)
+if(NOT Boost_FOUND)
+  message(STATUS "Boost not found; skipping VRP targets.")
+  return()
 endif()
+message(STATUS "Boost found: ${Boost_VERSION}")
 
 # Gurobi ----------------------------------------------------------------------
-# We require the C++ API since the code uses GRBModel / GRBEnv.
 set(GUROBI_REQUIRE_CXX ON)
-find_package(GUROBI REQUIRED)
+find_package(GUROBI)
 
-# Diagnostics (from the enhanced finder these should already appear,
-# but we add a short summary here too)
+if(NOT GUROBI_FOUND)
+  message(STATUS "Gurobi not found; skipping VRP targets.")
+  return()
+endif()
+
 if(TARGET GUROBI::gurobi_cxx)
   message(STATUS "Linking against Gurobi C++ API target: GUROBI::gurobi_cxx")
 else()
-  message(STATUS "Gurobi C++ target not found; will link only GUROBI::gurobi (this should NOT happen with GUROBI_REQUIRE_CXX=ON).")
+  message(STATUS "Gurobi C++ target not found; linking only GUROBI::gurobi.")
 endif()
 
 # Sources ---------------------------------------------------------------------
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp")
 
-set(LIBS rcspp)
-# Link Gurobi (C++ if available)
+set(LIBS rcspp Boost::headers)
 if(TARGET GUROBI::gurobi_cxx)
   set(LIBS ${LIBS} GUROBI::gurobi_cxx)
 else()
@@ -44,9 +43,6 @@ endif()
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
-if(Boost_FOUND)
-  target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -60,9 +56,6 @@ set(BENCHMARK_NAME "rcspp-vrp-benchmark")
 add_executable(${BENCHMARK_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp" ${SOURCE_FILES})
 target_include_directories(${BENCHMARK_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(${BENCHMARK_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
-if(Boost_FOUND)
-  target_include_directories(${BENCHMARK_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-endif()
 target_link_libraries(${BENCHMARK_NAME} PRIVATE ${LIBS})
 add_custom_command(TARGET ${BENCHMARK_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

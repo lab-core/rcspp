@@ -165,6 +165,33 @@ constexpr const char* py_type_name();
 RCSPP_ALL_RESOURCES(GEN_PY_TYPE_NAME)
 #undef GEN_PY_TYPE_NAME
 
+// ─── Resource type resolver ───────────────────────────────────────────────────
+// Iterates over ResourceTypes..., finds the first numerical type whose py_type_name
+// matches type_name, and calls callback.operator()<RT>() with it.
+// Throws py::value_error(param_name) if no match is found.
+
+template <typename... ResourceTypes, typename Callback>
+void with_resource_type(const std::string& type_name, const char* param_name, Callback&& cb) {
+    bool matched = false;
+    if constexpr (sizeof...(ResourceTypes) > 0) {
+        auto try_type = [&]<typename RT>() -> bool {
+            if constexpr (!is_numerical_resource_v<RT>) {
+                return false;
+            }
+            if (type_name != py_type_name<RT>()) {
+                return false;
+            }
+            cb.template operator()<RT>();
+            return true;
+        };
+        matched = (try_type.template operator()<ResourceTypes>() || ...);
+    }
+    if (!matched) {
+        throw py::value_error(std::string("Unknown or non-numerical ") + param_name + ": '" +
+                              type_name + "'");
+    }
+}
+
 // ─── Bucket solve dispatcher ──────────────────────────────────────────────────
 // Selects LabelBuckets<RT, RT, RC> based on py_p.bucket_resource_type.
 // Empty string → use CostRC (default). Non-numerical types are skipped.
@@ -172,40 +199,38 @@ RCSPP_ALL_RESOURCES(GEN_PY_TYPE_NAME)
 template <typename RG, typename RC, typename CostRC, typename... ResourceTypes>
 std::vector<Solution> run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
                                        const PyBucketAlgorithmParams& py_p, bool pre, int ci) {
-    if (py_p.bucket_resource_type.empty()) {
-        using BucketLC = LabelBuckets<CostRC, CostRC, RC>;
+    auto check_index = [&](const char* param, size_t idx, size_t count) {
+        if (idx >= count) {
+            throw py::value_error(std::string(param) + " " + std::to_string(idx) +
+                                  " out of range (graph has " + std::to_string(count) +
+                                  " resource(s) of the required type, valid range [0, " +
+                                  std::to_string(count - 1) + "])");
+        }
+    };
+
+    std::vector<Solution> result;
+    auto run_func = [&]<typename RT>() {
+        const auto& factory = rg.get_resource_factory();
+        check_index("bucket_resource_index",
+                    py_p.bucket_resource_index,
+                    factory.template get_num_resource_type<RT>());
+        check_index("sort_resource_index",
+                    py_p.sort_resource_index,
+                    factory.template get_num_resource_type<CostRC>());
+        using BucketLC = LabelBuckets<RT, CostRC, RC>;
         BucketLC lc(py_p.range_buckets, py_p.bucket_resource_index, py_p.sort_resource_index);
         auto p = py_p.template to_params<BucketLC>(std::move(lc));
-        return dispatch_algorithm<RG, CostRC, BucketLC>(alg, rg, ub, std::move(p), pre, ci);
-    }
+        result = dispatch_algorithm<RG, CostRC, BucketLC>(alg, rg, ub, std::move(p), pre, ci);
+    };
 
-    const std::string& type_name = py_p.bucket_resource_type;
-    std::vector<Solution> result;
-    bool matched = false;
-
-    if constexpr (sizeof...(ResourceTypes) > 0) {
-        auto try_type = [&]<typename RT>() -> bool {
-            if constexpr (!is_numerical_resource_v<RT>) {
-                return false;
-            } else {
-                if (type_name != py_type_name<RT>()) {
-                    return false;
-                }
-                using BucketLC = LabelBuckets<RT, CostRC, RC>;
-                BucketLC lc(py_p.range_buckets,
-                            py_p.bucket_resource_index,
-                            py_p.sort_resource_index);
-                auto p = py_p.template to_params<BucketLC>(std::move(lc));
-                result =
-                    dispatch_algorithm<RG, CostRC, BucketLC>(alg, rg, ub, std::move(p), pre, ci);
-                return true;
-            }
-        };
-        matched = (try_type.template operator()<ResourceTypes>() || ...);
-    }
-
-    if (!matched) {
-        throw py::value_error("Unknown or non-numerical bucket_resource_type: '" + type_name + "'");
+    // Run with default template value CostRC
+    if (py_p.bucket_resource_type.empty()) {
+        run_func.template operator()<CostRC>();
+    } else {
+        // Otherwise, retrieve the right template
+        with_resource_type<ResourceTypes...>(py_p.bucket_resource_type,
+                                             "bucket_resource_type",
+                                             run_func);
     }
     return result;
 }
