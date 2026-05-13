@@ -37,10 +37,21 @@ if not [
                 if _os.path.splitext(f)[1] in _impmach.EXTENSION_SUFFIXES
             ]
             if _hits:
-                # On Python 3.8+/Windows, DLLs in the extension's directory are not
-                # automatically searched; register it so rcspp.dll is found.
+                # On Python 3.8+/Windows, DLLs are not auto-searched from the
+                # extension directory.  Register the extension directory AND all
+                # common build-output bin directories so rcspp.dll is found
+                # regardless of which CMake config placed it.
                 if hasattr(_os, "add_dll_directory"):
-                    _os.add_dll_directory(_candidate)
+                    for _dll_dir in [
+                        _candidate,
+                        _os.path.join(_root, _build, "bin"),
+                        _os.path.join(_root, _build, "bin", "Release"),
+                        _os.path.join(_root, _build, "bin", "Debug"),
+                        _os.path.join(_root, _build, "bin", "RelWithDebInfo"),
+                        _os.path.join(_root, _build, "bin", "MinSizeRel"),
+                    ]:
+                        if _os.path.isdir(_dll_dir):
+                            _os.add_dll_directory(_dll_dir)
                 # Pre-register the extension in sys.modules before relative imports run.
                 _spec = _imputil.spec_from_file_location("rcspp._core", _hits[0])
                 _mod = _imputil.module_from_spec(_spec)

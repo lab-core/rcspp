@@ -10,10 +10,22 @@ file(GLOB_RECURSE MODULE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.cpp")
 
 # Add pybind11 module
 pybind11_add_module(${PYTHON_EXTENSION_NAME} ${MODULE_SOURCES})
+# Flatten output to the same directory for all configurations.
+# Setting every per-config variant prevents MSVC's multi-config generators
+# from appending a Debug/ or Release/ subdirectory.
+set(_py_out_dir "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}")
 set_target_properties(${PYTHON_EXTENSION_NAME} PROPERTIES
-  OUTPUT_NAME ${PYTHON_EXTENSION_NAME}
-  LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}>"
-  RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}>"
+  OUTPUT_NAME                               ${PYTHON_EXTENSION_NAME}
+  LIBRARY_OUTPUT_DIRECTORY                  "${_py_out_dir}"
+  LIBRARY_OUTPUT_DIRECTORY_DEBUG            "${_py_out_dir}"
+  LIBRARY_OUTPUT_DIRECTORY_RELEASE          "${_py_out_dir}"
+  LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO   "${_py_out_dir}"
+  LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL       "${_py_out_dir}"
+  RUNTIME_OUTPUT_DIRECTORY                  "${_py_out_dir}"
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG            "${_py_out_dir}"
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE          "${_py_out_dir}"
+  RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO   "${_py_out_dir}"
+  RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL       "${_py_out_dir}"
   BUILD_RPATH "$ORIGIN"
   INSTALL_RPATH "$ORIGIN"
 )
