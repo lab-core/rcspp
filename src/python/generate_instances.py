@@ -18,8 +18,6 @@ for name in base_instances:
     reader = InstanceReader(instance_path)
     base_instance = reader.read()
 
-
-    nb_customers = len(base_instance.get_demand_customers_id())
     customers_by_id = base_instance.get_customers_by_id()
     depot = base_instance.get_depot_customer()
     nb_customers = len(base_instance.get_customers_by_id())
@@ -37,7 +35,7 @@ for name in base_instances:
         Itype = "R"
         nR += 1
     
-    n = 40  # nombre de clients à sélectionner pour chaque instance générée
+    n = 30  # nombre de clients à sélectionner pour chaque instance générée
 
     tirages = []
     tirages_sets = []
@@ -51,20 +49,14 @@ for name in base_instances:
         if tirage_set not in tirages_sets:
             tirages.append(tirage)
             tirages_sets.append(tirage_set)
-        else:
-            print(f"Tirage {tirage} déjà existant, génération d'un nouveau tirage...")  
-            tirage = random.sample(range(1, nb_customers), n)
-            tirage.sort()
-            tirage_set = frozenset(tirage)
 
     for i, tirage in enumerate(tirages, 1):
         new_instance_name = f"{name}_{i}"
         new_instance = Instance(base_instance.get_nb_vehicles(), base_instance.get_capacity()//5, new_instance_name)
         new_instance.add_customer(depot.id, depot.pos_x, depot.pos_y, depot.demand, depot.ready_time, depot.due_time, depot.service_time, True)
-        for i in range(len(tirage)):
-            id = i+1
-            c= customers_by_id[id]
-            new_instance.add_customer(id, c.pos_x, c.pos_y, c.demand, c.ready_time, c.due_time, c.service_time, False)
+        for idx, customer_id in enumerate(tirage):
+            c = customers_by_id[customer_id]
+            new_instance.add_customer(idx+1, c.pos_x, c.pos_y, c.demand, c.ready_time, c.due_time, c.service_time, False)
 
         ensure_parent_dir(f"{DATASETS_DIR}dataset_{n}/Instances/{Itype}/")
         new_instance.write_to_file(f"{DATASETS_DIR}dataset_{n}/Instances/{Itype}/{new_instance_name}.txt")
@@ -79,5 +71,5 @@ print(f"Number of RC instances: {nRC}")
 
 ensure_parent_dir(f"{DATASETS_DIR}dataset_{n}/Instances/")
 with open(f"{DATASETS_DIR}dataset_{n}/Instances/instances_name.txt", "a") as f:
-    for n in generated_instances_names:
-        f.write(n + "\n")
+    for name in generated_instances_names:
+        f.write(name + "\n")
