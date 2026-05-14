@@ -36,8 +36,13 @@ print(f"######### TASK_NUMBER: {task_number}")
  
 # Global index across all batches (0-based)
 instance_index = task_offset + task_number*(task_id - 1)
+print(f"Index: {instance_index}")
 
 all_instances = read_instances_name(f"{dataset_dir}Instances/missing_instances_name.txt")
+
+if task_number == 0:
+    print("Warning: TASK_NUMBER is 0, nothing to process")
+    sys.exit(0)
 
 
 for i in range(task_number):
@@ -55,7 +60,7 @@ for i in range(task_number):
 
     reader = InstanceReader(f"{dataset_dir}Instances/{Itype}/{instance_name}.txt")
     instance = reader.read()
-    baseline(instance, dataset_dir)
+    baseline(instance, dataset_dir, verbose=verbose)
 
     instance_index += 1
    
