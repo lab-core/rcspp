@@ -368,6 +368,7 @@ class VRP:
             path = Path(self.__path_id, solution_cost, solution.path_node_ids)
             self.__paths.append(path)
             self.__path_id += 1
+            self.master_problem.add_column(path)
 
     def calculate_solution_cost(self, solution: Solution):
         cost = 0.0
@@ -399,13 +400,9 @@ class VRP:
                 negative_red_cost_solutions.append(sol)
         return negative_red_cost_solutions, min_reduced_cost
 
-    def column_generation_iteration(self, subproblem_max_nb_solutions: Optional[int] = None, master_problem: Optional[MasterProblem] = None):
-        if master_problem is None:
-            master_problem = MasterProblem(self.__instance.get_demand_customers_id())
+    def column_generation_iteration(self, subproblem_max_nb_solutions: Optional[int] = None):
 
-        master_problem.construct_model(self.__paths)
-
-        master_solution = master_problem.solve(True)        
+        master_solution = self.master_problem.solve(True)        
 
         dual_by_id = master_solution.dual_by_var_id
         self.__cost_history.append(master_solution.cost)
@@ -424,15 +421,14 @@ class VRP:
 
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         min_reduced_cost = -math.inf
-
+        
         while True:
             self.print_begin_iteration(min_reduced_cost)
 
             if self.__smoothing:
                 self.__smoothing_parameter = max(0, 1- self.__mis_price_k*(1-self.__smoothing_parameter))
 
-            master_problem = MasterProblem(self.__instance.get_demand_customers_id(), self.__verbose)
-            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
+            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
             self.add_paths(negative_red_cost_solutions)
 
@@ -464,9 +460,7 @@ class VRP:
         return master_solution
 
     def last_iteration(self):
-        master_problem = MasterProblem(self.__instance.get_demand_customers_id())
-        master_problem.construct_model(self.__paths)
-        master_solution = master_problem.solve()
+        master_solution = self.master_problem.solve()
 
         master_solution.dual_by_var_id = self.final_dual_by_id
         self.__cost_history.append(master_solution.cost)
@@ -476,6 +470,9 @@ class VRP:
         time_start = time.time()
 
         self.generate_initial_paths()
+
+        self.master_problem = MasterProblem(self.__instance.get_demand_customers_id(), self.__verbose)
+        self.master_problem.construct_model(self.__paths)
 
         self.__n_iterations = 0
 
@@ -571,8 +568,7 @@ class VRP:
             print(f"------------------------------------------------------------------ Iter: {self.__n_iterations}------------------")
 
     def first_iteration(self, subproblem_max_nb_solutions: Optional[int] = None):
-        master_problem = MasterProblem(self.__instance.get_demand_customers_id(), verbose=self.__verbose)
-        master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
+        master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
         dual_by_id = master_solution.dual_by_var_id
 

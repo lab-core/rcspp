@@ -1,7 +1,7 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
-from gurobipy import GRB, LinExpr, Model, Env
+from gurobipy import GRB, Column, LinExpr, Model, Env
 from vrp.cg.mp_solution import MPSolution
 
 
@@ -31,27 +31,24 @@ class MasterProblem:
 
     def add_variables(self, paths):
         for path in paths:
-            path_var_name = f"y_{path.id}"
-            path_var = self.model_.addVar(lb=0.0, ub=GRB.INFINITY, vtype=GRB.BINARY, name=path_var_name)
-            self.__path_variables_by_id[path.id] = path_var
-            self.__paths_by_id[path.id] = path
+            self._add_single_variable(path)
+
+    def _add_single_variable(self, path):
+        path_var_name = f"y_{path.id}"
+        path_var = self.model_.addVar(lb=0.0, obj=path.cost, vtype=GRB.BINARY, name=path_var_name)
+        self.__path_variables_by_id[path.id] = path_var
+        self.__paths_by_id[path.id] = path
 
     def set_objective(self):
-        self.__objective_lin_expr.clear()
-        total_cost = 0.0
-
-        for path_id, path in self.__paths_by_id.items():
-            path_var = self.__path_variables_by_id[path_id]
-            total_cost += path.cost
-            self.__objective_lin_expr += path.cost * path_var
-
-        self.model_.setObjective(self.__objective_lin_expr)
+        self.model_.ModelSense = GRB.MINIMIZE
+        self.model_.update()
 
     def add_constraints(self):
-        for node_id in self.node_ids_:
-            self.add_node_constraint(node_id)
+        for i in range(len(self.node_ids_)):
+            self.add_node_constraint(i)
 
-    def add_node_constraint(self, node_id):
+    def add_node_constraint(self, i):
+        node_id = self.node_ids_[i]
         constr_lin_expr_lhs = LinExpr()
         constr_lin_expr_rhs = 1.0
 
@@ -111,3 +108,25 @@ class MasterProblem:
 
         print(f"solution.cost={solution.cost}")
         return solution
+
+
+    def add_column(self, path):
+        col = Column()
+
+        for node_id in self.node_ids_:
+            coeff = path.visited_nodes.count(node_id)
+            if coeff != 0:
+                col.addTerms(coeff, self.__node_constraints_by_id[node_id])
+
+        path_var_name = f"y_{path.id}"
+        path_var = self.model_.addVar(
+            lb=0.0,
+            obj=path.cost,        # ← coût directement dans addVar, pas besoin de set_objective
+            vtype=GRB.BINARY,
+            name=path_var_name,
+            column=col
+        )
+        self.__path_variables_by_id[path.id] = path_var
+        self.__paths_by_id[path.id] = path
+
+        self.model_.update()

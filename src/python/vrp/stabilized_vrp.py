@@ -6,6 +6,7 @@ import time
 from typing import Optional
 
 from vrp.cg.dual_box_master_problem import DualBoxMasterProblem
+from vrp.cg.master_problem import MasterProblem
 from vrp.instance import Instance
 from vrp.vrp import VRP
 from utils.utils import dict_l1_norm
@@ -23,6 +24,9 @@ class StabilizedVRP(VRP):
         self.generate_initial_paths()
         max_special_var_value = math.inf
 
+        self.master_problem = MasterProblem(self._VRP__instance.get_demand_customers_id(), verbose=self._VRP__verbose)
+        self.master_problem.construct_model(self._VRP__paths)
+
         if self.dual_estimate is None:
             self.first_iteration(subproblem_max_nb_solutions)
         else:
@@ -31,6 +35,9 @@ class StabilizedVRP(VRP):
             self.dual_box_center_ = self.dual_estimate
             self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
             self.compute_first_lagrangian_bound(self.dual_box_center_)
+
+        self.master_problem = DualBoxMasterProblem(self._VRP__instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value, verbose=self._VRP__verbose)
+        self.master_problem.construct_model(self._VRP__paths)
 
         while True:
             stabilized_iter_solution = self.cg_iterations(subproblem_max_nb_solutions)
@@ -62,13 +69,14 @@ class StabilizedVRP(VRP):
         while True:
             self.print_begin_iteration(min_reduced_cost)
             
-            master_problem = DualBoxMasterProblem(self._VRP__instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value, verbose=self._VRP__verbose)
-            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions, master_problem)
+            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
             
             lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self._VRP__instance.get_nb_vehicles() *min_reduced_cost
             if lb > self.best_lagrangian_lb:
                 self.best_lagrangian_lb = lb
                 self.dual_box_center_ = master_solution.dual_by_var_id
+                # ← On propage le nouveau centre au modèle
+                self.master_problem.update_center(self.dual_box_center_)
                 print("Changement de centre")
 
             special_var_values = [value for var, value in master_solution.value_by_var_id.items() if isinstance(var, str) and var.startswith("y")]
@@ -76,13 +84,13 @@ class StabilizedVRP(VRP):
 
             if max_special_var_value < self.EPSILON:
                 self.box_radius *= 0.5
+                self.master_problem.update_radius(self.box_radius)
 
             self.add_paths(negative_red_cost_solutions)
-
             self._VRP__n_iterations += 1
 
             if min_reduced_cost > -self.EPSILON:
                 break
-            
+
         self._VRP__lp_cost = master_solution.cost
         return master_solution

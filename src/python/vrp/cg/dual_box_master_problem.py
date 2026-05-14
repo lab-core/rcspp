@@ -3,79 +3,67 @@ from vrp.cg.mp_solution import MPSolution
 from vrp.cg.master_problem import MasterProblem
 
 class DualBoxMasterProblem(MasterProblem):
-    def __init__(self, node_ids, dual_box_center, dual_box_radius:float, penalty=None, verbose=True):
+    def __init__(self, node_ids, dual_box_center, dual_box_radius: float, 
+                 penalty=None, verbose=True):
         super().__init__(node_ids, verbose=verbose)
         self.left_special_var_by_id = {}
         self.right_special_var_by_id = {}
         self.penalty = penalty
-        if self.penalty is not None and isinstance(self.penalty, float):
-            self.have_penalty_ = True
+        self.have_penalty_ = (
+            self.penalty is not None and isinstance(self.penalty, float)
+        )
+        if self.have_penalty_:
             self.__left_penalty_constraints_by_id = {}
             self.__right_penalty_constraints_by_id = {}
-        else:
-            self.have_penalty_ = False
+
         if isinstance(dual_box_center, dict):
-            self.dual_box_center_ = [dual_box_center[node_id] for node_id in node_ids]
+            self.dual_box_center_ = [dual_box_center[node_id] 
+                                     for node_id in node_ids]
         else:
             self.dual_box_center_ = dual_box_center
         self.dual_box_radius = dual_box_radius
-    
+
     def add_variables(self, paths):
         super().add_variables(paths)
 
-        for i in range(len(self.node_ids_)):
-            node_id = self.node_ids_[i]
-            special_var_name_left = f"y1_{node_id}"
-            special_var_left = self.model_.addVar(lb=0.0, 
-                                                 ub=GRB.INFINITY, 
-                                                 vtype=GRB.CONTINUOUS, 
-                                                 name=special_var_name_left)
-            self.left_special_var_by_id[node_id] = special_var_left
+        for i, node_id in enumerate(self.node_ids_):
+            # Coût initial selon le centre courant
+            cost_left  =  self.dual_box_radius - self.dual_box_center_[i]
+            cost_right =  self.dual_box_radius + self.dual_box_center_[i]
 
-            special_var_name_right = f"y2_{node_id}"
-            special_var_right = self.model_.addVar(lb=0.0, 
-                                                  ub=GRB.INFINITY, 
-                                                  vtype=GRB.CONTINUOUS, 
-                                                  name=special_var_name_right)
-            self.right_special_var_by_id[node_id] = special_var_right
+            left_var = self.model_.addVar(
+                lb=0.0,
+                ub=GRB.INFINITY,
+                obj=cost_left,
+                vtype=GRB.CONTINUOUS,
+                name=f"y1_{node_id}",
+            )
+            self.left_special_var_by_id[node_id] = left_var
 
-    def set_objective(self):
-        self._MasterProblem__objective_lin_expr.clear()
-        total_cost = 0.0
-
-        for path_id, path in self._MasterProblem__paths_by_id.items():
-            path_var = self._MasterProblem__path_variables_by_id[path_id]
-            total_cost += path.cost
-            self._MasterProblem__objective_lin_expr += path.cost * path_var
-
-        for i in range(len(self.node_ids_)):
-            node_id = self.node_ids_[i]
-            special_var_left = self.left_special_var_by_id[node_id]
-            special_var_right = self.right_special_var_by_id[node_id]
-            self._MasterProblem__objective_lin_expr += (self.dual_box_radius - self.dual_box_center_[i])*special_var_left
-            self._MasterProblem__objective_lin_expr += (self.dual_box_radius + self.dual_box_center_[i])*special_var_right
-
-        self.model_.setObjective(self._MasterProblem__objective_lin_expr)
-
-    def add_constraints(self):
-        for i in range(len(self.node_ids_)):
-            self.add_node_constraint(i)
+            right_var = self.model_.addVar(
+                lb=0.0,
+                ub=GRB.INFINITY,
+                obj=cost_right,
+                vtype=GRB.CONTINUOUS,
+                name=f"y2_{node_id}",
+            )
+            self.right_special_var_by_id[node_id] = right_var
 
     def add_node_constraint(self, i):
         node_id = self.node_ids_[i]
         constr_lin_expr_lhs = LinExpr()
-        constr_lin_expr_rhs = 1.0
 
         for path_id, path in self._MasterProblem__paths_by_id.items():
             path_var = self._MasterProblem__path_variables_by_id[path_id]
             path_visits_node = path.visited_nodes.count(node_id)
             constr_lin_expr_lhs += path_visits_node * path_var
-        
+
         constr_lin_expr_lhs -= self.left_special_var_by_id[node_id]
         constr_lin_expr_lhs += self.right_special_var_by_id[node_id]
 
-        constr_name = f"c_{node_id}"
-        constr = self.model_.addConstr(constr_lin_expr_lhs == constr_lin_expr_rhs, name=constr_name)
+        constr = self.model_.addConstr(
+            constr_lin_expr_lhs == 1.0, name=f"c_{node_id}"
+        )
         self._MasterProblem__node_constraints_by_id[node_id] = constr
 
         if self.have_penalty_:
@@ -91,6 +79,39 @@ class DualBoxMasterProblem(MasterProblem):
             self.__left_penalty_constraints_by_id[node_id] = left_constr
             self.__right_penalty_constraints_by_id[node_id] = right_constr
 
+    def update_center(self, new_center: dict):
+        """Met à jour les coefs objectif quand le centre de stabilisation change."""
+        if isinstance(new_center, dict):
+            self.dual_box_center_ = [new_center[node_id] 
+                                     for node_id in self.node_ids_]
+        else:
+            self.dual_box_center_ = new_center
+
+        for i, node_id in enumerate(self.node_ids_):
+            self.left_special_var_by_id[node_id].obj = (
+                self.dual_box_radius - self.dual_box_center_[i]
+            )
+            self.right_special_var_by_id[node_id].obj = (
+                self.dual_box_radius + self.dual_box_center_[i]
+            )
+
+    def update_radius(self, new_radius: float):
+        self.dual_box_radius = new_radius
+        for i, node_id in enumerate(self.node_ids_):
+            self.left_special_var_by_id[node_id].obj = (
+                self.dual_box_radius - self.dual_box_center_[i]
+            )
+            self.right_special_var_by_id[node_id].obj = (
+                self.dual_box_radius + self.dual_box_center_[i]
+            )
+
+    def update_penalty(self, new_penalty: float):
+        """Met à jour la valeur RHS des contraintes de pénalité."""
+        self.penalty = new_penalty
+        for node_id in self.node_ids_:
+            self.__left_penalty_constraints_by_id[node_id].RHS  = new_penalty
+            self.__right_penalty_constraints_by_id[node_id].RHS = new_penalty
+            
 
     def extract_solution(self, model, dual=False):
         model_variables_by_var_name = {v.VarName: v for v in model.getVars()}
@@ -100,8 +121,6 @@ class DualBoxMasterProblem(MasterProblem):
         dual_by_var_id = {}
 
         if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
-            print(f"model.Status={model.Status} vs GRB.OPTIMAL={GRB.OPTIMAL}")
-            # Variable values
             for path_id, path_var in self._MasterProblem__path_variables_by_id.items():
                 model_path_var = model_variables_by_var_name[
                     path_var.VarName
@@ -120,7 +139,6 @@ class DualBoxMasterProblem(MasterProblem):
                 ]
                 value_by_var_id[f"y2_{node_id}"] = model_right_special_var.X
 
-            # Dual values
             if dual:
                 for node_id, node_constr in self._MasterProblem__node_constraints_by_id.items():
                     model_node_constr = model_constraints_by_constr_name[
@@ -132,7 +150,7 @@ class DualBoxMasterProblem(MasterProblem):
 
         solution = MPSolution()
         solution.value_by_var_id = value_by_var_id
-        solution.dual_by_var_id = dual_by_var_id
+        solution.dual_by_var_id  = dual_by_var_id
         solution.cost = cost
 
         print(f"solution.cost={solution.cost}")
