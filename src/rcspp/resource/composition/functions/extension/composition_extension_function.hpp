@@ -11,6 +11,7 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionExtensionFunction
     : public Clonable<CompositionExtensionFunction<ResourceTypes...>,
                       ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> {

@@ -14,6 +14,8 @@
 namespace rcspp {
 
 template <typename ReachableResourceType, typename... ResourceTypes>
+    requires ResourceTypeConcept<ReachableResourceType> &&
+             (ResourceTypeConcept<ResourceTypes> && ...)
 class ReachableCompositionExtensionFunction
     : public Clonable<ReachableCompositionExtensionFunction<ResourceTypes...>,
                       CompositionExtensionFunction<ResourceTypes...>,

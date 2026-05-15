@@ -27,6 +27,7 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         using ResourceCompositionType = ResourceTypeComposition<ResourceTypes...>;
 

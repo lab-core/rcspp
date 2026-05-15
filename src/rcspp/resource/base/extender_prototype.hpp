@@ -52,6 +52,12 @@ class ExtenderPrototype {
         [[nodiscard]] auto get_value() const -> const ResourceType& { return value_; }
         [[nodiscard]] auto get_value() -> ResourceType& { return value_; }
 
+        // Forward set_value calls to the stored value (only valid when ResourceType has set_value)
+        template <typename... Args>
+        void set_value(Args&&... args) {
+            value_.set_value(std::forward<Args>(args)...);
+        }
+
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
     protected:

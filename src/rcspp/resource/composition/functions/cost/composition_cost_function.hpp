@@ -10,6 +10,7 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionCostFunction
     : public Clonable<CompositionCostFunction<ResourceTypes...>,
                       CostFunction<ResourceTypeComposition<ResourceTypes...>>> {

@@ -12,6 +12,7 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionDominanceFunction
     : public Clonable<CompositionDominanceFunction<ResourceTypes...>,
                       DominanceFunction<ResourceTypeComposition<ResourceTypes...>>> {

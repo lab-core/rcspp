@@ -9,6 +9,8 @@ template <typename ResourceType>
 concept ResourceTypeConcept = requires(ResourceType t) {
     t.reset();
     t.get_value();
+    t.set_value(t.get_value());
+    t.to_string();
 };
 
 }  // namespace rcspp

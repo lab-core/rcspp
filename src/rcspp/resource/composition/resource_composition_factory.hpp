@@ -18,6 +18,7 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class ResourceCompositionFactory
     : public ResourceFactory<ResourceTypeComposition<ResourceTypes...>>,
       public Composition<ResourceFactory, ResourceTypes...> {
@@ -121,7 +122,7 @@ class ResourceCompositionFactory
                 [](auto&& ext_comp, const auto& res_init) {
                     std::apply(
                         [&ext_comp](auto&&... args) {
-                            ext_comp.get_value().set_value(std::forward<decltype(args)>(args)...);
+                            ext_comp.set_value(std::forward<decltype(args)>(args)...);
                         },
                         res_init);
                 });
@@ -134,7 +135,7 @@ class ResourceCompositionFactory
                 extender_composition->template get_component<ResourceTypeIndex>(resource_index);
             std::apply(
                 [&res_comp](auto&&... args) {
-                    res_comp.get_value().set_value(std::forward<decltype(args)>(args)...);
+                    res_comp.set_value(std::forward<decltype(args)>(args)...);
                 },
                 single_resource_initializer);
         }

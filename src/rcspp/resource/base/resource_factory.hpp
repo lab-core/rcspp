@@ -17,6 +17,7 @@
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class ResourceFactory {
         using ResourceClass = Resource<ResourceType>;
         using ExtenderClass = Extender<ResourceType>;

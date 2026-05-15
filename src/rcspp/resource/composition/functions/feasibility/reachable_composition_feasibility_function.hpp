@@ -11,6 +11,8 @@
 namespace rcspp {
 
 template <typename ReachableResourceType, typename... ResourceTypes>
+    requires ResourceTypeConcept<ReachableResourceType> &&
+             (ResourceTypeConcept<ResourceTypes> && ...)
 class ReachableCompositionFeasibilityFunction
     : public Clonable<
           ReachableCompositionFeasibilityFunction<ReachableResourceType, ResourceTypes...>,
@@ -24,7 +26,7 @@ class ReachableCompositionFeasibilityFunction
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
             size_t destination_node_id) override {
             const auto& reachable_resource_ =
-                resource_composition.template get_resource_component<ReachableResourceType>(
+                resource_composition.template get_component<ReachableResourceType>(
                     reachable_resource_index_);
             return reachable_resource_.is_reachable(destination_node_id);
         }

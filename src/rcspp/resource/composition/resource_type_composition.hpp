@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include <stdexcept>
+#include <string>
+
+#include "rcspp/resource/base/resource_type.hpp"
+
 namespace rcspp {
 
 // Just a placeholder to store the template types
@@ -13,7 +18,14 @@ class ResourceTypeComposition {
 
         void reset() {}
 
-        [[nodiscard]] ResourceTypeComposition get_value() const { return *this; }
+        [[nodiscard]] const ResourceTypeComposition& get_value() const { return *this; }
+
+        template <typename... Args>
+        void set_value(Args&&... /* args */) {
+            throw std::logic_error("ResourceTypeComposition::set_value(...) is not available");
+        }
+
+        [[nodiscard]] std::string to_string() const { return ""; }
 };
 
 template <typename T>
@@ -21,5 +33,8 @@ inline constexpr bool is_resource_base_composition_v = false;
 template <typename... ResourceTypes>
 inline constexpr bool is_resource_base_composition_v<ResourceTypeComposition<ResourceTypes...>> =
     true;
+
+template <typename T>
+concept ResourceCompositionTypeConcept = is_resource_base_composition_v<T>;
 
 }  // namespace rcspp
