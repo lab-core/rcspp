@@ -7,20 +7,25 @@
 #include <memory>
 #include <utility>
 
+#include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Resource;
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Extender;
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Arc;
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class ExtensionFunction {
     public:
         virtual ~ExtensionFunction() = default;
@@ -48,6 +53,7 @@ class ExtensionFunction {
 
 // Specialization for ResourceTypeComposition: extension functions receive the full Resource object.
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~ExtensionFunction() = default;

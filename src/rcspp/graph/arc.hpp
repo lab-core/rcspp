@@ -12,11 +12,12 @@
 #include "rcspp/graph/node.hpp"
 #include "rcspp/graph/row.hpp"
 #include "rcspp/resource/base/extender.hpp"
-#include "rcspp/resource/base/resource.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Arc {
     public:
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,

@@ -13,6 +13,7 @@ namespace rcspp {
 
 // Definition of ExtenderPrototype for Extender
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> {
         using Prototype = ExtenderPrototype<Extender, ResourceType>;
 

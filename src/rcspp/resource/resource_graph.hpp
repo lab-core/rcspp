@@ -91,11 +91,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             constexpr size_t ResourceTypeIndex =
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
-            auto make_prototype = []<typename... Args>(Args&&... args) {
+            auto create_prototype = []<typename... Args>(Args&&... args) {
                 return ResourceType(std::forward<Args>(args)...);
             };  // NOLINT
             ResourceType resource_base_prototype =
-                std::apply(make_prototype, default_resource_initializer);
+                std::apply(create_prototype, default_resource_initializer);
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -149,7 +149,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                                 cost,
                                                                 dual_rows);
 
-            auto extender = resource_factory_.make_extender(resource_consumption, arc);
+            auto extender = resource_factory_.create_extender(resource_consumption, arc);
             arc.extender = std::move(extender);
             return arc;
         }

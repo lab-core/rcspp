@@ -6,14 +6,17 @@
 #include <memory>
 #include <utility>
 
+#include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Resource;
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class CostFunction {
     public:
         virtual ~CostFunction() = default;
@@ -36,6 +39,7 @@ class CostFunction {
 
 // Specialization for ResourceTypeComposition: functions receive the full Resource object.
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~CostFunction() = default;

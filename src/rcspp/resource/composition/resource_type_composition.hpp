@@ -12,6 +12,7 @@ namespace rcspp {
 
 // Just a placeholder to store the template types
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class ResourceTypeComposition {
     public:
         ResourceTypeComposition() = default;

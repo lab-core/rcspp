@@ -7,11 +7,13 @@
 #include <utility>
 
 #include "rcspp/resource/base/resource_prototype.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
 // Definition of ResourcePrototype for Resource
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> {
         using Prototype = ResourcePrototype<Resource, ResourceType>;
 

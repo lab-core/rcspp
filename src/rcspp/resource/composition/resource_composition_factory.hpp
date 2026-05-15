@@ -81,23 +81,23 @@ class ResourceCompositionFactory
         }
 
         template <typename GraphResourceType>
-        std::unique_ptr<ExtenderClass> make_extender(
+        std::unique_ptr<ExtenderClass> create_extender(
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             const Arc<GraphResourceType>& arc) {
-            auto make_extender_function =
+            auto create_extender_function =
                 [&](auto& ext_comp_vec, const auto& res_fac_vec, const auto& res_cons_vec) {
                     for (int i = 0; i < res_fac_vec.size(); i++) {
                         const auto& res_fac = res_fac_vec[i];
                         const auto& res_cons = res_cons_vec[i];
-                        ext_comp_vec.emplace_back(res_fac->make_extender(res_cons, arc));
+                        ext_comp_vec.emplace_back(res_fac->create_extender(res_cons, arc));
                     }
                 };
 
-            auto extender_resource_composition = Base::make_extender(arc);
+            auto extender_resource_composition = Base::create_extender(arc);
             extender_resource_composition->apply(*this,
                                                  resource_consumption,
-                                                 make_extender_function);
+                                                 create_extender_function);
 
             return extender_resource_composition;
         }

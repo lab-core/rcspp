@@ -14,6 +14,7 @@
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Arc;
 
 template <typename ResourceType>

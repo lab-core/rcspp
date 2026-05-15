@@ -98,7 +98,7 @@ class ResourceFactory {
 
         // Make an extender
         template <typename GraphResourceType>
-        auto make_extender(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
+        auto create_extender(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
             ++nb_extenders_created_;
             return std::make_unique<ExtenderClass>(extension_function_->create(arc), arc.id);
         }
@@ -106,7 +106,7 @@ class ResourceFactory {
         // Make an extender
         // clang-format off
     template <typename GraphResourceType>
-         auto make_extender(const ResourceType& resource_value, const Arc<GraphResourceType>& arc)
+         auto create_extender(const ResourceType& resource_value, const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<ExtenderClass> {
             ++nb_extenders_created_;
             return std::make_unique<ExtenderClass>(resource_value,
@@ -116,8 +116,8 @@ class ResourceFactory {
         // clang-format on
 
         template <typename... Args, typename GraphResourceType>
-        auto make_extender(const std::tuple<Args...>& resource_initializer,
-                           const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
+        auto create_extender(const std::tuple<Args...>& resource_initializer,
+                             const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
             ++nb_extenders_created_;
             return std::make_unique<ExtenderClass>(
                 std::apply(

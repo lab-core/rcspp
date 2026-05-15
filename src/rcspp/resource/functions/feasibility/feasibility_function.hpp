@@ -7,14 +7,17 @@
 #include <stdexcept>
 #include <utility>
 
+#include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Resource;
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class FeasibilityFunction {
     public:
         virtual ~FeasibilityFunction() = default;
@@ -51,6 +54,7 @@ class FeasibilityFunction {
 
 // Specialization for ResourceTypeComposition: functions receive the full Resource object.
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:
         virtual ~FeasibilityFunction() = default;
