@@ -4,7 +4,7 @@
 
 using namespace rcspp;
 
-template <template <typename> class... AlgorithmTypes>
+template <template <typename, typename> class... AlgorithmTypes>
     std::pair<int,int> all_tests_rcspp() {
   int passed = 0;
   int total = 0;
@@ -19,7 +19,7 @@ template <template <typename> class... AlgorithmTypes>
   return std::make_pair(passed, total);
 }
 
-template <template <typename> class... AlgorithmTypes>
+template <template <typename, typename> class... AlgorithmTypes>
     std::pair<int,int> all_tests_rcspp_non_integer_dual_row_coef() {
   int passed = 0;
   int total = 0;

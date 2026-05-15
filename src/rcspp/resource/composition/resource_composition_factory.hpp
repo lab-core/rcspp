@@ -41,15 +41,15 @@ class ResourceCompositionFactory
 
         ~ResourceCompositionFactory() override = default;
 
-        auto make_resource(size_t node_id) -> std::unique_ptr<ResourceClass> override {
-            return Base::make_resource(node_id);
+        auto create_resource(size_t node_id) -> std::unique_ptr<ResourceClass> override {
+            return Base::create_resource(node_id);
         }
 
         template <typename... TypeTuples>
-        std::unique_ptr<Resource<ResourceTypeComposition<ResourceTypes...>>> make_resource(
+        std::unique_ptr<Resource<ResourceTypeComposition<ResourceTypes...>>> create_resource(
             size_t node_id, const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
             // Reset for node_id first (preprocess functions), then apply initializer values
-            auto new_resource = make_resource(node_id);
+            auto new_resource = create_resource(node_id);
             new_resource->for_each_component(
                 resource_initializer,
                 [](auto&& res_comp, const auto& res_init) {
@@ -63,18 +63,18 @@ class ResourceCompositionFactory
         }
 
         template <typename... TypeTuples>
-        std::unique_ptr<ResourceClass> make_resource(
+        std::unique_ptr<ResourceClass> create_resource(
             const std::tuple<std::vector<TypeTuples>...>& resource_initializer) {
-            auto make_resource_function = [&](auto&& res_comp_vec,
-                                              const auto& res_fac_vec,
-                                              const auto& res_init_vec) {
+            auto create_resource_function = [&](auto&& res_comp_vec,
+                                                const auto& res_fac_vec,
+                                                const auto& res_init_vec) {
                 for (int i = 0; i < res_init_vec.size(); i++) {
-                    res_comp_vec.emplace_back(res_fac_vec.at(i)->make_resource(res_init_vec[i]));
+                    res_comp_vec.emplace_back(res_fac_vec.at(i)->create_resource(res_init_vec[i]));
                 }
             };
 
-            auto new_resource_composition = this->make_resource();
-            new_resource_composition->apply(*this, resource_initializer, make_resource_function);
+            auto new_resource_composition = this->create_resource();
+            new_resource_composition->apply(*this, resource_initializer, create_resource_function);
 
             return new_resource_composition;
         }
@@ -146,7 +146,7 @@ class ResourceCompositionFactory
                             prot_res_comp_vec.clear();
                             for (int i = 0; i < res_fac_vec.size(); i++) {
                                 const auto& res_fac = res_fac_vec[i];
-                                prot_res_comp_vec.emplace_back(res_fac->make_resource());
+                                prot_res_comp_vec.emplace_back(res_fac->create_resource());
                             }
                         });
 

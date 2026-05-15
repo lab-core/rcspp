@@ -18,7 +18,7 @@ class VRPSubproblem {
                   const std::map<size_t, double>* row_coefficient_by_id = nullptr);
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
-    template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
+    template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
     std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
         LOG_TRACE(__FUNCTION__, '\n');
 
@@ -77,7 +77,7 @@ class VRPSubproblem {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id) {
                 LOG_TRACE(__FUNCTION__, '\n');

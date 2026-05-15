@@ -17,7 +17,6 @@
 namespace rcspp {
 
 template <typename ResourceType>
-// requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class Arc {
     public:
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,

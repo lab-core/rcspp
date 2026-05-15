@@ -4,6 +4,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <utility>
 
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
 #include "rcspp/preprocessor/connectivity_matrix.hpp"
@@ -12,8 +13,15 @@
 namespace rcspp {
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
 class ShortestPathConnectivitySort {
+    private:
+        struct DirectArcKeyHash {
+                size_t operator()(const std::pair<size_t, size_t>& key) const noexcept {
+                    return std::hash<size_t>{}(key.first) ^ (std::hash<size_t>{}(key.second) << 1);
+                }
+        };
+
     public:
-        explicit ShortestPathConnectivitySort(
+        explicit ShortestPathConnectivitySort(  // NOLINT
             Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
             ConnectivityMatrix<ResourceTypeComposition<ResourceTypes...>>* cm,
             std::optional<size_t> cost_index = std::nullopt) {  // use default cost if nullopt
@@ -47,6 +55,20 @@ class ShortestPathConnectivitySort {
                     reverse_reachable_count[tgt] += 1;
                 }
             }
+
+            // Precompute direct arc multiplicities once so the comparator can avoid repeated
+            // get_arcs() scans and temporary vector allocations during sort.
+            std::unordered_map<std::pair<size_t, size_t>, size_t, DirectArcKeyHash>
+                direct_arc_count;
+            direct_arc_count.reserve(graph->get_number_of_arcs());
+            for (const auto& arc_entry : graph->get_arcs_by_id()) {
+                const auto& arc_ptr = arc_entry.second;
+                ++direct_arc_count[{arc_ptr->origin->id, arc_ptr->destination->id}];
+            }
+            auto get_direct_arc_count = [&](size_t origin_id, size_t destination_id) -> size_t {
+                auto it = direct_arc_count.find({origin_id, destination_id});
+                return it == direct_arc_count.end() ? 0 : it->second;
+            };
 
             // order based on shortest path distances
             graph->sort_nodes([&](const Node<ResourceTypeComposition<ResourceTypes...>>* node1,
@@ -97,6 +119,13 @@ class ShortestPathConnectivitySort {
                         1e-3) {  // NOLINT (readability-magic-numbers)
                         return dist_sink1 > dist_sink2;
                     }
+                }
+
+                // check if one is the predecessor of the other
+                const size_t arcs12 = get_direct_arc_count(node1->id, node2->id);
+                const size_t arcs21 = get_direct_arc_count(node2->id, node1->id);
+                if (arcs12 != arcs21) {
+                    return arcs12 < arcs21;  // less arc going from node1 -> node2
                 }
 
                 // break ties by id

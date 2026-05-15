@@ -30,7 +30,7 @@ class ResourceFactory {
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
                         const ResourceType& resource_value_prototype)
-            : resource_prototype_(make_resource_prototype(
+            : resource_prototype_(create_resource_prototype(
                   std::move(dominance_function), std::move(feasibility_function),
                   std::move(cost_function), resource_value_prototype)),
               extension_function_(std::move(extension_function)),
@@ -42,42 +42,48 @@ class ResourceFactory {
                         std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                         std::unique_ptr<CostFunction<ResourceType>> cost_function,
                         std::unique_ptr<DominanceFunction<ResourceType>> dominance_function)
-            : resource_prototype_(make_resource_prototype(std::move(dominance_function),
-                                                          std::move(feasibility_function),
-                                                          std::move(cost_function))),
+            : resource_prototype_(create_resource_prototype(std::move(dominance_function),
+                                                            std::move(feasibility_function),
+                                                            std::move(cost_function))),
               extension_function_(std::move(extension_function)),
               nb_resource_bases_created_(0),
               nb_resources_created_(0),
               nb_extenders_created_(0) {}
 
         // Make a resource from the prototype.
-        virtual auto make_resource() -> std::unique_ptr<ResourceClass> {
+        virtual auto create_resource() -> std::unique_ptr<ResourceClass> {
             ++nb_resources_created_;
             return resource_prototype_->clone();
         }
 
         // Make a resource from the prototype with node_id.
-        virtual auto make_resource(size_t node_id) -> std::unique_ptr<ResourceClass> {
+        virtual auto create_resource(size_t node_id) -> std::unique_ptr<ResourceClass> {
             ++nb_resources_created_;
             return resource_prototype_->create(node_id);
         }
 
-        virtual auto make_resource(size_t node_id, const ResourceType& resource_base)
-            -> std::unique_ptr<Resource<ResourceType>> {
+        virtual auto create_resource(size_t node_id, const ResourceType& resource_base)
+            -> std::unique_ptr<ResourceClass> {
             ++nb_resources_created_;
             return resource_prototype_->create(resource_base, node_id);
         }
 
         // Make a resource from another resource by copying its resource function objects.
-        virtual auto make_resource(const ResourceClass& resource)
+        virtual auto copy_resource(const ResourceClass& resource)
             -> std::unique_ptr<ResourceClass> {
             ++nb_resources_created_;
             return resource.copy();
         }
 
+        // Make a resource from a node by copying its resource object.
+        virtual auto copy_resource(const Node<ResourceType>& node)
+            -> std::unique_ptr<ResourceClass> {
+            return copy_resource(*node.resource);
+        }
+
         // Make a resource from the prototype, initialized from an initializer tuple.
         template <typename... Args>
-        auto make_resource(const std::tuple<Args...>& resource_initializer)
+        auto create_resource(const std::tuple<Args...>& resource_initializer)
             -> std::unique_ptr<ResourceClass> {
             ++nb_resources_created_;
             auto new_resource = resource_prototype_->clone();
@@ -124,7 +130,7 @@ class ResourceFactory {
 
     protected:
         // Create a resource prototype with specific functions (but without resource base).
-        auto make_resource_prototype(
+        auto create_resource_prototype(
             std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
             std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
             std::unique_ptr<CostFunction<ResourceType>> cost_function)
@@ -135,7 +141,7 @@ class ResourceFactory {
         }
 
         // Create a resource prototype with specific functions and a resource base.
-        auto make_resource_prototype(
+        auto create_resource_prototype(
             std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
             std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
             std::unique_ptr<CostFunction<ResourceType>> cost_function,

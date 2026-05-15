@@ -20,5 +20,13 @@ class InclusionDominanceFunction
             // i.e., if rhs_resource includes lhs_resource
             return rhs_resource.includes(lhs_resource.get_value());
         }
+
+        // clang-format off
+        auto fast_check_dominance(const ContainerResourceType& lhs_resource,
+                                  const ContainerResourceType& rhs_resource, double delta)
+            -> bool override {
+            return lhs_resource.size() <= rhs_resource.size() + delta;
+        }
+        // clang-format on
 };
 }  // namespace rcspp

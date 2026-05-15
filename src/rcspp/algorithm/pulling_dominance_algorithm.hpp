@@ -11,21 +11,22 @@
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
-template <typename ResourceType>
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
-class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
+class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType>,
                                   NodeUnprocessedLabelsManager<ResourceType> {
     public:
         PullingDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                  AlgorithmParams params)
-            : DominanceAlgorithm<ResourceType>(resource_factory, std::move(params)),
+                                  AlgorithmParams<LabelContainerType> params)
+            : DominanceAlgorithm<ResourceType, LabelContainerType>(resource_factory,
+                                                                   std::move(params)),
               NodeUnprocessedLabelsManager<ResourceType>() {}
 
         ~PullingDominanceAlgorithm() override = default;
 
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Algorithm<ResourceType>::initialize(graph, cost_upper_bound);
+            Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             this->initialize_unprocessed_labels(graph->get_number_of_nodes());
         }
 
@@ -51,25 +52,34 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType>,
                     if (label.dominated) {
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
+                    } else if (this->params_.prune_based_on_upper_bound_ &&
+                               label.get_cost() >= this->best_cost_upper_bound_) {
+                        // label cost too high -> continue to next one
+                        this->remove_label(it->second);
+                        this->label_pool_.release_label(&label);
+                        it = erase_unprocessed_label(it);  // erase label
                     } else if (std::isinf(label.get_cost())) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_label(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else {
-                        assert(this->update_non_dominated_labels(label));
                         // check if sink and update best solution
                         if (label.get_end_node()->sink) {
                             LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
-                            if (label.get_cost() < this->cost_upper_bound_ &&
-                                this->params_.return_dominated_solutions) {
-                                this->extract_solution(label);
-                                if (this->solutions_.size() >=
-                                    this->params_.stop_after_X_solutions) {
-                                    LOG_DEBUG("Stopping after ",
-                                              this->solutions_.size(),
-                                              " solutions.\n");
-                                    return;
+                            if (label.get_cost() < this->cost_upper_bound_) {
+                                if (label.get_cost() < this->best_cost_upper_bound_) {
+                                    this->best_cost_upper_bound_ = label.get_cost();
+                                }
+                                if (this->params_.return_dominated_solutions) {
+                                    this->extract_solution(label);
+                                    if (this->solutions_.size() >=
+                                        this->params_.stop_after_X_solutions) {
+                                        LOG_DEBUG("Stopping after ",
+                                                  this->solutions_.size(),
+                                                  " solutions.\n");
+                                        return;
+                                    }
                                 }
                             }
                         }

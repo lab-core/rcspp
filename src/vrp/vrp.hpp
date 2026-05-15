@@ -31,10 +31,12 @@ class VRP {
             bool use_boost = false,
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
-        template <template <typename> class... AlgorithmTypes>
-        std::vector<Timer> solve(AlgorithmParams params = AlgorithmParams{},  // NOLINT
-                                 std::optional<size_t> numAlgos = std::nullopt,
-                                 std::vector<Algorithm<ResourceType>*> algorithms = {}) {  // NOLINT
+        template <template <typename, typename> class... AlgorithmTypes,
+                  typename LabelContainerType>
+        std::vector<Timer> solve(                        // NOLINT
+            AlgorithmParams<LabelContainerType> params,  // NOLINT
+            std::optional<size_t> numAlgos = std::nullopt,
+            std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
             size_t num_total_algos = sizeof...(AlgorithmTypes) + 1 + algorithms.size();
@@ -70,7 +72,9 @@ class VRP {
                 std::vector<Solution> solutions_rcspp_any;
                 size_t algo_index = 1;  // timers[0] used by boost
 
-                auto collect_solutions = [&](auto sols, Algorithm<ResourceType>* algo = nullptr) {
+                auto collect_solutions = [&](auto sols,
+                                             Algorithm<ResourceType, LabelContainerType>* algo =
+                                                 nullptr) {
                     bool non_optimal =
                         algo == nullptr ? params.could_be_non_optimal() : !algo->is_optimal();
                     if (!solutions_boost.empty()) {
@@ -233,9 +237,11 @@ class VRP {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename LabelContainerType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id, AlgorithmParams params = {}) {
+            const std::map<size_t, double>& dual_by_id,
+            AlgorithmParams<LabelContainerType> params) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
@@ -252,9 +258,9 @@ class VRP {
             return solutions;
         }
 
-        template <template <typename> class AlgorithmType>
+        template <class AlgorithmType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id, AlgorithmType<ResourceType>* algo) {
+            const std::map<size_t, double>& dual_by_id, AlgorithmType* algo) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);

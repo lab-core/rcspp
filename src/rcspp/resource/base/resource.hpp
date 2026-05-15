@@ -57,6 +57,13 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->dominance_function_->check_dominance(this->value_, rhs_resource.value_);
         }
 
+        // Check distance from the resource to another
+        [[nodiscard]] auto is_lower(const Resource& rhs_resource, double delta = 0) const -> bool {
+            return this->dominance_function_->fast_check_dominance(this->value_,
+                                                                   rhs_resource.value_,
+                                                                   delta);
+        }
+
         // Return resource cost
         [[nodiscard]] auto get_cost() const -> double {
             return this->cost_function_->get_cost(this->value_);

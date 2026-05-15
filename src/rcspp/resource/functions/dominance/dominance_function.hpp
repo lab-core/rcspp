@@ -21,6 +21,13 @@ class DominanceFunction {
         [[nodiscard]] virtual auto check_dominance(const ResourceType& lhs_resource,
                                                    const ResourceType& rhs_resource) -> bool = 0;
 
+        // clang-format off
+        // Use to check (partial) dominance quickly. Useful for more complex data structure
+        virtual auto fast_check_dominance(const ResourceType& lhs_resource,
+                                          const ResourceType& rhs_resource, double delta)
+            -> bool = 0;
+        // clang-format on
+
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<DominanceFunction> = 0;
 
         auto create(const size_t node_id) -> std::unique_ptr<DominanceFunction> {
@@ -35,7 +42,7 @@ class DominanceFunction {
         virtual void preprocess(size_t node_id) {}
 };
 
-// Specialization for ResourceBaseComposition: functions receive the full Resource object
+// Specialization for ResourceTypeComposition: functions receive the full Resource object
 // since the composition tag carries no values of its own.
 template <typename... ResourceTypes>
 class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {

@@ -11,7 +11,7 @@
 
 using namespace rcspp;
 
-template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
 bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* vrp_subproblem,
   double optimal_cost) {
 
@@ -32,7 +32,7 @@ bool test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* v
     return true;
 }
 
-template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
 bool test_rcspp() {
   // Test graph creation, graph update and solving the RCSPP
 
@@ -42,7 +42,6 @@ bool test_rcspp() {
     std::string root_dir = file_parent_dir(__FILE__, 3);
   std::string instance_path = root_dir+"/instances/" + instance_name + ".txt";
 
-  LOG_INFO("Instance: ", instance_path, '\n');
   InstanceReader instance_reader(instance_path);
   auto instance = instance_reader.read();
 
@@ -70,7 +69,7 @@ bool test_rcspp() {
   return success;
 }
 
-template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
 bool test_rcspp_non_integer_dual_row_coef() {
     // Test graph creation, graph update and solving the RCSPP
     // when the dual row coefficients are non-integer
@@ -81,7 +80,6 @@ bool test_rcspp_non_integer_dual_row_coef() {
     std::string root_dir = file_parent_dir(__FILE__, 3);
     std::string instance_path = root_dir+"/instances/" + instance_name + ".txt";
 
-    LOG_INFO("Instance: ", instance_path, '\n');
     InstanceReader instance_reader(instance_path);
     auto instance = instance_reader.read();
 

@@ -46,7 +46,7 @@ class ExtensionFunction {
         virtual void preprocess(size_t origin_id, size_t destination_id) {}
 };
 
-// Specialization for ResourceBaseComposition: extension functions receive the full Resource object.
+// Specialization for ResourceTypeComposition: extension functions receive the full Resource object.
 template <typename... ResourceTypes>
 class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:

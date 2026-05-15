@@ -49,7 +49,7 @@ class FeasibilityFunction {
         virtual void preprocess(size_t node_id) {}
 };
 
-// Specialization for ResourceBaseComposition: functions receive the full Resource object.
+// Specialization for ResourceTypeComposition: functions receive the full Resource object.
 template <typename... ResourceTypes>
 class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:

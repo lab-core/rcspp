@@ -20,7 +20,15 @@ class ValueDominanceFunction
 
         [[nodiscard]] auto check_dominance(const ResourceType& lhs_resource,
                                            const ResourceType& rhs_resource) -> bool override {
-            return lhs_resource.leq(rhs_resource.get_value());
+            return lhs_resource.leq(rhs_resource);
         }
+
+        // clang-format off
+        auto fast_check_dominance(const ResourceType& lhs_resource,
+                                  const ResourceType& rhs_resource, double delta)
+            -> bool override {
+            return lhs_resource.leq(rhs_resource.get_value() + delta);
+        }
+        // clang-format on
 };
 }  // namespace rcspp

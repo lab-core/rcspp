@@ -75,7 +75,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         Node<ResourceCompositionType>& add_node(size_t node_id, bool source = false,
                                                 bool sink = false) override {
             auto& node = Graph<ResourceCompositionType>::add_node(node_id, source, sink);
-            node.resource = resource_factory_.make_resource(node.id);
+            node.resource = resource_factory_.create_resource(node.id);
 
             return node;
         }
@@ -109,7 +109,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 resource_initializer,
             bool source = false, bool sink = false) {
             auto& node = Graph<ResourceCompositionType>::add_node(node_id, source, sink);
-            node.resource = resource_factory_.make_resource(node.id, resource_initializer);
+            node.resource = resource_factory_.create_resource(node.id, resource_initializer);
             return node;
         }
 
@@ -229,24 +229,45 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
-        template <template <typename> class AlgorithmType, typename... Args>
-        std::unique_ptr<AlgorithmType<ResourceCompositionType>> create_algorithm(Args&&... args) {
-            return std::make_unique<AlgorithmType<ResourceCompositionType>>(
+        template <template <typename, typename> class AlgorithmType,
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename... Args>
+        std::unique_ptr<AlgorithmType<ResourceCompositionType, LabelContainerType>>
+        create_algorithm(Args&&... args) {
+            return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
                 &resource_factory_,
                 std::forward<Args>(args)...);
         }
 
-        template <template <typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource>
-        std::vector<Solution> solve(double upper_bound = std::numeric_limits<double>::infinity(),
-                                    AlgorithmParams params = {}, bool preprocess = true,
-                                    int cost_index = 0) {
-            AlgorithmType<ResourceCompositionType> algorithm(&resource_factory_, params);
-            return solve(&algorithm, upper_bound, preprocess, cost_index);
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+        std::vector<Solution> solve(
+            double upper_bound = std::numeric_limits<double>::infinity(),
+            AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
+            bool preprocess = true, int cost_index = 0) {
+            AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
+                                                                                 params);
+            return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
+                         CostResourceType>(&algorithm, upper_bound, preprocess, cost_index);
         }
 
-        template <typename CostResourceType = RealResource, template <typename> class AlgorithmType>
-        std::vector<Solution> solve(AlgorithmType<ResourceCompositionType>* algorithm,
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+        std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
+                                    bool preprocess = true, int cost_index = 0) {
+            AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
+                                                                                 params);
+            return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
+                         CostResourceType>(&algorithm,
+                                           std::numeric_limits<double>::infinity(),
+                                           preprocess,
+                                           cost_index);
+        }
+
+        template <typename AlgorithmType, typename CostResourceType = RealResource>
+        std::vector<Solution> solve(AlgorithmType* algorithm,
                                     double upper_bound = std::numeric_limits<double>::infinity(),
                                     bool preprocess = true, int cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {

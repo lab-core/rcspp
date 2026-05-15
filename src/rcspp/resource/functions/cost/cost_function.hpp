@@ -34,7 +34,7 @@ class CostFunction {
         virtual void preprocess(size_t node_id) {}
 };
 
-// Specialization for ResourceBaseComposition: functions receive the full Resource object.
+// Specialization for ResourceTypeComposition: functions receive the full Resource object.
 template <typename... ResourceTypes>
 class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
     public:

@@ -177,7 +177,8 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         std::vector<Solution> solutions_rcspp;
         total_subproblem_time_.start();
-        solutions_rcspp = solve_with_rcspp(dual_by_id);
+        AlgorithmParams<LabelList<ResourceType>> params;
+        solutions_rcspp = solve_with_rcspp(dual_by_id, params);
         // solutions_rcspp = solve_with_rcspp<PushingDominanceAlgorithmIterators>(dual_by_id);
         // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
