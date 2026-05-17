@@ -91,22 +91,29 @@ class SolutionPool {
         }
 
         // Remove all solutions for which pred(solution, activity) returns true.
-        void remove_if(const Predicate& pred) {
+        // Returns the removed solutions.
+        [[nodiscard]] std::vector<Solution> remove_if(const Predicate& pred) {
             std::vector<Entry> kept;
+            std::vector<Solution> removed;
             kept.reserve(entries_.size());
             for (auto& entry : entries_) {
-                if (!pred(entry.solution, entry.activity)) {
+                if (pred(entry.solution, entry.activity)) {
+                    removed.push_back(std::move(entry.solution));
+                } else {
                     kept.push_back(std::move(entry));
                 }
             }
             entries_ = std::move(kept);
             rebuild_index();
+            return removed;
         }
 
         // Convenience: remove solutions where activity.age > max_age or column.cost > max_cost.
-        void remove(size_t max_age = std::numeric_limits<size_t>::max(),
-                    double max_cost = std::numeric_limits<double>::infinity()) {
-            remove_if([max_age, max_cost](const Solution& sol, const SolutionActivity& act) {
+        // Returns the removed solutions.
+        [[nodiscard]] std::vector<Solution> remove(
+            size_t max_age = std::numeric_limits<size_t>::max(),
+            double max_cost = std::numeric_limits<double>::infinity()) {
+            return remove_if([max_age, max_cost](const Solution& sol, const SolutionActivity& act) {
                 return act.age > max_age || sol.column.cost > max_cost;
             });
         }

@@ -149,7 +149,7 @@ void init_graph(py::module_& m) {
         .def(
             "remove_if",
             [](SolutionPool& pool, py::function pred) {
-                pool.remove_if([&pred](const Solution& sol, const SolutionActivity& act) {
+                return pool.remove_if([&pred](const Solution& sol, const SolutionActivity& act) {
                     return py::cast<bool>(pred(sol, act));
                 });
             },
@@ -208,6 +208,7 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
+        .def_readonly("original_cost", &Arc<RealRC>::original_cost)
         .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows)
         .def("__str__", &Arc<RealRC>::to_string)
         .def("__repr__", &Arc<RealRC>::to_string);

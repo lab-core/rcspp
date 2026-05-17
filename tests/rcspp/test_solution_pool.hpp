@@ -193,10 +193,18 @@ bool test_pool_remove_if_by_cost() {
     pool.add(make_pool_solution(8.0,  {{2, 1.0L}}, {30, 31}));
 
     // Remove solutions with column.cost > 10
-    pool.remove_if([](const Solution& sol, const SolutionActivity&) {
+    auto removed = pool.remove_if([](const Solution& sol, const SolutionActivity&) {
         return sol.column.cost > 10.0;
     });
 
+    if (removed.size() != 1) {
+        LOG_ERROR("test_pool_remove_if_by_cost: expected 1 removed, got ", removed.size(), '\n');
+        return false;
+    }
+    if (removed[0].column.cost != 15.0) {
+        LOG_ERROR("test_pool_remove_if_by_cost: wrong removed solution cost ", removed[0].column.cost, '\n');
+        return false;
+    }
     if (pool.size() != 2) {
         LOG_ERROR("test_pool_remove_if_by_cost: expected 2, got ", pool.size(), '\n');
         return false;
@@ -222,10 +230,18 @@ bool test_pool_remove_if_by_age() {
     (void)pool.price({6.0});  // s1: age=0, s2: age=2
 
     // Remove entries with age > 1
-    pool.remove_if([](const Solution&, const SolutionActivity& act) {
+    auto removed = pool.remove_if([](const Solution&, const SolutionActivity& act) {
         return act.age > 1;
     });
 
+    if (removed.size() != 1) {
+        LOG_ERROR("test_pool_remove_if_by_age: expected 1 removed, got ", removed.size(), '\n');
+        return false;
+    }
+    if (std::abs(removed[0].column.cost - 8.0) > 1e-9) {
+        LOG_ERROR("test_pool_remove_if_by_age: wrong removed solution cost\n");
+        return false;
+    }
     if (pool.size() != 1) {
         LOG_ERROR("test_pool_remove_if_by_age: expected 1 entry, got ", pool.size(), '\n');
         return false;
@@ -248,8 +264,12 @@ bool test_pool_remove_convenience() {
     (void)pool.price({0.0});
 
     // remove(max_age=2, max_cost=15): s1 has age=3 (>2) → removed; s2 has cost=20 (>15) → removed
-    pool.remove(2, 15.0);
+    auto removed = pool.remove(2, 15.0);
 
+    if (removed.size() != 2) {
+        LOG_ERROR("test_pool_remove_convenience: expected 2 removed, got ", removed.size(), '\n');
+        return false;
+    }
     if (pool.size() != 0) {
         LOG_ERROR("test_pool_remove_convenience: expected empty pool, got ", pool.size(), '\n');
         return false;
@@ -264,10 +284,14 @@ bool test_pool_remove_preserves_index_consistency() {
     pool.add(make_pool_solution(12.0, {{2, 1.0L}}, {30, 31}));
 
     // Remove middle entry
-    pool.remove_if([](const Solution& sol, const SolutionActivity&) {
+    auto removed = pool.remove_if([](const Solution& sol, const SolutionActivity&) {
         return sol.column.cost == 8.0;
     });
 
+    if (removed.size() != 1 || std::abs(removed[0].column.cost - 8.0) > 1e-9) {
+        LOG_ERROR("test_pool_remove_preserves_index_consistency: wrong removed solution\n");
+        return false;
+    }
     if (pool.size() != 2) {
         LOG_ERROR("test_pool_remove_preserves_index_consistency: expected 2, got ", pool.size(), '\n');
         return false;

@@ -215,8 +215,17 @@ class Graph {
 
         [[nodiscard]] std::vector<size_t> get_arc_ids() const {
             auto arc_ids_ranges = std::views::keys(arcs_by_id_);
-
             return std::vector<size_t>{arc_ids_ranges.begin(), arc_ids_ranges.end()};
+        }
+
+        [[nodiscard]] std::vector<size_t> get_removed_arc_ids() const {
+            auto ids = std::views::keys(removed_arcs_by_id_);
+            return std::vector<size_t>{ids.begin(), ids.end()};
+        }
+
+        [[nodiscard]] Arc<ResourceType>* get_removed_arc(size_t arc_id) const {
+            auto it = removed_arcs_by_id_.find(arc_id);
+            return it != removed_arcs_by_id_.end() ? it->second.get() : nullptr;
         }
 
         [[nodiscard]] const std::map<size_t, std::unique_ptr<Arc<ResourceType>>>& get_arcs_by_id()

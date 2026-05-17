@@ -253,6 +253,8 @@ struct SelectCostRC<RT, RTs...> {
 
 template <typename G>
 py::class_<G>& bind_graph_methods(py::class_<G>& c) {
+    using ArcType = std::remove_pointer_t<decltype(std::declval<const G&>().get_arc(0))>;
+
     return c.def("get_node", &G::get_node, py::arg("id"), py::return_value_policy::reference)
         .def("get_arc", &G::get_arc, py::arg("id"), py::return_value_policy::reference)
         .def("node_ids", &G::get_node_ids)
@@ -274,7 +276,36 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
                     return py::cast<bool>(comp(n1, n2));
                 });
             },
-            py::arg("comp"));
+            py::arg("comp"))
+        .def("remove_arc", static_cast<bool (G::*)(size_t)>(&G::remove_arc), py::arg("arc_id"))
+        .def(
+            "remove_arc",
+            [](G& g, ArcType* arc) { return g.remove_arc(*arc); },
+            py::arg("arc"))
+        .def("restore_arc", static_cast<bool (G::*)(size_t)>(&G::restore_arc), py::arg("arc_id"))
+        .def(
+            "restore_arc",
+            [](G& g, ArcType* arc) { return g.restore_arc(*arc); },
+            py::arg("arc"))
+        .def("removed_arc_ids", &G::get_removed_arc_ids)
+        .def("get_removed_arc",
+             &G::get_removed_arc,
+             py::arg("arc_id"),
+             py::return_value_policy::reference)
+        .def(
+            "remove_arcs_if",
+            [](G& g, py::function pred) {
+                return g.remove_arcs_if(
+                    [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
+            },
+            py::arg("pred"))
+        .def(
+            "restore_arcs_if",
+            [](G& g, py::function pred) {
+                return g.restore_arcs_if(
+                    [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
+            },
+            py::arg("pred"));
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────
@@ -421,6 +452,7 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
             [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },
             py::return_value_policy::reference)
         .def_readwrite("cost", &Arc<RC>::cost)
+        .def_readonly("original_cost", &Arc<RC>::original_cost)
         .def_readwrite("dual_rows", &Arc<RC>::dual_rows)
         .def("__str__", &Arc<RC>::to_string)
         .def("__repr__", &Arc<RC>::to_string);
