@@ -28,6 +28,7 @@ class Arc {
               destination(destination_node),
               extender(std::move(arc_extender)),
               cost(arc_cost),
+              original_cost(arc_cost),
               dual_rows(std::move(dual_rows)) {}
 
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
@@ -47,6 +48,9 @@ class Arc {
         std::unique_ptr<Extender<ResourceType>> extender;
 
         double cost;
+
+        // Original arc cost before any dual update (set at construction, never modified)
+        double original_cost;
 
         std::vector<Row> dual_rows;
 

@@ -16,6 +16,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -266,13 +267,31 @@ class Algorithm {
                 return;
             }
 
+            // Build column: sum original arc costs and aggregate constraint coefficients
+            Column column;
+            std::unordered_map<size_t, long double> row_map;
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
-                path_node_ids.push_back(this->graph_->get_arc(arc_id)->origin->id);
+                const auto* arc = this->graph_->get_arc(arc_id);
+                path_node_ids.push_back(arc->origin->id);
+                column.cost += arc->original_cost;
+                for (const auto& row : arc->dual_rows) {
+                    row_map[row.index] += row.coefficient;
+                }
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
-            auto sol =
-                Solution(end_label.get_cost(), std::move(path_node_ids), std::move(path_arc_ids));
+            column.rows.reserve(row_map.size());
+            for (auto& [idx, coef] : row_map) {
+                column.rows.push_back({idx, coef});
+            }
+            std::sort(column.rows.begin(), column.rows.end(), [](const Row& a, const Row& b) {
+                return a.index < b.index;
+            });
+
+            auto sol = Solution(end_label.get_cost(),
+                                std::move(path_node_ids),
+                                std::move(path_arc_ids),
+                                std::move(column));
 
             // solution already extracted
             if (solutions_.contains(sol)) {

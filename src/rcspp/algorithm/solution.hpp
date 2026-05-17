@@ -10,6 +10,9 @@
 #include <limits>
 #include <list>
 #include <utility>
+#include <vector>
+
+#include "rcspp/graph/row.hpp"
 
 namespace rcspp {
 
@@ -37,10 +40,12 @@ static std::uint64_t fnv1a_mix_uint64(std::uint64_t v, std::uint64_t h = FNV_OFF
 
 struct Solution {
         Solution() = default;
-        Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids)
+        Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids,
+                 Column _column = {})
             : cost(_cost),
               path_node_ids(std::move(_path_node_ids)),
-              path_arc_ids(std::move(_path_arc_ids)) {
+              path_arc_ids(std::move(_path_arc_ids)),
+              column(std::move(_column)) {
             init_hash();
         }
 
@@ -51,6 +56,7 @@ struct Solution {
         double cost = std::numeric_limits<double>::infinity();
         std::list<size_t> path_node_ids;
         std::list<size_t> path_arc_ids;
+        Column column;
 
     private:
         std::uint64_t hash_ = 0;

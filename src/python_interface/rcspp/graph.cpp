@@ -116,11 +116,48 @@ void init_graph(py::module_& m) {
         .def_readwrite("sort_resource_index", &PyBucketAlgorithmParams::sort_resource_index)
         .def_readwrite("bucket_resource_type", &PyBucketAlgorithmParams::bucket_resource_type);
 
+    py::class_<SolutionActivity>(m, "SolutionActivity")
+        .def(py::init<>())
+        .def_readwrite("age", &SolutionActivity::age)
+        .def_readwrite("use_count", &SolutionActivity::use_count)
+        .def_readwrite("last_was_negative", &SolutionActivity::last_was_negative)
+        .def_readwrite("last_reduced_cost", &SolutionActivity::last_reduced_cost);
+
+    py::class_<Column>(m, "Column")
+        .def(py::init<>())
+        .def_readwrite("cost", &Column::cost)
+        .def_readwrite("rows", &Column::rows);
+
     py::class_<Solution>(m, "Solution")
         .def(py::init<>())
         .def_readwrite("cost", &Solution::cost)
         .def_readwrite("path_node_ids", &Solution::path_node_ids)
-        .def_readwrite("path_arc_ids", &Solution::path_arc_ids);
+        .def_readwrite("path_arc_ids", &Solution::path_arc_ids)
+        .def_readwrite("column", &Solution::column);
+
+    py::class_<SolutionPool>(m, "SolutionPool")
+        .def(py::init<>())
+        .def("add", py::overload_cast<const Solution&>(&SolutionPool::add), py::arg("solution"))
+        .def("add",
+             py::overload_cast<const std::vector<Solution>&>(&SolutionPool::add),
+             py::arg("solutions"))
+        .def("price", &SolutionPool::price, py::arg("duals"), py::arg("threshold") = 0.0)
+        .def("remove",
+             &SolutionPool::remove,
+             py::arg("max_age") = std::numeric_limits<size_t>::max(),
+             py::arg("max_cost") = std::numeric_limits<double>::infinity())
+        .def(
+            "remove_if",
+            [](SolutionPool& pool, py::function pred) {
+                pool.remove_if([&pred](const Solution& sol, const SolutionActivity& act) {
+                    return py::cast<bool>(pred(sol, act));
+                });
+            },
+            py::arg("pred"))
+        .def("get_solutions", &SolutionPool::get_solutions)
+        .def("get_entries", &SolutionPool::get_entries)
+        .def("__len__", &SolutionPool::size)
+        .def("size", &SolutionPool::size);
 
     // ══════════════════════════════════════════════════════════════════════════
     // RealResource — primary bindings with full Node/Arc/Graph public exposure
