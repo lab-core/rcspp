@@ -52,11 +52,12 @@ for name in base_instances:
 
     for i, tirage in enumerate(tirages, 1):
         new_instance_name = f"{name}_{i}"
-        new_instance = Instance(base_instance.get_nb_vehicles(), base_instance.get_capacity()//5, new_instance_name)
+        capacity = base_instance.get_capacity()//4
+        new_instance = Instance(base_instance.get_nb_vehicles(), capacity, new_instance_name)
         new_instance.add_customer(depot.id, depot.pos_x, depot.pos_y, depot.demand, depot.ready_time, depot.due_time, depot.service_time, True)
         for idx, customer_id in enumerate(tirage):
             c = customers_by_id[customer_id]
-            new_instance.add_customer(idx+1, c.pos_x, c.pos_y, c.demand, c.ready_time, c.due_time, c.service_time, False)
+            new_instance.add_customer(idx+1, c.pos_x, c.pos_y, min(c.demand, capacity), c.ready_time, c.due_time, c.service_time, False)
 
         ensure_parent_dir(f"{DATASETS_DIR}dataset_{n}/Instances/{Itype}/")
         new_instance.write_to_file(f"{DATASETS_DIR}dataset_{n}/Instances/{Itype}/{new_instance_name}.txt")
