@@ -13,7 +13,7 @@ def ensure_parent_dir(path):
 def _save_formatted_solution(vrp, solution, instance, save, dir):
     formatted_solution = format_solution(
         solution,
-        vrp._VRP__paths,
+        vrp._paths,
         vrp.depot_id_,
         instance_name=instance.get_name(),
         author="ajdepommerol",
@@ -40,7 +40,7 @@ def _build_solution_dict(vrp, solution, extra_fields=None):
         "lp_cost": vrp.get_lp_cost(),
         "solution_cost": solution.cost,
         "time_ratio": vrp.get_total_subproblem_time() / vrp.get_total_problem_time(),
-        "nb_added_columns": len(vrp._VRP__paths),
+        "nb_added_columns": len(vrp._paths),
     }
     if extra_fields:
         solution_dict.update(extra_fields)

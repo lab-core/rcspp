@@ -2,7 +2,6 @@
 #  All rights reserved.
 
 from vrp.instance import Instance
-import json
 from utils.definitions import *
 
 
@@ -61,7 +60,6 @@ class InstanceReader:
         return instance
 
     def read_duals(self, duals_file_path: str) -> dict[int, float]:
-        print("read_duals")
         dual_by_var_id: dict[int, float] = {}
 
         with open(duals_file_path, "r") as f:

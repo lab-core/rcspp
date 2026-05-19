@@ -21,7 +21,6 @@ class MasterProblem:
         self.__path_variables_by_id = {}
         self.__paths_by_id = {}
         self.__node_constraints_by_id = {}
-        self.__objective_lin_expr = LinExpr()
 
     def construct_model(self, paths):
         self.add_variables(paths)
