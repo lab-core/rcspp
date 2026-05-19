@@ -44,6 +44,13 @@ for i in range(task_number):
 
     instance_name = all_instances[instance_index]
 
+    l = os.listdir(f"{dataset_dir}Solutions/MLP-C_solutions/test/") + os.listdir(f"{dataset_dir}Solutions/MLP-C_solutions/train/")
+    
+    if instance_name+ ".json" in l:
+        print(f"Instance {instance_name} already has a solution, skipping.")
+        instance_index += 1
+        continue
+
     print(f"##########################################################{instance_name}#####################")
 
     if "RC" in instance_name:
@@ -55,7 +62,7 @@ for i in range(task_number):
 
     reader = InstanceReader(f"{dataset_dir}Instances/{Itype}/{instance_name}.txt")
     instance = reader.read()
-    run_prediction_instance(instance, "MLP-all", dataset_dir)
+    run_prediction_instance(instance, "MLP-C", dataset_dir)
 
     instance_index += 1
    
