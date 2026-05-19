@@ -6,7 +6,7 @@ from unicodedata import name
 
 from vrp.instance_reader import InstanceReader
 from utils.definitions import DATASETS_DIR
-from utils.test_utils import *
+from utils.experiment_utils import *
 
 if __name__ == "__main__":
     datasetdir = f"{DATASETS_DIR}dataset_10_bis/"

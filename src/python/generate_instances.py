@@ -1,6 +1,6 @@
 from vrp.instance import Instance
 from vrp.instance_reader import InstanceReader
-from utils.test_utils import ensure_parent_dir, read_instances_name
+from utils.experiment_utils import ensure_parent_dir, read_instances_name
 from utils.definitions import INSTANCES_DIR, DATASETS_DIR
 import random
 

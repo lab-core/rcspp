@@ -5,7 +5,7 @@ import sys
 from vrp.instance_reader import InstanceReader
 from utils.definitions import DATASETS_DIR
 from utils.experiments import baseline
-from utils.test_utils import read_instances_name
+from utils.experiment_utils import read_instances_name
 
 dataset_dir = f"{DATASETS_DIR}dataset_10_bis/"
 verbose = True

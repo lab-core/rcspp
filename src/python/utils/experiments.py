@@ -1,29 +1,59 @@
-from utils.test_utils import *
+from utils.experiment_utils import vrp_stabilized_instance, vrp_instance, ensure_parent_dir, save_dict_to_json, str_dict_to_int, load_optimal_dual
 from vrp.instance import Instance
 import json
 import zipfile
 from datetime import datetime
-
-def baseline(instance: Instance, dataset_dir:str, verbose=True):
-    print("--------------------------------------------Classic-------------------------------------")
-    run_instance(instance, "classic", dataset_dir, verbose)
-    print("\n \n \n")
-    print("--------------------------------------------Stabilized-------------------------------------")
-    run_instance(instance, "stabilized", dataset_dir, verbose)
-    print("\n \n \n")
-    print("--------------------------------------------Stabilized with dual optimal-------------------------------------")
-    run_instance(instance, "stabilized_with_optimal_dual", dataset_dir, verbose)
+import os
+from typing import Literal
 
 
-def run_instance(instance: Instance, method:str, dataset_dir:str, verbose=True):
-    """
-    Possible methods:
-    - classic : Column Generation
-    - stabilized : Stabilized Column Generation (SCG) as presented in Pessoa et al. 2018
-    - stabilized_with_optimal_dual : SCG with dual optimal solution
-    - smoothing : Smoothing as presented in Pessoa et al. 2018
-    - smoothing_with_optimal_dual : Smoothing with start at dual optimal solution
-    """
+Method = Literal[
+    "classic",
+    "stabilized",
+    "stabilized_with_optimal_dual",
+    "smoothing",
+    "smoothing_with_optimal_dual",
+]
+
+
+def _dispatch(
+    instance: Instance,
+    method: Method,
+    dual_optimal: dict | None,
+    solution_dir: str,
+    optimal_dual_dir: str,
+    verbose: bool,
+) -> dict:
+    if method == "classic":
+        vrp, solution, solution_dict = vrp_instance(
+            instance, save=True, dir=solution_dir, verbose=verbose
+        )
+        save_dict_to_json(optimal_dual_dir, instance.get_name(), solution.dual_by_var_id)
+
+    elif method == "stabilized":
+        solution_dict = vrp_stabilized_instance(instance, dir=solution_dir, verbose=verbose)
+
+    elif method == "stabilized_with_optimal_dual":
+        solution_dict = vrp_stabilized_instance(
+            instance, dual_box_centre=dual_optimal, dir=solution_dir, verbose=verbose
+        )
+
+    elif method == "smoothing":
+        _, _, solution_dict = vrp_instance(
+            instance, smoothing=0.8, dir=solution_dir, verbose=verbose
+        )
+
+    elif method == "smoothing_with_optimal_dual":
+        _, _, solution_dict = vrp_instance(
+            instance, smoothing=0.8, dual_box_centre=dual_optimal, dir=solution_dir, verbose=verbose
+        )
+
+    else:
+        raise ValueError(f"Unknown method: '{method}'.")
+
+    return solution_dict
+
+def run_instance(instance: Instance, method: Method, dataset_dir: str, verbose: bool = True):
     instance_name = instance.get_name()
     solution_dir = f"{dataset_dir}Solutions/{method}/"
     optimal_dual_dir = f"{dataset_dir}Solutions/optimal_dual/"
@@ -32,32 +62,21 @@ def run_instance(instance: Instance, method:str, dataset_dir:str, verbose=True):
     ensure_parent_dir(solution_dir)
     ensure_parent_dir(optimal_dual_dir)
 
-    if "optimal" in method:
-        assert os.path.exists(optimal_dual_path), (
-            f"Dual optimal manquant pour '{instance_name}'. "
-            f"La méthode 'classic' a-t-elle bien été exécutée avant ?"
-        )
-        with open(optimal_dual_path, "r") as f:
-            dual_optimal_solution = str_dict_to_int(json.load(f))
+    dual_optimal = load_optimal_dual(optimal_dual_path) if "optimal" in method else None
 
-    if method == "classic":
-        vrp, solution, solution_dict = vrp_instance(instance, save=True, dir=solution_dir, verbose=verbose)
-        save_dict_to_json(optimal_dual_dir, instance_name, solution.dual_by_var_id)
-        print(f"Saving dual optimal to {optimal_dual_path}")
-
-    elif method == "stabilized":
-        solution_dict = vrp_stabilized_instance(instance, dir=solution_dir, verbose=verbose)
-    elif method == "stabilized_with_optimal_dual":
-        solution_dict = vrp_stabilized_instance(instance, dual_box_centre=dual_optimal_solution, dir=solution_dir, verbose=verbose)
-    elif method == "smoothing":
-        vrp, solution, solution_dict = vrp_instance(instance, smoothing=0.8, dir=solution_dir, verbose=verbose)
-    elif method == "smoothing_with_optimal_dual":
-        vrp, solution, solution_dict = vrp_instance(instance, smoothing=0.8, dual_box_centre=dual_optimal_solution, dir=solution_dir, verbose=verbose)
-    else:
-        raise ValueError(f"Unknown method: '{method}'. Expected one of: classic, stabilized, ...")
+    solution_dict = _dispatch(
+        instance, method, dual_optimal, solution_dir, optimal_dual_dir, verbose
+    )
 
     save_dict_to_json(solution_dir, instance_name, solution_dict)
     print(f"Saved solutions to {solution_dir}{instance_name}")
+
+
+def baseline(instance: Instance, dataset_dir: str, verbose: bool = True):
+    for method in ("classic", "stabilized", "stabilized_with_optimal_dual"):
+        print(f"\n{'='*60}\n  {method}\n{'='*60}")
+        run_instance(instance, method, dataset_dir, verbose)
+
 
 def run_prediction_instance(instance: Instance, model_name:str, dataset_dir:str, verbose=True):
     instance_name = instance.get_name()

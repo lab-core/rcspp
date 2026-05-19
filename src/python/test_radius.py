@@ -9,7 +9,7 @@ from utils.definitions import *
 from vrp.stabilized_vrp import StabilizedVRP
 from vrp.stabilized_vrp import VRP
 import json
-from utils.test_utils import _build_solution_dict
+from utils.experiment_utils import _build_solution_dict
 
 
 if __name__ == "__main__":

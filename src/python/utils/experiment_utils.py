@@ -3,9 +3,9 @@ from vrp.stabilized_vrp import StabilizedVRP
 from vrp.vrp import VRP
 from utils.solution_formatter import format_solution
 import json
-import math
 import os
 from vrp.instance import Instance
+from typing import Callable
 
 def ensure_parent_dir(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -76,91 +76,27 @@ def vrp_instance(instance: Instance, smoothing=None, save=False, dir="", verbose
     return vrp, solution, solution_dict
 
 
-def average_dicts(dict_list):
-    """
-    Calcule la moyenne des valeurs numériques pour chaque clé dans une liste de dictionnaires.
-    Ignore les clés avec des valeurs booléennes.
-    """
+def _aggregate_dicts(dict_list: list[dict], agg_fn: Callable, initial) -> dict:
     if not dict_list:
         return {}
-
-    all_keys = set()
-    for d in dict_list:
-        all_keys.update(d.keys())
-    
-    averages = {}
+    all_keys = set().union(*dict_list)
+    result = {}
     for key in all_keys:
         values = []
         for d in dict_list:
-            if key in d:
-                val = d[key]
-                if isinstance(val, bool):
-                    break
-                elif isinstance(val, (int, float)):
-                    values.append(val)
+            val = d.get(key)
+            if val is None or isinstance(val, bool):
+                break
+            if isinstance(val, (int, float)):
+                values.append(val)
         else:
             if values:
-                averages[key] = sum(values) / len(values)
-    
-    return averages
+                result[key] = agg_fn(values)
+    return result
 
-def max_dicts(dict_list):
-    """
-    Calcule la moyenne des valeurs numériques pour chaque clé dans une liste de dictionnaires.
-    Ignore les clés avec des valeurs booléennes.
-    """
-    if not dict_list:
-        return {}
-
-    all_keys = set()
-    for d in dict_list:
-        all_keys.update(d.keys())
-    
-    max_d = {}
-    for key in all_keys:
-        known_max = -math.inf
-        for d in dict_list:
-            if key in d:
-                val = d[key]
-                if isinstance(val, bool):
-                    break
-                elif isinstance(val, (int, float)):
-                    if val > known_max:
-                        known_max = val
-        else:
-            if known_max:
-                max_d[key] = known_max
-    
-    return max_d
-
-def min_dicts(dict_list):
-    """
-    Calcule la moyenne des valeurs numériques pour chaque clé dans une liste de dictionnaires.
-    Ignore les clés avec des valeurs booléennes.
-    """
-    if not dict_list:
-        return {}
-
-    all_keys = set()
-    for d in dict_list:
-        all_keys.update(d.keys())
-    
-    min_d = {}
-    for key in all_keys:
-        known_min = math.inf
-        for d in dict_list:
-            if key in d:
-                val = d[key]
-                if isinstance(val, bool):
-                    break
-                elif isinstance(val, (int, float)):
-                    if val < known_min:
-                        known_min = val
-        else:
-            if known_min:
-                min_d[key] = known_min
-    
-    return min_d
+def average_dicts(dict_list): return _aggregate_dicts(dict_list, lambda v: sum(v)/len(v), None)
+def max_dicts(dict_list):     return _aggregate_dicts(dict_list, max, None)
+def min_dicts(dict_list):     return _aggregate_dicts(dict_list, min, None)
 
 def save_dict_to_json(dir: str, filename: str, d: dict):
     file_path = f"{dir}{filename}.json"
@@ -187,3 +123,11 @@ def read_instances_name(filepath:str) -> list[str]:
 
 def str_dict_to_int(d: dict):
     return {int(key):value for key, value in d.items()}
+
+def load_optimal_dual(path: str) -> dict:
+    assert os.path.exists(path), (
+        f"Dual optimal manquant : '{path}'. "
+        f"La méthode 'classic' a-t-elle bien été exécutée avant ?"
+    )
+    with open(path, "r") as f:
+        return str_dict_to_int(json.load(f))

@@ -1,5 +1,5 @@
 from vrp.instance_reader import InstanceReader
-from utils.test_utils import *
+from utils.experiment_utils import *
 from utils.utils import *
 import sys
 from utils.definitions import SOLUTIONS_DIR

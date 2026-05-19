@@ -4,7 +4,7 @@
 # flake8: noqa
 
 from vrp.instance_reader import InstanceReader
-from utils.test_utils import *
+from utils.experiment_utils import *
 from utils.definitions import INSTANCES_DIR
 
 
