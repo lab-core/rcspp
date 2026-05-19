@@ -16,81 +16,97 @@ class StabilizedVRP(VRP):
         super().__init__(instance, verbose)
         self.kappa = 1
         self.penalty_value = 0.9
-        self.meta_iteration = 0
+        self.meta_iteration = 1
         self.dual_estimate = dual_estimate
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
         time_start = time.time()
         self.generate_initial_paths()
-        max_special_var_value = math.inf
+        self.max_special_var_value = math.inf
+        self.min_reduced_cost = -math.inf
 
-        self.master_problem = MasterProblem(self._VRP__instance.get_demand_customers_id(), verbose=self._VRP__verbose)
-        self.master_problem.construct_model(self._VRP__paths)
-
-        if self.dual_estimate is None:
-            self.first_iteration(subproblem_max_nb_solutions)
-        else:
-            if self._VRP__verbose:
-                print("Using provided dual estimate to initialize the dual box master problem")
-            self.dual_box_center_ = self.dual_estimate
-            self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
-            self.compute_first_lagrangian_bound(self.dual_box_center_)
-
-        self.master_problem = DualBoxMasterProblem(self._VRP__instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value, verbose=self._VRP__verbose)
-        self.master_problem.construct_model(self._VRP__paths)
-
-        while True:
-            stabilized_iter_solution = self.cg_iterations(subproblem_max_nb_solutions)
-
-            special_var_values = [value for var, value in stabilized_iter_solution.value_by_var_id.items() if isinstance(var, str) and var.startswith("y")]
-            max_special_var_value = max(special_var_values) if len(special_var_values) > 0 else 0.0
-            print(f"Max special var value: {max_special_var_value} and number of special values: {len(special_var_values)}")
-
-            if max_special_var_value > self.EPSILON:
-                self.penalty_value = self.penalty_value/10
-                if self.penalty_value < self.EPSILON:
-                    self.penalty_value = 0.0
-            
-            self.meta_iteration += 1
-
-            if max_special_var_value < self.EPSILON:
-                break
-
+        self._initialize_dual_box(subproblem_max_nb_solutions)
+        self._run_stabilized_cg(subproblem_max_nb_solutions)
         master_solution = self.last_iteration()
 
-        self._VRP__total_problem_time = time.time() - time_start
-        print(f"Time ratio subproblem/total: {self._VRP__total_subproblem_time / self._VRP__total_problem_time} | Total time: {self._VRP__total_problem_time} s")
+        self._total_problem_time = time.time() - time_start
+        print(f"Time ratio subproblem/total: {self._total_subproblem_time / self._total_problem_time} | Total time: {self._total_problem_time} s")
 
         return master_solution
     
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
-        min_reduced_cost = -math.inf
-
         while True:
-            self.print_begin_iteration(min_reduced_cost)
+            self.print_begin_iteration()
             
-            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
+            master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
             
-            lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self._VRP__instance.get_nb_vehicles() *min_reduced_cost
-            if lb > self.best_lagrangian_lb:
+            lb = sum(master_solution.dual_by_var_id.values()) + self._instance.get_nb_vehicles() * self.min_reduced_cost
+            if lb > self.best_lagrangian_lb + self.EPSILON:
                 self.best_lagrangian_lb = lb
                 self.dual_box_center_ = master_solution.dual_by_var_id
                 # ← On propage le nouveau centre au modèle
                 self.master_problem.update_center(self.dual_box_center_)
-                print("Changement de centre")
+                self.meta_iteration += 1
+                self.vprint(f"Changing center. New meta iteration: {self.meta_iteration}")
+                self.vprint(f"New best lagrangian bound: {self.best_lagrangian_lb}")
 
-            special_var_values = [value for var, value in master_solution.value_by_var_id.items() if isinstance(var, str) and var.startswith("y")]
-            max_special_var_value = max(special_var_values) if len(special_var_values) > 0 else 0.0
+            self.special_var_values = self._get_special_var_values(master_solution)
+            self.max_special_var_value = max(self.special_var_values) if len(self.special_var_values) > 0 else 0.0
 
-            if max_special_var_value < self.EPSILON:
+            if self.max_special_var_value < self.EPSILON:
                 self.box_radius *= 0.5
                 self.master_problem.update_radius(self.box_radius)
 
             self.add_paths(negative_red_cost_solutions)
-            self._VRP__n_iterations += 1
+            self._n_iterations += 1
 
-            if min_reduced_cost > -self.EPSILON:
+            if self.min_reduced_cost > -self.EPSILON:
                 break
 
-        self._VRP__lp_cost = master_solution.cost
+        self._lp_cost = master_solution.cost
         return master_solution
+    
+    def _initialize_dual_box(self, subproblem_max_nb_solutions):
+        """Initialise le centre et le rayon de la boîte duale."""
+        self.master_problem = MasterProblem(self._instance.get_demand_customers_id(), verbose=self._verbose)
+        self.vprint("Constructing master problem with initial paths...")
+        self.master_problem.construct_model(self._paths)
+
+        if self.dual_estimate is None:
+            self.first_iteration(subproblem_max_nb_solutions)
+        else:
+            self.vprint("Using provided dual estimate to initialize the dual box master problem")
+            self.dual_box_center_ = self.dual_estimate
+            self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
+            self.compute_first_lagrangian_bound(self.dual_box_center_)
+
+    def _run_stabilized_cg(self, subproblem_max_nb_solutions):
+        """Boucle de méta-itération avec réduction de pénalité."""
+        self.master_problem = DualBoxMasterProblem(self._instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value, verbose=self._verbose)
+        self.vprint("Constructing dual box master problem with initial paths...")
+        self.master_problem.construct_model(self._paths)
+
+        while True:
+            solution = self.cg_iterations(subproblem_max_nb_solutions)
+            if not self._reduce_penalty_if_needed(solution):
+                break
+            self.meta_iteration += 1
+
+    def _reduce_penalty_if_needed(self, solution) -> bool:
+        """Retourne True si la pénalité a été réduite (continuer), False sinon."""
+        special_vals = self._get_special_var_values(solution)
+        max_val = max(special_vals) if special_vals else 0.0
+        self.vprint(f"Max special var value: {max_val}, count: {len(special_vals)}")
+
+        if max_val < self.EPSILON:
+            return False
+
+        self.penalty_value /= 10
+        if self.penalty_value < self.EPSILON:
+            self.penalty_value = 0.0
+        self.master_problem.update_penalty(self.penalty_value)
+        return True
+    
+    def _get_special_var_values(self, solution):
+        return [value for var, value in solution.value_by_var_id.items() if isinstance(var, str) and var.startswith("y")]
+    

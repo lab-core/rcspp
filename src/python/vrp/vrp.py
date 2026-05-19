@@ -25,32 +25,32 @@ class VRP:
     EPSILON = 0.00000001
 
     def __init__(self, instance: Instance, verbose = True):
-        self.__instance = instance
-        self.__min_time_window_by_node_id = {}
-        self.__max_time_window_by_node_id = {}
-        self.__path_id = 0
-        self.__paths = []
-        self.__total_subproblem_time = 0.0
-        self.__total_problem_time = 0.0
-        self.__subproblem_graph = None
-        self.__cost_history = []
-        self.__dual_values_history = []
-        self.__reduced_cost_history = []
-        self.__n_iterations = 0
-        self.__lp_cost = 0.0
+        self._instance = instance
+        self._min_time_window_by_node_id = {}
+        self._max_time_window_by_node_id = {}
+        self._path_id = 0
+        self._paths = []
+        self._total_subproblem_time = 0.0
+        self._total_problem_time = 0.0
+        self._subproblem_graph = None
+        self._cost_history = []
+        self._dual_values_history = []
+        self._reduced_cost_history = []
+        self._n_iterations = 0
+        self._lp_cost = 0.0
         self.final_dual_by_id = {}
-        self.__smoothing = False
-        self.__verbose = verbose
+        self._smoothing = False
+        self._verbose = verbose
 
-        self.__time_window_by_customer_id = self.initialize_time_windows()
-        self.__resource_graph = self.construct_resource_graph()
+        self._time_window_by_customer_id = self.initialize_time_windows()
+        self._resource_graph = self.construct_resource_graph()
 
     def initialize_time_windows(self):
         # print("initialize_time_windows")
 
         time_window_by_customer_id: dict[int, tuple[float, float]] = {}
 
-        customers_by_id = self.__instance.get_customers_by_id()
+        customers_by_id = self._instance.get_customers_by_id()
         for customer_id, customer in customers_by_id.items():
             time_window_by_customer_id[customer_id] = (
                 customer.ready_time,
@@ -62,8 +62,8 @@ class VRP:
         time_window_by_customer_id[sink_id] = (0.0, math.inf)
 
         for customer_dest_id, (min_time, max_time) in time_window_by_customer_id.items():
-            self.__min_time_window_by_node_id[customer_dest_id] = min_time
-            self.__max_time_window_by_node_id[customer_dest_id] = max_time
+            self._min_time_window_by_node_id[customer_dest_id] = min_time
+            self._max_time_window_by_node_id[customer_dest_id] = max_time
 
         return time_window_by_customer_id
 
@@ -82,15 +82,14 @@ class VRP:
 
         time_end = time.time()
 
-        if self.__verbose:
-            print(f"construct_graph Time: {int((time_end - time_start) * 1000)} ms")
-            print(f"construct_graph Time Nodes: {int((time_nodes - time_start) * 1000)} ms")
-            print(f"construct_graph Time Arcs: {int((time_end - time_nodes) * 1000)} ms")
+        self.vprint(f"construct_graph Time: {int((time_end - time_start) * 1000)} ms")
+        self.vprint(f"construct_graph Time Nodes: {int((time_nodes - time_start) * 1000)} ms")
+        self.vprint(f"construct_graph Time Arcs: {int((time_end - time_nodes) * 1000)} ms")
 
     def add_all_nodes_to_graph(self, resource_graph: ResourceGraph) -> None:
         # print("add_all_nodes_to_graph")
 
-        customers_by_id = self.__instance.get_customers_by_id()
+        customers_by_id = self._instance.get_customers_by_id()
         sink_id = len(customers_by_id)
 
         for customer_id, customer in customers_by_id.items():
@@ -108,7 +107,7 @@ class VRP:
     ) -> None:
         # print("add_all_arcs_to_graph")
 
-        customers_by_id = self.__instance.get_customers_by_id()
+        customers_by_id = self._instance.get_customers_by_id()
         sink_id = len(customers_by_id)
 
         arc_id = 0
@@ -190,7 +189,7 @@ class VRP:
         resource_graph: ResourceGraph,
         dual_by_id: Optional[dict[int, float]] = None,
     ) -> None:
-        customers_by_id = self.__instance.get_customers_by_id()
+        customers_by_id = self._instance.get_customers_by_id()
         sink_id = len(customers_by_id)
 
         arc_id = 0
@@ -298,8 +297,8 @@ class VRP:
         )
 
         # print(f"Add time resource...")
-        time_expansion_function = TimeWindowExtensionFunction(self.__min_time_window_by_node_id)
-        time_feasibility_function = TimeWindowFeasibilityFunction(self.__max_time_window_by_node_id)
+        time_expansion_function = TimeWindowExtensionFunction(self._min_time_window_by_node_id)
+        time_feasibility_function = TimeWindowFeasibilityFunction(self._max_time_window_by_node_id)
         time_cost_function = RealValueCostFunction()
         time_dominance_function = RealValueDominanceFunction()
 
@@ -312,7 +311,7 @@ class VRP:
 
         # print(f"Add demand resource...")
         demand_expansion_function = RealAdditionExtensionFunction()
-        demand_feasibility_function = MinMaxFeasibilityFunction(0.0, self.__instance.get_capacity())
+        demand_feasibility_function = MinMaxFeasibilityFunction(0.0, self._instance.get_capacity())
         demand_cost_function = RealValueCostFunction()
         demand_dominance_function = RealValueDominanceFunction()
 
@@ -332,19 +331,18 @@ class VRP:
         resource_graph: ResourceGraph,
         dual_by_id: Optional[dict[int, float]] = None,
     ):
-        if self.__verbose:
-            print("update_resource_graph")
+        self.vprint("update_resource_graph")
 
         self.update_all_arcs_to_graph(resource_graph, dual_by_id)
 
         return resource_graph
 
     def generate_initial_paths(self):
-        depot_customer = self.__instance.get_depot_customer()
+        depot_customer = self._instance.get_depot_customer()
 
-        customers_by_id = self.__instance.get_customers_by_id()
+        customers_by_id = self._instance.get_customers_by_id()
 
-        for customer_id in self.__instance.get_demand_customers_id():
+        for customer_id in self._instance.get_demand_customers_id():
             customer = customers_by_id[customer_id]
             path_cost = self.calculate_distance(depot_customer, customer) + self.calculate_distance(
                 customer, depot_customer
@@ -353,28 +351,28 @@ class VRP:
             path_demand = customer.demand  # noqa: F841
 
             visited_nodes = [depot_customer.id, customer_id, depot_customer.id]
-            path = Path(self.__path_id, path_cost, visited_nodes)
-            self.__paths.append(path)
+            path = Path(self._path_id, path_cost, visited_nodes)
+            self._paths.append(path)
 
-            self.__path_id += 1
+            self._path_id += 1
 
-        return self.__paths
+        return self._paths
 
     def add_paths(self, solutions: list[Solution]):
         # print(f"VRP::add_paths: {len(solutions)}")
 
         for solution in solutions:
             solution_cost = self.calculate_solution_cost(solution)
-            path = Path(self.__path_id, solution_cost, solution.path_node_ids)
-            self.__paths.append(path)
-            self.__path_id += 1
+            path = Path(self._path_id, solution_cost, solution.path_node_ids)
+            self._paths.append(path)
+            self._path_id += 1
             self.master_problem.add_column(path)
 
     def calculate_solution_cost(self, solution: Solution):
         cost = 0.0
 
         for arc_id in solution.path_arc_ids:
-            cost += self.__resource_graph.get_arc(arc_id).cost
+            cost += self._resource_graph.get_arc(arc_id).cost
 
         return cost
 
@@ -405,12 +403,12 @@ class VRP:
         master_solution = self.master_problem.solve(True)        
 
         dual_by_id = master_solution.dual_by_var_id
-        self.__cost_history.append(master_solution.cost)
-        self.__dual_values_history.append(dual_by_id)
+        self._cost_history.append(master_solution.cost)
+        self._dual_values_history.append(dual_by_id)
 
-        if self.__smoothing:
-            self.__last_outer_point = dual_by_id
-            dual_by_id = self.convex_combinaison_to_dict(self.__smoothing_center, dual_by_id, self.__smoothing_parameter)
+        if self._smoothing:
+            self._last_outer_point = dual_by_id
+            dual_by_id = self.convex_combinaison_to_dict(self._smoothing_center, dual_by_id, self._smoothing_parameter)
 
         negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
 
@@ -420,31 +418,30 @@ class VRP:
         return master_solution, negative_red_cost_solutions, min_reduced_cost
 
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
-        min_reduced_cost = -math.inf
+        self.min_reduced_cost = -math.inf
         
         while True:
-            self.print_begin_iteration(min_reduced_cost)
+            self.print_begin_iteration()
 
-            if self.__smoothing:
-                self.__smoothing_parameter = max(0, 1- self.__mis_price_k*(1-self.__smoothing_parameter))
+            if self._smoothing:
+                self._smoothing_parameter = max(0, 1- self._mis_price_k*(1-self._smoothing_parameter))
 
-            master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
+            master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
             self.add_paths(negative_red_cost_solutions)
 
-            self.__n_iterations += 1
+            self._n_iterations += 1
         
-            if self.__smoothing:
-                print(self.__smoothing_parameter)
-                if min_reduced_cost >= -self.EPSILON:
-                    self.__smoothing_center = self.final_dual_by_id
-                    negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(self.__last_outer_point, subproblem_max_nb_solutions)
-                    self.__mis_price_k += 1
-                    print("Mis Price")
+            if self._smoothing:
+                if self.min_reduced_cost >= -self.EPSILON:
+                    self._smoothing_center = self.final_dual_by_id
+                    negative_red_cost_solutions, self.min_reduced_cost = self.get_negative_reduced_cost_column(self._last_outer_point, subproblem_max_nb_solutions)
+                    self._mis_price_k += 1
+                    self.vprint("Mis Price")
                 else:
-                    self.__mis_price_k = 1
+                    self._mis_price_k = 1
                     g = self.compute_subgradient(negative_red_cost_solutions[0])
-                    out_minus_in = dict_addition(self.__last_outer_point, dict_scalar_mult(self.__smoothing_center, -1))
+                    out_minus_in = dict_addition(self._last_outer_point, dict_scalar_mult(self._smoothing_center, -1))
                     dot = dict_dot_product(g, out_minus_in)
                     if dot > 0:
                         self.increase_alpha()
@@ -453,17 +450,17 @@ class VRP:
                     
 
 
-            if min_reduced_cost > -self.EPSILON:
+            if self.min_reduced_cost > -self.EPSILON:
                 break
 
-        self.__lp_cost = master_solution.cost
+        self._lp_cost = master_solution.cost
         return master_solution
 
     def last_iteration(self):
         master_solution = self.master_problem.solve()
 
         master_solution.dual_by_var_id = self.final_dual_by_id
-        self.__cost_history.append(master_solution.cost)
+        self._cost_history.append(master_solution.cost)
         return master_solution
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
@@ -471,22 +468,22 @@ class VRP:
 
         self.generate_initial_paths()
 
-        self.master_problem = MasterProblem(self.__instance.get_demand_customers_id(), self.__verbose)
-        self.master_problem.construct_model(self.__paths)
+        self.master_problem = MasterProblem(self._instance.get_demand_customers_id(), self._verbose)
+        self.master_problem.construct_model(self._paths)
 
-        self.__n_iterations = 0
+        self._n_iterations = 0
 
-        if self.__smoothing:
-            self.__smoothing = False
+        if self._smoothing:
+            self._smoothing = False
             self.first_iteration(subproblem_max_nb_solutions)
-            self.__smoothing = True
+            self._smoothing = True
 
         master_solution = self.cg_iterations(subproblem_max_nb_solutions)
 
         master_solution = self.last_iteration()
 
-        self.__total_problem_time = time.time() - time_start
-        print(f"Time ratio subproblem/total: {self.__total_subproblem_time / self.__total_problem_time} | Total time: {self.__total_problem_time} s")
+        self._total_problem_time = time.time() - time_start
+        print(f"Time ratio subproblem/total: {self._total_subproblem_time / self._total_problem_time} | Total time: {self._total_problem_time} s")
 
         return master_solution
 
@@ -494,36 +491,35 @@ class VRP:
         # Rebuild the subproblem graph each iteration. The in-place C++ update path
         # currently triggers a native crash on the second solve.
         subproblem_time_start = time.time()
-        self.__subproblem_graph = self.construct_resource_graph(dual_by_id)
+        self._subproblem_graph = self.construct_resource_graph(dual_by_id)
 
         # subproblem = Subproblem(resource_graph)
 
-        solutions = self.__subproblem_graph.solve()
+        solutions = self._subproblem_graph.solve()
 
         subproblem_time_end = time.time()
-        self.__total_subproblem_time += subproblem_time_end - subproblem_time_start
-        if self.__verbose:
-            print(f"Solve: {subproblem_time_end - subproblem_time_start}")
+        self._total_subproblem_time += subproblem_time_end - subproblem_time_start
+        self.vprint(f"Solve: {subproblem_time_end - subproblem_time_start}")
 
         return solutions
 
     def enable_smoothing(self, alpha:float):
-        self.__smoothing_parameter = alpha
-        self.__smoothing = True
-        self.__mis_price_k = 1
+        self._smoothing_parameter = alpha
+        self._smoothing = True
+        self._mis_price_k = 1
 
     def disable_smoothing(self):
-        self.__smoothing = False
+        self._smoothing = False
 
     def increase_alpha(self):
-        self.__smoothing_parameter = self.__smoothing_parameter + (1-self.__smoothing_parameter)*0.1
+        self._smoothing_parameter = self._smoothing_parameter + (1-self._smoothing_parameter)*0.1
 
     def decrease_alpha(self):
-        self.__smoothing_parameter = max(0, self.__smoothing_parameter-0.1)
+        self._smoothing_parameter = max(0, self._smoothing_parameter-0.1)
 
     def compute_subgradient(self, neg_cost_sol):
         g = {}
-        for i in self.__instance.get_demand_customers_id():
+        for i in self._instance.get_demand_customers_id():
             if i in neg_cost_sol.path_node_ids:
                ai = 1
             else:
@@ -532,58 +528,60 @@ class VRP:
         return g
 
     def get_cost_history(self):
-        return self.__cost_history
+        return self._cost_history
     
     def get_dual_values_history(self):
-        return self.__dual_values_history
+        return self._dual_values_history
     
     def get_reduced_cost_history(self):
-        return self.__reduced_cost_history
+        return self._reduced_cost_history
     
     def get_n_iterations(self):
-        return self.__n_iterations
+        return self._n_iterations
 
     def get_lp_cost(self):
-        return self.__lp_cost
+        return self._lp_cost
 
     def get_total_problem_time(self):
-        return self.__total_problem_time
+        return self._total_problem_time
 
     def get_total_subproblem_time(self):
-        return self.__total_subproblem_time
+        return self._total_subproblem_time
     
     def compute_first_lagrangian_bound(self, dual):
         center_reduced_cost_solution = self.solve_subproblem(dual)
-        self.best_lagrangian_lb = sum([i for i in dual.values()]) + self.__instance.get_nb_vehicles() * center_reduced_cost_solution[0].cost
+        self.best_lagrangian_lb = sum([i for i in dual.values()]) + self._instance.get_nb_vehicles() * center_reduced_cost_solution[0].cost
 
-    def print_begin_iteration(self, min_reduced_cost):
-        if self.__verbose:
-            print("*********************************************")
-            print(
-                    f"nb_iter={self.__n_iterations} | min_reduced_cost={min_reduced_cost} "
-                    f"| EPSILON={self.EPSILON}"
+    def print_begin_iteration(self):
+        self.vprint("*********************************************")
+        self.vprint(
+                    f"nb_iter={self._n_iterations} | min_reduced_cost={self.min_reduced_cost} "
+                    f"| EPSILON={self.EPSILON}",
+                    f"------------------------------------------------------------------ Iter: {self._n_iterations}------------------"
                 )
-            print("*********************************************")
-        else: 
-            print(f"------------------------------------------------------------------ Iter: {self.__n_iterations}------------------")
+        self.vprint("*********************************************")
 
     def first_iteration(self, subproblem_max_nb_solutions: Optional[int] = None):
-        master_solution, negative_red_cost_solutions, min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
+        master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
         dual_by_id = master_solution.dual_by_var_id
 
-        self.__smoothing_center = dual_by_id
-        self.__last_outer_point = dual_by_id
+        self._smoothing_center = dual_by_id
+        self._last_outer_point = dual_by_id
 
         self.dual_box_center_ = dual_by_id
         if hasattr(self, 'kappa'):
             self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
 
-        negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
-
         self.add_paths(negative_red_cost_solutions)
 
-        lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self.__instance.get_nb_vehicles() *min_reduced_cost
+        lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self._instance.get_nb_vehicles() *self.min_reduced_cost
         self.best_lagrangian_lb = lb
 
-        self.__n_iterations += 1
+        self._n_iterations += 1
+
+    def vprint(self, message, quiet_message=None):
+        if self._verbose:
+            print(message)
+        elif quiet_message is not None:
+            print(quiet_message)
