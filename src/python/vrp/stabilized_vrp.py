@@ -21,7 +21,7 @@ class StabilizedVRP(VRP):
         self.dual_estimate = dual_estimate
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
-        time_start = time.time()
+        self.time_start = time.time()
         self.generate_initial_paths()
         self.max_special_var_value = math.inf
         self.min_reduced_cost = -math.inf
@@ -30,7 +30,7 @@ class StabilizedVRP(VRP):
         self._run_stabilized_cg(subproblem_max_nb_solutions)
         master_solution = self.last_iteration()
 
-        self._total_problem_time = time.time() - time_start
+        self._total_problem_time = time.time() - self.time_start
         print(f"Time ratio subproblem/total: {self._total_subproblem_time / self._total_problem_time} | Total time: {self._total_problem_time} s")
 
         return master_solution
@@ -54,6 +54,7 @@ class StabilizedVRP(VRP):
                 self._change_radius(self.box_radius*0.5)
 
             self.add_paths(negative_red_cost_solutions)
+            self._save_state(master_solution)
             self._n_iterations += 1
 
             if self.min_reduced_cost > -self.EPSILON:
@@ -119,3 +120,16 @@ class StabilizedVRP(VRP):
         self.box_radius = new_radius
         self.master_problem.update_radius(self.box_radius)
         self.vprint(f"New radius: {new_radius}")
+
+    def _save_state(self, solution):
+        state = {"time": time.time() - self.time_start,
+                 "n_iter": self._n_iterations,
+                 "n_cols": len(self._paths),
+                 "value": solution.cost,
+                 "best_lb": self.best_lagrangian_lb,
+                 "n_meta_iter": self.meta_iteration,
+                 "centre_changes": self.nb_new_center,
+                 "radius": self.box_radius,
+                 "penalty": self.penalty_value}
+        
+        self._state_history.append(state)

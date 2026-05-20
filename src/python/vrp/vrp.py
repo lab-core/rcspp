@@ -33,9 +33,8 @@ class VRP:
         self._total_subproblem_time = 0.0
         self._total_problem_time = 0.0
         self._subproblem_graph = None
-        self._cost_history = []
         self._dual_values_history = []
-        self._reduced_cost_history = []
+        self._state_history = []
         self._n_iterations = 0
         self._lp_cost = 0.0
         self.final_dual_by_id = {}
@@ -403,7 +402,6 @@ class VRP:
         master_solution = self.master_problem.solve(True)        
 
         dual_by_id = master_solution.dual_by_var_id
-        self._cost_history.append(master_solution.cost)
         self._dual_values_history.append(dual_by_id)
 
         if self._smoothing:
@@ -428,9 +426,15 @@ class VRP:
 
             master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
+            lb = sum(master_solution.dual_by_var_id.values()) + self._instance.get_nb_vehicles() * self.min_reduced_cost
+            if lb > self.best_lagrangian_lb + self.EPSILON:
+                self.best_lagrangian_lb = lb
+
             self.add_paths(negative_red_cost_solutions)
 
             self._n_iterations += 1
+
+            self._save_state(master_solution)
         
             if self._smoothing:
                 if self.min_reduced_cost >= -self.EPSILON:
@@ -460,11 +464,12 @@ class VRP:
         master_solution = self.master_problem.solve()
 
         master_solution.dual_by_var_id = self.final_dual_by_id
-        self._cost_history.append(master_solution.cost)
         return master_solution
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
-        time_start = time.time()
+        self.time_start = time.time()
+
+        self.best_lagrangian_lb = - math.inf
 
         self.generate_initial_paths()
 
@@ -482,7 +487,7 @@ class VRP:
 
         master_solution = self.last_iteration()
 
-        self._total_problem_time = time.time() - time_start
+        self._total_problem_time = time.time() - self.time_start
         print(f"Time ratio subproblem/total: {self._total_subproblem_time / self._total_problem_time} | Total time: {self._total_problem_time} s")
 
         return master_solution
@@ -527,14 +532,11 @@ class VRP:
             g[i] = 1 - ai
         return g
 
-    def get_cost_history(self):
-        return self._cost_history
+    def get_state_history(self):
+        return self._state_history
     
     def get_dual_values_history(self):
         return self._dual_values_history
-    
-    def get_reduced_cost_history(self):
-        return self._reduced_cost_history
     
     def get_n_iterations(self):
         return self._n_iterations
@@ -585,3 +587,15 @@ class VRP:
             print(message)
         elif quiet_message is not None:
             print(quiet_message)
+
+    def _save_state(self, solution):
+        state = {"time": time.time() - self.time_start,
+                 "n_iter": self._n_iterations,
+                 "n_cols": len(self._paths),
+                 "value": solution.cost,
+                 "best_lb": self.best_lagrangian_lb}
+        
+        if self._smoothing:
+            state["smoothing_parameter": self._smoothing_parameter]
+        
+        self._state_history.append(state)

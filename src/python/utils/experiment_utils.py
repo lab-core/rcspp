@@ -32,6 +32,13 @@ def _dump_dual_history(vrp, instance, dir):
     with open(file_path, "w") as f:
         json.dump(dual_history, f)
 
+def _dump_state_history(vrp, instance, dir):
+    state_history = vrp.get_state_history()
+    file_path = f"{dir}/state_history/{instance.get_name()}.json"
+    ensure_parent_dir(file_path)
+    with open(file_path, "w") as f:
+        json.dump(state_history, f)
+
 
 def _build_solution_dict(vrp, solution, extra_fields=None):
     solution_dict = {
@@ -56,6 +63,7 @@ def vrp_stabilized_instance(instance: Instance, dual_box_centre=None, save=False
     _save_formatted_solution(vrp, solution, instance, save, dir)
     solution_dict = _build_solution_dict(vrp, solution, {"n_meta_iter": vrp.meta_iteration,  "n_center_change": vrp.nb_new_center})
     _dump_dual_history(vrp, instance, dir)
+    _dump_state_history(vrp, instance, dir)
 
     return solution_dict
 
@@ -72,6 +80,7 @@ def vrp_instance(instance: Instance, smoothing=None, save=False, dir="", verbose
     _save_formatted_solution(vrp, solution, instance, save, dir)
     solution_dict = _build_solution_dict(vrp, solution)
     _dump_dual_history(vrp, instance, dir)
+    _dump_state_history(vrp, instance, dir)
 
     return vrp, solution, solution_dict
 
