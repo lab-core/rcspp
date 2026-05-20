@@ -1,0 +1,653 @@
+// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+// All rights reserved.
+
+#pragma once
+
+#include <algorithm>
+#include <functional>
+#include <limits>
+#include <list>
+#include <optional>
+#include <shared_mutex>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+#include "rcspp/algorithm/solution.hpp"
+
+namespace rcspp {
+
+// Activity stats for a column — stored in the pool and updated on every price() call
+// and on update_activity() calls (LP basis membership).
+struct ColumnActivity {
+        size_t age = 0;         // pricing iterations since last returned (reset on use)
+        size_t use_count = 0;   // total times returned by price() or found in LP basis
+        size_t created_at = 0;  // pool's pricing_count_ at time of insertion
+        bool last_was_negative = false;
+        double last_reduced_cost = std::numeric_limits<double>::infinity();
+
+        // Fraction of price() calls since insertion in which this column was returned.
+        [[nodiscard]] double usage_rate(size_t current_pricing_count) const {
+            const size_t lifetime =
+                current_pricing_count > created_at ? current_pricing_count - created_at : 0;
+            if (lifetime == 0) {
+                return 0.0;
+            }
+            return static_cast<double>(use_count) / static_cast<double>(lifetime);
+        }
+};
+
+// ─── Forward declaration ──────────────────────────────────────────────────────
+class FilteredSolutionPool;
+
+// ─── SolutionPool ─────────────────────────────────────────────────────────────
+
+// Storage-only pool of columns. All operations are performed through
+// FilteredSolutionPool objects created via new_filter().
+//
+// Design notes:
+// - Entries are stored in a std::list; id_index_ maps ColumnId → list iterator for O(1)
+//   removal without index invalidation.
+// - FilteredSolutionPools register themselves on construction and unregister on destruction.
+//   add_unlocked() and remove_if_locked() auto-propagate to all registered pools.
+// - All pricing, removal, and read operations are delegated to FilteredSolutionPool.
+class SolutionPool {
+        friend class FilteredSolutionPool;
+
+    public:
+        using ColumnId = uint64_t;
+        static constexpr ColumnId kNoId = 0;
+
+        struct PricedColumn {
+                ColumnId id;
+                double reduced_cost;
+                const Solution* solution;  // points into pool entry; valid until pool modification
+        };
+
+        using Predicate = std::function<bool(ColumnId, const Solution&, const ColumnActivity&)>;
+
+        // Create a FilteredSolutionPool registered for auto-propagation.
+        // filter=nullptr accepts all existing and future entries.
+        [[nodiscard]] FilteredSolutionPool new_filter(
+            std::function<bool(const Solution&)> filter = nullptr);
+
+        // Convenience: build filter from row/arc constraints, then new_filter().
+        [[nodiscard]] FilteredSolutionPool new_filter(std::vector<size_t> compulsory_rows,
+                                                      std::vector<size_t> forbidden_rows,
+                                                      std::vector<size_t> compulsory_arc_ids,
+                                                      std::vector<size_t> forbidden_arc_ids);
+
+        // Build a filter predicate from row/arc constraints.
+        [[nodiscard]] static std::function<bool(const Solution&)> make_filter(
+            std::vector<size_t> compulsory_rows = {}, std::vector<size_t> forbidden_rows = {},
+            std::vector<size_t> compulsory_arc_ids = {},
+            std::vector<size_t> forbidden_arc_ids = {});
+
+    private:
+        struct Entry {
+                ColumnId id;
+                Solution solution;
+                ColumnActivity activity;
+        };
+        using EntryIter = std::list<Entry>::iterator;
+
+        mutable std::shared_mutex mutex_;
+        std::list<Entry> entries_;
+        // hash → iterators into entries_ (for deduplication)
+        std::unordered_map<uint64_t, std::vector<EntryIter>> hash_index_;
+        // id → iterator into entries_ (O(1) access and removal)
+        std::unordered_map<ColumnId, EntryIter> id_index_;
+        // registered FilteredSolutionPools for auto-propagation
+        std::vector<FilteredSolutionPool*> registered_pools_;
+        ColumnId next_id_{1};
+        size_t pricing_count_{0};
+
+        // caller: if non-null, this FilteredSolutionPool handles its own update directly and
+        // should be skipped during propagation.
+        ColumnId add_unlocked(const Solution& sol, FilteredSolutionPool* caller = nullptr);
+
+        std::vector<ColumnId> remove_if_locked(const Predicate& pred);
+
+        static bool passes_row_filter(const Solution& sol,
+                                      const std::vector<size_t>& compulsory_rows,
+                                      const std::vector<size_t>& forbidden_rows) {
+            if (compulsory_rows.empty() && forbidden_rows.empty()) {
+                return true;
+            }
+            std::unordered_set<size_t> present;
+            present.reserve(sol.column.rows.size());
+            for (const auto& row : sol.column.rows) {
+                present.insert(row.index);
+            }
+            return std::ranges::all_of(compulsory_rows,
+                                       [&](size_t idx) { return present.contains(idx); }) &&
+                   std::ranges::none_of(forbidden_rows,
+                                        [&](size_t idx) { return present.contains(idx); });
+        }
+
+        static bool passes_arc_filter(const Solution& sol,
+                                      const std::vector<size_t>& compulsory_arc_ids,
+                                      const std::vector<size_t>& forbidden_arc_ids) {
+            if (compulsory_arc_ids.empty() && forbidden_arc_ids.empty()) {
+                return true;
+            }
+            std::unordered_set<size_t> arc_set(sol.path_arc_ids.begin(), sol.path_arc_ids.end());
+            return std::ranges::all_of(compulsory_arc_ids,
+                                       [&](size_t arc_id) { return arc_set.contains(arc_id); }) &&
+                   std::ranges::none_of(forbidden_arc_ids,
+                                        [&](size_t arc_id) { return arc_set.contains(arc_id); });
+        }
+};
+
+// ─── FilteredSolutionPool ─────────────────────────────────────────────────────
+
+// The primary interface for all pool operations — pricing, activity tracking,
+// adding columns, and local/global removal.
+//
+// Internally keeps a std::list<Entry*> (filtered_entries_) for O(n_filtered) iteration
+// with no hash lookup per element, and an unordered_map<ColumnId, list::iterator>
+// (filtered_ids_) for O(1) membership test and removal.
+//
+// Auto-propagation: registers with its pool on construction; pool.add_unlocked() and
+// pool.remove_if_locked() propagate to all registered pools automatically.
+//
+// B&B usage:
+//   auto fp = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10}));
+//   // ... run CG using fp.price(), fp.add(), fp.update_activity() ...
+//   // Backtrack: fp goes out of scope → pool unaffected, unregisters automatically.
+//
+// Chain filtering:
+//   auto fp2 = fp.new_filter(pred);   // further narrows fp; entries must pass both filters
+//
+// Local vs global removal:
+//   fp.remove_if(pred)         → removes from this view only (B&B scoped, backtrackable)
+//   fp.global_remove_if(pred)  → hard deletes from the pool, propagates to all views
+class FilteredSolutionPool {
+    public:
+        using ColumnId = SolutionPool::ColumnId;
+        using PricedColumn = SolutionPool::PricedColumn;
+        using Predicate = SolutionPool::Predicate;
+
+        // Build a filtered view. filter=nullptr accepts all existing and future entries.
+        // Acquires exclusive lock to populate filtered_entries_ and register with pool.
+        explicit FilteredSolutionPool(SolutionPool& pool,
+                                      std::function<bool(const Solution&)> filter = nullptr)
+            : pool_(pool), filter_(std::move(filter)) {
+            std::unique_lock lock(pool_.mutex_);
+            for (auto& entry : pool_.entries_) {
+                if (accepts(entry.solution)) {
+                    filtered_entries_.push_back(&entry);
+                    filtered_ids_.emplace(entry.id, std::prev(filtered_entries_.end()));
+                }
+            }
+            pool_.registered_pools_.push_back(this);
+        }
+
+        // Unregisters from pool on destruction.
+        ~FilteredSolutionPool() {
+            if (!registered_) {
+                return;
+            }
+            std::unique_lock lock(pool_.mutex_);
+            auto& reg = pool_.registered_pools_;
+            reg.erase(std::ranges::find(reg, this));
+        }
+
+        FilteredSolutionPool(const FilteredSolutionPool&) = delete;
+        FilteredSolutionPool& operator=(const FilteredSolutionPool&) = delete;
+
+        // Move: re-registers this in place of other in pool's registration list.
+        FilteredSolutionPool(FilteredSolutionPool&& other) noexcept
+            : pool_(other.pool_),
+              filter_(std::move(other.filter_)),
+              filtered_entries_(std::move(other.filtered_entries_)),
+              filtered_ids_(std::move(other.filtered_ids_)),
+              registered_(other.registered_) {
+            other.registered_ = false;
+            if (registered_) {
+                std::unique_lock lock(pool_.mutex_);
+                auto& reg = pool_.registered_pools_;
+                auto it = std::ranges::find(reg, &other);
+                if (it != reg.end()) {
+                    *it = this;
+                } else {
+                    reg.push_back(this);
+                }
+            }
+        }
+
+        FilteredSolutionPool& operator=(FilteredSolutionPool&&) = delete;
+
+        // ── Write operations ──────────────────────────────────────────────────
+
+        // Add to main pool (always); add to this view if filter accepts.
+        // Pool propagates to OTHER registered FilteredSolutionPools; this one updates itself.
+        ColumnId add(const Solution& sol) {
+            std::unique_lock lock(pool_.mutex_);
+            const auto id = pool_.add_unlocked(sol, this);
+            if (!filtered_ids_.contains(id)) {
+                if (!accepts(sol)) {
+                    return SolutionPool::kNoId;
+                }
+                auto entry_it = pool_.id_index_.find(id);
+                if (entry_it != pool_.id_index_.end()) {
+                    filtered_entries_.push_back(&(*entry_it->second));
+                    filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
+                }
+            }
+            return id;
+        }
+
+        std::vector<ColumnId> add(const std::vector<Solution>& solutions) {
+            std::unique_lock lock(pool_.mutex_);
+            std::vector<ColumnId> ids;
+            ids.reserve(solutions.size());
+            for (const auto& sol : solutions) {
+                auto id = add(sol);
+                if (id != SolutionPool::kNoId) {
+                    ids.emplace_back(id);
+                }
+            }
+            return ids;
+        }
+
+        // Price the filtered subset. Increments pricing_count; updates ColumnActivity
+        // only for entries in this view.
+        [[nodiscard]] std::vector<PricedColumn> price(const std::vector<double>& duals,
+                                                      double threshold = 0.0) {
+            std::unique_lock lock(pool_.mutex_);
+            ++pool_.pricing_count_;
+            return price_subset_locked(duals, threshold);
+        }
+
+        // Update activity for entries in this view based on LP basis membership.
+        // Columns in basis_ids (and in this view): age reset, ++use_count.
+        // Columns in this view but NOT in basis_ids: ++age.
+        // Columns outside this view: untouched. Does NOT increment pricing_count.
+        void update_activity(const std::vector<ColumnId>& basis_ids) {
+            std::unique_lock lock(pool_.mutex_);
+            const std::unordered_set<ColumnId> basis_set(basis_ids.begin(), basis_ids.end());
+            for (SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                auto& entry = *entry_ptr;
+                if (basis_set.contains(entry.id)) {
+                    entry.activity.age = 0;
+                    ++entry.activity.use_count;
+                    entry.activity.last_was_negative = true;
+                } else {
+                    ++entry.activity.age;
+                    entry.activity.last_was_negative = false;
+                }
+            }
+        }
+
+        // ── Local removes (this view only — supports B&B backtracking) ─────────
+
+        // Remove entries from this view only (NOT from the main pool).
+        std::vector<ColumnId> remove_if(const Predicate& pred) {
+            std::shared_lock lock(pool_.mutex_);
+            return remove_if_local(pred);
+        }
+
+        // Remove from this view all columns whose path traverses arc_id.
+        std::vector<ColumnId> remove_if_arc_present(size_t arc_id) {
+            std::shared_lock lock(pool_.mutex_);
+            return remove_if_local([arc_id](ColumnId, const Solution& sol, const ColumnActivity&) {
+                return std::ranges::find(sol.path_arc_ids, arc_id) != sol.path_arc_ids.end();
+            });
+        }
+
+        // Remove from this view entries where age > max_age OR usage_rate < min_usage_rate.
+        std::vector<ColumnId> remove_stale(size_t max_age, double min_usage_rate = 0.0) {
+            std::shared_lock lock(pool_.mutex_);
+            const size_t pc = pool_.pricing_count_;
+            return remove_if_local([max_age, min_usage_rate, pc](ColumnId,
+                                                                 const Solution&,
+                                                                 const ColumnActivity& act) {
+                return act.age > max_age || act.usage_rate(pc) < min_usage_rate;
+            });
+        }
+
+        // ── Global hard deletes (from pool, propagates to all views) ───────────
+
+        // Hard delete from pool, propagates to all registered FilteredSolutionPools.
+        std::vector<ColumnId> global_remove_if(const Predicate& pred) {
+            std::unique_lock lock(pool_.mutex_);
+            return pool_.remove_if_locked(pred);
+        }
+
+        // Hard delete all columns whose path traverses arc_id.
+        std::vector<ColumnId> global_remove_if_arc_present(size_t arc_id) {
+            std::unique_lock lock(pool_.mutex_);
+            return pool_.remove_if_locked(
+                [arc_id](ColumnId, const Solution& sol, const ColumnActivity&) {
+                    return std::ranges::find(sol.path_arc_ids, arc_id) != sol.path_arc_ids.end();
+                });
+        }
+
+        // Hard delete stale columns from pool.
+        std::vector<ColumnId> global_remove_stale(size_t max_age, double min_usage_rate = 0.0) {
+            std::unique_lock lock(pool_.mutex_);
+            const size_t pc = pool_.pricing_count_;
+            return pool_.remove_if_locked([max_age, min_usage_rate, pc](ColumnId,
+                                                                        const Solution&,
+                                                                        const ColumnActivity& act) {
+                return act.age > max_age || act.usage_rate(pc) < min_usage_rate;
+            });
+        }
+
+        // Purge stale references left by pool-level removals that bypassed propagation.
+        void cleanup() {
+            std::shared_lock lock(pool_.mutex_);
+            for (auto list_it = filtered_entries_.begin(); list_it != filtered_entries_.end();) {
+                const ColumnId id = (*list_it)->id;
+                if (!pool_.id_index_.contains(id)) {
+                    filtered_ids_.erase(id);
+                    list_it = filtered_entries_.erase(list_it);
+                } else {
+                    ++list_it;
+                }
+            }
+        }
+
+        // ── Read operations ───────────────────────────────────────────────────
+
+        [[nodiscard]] std::optional<Solution> get(ColumnId id) const {
+            std::shared_lock lock(pool_.mutex_);
+            auto it = filtered_ids_.find(id);
+            if (it == filtered_ids_.end()) {
+                return std::nullopt;
+            }
+            return (*it->second)->solution;
+        }
+
+        [[nodiscard]] std::optional<ColumnActivity> get_activity(ColumnId id) const {
+            std::shared_lock lock(pool_.mutex_);
+            auto it = filtered_ids_.find(id);
+            if (it == filtered_ids_.end()) {
+                return std::nullopt;
+            }
+            return (*it->second)->activity;
+        }
+
+        // Returns (id, solution, activity) in a single lock-acquire; nullopt if not in this view.
+        [[nodiscard]] std::optional<std::tuple<ColumnId, Solution, ColumnActivity>> get_entry(
+            ColumnId id) const {
+            std::shared_lock lock(pool_.mutex_);
+            auto it = filtered_ids_.find(id);
+            if (it == filtered_ids_.end()) {
+                return std::nullopt;
+            }
+            const auto& e = *(*it->second);
+            return std::make_tuple(e.id, e.solution, e.activity);
+        }
+
+        [[nodiscard]] size_t pricing_count() const {
+            std::shared_lock lock(pool_.mutex_);
+            return pool_.pricing_count_;
+        }
+
+        [[nodiscard]] size_t size() const { return filtered_entries_.size(); }
+
+        [[nodiscard]] std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> get_all() const {
+            std::shared_lock lock(pool_.mutex_);
+            std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> result;
+            result.reserve(filtered_entries_.size());
+            for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                const auto& entry = *entry_ptr;
+                result.emplace_back(entry.id, entry.solution, entry.activity);
+            }
+            return result;
+        }
+
+        // ── Filtering ─────────────────────────────────────────────────────────
+
+        // Create a further-narrowed FilteredSolutionPool: entries must pass BOTH this filter
+        // AND pred. The new pool starts from this pool's current entries and is registered
+        // with the root pool for auto-propagation using the combined filter.
+        [[nodiscard]] FilteredSolutionPool new_filter(
+            std::function<bool(const Solution&)> pred = nullptr) const;
+
+        // Convenience: build filter from row/arc constraints, then new_filter().
+        [[nodiscard]] FilteredSolutionPool new_filter(std::vector<size_t> compulsory_rows,
+                                                      std::vector<size_t> forbidden_rows,
+                                                      std::vector<size_t> compulsory_arc_ids,
+                                                      std::vector<size_t> forbidden_arc_ids) const {
+            return new_filter(make_filter(std::move(compulsory_rows),
+                                          std::move(forbidden_rows),
+                                          std::move(compulsory_arc_ids),
+                                          std::move(forbidden_arc_ids)));
+        }
+
+        // Narrow this view further: updates filter_ and removes entries that no longer pass it.
+        // Unlike new_filter(), this mutates the current pool instead of creating a new one.
+        void add_filter(std::function<bool(const Solution&)> pred) {
+            if (!pred) {
+                return;
+            }
+            std::unique_lock lock(pool_.mutex_);
+            if (filter_) {
+                filter_ = [old = filter_, p = std::move(pred)](const Solution& sol) {
+                    return old(sol) && p(sol);
+                };
+            } else {
+                filter_ = std::move(pred);
+            }
+            remove_if_local([this](ColumnId, const Solution& sol, const ColumnActivity&) {
+                return !filter_(sol);
+            });
+        }
+
+        // Convenience: build filter from row/arc constraints, then add_filter().
+        void add_filter(std::vector<size_t> compulsory_rows, std::vector<size_t> forbidden_rows,
+                        std::vector<size_t> compulsory_arc_ids,
+                        std::vector<size_t> forbidden_arc_ids) {
+            add_filter(make_filter(std::move(compulsory_rows),
+                                   std::move(forbidden_rows),
+                                   std::move(compulsory_arc_ids),
+                                   std::move(forbidden_arc_ids)));
+        }
+
+        // Build a filter predicate from row/arc constraints.
+        [[nodiscard]] static std::function<bool(const Solution&)> make_filter(
+            std::vector<size_t> compulsory_rows = {}, std::vector<size_t> forbidden_rows = {},
+            std::vector<size_t> compulsory_arc_ids = {},
+            std::vector<size_t> forbidden_arc_ids = {}) {
+            return [cr = std::move(compulsory_rows),
+                    fr = std::move(forbidden_rows),
+                    ca = std::move(compulsory_arc_ids),
+                    fa = std::move(forbidden_arc_ids)](const Solution& sol) {
+                return SolutionPool::passes_row_filter(sol, cr, fr) &&
+                       SolutionPool::passes_arc_filter(sol, ca, fa);
+            };
+        }
+
+        [[nodiscard]] SolutionPool& pool() { return pool_; }
+        [[nodiscard]] const SolutionPool& pool() const { return pool_; }
+
+    private:
+        friend class SolutionPool;
+
+        SolutionPool& pool_;
+        std::function<bool(const Solution&)> filter_;
+
+        // Ordered list of Entry* for efficient O(n_filtered) iteration with no hash lookups.
+        using FilteredEntryList = std::list<SolutionPool::Entry*>;
+        FilteredEntryList filtered_entries_;
+        // ColumnId → iterator into filtered_entries_ for O(1) membership test and removal.
+        std::unordered_map<ColumnId, FilteredEntryList::iterator> filtered_ids_;
+
+        bool registered_{true};
+
+        // Chain constructor: starts from parent's filtered entries with a combined filter.
+        FilteredSolutionPool(const FilteredSolutionPool& parent,
+                             std::function<bool(const Solution&)> combined_filter)
+            : pool_(parent.pool_), filter_(std::move(combined_filter)) {
+            std::unique_lock lock(pool_.mutex_);
+            for (SolutionPool::Entry* entry_ptr : parent.filtered_entries_) {
+                if (!filter_ || filter_(entry_ptr->solution)) {
+                    filtered_entries_.push_back(entry_ptr);
+                    filtered_ids_.emplace(entry_ptr->id, std::prev(filtered_entries_.end()));
+                }
+            }
+            pool_.registered_pools_.push_back(this);
+        }
+
+        [[nodiscard]] bool accepts(const Solution& sol) const { return !filter_ || filter_(sol); }
+
+        // Called by pool when a new entry is added (pool unique_lock already held).
+        void on_add_unlocked(ColumnId id, SolutionPool::Entry& entry) {
+            if (accepts(entry.solution)) {
+                filtered_entries_.push_back(&entry);
+                filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
+            }
+        }
+
+        // Called by pool when an entry is removed (pool unique_lock already held).
+        void on_remove_unlocked(ColumnId id) {
+            auto it = filtered_ids_.find(id);
+            if (it != filtered_ids_.end()) {
+                filtered_entries_.erase(it->second);
+                filtered_ids_.erase(it);
+            }
+        }
+
+        // Local removal without acquiring the pool lock (caller must hold at least shared lock).
+        std::vector<ColumnId> remove_if_local(const Predicate& pred) {
+            std::vector<ColumnId> removed;
+            for (auto list_it = filtered_entries_.begin(); list_it != filtered_entries_.end();) {
+                auto& entry = **list_it;
+                if (pred(entry.id, entry.solution, entry.activity)) {
+                    removed.push_back(entry.id);
+                    filtered_ids_.erase(entry.id);
+                    list_it = filtered_entries_.erase(list_it);
+                } else {
+                    ++list_it;
+                }
+            }
+            return removed;
+        }
+
+        [[nodiscard]] std::vector<PricedColumn> price_subset_locked(
+            const std::vector<double>& duals, double threshold) {
+            std::vector<PricedColumn> result;
+            const size_t n_duals = duals.size();
+            for (SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                auto& entry = *entry_ptr;
+                double rc = entry.solution.column.cost;
+                for (const Row& row : entry.solution.column.rows) {
+                    if (row.index < n_duals) {
+                        rc -= static_cast<double>(row.coefficient) * duals[row.index];
+                    }
+                }
+                entry.activity.last_reduced_cost = rc;
+                if (rc < threshold) {
+                    entry.activity.age = 0;
+                    ++entry.activity.use_count;
+                    entry.activity.last_was_negative = true;
+                    result.push_back({entry.id, rc, &entry.solution});
+                } else {
+                    ++entry.activity.age;
+                    entry.activity.last_was_negative = false;
+                }
+            }
+            return result;
+        }
+};
+
+// ─── SolutionPool out-of-line definitions (require FilteredSolutionPool complete) ──
+
+inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
+                                                         FilteredSolutionPool* caller) {
+    const auto hash = sol.get_hash();
+    auto hit = hash_index_.find(hash);
+    if (hit != hash_index_.end()) {
+        for (const auto& entry_it : hit->second) {
+            if (entry_it->solution.path_arc_ids == sol.path_arc_ids) {
+                return entry_it->id;  // exact duplicate (path-based)
+            }
+        }
+    }
+    const ColumnId new_id = next_id_++;
+    ColumnActivity activity;
+    activity.created_at = pricing_count_;
+    entries_.push_back({new_id, sol, std::move(activity)});
+    auto new_it = std::prev(entries_.end());
+    id_index_.emplace(new_id, new_it);
+    hash_index_[hash].push_back(new_it);
+    for (auto* fp : registered_pools_) {
+        if (fp != caller) {
+            fp->on_add_unlocked(new_id, *new_it);
+        }
+    }
+    return new_id;
+}
+
+inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_if_locked(const Predicate& pred) {
+    std::vector<ColumnId> removed_ids;
+    auto it = entries_.begin();
+    while (it != entries_.end()) {
+        if (pred(it->id, it->solution, it->activity)) {
+            const ColumnId cid = it->id;
+            const uint64_t hash = it->solution.get_hash();
+
+            auto& bucket = hash_index_[hash];
+            bucket.erase(std::ranges::find(bucket, it));
+            if (bucket.empty()) {
+                hash_index_.erase(hash);
+            }
+            id_index_.erase(cid);
+
+            for (auto* fp : registered_pools_) {
+                fp->on_remove_unlocked(cid);
+            }
+
+            removed_ids.push_back(cid);
+            it = entries_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    return removed_ids;
+}
+
+inline FilteredSolutionPool SolutionPool::new_filter(std::function<bool(const Solution&)> filter) {
+    return FilteredSolutionPool(*this, std::move(filter));
+}
+
+inline FilteredSolutionPool SolutionPool::new_filter(std::vector<size_t> compulsory_rows,
+                                                     std::vector<size_t> forbidden_rows,
+                                                     std::vector<size_t> compulsory_arc_ids,
+                                                     std::vector<size_t> forbidden_arc_ids) {
+    return new_filter(make_filter(std::move(compulsory_rows),
+                                  std::move(forbidden_rows),
+                                  std::move(compulsory_arc_ids),
+                                  std::move(forbidden_arc_ids)));
+}
+
+inline std::function<bool(const Solution&)> SolutionPool::make_filter(
+    std::vector<size_t> compulsory_rows, std::vector<size_t> forbidden_rows,
+    std::vector<size_t> compulsory_arc_ids, std::vector<size_t> forbidden_arc_ids) {
+    return FilteredSolutionPool::make_filter(std::move(compulsory_rows),
+                                             std::move(forbidden_rows),
+                                             std::move(compulsory_arc_ids),
+                                             std::move(forbidden_arc_ids));
+}
+
+inline FilteredSolutionPool FilteredSolutionPool::new_filter(
+    std::function<bool(const Solution&)> pred) const {
+    std::function<bool(const Solution&)> combined;
+    if (filter_ && pred) {
+        combined = [old = filter_, p = std::move(pred)](const Solution& sol) {
+            return old(sol) && p(sol);
+        };
+    } else if (filter_) {
+        combined = filter_;
+    } else {
+        combined = std::move(pred);
+    }
+    return {*this, std::move(combined)};
+}
+
+}  // namespace rcspp
