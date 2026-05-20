@@ -15,14 +15,14 @@ namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceCompositionBase = ResourceComposition<RealResource>;
+using ResourceType = ResourceTypeComposition<RealResource>;
 using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
 
-using ConcreteGraph = Graph<ResourceCompositionBase>;
-using ConcreteNode = Node<ResourceCompositionBase>;
-using ConcreteArc = Arc<ResourceCompositionBase>;
+using ConcreteGraph = Graph<ResourceType>;
+using ConcreteNode = Node<ResourceType>;
+using ConcreteArc = Arc<ResourceType>;
 
-using ConcreteExtender = Extender<ResourceCompositionBase>;
+using ConcreteExtender = Extender<ResourceType>;
 
 void init_graph(py::module_& m) {
     py::class_<ConcreteGraph>(m, "Graph")
@@ -125,35 +125,34 @@ void init_graph(py::module_& m) {
              py::arg("cost_function"),
              py::arg("dominance_function"))
         .def("add_node",
-             static_cast<Node<ResourceCompositionBase>& (
-                 ResourceGraph<RealResource>::*)(size_t, bool, bool)>(
+             static_cast<Node<ResourceType>& (ResourceGraph<RealResource>::*)(size_t, bool, bool)>(
                  &ResourceGraph<RealResource>::add_node),
              py::arg("id"),
              py::arg("source") = false,
              py::arg("sink") = false,
              py::return_value_policy::reference)
-        .def(
-            "add_arc",
-            static_cast<Arc<ResourceCompositionBase>& (
-                ResourceGraph<RealResource>::*)(const std::tuple<std::vector<
-                                                    ResourceInitializerTypeTuple_t<RealResource>>>&,
-                                                size_t,
-                                                size_t,
-                                                std::optional<size_t>,
-                                                double,
-                                                std::vector<Row>)>(
-                &ResourceGraph<RealResource>::add_arc),
-            py::arg("resource_consumption"),
-            py::arg("origin_node_id"),
-            py::arg("destination_node_id"),
-            py::arg("id") = std::nullopt,
-            py::arg("cost") = 0.0,
-            py::arg("dual_rows") = std::vector<Row>{},
-            py::return_value_policy::reference)
+        .def("add_arc",
+             static_cast<Arc<ResourceType>& (
+                 ResourceGraph<RealResource>::*)(const std::tuple<
+                                                     std::vector<ComponentInitializerTypeTuple_t<
+                                                         RealResource>>>&,
+                                                 size_t,
+                                                 size_t,
+                                                 std::optional<size_t>,
+                                                 double,
+                                                 std::vector<Row>)>(
+                 &ResourceGraph<RealResource>::add_arc),
+             py::arg("resource_consumption"),
+             py::arg("origin_node_id"),
+             py::arg("destination_node_id"),
+             py::arg("id") = std::nullopt,
+             py::arg("cost") = 0.0,
+             py::arg("dual_rows") = std::vector<Row>{},
+             py::return_value_policy::reference)
         .def("update_arc",
              static_cast<void (ResourceGraph<RealResource>::*)(
-                 Arc<ResourceCompositionBase>*,
-                 const std::tuple<std::vector<ResourceInitializerTypeTuple_t<RealResource>>>&,
+                 Arc<ResourceType>*,
+                 const std::tuple<std::vector<ComponentInitializerTypeTuple_t<RealResource>>>&,
                  std::optional<double>
                      cost)>(&ResourceGraph<RealResource>::update_arc),
              py::arg("arc"),
@@ -166,7 +165,7 @@ void init_graph(py::module_& m) {
             "solve",
             [](ResourceGraph<RealResource>& self,
                double upper_bound,
-               AlgorithmParams<LabelList<ResourceCompositionBase>>
+               AlgorithmParams<LabelList<ResourceType>>
                    params,
                bool preprocess,
                int cost_index) {
@@ -176,7 +175,7 @@ void init_graph(py::module_& m) {
                                                                      cost_index);
             },
             py::arg("upper_bound") = std::numeric_limits<double>::infinity(),
-            py::arg("params") = AlgorithmParams<LabelList<ResourceCompositionBase>>(),
+            py::arg("params") = AlgorithmParams<LabelList<ResourceType>>(),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def("process_feasibility", &ResourceGraph<RealResource>::process_feasibility);

@@ -10,7 +10,7 @@
 namespace rcspp {
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType>,
                                   NodeUnprocessedLabelsManager<ResourceType> {
     public:

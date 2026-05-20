@@ -4,6 +4,7 @@
 #pragma once
 
 #include <chrono>  // NOLINT(build/c++11)
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -119,9 +120,21 @@ class Logger {
         static std::string now_timestamp() {
             const auto tp = std::chrono::system_clock::now();
             const auto t = std::chrono::system_clock::to_time_t(tp);
-            const auto ms = duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
+            const auto ms =
+                std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
             std::ostringstream ss;
-            ss << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0')
+            std::tm tm_buf;
+            std::tm* tm_ptr = nullptr;
+#if defined(_MSC_VER)
+            // MSVC: use thread-safe localtime_s
+            localtime_s(&tm_buf, &t);
+            tm_ptr = &tm_buf;
+#else
+            // POSIX: use thread-safe localtime_r
+            localtime_r(&t, &tm_buf);
+            tm_ptr = &tm_buf;
+#endif
+            ss << std::put_time(tm_ptr, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0')
                << std::setw(3) << ms.count();
             return ss.str();
         }

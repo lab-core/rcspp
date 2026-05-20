@@ -11,14 +11,14 @@
 
 using namespace rcspp;
 
-// Resource setup: ResourceComposition<RealResource> with two components per label.
+// Resource setup: ResourceTypeComposition<RealResource> with two components per label.
 //   Component 0 (bucket_resource_index=0): value used for bucket assignment.
 //   Component 1 (sort_resource_index=1):   value used for within-bucket ordering.
 // Dominance: label A dominates B iff A.bucket <= B.bucket AND A.sort <= B.sort.
 
 namespace {
 
-using RComp = ResourceComposition<RealResource>;
+using RComp = ResourceTypeComposition<RealResource>;
 using BucketLabelList = LabelBuckets<RealResource, RealResource, RComp>;
 
 std::unique_ptr<Resource<RComp>> make_resource(double bucket_val, double sort_val) {

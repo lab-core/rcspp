@@ -20,6 +20,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# /usr/local/include is a cmake-detected "implicit" path on macOS but the arm64
+# compiler does not actually search it — remove it so cmake adds it explicitly
+# when targets (Gurobi, Boost) declare it in their interface includes.
+list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/usr/local/include")
+
 # Clang-Tidy & compile_commands ------------------------------------------------
 set(CMAKE_CXX_CLANG_TIDY
     "clang-tidy;-config-file=${CMAKE_SOURCE_DIR}/.clang-tidy"

@@ -15,7 +15,7 @@ namespace rcspp {
 inline constexpr size_t DEFAULT_LABEL_POOL_SIZE = 1e4;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class LabelPool {
     public:
         explicit LabelPool(std::unique_ptr<LabelFactory<ResourceType>> label_factory,

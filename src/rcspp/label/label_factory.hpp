@@ -12,7 +12,6 @@
 namespace rcspp {
 
 template <typename ResourceType>
-// requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class LabelFactory {
     public:
         explicit LabelFactory(ResourceFactory<ResourceType>* resource_factory)

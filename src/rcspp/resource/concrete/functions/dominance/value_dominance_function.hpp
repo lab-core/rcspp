@@ -16,17 +16,16 @@ template <typename ResourceType>
 class ValueDominanceFunction
     : public Clonable<ValueDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
     public:
-        using ValueType =
-            std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>;
+        using ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>;
 
-        auto check_dominance(const Resource<ResourceType>& lhs_resource,
-                             const Resource<ResourceType>& rhs_resource) -> bool override {
-            return lhs_resource.leq(rhs_resource.get_value());
+        [[nodiscard]] auto check_dominance(const ResourceType& lhs_resource,
+                                           const ResourceType& rhs_resource) -> bool override {
+            return lhs_resource.leq(rhs_resource);
         }
 
         // clang-format off
-        auto fast_check_dominance(const Resource<ResourceType>& lhs_resource,
-                                  const Resource<ResourceType>& rhs_resource, double delta)
+        auto fast_check_dominance(const ResourceType& lhs_resource,
+                                  const ResourceType& rhs_resource, double delta)
             -> bool override {
             return lhs_resource.leq(rhs_resource.get_value() + delta);
         }

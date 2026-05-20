@@ -12,8 +12,7 @@ template <typename ResourceType>
 class ValueCostFunction
     : public Clonable<ValueCostFunction<ResourceType>, CostFunction<ResourceType>> {
     public:
-        [[nodiscard]] auto get_cost(const Resource<ResourceType>& num_resource) const
-            -> double override {
+        [[nodiscard]] auto get_cost(const ResourceType& num_resource) const -> double override {
             return num_resource.get_value();
         }
 };

@@ -10,21 +10,24 @@
 
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
 #include "rcspp/preprocessor/preprocessor.hpp"
+#include "rcspp/resource/composition/extender_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace rcspp {
 
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
-class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<ResourceTypes...>> {
+class ShortestPathPreprocessor final
+    : public Preprocessor<ResourceTypeComposition<ResourceTypes...>> {
     public:
-        ShortestPathPreprocessor(Graph<ResourceComposition<ResourceTypes...>>* graph,
+        ShortestPathPreprocessor(Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
                                  double upper_bound, size_t cost_index = 0)
-            : Preprocessor<ResourceComposition<ResourceTypes...>>(graph),
+            : Preprocessor<ResourceTypeComposition<ResourceTypes...>>(graph),
               graph_(graph),
               cost_index_(cost_index),
               upper_bound_(upper_bound) {
             if (std::isinf(upper_bound)) {
-                Preprocessor<ResourceComposition<ResourceTypes...>>::disable_preprocessing_ = true;
+                Preprocessor<ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ =
+                    true;
             } else {
                 try {
                     dist_from_sources_ =
@@ -39,8 +42,8 @@ class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<R
                             cost_index,
                             false);
                 } catch (const std::runtime_error&) {
-                    Preprocessor<ResourceComposition<ResourceTypes...>>::disable_preprocessing_ =
-                        true;
+                    Preprocessor<
+                        ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ = true;
                 }
             }
         }
@@ -50,12 +53,12 @@ class ShortestPathPreprocessor final : public Preprocessor<ResourceComposition<R
         size_t cost_index_;
         double upper_bound_;
         // pointer to the graph for traversal and connectivity queries
-        Graph<ResourceComposition<ResourceTypes...>>* graph_;
+        Graph<ResourceTypeComposition<ResourceTypes...>>* graph_;
 
-        bool remove_arc(const Arc<ResourceComposition<ResourceTypes...>>& arc) override {
-            const CostResourceType& arc_cost_extender =
-                arc.extender->template get_extender_component<CostResourceType>(cost_index_);
-            double arc_cost = arc_cost_extender.get_value();
+        bool remove_arc(const Arc<ResourceTypeComposition<ResourceTypes...>>& arc) override {
+            const auto& arc_cost_extender =
+                arc.extender->template get_component<CostResourceType>(cost_index_);
+            double arc_cost = arc_cost_extender.get_value().get_value();
             return dist_from_sources_.at(arc.origin->id) + arc_cost +
                        dist_to_sinks_.at(arc.destination->id) >
                    upper_bound_;

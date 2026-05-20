@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
@@ -22,7 +22,7 @@ namespace rcspp {
 // ValueT is the logical value type of the resource (e.g. for a bitset resource
 // the container element_type is uint64_t but the logical value type is size_t).
 template <typename Container, typename DerivedType, typename ValueType>
-class ContainerResource : public ResourceBase<DerivedType> {
+class ContainerResource {
     public:
         ContainerResource() = default;
         explicit ContainerResource(Container container) : container_(std::move(container)) {}
@@ -45,9 +45,9 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
         [[nodiscard]] virtual bool empty() const { return container_.empty(); }
 
-        void reset() override { this->container_.clear(); }
+        void reset() { this->container_.clear(); }
 
-        [[nodiscard]] std::string to_string() const override { return to_string(container_); }
+        [[nodiscard]] virtual std::string to_string() const { return to_string(container_); }
 
         template <typename C>
         [[nodiscard]] std::string to_string(const C& list) const {
@@ -182,7 +182,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             size_ = compute_size();
         }
 
-        void reset() override {
+        void reset() {
             this->container_.clear();
             size_ = 0;
         }

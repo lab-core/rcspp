@@ -13,29 +13,45 @@
 namespace rcspp {
 
 template <typename ResourceType,
-          typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>>
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
     public:
+        MinMaxFeasibilityFunction(ValueType min, ValueType max, bool merge_by_increasing_value)
+            : min_(min), max_(max), merge_by_increasing_value_(merge_by_increasing_value) {}
+
         MinMaxFeasibilityFunction(
             ValueType default_min, ValueType default_max,
             const std::map<size_t, std::pair<ValueType, ValueType>>* min_max_by_node_id = nullptr)
             : min_max_by_node_id_(min_max_by_node_id), min_(default_min), max_(default_max) {}
+
         MinMaxFeasibilityFunction(
             const std::map<size_t, std::pair<ValueType, ValueType>>* min_max_by_node_id)
             : min_max_by_node_id_(min_max_by_node_id) {}
 
-        auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return resource.geq(min_) && resource.leq(max_);
         }
 
-    private:
-        const std::map<size_t, std::pair<ValueType, ValueType>>* const min_max_by_node_id_;
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
+            if (merge_by_increasing_value_) {
+                return resource.get_value() <= back_resource.get_value();
+            }
+            return resource.get_value() >= back_resource.get_value();
+        }
 
-        ValueType min_;
-        ValueType max_;
+    private:
+        const std::map<size_t, std::pair<ValueType, ValueType>>* const min_max_by_node_id_ =
+            nullptr;
+
+        ValueType min_{};
+        ValueType max_{};
+
+        // true: merge by increasing value, false: decreasing value
+        // increasing value means that resource.get_value() <= back_resource.get_value()
+        bool merge_by_increasing_value_ = true;
 
         void preprocess(size_t node_id) override {
             if (min_max_by_node_id_ == nullptr) {

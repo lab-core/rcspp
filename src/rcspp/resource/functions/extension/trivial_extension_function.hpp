@@ -13,7 +13,7 @@ template <typename ResourceType>
 class TrivialExtensionFunction
     : public Clonable<TrivialExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
     public:
-        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* reused_resource) override {}
+        void extend(const ResourceType& resource, const ResourceType& extender_value,
+                    ResourceType* reused_resource) override {}
 };
 }  // namespace rcspp

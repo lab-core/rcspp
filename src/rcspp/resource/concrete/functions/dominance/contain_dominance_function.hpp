@@ -20,8 +20,8 @@ class ContainDominanceFunction
         }
 
         // clang-format off
-        auto fast_check_dominance(const Resource<ResourceType>& lhs_resource,
-                                  const Resource<ResourceType>& rhs_resource, double delta)
+        auto fast_check_dominance(const ResourceType& lhs_resource,
+                                  const ResourceType& rhs_resource, double delta)
             -> bool override {
           return rhs_resource.size() <= lhs_resource.size() + delta;
         }
