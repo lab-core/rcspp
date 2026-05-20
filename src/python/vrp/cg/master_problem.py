@@ -18,9 +18,9 @@ class MasterProblem:
             self.model_ = Model("master_problem")
 
         # Maps
-        self.__path_variables_by_id = {}
-        self.__paths_by_id = {}
-        self.__node_constraints_by_id = {}
+        self._path_variables_by_id = {}
+        self._paths_by_id = {}
+        self._node_constraints_by_id = {}
 
     def construct_model(self, paths):
         self.add_variables(paths)
@@ -35,8 +35,8 @@ class MasterProblem:
     def _add_single_variable(self, path):
         path_var_name = f"y_{path.id}"
         path_var = self.model_.addVar(lb=0.0, obj=path.cost, vtype=GRB.BINARY, name=path_var_name)
-        self.__path_variables_by_id[path.id] = path_var
-        self.__paths_by_id[path.id] = path
+        self._path_variables_by_id[path.id] = path_var
+        self._paths_by_id[path.id] = path
 
     def set_objective(self):
         self.model_.ModelSense = GRB.MINIMIZE
@@ -51,14 +51,14 @@ class MasterProblem:
         constr_lin_expr_lhs = LinExpr()
         constr_lin_expr_rhs = 1.0
 
-        for path_id, path in self.__paths_by_id.items():
-            path_var = self.__path_variables_by_id[path_id]
+        for path_id, path in self._paths_by_id.items():
+            path_var = self._path_variables_by_id[path_id]
             path_visits_node = path.visited_nodes.count(node_id)
             constr_lin_expr_lhs += path_visits_node * path_var
 
         constr_name = f"c_{node_id}"
         constr = self.model_.addConstr(constr_lin_expr_lhs == constr_lin_expr_rhs, name=constr_name)
-        self.__node_constraints_by_id[node_id] = constr
+        self._node_constraints_by_id[node_id] = constr
 
     def solve(self, relax=False):
         solution = MPSolution()
@@ -84,7 +84,7 @@ class MasterProblem:
             if self.verbose:
                 print(f"model.Status={model.Status} vs GRB.OPTIMAL={GRB.OPTIMAL}")
             # Variable values
-            for path_id, path_var in self.__path_variables_by_id.items():
+            for path_id, path_var in self._path_variables_by_id.items():
                 model_path_var = model_variables_by_var_name[
                     path_var.VarName
                 ]  # Necessary if model is relaxed
@@ -92,7 +92,7 @@ class MasterProblem:
 
             # Dual values
             if dual:
-                for node_id, node_constr in self.__node_constraints_by_id.items():
+                for node_id, node_constr in self._node_constraints_by_id.items():
                     model_node_constr = model_constraints_by_constr_name[
                         node_constr.ConstrName
                     ]  # Necessary if model is relaxed
@@ -115,7 +115,7 @@ class MasterProblem:
         for node_id in self.node_ids_:
             coeff = path.visited_nodes.count(node_id)
             if coeff != 0:
-                col.addTerms(coeff, self.__node_constraints_by_id[node_id])
+                col.addTerms(coeff, self._node_constraints_by_id[node_id])
 
         path_var_name = f"y_{path.id}"
         path_var = self.model_.addVar(
@@ -125,7 +125,7 @@ class MasterProblem:
             name=path_var_name,
             column=col
         )
-        self.__path_variables_by_id[path.id] = path_var
-        self.__paths_by_id[path.id] = path
+        self._path_variables_by_id[path.id] = path_var
+        self._paths_by_id[path.id] = path
 
         self.model_.update()

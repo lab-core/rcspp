@@ -13,8 +13,8 @@ class DualBoxMasterProblem(MasterProblem):
             self.penalty is not None and isinstance(self.penalty, float)
         )
         if self.have_penalty_:
-            self.__left_penalty_constraints_by_id = {}
-            self.__right_penalty_constraints_by_id = {}
+            self._left_penalty_constraints_by_id = {}
+            self._right_penalty_constraints_by_id = {}
 
         if isinstance(dual_box_center, dict):
             self.dual_box_center_ = [dual_box_center[node_id] 
@@ -53,8 +53,8 @@ class DualBoxMasterProblem(MasterProblem):
         node_id = self.node_ids_[i]
         constr_lin_expr_lhs = LinExpr()
 
-        for path_id, path in self._MasterProblem__paths_by_id.items():
-            path_var = self._MasterProblem__path_variables_by_id[path_id]
+        for path_id, path in self._paths_by_id.items():
+            path_var = self._path_variables_by_id[path_id]
             path_visits_node = path.visited_nodes.count(node_id)
             constr_lin_expr_lhs += path_visits_node * path_var
 
@@ -64,7 +64,7 @@ class DualBoxMasterProblem(MasterProblem):
         constr = self.model_.addConstr(
             constr_lin_expr_lhs == 1.0, name=f"c_{node_id}"
         )
-        self._MasterProblem__node_constraints_by_id[node_id] = constr
+        self._node_constraints_by_id[node_id] = constr
 
         if self.have_penalty_:
             left_constr_lin_expr = LinExpr()
@@ -76,8 +76,8 @@ class DualBoxMasterProblem(MasterProblem):
             right_constr_lin_expr -= self.penalty
             right_constr = self.model_.addConstr(right_constr_lin_expr <= 0, name=f"c_right_penalty_{node_id}")
             
-            self.__left_penalty_constraints_by_id[node_id] = left_constr
-            self.__right_penalty_constraints_by_id[node_id] = right_constr
+            self._left_penalty_constraints_by_id[node_id] = left_constr
+            self._right_penalty_constraints_by_id[node_id] = right_constr
 
     def update_center(self, new_center: dict):
         """Met à jour les coefs objectif quand le centre de stabilisation change."""
@@ -109,8 +109,8 @@ class DualBoxMasterProblem(MasterProblem):
         """Met à jour la valeur RHS des contraintes de pénalité."""
         self.penalty = new_penalty
         for node_id in self.node_ids_:
-            self.__left_penalty_constraints_by_id[node_id].RHS  = new_penalty
-            self.__right_penalty_constraints_by_id[node_id].RHS = new_penalty
+            self._left_penalty_constraints_by_id[node_id].RHS  = new_penalty
+            self._right_penalty_constraints_by_id[node_id].RHS = new_penalty
             
 
     def extract_solution(self, model, dual=False):
@@ -121,7 +121,7 @@ class DualBoxMasterProblem(MasterProblem):
         dual_by_var_id = {}
 
         if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
-            for path_id, path_var in self._MasterProblem__path_variables_by_id.items():
+            for path_id, path_var in self._path_variables_by_id.items():
                 model_path_var = model_variables_by_var_name[
                     path_var.VarName
                 ]  # Necessary if model is relaxed
@@ -140,7 +140,7 @@ class DualBoxMasterProblem(MasterProblem):
                 value_by_var_id[f"y2_{node_id}"] = model_right_special_var.X
 
             if dual:
-                for node_id, node_constr in self._MasterProblem__node_constraints_by_id.items():
+                for node_id, node_constr in self._node_constraints_by_id.items():
                     model_node_constr = model_constraints_by_constr_name[
                         node_constr.ConstrName
                     ]  # Necessary if model is relaxed
