@@ -34,11 +34,11 @@ if __name__ == "__main__":
 
         svrp = StabilizedVRP(instance, verbose=verbose)
         ssolution = svrp.solve()
-        stab_sol_dict = _build_solution_dict(svrp, ssolution, {"n_meta_iter": svrp.meta_iteration})
+        stab_sol_dict = _build_solution_dict(svrp, ssolution, {"n_meta_iter": svrp.meta_iteration, "c": svrp.nb_new_center})
 
         spvrp = StabilizedVRP(instance, dual_estimate=dual_optimal, verbose=verbose)
         spsolution = spvrp.solve()
-        stabp_sol_dict = _build_solution_dict(spvrp, spsolution, {"n_meta_iter": spvrp.meta_iteration})
+        stabp_sol_dict = _build_solution_dict(spvrp, spsolution, {"n_meta_iter": spvrp.meta_iteration, "c": spvrp.nb_new_center})
 
         print("Solutions:")
         print(ref_sol_dict)

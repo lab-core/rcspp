@@ -54,7 +54,7 @@ def vrp_stabilized_instance(instance: Instance, dual_box_centre=None, save=False
 
     solution = vrp.solve()
     _save_formatted_solution(vrp, solution, instance, save, dir)
-    solution_dict = _build_solution_dict(vrp, solution, {"n_meta_iter": vrp.meta_iteration})
+    solution_dict = _build_solution_dict(vrp, solution, {"n_meta_iter": vrp.meta_iteration,  "n_center_change": vrp.nb_new_center})
     _dump_dual_history(vrp, instance, dir)
 
     return solution_dict

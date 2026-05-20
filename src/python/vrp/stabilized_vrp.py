@@ -17,6 +17,7 @@ class StabilizedVRP(VRP):
         self.kappa = 1
         self.penalty_value = 0.9
         self.meta_iteration = 1
+        self.nb_new_center = 0
         self.dual_estimate = dual_estimate
 
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
@@ -43,19 +44,15 @@ class StabilizedVRP(VRP):
             lb = sum(master_solution.dual_by_var_id.values()) + self._instance.get_nb_vehicles() * self.min_reduced_cost
             if lb > self.best_lagrangian_lb + self.EPSILON:
                 self.best_lagrangian_lb = lb
-                self.dual_box_center_ = master_solution.dual_by_var_id
-                # ← On propage le nouveau centre au modèle
-                self.master_problem.update_center(self.dual_box_center_)
-                self.meta_iteration += 1
-                self.vprint(f"Changing center. New meta iteration: {self.meta_iteration}")
+                self._change_center(master_solution.dual_by_var_id)
+                
                 self.vprint(f"New best lagrangian bound: {self.best_lagrangian_lb}")
 
             self.special_var_values = self._get_special_var_values(master_solution)
             self.max_special_var_value = max(self.special_var_values) if len(self.special_var_values) > 0 else 0.0
 
             if self.max_special_var_value < self.EPSILON:
-                self.box_radius *= 0.5
-                self.master_problem.update_radius(self.box_radius)
+                self._change_radius(self.box_radius*0.5)
 
             self.add_paths(negative_red_cost_solutions)
             self._n_iterations += 1
@@ -77,7 +74,7 @@ class StabilizedVRP(VRP):
         else:
             self.vprint("Using provided dual estimate to initialize the dual box master problem")
             self.dual_box_center_ = self.dual_estimate
-            self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
+            self.box_radius = dict_l1_norm(self.dual_box_center_)/(self.kappa * len(self.dual_box_center_))
             self.compute_first_lagrangian_bound(self.dual_box_center_)
 
     def _run_stabilized_cg(self, subproblem_max_nb_solutions):
@@ -110,3 +107,14 @@ class StabilizedVRP(VRP):
     def _get_special_var_values(self, solution):
         return [value for var, value in solution.value_by_var_id.items() if isinstance(var, str) and var.startswith("y")]
     
+    def _change_center(self, new_center):
+        self.dual_box_center_ = new_center
+        self.master_problem.update_center(self.dual_box_center_)
+        new_radius = dict_l1_norm(new_center)/(self.kappa * len(new_center))
+        self._change_radius(new_radius)
+        self.nb_new_center += 1
+        self.vprint(f"Changing center n°{self.nb_new_center}")
+
+    def _change_radius(self, new_radius: float):
+        self.box_radius = new_radius
+        self.master_problem.update_radius(self.box_radius)
