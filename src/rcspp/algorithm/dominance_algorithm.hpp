@@ -253,21 +253,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         virtual void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
-        /*
-         * NOTE: this vector stores LabelContainerType by value. In initialize_labels() we
-         * currently create each entry with `*params_.labels.copy()` which constructs
-         * a value of the base type (LabelContainerType). If `params_.labels` is actually a
-         * derived concrete type (e.g. `Buckets<...>`), dereferencing the polymorphic
-         * `clone()` will create an object of the concrete type but then the value is
-         * used to initialize a `LabelContainerType` object — this may perform object slicing
-         * (derived-to-base), removing derived-specific data and behavior.
-         *
-         * If you want to preserve the dynamic (derived) type and avoid slicing,
-         * change this container to hold owning pointers, e.g.:
-         *    std::vector<std::unique_ptr<Labels<ResourceType>>> non_dominated_labels_by_node_pos_;
-         * and then store clones directly:
-         *    non_dominated_labels_by_node_pos_.push_back(params_.labels.clone());
-         */
         std::vector<LabelContainerType> non_dominated_labels_by_node_pos_;
 
         Timer total_extend_time_;
