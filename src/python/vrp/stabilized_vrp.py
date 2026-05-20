@@ -45,7 +45,6 @@ class StabilizedVRP(VRP):
             if lb > self.best_lagrangian_lb + self.EPSILON:
                 self.best_lagrangian_lb = lb
                 self._change_center(master_solution.dual_by_var_id)
-                
                 self.vprint(f"New best lagrangian bound: {self.best_lagrangian_lb}")
 
             self.special_var_values = self._get_special_var_values(master_solution)
@@ -102,6 +101,7 @@ class StabilizedVRP(VRP):
         if self.penalty_value < self.EPSILON:
             self.penalty_value = 0.0
         self.master_problem.update_penalty(self.penalty_value)
+        self.vprint(f"New penalty value: {self.penalty_value}")
         return True
     
     def _get_special_var_values(self, solution):
@@ -118,3 +118,4 @@ class StabilizedVRP(VRP):
     def _change_radius(self, new_radius: float):
         self.box_radius = new_radius
         self.master_problem.update_radius(self.box_radius)
+        self.vprint(f"New radius: {new_radius}")

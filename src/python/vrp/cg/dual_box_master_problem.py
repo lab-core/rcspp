@@ -94,6 +94,7 @@ class DualBoxMasterProblem(MasterProblem):
             self.right_special_var_by_id[node_id].obj = (
                 self.dual_box_radius + self.dual_box_center_[i]
             )
+        self.model_.update()
 
     def update_radius(self, new_radius: float):
         self.dual_box_radius = new_radius
@@ -104,6 +105,7 @@ class DualBoxMasterProblem(MasterProblem):
             self.right_special_var_by_id[node_id].obj = (
                 self.dual_box_radius + self.dual_box_center_[i]
             )
+        self.model_.update()
 
     def update_penalty(self, new_penalty: float):
         """Met à jour la valeur RHS des contraintes de pénalité."""
@@ -111,6 +113,7 @@ class DualBoxMasterProblem(MasterProblem):
         for node_id in self.node_ids_:
             self._left_penalty_constraints_by_id[node_id].RHS  = new_penalty
             self._right_penalty_constraints_by_id[node_id].RHS = new_penalty
+        self.model_.update()
             
 
     def extract_solution(self, model, dual=False):
