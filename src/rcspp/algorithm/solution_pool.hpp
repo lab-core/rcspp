@@ -222,15 +222,13 @@ class FilteredSolutionPool {
 
         // ── Write operations ──────────────────────────────────────────────────
 
-        // Add to main pool (always); add to this view if filter accepts.
+        // Add to main pool (always); add to this view if check_filter is false or filter accepts.
+        // Always returns the pool-assigned id, even if this view's filter rejects the entry.
         // Pool propagates to OTHER registered FilteredSolutionPools; this one updates itself.
-        ColumnId add(const Solution& sol) {
+        ColumnId add(const Solution& sol, bool check_filter = true) {
             std::unique_lock lock(pool_.mutex_);
             const auto id = pool_.add_unlocked(sol, this);
-            if (!filtered_ids_.contains(id)) {
-                if (!accepts(sol)) {
-                    return SolutionPool::kNoId;
-                }
+            if (!filtered_ids_.contains(id) && (!check_filter || accepts(sol))) {
                 auto entry_it = pool_.id_index_.find(id);
                 if (entry_it != pool_.id_index_.end()) {
                     filtered_entries_.push_back(&(*entry_it->second));
@@ -240,15 +238,21 @@ class FilteredSolutionPool {
             return id;
         }
 
-        std::vector<ColumnId> add(const std::vector<Solution>& solutions) {
+        std::vector<ColumnId> add(const std::vector<Solution>& solutions,
+                                  bool check_filter = true) {
             std::unique_lock lock(pool_.mutex_);
             std::vector<ColumnId> ids;
             ids.reserve(solutions.size());
             for (const auto& sol : solutions) {
-                auto id = add(sol);
-                if (id != SolutionPool::kNoId) {
-                    ids.emplace_back(id);
+                const auto id = pool_.add_unlocked(sol, this);
+                if (!filtered_ids_.contains(id) && (!check_filter || accepts(sol))) {
+                    auto entry_it = pool_.id_index_.find(id);
+                    if (entry_it != pool_.id_index_.end()) {
+                        filtered_entries_.push_back(&(*entry_it->second));
+                        filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
+                    }
                 }
+                ids.push_back(id);
             }
             return ids;
         }
@@ -354,6 +358,9 @@ class FilteredSolutionPool {
         // ── Read operations ───────────────────────────────────────────────────
 
         [[nodiscard]] std::optional<Solution> get(ColumnId id) const {
+            if (id == SolutionPool::kNoId) {
+                return std::nullopt;
+            }
             std::shared_lock lock(pool_.mutex_);
             auto it = filtered_ids_.find(id);
             if (it == filtered_ids_.end()) {
@@ -363,6 +370,9 @@ class FilteredSolutionPool {
         }
 
         [[nodiscard]] std::optional<ColumnActivity> get_activity(ColumnId id) const {
+            if (id == SolutionPool::kNoId) {
+                return std::nullopt;
+            }
             std::shared_lock lock(pool_.mutex_);
             auto it = filtered_ids_.find(id);
             if (it == filtered_ids_.end()) {
@@ -374,6 +384,9 @@ class FilteredSolutionPool {
         // Returns (id, solution, activity) in a single lock-acquire; nullopt if not in this view.
         [[nodiscard]] std::optional<std::tuple<ColumnId, Solution, ColumnActivity>> get_entry(
             ColumnId id) const {
+            if (id == SolutionPool::kNoId) {
+                return std::nullopt;
+            }
             std::shared_lock lock(pool_.mutex_);
             auto it = filtered_ids_.find(id);
             if (it == filtered_ids_.end()) {
@@ -506,6 +519,9 @@ class FilteredSolutionPool {
 
         // Called by pool when an entry is removed (pool unique_lock already held).
         void on_remove_unlocked(ColumnId id) {
+            if (id == SolutionPool::kNoId) {
+                return;
+            }
             auto it = filtered_ids_.find(id);
             if (it != filtered_ids_.end()) {
                 filtered_entries_.erase(it->second);

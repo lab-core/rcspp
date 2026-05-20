@@ -238,12 +238,20 @@ void init_resource(py::module_& m) {
             py::arg("forbidden_rows") = std::vector<size_t>{},
             py::arg("compulsory_arc_ids") = std::vector<size_t>{},
             py::arg("forbidden_arc_ids") = std::vector<size_t>{})
-        .def("add",
-             py::overload_cast<const Solution&>(&FilteredSolutionPool::add),
-             py::arg("solution"))
-        .def("add",
-             py::overload_cast<const std::vector<Solution>&>(&FilteredSolutionPool::add),
-             py::arg("solutions"))
+        .def(
+            "add",
+            [](FilteredSolutionPool& fp, const Solution& sol, bool check_filter) {
+                return fp.add(sol, check_filter);
+            },
+            py::arg("solution"),
+            py::arg("check_filter") = true)
+        .def(
+            "add",
+            [](FilteredSolutionPool& fp, const std::vector<Solution>& sols, bool check_filter) {
+                return fp.add(sols, check_filter);
+            },
+            py::arg("solutions"),
+            py::arg("check_filter") = true)
         // price() prices only the filtered subset; updates ColumnActivity for those entries.
         .def("price", &FilteredSolutionPool::price, py::arg("duals"), py::arg("threshold") = 0.0)
         .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_ids"))
