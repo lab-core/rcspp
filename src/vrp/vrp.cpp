@@ -502,19 +502,12 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    // resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
-    //     {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
-    //     customer_orig_id,
-    //     customer_dest_id,
-    //     arc_id,
-    //     distance,
-    //     {Row(customer_orig_id, 1.0)});
     resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
                                                                      customer_orig_id,
                                                                      customer_dest_id,
-                                                                     arc_id,
                                                                      distance,
-                                                                     {Row(customer_orig_id, 1.0)});
+                                                                     {Row(customer_orig_id, 1.0)},
+                                                                     arc_id);
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

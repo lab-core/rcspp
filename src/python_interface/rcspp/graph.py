@@ -279,9 +279,9 @@ class ResourceGraph:
         different duals are correct across iterations.
 
         Args:
-            duals: ``dict`` mapping row-index → dual value **or** a sequence
-                   where ``duals[i]`` is the dual for row *i*.  An empty dict
-                   is silently ignored.
+            duals: ``dict`` mapping row-index → dual value, **or** a ``list``
+                   (or any sequence) where ``duals[i]`` is the dual for row *i*.
+                   An empty dict is silently ignored.
             cost_index: Resource slot to update (default 0).
         """
         self._ensure_graph()
@@ -292,7 +292,7 @@ class ResourceGraph:
             else:
                 duals_list = []  # C++ treats out-of-range indices as 0 → resets to base costs
         else:
-            duals_list = list(duals)
+            duals_list = duals  # pybind11 converts any sequence to std::vector<double>
         self._graph.update_reduced_costs(duals_list, cost_index)
 
     # ── String representation ─────────────────────────────────────────────────
@@ -371,7 +371,7 @@ class ResourceGraph:
             arc_id = data.get("id")
             cost = data.get("cost", 0.0)
             dual_rows = data.get("dual_rows", [])
-            self.add_arc(resource_init, int(u), int(v), arc_id, cost, dual_rows)
+            self.add_arc(resource_init, int(u), int(v), cost, dual_rows, arc_id)
 
 
 # ── Generate add_<type>_resource methods ─────────────────────────────────────

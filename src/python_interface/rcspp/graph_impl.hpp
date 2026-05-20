@@ -399,15 +399,15 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
            static_cast<Arc<RC>& (RG::*)(const AddArcTuple&,
                                         size_t,
                                         size_t,
-                                        std::optional<size_t>,
                                         double,
-                                        std::vector<Row>)>(&RG::add_arc),
+                                        std::vector<Row>,
+                                        std::optional<size_t>)>(&RG::add_arc),
            py::arg("resource_consumption"),
            py::arg("origin_node_id"),
            py::arg("destination_node_id"),
-           py::arg("id") = std::nullopt,
            py::arg("cost") = 0.0,
            py::arg("dual_rows") = std::vector<Row>{},
+           py::arg("id") = std::nullopt,
            py::return_value_policy::reference);
 
     rg.def("update_arc",
@@ -452,7 +452,6 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
             [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },
             py::return_value_policy::reference)
         .def_readwrite("cost", &Arc<RC>::cost)
-        .def_readonly("original_cost", &Arc<RC>::original_cost)
         .def_readwrite("dual_rows", &Arc<RC>::dual_rows)
         .def("__str__", &Arc<RC>::to_string)
         .def("__repr__", &Arc<RC>::to_string);

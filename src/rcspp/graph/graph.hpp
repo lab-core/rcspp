@@ -54,9 +54,9 @@ class Graph {
             for (const auto& [arc_id, arc_ptr] : arcs_by_id_) {
                 auto& arc = new_graph->add_arc(arc_ptr->origin->id,
                                                arc_ptr->destination->id,
-                                               arc_id,
                                                arc_ptr->cost,
-                                               arc_ptr->dual_rows);
+                                               arc_ptr->dual_rows,
+                                               arc_id);
                 arc.extender =
                     arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
             }
@@ -66,9 +66,9 @@ class Graph {
                 for (const auto& [arc_id, arc_ptr] : removed_arcs_by_id_) {
                     auto& arc = new_graph->add_arc(arc_ptr->origin->id,
                                                    arc_ptr->destination->id,
-                                                   arc_id,
                                                    arc_ptr->cost,
-                                                   arc_ptr->dual_rows);
+                                                   arc_ptr->dual_rows,
+                                                   arc_id);
                     new_graph->remove_arc(arc_id);
                     arc.extender =
                         arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
@@ -95,9 +95,9 @@ class Graph {
         }
 
         virtual Arc<ResourceType>& add_arc(Node<ResourceType>* origin_node,
-                                           Node<ResourceType>* destination_node,
-                                           std::optional<size_t> arc_id = std::nullopt,
-                                           double cost = 0.0, std::vector<Row> dual_rows = {}) {
+                                           Node<ResourceType>* destination_node, double cost = 0.0,
+                                           std::vector<Row> dual_rows = {},
+                                           std::optional<size_t> arc_id = std::nullopt) {
             if (arc_id == std::nullopt) {
                 arc_id = arcs_by_id_.size();
             }
@@ -117,12 +117,12 @@ class Graph {
         }
 
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
-                                           std::optional<size_t> arc_id = std::nullopt,
-                                           double cost = 0.0, std::vector<Row> dual_rows = {}) {
+                                           double cost = 0.0, std::vector<Row> dual_rows = {},
+                                           std::optional<size_t> arc_id = std::nullopt) {
             auto& origin_node = nodes_by_id_.at(origin_node_id);
             auto& destination_node = nodes_by_id_.at(destination_node_id);
 
-            return add_arc(origin_node.get(), destination_node.get(), arc_id, cost, dual_rows);
+            return add_arc(origin_node.get(), destination_node.get(), cost, dual_rows, arc_id);
         }
 
         virtual bool remove_arc(size_t arc_id) {

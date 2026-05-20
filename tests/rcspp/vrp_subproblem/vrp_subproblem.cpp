@@ -175,21 +175,13 @@ void VRPSubproblem::add_arc_to_graph(RGraph* resource_graph, size_t customer_ori
         row_coefficient = row_coefficient_by_id_->at(customer_orig_id);
     }
 
-    /*auto& arc = resource_graph->add_arc<RealResource, RealResource, RealResource>(
-        {{reduced_cost}, {time}, {demand}},
-        customer_orig_id,
-        customer_dest_id,
-        arc_id,
-        distance,
-        {Row(customer_orig_id, row_coefficient)});*/
-
     resource_graph->add_arc<RealResource, RealResource, IntResource>(
         {reduced_cost, time, demand},
         customer_orig_id,
         customer_dest_id,
-        arc_id,
         distance,
-        {Row(customer_orig_id, row_coefficient)});
+        {Row(customer_orig_id, row_coefficient)},
+        arc_id);
 }
 
 double VRPSubproblem::calculate_distance(const Customer& customer1, const Customer& customer2) {

@@ -116,13 +116,6 @@ void init_graph(py::module_& m) {
         .def_readwrite("sort_resource_index", &PyBucketAlgorithmParams::sort_resource_index)
         .def_readwrite("bucket_resource_type", &PyBucketAlgorithmParams::bucket_resource_type);
 
-    py::class_<SolutionActivity>(m, "SolutionActivity")
-        .def(py::init<>())
-        .def_readwrite("age", &SolutionActivity::age)
-        .def_readwrite("use_count", &SolutionActivity::use_count)
-        .def_readwrite("last_was_negative", &SolutionActivity::last_was_negative)
-        .def_readwrite("last_reduced_cost", &SolutionActivity::last_reduced_cost);
-
     py::class_<Column>(m, "Column")
         .def(py::init<>())
         .def_readwrite("cost", &Column::cost)
@@ -134,30 +127,6 @@ void init_graph(py::module_& m) {
         .def_readwrite("path_node_ids", &Solution::path_node_ids)
         .def_readwrite("path_arc_ids", &Solution::path_arc_ids)
         .def_readwrite("column", &Solution::column);
-
-    py::class_<SolutionPool>(m, "SolutionPool")
-        .def(py::init<>())
-        .def("add", py::overload_cast<const Solution&>(&SolutionPool::add), py::arg("solution"))
-        .def("add",
-             py::overload_cast<const std::vector<Solution>&>(&SolutionPool::add),
-             py::arg("solutions"))
-        .def("price", &SolutionPool::price, py::arg("duals"), py::arg("threshold") = 0.0)
-        .def("remove",
-             &SolutionPool::remove,
-             py::arg("max_age") = std::numeric_limits<size_t>::max(),
-             py::arg("max_cost") = std::numeric_limits<double>::infinity())
-        .def(
-            "remove_if",
-            [](SolutionPool& pool, py::function pred) {
-                return pool.remove_if([&pred](const Solution& sol, const SolutionActivity& act) {
-                    return py::cast<bool>(pred(sol, act));
-                });
-            },
-            py::arg("pred"))
-        .def("get_solutions", &SolutionPool::get_solutions)
-        .def("get_entries", &SolutionPool::get_entries)
-        .def("__len__", &SolutionPool::size)
-        .def("size", &SolutionPool::size);
 
     // ══════════════════════════════════════════════════════════════════════════
     // RealResource — primary bindings with full Node/Arc/Graph public exposure
@@ -174,13 +143,13 @@ void init_graph(py::module_& m) {
                  py::arg("sink") = false,
                  py::return_value_policy::reference)
             .def("add_arc",
-                 py::overload_cast<size_t, size_t, std::optional<size_t>, double, std::vector<Row>>(
+                 py::overload_cast<size_t, size_t, double, std::vector<Row>, std::optional<size_t>>(
                      &RealGraph::add_arc),
                  py::arg("origin_id"),
                  py::arg("destination_id"),
-                 py::arg("id") = std::nullopt,
                  py::arg("cost") = 0.0,
                  py::arg("dual_rows") = std::vector<Row>{},
+                 py::arg("id") = std::nullopt,
                  py::return_value_policy::reference);
     }
 
@@ -208,7 +177,6 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
-        .def_readonly("original_cost", &Arc<RealRC>::original_cost)
         .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows)
         .def("__str__", &Arc<RealRC>::to_string)
         .def("__repr__", &Arc<RealRC>::to_string);

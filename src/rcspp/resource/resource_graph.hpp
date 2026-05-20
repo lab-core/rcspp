@@ -138,11 +138,10 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         Arc<RComp>& add_arc(
             const std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
-            size_t origin_node_id, size_t destination_node_id,
-            std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
-            std::vector<Row> dual_rows = {}) {
+            size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
+            std::vector<Row> dual_rows = {}, std::optional<size_t> arc_id = std::nullopt) {
             auto& arc =
-                Graph<RComp>::add_arc(origin_node_id, destination_node_id, arc_id, cost, dual_rows);
+                Graph<RComp>::add_arc(origin_node_id, destination_node_id, cost, dual_rows, arc_id);
 
             auto resource_base = resource_factory_.template create_resource_base<
                 ResourceInitializerTypeTuple_t<ResourceTypes>...>(resource_consumption);
@@ -155,9 +154,8 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         Arc<RComp>& add_arc(
             const std::tuple<ResourceInitializerTypeTuple_t<ExtenderResourceTypes>...>&
                 extender_resource_consumption,
-            size_t origin_node_id, size_t destination_node_id,
-            std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
-            std::vector<Row> dual_rows = {}) {
+            size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
+            std::vector<Row> dual_rows = {}, std::optional<size_t> arc_id = std::nullopt) {
             // build the full resource consumption tuple from the extender resource consumption
             std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
@@ -178,9 +176,9 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
             return add_arc(resource_consumption,
                            origin_node_id,
                            destination_node_id,
-                           arc_id,
                            cost,
-                           dual_rows);
+                           dual_rows,
+                           arc_id);
         }
 
         ResourceCompositionFactory<ResourceTypes...>& get_resource_factory() {
@@ -367,22 +365,20 @@ class ResourceGraph : public Graph<ResourceComposition<ResourceTypes...>> {
         template <typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
         void update_reduced_costs(const std::vector<double>& duals, size_t cost_index = 0) {
+            const size_t n_duals = duals.size();
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
-                for (const auto& dual_row : arc_ptr->dual_rows) {
-                    double dual_value = 0.0;
-                    if (dual_row.index < duals.size()) {
-                        dual_value = duals[dual_row.index];
+                for (const auto& row : arc_ptr->dual_rows) {
+                    if (row.index < n_duals) [[likely]] {
+                        reduced_cost -= row.coefficient * duals[row.index];
                     } else {
-                        LOG_DEBUG("ResourceGraph::update_reduced_costs: dual index ",
-                                  dual_row.index,
+                        LOG_ERROR("ResourceGraph::update_reduced_costs: dual index ",
+                                  row.index,
                                   " is out of range (duals size = ",
-                                  duals.size(),
+                                  n_duals,
                                   "); treating as 0.0.");
                     }
-                    reduced_cost -= dual_row.coefficient * dual_value;
                 }
-
                 update_arc<CostResourceType>(arc_ptr.get(), cost_index, reduced_cost);
             }
         }

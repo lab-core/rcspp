@@ -274,7 +274,7 @@ class Algorithm {
             for (size_t arc_id : path_arc_ids) {
                 const auto* arc = this->graph_->get_arc(arc_id);
                 path_node_ids.push_back(arc->origin->id);
-                column.cost += arc->original_cost;
+                column.cost += arc->cost;
                 for (const auto& row : arc->dual_rows) {
                     row_map[row.index] += row.coefficient;
                 }
