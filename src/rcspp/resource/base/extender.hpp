@@ -57,13 +57,6 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
                                                    &extended_resource->get_value());
         }
 
-        [[nodiscard]] std::string to_string() const {
-            std::string result;
-            this->for_each([&](const auto& ext) { result += ext->to_string() + ", "; });
-            if (result.size() > 2) {
-                result.resize(result.size() - 2);
-            }
-            return result;
-        }
+        [[nodiscard]] std::string to_string() const { return this->value_.to_string(); }
 };
 }  // namespace rcspp
