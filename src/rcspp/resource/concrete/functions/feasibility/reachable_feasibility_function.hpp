@@ -24,7 +24,7 @@ class ReachableFeasibilityFunction
             : checked_nodes_(
                   std::make_shared<const ContainerResourceType>(std::move(checked_nodes))) {}
 
-        auto is_feasible(const Resource<ContainerResourceType>& resource) -> bool override {
+        auto is_feasible(const ContainerResourceType& /*resource*/) -> bool override {
             return true;
         }
 
