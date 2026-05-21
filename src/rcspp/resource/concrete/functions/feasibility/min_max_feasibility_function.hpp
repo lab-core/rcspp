@@ -33,12 +33,6 @@ class MinMaxFeasibilityFunction
               min_(default_min),
               max_(default_max) {}
 
-        MinMaxFeasibilityFunction(
-            std::map<size_t, std::pair<ValueType, ValueType>> min_max_by_node_id)
-            : min_max_by_node_id_(
-                  std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
-                      std::move(min_max_by_node_id))) {}
-
         [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return resource.geq(min_) && resource.leq(max_);
         }
