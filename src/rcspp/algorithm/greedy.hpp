@@ -126,7 +126,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             // create all possible extensions
             auto* end_node = label->get_end_node();
             std::list<Label<ResourceType>*> all_labels;
-            for (auto* arc : end_node->out_arcs) {
+            for (auto* arc : this->graph_->get_out_arcs(end_node)) {
                 // check if can reach this destination node
                 if (!label->is_reachable(arc->destination->id)) {
                     continue;

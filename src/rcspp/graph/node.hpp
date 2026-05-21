@@ -80,6 +80,10 @@ class Node {
     private:
         friend class Graph<ResourceType>;
         std::optional<size_t> pos_;
+        size_t csr_out_start_{0};
+        size_t csr_out_count_{0};
+        size_t csr_in_start_{0};
+        size_t csr_in_count_{0};
 };
 template <typename ResourceType>
 std::ostream& operator<<(std::ostream& os, const Node<ResourceType>& node) {

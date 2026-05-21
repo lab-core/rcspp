@@ -103,7 +103,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         virtual void extend(Label<ResourceType>* label_ptr) {
             const auto& current_node = label_ptr->get_end_node();
-            for (auto arc_ptr : current_node->out_arcs) {
+            for (auto arc_ptr : this->graph_->get_out_arcs(current_node)) {
                 extend_label(label_ptr, arc_ptr);
             }
         }
