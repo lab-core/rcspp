@@ -319,10 +319,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                     .template get_num_resource_type<CostResourceType>());
                         }
                     } else {
-                        // if not sorted, use default sort by connectivity
+                        // if not sorted, use default sort by connectivity. Forward
+                        // cost_index so the sort's Bellman-Ford distances read the same
+                        // extender cost component the preprocessor (and the labeling
+                        // algorithm) will use. Without this, the sort silently falls back
+                        // to arc.cost and can disagree with the preprocessor whenever the
+                        // chosen cost slot differs from the base arc cost -- e.g. after
+                        // update_reduced_costs has rewritten extender slot cost_index.
                         if (!this->are_nodes_sorted()) {
                             this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
-                                                                      CostResourceType>();
+                                                                      CostResourceType>(
+                                static_cast<size_t>(cost_index));
                         }
 
                         // remove some arcs before solving the problem
