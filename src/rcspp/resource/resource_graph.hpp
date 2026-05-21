@@ -373,8 +373,19 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return connectivityMatrix_.is_connected(origin_node_id, destination_node_id);
         }
 
+        // Constrained to RealResource on purpose. The body computes the reduced cost as a
+        // double (LP duals are inherently fractional) and feeds it to
+        // update_arc<CostResourceType>(...), which forwards into a tuple whose element
+        // type is CostResourceType::ValueType. For an integral cost (e.g. IntResource) the
+        // double -> int conversion would silently truncate, dropping fractional reduced
+        // costs and -- critically for column generation -- collapsing reduced costs in
+        // (-1, 0) to 0, hiding improving columns from pricing. For UIntResource the
+        // negative-to-unsigned conversion is implementation-defined and usually wraps to
+        // huge positive numbers, which is even worse. If integer-cost reduced-cost
+        // updates ever become a real use case, add a separate function with an explicit
+        // scaling/rounding policy rather than relaxing this constraint.
         template <typename CostResourceType = RealResource>
-            requires is_numerical_resource_v<CostResourceType>
+            requires std::is_same_v<CostResourceType, RealResource>
         void update_reduced_costs(const std::vector<double>& duals, size_t cost_index = 0) {
             // Bounds-check cost_index once, up front. Without this, an out-of-range
             // cost_index would throw std::out_of_range from inside the factory's
