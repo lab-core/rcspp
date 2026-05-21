@@ -376,6 +376,21 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
         void update_reduced_costs(const std::vector<double>& duals, size_t cost_index = 0) {
+            // Bounds-check cost_index once, up front. Without this, an out-of-range
+            // cost_index would throw std::out_of_range from inside the factory's
+            // get_component<I>(index).at() call on the first arc processed, leaving
+            // the graph in an inconsistent state (some arcs updated, others not).
+            const auto cost_len =
+                resource_factory_.template get_num_resource_type<CostResourceType>();
+            if (cost_index >= cost_len) {
+                LOG_WARN("ResourceGraph::update_reduced_costs: cost_index ",
+                         cost_index,
+                         " is out of bounds for the cost resource (",
+                         cost_len,
+                         " component(s)). No arcs updated.");
+                return;
+            }
+
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
                 for (const auto& dual_row : arc_ptr->dual_rows) {
