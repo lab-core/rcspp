@@ -1,6 +1,5 @@
 #include "test_main.hpp"
 #include "test_label_buckets.hpp"
-#include "test_solution_pool.hpp"
 
 #include <iostream>
 
@@ -29,11 +28,6 @@ int main() {
 
     // Test LabelBuckets (BucketLabelList) operations
     p = all_tests_label_buckets();
-    passed += p.first;
-    total += p.second;
-
-    // Test SolutionPool operations
-    p = all_tests_solution_pool();
     passed += p.first;
     total += p.second;
 

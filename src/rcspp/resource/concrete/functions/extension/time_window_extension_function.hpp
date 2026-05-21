@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <map>
+#include <memory>
+#include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
@@ -18,9 +20,9 @@ class TimeWindowExtensionFunction
     : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
                       ExtensionFunction<ResourceType>> {
     public:
-        explicit TimeWindowExtensionFunction(
-            const std::map<size_t, ValueType>* min_time_window_by_dest_id)
-            : min_time_window_by_dest_id_(min_time_window_by_dest_id) {}
+        explicit TimeWindowExtensionFunction(std::map<size_t, ValueType> min_time_window_by_dest_id)
+            : min_time_window_by_dest_id_(std::make_shared<const std::map<size_t, ValueType>>(
+                  std::move(min_time_window_by_dest_id))) {}
 
         void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
                     Resource<ResourceType>* extended_resource) override {
@@ -30,7 +32,7 @@ class TimeWindowExtensionFunction
         }
 
     private:
-        const std::map<size_t, ValueType>* min_time_window_by_dest_id_;
+        std::shared_ptr<const std::map<size_t, ValueType>> min_time_window_by_dest_id_;
         ValueType min_time_window_{0};
 
         void preprocess(size_t /* origin_id */, size_t destination_id) override {

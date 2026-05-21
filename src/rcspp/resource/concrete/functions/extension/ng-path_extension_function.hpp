@@ -4,7 +4,9 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <set>
+#include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
@@ -20,8 +22,9 @@ class NgPathExtensionFunction
                       ExtensionFunction<ContainerResourceType>> {
     public:
         explicit NgPathExtensionFunction(
-            const std::map<size_t, std::set<ValueType>>* ng_neighborhood_by_origin_id)
-            : ng_neighborhood_by_origin_id_(ng_neighborhood_by_origin_id) {}
+            std::map<size_t, std::set<ValueType>> ng_neighborhood_by_origin_id)
+            : ng_neighborhood_by_origin_id_(std::make_shared<const std::map<size_t, ValueType>>(
+                  std::move(ng_neighborhood_by_origin_id))) {}
 
         void extend(const Resource<ContainerResourceType>& resource,
                     const Extender<ContainerResourceType>& extender,
@@ -35,7 +38,7 @@ class NgPathExtensionFunction
 
     private:
         // neighborhood of the origin node of the arc
-        const std::map<size_t, std::set<ValueType>>* const ng_neighborhood_by_origin_id_;
+        std::shared_ptr<const std::map<size_t, ValueType>> ng_neighborhood_by_origin_id_;
         ContainerResourceType ng_neighborhood_;
 
         void preprocess(size_t origin_id, size_t /* destination_id */) override {

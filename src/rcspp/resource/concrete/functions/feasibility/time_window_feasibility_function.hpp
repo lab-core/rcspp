@@ -5,6 +5,8 @@
 
 #include <limits>
 #include <map>
+#include <memory>
+#include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
@@ -21,10 +23,11 @@ class TimeWindowFeasibilityFunction
         explicit TimeWindowFeasibilityFunction(ValueType max_time_window)
             : max_time_window_by_node_id_(nullptr), max_time_window_(max_time_window) {}
         explicit TimeWindowFeasibilityFunction(
-            const std::map<size_t, ValueType>* max_time_window_by_node_id,
+            std::map<size_t, ValueType> max_time_window_by_node_id,
             ValueType default_max_time_window = std::numeric_limits<ValueType>::max() /
                                                 2)  // prevent overflow
-            : max_time_window_by_node_id_(max_time_window_by_node_id),
+            : max_time_window_by_node_id_(std::make_shared<const std::map<size_t, ValueType>>(
+                  std::move(max_time_window_by_node_id))),
               max_time_window_(default_max_time_window) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
@@ -32,8 +35,7 @@ class TimeWindowFeasibilityFunction
         }
 
     private:
-        const std::map<size_t, ValueType>* const max_time_window_by_node_id_;
-
+        std::shared_ptr<const std::map<size_t, ValueType>> max_time_window_by_node_id_;
         ValueType max_time_window_;
 
         void preprocess(size_t node_id) override {

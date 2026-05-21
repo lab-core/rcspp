@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <set>
 #include <type_traits>
 #include <utility>
@@ -22,8 +23,10 @@ class IntersectionFeasibilityFunction
                       FeasibilityFunction<ContainerResourceType>> {
     public:
         explicit IntersectionFeasibilityFunction(
-            const std::map<size_t, std::set<ValueType>>* values_by_node_id, bool forbidden = true)
-            : values_by_node_id_(values_by_node_id), forbidden_(forbidden) {}
+            std::map<size_t, std::set<ValueType>> values_by_node_id, bool forbidden = true)
+            : values_by_node_id_(std::make_shared<const std::map<size_t, ValueType>>(
+                  std::move(values_by_node_id))),
+              forbidden_(forbidden) {}
 
         auto is_feasible(const Resource<ContainerResourceType>& resource) -> bool override {
             if (empty_) {
@@ -35,7 +38,7 @@ class IntersectionFeasibilityFunction
         }
 
     private:
-        const std::map<size_t, std::set<ValueType>>* const values_by_node_id_;
+        std::shared_ptr<const std::map<size_t, std::set<ValueType>>> values_by_node_id_;
         ContainerResourceType values_;
         bool forbidden_;     // values are forbidden or required
         bool empty_ = true;  // to avoid checking intersection if no values to check

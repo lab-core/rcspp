@@ -25,16 +25,6 @@ def _get_fn(fn_name: str, resource_type: str):
     return cls
 
 
-def _get_map_ref(resource_type: str):
-    """Look up a typed C++ class by resource type, raising TypeError if absent."""
-    cls = getattr(_ext.resource, f"MapRef_{resource_type}", None)
-    if cls is None:
-        raise TypeError(
-            f"MapRef_{resource_type} is not available for resource type {resource_type}"
-        )
-    return cls
-
-
 # ── Numerical + container: trivial ───────────────────────────────────────────
 
 
@@ -80,8 +70,7 @@ class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
         self.min_tw_by_node = min_tw_by_node
 
     def create(self, resource_type: str):
-        map = _get_map_ref(resource_type)(self.min_tw_by_node)
-        return _get_fn("TimeWindowExtensionFunction", resource_type)(map)
+        return _get_fn("TimeWindowExtensionFunction", resource_type)(self.min_tw_by_node)
 
 
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
@@ -89,8 +78,7 @@ class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
         self.max_tw_by_node = max_tw_by_node
 
     def create(self, resource_type: str):
-        map = _get_map_ref(resource_type)(self.max_tw_by_node)
-        return _get_fn("TimeWindowFeasibilityFunction", resource_type)(map)
+        return _get_fn("TimeWindowFeasibilityFunction", resource_type)(self.max_tw_by_node)
 
 
 # ── Container only ────────────────────────────────────────────────────────────

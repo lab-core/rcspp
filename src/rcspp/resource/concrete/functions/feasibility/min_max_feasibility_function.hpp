@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -21,19 +22,28 @@ class MinMaxFeasibilityFunction
     public:
         MinMaxFeasibilityFunction(
             ValueType default_min, ValueType default_max,
-            const std::map<size_t, std::pair<ValueType, ValueType>>* min_max_by_node_id = nullptr)
-            : min_max_by_node_id_(min_max_by_node_id), min_(default_min), max_(default_max) {}
+            std::map<size_t, std::pair<ValueType, ValueType>> min_max_by_node_id = {})
+            : min_max_by_node_id_(
+                  min_max_by_node_id.empty()
+                      ? nullptr
+                      : std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
+                            std::move(min_max_by_node_id))),
+              min_(default_min),
+              max_(default_max) {}
+
         MinMaxFeasibilityFunction(
-            const std::map<size_t, std::pair<ValueType, ValueType>>* min_max_by_node_id)
-            : min_max_by_node_id_(min_max_by_node_id) {}
+            std::map<size_t, std::pair<ValueType, ValueType>> min_max_by_node_id)
+            : min_max_by_node_id_(
+                  std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
+                      std::move(min_max_by_node_id))) {}
 
         auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
             return resource.geq(min_) && resource.leq(max_);
         }
 
     private:
-        const std::map<size_t, std::pair<ValueType, ValueType>>* const min_max_by_node_id_;
-
+        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
+            min_max_by_node_id_;
         ValueType min_;
         ValueType max_;
 

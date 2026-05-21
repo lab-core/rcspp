@@ -5,6 +5,7 @@
 
 #include <limits>
 #include <map>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -19,16 +20,22 @@ class SizeFeasibilityFunction
     public:
         SizeFeasibilityFunction(
             size_t default_min_size, size_t default_max_size,
-            const std::map<size_t, std::pair<size_t, size_t>>* min_max_size_by_node_id = nullptr)
-            : min_max_size_by_node_id_(min_max_size_by_node_id),
+            std::map<size_t, std::pair<size_t, size_t>> min_max_size_by_node_id = {})
+            : min_max_size_by_node_id_(
+                  min_max_size_by_node_id.empty()
+                      ? nullptr
+                      : std::make_shared<const std::map<size_t, std::pair<size_t, size_t>>>(
+                            std::move(min_max_size_by_node_id))),
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
         explicit SizeFeasibilityFunction(
-            const std::map<size_t, std::pair<size_t, size_t>>* min_max_by_node_id,
+            std::map<size_t, std::pair<size_t, size_t>> min_max_size_by_node_id,
             size_t default_min_size = 0,
             size_t default_max_size = std::numeric_limits<size_t>::max() / 2)  // prevent overflow
-            : min_max_size_by_node_id_(min_max_by_node_id),
+            : min_max_size_by_node_id_(
+                  std::make_shared<const std::map<size_t, std::pair<size_t, size_t>>>(
+                      std::move(min_max_size_by_node_id))),
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
@@ -38,7 +45,7 @@ class SizeFeasibilityFunction
         }
 
     private:
-        const std::map<size_t, std::pair<size_t, size_t>>* const min_max_size_by_node_id_;
+        std::shared_ptr<const std::map<size_t, std::pair<size_t, size_t>>> min_max_size_by_node_id_;
 
         size_t min_size_;
         size_t max_size_;
