@@ -53,10 +53,6 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
         ResourceType ng_neighborhood_back_;
 
         void preprocess(size_t origin_id, size_t destination_id) override {
-            if (ng_neighborhood_by_origin_id_ == nullptr) {
-                return;
-            }
-
             // If the id is in the map, load its neighborhood; otherwise reset to empty so
             // we do not inherit the previous arc's binding.
             if (auto it = ng_neighborhood_by_origin_id_->find(origin_id);
