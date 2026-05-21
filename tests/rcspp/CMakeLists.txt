@@ -20,7 +20,10 @@ list(APPEND SOURCE_FILES
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}  # so cross-subdirectory test headers can #include "util/..."
+)
 
 #add_executable(test_connectivity test_connectivity.cpp ${LIB_SOURCES})
 #target_include_directories(test_connectivity PRIVATE ${CMAKE_SOURCE_DIR}/src)

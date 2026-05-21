@@ -1,6 +1,7 @@
 #include "test_main.hpp"
 #include "test_label_buckets.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
+#include "resource/concrete/functions/extension/test_ng_path_extension_function.hpp"
 
 #include <iostream>
 
@@ -34,6 +35,11 @@ int main() {
 
     // Test IntersectionFeasibilityFunction (forbidden / required semantics + preprocess)
     p = all_tests_intersection_feasibility_function();
+    passed += p.first;
+    total += p.second;
+
+    // Test NgPathExtensionFunction (preprocess loads / resets per-arc neighborhood)
+    p = all_tests_ng_path_extension_function();
     passed += p.first;
     total += p.second;
 

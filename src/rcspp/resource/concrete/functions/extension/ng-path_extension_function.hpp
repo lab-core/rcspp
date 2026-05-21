@@ -14,8 +14,11 @@
 
 namespace rcspp {
 
+// ValueType is the element type stored in the per-origin neighborhood sets and is fed
+// to ResourceType::set_value. The default matches the element type the resource
+// advertises; override it to point NgPath at an alternative set_value overload.
 template <typename ResourceType,
-          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
+          typename ValueType = typename ResourceType::ValueType>
 class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<ResourceType, ValueType>,
                                                 ExtensionFunction<ResourceType>> {
     public:
@@ -51,17 +54,24 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
         ResourceType ng_neighborhood_back_;
 
         void preprocess(size_t origin_id, size_t destination_id) override {
-            // if found, update ng_neighborhood_
-            // else, keep ng_neighborhood_ to it's initial value (empty, i.e., reset the
-            // neighborhood)
-            auto it = ng_neighborhood_by_origin_id_->find(origin_id);
-            if (it == ng_neighborhood_by_origin_id_->end()) {
-                ng_neighborhood_.set_value(it->second);
+            if (ng_neighborhood_by_origin_id_ == nullptr) {
+                return;
             }
 
-            it = ng_neighborhood_by_origin_id_->find(destination_id);
-            if (it == ng_neighborhood_by_origin_id_->end()) {
+            // If the id is in the map, load its neighborhood; otherwise reset to empty so
+            // we do not inherit the previous arc's binding.
+            if (auto it = ng_neighborhood_by_origin_id_->find(origin_id);
+                it != ng_neighborhood_by_origin_id_->end()) {
+                ng_neighborhood_.set_value(it->second);
+            } else {
+                ng_neighborhood_.reset();
+            }
+
+            if (auto it = ng_neighborhood_by_origin_id_->find(destination_id);
+                it != ng_neighborhood_by_origin_id_->end()) {
                 ng_neighborhood_back_.set_value(it->second);
+            } else {
+                ng_neighborhood_back_.reset();
             }
         }
 };
