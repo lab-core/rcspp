@@ -286,13 +286,12 @@ class ResourceGraph:
         """
         self._ensure_graph()
         if isinstance(duals, dict):
-            if duals:
-                max_idx = max(duals.keys())
-                duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
-            else:
-                duals_list = []  # C++ treats out-of-range indices as 0 → resets to base costs
+            if not duals:
+                return  # honor the docstring: empty dict ⇒ leave reduced costs unchanged
+            max_idx = max(duals.keys())
+            duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
         else:
-            duals_list = duals  # pybind11 converts any sequence to std::vector<double>
+            duals_list = list(duals)
         self._graph.update_reduced_costs(duals_list, cost_index)
 
     # ── String representation ─────────────────────────────────────────────────
