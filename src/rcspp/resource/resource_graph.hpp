@@ -295,9 +295,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                     connectivityMatrix_.compute_bitmatrix();
                 }
 
-                // shortest-path preprocessing requires a numerical cost resource in the pack
+                // shortest-path preprocessing requires a numerical cost resource in the pack.
+                // Use ComponentTypeIndex<...>::value rather than the _v alias: the _v alias is
+                // a constrained variable template that is undeclared when the type isn't in the
+                // pack, which would make this condition ill-formed (even inside if constexpr).
                 if constexpr (is_numerical_resource_v<CostResourceType> &&
-                              ComponentTypeIndex_v<CostResourceType, ResourceTypes...> != -1) {
+                              ComponentTypeIndex<CostResourceType, ResourceTypes...>::value
+                                  != -1) {
                     // check if the cost index is correct
                     if (cost_index < 0) {
                         LOG_WARN("ResourceGraph::solve: cost_index cannot be negative.");
