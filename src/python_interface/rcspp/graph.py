@@ -285,6 +285,15 @@ class ResourceGraph:
             cost_index: Resource slot to update (default 0).
         """
         self._ensure_graph()
+        # The pybind binding only registers update_reduced_costs on graph
+        # specialisations that include RealResource (see graph_impl.hpp). Without
+        # this guard, int-only graphs raise a cryptic AttributeError referencing
+        # the internal _core type name. Surface the real requirement instead.
+        if not hasattr(self._graph, "update_reduced_costs"):
+            raise TypeError(
+                "update_reduced_costs requires a graph with a RealResource cost "
+                "slot; this graph has none."
+            )
         if isinstance(duals, dict):
             if not duals:
                 return  # honor the docstring: empty dict ⇒ leave reduced costs unchanged
