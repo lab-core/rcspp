@@ -23,8 +23,8 @@ class ShortestPathConnectivitySort {
 
     public:
         explicit ShortestPathConnectivitySort(  // NOLINT
-            Graph<ResourceComposition<ResourceTypes...>>* graph,
-            ConnectivityMatrix<ResourceComposition<ResourceTypes...>>* cm,
+            Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
+            ConnectivityMatrix<ResourceTypeComposition<ResourceTypes...>>* cm,
             std::optional<size_t> cost_index = std::nullopt) {  // use default cost if nullopt
             // compute shortest path distances from sources and to sinks
             bool distances_computed = true;
@@ -72,8 +72,8 @@ class ShortestPathConnectivitySort {
             };
 
             // order based on shortest path distances
-            graph->sort_nodes([&](const Node<ResourceComposition<ResourceTypes...>>* node1,
-                                  const Node<ResourceComposition<ResourceTypes...>>* node2) {
+            graph->sort_nodes([&](const Node<ResourceTypeComposition<ResourceTypes...>>* node1,
+                                  const Node<ResourceTypeComposition<ResourceTypes...>>* node2) {
                 // sources first
                 if (node1->source ^ node2->source) {
                     return node1->source;

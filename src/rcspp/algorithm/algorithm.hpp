@@ -37,7 +37,7 @@ template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
-constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
+constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
 struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
@@ -112,7 +112,7 @@ struct AlgorithmParams : AlgorithmBaseParams {
 };
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Algorithm {
     public:
         Algorithm(ResourceFactory<ResourceType>* resource_factory,

@@ -39,7 +39,7 @@ class SizeFeasibilityFunction
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
-        auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        auto is_feasible(const ResourceType& resource) -> bool override {
             const size_t size = resource.size();
             return size >= min_size_ && size <= max_size_;
         }

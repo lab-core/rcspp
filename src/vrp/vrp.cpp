@@ -201,42 +201,49 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         solutions_boost = solve_with_boost(dual_by_id);
         total_subproblem_time_boost_.stop();
 
-        LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
-        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
-
-        // RCSPP can be better as it uses int for some resources (e.g., load, time)
-        if (abs(solutions_rcspp[0].cost - solutions_boost[0].cost) > COST_COMPARISON_EPSILON) {
-            LOG_ERROR("RCSPP solution is different from BOOST:",
-                      solutions_rcspp[0].cost,
-                      " vs ",
-                      solutions_boost[0].cost,
-                      "\n");
-            // break;
-        }
-
-        std::vector<Solution> solutions;
-        if (use_boost) {
-            solutions = solutions_boost;
-        } else {
-            solutions = solutions_rcspp;
-        }
-
-        if (subproblem_max_nb_solutions != std::nullopt) {
-            auto nb_solutions = std::min(subproblem_max_nb_solutions.value(), solutions.size());
-            solutions = std::vector<Solution>(solutions.begin(), solutions.begin() + nb_solutions);
-        }
-
+        min_reduced_cost = 0;
         std::vector<Solution> negative_red_cost_solutions;
 
-        min_reduced_cost = std::numeric_limits<double>::infinity();
-        for (const auto& sol : solutions) {
-            min_reduced_cost = std::min(min_reduced_cost, sol.cost);
-            if (sol.cost < -EPSILON) {
-                negative_red_cost_solutions.push_back(sol);
+        // Cross-check both solvers only when both return results
+        if (!solutions_boost.empty() && !solutions_rcspp.empty()) {
+            LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
+            LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
+
+            // RCSPP can be better as it uses int for some resources (e.g., load, time)
+            if (abs(solutions_rcspp[0].cost - solutions_boost[0].cost) > COST_COMPARISON_EPSILON) {
+                LOG_ERROR("RCSPP solution is different from BOOST:",
+                          solutions_rcspp[0].cost,
+                          " vs ",
+                          solutions_boost[0].cost,
+                          "\n");
+                // break;
             }
         }
 
-        add_paths(&master_problem, negative_red_cost_solutions);
+        // Select solutions from the chosen solver; move to avoid unnecessary copy
+        std::vector<Solution> solutions;
+        if (use_boost) {
+            solutions = std::move(solutions_boost);
+        } else {
+            solutions = std::move(solutions_rcspp);
+        }
+
+        if (!solutions.empty()) {
+            if (subproblem_max_nb_solutions != std::nullopt) {
+                auto nb_solutions = std::min(subproblem_max_nb_solutions.value(), solutions.size());
+                solutions =
+                    std::vector<Solution>(solutions.begin(), solutions.begin() + nb_solutions);
+            }
+
+            for (const auto& sol : solutions) {
+                min_reduced_cost = std::min(min_reduced_cost, sol.cost);
+                if (sol.cost < -EPSILON) {
+                    negative_red_cost_solutions.push_back(sol);
+                }
+            }
+
+            add_paths(&master_problem, negative_red_cost_solutions);
+        }
 
         ++nb_iter;
 
@@ -288,46 +295,29 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
     return solutions;
 }
 
-std::map<size_t, std::pair<int, int>> VRP::initialize_time_windows() {
+std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    std::map<size_t, std::pair<int, int>> time_window_by_customer_id;
+    std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     for (const auto& [customer_id, customer] : customers_by_id) {
         time_window_by_customer_id.emplace(
             customer_id,
-            std::pair<int, int>{customer.ready_time, customer.due_time});
+            std::pair<double, double>{customer.ready_time, customer.due_time});
     }
 
-    const auto& source_customer = customers_by_id.at(0);
+    time_window_by_customer_id.insert_or_assign(
+        0,
+        std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
     size_t sink_id = customers_by_id.size();
-    time_window_by_customer_id.emplace(
+    time_window_by_customer_id.insert_or_assign(
         sink_id,
-        std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
-    max_time_window_by_node_id_.emplace(0,
-                                        std::numeric_limits<int>::max() / 2);  // prevent overflow
+        std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
     node_set_by_node_id_.emplace(0, std::set<size_t>{0});
-
-    int min_time = 0;
-    int max_time = std::numeric_limits<int>::max() / 2;  // prevent overflow
-    if (time_window_by_customer_id.contains(sink_id)) {
-        min_time = time_window_by_customer_id.at(sink_id).first;
-        max_time = time_window_by_customer_id.at(sink_id).second;
-    }
-    min_time_window_by_node_id_[sink_id] = min_time;
-    max_time_window_by_node_id_[sink_id] = max_time;
     node_set_by_node_id_.emplace(sink_id, std::set<size_t>{});
 
     for (const auto& [customer_id, customer] : customers_by_id) {
-        int min_time = 0;
-        int max_time = std::numeric_limits<int>::max() / 2;  // prevent overflow
-        if (time_window_by_customer_id.contains(customer_id)) {
-            min_time = time_window_by_customer_id.at(customer_id).first;
-            max_time = time_window_by_customer_id.at(customer_id).second;
-        }
-        min_time_window_by_node_id_[customer_id] = min_time;
-        max_time_window_by_node_id_[customer_id] = max_time;
         node_set_by_node_id_.emplace(customer_id, std::set<size_t>{customer_id});
     }
 
@@ -381,8 +371,8 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     // Time
     using TimeResource = RealResource;
     resource_graph->add_resource<TimeResource>(
-        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(min_time_window_by_node_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(max_time_window_by_node_id_),
+        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(time_window_by_customer_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(time_window_by_customer_id_),
         std::make_unique<ValueCostFunction<TimeResource>>(),
         std::make_unique<ValueDominanceFunction<TimeResource>>());
 
@@ -502,12 +492,18 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
+    // resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
+    //     {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
+    //     customer_orig_id,
+    //     customer_dest_id,
+    //     arc_id,
+    //     distance,
+    //     {Row(customer_orig_id, 1.0)});
     resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
                                                                      customer_orig_id,
                                                                      customer_dest_id,
                                                                      distance,
-                                                                     {Row(customer_orig_id, 1.0)},
-                                                                     arc_id);
+                                                                     {Row(customer_orig_id, 1.0)});
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

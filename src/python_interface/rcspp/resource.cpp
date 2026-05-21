@@ -54,24 +54,30 @@ void init_resource(py::module_& m) {
         .def(py::init<>());                                                                     \
     py::class_<TimeWindowExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(       \
         m, "TimeWindowExtensionFunction_" #name)                                                \
-        .def(py::init([](const py::dict& d) {                                                   \
-                 std::map<size_t, scalar> map;                                                  \
+        .def(py::init([](const py::dict& d, scalar default_max_value) {                        \
+                 std::map<size_t, std::pair<scalar, scalar>> map;                               \
                  for (const auto& [k, v] : d) {                                                 \
-                     map.emplace(k.cast<size_t>(), v.cast<scalar>());                           \
+                     auto tup = v.cast<py::tuple>();                                            \
+                     map.emplace(k.cast<size_t>(),                                              \
+                                 std::make_pair(tup[0].cast<scalar>(), tup[1].cast<scalar>())); \
                  }                                                                               \
-                 return TimeWindowExtensionFunction<RT>(std::move(map));                        \
+                 return TimeWindowExtensionFunction<RT>(std::move(map), default_max_value);     \
              }),                                                                                 \
-             py::arg("map"));                                                                    \
+             py::arg("tw_by_node"),                                                              \
+             py::arg("default_max_value") = std::numeric_limits<scalar>::max() / 2);            \
     py::class_<TimeWindowFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(   \
         m, "TimeWindowFeasibilityFunction_" #name)                                              \
-        .def(py::init([](const py::dict& d) {                                                   \
-                 std::map<size_t, scalar> map;                                                  \
+        .def(py::init([](const py::dict& d, scalar default_max_value) {                        \
+                 std::map<size_t, std::pair<scalar, scalar>> map;                               \
                  for (const auto& [k, v] : d) {                                                 \
-                     map.emplace(k.cast<size_t>(), v.cast<scalar>());                           \
+                     auto tup = v.cast<py::tuple>();                                            \
+                     map.emplace(k.cast<size_t>(),                                              \
+                                 std::make_pair(tup[0].cast<scalar>(), tup[1].cast<scalar>())); \
                  }                                                                               \
-                 return TimeWindowFeasibilityFunction<RT>(std::move(map));                      \
+                 return TimeWindowFeasibilityFunction<RT>(std::move(map), default_max_value);   \
              }),                                                                                 \
-             py::arg("map"));
+             py::arg("tw_by_node"),                                                              \
+             py::arg("default_max_value") = std::numeric_limits<scalar>::max() / 2);
     // clang-format on
     RCSPP_NUMERICAL_RESOURCES(BIND_NUMERICAL_FUNCTIONS)
 #undef BIND_NUMERICAL_FUNCTIONS

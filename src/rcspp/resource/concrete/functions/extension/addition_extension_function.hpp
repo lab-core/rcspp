@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <optional>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
@@ -14,16 +15,15 @@ namespace rcspp {
 template <typename ResourceType>
 class AdditionExtensionFunction
     : public Clonable<AdditionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
-        using ValueType =
-            std::decay_t<decltype(std::declval<Resource<ResourceType>>().get_value())>;
+        using ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>;
 
     public:
         explicit AdditionExtensionFunction(std::optional<ValueType> min_value = std::nullopt)
             : min_value_(min_value) {}
 
-        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
-                    Resource<ResourceType>* extended_resource) override {
-            auto sum_value = resource.get_value() + extender.get_value();
+        void extend(const ResourceType& resource, const ResourceType& extender_value,
+                    ResourceType* extended_resource) override {
+            auto sum_value = resource.get_value() + extender_value.get_value();
             if (min_value_.has_value()) {
                 sum_value = std::max(min_value_.value(), sum_value);
             }

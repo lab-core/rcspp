@@ -11,7 +11,7 @@
 
 namespace rcspp {
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType> {
     public:
         SimpleDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,

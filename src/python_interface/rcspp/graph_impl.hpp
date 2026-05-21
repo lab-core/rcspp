@@ -391,7 +391,7 @@ void bind_add_resource(py::class_<RG, Graph<RC>>& rg) {
 
 template <typename RG, typename RC, typename... ResourceTypes>
 void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
-    using AddArcTuple = std::tuple<std::vector<ResourceInitializerTypeTuple_t<ResourceTypes>>...>;
+    using AddArcTuple = std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>;
 
     (bind_add_resource<RG, RC, ResourceTypes>(rg), ...);
 
@@ -471,7 +471,7 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
 
 template <typename CostRC, typename... RTs>
 void bind_mixed_rg(py::module_& m, const char* name) {
-    using RC = ResourceComposition<RTs...>;
+    using RC = ResourceTypeComposition<RTs...>;
     using RG = ResourceGraph<RTs...>;
     std::string rg = std::string("_") + name + "_resource_graph";
     std::string g = std::string("_") + name + "_graph";

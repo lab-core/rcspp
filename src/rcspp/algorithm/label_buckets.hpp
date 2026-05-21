@@ -352,7 +352,7 @@ class LabelBuckets : public LabelList<ResourceType> {
         template <class RType>
         [[nodiscard]] static const Resource<RType>& get_resource(const Label<ResourceType>& label,
                                                                  size_t resource_index) {
-            return label.get_resource().template get_resource_component<RType>(resource_index);
+            return label.get_resource().template get_component<RType>(resource_index);
         }
 };
 }  // namespace rcspp

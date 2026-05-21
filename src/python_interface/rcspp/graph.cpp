@@ -62,7 +62,7 @@ void init_sigint_handler() {
 
 // ─── Concrete type aliases ────────────────────────────────────────────────────
 
-using RealRC = ResourceComposition<RealResource>;
+using RealRC = ResourceTypeComposition<RealResource>;
 using RealGraph = Graph<RealRC>;
 using RealRG = ResourceGraph<RealResource>;
 

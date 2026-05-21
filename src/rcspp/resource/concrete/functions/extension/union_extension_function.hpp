@@ -13,11 +13,11 @@ template <typename ContainerResourceType>
 class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerResourceType>,
                                                ExtensionFunction<ContainerResourceType>> {
     public:
-        void extend(const Resource<ContainerResourceType>& resource,
-                    const Extender<ContainerResourceType>& extender,
-                    Resource<ContainerResourceType>* extended_resource) override {
-            auto union_container = resource.get_union(extender.get_value());
-            extended_resource->set_value(union_container);
+        void extend(const ContainerResourceType& resource,
+                    const ContainerResourceType& extender_value,
+                    ContainerResourceType* extended_resource) override {
+            auto union_value = resource.get_union(extender_value.get_value());
+            extended_resource->set_value(union_value);
         }
 };
 }  // namespace rcspp

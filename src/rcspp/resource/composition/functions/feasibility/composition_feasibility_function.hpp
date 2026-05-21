@@ -10,36 +10,43 @@
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionFeasibilityFunction
     : public Clonable<CompositionFeasibilityFunction<ResourceTypes...>,
-                      FeasibilityFunction<ResourceComposition<ResourceTypes...>>> {
+                      FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>>> {
     public:
         CompositionFeasibilityFunction() = default;
 
-        bool is_feasible(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource_composition) override {
-            const auto& resource_components = resource_composition.get_resource_components();
+        [[nodiscard]] bool is_feasible(const Resource<ResourceTypeComposition<ResourceTypes...>>&
+                                           resource_composition) override {
+            return feasible_helper(resource_composition,
+                                   [](const auto& res_comp) { return res_comp.is_feasible(); });
+        }
 
-            bool is_feasible = true;
-            std::apply(
-                [&](auto&&... args) {
-                    // The && operator acts as a break in the fold expression.
-                    (check_feasibility(args, &is_feasible) && ...);
-                },
-                resource_components);
+        [[nodiscard]] bool is_back_feasible(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition)
+            override {
+            return feasible_helper(resource_composition, [](const auto& res_comp) {
+                return res_comp.is_back_feasible();
+            });
+        }
 
-            return is_feasible;
+        [[nodiscard]] bool can_be_merged(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource_composition)
+            override {
+            return resource_composition.for_each_component_and(
+                back_resource_composition,
+                [](const auto& res, const auto& back_res) { return res.can_be_merged(back_res); });
         }
 
     private:
-        bool check_feasibility(const auto& sing_res_vec, bool* is_feasible) {
-            for (auto&& res_comp : sing_res_vec) {
-                if (!res_comp->is_feasible()) {
-                    *is_feasible = false;
-                    return false;
-                }
-            }
-            return true;
+        template <typename F>
+        [[nodiscard]] bool feasible_helper(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
+            const F& feasible_func) const {
+            return resource_composition.for_each_component_and(
+                [&](const auto& res) { return feasible_func(res); });
         }
 };
 }  // namespace rcspp

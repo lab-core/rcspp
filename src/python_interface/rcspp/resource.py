@@ -66,19 +66,27 @@ class MinMaxFeasibilityFunction(_GenericFunctionDescriptor):
 
 
 class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
-    def __init__(self, min_tw_by_node: dict):
-        self.min_tw_by_node = min_tw_by_node
+    def __init__(self, tw_by_node: dict, default_max_value=None):
+        self.tw_by_node = tw_by_node
+        self.default_max_value = default_max_value
 
     def create(self, resource_type: str):
-        return _get_fn("TimeWindowExtensionFunction", resource_type)(self.min_tw_by_node)
+        fn = _get_fn("TimeWindowExtensionFunction", resource_type)
+        if self.default_max_value is None:
+            return fn(self.tw_by_node)
+        return fn(self.tw_by_node, self.default_max_value)
 
 
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
-    def __init__(self, max_tw_by_node: dict):
-        self.max_tw_by_node = max_tw_by_node
+    def __init__(self, tw_by_node: dict, default_max_value=None):
+        self.tw_by_node = tw_by_node
+        self.default_max_value = default_max_value
 
     def create(self, resource_type: str):
-        return _get_fn("TimeWindowFeasibilityFunction", resource_type)(self.max_tw_by_node)
+        fn = _get_fn("TimeWindowFeasibilityFunction", resource_type)
+        if self.default_max_value is None:
+            return fn(self.tw_by_node)
+        return fn(self.tw_by_node, self.default_max_value)
 
 
 # ── Container only ────────────────────────────────────────────────────────────

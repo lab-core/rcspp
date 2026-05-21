@@ -168,8 +168,7 @@ def example_mixed_resources():
 
 def example_time_windows():
     """3-node graph with a time-window resource."""
-    min_tw = {1: 5.0, 2: 0.0}  # earliest arrival at each node
-    max_tw = {1: 20.0, 2: 30.0}  # latest arrival
+    tw = {1: (5.0, 20.0), 2: (0.0, 30.0)}  # (earliest, latest) arrival at each node
 
     rg = ResourceGraph()
     # Resource 0: cost (generic)
@@ -181,8 +180,8 @@ def example_time_windows():
     )
     # Resource 1: time (real-specific time-window functions)
     rg.add_real_resource(
-        TimeWindowExtensionFunction(min_tw),
-        TimeWindowFeasibilityFunction(max_tw),
+        TimeWindowExtensionFunction(tw),
+        TimeWindowFeasibilityFunction(tw),
         ValueCostFunction(),
         ValueDominanceFunction(),
     )
@@ -635,10 +634,8 @@ def test_resource_refs_survive_gc():
 
     def build_graph_b():
         """Time-window maps created here; only the graph is returned."""
-        min_tw = TrackedDict({1: 5.0, 2: 0.0})
-        max_tw = TrackedDict({1: 20.0, 2: 30.0})
-        tw_refs["min_tw"] = weakref.ref(min_tw)
-        tw_refs["max_tw"] = weakref.ref(max_tw)
+        tw = TrackedDict({1: (5.0, 20.0), 2: (0.0, 30.0)})
+        tw_refs["tw"] = weakref.ref(tw)
 
         rg = ResourceGraph()
         rg.add_real_resource(
@@ -648,8 +645,8 @@ def test_resource_refs_survive_gc():
             ValueDominanceFunction(),
         )
         rg.add_real_resource(
-            TimeWindowExtensionFunction(min_tw),
-            TimeWindowFeasibilityFunction(max_tw),
+            TimeWindowExtensionFunction(tw),
+            TimeWindowFeasibilityFunction(tw),
             ValueCostFunction(),
             ValueDominanceFunction(),
         )

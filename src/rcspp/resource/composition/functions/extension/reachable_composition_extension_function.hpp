@@ -8,16 +8,18 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/composition/functions/extension/composition_extension_function.hpp"
-#include "rcspp/resource/composition/resource_composition.hpp"
+#include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
 
 template <typename ReachableResourceType, typename... ResourceTypes>
+    requires ResourceTypeConcept<ReachableResourceType> &&
+             (ResourceTypeConcept<ResourceTypes> && ...)
 class ReachableCompositionExtensionFunction
     : public Clonable<ReachableCompositionExtensionFunction<ResourceTypes...>,
                       CompositionExtensionFunction<ResourceTypes...>,
-                      ExtensionFunction<ResourceComposition<ResourceTypes...>>> {
+                      ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> {
     public:
         explicit ReachableCompositionExtensionFunction(size_t reachable_resource_index)
             : reachable_resource_index_(reachable_resource_index) {
@@ -26,26 +28,6 @@ class ReachableCompositionExtensionFunction
 
     protected:
         size_t reachable_resource_index_;
-
-        // TODO(antoine): to improve to be automatic
-        void post_extend(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceComposition<ResourceTypes...>>& extender,
-            Resource<ResourceComposition<ResourceTypes...>>* extended_resource) override {
-            throw std::runtime_error("ReachableCompositionExtensionFunction: Not implemented");
-            auto& extended_reachable_resource =
-                extended_resource->template get_resource_component<ReachableResourceType>(
-                    reachable_resource_index_);
-            // // get an empty copy of same type
-            // ReachableResourceType new_reachable_nodes;
-            // for (auto node_id : extended_reachable_resource.iterable()) {
-            //     if (extended_resource->is_reachable(node_id)) {
-            //         new_reachable_nodes.add(node_id);
-            //     }
-            // }
-            // // set the new reachable nodes
-            // extended_reachable_resource.set_value(new_reachable_nodes.get_value());
-        }
 
         bool check_reachability(const auto& sing_res_vec, size_t node_id) {
             for (auto&& res_comp : sing_res_vec) {

@@ -10,7 +10,7 @@
 namespace rcspp {
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Preprocessor {
     public:
         explicit Preprocessor(Graph<ResourceType>* graph) : graph_(graph) {}

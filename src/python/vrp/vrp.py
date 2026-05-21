@@ -26,34 +26,27 @@ class VRP:
 
     def __init__(self, instance: Instance):
         self.__instance = instance
-        self.__min_time_window_by_node_id = {}
-        self.__max_time_window_by_node_id = {}
+        self.__time_window_by_node_id = {}
         self.__path_id = 0
-        self.__time_window_by_customer_id = self.initialize_time_windows()
+        self.initialize_time_windows()
         # Build the subproblem graph once; dual costs are updated in-place each iteration.
         self.__resource_graph = self.construct_resource_graph()
         self.__paths = []
         self.__total_subproblem_time = 0.0
 
     def initialize_time_windows(self):
-        time_window_by_customer_id: dict[int, tuple[float, float]] = {}
-
         customers_by_id = self.__instance.get_customers_by_id()
         for customer_id, customer in customers_by_id.items():
-            time_window_by_customer_id[customer_id] = (
+            self.__time_window_by_node_id[customer_id] = (
                 customer.ready_time,
                 customer.due_time,
             )
 
         # Add sink node
         sink_id = len(customers_by_id)
-        time_window_by_customer_id[sink_id] = (0.0, math.inf)
+        self.__time_window_by_node_id[sink_id] = (0.0, math.inf)
 
-        for customer_dest_id, (min_time, max_time) in time_window_by_customer_id.items():
-            self.__min_time_window_by_node_id[customer_dest_id] = min_time
-            self.__max_time_window_by_node_id[customer_dest_id] = max_time
-
-        return time_window_by_customer_id
+        return self.__time_window_by_node_id
 
     # ── Graph construction ────────────────────────────────────────────────────
 
@@ -70,8 +63,8 @@ class VRP:
 
         # Resource 1: cumulative travel time (time-window feasibility)
         resource_graph.add_real_resource(
-            TimeWindowExtensionFunction(self.__min_time_window_by_node_id),
-            TimeWindowFeasibilityFunction(self.__max_time_window_by_node_id),
+            TimeWindowExtensionFunction(self.__time_window_by_node_id),
+            TimeWindowFeasibilityFunction(self.__time_window_by_node_id),
             TrivialCostFunction(),
             ValueDominanceFunction(),
         )
@@ -98,7 +91,6 @@ class VRP:
                 self.depot_id_ = customer.id
                 resource_graph.add_node(sink_id, False, True)
 
-        arc_id = 0
         for customer_orig_id, customer_orig in customers_by_id.items():
             for customer_dest_id, customer_dest in customers_by_id.items():
                 # Skip self-loops and arcs back to the depot source; the return
@@ -110,14 +102,9 @@ class VRP:
                         customer_dest_id,
                         customer_orig,
                         customer_dest,
-                        arc_id,
                     )
-                    arc_id += 1
             sink_customer = customers_by_id[self.depot_id_]
-            self._add_arc(
-                resource_graph, customer_orig_id, sink_id, customer_orig, sink_customer, arc_id
-            )
-            arc_id += 1
+            self._add_arc(resource_graph, customer_orig_id, sink_id, customer_orig, sink_customer)
 
         print(f"construct_graph: {int((time.time() - t0) * 1000)} ms")
 
@@ -128,7 +115,6 @@ class VRP:
         dest_id: int,
         orig: Customer,
         dest: Customer,
-        arc_id: int,
     ) -> None:
         distance = self.calculate_distance(orig, dest)
         travel_time = orig.service_time + distance
@@ -148,7 +134,6 @@ class VRP:
             (base_cost, travel_time, demand),
             orig_id,
             dest_id,
-            arc_id,
             base_cost,
             dual_rows,
         )
