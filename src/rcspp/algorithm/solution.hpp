@@ -49,7 +49,13 @@ struct Solution {
             init_hash();
         }
 
-        bool operator==(const Solution& rhs) const noexcept { return hash_ == rhs.hash_; }
+        // Hash equality is used as a fast prefilter (short-circuits the cheap path);
+        // on a match we still compare the arc paths so genuine FNV collisions don't
+        // silently coalesce distinct solutions in the unordered_set used by
+        // extract_solution.
+        bool operator==(const Solution& rhs) const noexcept {
+            return hash_ == rhs.hash_ && path_arc_ids == rhs.path_arc_ids;
+        }
 
         [[nodiscard]] uint64_t get_hash() const noexcept { return hash_; }
 
@@ -61,9 +67,9 @@ struct Solution {
     private:
         std::uint64_t hash_ = 0;
 
-        // Order-sensitive hash: different order -> different hash
-        // Should not have any collisions for small sequences of arc ids
-        // WARNING: Hash collisions will silently skip solutions, which can compromise correctness.
+        // Order-sensitive hash: different arc-id sequence -> different hash. Used as
+        // the fast prefilter in operator==; the path-equality fallback there handles
+        // collisions correctly, so this hash function does not need to be perfect.
         void init_hash() {
             hash_ = FNV_OFFSET_BASIS;             // initialize hash
             for (std::size_t a : path_arc_ids) {  // hash each arc id sequentially
