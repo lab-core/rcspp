@@ -1,5 +1,6 @@
 #include "test_main.hpp"
 #include "test_label_buckets.hpp"
+#include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
 
 #include <iostream>
 
@@ -28,6 +29,11 @@ int main() {
 
     // Test LabelBuckets (BucketLabelList) operations
     p = all_tests_label_buckets();
+    passed += p.first;
+    total += p.second;
+
+    // Test IntersectionFeasibilityFunction (forbidden / required semantics + preprocess)
+    p = all_tests_intersection_feasibility_function();
     passed += p.first;
     total += p.second;
 
