@@ -301,12 +301,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 // a constrained variable template that is undeclared when the type isn't in the
                 // pack, which would make this condition ill-formed (even inside if constexpr).
                 if constexpr (is_numerical_resource_v<CostResourceType> &&
-                              ComponentTypeIndex<CostResourceType, ResourceTypes...>::value
-                                  != -1) {
+                              ComponentTypeIndex<CostResourceType, ResourceTypes...>::value != -1) {
                     // check if the cost index is correct (size_t -> no negative case)
                     if (cost_index >=
-                        resource_factory_
-                            .template get_num_resource_type<CostResourceType>()) {
+                        resource_factory_.template get_num_resource_type<CostResourceType>()) {
                         // check if not the default value
                         if (cost_index > 0) {
                             LOG_WARN(

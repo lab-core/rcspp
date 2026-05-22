@@ -17,8 +17,7 @@ namespace rcspp {
 // ValueType is the element type stored in the per-origin neighborhood sets and is fed
 // to ResourceType::set_value. The default matches the element type the resource
 // advertises; override it to point NgPath at an alternative set_value overload.
-template <typename ResourceType,
-          typename ValueType = typename ResourceType::ValueType>
+template <typename ResourceType, typename ValueType = typename ResourceType::ValueType>
 class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<ResourceType, ValueType>,
                                                 ExtensionFunction<ResourceType>> {
     public:

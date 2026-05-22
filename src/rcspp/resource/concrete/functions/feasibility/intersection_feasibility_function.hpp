@@ -24,9 +24,8 @@ class IntersectionFeasibilityFunction
     public:
         explicit IntersectionFeasibilityFunction(
             std::map<size_t, std::set<ValueType>> values_by_node_id, bool forbidden = true)
-            : values_by_node_id_(
-                  std::make_shared<const std::map<size_t, std::set<ValueType>>>(
-                      std::move(values_by_node_id))),
+            : values_by_node_id_(std::make_shared<const std::map<size_t, std::set<ValueType>>>(
+                  std::move(values_by_node_id))),
               forbidden_(forbidden) {}
 
         auto is_feasible(const ContainerResourceType& resource) -> bool override {
