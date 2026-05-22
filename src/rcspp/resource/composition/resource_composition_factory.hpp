@@ -69,7 +69,7 @@ class ResourceCompositionFactory
             auto create_resource_function = [&](auto&& res_comp_vec,
                                                 const auto& res_fac_vec,
                                                 const auto& res_init_vec) {
-                for (int i = 0; i < res_init_vec.size(); i++) {
+                for (size_t i = 0; i < res_init_vec.size(); i++) {
                     res_comp_vec.emplace_back(res_fac_vec.at(i)->create_resource(res_init_vec[i]));
                 }
             };
@@ -87,7 +87,7 @@ class ResourceCompositionFactory
             const Arc<GraphResourceType>& arc) {
             auto create_extender_function =
                 [&](auto& ext_comp_vec, const auto& res_fac_vec, const auto& res_cons_vec) {
-                    for (int i = 0; i < res_fac_vec.size(); i++) {
+                    for (size_t i = 0; i < res_fac_vec.size(); i++) {
                         const auto& res_fac = res_fac_vec[i];
                         const auto& res_cons = res_cons_vec[i];
                         ext_comp_vec.emplace_back(res_fac->create_extender(res_cons, arc));
@@ -152,7 +152,7 @@ class ResourceCompositionFactory
             this->apply(*(this->resource_prototype_),
                         [&](const auto& res_fac_vec, auto& prot_res_comp_vec) {
                             prot_res_comp_vec.clear();
-                            for (int i = 0; i < res_fac_vec.size(); i++) {
+                            for (size_t i = 0; i < res_fac_vec.size(); i++) {
                                 const auto& res_fac = res_fac_vec[i];
                                 prot_res_comp_vec.emplace_back(res_fac->create_resource());
                             }
