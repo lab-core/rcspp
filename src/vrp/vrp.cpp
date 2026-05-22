@@ -442,7 +442,6 @@ void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
     const auto& customers_by_id = instance_.get_customers_by_id();
     size_t sink_id = customers_by_id.size();
 
-    size_t arc_id = 0;
     for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
         for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
             if (!customer_dest.depot && customer_orig_id != customer_dest_id) {
@@ -451,17 +450,9 @@ void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
                                  customer_dest_id,
                                  customer_orig,
                                  customer_dest,
-                                 dual_by_id,
-                                 arc_id);
-                ++arc_id;
+                                 dual_by_id);
             }
         }
-
-        /*if (!customer_orig.depot) {
-          const auto& sink_customer = customers_by_id.at(depot_id_);
-          add_arc_to_graph(graph, customer_orig_id, sink_id, customer_orig,
-        sink_customer, dual_by_id, arc_id); ++arc_id;
-        }*/
 
         const auto& sink_customer = customers_by_id.at(depot_id_);
         add_arc_to_graph(resource_graph,
@@ -469,15 +460,13 @@ void VRP::add_all_arcs_to_graph(RGraph* resource_graph,
                          sink_id,
                          customer_orig,
                          sink_customer,
-                         dual_by_id,
-                         arc_id);
-        ++arc_id;
+                         dual_by_id);
     }
 }
 
 void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size_t customer_dest_id,
                            const Customer& customer_orig, const Customer& customer_dest,
-                           const std::map<size_t, double>* dual_by_id, size_t arc_id) {
+                           const std::map<size_t, double>* dual_by_id) {
     double distance = calculate_distance(customer_orig, customer_dest);
     double customer_pi = 0;
     if (!customer_orig.depot && dual_by_id != nullptr) {
@@ -492,13 +481,6 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    // resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
-    //     {reduced_cost, time, demand, std::set<size_t>{customer_orig_id}},
-    //     customer_orig_id,
-    //     customer_dest_id,
-    //     arc_id,
-    //     distance,
-    //     {Row(customer_orig_id, 1.0)});
     resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
                                                                      customer_orig_id,
                                                                      customer_dest_id,

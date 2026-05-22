@@ -226,8 +226,8 @@ class VRP:
     def solve_subproblem(self, dual_by_id: Optional[dict[int, float]] = None):
         """Update arc reduced costs in-place, then solve.
 
-        The graph is built once in ``__init__``; only extender resource 0
-        (the cost resource) is rewritten each iteration.
+        The graph is built once in ``__init__``; only extender resource 0 (the cost
+        resource) is rewritten each iteration.
         """
         if dual_by_id is not None:
             self.__resource_graph.update_reduced_costs(dual_by_id)

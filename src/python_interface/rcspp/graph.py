@@ -94,8 +94,8 @@ class ResourceGraph:
     def _resolve(fn, canonical_type: str):
         """Instantiate a typed C++ function object if *fn* is a generic descriptor.
 
-        ``canonical_type`` is translated to the C++ prefix via ``CPP_NAME``
-        before the C++ class is looked up.
+        ``canonical_type`` is translated to the C++ prefix via ``CPP_NAME`` before the
+        C++ class is looked up.
         """
         if isinstance(fn, _GenericFunctionDescriptor):
             cpp_type = CPP_NAME.get(canonical_type, canonical_type)
@@ -251,6 +251,8 @@ class ResourceGraph:
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
         """
+        if cost_index < 0:
+            raise ValueError(f"cost_index must be non-negative, got {cost_index}")
         _ext.graph.check_interrupted()
         if params is None:
             params = _ext.graph.AlgorithmParams()
@@ -284,6 +286,8 @@ class ResourceGraph:
                    An empty dict is silently ignored.
             cost_index: Resource slot to update (default 0).
         """
+        if cost_index < 0:
+            raise ValueError(f"cost_index must be non-negative, got {cost_index}")
         self._ensure_graph()
         # The pybind binding only registers update_reduced_costs on graph
         # specialisations that include RealResource (see graph_impl.hpp). Without

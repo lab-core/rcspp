@@ -228,7 +228,7 @@ class VRP {
         static void add_arc_to_graph(RGraph* graph, size_t customer_orig_id,
                                      size_t customer_dest_id, const Customer& customer_orig,
                                      const Customer& customer_dest,
-                                     const std::map<size_t, double>* dual_by_id, size_t arc_id);
+                                     const std::map<size_t, double>* dual_by_id);
 
         [[nodiscard]] static double calculate_distance(const Customer& customer1,
                                                        const Customer& customer2);

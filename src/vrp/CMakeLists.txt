@@ -6,12 +6,22 @@ project(rcspp-vrp LANGUAGES CXX)
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Boost -----------------------------------------------------------------------
-find_package(Boost CONFIG)
+find_package(Boost CONFIG QUIET)
+if(NOT Boost_FOUND)
+  find_package(Boost)  # fall back to module mode (FindBoost.cmake)
+endif()
 if(NOT Boost_FOUND)
   message(STATUS "Boost not found; skipping VRP targets.")
   return()
 endif()
 message(STATUS "Boost found: ${Boost_VERSION}")
+
+# Boost::headers is only defined in CONFIG mode; create a shim in module mode
+# so downstream link/include lines below can use Boost::headers uniformly.
+if(NOT TARGET Boost::headers)
+  add_library(Boost::headers INTERFACE IMPORTED)
+  target_include_directories(Boost::headers INTERFACE ${Boost_INCLUDE_DIRS})
+endif()
 
 # Gurobi ----------------------------------------------------------------------
 set(GUROBI_REQUIRE_CXX ON)

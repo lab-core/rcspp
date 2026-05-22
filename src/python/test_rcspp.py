@@ -85,7 +85,8 @@ def example_real_resource():
 
 
 def example_int_resource():
-    """4-node graph: minimize hops (real cost), hop count constrained by int resource (≤ 2)."""
+    """4-node graph: minimize hops (real cost), hop count constrained by int resource (≤
+    2)."""
     rg = ResourceGraph()
     # Real resource 0: cost (1.0 per arc = hop count), must always be registered first.
     rg.add_real_resource(
@@ -305,7 +306,8 @@ def example_sort_nodes():
 
 
 def example_set_resource():
-    """3-node graph: real cost + int_set resource tracking visited nodes (InclusionDominance)."""
+    """3-node graph: real cost + int_set resource tracking visited nodes
+    (InclusionDominance)."""
     rg = ResourceGraph()
     # real resource 0: accumulated arc cost (optimisation objective)
     rg.add_real_resource(
