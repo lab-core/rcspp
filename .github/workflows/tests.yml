@@ -128,15 +128,11 @@ jobs:
         if: runner.os != 'Windows'
         working-directory: src/python
         run: |
-          python test_rcspp.py
-          python test_rcspp_networkx.py
-          python test_vrp.py
+          python -m pytest -v
 
       - name: Run Python tests (Windows)
         if: runner.os == 'Windows' && matrix.cmake-build-type == 'Release'
         shell: pwsh
         working-directory: src/python
         run: |
-          python test_rcspp.py
-          python test_rcspp_networkx.py
-          python test_vrp.py
+          python -m pytest -v
