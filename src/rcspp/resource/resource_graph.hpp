@@ -256,6 +256,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
+            requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
                                     bool preprocess = true, size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
