@@ -26,6 +26,8 @@ class SizeFeasibilityFunction
                       ? nullptr
                       : std::make_shared<const std::map<size_t, std::pair<size_t, size_t>>>(
                             std::move(min_max_size_by_node_id))),
+              default_min_size_(default_min_size),
+              default_max_size_(default_max_size),
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
@@ -36,6 +38,8 @@ class SizeFeasibilityFunction
             : min_max_size_by_node_id_(
                   std::make_shared<const std::map<size_t, std::pair<size_t, size_t>>>(
                       std::move(min_max_size_by_node_id))),
+              default_min_size_(default_min_size),
+              default_max_size_(default_max_size),
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
@@ -47,6 +51,8 @@ class SizeFeasibilityFunction
     private:
         std::shared_ptr<const std::map<size_t, std::pair<size_t, size_t>>> min_max_size_by_node_id_;
 
+        size_t default_min_size_;
+        size_t default_max_size_;
         size_t min_size_;
         size_t max_size_;
 
@@ -55,10 +61,12 @@ class SizeFeasibilityFunction
                 return;
             }
             auto it = min_max_size_by_node_id_->find(node_id);
-            // if not found, keep previous min_/max_ values
             if (it != min_max_size_by_node_id_->end()) {
                 min_size_ = it->second.first;
                 max_size_ = it->second.second;
+            } else {
+                min_size_ = default_min_size_;
+                max_size_ = default_max_size_;
             }
         }
 };

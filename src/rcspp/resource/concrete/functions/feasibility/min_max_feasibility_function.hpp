@@ -20,7 +20,11 @@ class MinMaxFeasibilityFunction
                       FeasibilityFunction<ResourceType>> {
     public:
         MinMaxFeasibilityFunction(ValueType min, ValueType max, bool merge_by_increasing_value)
-            : min_(min), max_(max), merge_by_increasing_value_(merge_by_increasing_value) {}
+            : default_min_(min),
+              default_max_(max),
+              min_(min),
+              max_(max),
+              merge_by_increasing_value_(merge_by_increasing_value) {}
 
         MinMaxFeasibilityFunction(
             ValueType default_min, ValueType default_max,
@@ -30,6 +34,8 @@ class MinMaxFeasibilityFunction
                       ? nullptr
                       : std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
                             std::move(min_max_by_node_id))),
+              default_min_(default_min),
+              default_max_(default_max),
               min_(default_min),
               max_(default_max) {}
 
@@ -48,6 +54,8 @@ class MinMaxFeasibilityFunction
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
             min_max_by_node_id_;
+        ValueType default_min_{};
+        ValueType default_max_{};
         ValueType min_;
         ValueType max_;
 
@@ -60,10 +68,12 @@ class MinMaxFeasibilityFunction
                 return;
             }
             auto it = min_max_by_node_id_->find(node_id);
-            // if not found, keep previous min_/max_ values
             if (it != min_max_by_node_id_->end()) {
                 min_ = it->second.first;
                 max_ = it->second.second;
+            } else {
+                min_ = default_min_;
+                max_ = default_max_;
             }
         }
 };
