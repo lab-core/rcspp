@@ -1,10 +1,10 @@
 ﻿# Root CMakeLists.txt for rcspp
 
-include(GNUInstallDirs)
-
 cmake_minimum_required(VERSION 3.26)
 
 project(rcspp-lib LANGUAGES CXX)
+
+include(GNUInstallDirs)
 
 option(CXX "enable C++ compilation" ON)
 option(USE_VRP "Enable vrp testing" OFF)
@@ -13,6 +13,10 @@ option(USE_TESTS "Enable tests for RCSPP" ON)
 
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
+endif()
+
+if (POLICY CMP0148)
+  cmake_policy(SET CMP0148 NEW)
 endif()
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
@@ -26,9 +30,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/usr/local/include")
 
 # Clang-Tidy & compile_commands ------------------------------------------------
-set(CMAKE_CXX_CLANG_TIDY
-    "clang-tidy;-config-file=${CMAKE_SOURCE_DIR}/.clang-tidy"
-)
+if(NOT SKBUILD)
+  set(CMAKE_CXX_CLANG_TIDY
+      "clang-tidy;-config-file=${CMAKE_SOURCE_DIR}/.clang-tidy"
+  )
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set global output directories
@@ -51,7 +57,20 @@ endif()
 # Python bindings --------------------------------------------------------------
 if(USE_PYTHON)
   message("Building python wrapper")
-  add_subdirectory(extern/pybind11)
+
+  set(PYBIND11_FINDPYTHON ON)
+  find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+
+  find_package(pybind11 CONFIG QUIET)
+  if(pybind11_FOUND)
+    message(STATUS "Using installed pybind11 package")
+  elseif(EXISTS "${CMAKE_SOURCE_DIR}/extern/pybind11/CMakeLists.txt")
+    message(STATUS "Using vendored pybind11 submodule")
+    add_subdirectory(extern/pybind11)
+  else()
+    message(FATAL_ERROR "pybind11 was not found. Install it in the Python build environment or initialize extern/pybind11.")
+  endif()
+
   add_subdirectory(src/python_interface)
 endif()
 
@@ -70,6 +89,7 @@ endif()
 
 # To install the library -------------------------------------------------------
 # to be used with: cmake --install build --prefix /usr/local (or .)
+if(NOT SKBUILD)
 install(TARGETS rcspp
     EXPORT rcsppTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -89,3 +109,4 @@ install(EXPORT rcsppTargets
     NAMESPACE rcspp::
     DESTINATION lib/cmake/rcspp
 )
+endif()

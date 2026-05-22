@@ -4,7 +4,9 @@
 #pragma once
 
 #include <algorithm>
+#include <limits>
 #include <map>
+#include <memory>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
@@ -19,8 +21,12 @@ class TimeWindowExtensionFunction
                       ExtensionFunction<ResourceType>> {
     public:
         explicit TimeWindowExtensionFunction(
-            const std::map<size_t, std::pair<ValueType, ValueType>>& time_window_by_node_id)
-            : time_window_by_node_id_(time_window_by_node_id) {}
+            std::map<size_t, std::pair<ValueType, ValueType>> time_window_by_node_id,
+            ValueType default_max_time_window = std::numeric_limits<ValueType>::max() / 2)
+            : time_window_by_node_id_(
+                  std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
+                      std::move(time_window_by_node_id))),
+              max_time_window_(default_max_time_window) {}
 
         void extend(const ResourceType& resource, const ResourceType& extender_value,
                     ResourceType* extended_resource) override {
@@ -37,13 +43,20 @@ class TimeWindowExtensionFunction
         }
 
     private:
-        const std::map<size_t, std::pair<ValueType, ValueType>>& time_window_by_node_id_;
+        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
+            time_window_by_node_id_;
         ValueType min_time_window_{0};
-        ValueType max_time_window_{0};
+        ValueType max_time_window_;
 
         void preprocess(size_t origin_id, size_t destination_id) override {
-            min_time_window_ = time_window_by_node_id_.at(destination_id).first;  // extend
-            max_time_window_ = time_window_by_node_id_.at(origin_id).second;      // extend back
+            auto it = time_window_by_node_id_->find(destination_id);
+            if (it != time_window_by_node_id_->end()) {
+                min_time_window_ = it->second.first;
+            }
+            it = time_window_by_node_id_->find(origin_id);
+            if (it != time_window_by_node_id_->end()) {
+                max_time_window_ = it->second.second;
+            }
         }
 };
 }  // namespace rcspp

@@ -1,105 +1,140 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
-from gurobipy import GRB, LinExpr, Model
+import mip
 from vrp.cg.mp_solution import MPSolution
+
+# Probe the best available solver once at import time.
+_SOLVER: str = ""
+
+
+def _probe_solver() -> str:
+    global _SOLVER
+    if _SOLVER:
+        return _SOLVER
+    try:
+        m = mip.Model(solver_name=mip.GRB)
+        m.verbose = 0
+        _SOLVER = mip.GRB
+    except Exception:
+        _SOLVER = mip.CBC
+    print(f"[MasterProblem] solver: {_SOLVER}")
+    return _SOLVER
+
+
+def _make_model(name: str = "") -> mip.Model:
+    m = mip.Model(solver_name=_probe_solver(), name=name)
+    m.verbose = 0
+    return m
 
 
 class MasterProblem:
+    """Set-partitioning master problem for column generation.
+
+    The LP relaxation model is built once from the first call to solve() and
+    kept alive across iterations.  New columns are added in-place via
+    mip.Column (which works correctly after an initial normal build).
+    The final IP solve flips var types to BINARY on the same model.
+
+    Usage:
+        master = MasterProblem(demand_customer_ids)
+        master.add_paths(initial_paths)
+        while not_converged:
+            sol = master.solve(relax=True)   # LP relaxation → duals
+            master.add_paths(new_paths)      # added to model via mip.Column
+        sol = master.solve(relax=False)      # final integer solve
+    """
+
     def __init__(self, node_ids):
-        self.node_ids_ = node_ids
-        self.model_ = Model("master_problem")
+        self.node_ids_ = list(node_ids)
+        # Column cache: (path_id, cost, {node_id: coefficient})
+        self._columns: list[tuple[int, float, dict]] = []
+        self._column_ids: set = set()
+        # Persistent LP model (None until first solve)
+        self._model: mip.Model | None = None
+        self._constrs: dict[int, mip.Constr] = {}
+        self._path_vars: dict[int, mip.Var] = {}
 
-        # Maps
-        self.__path_variables_by_id = {}
-        self.__paths_by_id = {}
-        self.__node_constraints_by_id = {}
-        self.__objective_lin_expr = LinExpr()
-
-    def construct_model(self, paths):
-        self.add_variables(paths)
-        self.add_constraints()
-        self.set_objective()
-        self.model_.update()
-
-    def add_variables(self, paths):
+    def add_paths(self, paths) -> None:
+        """Register new routes; add to model if already built."""
         for path in paths:
-            path_var_name = f"y_{path.id}"
-            path_var = self.model_.addVar(lb=0.0, ub=1.0, vtype=GRB.BINARY, name=path_var_name)
-            self.__path_variables_by_id[path.id] = path_var
-            self.__paths_by_id[path.id] = path
+            if path.id in self._column_ids:
+                continue
+            visit_counts = {}
+            for nid in path.visited_nodes:
+                visit_counts[nid] = visit_counts.get(nid, 0) + 1
+            coeffs = {
+                nid: float(visit_counts[nid]) for nid in self.node_ids_ if nid in visit_counts
+            }
+            self._columns.append((path.id, path.cost, coeffs))
+            self._column_ids.add(path.id)
+            if self._model is not None:
+                self._add_column(path.id, path.cost, coeffs)
 
-    def set_objective(self):
-        self.__objective_lin_expr.clear()
-        total_cost = 0.0
+    def solve(self, relax: bool = False) -> MPSolution:
+        """Optimise the master problem.
 
-        for path_id, path in self.__paths_by_id.items():
-            path_var = self.__path_variables_by_id[path_id]
-            total_cost += path.cost
-            self.__objective_lin_expr += path.cost * path_var
+        Args:
+            relax: True → LP relaxation (returns dual values);
+                   False → integer program (flips var types in-place).
+        """
+        if self._model is None:
+            self._build_model()
+        if not relax:
+            self._set_var_types(mip.BINARY)
+        self._model.optimize()
+        sol = self._extract(dual=relax)
+        if not relax:
+            self._set_var_types(mip.CONTINUOUS)
+        return sol
 
-        self.model_.setObjective(self.__objective_lin_expr)
+    def _build_model(self) -> None:
+        """Build LP model from current column cache using mip.xsum."""
+        m = _make_model("master_problem")
+        for pid, cost, _ in self._columns:
+            self._path_vars[pid] = m.add_var(
+                name=f"y_{pid}", lb=0.0, obj=cost, var_type=mip.CONTINUOUS
+            )
+        for nid in self.node_ids_:
+            terms = [
+                coeffs[nid] * self._path_vars[pid]
+                for pid, _, coeffs in self._columns
+                if nid in coeffs
+            ]
+            self._constrs[nid] = m.add_constr(mip.xsum(terms) == 1.0, name=f"c_{nid}")
+        self._model = m
 
-    def add_constraints(self):
-        for node_id in self.node_ids_:
-            self.add_node_constraint(node_id)
+    def _add_column(self, pid: int, cost: float, coeffs: dict) -> None:
+        """Add one variable to the existing model via mip.Column."""
+        col_constrs = [self._constrs[nid] for nid in self.node_ids_ if nid in coeffs]
+        col_coeffs = [coeffs[nid] for nid in self.node_ids_ if nid in coeffs]
+        self._path_vars[pid] = self._model.add_var(
+            name=f"y_{pid}",
+            lb=0.0,
+            obj=cost,
+            var_type=mip.CONTINUOUS,
+            column=mip.Column(col_constrs, col_coeffs),
+        )
 
-    def add_node_constraint(self, node_id):
-        constr_lin_expr_lhs = LinExpr()
-        constr_lin_expr_rhs = 1.0
+    def _set_var_types(self, var_type: str) -> None:
+        for var in self._path_vars.values():
+            var.var_type = var_type
 
-        for path_id, path in self.__paths_by_id.items():
-            path_var = self.__path_variables_by_id[path_id]
-            path_visits_node = path.visited_nodes.count(node_id)
-            constr_lin_expr_lhs += path_visits_node * path_var
-
-        constr_name = f"c_{node_id}"
-        constr = self.model_.addConstr(constr_lin_expr_lhs == constr_lin_expr_rhs, name=constr_name)
-        self.__node_constraints_by_id[node_id] = constr
-
-    def solve(self, relax=False):
+    def _extract(self, dual: bool) -> MPSolution:
         solution = MPSolution()
+        ok = (mip.OptimizationStatus.OPTIMAL, mip.OptimizationStatus.FEASIBLE)
+        if self._model.status not in ok:
+            print(f"[MasterProblem] no solution (status={self._model.status})")
+            return solution
 
-        if relax:
-            relaxed_model = self.model_.relax()
-            relaxed_model.optimize()
-            solution = self.extract_solution(relaxed_model, dual=True)
-        else:
-            self.model_.optimize()
-            solution = self.extract_solution(self.model_, dual=False)
-
-        return solution
-
-    def extract_solution(self, model, dual=False):
-        model_variables_by_var_name = {v.VarName: v for v in model.getVars()}
-        model_constraints_by_constr_name = {c.ConstrName: c for c in model.getConstrs()}
-
-        value_by_var_id = {}
-        dual_by_var_id = {}
-
-        if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
-            print(f"model.Status={model.Status} vs GRB.OPTIMAL={GRB.OPTIMAL}")
-            # Variable values
-            for path_id, path_var in self.__path_variables_by_id.items():
-                model_path_var = model_variables_by_var_name[
-                    path_var.VarName
-                ]  # Necessary if model is relaxed
-                value_by_var_id[path_id] = model_path_var.X  # .X gives solution value
-
-            # Dual values
-            if dual:
-                for node_id, node_constr in self.__node_constraints_by_id.items():
-                    model_node_constr = model_constraints_by_constr_name[
-                        node_constr.ConstrName
-                    ]  # Necessary if model is relaxed
-                    dual_by_var_id[node_id] = model_node_constr.Pi  # reduced cost / dual val
-
-            cost = model.ObjVal
-
-        solution = MPSolution()
-        solution.value_by_var_id = value_by_var_id
-        solution.dual_by_var_id = dual_by_var_id
-        solution.cost = cost
-
+        solution.cost = self._model.objective_value
         print(f"solution.cost={solution.cost}")
+
+        for path_id, var in self._path_vars.items():
+            solution.value_by_var_id[path_id] = var.x
+
+        if dual:
+            for node_id, constr in self._constrs.items():
+                solution.dual_by_var_id[node_id] = constr.pi
+
         return solution

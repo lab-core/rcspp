@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <list>
@@ -15,6 +16,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -37,12 +39,8 @@ using LabelIteratorPair =
 
 constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
-template <typename LabelContainerType>
-struct AlgorithmParams {
-        explicit AlgorithmParams(LabelContainerType labels = LabelContainerType())
-            : labels(std::move(labels)) {}
-
-        AlgorithmParams& check() {
+struct AlgorithmBaseParams {
+        void check() const {  // NOLINT(readability-make-member-function-const)
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
                 LOG_WARN(
                     "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
@@ -61,7 +59,6 @@ struct AlgorithmParams {
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "stop_after_X_solutions to a lower value.\n");
             }
-            return *this;
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
@@ -80,9 +77,6 @@ struct AlgorithmParams {
         // for using label pool (should normally always be true)
         bool use_pool = true;
 
-        // Container to store labels, could be overridden with Buckets
-        const LabelContainerType labels;
-
         // for truncated labeling
         size_t num_labels_to_extend_by_node = MAX_INT;
 
@@ -93,12 +87,28 @@ struct AlgorithmParams {
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
 
+        // callable returning true if the algorithm should stop early (e.g. SIGINT)
+        std::function<bool()> should_stop;
+
         // for tabu search algorithms
         size_t tabu_tenure = 5;  // NOLINT
         std::set<size_t> forbidden_tabu;
         bool tabu_random_noise = true;
 
         int seed = 0;
+};
+
+template <typename LabelContainerType>
+struct AlgorithmParams : AlgorithmBaseParams {
+        explicit AlgorithmParams(LabelContainerType labels = LabelContainerType())
+            : AlgorithmBaseParams(), labels(std::move(labels)) {}
+
+        explicit AlgorithmParams(AlgorithmBaseParams base_params,
+                                 LabelContainerType labels = LabelContainerType())
+            : AlgorithmBaseParams(std::move(base_params)), labels(std::move(labels)) {}
+
+        // Container to store labels, could be overridden with Buckets
+        const LabelContainerType labels;
 };
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
@@ -109,7 +119,9 @@ class Algorithm {
                   AlgorithmParams<LabelContainerType> params)
             : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
               graph_(nullptr),
-              params_(std::move(params.check())) {}
+              params_(std::move(params)) {
+            params_.check();
+        }
 
         virtual ~Algorithm() = default;
 
@@ -155,6 +167,9 @@ class Algorithm {
 
             size_t num_phases = 0;
             while (solutions_.size() < params_.stop_after_X_solutions && number_of_labels() > 0) {
+                if (is_interrupted()) {
+                    break;
+                }
                 // main labeling loop
                 main_loop();
 
@@ -205,6 +220,10 @@ class Algorithm {
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
 
+        [[nodiscard]] bool is_interrupted() const {
+            return params_.should_stop && params_.should_stop();
+        }
+
     protected:
         bool print_{false};
 
@@ -248,13 +267,31 @@ class Algorithm {
                 return;
             }
 
+            // Build column: sum original arc costs and aggregate constraint coefficients
+            Column column;
+            std::unordered_map<size_t, long double> row_map;
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
-                path_node_ids.push_back(this->graph_->get_arc(arc_id)->origin->id);
+                const auto* arc = this->graph_->get_arc(arc_id);
+                path_node_ids.push_back(arc->origin->id);
+                column.cost += arc->cost;
+                for (const auto& row : arc->dual_rows) {
+                    row_map[row.index] += row.coefficient;
+                }
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
-            auto sol =
-                Solution(end_label.get_cost(), std::move(path_node_ids), std::move(path_arc_ids));
+            column.rows.reserve(row_map.size());
+            for (auto& [idx, coef] : row_map) {
+                column.rows.push_back({idx, coef});
+            }
+            std::sort(column.rows.begin(), column.rows.end(), [](const Row& a, const Row& b) {
+                return a.index < b.index;
+            });
+
+            auto sol = Solution(end_label.get_cost(),
+                                std::move(path_node_ids),
+                                std::move(path_arc_ids),
+                                std::move(column));
 
             // solution already extracted
             if (solutions_.contains(sol)) {

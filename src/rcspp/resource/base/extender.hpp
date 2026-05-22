@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 
@@ -55,5 +56,7 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
                                                    this->value_,
                                                    &extended_resource->get_value());
         }
+
+        [[nodiscard]] std::string to_string() const { return this->value_.to_string(); }
 };
 }  // namespace rcspp

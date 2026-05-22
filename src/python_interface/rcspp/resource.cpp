@@ -5,140 +5,119 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include <memory>
+#include <limits>
+#include <map>
 
-#include "rcspp/resource/composition/resource_composition_factory.hpp"
-#include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/extension/time_window_extension_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
-#include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/concrete/numerical_resource.hpp"
-#include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
-#include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/rcspp.hpp"
+#include "resource_types.hpp"
 
 namespace py = pybind11;
 
 using namespace rcspp;
 
-using ResourceType = ResourceTypeComposition<RealResource>;
-using ResourceCompositionFactoryBase = ResourceCompositionFactory<RealResource>;
-
-using ConcreteResource = Resource<ResourceType>;
-using ConcreteFactory = ResourceFactory<ResourceType>;
-
-using RealResourceFactoryBase = ResourceFactory<RealResource>;
-
-using RealExtensionFunction = ExtensionFunction<RealResource>;
-using RealFeasibilityFunction = FeasibilityFunction<RealResource>;
-using RealCostFunction = CostFunction<RealResource>;
-using RealDominanceFunction = DominanceFunction<RealResource>;
+// ─────────────────────────────────────────────────────────────────────────────
 
 void init_resource(py::module_& m) {
-    // Resources
+    // ── Abstract bases for every resource type ────────────────────────────────
+    // Registered first so derived classes can reference them.
 
-    py::class_<ConcreteResource, py::smart_holder>(m, "ConcreteResource").def(py::init<>());
+#define BIND_ABSTRACT_BASES(name, scalar, RT)                                               \
+    py::class_<ExtensionFunction<RT>, py::smart_holder>(m, "ExtensionFunction_" #name);     \
+    py::class_<FeasibilityFunction<RT>, py::smart_holder>(m, "FeasibilityFunction_" #name); \
+    py::class_<CostFunction<RT>, py::smart_holder>(m, "CostFunction_" #name);               \
+    py::class_<DominanceFunction<RT>, py::smart_holder>(m, "DominanceFunction_" #name);
+    RCSPP_ALL_RESOURCES(BIND_ABSTRACT_BASES)
+#undef BIND_ABSTRACT_BASES
 
-    // Resource factories
+    // ── Concrete functions for numerical resources ────────────────────────────
+    // MapRef_<name> and both time-window classes are included here so they are
+    // automatically registered for every numerical resource type.
 
-    py::class_<ResourceFactory<RealResource>>(m, "RealResourceFactory")
-        .def(py::init<>())
-        .def(py::init<std::unique_ptr<RealExtensionFunction>,
-                      std::unique_ptr<RealFeasibilityFunction>,
-                      std::unique_ptr<RealCostFunction>,
-                      std::unique_ptr<RealDominanceFunction>>(),
-             py::arg("extension_function"),
-             py::arg("feasibility_function"),
-             py::arg("cost_function"),
-             py::arg("dominance_function"))
-        .def(py::init<std::unique_ptr<RealExtensionFunction>,
-                      std::unique_ptr<RealFeasibilityFunction>,
-                      std::unique_ptr<RealCostFunction>,
-                      std::unique_ptr<RealDominanceFunction>,
-                      const RealResource&>(),
-             py::arg("extension_function"),
-             py::arg("feasibility_function"),
-             py::arg("cost_function"),
-             py::arg("dominance_function"),
-             py::arg("real_resource_prototype"));
+    // clang-format off
+#define BIND_NUMERICAL_FUNCTIONS(name, scalar, RT)                                              \
+    py::class_<AdditionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(         \
+        m, "AdditionExtensionFunction_" #name)                                                  \
+        .def(py::init<>());                                                                     \
+    py::class_<ValueCostFunction<RT>, CostFunction<RT>, py::smart_holder>(                      \
+        m, "ValueCostFunction_" #name)                                                          \
+        .def(py::init<>());                                                                     \
+    py::class_<TrivialCostFunction<RT>, CostFunction<RT>, py::smart_holder>(                    \
+        m, "TrivialCostFunction_" #name)                                                        \
+        .def(py::init<>());                                                                     \
+    py::class_<ValueDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(            \
+        m, "ValueDominanceFunction_" #name)                                                     \
+        .def(py::init<>());                                                                     \
+    py::class_<MinMaxFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(       \
+        m, "MinMaxFeasibilityFunction_" #name)                                                  \
+        .def(py::init<scalar, scalar>(), py::arg("min_value"), py::arg("max_value"));           \
+    py::class_<TrivialFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(      \
+        m, "TrivialFeasibilityFunction_" #name)                                                 \
+        .def(py::init<>());                                                                     \
+    py::class_<TimeWindowExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(       \
+        m, "TimeWindowExtensionFunction_" #name)                                                \
+        .def(py::init([](const py::dict& d, scalar default_max_value) {                        \
+                 std::map<size_t, std::pair<scalar, scalar>> map;                               \
+                 for (const auto& [k, v] : d) {                                                 \
+                     auto tup = v.cast<py::tuple>();                                            \
+                     map.emplace(k.cast<size_t>(),                                              \
+                                 std::make_pair(tup[0].cast<scalar>(), tup[1].cast<scalar>())); \
+                 }                                                                               \
+                 return TimeWindowExtensionFunction<RT>(std::move(map), default_max_value);     \
+             }),                                                                                 \
+             py::arg("tw_by_node"),                                                              \
+             py::arg("default_max_value") = std::numeric_limits<scalar>::max() / 2);            \
+    py::class_<TimeWindowFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(   \
+        m, "TimeWindowFeasibilityFunction_" #name)                                              \
+        .def(py::init([](const py::dict& d, scalar default_max_value) {                        \
+                 std::map<size_t, std::pair<scalar, scalar>> map;                               \
+                 for (const auto& [k, v] : d) {                                                 \
+                     auto tup = v.cast<py::tuple>();                                            \
+                     map.emplace(k.cast<size_t>(),                                              \
+                                 std::make_pair(tup[0].cast<scalar>(), tup[1].cast<scalar>())); \
+                 }                                                                               \
+                 return TimeWindowFeasibilityFunction<RT>(std::move(map), default_max_value);   \
+             }),                                                                                 \
+             py::arg("tw_by_node"),                                                              \
+             py::arg("default_max_value") = std::numeric_limits<scalar>::max() / 2);
+    // clang-format on
+    RCSPP_NUMERICAL_RESOURCES(BIND_NUMERICAL_FUNCTIONS)
+#undef BIND_NUMERICAL_FUNCTIONS
 
-    // Resource functions
+    // ── Concrete functions for container resources ────────────────────────────
 
-    // Abstract resource functions
-
-    py::class_<CostFunction<RealResource>, py::smart_holder>(m, "CostFunctionRealResource");
-
-    py::class_<DominanceFunction<RealResource>, py::smart_holder>(m,
-                                                                  "DominanceFunctionRealResource");
-
-    py::class_<ExtensionFunction<RealResource>, py::smart_holder>(m,
-                                                                  "ExtensionFunctionRealResource");
-
-    py::class_<FeasibilityFunction<RealResource>, py::smart_holder>(
-        m,
-        "FeasibilityFunctionRealResource");
-
-    // Concrete resource functions
-
-    py::class_<ValueCostFunction<RealResource>, CostFunction<RealResource>, py::smart_holder>(
-        m,
-        "RealValueCostFunction")
-        .def(py::init<>());
-
-    py::class_<ValueDominanceFunction<RealResource>,
-               DominanceFunction<RealResource>,
-               py::smart_holder>(m, "RealValueDominanceFunction")
-        .def(py::init<>());
-
-    py::class_<AdditionExtensionFunction<RealResource>,
-               ExtensionFunction<RealResource>,
-               py::smart_holder>(m, "RealAdditionExtensionFunction")
-        .def(py::init<>());
-
-    py::class_<MinMaxFeasibilityFunction<RealResource>,
-               FeasibilityFunction<RealResource>,
-               py::smart_holder>(m, "MinMaxFeasibilityFunction")
-        .def(py::init<double, double>());
-
-    static std::map<size_t, std::pair<double, double>> g_e_time_window_by_node_id;
-
-    py::class_<TimeWindowExtensionFunction<RealResource>,
-               ExtensionFunction<RealResource>,
-               py::smart_holder>(m, "TimeWindowExtensionFunction")
-        .def(py::init([](const py::dict& time_window_by_node_id) {
-                 // Copy Python dict into the global map
-                 g_e_time_window_by_node_id.clear();
-                 for (const auto& [node_id, time_pair] : time_window_by_node_id) {
-                     g_e_time_window_by_node_id.emplace(
-                         node_id.cast<size_t>(),
-                         time_pair.cast<std::pair<double, double>>());
-                 }
-                 // Return an object referencing the global map
-                 return TimeWindowExtensionFunction<RealResource>(g_e_time_window_by_node_id);
-             }),
-             py::arg("time_window_by_node_id"));
-
-    static std::map<size_t, std::pair<double, double>> g_f_time_window_by_node_id;
-
-    py::class_<TimeWindowFeasibilityFunction<RealResource>,
-               FeasibilityFunction<RealResource>,
-               py::smart_holder>(m, "TimeWindowFeasibilityFunction")
-        .def(py::init([](const py::dict& max_time_window_by_node_id) {
-                 // Copy Python dict into the global map
-                 g_f_time_window_by_node_id.clear();
-                 for (const auto& [node_id, time_pair] : max_time_window_by_node_id) {
-                     g_f_time_window_by_node_id.emplace(
-                         node_id.cast<size_t>(),
-                         time_pair.cast<std::pair<double, double>>());
-                 }
-                 // Return an object referencing the global map
-                 return TimeWindowFeasibilityFunction<RealResource>(g_f_time_window_by_node_id);
-             }),
-             py::arg("time_window_by_node_id"));
-
-    py::class_<TrivialFeasibilityFunction<RealResource>,
-               FeasibilityFunction<RealResource>,
-               py::smart_holder>(m, "RealTrivialFeasibilityFunction")
-        .def(py::init<>());
+#define BIND_CONTAINER_FUNCTIONS(name, scalar, RT)                                          \
+    py::class_<TrivialCostFunction<RT>, CostFunction<RT>, py::smart_holder>(                \
+        m,                                                                                  \
+        "TrivialCostFunction_" #name)                                                       \
+        .def(py::init<>());                                                                 \
+    py::class_<TrivialFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(  \
+        m,                                                                                  \
+        "TrivialFeasibilityFunction_" #name)                                                \
+        .def(py::init<>());                                                                 \
+    py::class_<InclusionDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(    \
+        m,                                                                                  \
+        "InclusionDominanceFunction_" #name)                                                \
+        .def(py::init<>());                                                                 \
+    py::class_<ContainDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(      \
+        m,                                                                                  \
+        "ContainDominanceFunction_" #name)                                                  \
+        .def(py::init<>());                                                                 \
+    py::class_<UnionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(        \
+        m,                                                                                  \
+        "UnionExtensionFunction_" #name)                                                    \
+        .def(py::init<>());                                                                 \
+    py::class_<IntersectionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>( \
+        m,                                                                                  \
+        "IntersectionExtensionFunction_" #name)                                             \
+        .def(py::init<>());                                                                 \
+    py::class_<SubtractExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(     \
+        m,                                                                                  \
+        "SubtractExtensionFunction_" #name)                                                 \
+        .def(py::init<>());                                                                 \
+    py::class_<SizeFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(     \
+        m,                                                                                  \
+        "SizeFeasibilityFunction_" #name)                                                   \
+        .def(py::init<size_t, size_t>(), py::arg("min_size"), py::arg("max_size"));
+    RCSPP_CONTAINER_RESOURCES(BIND_CONTAINER_FUNCTIONS)
+#undef BIND_CONTAINER_FUNCTIONS
 }

@@ -140,14 +140,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         Arc<ResourceCompositionType>& add_arc(
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
-            size_t origin_node_id, size_t destination_node_id,
-            std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
-            std::vector<Row> dual_rows = {}) {
+            size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
+            std::vector<Row> dual_rows = {}, std::optional<size_t> arc_id = std::nullopt) {
             auto& arc = Graph<ResourceCompositionType>::add_arc(origin_node_id,
                                                                 destination_node_id,
-                                                                arc_id,
                                                                 cost,
-                                                                dual_rows);
+                                                                dual_rows,
+                                                                arc_id);
 
             auto extender = resource_factory_.create_extender(resource_consumption, arc);
             arc.extender = std::move(extender);
@@ -158,9 +157,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         Arc<ResourceCompositionType>& add_arc(
             const std::tuple<ComponentInitializerTypeTuple_t<ExtenderResourceTypes>...>&
                 extender_resource_consumption,
-            size_t origin_node_id, size_t destination_node_id,
-            std::optional<size_t> arc_id = std::nullopt, double cost = 0.0,
-            std::vector<Row> dual_rows = {}) {
+            size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
+            std::vector<Row> dual_rows = {}, std::optional<size_t> arc_id = std::nullopt) {
             // build the full resource consumption tuple from the extender resource consumption
             std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
@@ -181,9 +179,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return add_arc(resource_consumption,
                            origin_node_id,
                            destination_node_id,
-                           arc_id,
                            cost,
-                           dual_rows);
+                           dual_rows,
+                           arc_id);
         }
 
         ResourceCompositionFactory<ResourceTypes...>& get_resource_factory() {
@@ -224,6 +222,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         // sort nodes by connectivity, break cycles on cost
         template <template <typename, typename...> class SortType = ShortestPathConnectivitySort,
                   typename CostResourceType = RealResource>
+            requires is_numerical_resource_v<CostResourceType>
         void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,
                                                               &connectivityMatrix_,
@@ -243,10 +242,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
+            requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
-            bool preprocess = true, int cost_index = 0) {
+            bool preprocess = true, size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
                                                                                  params);
             return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
@@ -256,8 +256,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
+            requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
-                                    bool preprocess = true, int cost_index = 0) {
+                                    bool preprocess = true, size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
                                                                                  params);
             return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
@@ -268,9 +269,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         }
 
         template <typename AlgorithmType, typename CostResourceType = RealResource>
-        std::vector<Solution> solve(AlgorithmType* algorithm,
-                                    double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, int cost_index = 0) {
+            requires is_numerical_resource_v<CostResourceType>
+        std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
+            AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
+            bool preprocess = true, size_t cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -294,20 +296,49 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                     connectivityMatrix_.compute_bitmatrix();
                 }
 
-                // if not sorted, use default sort by connectivity
-                if (!this->are_nodes_sorted()) {
-                    this->sort_nodes_by_connectivity();
-                }
+                // shortest-path preprocessing requires a numerical cost resource in the pack.
+                // Use ComponentTypeIndex<...>::value rather than the _v alias: the _v alias is
+                // a constrained variable template that is undeclared when the type isn't in the
+                // pack, which would make this condition ill-formed (even inside if constexpr).
+                if constexpr (is_numerical_resource_v<CostResourceType> &&
+                              ComponentTypeIndex<CostResourceType, ResourceTypes...>::value != -1) {
+                    // check if the cost index is correct (size_t -> no negative case)
+                    if (cost_index >=
+                        resource_factory_.template get_num_resource_type<CostResourceType>()) {
+                        // check if not the default value
+                        if (cost_index > 0) {
+                            LOG_WARN(
+                                "ResourceGraph::solve: cost_index is out of bounds for the number "
+                                "of extender components of the cost resource. ",
+                                cost_index,
+                                " for a length of ",
+                                resource_factory_
+                                    .template get_num_resource_type<CostResourceType>());
+                        }
+                    } else {
+                        // if not sorted, use default sort by connectivity. Forward
+                        // cost_index so the sort's Bellman-Ford distances read the same
+                        // extender cost component the preprocessor (and the labeling
+                        // algorithm) will use. Without this, the sort silently falls back
+                        // to arc.cost and can disagree with the preprocessor whenever the
+                        // chosen cost slot differs from the base arc cost -- e.g. after
+                        // update_reduced_costs has rewritten extender slot cost_index.
+                        if (!this->are_nodes_sorted()) {
+                            this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
+                                                                      CostResourceType>(cost_index);
+                        }
 
-                // remove some arcs before solving the problem
-                // the deleted arcs will be restored after the solve
-                auto preprocessor =
-                    std::make_unique<ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
-                        this,
-                        upper_bound,
-                        cost_index);
-                preprocessor->preprocess();
-                preprocessors.emplace_back(std::move(preprocessor));
+                        // remove some arcs before solving the problem
+                        // the deleted arcs will be restored after the solve
+                        auto preprocessor = std::make_unique<
+                            ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
+                            this,
+                            upper_bound,
+                            cost_index);
+                        preprocessor->preprocess();
+                        preprocessors.emplace_back(std::move(preprocessor));
+                    }
+                }
             }
 
             // if not sorted, use default sort (by id)
@@ -345,12 +376,42 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return connectivityMatrix_.is_connected(origin_node_id, destination_node_id);
         }
 
+        // Constrained to RealResource on purpose. The body computes the reduced cost as a
+        // double (LP duals are inherently fractional) and feeds it to
+        // update_arc<CostResourceType>(...), which forwards into a tuple whose element
+        // type is CostResourceType::ValueType. For an integral cost (e.g. IntResource) the
+        // double -> int conversion would silently truncate, dropping fractional reduced
+        // costs and -- critically for column generation -- collapsing reduced costs in
+        // (-1, 0) to 0, hiding improving columns from pricing. For UIntResource the
+        // negative-to-unsigned conversion is implementation-defined and usually wraps to
+        // huge positive numbers, which is even worse. If integer-cost reduced-cost
+        // updates ever become a real use case, add a separate function with an explicit
+        // scaling/rounding policy rather than relaxing this constraint.
         template <typename CostResourceType = RealResource>
+            requires std::is_same_v<CostResourceType, RealResource>
         void update_reduced_costs(const std::vector<double>& duals, size_t cost_index = 0) {
+            // Bounds-check cost_index once, up front. Without this, an out-of-range
+            // cost_index would throw std::out_of_range from inside the factory's
+            // get_component<I>(index).at() call on the first arc processed, leaving
+            // the graph in an inconsistent state (some arcs updated, others not).
+            const auto cost_len =
+                resource_factory_.template get_num_resource_type<CostResourceType>();
+            if (cost_index >= cost_len) {
+                LOG_WARN("ResourceGraph::update_reduced_costs: cost_index ",
+                         cost_index,
+                         " is out of bounds for the cost resource (",
+                         cost_len,
+                         " component(s)). No arcs updated.");
+                return;
+            }
+
             for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
                 double reduced_cost = arc_ptr->cost;
                 for (const auto& dual_row : arc_ptr->dual_rows) {
-                    const auto dual_value = duals.at(dual_row.index);
+                    // Out-of-range indices are treated as 0 so callers can pass a sparse
+                    // (or empty) duals vector without sizing it to cover every arc.
+                    const auto dual_value =
+                        (dual_row.index < duals.size()) ? duals[dual_row.index] : 0.0;
 
                     reduced_cost -= dual_row.coefficient * dual_value;
                 }

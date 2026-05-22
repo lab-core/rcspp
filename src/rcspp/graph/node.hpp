@@ -5,6 +5,8 @@
 
 #include <concepts>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -59,6 +61,9 @@ class Node {
                 ss << ", sink";
             }
             ss << ")\n";
+            if (resource) {
+                ss << "    resource: [" << resource->to_string() << "]\n";
+            }
             ss << "    predecessors: [";
             for (const auto* arc : in_arcs) {
                 ss << arc->origin->id << " ";

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <set>
 #include <type_traits>
 #include <utility>
@@ -19,10 +20,11 @@ class ReachableFeasibilityFunction
     : public Clonable<ReachableFeasibilityFunction<ContainerResourceType>,
                       FeasibilityFunction<ContainerResourceType>> {
     public:
-        explicit ReachableFeasibilityFunction(const ContainerResourceType* checked_nodes)
-            : checked_nodes_(checked_nodes) {}
+        explicit ReachableFeasibilityFunction(ContainerResourceType checked_nodes)
+            : checked_nodes_(
+                  std::make_shared<const ContainerResourceType>(std::move(checked_nodes))) {}
 
-        auto is_feasible(const Resource<ContainerResourceType>& resource) -> bool override {
+        auto is_feasible(const ContainerResourceType& /*resource*/) -> bool override {
             return true;
         }
 
@@ -34,6 +36,6 @@ class ReachableFeasibilityFunction
         }
 
     private:
-        const ContainerResourceType* const checked_nodes_;
+        std::shared_ptr<const ContainerResourceType> checked_nodes_;
 };
 }  // namespace rcspp

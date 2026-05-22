@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <unordered_map>
 #include <utility>
 
@@ -12,6 +13,7 @@
 
 namespace rcspp {
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
+    requires is_numerical_resource_v<CostResourceType>
 class ShortestPathConnectivitySort {
     private:
         struct DirectArcKeyHash {

@@ -12,10 +12,12 @@
 #include "rcspp/preprocessor/preprocessor.hpp"
 #include "rcspp/resource/composition/extender_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
+    requires is_numerical_resource_v<CostResourceType>
 class ShortestPathPreprocessor final
     : public Preprocessor<ResourceTypeComposition<ResourceTypes...>> {
     public:

@@ -12,12 +12,14 @@ template <typename ResourceType>
 class ContainDominanceFunction
     : public Clonable<ContainDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
     public:
-        auto check_dominance(const Resource<ResourceType>& lhs_resource,
-                             const Resource<ResourceType>& rhs_resource) -> bool override {
+        // clang-format off
+        auto check_dominance(const ResourceType& lhs_resource, const ResourceType& rhs_resource)
+            -> bool override {
             // lhs_resource dominates rhs_resource if lhs_resource <= rhs_resource
             // i.e., if lhs_resource contains rhs_resource
             return lhs_resource.includes(rhs_resource.get_value());
         }
+        // clang-format on
 
         // clang-format off
         auto fast_check_dominance(const ResourceType& lhs_resource,
