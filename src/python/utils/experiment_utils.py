@@ -85,7 +85,7 @@ def vrp_instance(instance: Instance, smoothing=None, save=False, dir="", verbose
     return vrp, solution, solution_dict
 
 
-def _aggregate_dicts(dict_list: list[dict], agg_fn: Callable, initial) -> dict:
+def _aggregate_dicts(dict_list: list[dict], agg_fn: Callable) -> dict:
     if not dict_list:
         return {}
     all_keys = set().union(*dict_list)

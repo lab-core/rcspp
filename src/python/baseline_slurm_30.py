@@ -60,7 +60,7 @@ for i in range(task_number):
 
     reader = InstanceReader(f"{dataset_dir}Instances/{Itype}/{instance_name}.txt")
     instance = reader.read()
-    baseline(instance, dataset_dir, verbose=verbose)
+    baseline(instance, dataset_dir, verbose)
 
     instance_index += 1
    
