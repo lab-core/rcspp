@@ -246,7 +246,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         std::vector<Solution> solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
-            bool preprocess = true, int cost_index = 0) {
+            bool preprocess = true, size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
                                                                                  params);
             return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
@@ -257,7 +257,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
         std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
-                                    bool preprocess = true, int cost_index = 0) {
+                                    bool preprocess = true, size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
                                                                                  params);
             return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
@@ -271,7 +271,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
             AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
-            bool preprocess = true, int cost_index = 0) {
+            bool preprocess = true, size_t cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
@@ -302,12 +302,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 if constexpr (is_numerical_resource_v<CostResourceType> &&
                               ComponentTypeIndex<CostResourceType, ResourceTypes...>::value
                                   != -1) {
-                    // check if the cost index is correct
-                    if (cost_index < 0) {
-                        LOG_WARN("ResourceGraph::solve: cost_index cannot be negative.");
-                    } else if (cost_index >=
-                               resource_factory_
-                                   .template get_num_resource_type<CostResourceType>()) {
+                    // check if the cost index is correct (size_t -> no negative case)
+                    if (cost_index >=
+                        resource_factory_
+                            .template get_num_resource_type<CostResourceType>()) {
                         // check if not the default value
                         if (cost_index > 0) {
                             LOG_WARN(
@@ -328,8 +326,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                         // update_reduced_costs has rewritten extender slot cost_index.
                         if (!this->are_nodes_sorted()) {
                             this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
-                                                                      CostResourceType>(
-                                static_cast<size_t>(cost_index));
+                                                                      CostResourceType>(cost_index);
                         }
 
                         // remove some arcs before solving the problem

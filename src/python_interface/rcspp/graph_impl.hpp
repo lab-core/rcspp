@@ -103,7 +103,7 @@ struct AlgoEntry {
         static constexpr SolverAlgorithm value = E;
         template <typename RG, typename CostRC, typename LC>
         static std::vector<Solution> run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre,
-                                         int ci) {
+                                         size_t ci) {
             return rg.template solve<Algo, CostRC, LC>(ub, std::move(p), pre, ci);
         }
 };
@@ -115,7 +115,7 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub,
-                                              AlgorithmParams<LC> p, bool pre, int ci,
+                                              AlgorithmParams<LC> p, bool pre, size_t ci,
                                               std::tuple<Entries...>* /*tag*/) {
     std::vector<Solution> result;
     [[maybe_unused]] bool matched =
@@ -128,7 +128,7 @@ std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, doubl
 
 template <typename RG, typename CostRC, typename LC>
 std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub,
-                                         AlgorithmParams<LC> p, bool pre, int ci) {
+                                         AlgorithmParams<LC> p, bool pre, size_t ci) {
     p.should_stop = &ActiveCall::is_interrupted;
     return dispatch_algorithm_impl<RG, CostRC, LC>(alg,
                                                    rg,
@@ -198,7 +198,7 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
 
 template <typename RG, typename RC, typename CostRC, typename... ResourceTypes>
 std::vector<Solution> run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
-                                       const PyBucketAlgorithmParams& py_p, bool pre, int ci) {
+                                       const PyBucketAlgorithmParams& py_p, bool pre, size_t ci) {
     auto check_index = [&](const char* param, size_t idx, size_t count) {
         if (idx >= count) {
             throw py::value_error(std::string(param) + " " + std::to_string(idx) +
@@ -331,7 +331,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                double ub,
                const PyBucketAlgorithmParams& py_p,
                bool pre,
-               int ci) -> std::vector<Solution> {
+               size_t ci) -> std::vector<Solution> {
                 return ActiveCall::run_interruptible([&] {
                     return run_bucket_solve<RG, RC, CostRC, ResourceTypes...>(alg,
                                                                               rg,
@@ -353,7 +353,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                double ub,
                const PyAlgorithmParams& py_p,
                bool pre,
-               int ci) -> std::vector<Solution> {
+               size_t ci) -> std::vector<Solution> {
                 using LC = LabelList<RC>;
                 auto p = py_p.template to_params<LC>();
                 return ActiveCall::run_interruptible(
