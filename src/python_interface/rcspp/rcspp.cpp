@@ -11,6 +11,7 @@ namespace py = pybind11;
 
 void init_graph(py::module_&);
 void init_resource(py::module_&);
+void init_solution_pool(py::module_&);
 void init_sigint_handler();
 
 PYBIND11_MODULE(_core, m) {
@@ -25,6 +26,9 @@ PYBIND11_MODULE(_core, m) {
 
     auto resource_submodule = m.def_submodule("resource", "Resource-related classes");
     init_resource(resource_submodule);
+
+    auto solution_pool_submodule = m.def_submodule("solution_pool", "Solution pool classes");
+    init_solution_pool(solution_pool_submodule);
 
     auto logger_submodule = m.def_submodule("logger", "Logging control");
 

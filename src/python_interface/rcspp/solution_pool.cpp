@@ -3,9 +3,17 @@
 
 // graph_impl.hpp defines PYBIND11_USE_SMART_HOLDER_AS_DEFAULT before the pybind11 includes.
 
+#define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 #include "rcspp/rcspp.hpp"
 
-void init_resource(py::module_& m) {
+namespace py = pybind11;
+
+using namespace rcspp;
+
+void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognitive-complexity)
     // ColumnActivity is stored per-entry in SolutionPool and updated on every price() call.
     // usage_rate(current_pricing_count) returns use_count / (current - created_at).
     py::class_<ColumnActivity>(m, "ColumnActivity")
