@@ -504,6 +504,9 @@ class ResourceGraph:
             dual_rows = data.get("dual_rows", [])
             self.add_arc(resource_init, int(u), int(v), cost, dual_rows, arc_id)
 
+        # Update the graph once everything is buffered
+        self.update()
+
 
 # ── Generate add_<type>_resource methods ─────────────────────────────────────
 
