@@ -37,6 +37,9 @@ class Graph {
             bool clone_removed_arcs = false) const {
             auto new_graph = std::make_unique<Graph<ResourceType>>();
 
+            // reserve the right size
+            new_graph->reserve(get_nodes_size(), get_arcs_size());
+
             // copy nodes
             for (const auto& [node_id, node_ptr] : nodes_by_id_) {
                 auto& node = new_graph->add_node(node_id, node_ptr->source, node_ptr->sink);
@@ -233,7 +236,7 @@ class Graph {
             return ids;
         }
 
-        [[nodiscard]] size_t get_arcs_size() const { return nodes_by_id_.size(); }
+        [[nodiscard]] size_t get_arcs_size() const { return arcs_by_id_.size(); }
 
         [[nodiscard]] std::vector<size_t> get_removed_arc_ids() const {
             std::vector<size_t> ids;
@@ -318,24 +321,19 @@ class Graph {
                 return;
             }
 
-            // sort nodes by id if not already sorted
-            if (!are_nodes_sorted()) {
-                sort_nodes();
-            }
-
             csr_out_arcs_.clear();
             csr_in_arcs_.clear();
 
             size_t total_out = 0;
             size_t total_in = 0;
-            for (const auto* node : sorted_nodes_) {
+            for (const auto& [id, node] : nodes_by_id_) {
                 total_out += node->out_arcs.size();
                 total_in += node->in_arcs.size();
             }
             csr_out_arcs_.reserve(total_out);
             csr_in_arcs_.reserve(total_in);
 
-            for (auto* node : sorted_nodes_) {
+            for (auto& [id, node] : nodes_by_id_) {
                 node->csr_out_start_ = csr_out_arcs_.size();
                 for (auto* arc : node->out_arcs) {
                     csr_out_arcs_.push_back(arc);
