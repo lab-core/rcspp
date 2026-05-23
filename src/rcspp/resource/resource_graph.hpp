@@ -346,6 +346,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 this->sort_nodes();
             }
 
+            // ensure CSR is up-to-date (preprocessing may have removed arcs after sort)
+            // Also ensure that the arcs are sorted, use default sort (by id)
+            this->build_csr();
+
             // solve the rcspp
             std::vector<Solution> sols = algorithm->solve(this, upper_bound);
 

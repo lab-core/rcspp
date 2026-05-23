@@ -1,2 +1,3 @@
 mip
 networkx
+numpy

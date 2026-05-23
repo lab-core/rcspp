@@ -83,7 +83,7 @@ class BellmanFordAlgorithm {
             }
 
             // Relax arcs |N|-1 times, on |N| iteration -> check for negative-weight cycles
-            const size_t nodes_size = graph_.get_node_ids().size();
+            const size_t nodes_size = graph_.get_nodes_size();
             for (size_t i = 0; i < nodes_size; ++i) {
                 bool modified = false;
                 bool last_iteration = (i == nodes_size - 1);
