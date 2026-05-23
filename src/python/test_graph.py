@@ -216,6 +216,88 @@ def test_update_reduced_costs_numpy_1d():
     ), f"Expected 19.0, got {sols[0].cost}"
 
 
+# ── remove_arcs / restore_arcs bulk tests ────────────────────────────────────
+
+
+def test_remove_arcs_list():
+    """remove_arcs(list) removes exactly the requested arcs."""
+    rg = make_diamond()
+
+    removed = rg.remove_arcs([0, 2])
+
+    assert sorted(removed) == [0, 2]
+    assert rg.get_arc(0) is None
+    assert rg.get_arc(2) is None
+    assert rg.get_arc(1) is not None
+    assert rg.number_of_arcs() == 1
+
+
+def test_remove_arcs_numpy():
+    """remove_arcs(np.array) produces the same result as the list overload."""
+    rg = make_diamond()
+
+    removed = rg.remove_arcs(np.array([0, 2], dtype=np.intp))
+
+    assert sorted(removed) == [0, 2]
+    assert rg.number_of_arcs() == 1
+
+
+def test_remove_arcs_skips_missing():
+    """remove_arcs silently ignores ids not present in the graph."""
+    rg = make_diamond()
+
+    removed = rg.remove_arcs([0, 99])
+
+    assert removed == [0]
+    assert rg.number_of_arcs() == 2
+
+
+def test_restore_arcs_list():
+    """restore_arcs(list) restores exactly the requested arcs."""
+    rg = make_diamond()
+    rg.remove_arcs([0, 2])
+
+    restored = rg.restore_arcs([0, 2])
+
+    assert sorted(restored) == [0, 2]
+    assert rg.number_of_arcs() == 3
+
+
+def test_restore_arcs_numpy():
+    """restore_arcs(np.array) produces the same result as the list overload."""
+    rg = make_diamond()
+    rg.remove_arcs([0, 2])
+
+    restored = rg.restore_arcs(np.array([0, 2], dtype=np.intp))
+
+    assert sorted(restored) == [0, 2]
+    assert rg.number_of_arcs() == 3
+
+
+def test_restore_arcs_skips_missing():
+    """restore_arcs silently ignores ids not in the removed-arc pool."""
+    rg = make_diamond()
+    rg.remove_arcs([1])
+
+    restored = rg.restore_arcs([1, 99])
+
+    assert restored == [1]
+
+
+def test_remove_restore_arcs_roundtrip():
+    """Bulk remove then bulk restore leaves the graph identical."""
+    rg = make_diamond()
+    ids = [0, 1, 2]
+
+    rg.remove_arcs(ids)
+    assert rg.number_of_arcs() == 0
+
+    rg.restore_arcs(ids)
+    assert rg.number_of_arcs() == 3
+    for arc_id in ids:
+        assert rg.get_arc(arc_id) is not None
+
+
 def test_update_reduced_costs_numpy_matches_list():
     """Numpy array and plain list produce identical reduced costs."""
     rg_np = _make_rg_with_dual_rows()

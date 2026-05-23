@@ -316,6 +316,14 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
                     [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
             py::arg("pred"))
+        .def("remove_arcs",
+             static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::remove_arcs),
+             py::arg("arc_ids"),
+             py::call_guard<py::gil_scoped_release>())
+        .def("restore_arcs",
+             static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::restore_arcs),
+             py::arg("arc_ids"),
+             py::call_guard<py::gil_scoped_release>())
         .def("force_arc",
              static_cast<std::vector<size_t> (G::*)(size_t)>(&G::force_arc),
              py::arg("arc_id"),

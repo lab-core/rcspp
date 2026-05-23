@@ -143,6 +143,30 @@ class Graph {
 
         virtual bool remove_arc(const Arc<ResourceType>& arc) { return remove_arc(arc.id); }
 
+        // Remove a batch of arcs by id. Returns the ids that were actually removed.
+        std::vector<size_t> remove_arcs(const std::vector<size_t>& arc_ids) {
+            std::vector<size_t> removed;
+            removed.reserve(arc_ids.size());
+            for (size_t id : arc_ids) {
+                if (remove_arc(id)) {
+                    removed.push_back(id);
+                }
+            }
+            return removed;
+        }
+
+        // Restore a batch of arcs by id. Returns the ids that were actually restored.
+        std::vector<size_t> restore_arcs(const std::vector<size_t>& arc_ids) {
+            std::vector<size_t> restored;
+            restored.reserve(arc_ids.size());
+            for (size_t id : arc_ids) {
+                if (restore_arc(id)) {
+                    restored.push_back(id);
+                }
+            }
+            return restored;
+        }
+
         // Force an arc: remove all other out-arcs from its origin and all other
         // in-arcs to its destination, keeping only this arc active on both ends.
         // Returns the ids of the arcs that were removed.

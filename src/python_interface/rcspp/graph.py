@@ -269,6 +269,36 @@ class ResourceGraph:
             )
         )
 
+    def remove_arcs(self, arc_ids):
+        """Remove a batch of arcs by id.
+
+        Args:
+            arc_ids: list of arc ids **or** a 1-D numpy integer array.
+
+        Returns:
+            List of ids that were actually removed (ids not found in the graph
+            are silently skipped).
+        """
+        self._flush()
+        if hasattr(arc_ids, "tolist"):
+            arc_ids = arc_ids.tolist()
+        return self._graph.remove_arcs(arc_ids)
+
+    def restore_arcs(self, arc_ids):
+        """Restore a batch of previously removed arcs by id.
+
+        Args:
+            arc_ids: list of arc ids **or** a 1-D numpy integer array.
+
+        Returns:
+            List of ids that were actually restored (ids not in the removed-arc
+            pool are silently skipped).
+        """
+        self._flush()
+        if hasattr(arc_ids, "tolist"):
+            arc_ids = arc_ids.tolist()
+        return self._graph.restore_arcs(arc_ids)
+
     def update(self):
         """Flush all buffered nodes and arcs to the C++ graph.
 
