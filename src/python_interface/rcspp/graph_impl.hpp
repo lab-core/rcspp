@@ -315,7 +315,18 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
                 return g.restore_arcs_if(
                     [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
-            py::arg("pred"));
+            py::arg("pred"))
+        .def("force_arc",
+             static_cast<std::vector<size_t> (G::*)(size_t)>(&G::force_arc),
+             py::arg("arc_id"),
+             "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
+             "destination. Returns the ids of the removed arcs.")
+        .def(
+            "force_arc",
+            [](G& g, ArcType* arc) { return g.force_arc(*arc); },
+            py::arg("arc"),
+            "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
+            "destination. Returns the ids of the removed arcs.");
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────

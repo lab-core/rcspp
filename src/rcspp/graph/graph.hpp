@@ -143,6 +143,40 @@ class Graph {
 
         virtual bool remove_arc(const Arc<ResourceType>& arc) { return remove_arc(arc.id); }
 
+        // Force an arc: remove all other out-arcs from its origin and all other
+        // in-arcs to its destination, keeping only this arc active on both ends.
+        // Returns the ids of the arcs that were removed.
+        std::vector<size_t> force_arc(size_t arc_id) {
+            auto it = arcs_by_id_.find(arc_id);
+            if (it == arcs_by_id_.end()) {
+                return {};
+            }
+            Arc<ResourceType>& arc = *it->second;
+
+            std::vector<size_t> to_remove;
+            for (auto* a : arc.origin->out_arcs) {
+                if (a->id != arc_id) {
+                    to_remove.push_back(a->id);
+                }
+            }
+            for (auto* a : arc.destination->in_arcs) {
+                if (a->id != arc_id) {
+                    to_remove.push_back(a->id);
+                }
+            }
+
+            // deduplicate (an arc from origin→destination would appear in both lists)
+            std::ranges::sort(to_remove);
+            to_remove.erase(std::ranges::unique(to_remove).begin(), to_remove.end());
+
+            for (size_t id : to_remove) {
+                remove_arc(id);
+            }
+            return to_remove;
+        }
+
+        std::vector<size_t> force_arc(const Arc<ResourceType>& arc) { return force_arc(arc.id); }
+
         template <typename C>
         std::vector<size_t> remove_arcs_if(C check) {
             std::vector<size_t> deleted_arc_ids;
