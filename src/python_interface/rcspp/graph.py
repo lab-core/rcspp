@@ -421,7 +421,7 @@ class ResourceGraph:
             max_idx = max(duals.keys())
             duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
         else:
-            duals_list = list(duals)
+            duals_list = duals.tolist() if hasattr(duals, "tolist") else list(duals)
         self._graph.update_reduced_costs(duals_list, cost_index)
 
     # ── String representation ─────────────────────────────────────────────────

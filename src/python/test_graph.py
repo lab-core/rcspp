@@ -5,6 +5,8 @@ import math
 import os
 import sys
 
+import numpy as np
+
 relative_path = "../python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
 
@@ -171,3 +173,61 @@ def test_force_arc_solve_uses_forced_path():
         sols[0].cost, 4.0, abs_tol=1e-6
     ), f"Expected cost 4.0 after forcing arc 2, got {sols[0].cost}"
     assert sols[0].path_node_ids == [0, 1, 2]
+
+
+# ── update_reduced_costs numpy tests ──────────────────────────────────────────
+
+
+def _make_rg_with_dual_rows():
+    """2-arc graph where arc costs are set via dual rows.
+
+    Arc 0 (0→1): base cost=10, dual_row index=0 coef=1  → reduced = 10 - duals[0]
+    Arc 1 (1→2): base cost=20, dual_row index=1 coef=2  → reduced = 20 - 2*duals[1]
+    """
+    from rcspp.graph import Row
+
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        MinMaxFeasibilityFunction(0.0, 100.0),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=10.0, dual_rows=[Row(0, 1.0)], arc_id=0)
+    rg.add_arc(1.0, 1, 2, cost=20.0, dual_rows=[Row(1, 2.0)], arc_id=1)
+    rg.update()
+    return rg
+
+
+def test_update_reduced_costs_numpy_1d():
+    """update_reduced_costs accepts a 1-D numpy array and applies it correctly."""
+    rg = _make_rg_with_dual_rows()
+    duals = np.array([3.0, 4.0])  # reduced: arc0 = 10-3=7, arc1 = 20-8=12
+
+    rg.update_reduced_costs(duals)
+    sols = rg.solve(preprocess=False)
+
+    assert len(sols) >= 1
+    assert math.isclose(
+        sols[0].cost, 7.0 + 12.0, abs_tol=1e-6
+    ), f"Expected 19.0, got {sols[0].cost}"
+
+
+def test_update_reduced_costs_numpy_matches_list():
+    """Numpy array and plain list produce identical reduced costs."""
+    rg_np = _make_rg_with_dual_rows()
+    rg_list = _make_rg_with_dual_rows()
+    duals_list = [5.0, 3.0]
+    duals_np = np.array(duals_list)
+
+    rg_np.update_reduced_costs(duals_np)
+    rg_list.update_reduced_costs(duals_list)
+
+    sols_np = rg_np.solve(preprocess=False)
+    sols_list = rg_list.solve(preprocess=False)
+
+    assert len(sols_np) >= 1 and len(sols_list) >= 1
+    assert math.isclose(sols_np[0].cost, sols_list[0].cost, abs_tol=1e-9)
