@@ -95,6 +95,7 @@ class ResourceGraph:
         # Buffers for deferred node/arc insertion
         self._node_buffer: list = []  # list of (id, source, sink)
         self._arc_buffer: list = []  # list of (raw_consumption, origin, dest, cost, rows)
+        self._rows_buffer: list = []  # list of (arc_id, row_index, coeff) triples
         self._reserve_hint: tuple[int, int] = (0, 0)  # (n_nodes, n_arcs) hint from reserve()
         self._next_arc_id: int = 0  # mirrors C++ next_arc_id_; returned by add_arc
         if nx_graph is not None:
@@ -176,7 +177,7 @@ class ResourceGraph:
         are allocated in a single shot instead of rehashing on every insert.
         """
         self._ensure_graph()
-        if not self._node_buffer and not self._arc_buffer:
+        if not self._node_buffer and not self._arc_buffer and not self._rows_buffer:
             return
         n_nodes = max(self._reserve_hint[0], self._graph.number_of_nodes() + len(self._node_buffer))
         n_arcs = max(self._reserve_hint[1], self._graph.number_of_arcs() + len(self._arc_buffer))
@@ -195,6 +196,12 @@ class ResourceGraph:
                 all_dual_rows.append(dual_rows)
             self._arc_buffer.clear()
             self._graph._add_arcs_bulk(consumptions, origins, dests, costs, all_dual_rows)
+        if self._rows_buffer:
+            import numpy as np
+
+            arr = np.array(self._rows_buffer, dtype=np.float64)
+            self._graph._add_rows_bulk(arr)
+            self._rows_buffer.clear()
 
     # ── Normalisation helper ──────────────────────────────────────────────────
 
@@ -231,6 +238,27 @@ class ResourceGraph:
             result[slot].append(item if isinstance(item, tuple) else (item,))
         return tuple(result)
 
+    @staticmethod
+    def _normalize_rows(rows) -> list:
+        """Normalise dual_rows to a list of Row objects.
+
+        Args:
+            rows: None, a single ``(index, coeff)`` tuple, a list of such tuples,
+                  or a list of :class:`Row` objects (passed through unchanged).
+
+        Returns:
+            A list of :class:`Row` objects.
+        """
+        if rows is None:
+            return []
+        _Row = _ext.graph.Row
+        if isinstance(rows, tuple) and len(rows) == 2:
+            return [_Row(int(rows[0]), float(rows[1]))]
+        result = []
+        for r in rows:
+            result.append(_Row(int(r[0]), float(r[1])) if isinstance(r, tuple) else r)
+        return result
+
     # ── Graph mutation (buffered) ─────────────────────────────────────────────
 
     def add_node(self, node_id: int, source: bool = False, sink: bool = False):
@@ -255,8 +283,7 @@ class ResourceGraph:
         operation to flush the buffer.  Arc resource normalization happens at flush
         time so resources must be registered before :meth:`update` is called.
         """
-        if dual_rows is None:
-            dual_rows = []
+        dual_rows = self._normalize_rows(dual_rows)
         arc_id = self._next_arc_id
         self._next_arc_id += 1
         self._arc_buffer.append(
@@ -360,6 +387,81 @@ class ResourceGraph:
         self._flush()
         norm_res_cons = self._normalize_consumption(resource_consumption)
         return self._graph.update_arc(arc, norm_res_cons, *args, **kwargs)
+
+    def add_rows_to_arc(self, arc_id: int, rows) -> None:
+        """Buffer rows to be appended to arc *arc_id*; applied at next flush/solve.
+
+        Args:
+            arc_id: Target arc ID.
+            rows: Single ``(index, coeff)`` tuple, a list of such tuples, or a
+                  list of :class:`Row` objects.
+        """
+        arc_id = int(arc_id)
+        if isinstance(rows, tuple) and len(rows) == 2:
+            rows = [rows]
+        for r in rows:
+            if isinstance(r, tuple):
+                self._rows_buffer.append((arc_id, int(r[0]), float(r[1])))
+            else:
+                self._rows_buffer.append((arc_id, int(r.index), float(r.coefficient)))
+
+    def add_rows(self, data) -> None:
+        """Buffer rows for multiple arcs at once; applied at next flush/solve.
+
+        Args:
+            data: Either a list of ``(arc_id, row_index, coeff)`` tuples or a
+                  2-D numpy array with shape ``(N, 3)`` and columns
+                  ``[arc_id, row_index, coeff]``.
+        """
+        if hasattr(data, "tolist"):
+            self._rows_buffer.extend(data.tolist())
+        else:
+            self._rows_buffer.extend(data)
+
+    def clone(
+        self, include_rows: bool = True, clone_removed_arcs: bool = False
+    ) -> "ResourceGraph":
+        """Return a deep clone of this ResourceGraph with stable arc IDs.
+
+        Flushes all pending buffers before cloning so the clone reflects the
+        complete current state.  The returned graph has an independent
+        remove/restore state and its own resource factory copy.
+
+        Args:
+            include_rows: Copy arc dual_rows into the clone (set *False* for a
+                topology-only clone to be populated via :meth:`add_rows`).
+            clone_removed_arcs: Also clone arcs currently removed from the
+                graph (they will be re-removed in the clone).
+
+        Returns:
+            A new :class:`ResourceGraph` wrapping the cloned C++ object.
+        """
+        self._flush()
+        cpp_clone = self._graph.clone(include_rows, clone_removed_arcs)
+        cloned = ResourceGraph.__new__(ResourceGraph)
+        cloned._pending = []
+        cloned._refs = list(self._refs)
+        cloned._graph = cpp_clone
+        cloned._graph_canonical = self._graph_canonical
+        cloned._registered_order = self._registered_order
+        cloned._full_registration_order = list(self._full_registration_order)
+        cloned._node_buffer = []
+        cloned._arc_buffer = []
+        cloned._rows_buffer = []
+        cloned._reserve_hint = (0, 0)
+        cloned._next_arc_id = cpp_clone.next_arc_id()
+        return cloned
+
+    def clone_topology(self) -> "ResourceGraph":
+        """Clone topology only (arc dual_rows are empty in the clone).
+
+        Use :meth:`add_rows` or :meth:`add_rows_to_arc` to populate rows per
+        (demand, time) slice after cloning.
+
+        Returns:
+            A new :class:`ResourceGraph` with no dual rows on arcs.
+        """
+        return self.clone(include_rows=False)
 
     def sort_nodes(self, comp=None):
         """Sort graph nodes in place.

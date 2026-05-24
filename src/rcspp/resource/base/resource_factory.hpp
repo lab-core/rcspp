@@ -96,6 +96,18 @@ class ResourceFactory {
             return new_resource;
         }
 
+        /// @brief Return a deep copy of this factory (prototype + extension function).
+        [[nodiscard]] virtual std::unique_ptr<ResourceFactory<ResourceType>> clone() const {
+            auto cloned = std::make_unique<ResourceFactory<ResourceType>>();
+            if (resource_prototype_) {
+                cloned->resource_prototype_ = resource_prototype_->clone();
+            }
+            if (extension_function_) {
+                cloned->extension_function_ = extension_function_->clone();
+            }
+            return cloned;
+        }
+
         // Make an extender
         template <typename GraphResourceType>
         auto create_extender(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {

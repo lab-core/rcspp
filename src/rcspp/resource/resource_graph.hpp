@@ -187,6 +187,29 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return resource_factory_;
         }
 
+        /// @brief Return a deep copy of this ResourceGraph with stable arc IDs.
+        ///
+        /// Clones the resource factory (so the new graph has independent resource
+        /// prototypes and extension functions), then delegates topology copying to
+        /// Graph::clone_topology_into(), which:
+        ///  - creates nodes via ResourceGraph::add_node() (initialises resources from
+        ///    the cloned factory) and overrides with clones of the original resources;
+        ///  - copies arcs at their exact IDs using add_arc_at, then clones extenders.
+        ///
+        /// @param include_rows       Copy arc dual_rows (set false for topology-only clones).
+        /// @param clone_removed_arcs Also clone removed arcs (re-removed in the clone).
+        [[nodiscard]] std::unique_ptr<ResourceGraph<ResourceTypes...>> clone(
+            bool include_rows = true, bool clone_removed_arcs = false) const {
+            auto factory_clone = resource_factory_.clone_factory();
+            // Use raw new: clone() is a ResourceGraph member and can access the private
+            // constructor; std::make_unique cannot (it's an external template).
+            auto new_rg = std::unique_ptr<ResourceGraph<ResourceTypes...>>(
+                new ResourceGraph<ResourceTypes...>(std::move(*factory_clone)));
+            Graph<ResourceCompositionType>::clone_topology_into(
+                *new_rg, include_rows, clone_removed_arcs);
+            return new_rg;
+        }
+
         void update_arc(
             Arc<ResourceCompositionType>* arc,
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
@@ -424,6 +447,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         }
 
     private:
+        /// @brief Construct directly from a pre-built factory (used by clone()).
+        explicit ResourceGraph(ResourceCompositionFactory<ResourceTypes...>&& factory)
+            : resource_factory_(std::move(factory)), connectivityMatrix_(this) {}
+
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         ConnectivityMatrix<ResourceCompositionType> connectivityMatrix_;
         std::mutex mutex_;

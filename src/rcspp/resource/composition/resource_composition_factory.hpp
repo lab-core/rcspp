@@ -42,6 +42,12 @@ class ResourceCompositionFactory
 
         ~ResourceCompositionFactory() override = default;
 
+        // The user-declared destructor suppresses the implicit move constructor/assignment.
+        // Explicitly default them so ResourceGraph's private constructor can move-construct
+        // resource_factory_.
+        ResourceCompositionFactory(ResourceCompositionFactory&&) = default;
+        ResourceCompositionFactory& operator=(ResourceCompositionFactory&&) = default;
+
         auto create_resource(size_t node_id) -> std::unique_ptr<ResourceClass> override {
             return Base::create_resource(node_id);
         }
@@ -145,6 +151,30 @@ class ResourceCompositionFactory
             constexpr size_t ResourceTypeIndex =
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             return this->template get_components<ResourceTypeIndex>().size();
+        }
+
+        /// @brief Return a deep copy of this factory.
+        ///
+        /// Clones each per-type ResourceFactory (via the Composition copy constructor,
+        /// which calls clone() on every element) then rebuilds the composition-level
+        /// resource prototype from the cloned sub-factories.
+        [[nodiscard]] std::unique_ptr<ResourceCompositionFactory<ResourceTypes...>>
+        clone_factory() const {
+            // Construct with default composition functions so resource_prototype_ is
+            // valid before update_resource_prototype() is called.
+            auto new_factory = std::make_unique<ResourceCompositionFactory<ResourceTypes...>>(
+                std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
+                std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
+                std::make_unique<CompositionCostFunction<ResourceTypes...>>(),
+                std::make_unique<CompositionDominanceFunction<ResourceTypes...>>());
+            // Copy-assign the Composition<ResourceFactory, ResourceTypes...> part.
+            // The assignment triggers the copy constructor, which calls clone() on
+            // every ResourceFactory<RT> in the per-type vectors.
+            static_cast<Composition<ResourceFactory, ResourceTypes...>&>(*new_factory) =
+                static_cast<const Composition<ResourceFactory, ResourceTypes...>&>(*this);
+            // Rebuild resource_prototype_ from the newly cloned sub-factories.
+            new_factory->update_resource_prototype();
+            return new_factory;
         }
 
     private:

@@ -6,6 +6,7 @@
 // Must be defined before any pybind11 header is included.
 #define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
 
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -340,7 +341,30 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
             [](G& g, ArcType* arc) { return g.force_arc(*arc); },
             py::arg("arc"),
             "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
-            "destination. Returns the ids of the removed arcs.");
+            "destination. Returns the ids of the removed arcs.")
+        .def("add_rows_to_arc",
+             &G::add_rows_to_arc,
+             py::arg("arc_id"),
+             py::arg("rows"),
+             "Append rows to an arc's dual_rows. Returns false if arc_id is invalid.")
+        .def("next_arc_id",
+             &G::next_arc_id,
+             "Return the next arc ID that will be assigned by add_arc().")
+        .def(
+            "_add_rows_bulk",
+            [](G& g,
+               py::array_t<double, py::array::c_style | py::array::forcecast> rows) {
+                auto r = rows.unchecked<2>();
+                for (py::ssize_t i = 0; i < r.shape(0); ++i) {
+                    g.add_rows_to_arc(
+                        static_cast<size_t>(r(i, 0)),
+                        {Row{.index = static_cast<size_t>(r(i, 1)),
+                             .coefficient = static_cast<long double>(r(i, 2))}});
+                }
+            },
+            py::arg("rows"),
+            py::call_guard<py::gil_scoped_release>(),
+            "Bulk-append rows from a (N, 3) float64 array [arc_id, row_index, coeff].");
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────
@@ -412,7 +436,16 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                 }
             },
             py::arg("nodes"),
-            py::call_guard<py::gil_scoped_release>());
+            py::call_guard<py::gil_scoped_release>())
+        .def(
+            "clone",
+            [](RG& rg, bool include_rows, bool clone_removed_arcs) {
+                return rg.clone(include_rows, clone_removed_arcs);
+            },
+            py::arg("include_rows") = true,
+            py::arg("clone_removed_arcs") = false,
+            "Clone this ResourceGraph. Arc IDs are stable across the clone. "
+            "The clone has an independent remove/restore state.");
 }
 
 // ─── Helper: bind one add_resource method ────────────────────────────────────

@@ -35,51 +35,7 @@ class Graph {
         [[nodiscard]] std::unique_ptr<Graph<ResourceType>> clone(
             bool clone_removed_arcs = false) const {
             auto new_graph = std::make_unique<Graph<ResourceType>>();
-
-            // reserve the right size
-            new_graph->reserve(get_nodes_size(), get_arcs_size());
-
-            // copy nodes
-            for (const auto& [node_id, node_ptr] : nodes_by_id_) {
-                auto& node = new_graph->add_node(node_id, node_ptr->source, node_ptr->sink);
-                node.resource =
-                    node_ptr->resource ? std::move(node_ptr->resource->clone()) : nullptr;
-            }
-
-            // copy sorted nodes
-            for (const auto* node_ptr : sorted_nodes_) {
-                auto* node = new_graph->get_node(node_ptr->id);
-                node->pos_ = node_ptr->pos_;
-                new_graph->sorted_nodes_.push_back(node);
-            }
-
-            // copy active arcs in id order (preserves id→slot mapping in the cloned vector)
-            for_each_arc([&](const auto& arc_ref) {
-                auto* origin = new_graph->get_node(arc_ref.origin->id);
-                auto* dest = new_graph->get_node(arc_ref.destination->id);
-                auto& arc = new_graph->add_arc_at(origin,
-                                                  dest,
-                                                  arc_ref.cost,
-                                                  arc_ref.dual_rows,
-                                                  arc_ref.id);
-                arc.extender = arc_ref.extender ? std::move(arc_ref.extender->clone(arc)) : nullptr;
-            });
-
-            if (clone_removed_arcs) {
-                for (const auto& [arc_id, arc_ptr] : removed_arcs_by_id_) {
-                    auto* origin = new_graph->get_node(arc_ptr->origin->id);
-                    auto* dest = new_graph->get_node(arc_ptr->destination->id);
-                    auto& arc = new_graph->add_arc_at(origin,
-                                                      dest,
-                                                      arc_ptr->cost,
-                                                      arc_ptr->dual_rows,
-                                                      arc_id);
-                    new_graph->remove_arc(arc_id);
-                    arc.extender =
-                        arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
-                }
-            }
-
+            clone_topology_into(*new_graph, /*include_rows=*/true, clone_removed_arcs);
             return new_graph;
         }
 
@@ -336,6 +292,20 @@ class Graph {
 
         [[nodiscard]] size_t get_number_of_arcs() const { return active_arc_count_; }
 
+        /// @brief Append *rows* to the dual_rows of arc *arc_id*.
+        /// @return True if the arc was found and updated, false if *arc_id* is invalid.
+        bool add_rows_to_arc(size_t arc_id, const std::vector<Row>& rows) {
+            if (arc_id >= arcs_.size() || !arcs_[arc_id]) {
+                return false;
+            }
+            auto& dr = arcs_[arc_id]->dual_rows;
+            dr.insert(dr.end(), rows.begin(), rows.end());
+            return true;
+        }
+
+        /// @brief Return the next arc ID that will be assigned by add_arc().
+        [[nodiscard]] size_t next_arc_id() const { return next_arc_id_; }
+
         // Pre-allocate storage to avoid reallocation during bulk inserts.
         void reserve(size_t n_nodes, size_t n_arcs) {
             nodes_by_id_.reserve(n_nodes);
@@ -449,6 +419,58 @@ class Graph {
                 for_each_arc([&](const auto& arc) { ss << arc; });
             }
             return ss.str();
+        }
+
+    protected:
+        /// @brief Copy nodes, sorted-node order, and arcs from *this* into *target*.
+        ///
+        /// Called by clone() and by ResourceGraph::clone(). Being a Graph<ResourceType>
+        /// member it has access to all private fields of both *this* and *target*
+        /// (nodes_by_id_, sorted_nodes_, removed_arcs_by_id_, add_arc_at).
+        /// Node creation goes through target.add_node() (virtual) so that a
+        /// ResourceGraph target correctly initialises node resources from its factory;
+        /// the resource is then overridden with a clone of the original's resource.
+        ///
+        /// @param target            Graph to fill; must be empty on entry.
+        /// @param include_rows      When false, arc dual_rows are left empty.
+        /// @param clone_removed_arcs Also copy removed arcs (re-removed in target).
+        void clone_topology_into(Graph<ResourceType>& target, bool include_rows,
+                                 bool clone_removed_arcs) const {
+            target.reserve(get_nodes_size(), get_arcs_size());
+
+            for (const auto& [node_id, node_ptr] : nodes_by_id_) {
+                auto& node = target.add_node(node_id, node_ptr->source, node_ptr->sink);
+                node.resource = node_ptr->resource ? node_ptr->resource->clone() : nullptr;
+            }
+
+            for (const auto* node_ptr : sorted_nodes_) {
+                auto* node = target.get_node(node_ptr->id);
+                node->pos_ = node_ptr->pos_;
+                target.sorted_nodes_.push_back(node);
+            }
+
+            for_each_arc([&](const auto& arc_ref) {
+                auto* origin = target.get_node(arc_ref.origin->id);
+                auto* dest = target.get_node(arc_ref.destination->id);
+                auto& arc = target.add_arc_at(
+                    origin, dest, arc_ref.cost,
+                    include_rows ? arc_ref.dual_rows : std::vector<Row>{}, arc_ref.id);
+                arc.extender =
+                    arc_ref.extender ? std::move(arc_ref.extender->clone(arc)) : nullptr;
+            });
+
+            if (clone_removed_arcs) {
+                for (const auto& [arc_id, arc_ptr] : removed_arcs_by_id_) {
+                    auto* origin = target.get_node(arc_ptr->origin->id);
+                    auto* dest = target.get_node(arc_ptr->destination->id);
+                    auto& arc = target.add_arc_at(
+                        origin, dest, arc_ptr->cost,
+                        include_rows ? arc_ptr->dual_rows : std::vector<Row>{}, arc_id);
+                    arc.extender =
+                        arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
+                    target.remove_arc(arc_id);
+                }
+            }
         }
 
     private:
