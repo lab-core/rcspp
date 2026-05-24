@@ -54,19 +54,17 @@ class Graph {
                 new_graph->sorted_nodes_.push_back(node);
             }
 
-            // copy arcs
-            for (const auto& [arc_id, arc_ptr] : arcs_by_id_) {
-                auto& arc = new_graph->add_arc(arc_ptr->origin->id,
-                                               arc_ptr->destination->id,
-                                               arc_ptr->cost,
-                                               arc_ptr->dual_rows,
-                                               arc_id);
-                arc.extender =
-                    arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
-            }
+            // copy active arcs in id order (preserves id→slot mapping in the cloned vector)
+            for_each_arc([&](const auto& arc_ref) {
+                auto& arc = new_graph->add_arc(arc_ref.origin->id,
+                                               arc_ref.destination->id,
+                                               arc_ref.cost,
+                                               arc_ref.dual_rows,
+                                               arc_ref.id);
+                arc.extender = arc_ref.extender ? std::move(arc_ref.extender->clone(arc)) : nullptr;
+            });
 
             if (clone_removed_arcs) {
-                // copy removed arcs
                 for (const auto& [arc_id, arc_ptr] : removed_arcs_by_id_) {
                     auto& arc = new_graph->add_arc(arc_ptr->origin->id,
                                                    arc_ptr->destination->id,
@@ -108,19 +106,22 @@ class Graph {
             }
             next_arc_id_ = std::max(next_arc_id_, *arc_id + 1);
 
-            auto& new_arc = arcs_by_id_[*arc_id] =
-                std::make_unique<Arc<ResourceType>>(*arc_id,
-                                                    origin_node,
-                                                    destination_node,
-                                                    cost,
-                                                    dual_rows);
+            if (*arc_id >= arcs_.size()) {
+                arcs_.resize(*arc_id + 1);
+            }
+            arcs_[*arc_id] = std::make_unique<Arc<ResourceType>>(*arc_id,
+                                                                 origin_node,
+                                                                 destination_node,
+                                                                 cost,
+                                                                 dual_rows);
+            ++active_arc_count_;
             modified_ = true;
             csr_valid_ = false;
 
-            origin_node->out_arcs.push_back(new_arc.get());
-            destination_node->in_arcs.push_back(new_arc.get());
+            origin_node->out_arcs.push_back(arcs_[*arc_id].get());
+            destination_node->in_arcs.push_back(arcs_[*arc_id].get());
 
-            return *new_arc.get();
+            return *arcs_[*arc_id];
         }
 
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
@@ -133,11 +134,30 @@ class Graph {
         }
 
         virtual bool remove_arc(size_t arc_id) {
-            auto it = arcs_by_id_.find(arc_id);
-            if (it == arcs_by_id_.end()) {
+            if (arc_id >= arcs_.size() || !arcs_[arc_id]) {
                 return false;
             }
-            remove_arc(it);
+
+            Arc<ResourceType>& arc = *arcs_[arc_id];
+
+            auto& in_arcs = arc.destination->in_arcs;
+            in_arcs.erase(
+                std::remove_if(in_arcs.begin(),
+                               in_arcs.end(),
+                               [arc_id](Arc<ResourceType>* a) { return a->id == arc_id; }),
+                in_arcs.end());
+
+            auto& out_arcs = arc.origin->out_arcs;
+            out_arcs.erase(
+                std::remove_if(out_arcs.begin(),
+                               out_arcs.end(),
+                               [arc_id](Arc<ResourceType>* a) { return a->id == arc_id; }),
+                out_arcs.end());
+
+            removed_arcs_by_id_.emplace(arc_id, std::move(arcs_[arc_id]));
+            --active_arc_count_;
+            modified_ = true;
+            csr_valid_ = false;
             return true;
         }
 
@@ -155,27 +175,14 @@ class Graph {
             return removed;
         }
 
-        // Restore a batch of arcs by id. Returns the ids that were actually restored.
-        std::vector<size_t> restore_arcs(const std::vector<size_t>& arc_ids) {
-            std::vector<size_t> restored;
-            restored.reserve(arc_ids.size());
-            for (size_t id : arc_ids) {
-                if (restore_arc(id)) {
-                    restored.push_back(id);
-                }
-            }
-            return restored;
-        }
-
         // Force an arc: remove all other out-arcs from its origin and all other
         // in-arcs to its destination, keeping only this arc active on both ends.
         // Returns the ids of the arcs that were removed.
         std::vector<size_t> force_arc(size_t arc_id) {
-            auto it = arcs_by_id_.find(arc_id);
-            if (it == arcs_by_id_.end()) {
+            if (arc_id >= arcs_.size() || !arcs_[arc_id]) {
                 return {};
             }
-            Arc<ResourceType>& arc = *it->second;
+            Arc<ResourceType>& arc = *arcs_[arc_id];
 
             std::vector<size_t> to_remove;
             for (auto* a : arc.origin->out_arcs) {
@@ -203,17 +210,16 @@ class Graph {
 
         template <typename C>
         std::vector<size_t> remove_arcs_if(C check) {
-            std::vector<size_t> deleted_arc_ids;
-            for (auto it = arcs_by_id_.begin(); it != arcs_by_id_.end();) {
-                // check if we should remove the arc
-                if (check(*it->second)) {
-                    deleted_arc_ids.push_back(it->first);
-                    it = remove_arc(it);
-                } else {
-                    ++it;
+            std::vector<size_t> to_remove;
+            for_each_arc([&](const auto& arc) {
+                if (check(arc)) {
+                    to_remove.push_back(arc.id);
                 }
+            });
+            for (size_t id : to_remove) {
+                remove_arc(id);
             }
-            return deleted_arc_ids;
+            return to_remove;
         }
 
         virtual bool restore_arc(size_t arc_id) {
@@ -221,20 +227,43 @@ class Graph {
             if (it == removed_arcs_by_id_.end()) {
                 return false;
             }
-            restore_arc(it);
+
+            Arc<ResourceType>* arc = it->second.get();
+            arc->destination->in_arcs.push_back(arc);
+            arc->origin->out_arcs.push_back(arc);
+
+            if (arc_id >= arcs_.size()) {
+                arcs_.resize(arc_id + 1);
+            }
+            arcs_[arc_id] = std::move(it->second);
+            removed_arcs_by_id_.erase(it);
+            ++active_arc_count_;
+            modified_ = true;
+            csr_valid_ = false;
             return true;
         }
 
         virtual bool restore_arc(const Arc<ResourceType>& arc) { return restore_arc(arc.id); }
 
+        // Restore a batch of arcs by id. Returns the ids that were actually restored.
+        std::vector<size_t> restore_arcs(const std::vector<size_t>& arc_ids) {
+            std::vector<size_t> restored;
+            restored.reserve(arc_ids.size());
+            for (size_t id : arc_ids) {
+                if (restore_arc(id)) {
+                    restored.push_back(id);
+                }
+            }
+            return restored;
+        }
+
         template <typename C>
         std::vector<size_t> restore_arcs_if(C check) {
             std::vector<size_t> restored_arc_ids;
             for (auto it = removed_arcs_by_id_.begin(); it != removed_arcs_by_id_.end();) {
-                // check if we should remove the arc
                 if (check(*it->second)) {
                     restored_arc_ids.push_back(it->first);
-                    it = restore_arc(it);
+                    it = restore_arc_from_map(it);
                 } else {
                     ++it;
                 }
@@ -251,11 +280,10 @@ class Graph {
         }
 
         [[nodiscard]] Arc<ResourceType>* get_arc(size_t arc_id) const {
-            auto it = arcs_by_id_.find(arc_id);
-            if (it == arcs_by_id_.end()) {
+            if (arc_id >= arcs_.size()) {
                 return nullptr;
             }
-            return it->second.get();
+            return arcs_[arc_id].get();
         }
 
         [[nodiscard]] std::vector<Arc<ResourceType>*> get_arcs(size_t ori_id,
@@ -284,17 +312,17 @@ class Graph {
 
         [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
 
-        [[nodiscard]] std::vector<size_t> get_arc_ids() const {
-            std::vector<size_t> ids;
-            ids.reserve(arcs_by_id_.size());
-            for (const auto& [k, _] : arcs_by_id_) {
-                ids.push_back(k);
+        // Iterate over all active arcs without allocating. fn receives a const Arc& reference.
+        template <typename F>
+        void for_each_arc(F&& fn) const {
+            for (const auto& arc : arcs_) {
+                if (arc) {
+                    fn(*arc);
+                }
             }
-            std::sort(ids.begin(), ids.end());
-            return ids;
         }
 
-        [[nodiscard]] size_t get_arcs_size() const { return arcs_by_id_.size(); }
+        [[nodiscard]] size_t get_arcs_size() const { return active_arc_count_; }
 
         [[nodiscard]] std::vector<size_t> get_removed_arc_ids() const {
             std::vector<size_t> ids;
@@ -311,11 +339,6 @@ class Graph {
             return it != removed_arcs_by_id_.end() ? it->second.get() : nullptr;
         }
 
-        [[nodiscard]] const std::unordered_map<size_t, std::unique_ptr<Arc<ResourceType>>>&
-        get_arcs_by_id() const {
-            return arcs_by_id_;
-        }
-
         [[nodiscard]] const std::vector<Node<ResourceType>*>& get_sorted_nodes() const {
             return sorted_nodes_;
         }
@@ -330,12 +353,12 @@ class Graph {
 
         [[nodiscard]] size_t get_number_of_nodes() const { return nodes_by_id_.size(); }
 
-        [[nodiscard]] size_t get_number_of_arcs() const { return arcs_by_id_.size(); }
+        [[nodiscard]] size_t get_number_of_arcs() const { return active_arc_count_; }
 
-        // Pre-allocate hash-map buckets to avoid rehashing during bulk inserts.
+        // Pre-allocate storage to avoid reallocation during bulk inserts.
         void reserve(size_t n_nodes, size_t n_arcs) {
             nodes_by_id_.reserve(n_nodes);
-            arcs_by_id_.reserve(n_arcs);
+            arcs_.reserve(n_arcs);
         }
 
         [[nodiscard]] bool is_source(size_t node_id) const {
@@ -354,17 +377,12 @@ class Graph {
 
         template <class Compare>
         void sort_nodes(Compare comp) {
-            // populate the vector
             sorted_nodes_.clear();
             sorted_nodes_.reserve(nodes_by_id_.size());
             for (auto& [node_id, node_ptr] : nodes_by_id_) {
                 sorted_nodes_.push_back(node_ptr.get());
             }
-
-            // sort
             std::stable_sort(sorted_nodes_.begin(), sorted_nodes_.end(), comp);
-
-            // fix position
             size_t i = 0;
             for (const auto& node_ptr : sorted_nodes_) {
                 node_ptr->pos_ = i++;
@@ -447,9 +465,7 @@ class Graph {
                 ss << *nodes_by_id_.at(id) << "\n";
             }
             if (print_arcs) {
-                for (size_t id : get_arc_ids()) {
-                    ss << *arcs_by_id_.at(id);
-                }
+                for_each_arc([&](const auto& arc) { ss << arc; });
             }
             return ss.str();
         }
@@ -458,7 +474,10 @@ class Graph {
         using ArcMap = std::unordered_map<size_t, std::unique_ptr<Arc<ResourceType>>>;
         using NodeMap = std::unordered_map<size_t, std::unique_ptr<Node<ResourceType>>>;
 
-        ArcMap arcs_by_id_;
+        // Arc storage: indexed directly by arc_id. nullptr slots are removed arcs.
+        std::vector<std::unique_ptr<Arc<ResourceType>>> arcs_;
+        size_t active_arc_count_ = 0;
+
         NodeMap nodes_by_id_;
         std::vector<Node<ResourceType>*> sorted_nodes_;
         bool modified_ = false;
@@ -470,51 +489,23 @@ class Graph {
         std::vector<size_t> sink_node_ids_;
 
         // CSR (Compressed Sparse Row) arc arrays — rebuilt by build_csr() / sort_nodes().
-        // Declared mutable so const accessor methods (get_out_arcs / get_in_arcs) can return
-        // non-const spans without requiring a const_cast at every call site.
         mutable std::vector<Arc<ResourceType>*> csr_out_arcs_;
         mutable std::vector<Arc<ResourceType>*> csr_in_arcs_;
         mutable bool csr_valid_ = false;
 
-        virtual typename ArcMap::iterator remove_arc(typename ArcMap::iterator it) {
-            size_t arc_id = it->first;
-            Arc<ResourceType>& arc = *it->second;
-
-            // remove arc from destination node's in_arcs
-            auto& in_arcs = arc.destination->in_arcs;
-            in_arcs.erase(
-                std::remove_if(in_arcs.begin(),
-                               in_arcs.end(),
-                               [arc_id](Arc<ResourceType>* a) { return a->id == arc_id; }),
-                in_arcs.end());
-
-            // remove arc from origin node's out_arcs
-            auto& out_arcs = arc.origin->out_arcs;
-            out_arcs.erase(
-                std::remove_if(out_arcs.begin(),
-                               out_arcs.end(),
-                               [arc_id](Arc<ResourceType>* a) { return a->id == arc_id; }),
-                out_arcs.end());
-
-            // move deleted arc
-            removed_arcs_by_id_.emplace(arc_id, std::move(it->second));
-            modified_ = true;
-            csr_valid_ = false;
-            // delete from arcs map
-            return arcs_by_id_.erase(it);
-        }
-
-        virtual typename ArcMap::iterator restore_arc(const typename ArcMap::iterator& it) {
+        // Internal helper: restore one arc while iterating removed_arcs_by_id_.
+        typename ArcMap::iterator restore_arc_from_map(typename ArcMap::iterator it) {
             Arc<ResourceType>* arc = it->second.get();
-            // add arc to destination node's in_arcs
             arc->destination->in_arcs.push_back(arc);
-            // add arc to origin node's out_arcs
             arc->origin->out_arcs.push_back(arc);
-            // move restored arc
-            arcs_by_id_.emplace(it->first, std::move(it->second));
+            size_t arc_id = it->first;
+            if (arc_id >= arcs_.size()) {
+                arcs_.resize(arc_id + 1);
+            }
+            arcs_[arc_id] = std::move(it->second);
+            ++active_arc_count_;
             modified_ = true;
             csr_valid_ = false;
-            // delete from deleted arcs map
             return removed_arcs_by_id_.erase(it);
         }
 };

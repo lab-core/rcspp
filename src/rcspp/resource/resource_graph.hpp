@@ -409,19 +409,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return;
             }
 
-            for (auto& [arc_id, arc_ptr] : this->get_arcs_by_id()) {
-                double reduced_cost = arc_ptr->cost;
-                for (const auto& dual_row : arc_ptr->dual_rows) {
+            this->for_each_arc([&](auto& arc) {
+                double reduced_cost = arc.cost;
+                for (const auto& dual_row : arc.dual_rows) {
                     // Out-of-range indices are treated as 0 so callers can pass a sparse
                     // (or empty) duals vector without sizing it to cover every arc.
                     const auto dual_value =
                         (dual_row.index < duals.size()) ? duals[dual_row.index] : 0.0;
-
                     reduced_cost -= dual_row.coefficient * dual_value;
                 }
-
-                update_arc<CostResourceType>(arc_ptr.get(), cost_index, reduced_cost);
-            }
+                update_arc<CostResourceType>(&arc, cost_index, reduced_cost);
+            });
         }
 
     private:

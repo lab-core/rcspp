@@ -263,7 +263,13 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
              py::arg("destination_id"),
              py::return_value_policy::reference)
         .def("node_ids", &G::get_node_ids)
-        .def("arc_ids", &G::get_arc_ids)
+        .def("arc_ids",
+             [](const G& g) {
+                 std::vector<size_t> ids;
+                 ids.reserve(g.get_number_of_arcs());
+                 g.for_each_arc([&](const auto& arc) { ids.push_back(arc.id); });
+                 return ids;
+             })
         .def("source_node_ids", &G::get_source_node_ids)
         .def("sink_node_ids", &G::get_sink_node_ids)
         .def("number_of_nodes", &G::get_number_of_nodes)

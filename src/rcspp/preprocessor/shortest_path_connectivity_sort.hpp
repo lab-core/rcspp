@@ -63,10 +63,9 @@ class ShortestPathConnectivitySort {
             std::unordered_map<std::pair<size_t, size_t>, size_t, DirectArcKeyHash>
                 direct_arc_count;
             direct_arc_count.reserve(graph->get_number_of_arcs());
-            for (const auto& arc_entry : graph->get_arcs_by_id()) {
-                const auto& arc_ptr = arc_entry.second;
-                ++direct_arc_count[{arc_ptr->origin->id, arc_ptr->destination->id}];
-            }
+            graph->for_each_arc([&](const auto& arc) {
+                ++direct_arc_count[{arc.origin->id, arc.destination->id}];
+            });
             auto get_direct_arc_count = [&](size_t origin_id, size_t destination_id) -> size_t {
                 auto it = direct_arc_count.find({origin_id, destination_id});
                 return it == direct_arc_count.end() ? 0 : it->second;
