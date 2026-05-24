@@ -45,9 +45,9 @@ def make_diamond():
     rg.add_node(0, source=True)
     rg.add_node(1)
     rg.add_node(2, sink=True)
-    rg.add_arc(1.0, 0, 1, cost=1.0, arc_id=0)
-    rg.add_arc(5.0, 0, 2, cost=5.0, arc_id=1)
-    rg.add_arc(3.0, 1, 2, cost=3.0, arc_id=2)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    rg.add_arc(5.0, 0, 2, cost=5.0)
+    rg.add_arc(3.0, 1, 2, cost=3.0)
     rg.update()
     return rg
 
@@ -123,7 +123,7 @@ def test_force_arc_already_unique():
     rg = make_resource_graph()
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
-    rg.add_arc(1.0, 0, 1, cost=1.0, arc_id=0)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
     rg.update()
 
     removed = rg.force_arc(0)
@@ -139,8 +139,8 @@ def test_force_arc_parallel_arcs_dedup():
     rg = make_resource_graph()
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
-    rg.add_arc(1.0, 0, 1, cost=1.0, arc_id=0)
-    rg.add_arc(2.0, 0, 1, cost=2.0, arc_id=1)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    rg.add_arc(2.0, 0, 1, cost=2.0)
     rg.update()
 
     removed = rg.force_arc(0)
@@ -196,8 +196,8 @@ def _make_rg_with_dual_rows():
     rg.add_node(0, source=True)
     rg.add_node(1)
     rg.add_node(2, sink=True)
-    rg.add_arc(1.0, 0, 1, cost=10.0, dual_rows=[Row(0, 1.0)], arc_id=0)
-    rg.add_arc(1.0, 1, 2, cost=20.0, dual_rows=[Row(1, 2.0)], arc_id=1)
+    rg.add_arc(1.0, 0, 1, cost=10.0, dual_rows=[Row(0, 1.0)])
+    rg.add_arc(1.0, 1, 2, cost=20.0, dual_rows=[Row(1, 2.0)])
     rg.update()
     return rg
 
@@ -313,3 +313,80 @@ def test_update_reduced_costs_numpy_matches_list():
 
     assert len(sols_np) >= 1 and len(sols_list) >= 1
     assert math.isclose(sols_np[0].cost, sols_list[0].cost, abs_tol=1e-9)
+
+
+# ── add_arc predicted-id tests ────────────────────────────────────────────────
+
+
+def test_add_arc_returns_sequential_ids():
+    """add_arc returns 0, 1, 2, … in insertion order."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+
+    id0 = rg.add_arc(1.0, 0, 1, cost=1.0)
+    id1 = rg.add_arc(5.0, 0, 2, cost=5.0)
+    id2 = rg.add_arc(3.0, 1, 2, cost=3.0)
+
+    assert id0 == 0
+    assert id1 == 1
+    assert id2 == 2
+
+
+def test_add_arc_predicted_id_matches_get_arc():
+    """The id returned by add_arc is the id under which the arc is stored after
+    flush."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+
+    arc_id = rg.add_arc(2.5, 0, 1, cost=2.5)
+    rg.update()
+
+    arc = rg.get_arc(arc_id)
+    assert arc is not None
+    assert arc.id == arc_id
+    assert math.isclose(arc.cost, 2.5)
+
+
+def test_add_arc_ids_continue_across_flushes():
+    """IDs are monotonically increasing even when arcs are flushed in batches."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+
+    id0 = rg.add_arc(1.0, 0, 1, cost=1.0)
+    rg.update()  # flush first arc
+
+    id1 = rg.add_arc(2.0, 1, 2, cost=2.0)
+    rg.update()  # flush second arc
+
+    assert id0 == 0
+    assert id1 == 1
+    assert rg.get_arc(id0) is not None
+    assert rg.get_arc(id1) is not None
+
+
+def test_add_arc_id_survives_remove_restore():
+    """IDs continue incrementing after a remove/restore cycle; the slot is reused."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+
+    id0 = rg.add_arc(1.0, 0, 1, cost=1.0)
+    id1 = rg.add_arc(5.0, 0, 2, cost=5.0)
+    rg.update()
+
+    rg.remove_arc(id0)
+    rg.restore_arc(id0)
+
+    id2 = rg.add_arc(3.0, 1, 2, cost=3.0)
+    rg.update()
+
+    assert id2 == 2  # next id after 0 and 1
+    assert rg.get_arc(id0) is not None
+    assert rg.get_arc(id1) is not None
+    assert rg.get_arc(id2) is not None

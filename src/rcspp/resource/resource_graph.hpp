@@ -142,12 +142,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
-            std::vector<Row> dual_rows = {}, std::optional<size_t> arc_id = std::nullopt) {
+            std::vector<Row> dual_rows = {}) {
             auto& arc = Graph<ResourceCompositionType>::add_arc(origin_node_id,
                                                                 destination_node_id,
                                                                 cost,
-                                                                dual_rows,
-                                                                arc_id);
+                                                                dual_rows);
 
             auto extender = resource_factory_.create_extender(resource_consumption, arc);
             arc.extender = std::move(extender);
@@ -159,7 +158,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const std::tuple<ComponentInitializerTypeTuple_t<ExtenderResourceTypes>...>&
                 extender_resource_consumption,
             size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
-            std::vector<Row> dual_rows = {}, std::optional<size_t> arc_id = std::nullopt) {
+            std::vector<Row> dual_rows = {}) {
             // build the full resource consumption tuple from the extender resource consumption
             std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
@@ -181,8 +180,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                            origin_node_id,
                            destination_node_id,
                            cost,
-                           dual_rows,
-                           arc_id);
+                           dual_rows);
         }
 
         ResourceCompositionFactory<ResourceTypes...>& get_resource_factory() {

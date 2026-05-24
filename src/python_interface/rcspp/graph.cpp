@@ -143,13 +143,11 @@ void init_graph(py::module_& m) {
                  py::arg("sink") = false,
                  py::return_value_policy::reference)
             .def("add_arc",
-                 py::overload_cast<size_t, size_t, double, std::vector<Row>, std::optional<size_t>>(
-                     &RealGraph::add_arc),
+                 py::overload_cast<size_t, size_t, double, std::vector<Row>>(&RealGraph::add_arc),
                  py::arg("origin_id"),
                  py::arg("destination_id"),
                  py::arg("cost") = 0.0,
                  py::arg("dual_rows") = std::vector<Row>{},
-                 py::arg("id") = std::nullopt,
                  py::return_value_policy::reference);
     }
 

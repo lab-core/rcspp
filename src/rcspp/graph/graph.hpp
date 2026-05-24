@@ -8,7 +8,6 @@
 #include <concepts>  // NOLINT(build/include_order)
 #include <functional>
 #include <memory>
-#include <optional>
 #include <ranges>  // NOLINT(build/include_order)
 #include <span>
 #include <string>
@@ -56,21 +55,25 @@ class Graph {
 
             // copy active arcs in id order (preserves id→slot mapping in the cloned vector)
             for_each_arc([&](const auto& arc_ref) {
-                auto& arc = new_graph->add_arc(arc_ref.origin->id,
-                                               arc_ref.destination->id,
-                                               arc_ref.cost,
-                                               arc_ref.dual_rows,
-                                               arc_ref.id);
+                auto* origin = new_graph->get_node(arc_ref.origin->id);
+                auto* dest = new_graph->get_node(arc_ref.destination->id);
+                auto& arc = new_graph->add_arc_at(origin,
+                                                  dest,
+                                                  arc_ref.cost,
+                                                  arc_ref.dual_rows,
+                                                  arc_ref.id);
                 arc.extender = arc_ref.extender ? std::move(arc_ref.extender->clone(arc)) : nullptr;
             });
 
             if (clone_removed_arcs) {
                 for (const auto& [arc_id, arc_ptr] : removed_arcs_by_id_) {
-                    auto& arc = new_graph->add_arc(arc_ptr->origin->id,
-                                                   arc_ptr->destination->id,
-                                                   arc_ptr->cost,
-                                                   arc_ptr->dual_rows,
-                                                   arc_id);
+                    auto* origin = new_graph->get_node(arc_ptr->origin->id);
+                    auto* dest = new_graph->get_node(arc_ptr->destination->id);
+                    auto& arc = new_graph->add_arc_at(origin,
+                                                      dest,
+                                                      arc_ptr->cost,
+                                                      arc_ptr->dual_rows,
+                                                      arc_id);
                     new_graph->remove_arc(arc_id);
                     arc.extender =
                         arc_ptr->extender ? std::move(arc_ptr->extender->clone(arc)) : nullptr;
@@ -99,38 +102,16 @@ class Graph {
 
         virtual Arc<ResourceType>& add_arc(Node<ResourceType>* origin_node,
                                            Node<ResourceType>* destination_node, double cost = 0.0,
-                                           std::vector<Row> dual_rows = {},
-                                           std::optional<size_t> arc_id = std::nullopt) {
-            if (arc_id == std::nullopt) {
-                arc_id = next_arc_id_;
-            }
-            next_arc_id_ = std::max(next_arc_id_, *arc_id + 1);
-
-            if (*arc_id >= arcs_.size()) {
-                arcs_.resize(*arc_id + 1);
-            }
-            arcs_[*arc_id] = std::make_unique<Arc<ResourceType>>(*arc_id,
-                                                                 origin_node,
-                                                                 destination_node,
-                                                                 cost,
-                                                                 dual_rows);
-            ++active_arc_count_;
-            modified_ = true;
-            csr_valid_ = false;
-
-            origin_node->out_arcs.push_back(arcs_[*arc_id].get());
-            destination_node->in_arcs.push_back(arcs_[*arc_id].get());
-
-            return *arcs_[*arc_id];
+                                           std::vector<Row> dual_rows = {}) {
+            return add_arc_at(origin_node, destination_node, cost, dual_rows, next_arc_id_);
         }
 
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
-                                           double cost = 0.0, std::vector<Row> dual_rows = {},
-                                           std::optional<size_t> arc_id = std::nullopt) {
+                                           double cost = 0.0, std::vector<Row> dual_rows = {}) {
             auto& origin_node = nodes_by_id_.at(origin_node_id);
             auto& destination_node = nodes_by_id_.at(destination_node_id);
 
-            return add_arc(origin_node.get(), destination_node.get(), cost, dual_rows, arc_id);
+            return add_arc(origin_node.get(), destination_node.get(), cost, dual_rows);
         }
 
         virtual bool remove_arc(size_t arc_id) {
@@ -492,6 +473,27 @@ class Graph {
         mutable std::vector<Arc<ResourceType>*> csr_out_arcs_;
         mutable std::vector<Arc<ResourceType>*> csr_in_arcs_;
         mutable bool csr_valid_ = false;
+
+        // Internal helper: insert an arc at a specific slot (used by clone()).
+        Arc<ResourceType>& add_arc_at(Node<ResourceType>* origin_node,
+                                      Node<ResourceType>* destination_node, double cost,
+                                      std::vector<Row> dual_rows, size_t arc_id) {
+            next_arc_id_ = std::max(next_arc_id_, arc_id + 1);
+            if (arc_id >= arcs_.size()) {
+                arcs_.resize(arc_id + 1);
+            }
+            arcs_[arc_id] = std::make_unique<Arc<ResourceType>>(arc_id,
+                                                                origin_node,
+                                                                destination_node,
+                                                                cost,
+                                                                dual_rows);
+            ++active_arc_count_;
+            modified_ = true;
+            csr_valid_ = false;
+            origin_node->out_arcs.push_back(arcs_[arc_id].get());
+            destination_node->in_arcs.push_back(arcs_[arc_id].get());
+            return *arcs_[arc_id];
+        }
 
         // Internal helper: restore one arc while iterating removed_arcs_by_id_.
         typename ArcMap::iterator restore_arc_from_map(typename ArcMap::iterator it) {

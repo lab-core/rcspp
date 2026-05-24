@@ -94,8 +94,9 @@ class ResourceGraph:
         self._full_registration_order: list[str] = []  # per-instance, incl. duplicates
         # Buffers for deferred node/arc insertion
         self._node_buffer: list = []  # list of (id, source, sink)
-        self._arc_buffer: list = []  # list of (raw_consumption, origin, dest, cost, rows, arc_id)
+        self._arc_buffer: list = []  # list of (raw_consumption, origin, dest, cost, rows)
         self._reserve_hint: tuple[int, int] = (0, 0)  # (n_nodes, n_arcs) hint from reserve()
+        self._next_arc_id: int = 0  # mirrors C++ next_arc_id_; returned by add_arc
         if nx_graph is not None:
             self.from_networkx(nx_graph)
 
@@ -185,16 +186,15 @@ class ResourceGraph:
             self._graph._add_nodes_bulk(self._node_buffer)
             self._node_buffer.clear()
         if self._arc_buffer:
-            consumptions, origins, dests, costs, all_dual_rows, arc_ids = [], [], [], [], [], []
-            for raw_cons, origin_id, dest_id, cost, dual_rows, arc_id in self._arc_buffer:
+            consumptions, origins, dests, costs, all_dual_rows = [], [], [], [], []
+            for raw_cons, origin_id, dest_id, cost, dual_rows in self._arc_buffer:
                 consumptions.append(self._normalize_consumption(raw_cons))
                 origins.append(origin_id)
                 dests.append(dest_id)
                 costs.append(cost)
                 all_dual_rows.append(dual_rows)
-                arc_ids.append(arc_id)
             self._arc_buffer.clear()
-            self._graph._add_arcs_bulk(consumptions, origins, dests, costs, all_dual_rows, arc_ids)
+            self._graph._add_arcs_bulk(consumptions, origins, dests, costs, all_dual_rows)
 
     # ── Normalisation helper ──────────────────────────────────────────────────
 
@@ -248,7 +248,6 @@ class ResourceGraph:
         destination_id: int,
         cost: float = 0.0,
         dual_rows=None,
-        arc_id=None,
     ):
         """Buffer an arc for insertion.
 
@@ -258,6 +257,8 @@ class ResourceGraph:
         """
         if dual_rows is None:
             dual_rows = []
+        arc_id = self._next_arc_id
+        self._next_arc_id += 1
         self._arc_buffer.append(
             (
                 resource_consumption,
@@ -265,9 +266,9 @@ class ResourceGraph:
                 int(destination_id),
                 float(cost),
                 dual_rows,
-                arc_id,
             )
         )
+        return arc_id
 
     def remove_arcs(self, arc_ids):
         """Remove a batch of arcs by id.
@@ -529,10 +530,9 @@ class ResourceGraph:
                 )
 
             resource_init = tuple(data["resource"])
-            arc_id = data.get("id")
             cost = data.get("cost", 0.0)
             dual_rows = data.get("dual_rows", [])
-            self.add_arc(resource_init, int(u), int(v), cost, dual_rows, arc_id)
+            self.add_arc(resource_init, int(u), int(v), cost, dual_rows)
 
         # Update the graph once everything is buffered
         self.update()

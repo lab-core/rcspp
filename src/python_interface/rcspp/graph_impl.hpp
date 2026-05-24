@@ -439,20 +439,16 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
 
     (bind_add_resource<RG, RC, ResourceTypes>(rg), ...);
 
-    rg.def("add_arc",
-           static_cast<Arc<RC>& (RG::*)(const AddArcTuple&,
-                                        size_t,
-                                        size_t,
-                                        double,
-                                        std::vector<Row>,
-                                        std::optional<size_t>)>(&RG::add_arc),
-           py::arg("resource_consumption"),
-           py::arg("origin_node_id"),
-           py::arg("destination_node_id"),
-           py::arg("cost") = 0.0,
-           py::arg("dual_rows") = std::vector<Row>{},
-           py::arg("id") = std::nullopt,
-           py::return_value_policy::reference);
+    rg.def(
+        "add_arc",
+        static_cast<Arc<RC>& (RG::*)(const AddArcTuple&, size_t, size_t, double, std::vector<Row>)>(
+            &RG::add_arc),
+        py::arg("resource_consumption"),
+        py::arg("origin_node_id"),
+        py::arg("destination_node_id"),
+        py::arg("cost") = 0.0,
+        py::arg("dual_rows") = std::vector<Row>{},
+        py::return_value_policy::reference);
 
     rg.def("update_arc",
            static_cast<void (RG::*)(Arc<RC>*, const AddArcTuple&, std::optional<double>)>(
@@ -468,15 +464,9 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
            const std::vector<size_t>& origins,
            const std::vector<size_t>& dests,
            const std::vector<double>& costs,
-           const std::vector<std::vector<Row>>& dual_rows,
-           const std::vector<std::optional<size_t>>& arc_ids) {
+           const std::vector<std::vector<Row>>& dual_rows) {
             for (size_t i = 0; i < consumptions.size(); ++i) {
-                rg.add_arc(consumptions[i],
-                           origins[i],
-                           dests[i],
-                           costs[i],
-                           dual_rows[i],
-                           arc_ids[i]);
+                rg.add_arc(consumptions[i], origins[i], dests[i], costs[i], dual_rows[i]);
             }
         },
         py::arg("consumptions"),
@@ -484,7 +474,6 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
         py::arg("destination_ids"),
         py::arg("costs"),
         py::arg("dual_rows"),
-        py::arg("arc_ids"),
         py::call_guard<py::gil_scoped_release>());
 
     if constexpr ((std::is_same_v<ResourceTypes, RealResource> || ...)) {
