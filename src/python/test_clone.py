@@ -1,10 +1,9 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-
 """Tests for ResourceGraph.clone, clone_topology, add_rows_to_arc, and add_rows.
 
 Covers:
-- add_arc with dual_rows as a single tuple (index, coeff) or list of tuples
+- add_arc with rows as a single tuple (index, coeff) or list of tuples
 - next_arc_id() returns the expected next arc ID
 - add_rows_to_arc buffers rows and flushes them correctly
 - add_rows adds rows in bulk from a list of triples or a 2-D numpy array
@@ -20,17 +19,17 @@ import os
 import sys
 
 import numpy as np
+
 relative_path = "../python_interface/"
 sys.path.insert(0, os.path.abspath(relative_path))
 
-from rcspp.graph import Algorithm, ResourceGraph
-from rcspp.resource import (
+from rcspp.graph import ResourceGraph  # noqa: E402
+from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
     TrivialFeasibilityFunction,
     ValueCostFunction,
     ValueDominanceFunction,
 )
-
 
 # ── Shared helper ─────────────────────────────────────────────────────────────
 
@@ -60,49 +59,49 @@ def _make_graph() -> ResourceGraph:
     return rg
 
 
-# ── add_arc with dual_rows variants ──────────────────────────────────────────
+# ── add_arc with rows variants ──────────────────────────────────────────
 
 
 class TestAddArcDualRows:
-    """Test dual_rows normalisation in add_arc."""
+    """Test rows normalisation in add_arc."""
 
     def test_single_tuple(self):
-        """dual_rows as a single (index, coeff) tuple is normalised to one Row."""
+        """Rows as a single (index, coeff) tuple is normalised to one Row."""
         rg = _make_graph()
-        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=(0, 2.5))
+        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 2.5))
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 1
-        assert arc.dual_rows[0].index == 0
-        assert math.isclose(arc.dual_rows[0].coefficient, 2.5, abs_tol=1e-9)
+        assert len(arc.rows) == 1
+        assert arc.rows[0].index == 0
+        assert math.isclose(arc.rows[0].coefficient, 2.5, abs_tol=1e-9)
 
     def test_list_of_tuples(self):
-        """dual_rows as a list of tuples produces one Row per tuple."""
+        """Rows as a list of tuples produces one Row per tuple."""
         rg = _make_graph()
-        arc_id = rg.add_arc((5.0,), 0, 3, cost=5.0, dual_rows=[(0, 1.5), (1, -0.5)])
+        arc_id = rg.add_arc((5.0,), 0, 3, cost=5.0, rows=[(0, 1.5), (1, -0.5)])
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 2
-        assert arc.dual_rows[0].index == 0
-        assert math.isclose(arc.dual_rows[0].coefficient, 1.5, abs_tol=1e-9)
-        assert arc.dual_rows[1].index == 1
-        assert math.isclose(arc.dual_rows[1].coefficient, -0.5, abs_tol=1e-9)
+        assert len(arc.rows) == 2
+        assert arc.rows[0].index == 0
+        assert math.isclose(arc.rows[0].coefficient, 1.5, abs_tol=1e-9)
+        assert arc.rows[1].index == 1
+        assert math.isclose(arc.rows[1].coefficient, -0.5, abs_tol=1e-9)
 
-    def test_none_dual_rows(self):
-        """dual_rows=None (default) results in an empty row list."""
+    def test_none_rows(self):
+        """Rows=None (default) results in an empty row list."""
         rg = _make_graph()
         arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0)
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 0
+        assert len(arc.rows) == 0
 
-    def test_empty_list_dual_rows(self):
-        """dual_rows=[] also results in an empty row list."""
+    def test_empty_list_rows(self):
+        """Rows=[] also results in an empty row list."""
         rg = _make_graph()
-        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=[])
+        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=[])
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 0
+        assert len(arc.rows) == 0
 
 
 # ── next_arc_id ───────────────────────────────────────────────────────────────
@@ -149,9 +148,9 @@ class TestAddRowsToArc:
         rg.add_rows_to_arc(arc_id, [(0, 3.0)])
 
         arc = rg.get_arc(arc_id)  # triggers flush
-        assert len(arc.dual_rows) == 1
-        assert arc.dual_rows[0].index == 0
-        assert math.isclose(arc.dual_rows[0].coefficient, 3.0, abs_tol=1e-9)
+        assert len(arc.rows) == 1
+        assert arc.rows[0].index == 0
+        assert math.isclose(arc.rows[0].coefficient, 3.0, abs_tol=1e-9)
 
     def test_single_tuple_form(self):
         """add_rows_to_arc accepts a single (index, coeff) tuple directly."""
@@ -161,9 +160,9 @@ class TestAddRowsToArc:
         rg.add_rows_to_arc(arc_id, (1, -1.0))
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 1
-        assert arc.dual_rows[0].index == 1
-        assert math.isclose(arc.dual_rows[0].coefficient, -1.0, abs_tol=1e-9)
+        assert len(arc.rows) == 1
+        assert arc.rows[0].index == 1
+        assert math.isclose(arc.rows[0].coefficient, -1.0, abs_tol=1e-9)
 
     def test_multiple_calls_accumulate(self):
         """Multiple add_rows_to_arc calls accumulate rows on the same arc."""
@@ -174,21 +173,21 @@ class TestAddRowsToArc:
         rg.add_rows_to_arc(arc_id, (1, -1.0))
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 2
+        assert len(arc.rows) == 2
 
     def test_rows_appended_to_existing(self):
         """Rows added via add_rows_to_arc are appended to rows already on the arc."""
         rg = _make_graph()
-        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=(0, 1.0))
+        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 1.0))
         # First flush via get_arc to commit the arc with its initial row
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 1
+        assert len(arc.rows) == 1
 
         rg.add_rows_to_arc(arc_id, [(1, 2.0)])
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 2
-        assert arc.dual_rows[0].index == 0
-        assert arc.dual_rows[1].index == 1
+        assert len(arc.rows) == 2
+        assert arc.rows[0].index == 0
+        assert arc.rows[1].index == 1
 
     def test_arcs_buffered_before_rows(self):
         """Rows may be buffered before the arc is flushed; flush order is arcs→rows."""
@@ -202,7 +201,7 @@ class TestAddRowsToArc:
         assert len(sols) >= 1
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 1
+        assert len(arc.rows) == 1
 
 
 # ── add_rows ──────────────────────────────────────────────────────────────────
@@ -221,10 +220,10 @@ class TestAddRows:
 
         a0 = rg.get_arc(arc0)
         a1 = rg.get_arc(arc1)
-        assert len(a0.dual_rows) == 1
-        assert math.isclose(a0.dual_rows[0].coefficient, 1.0, abs_tol=1e-9)
-        assert len(a1.dual_rows) == 1
-        assert math.isclose(a1.dual_rows[0].coefficient, 2.0, abs_tol=1e-9)
+        assert len(a0.rows) == 1
+        assert math.isclose(a0.rows[0].coefficient, 1.0, abs_tol=1e-9)
+        assert len(a1.rows) == 1
+        assert math.isclose(a1.rows[0].coefficient, 2.0, abs_tol=1e-9)
 
     def test_numpy_2d_array(self):
         """add_rows accepts a (N, 3) numpy float64 array."""
@@ -237,11 +236,11 @@ class TestAddRows:
 
         a0 = rg.get_arc(arc0)
         a1 = rg.get_arc(arc1)
-        assert len(a0.dual_rows) == 1
-        assert math.isclose(a0.dual_rows[0].coefficient, 1.5, abs_tol=1e-9)
-        assert len(a1.dual_rows) == 1
+        assert len(a0.rows) == 1
+        assert math.isclose(a0.rows[0].coefficient, 1.5, abs_tol=1e-9)
+        assert len(a1.rows) == 1
         assert arc1 == a1.id
-        assert math.isclose(a1.dual_rows[1 - 1].coefficient, 3.0, abs_tol=1e-9)
+        assert math.isclose(a1.rows[1 - 1].coefficient, 3.0, abs_tol=1e-9)
 
     def test_multiple_rows_per_arc(self):
         """Multiple rows for the same arc are all added correctly."""
@@ -251,8 +250,8 @@ class TestAddRows:
         rg.add_rows([(arc_id, 0, 1.0), (arc_id, 1, -2.0), (arc_id, 2, 0.5)])
 
         arc = rg.get_arc(arc_id)
-        assert len(arc.dual_rows) == 3
-        coeffs = [r.coefficient for r in arc.dual_rows]
+        assert len(arc.rows) == 3
+        coeffs = [r.coefficient for r in arc.rows]
         assert math.isclose(coeffs[0], 1.0, abs_tol=1e-9)
         assert math.isclose(coeffs[1], -2.0, abs_tol=1e-9)
         assert math.isclose(coeffs[2], 0.5, abs_tol=1e-9)
@@ -276,7 +275,7 @@ class TestUpdateReducedCosts:
         rg.add_arc((10.0,), 0, 1, cost=10.0)
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.add_arc((20.0,), 0, 2, cost=20.0)
-        rg.add_arc((5.0,), 2, 3, cost=5.0, dual_rows=(0, 8.0))
+        rg.add_arc((5.0,), 2, 3, cost=5.0, rows=(0, 8.0))
 
         rg.update_reduced_costs([1.0])
 
@@ -288,9 +287,9 @@ class TestUpdateReducedCosts:
     def test_rows_added_after_arc_flush(self):
         """Rows added via add_rows_to_arc after the arc is flushed are used."""
         rg = _make_graph()
-        arc0 = rg.add_arc((10.0,), 0, 1, cost=10.0)
-        arc1 = rg.add_arc((15.0,), 1, 3, cost=15.0)
-        arc2 = rg.add_arc((20.0,), 0, 2, cost=20.0)
+        rg.add_arc((10.0,), 0, 1, cost=10.0)
+        rg.add_arc((15.0,), 1, 3, cost=15.0)
+        rg.add_arc((20.0,), 0, 2, cost=20.0)
         arc3 = rg.add_arc((5.0,), 2, 3, cost=5.0)
 
         # Flush arcs first so they are in C++ before adding rows
@@ -311,7 +310,7 @@ class TestUpdateReducedCosts:
         rg.add_arc((20.0,), 0, 2, cost=20.0)
         # arc3: base=5, rows: (0, 3.0) and (1, 2.0)
         # duals=[1.0, 2.0] → reduced = 5 - 3*1 - 2*2 = 5 - 3 - 4 = -2
-        rg.add_arc((5.0,), 2, 3, cost=5.0, dual_rows=[(0, 3.0), (1, 2.0)])
+        rg.add_arc((5.0,), 2, 3, cost=5.0, rows=[(0, 3.0), (1, 2.0)])
 
         rg.update_reduced_costs([1.0, 2.0])
 
@@ -328,9 +327,9 @@ class TestClone:
     """Test ResourceGraph.clone()."""
 
     def test_clone_preserves_rows(self):
-        """clone() carries dual rows into the copy."""
+        """Clone() carries dual rows into the copy."""
         rg = _make_graph()
-        arc0 = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=(0, 2.0))
+        arc0 = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 2.0))
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.add_arc((20.0,), 0, 2, cost=20.0)
         rg.add_arc((5.0,), 2, 3, cost=5.0)
@@ -338,9 +337,9 @@ class TestClone:
         rg2 = rg.clone()
 
         arc_clone = rg2.get_arc(arc0)
-        assert len(arc_clone.dual_rows) == 1
-        assert arc_clone.dual_rows[0].index == 0
-        assert math.isclose(arc_clone.dual_rows[0].coefficient, 2.0, abs_tol=1e-9)
+        assert len(arc_clone.rows) == 1
+        assert arc_clone.rows[0].index == 0
+        assert math.isclose(arc_clone.rows[0].coefficient, 2.0, abs_tol=1e-9)
 
     def test_clone_same_optimal_cost(self):
         """Solving the clone gives the same optimal cost as the original."""
@@ -406,7 +405,7 @@ class TestClone:
         rg.add_arc((10.0,), 0, 1, cost=10.0)
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.add_arc((20.0,), 0, 2, cost=20.0)
-        rg.add_arc((5.0,), 2, 3, cost=5.0, dual_rows=(0, 8.0))
+        rg.add_arc((5.0,), 2, 3, cost=5.0, rows=(0, 8.0))
 
         rg2 = rg.clone()
 
@@ -430,9 +429,9 @@ class TestCloneTopology:
     """Test ResourceGraph.clone_topology() — clone with no dual rows."""
 
     def test_rows_stripped(self):
-        """clone_topology() produces arcs with empty dual_rows."""
+        """clone_topology() produces arcs with empty rows."""
         rg = _make_graph()
-        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=[(0, 1.0), (1, 2.0)])
+        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=[(0, 1.0), (1, 2.0)])
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.add_arc((20.0,), 0, 2, cost=20.0)
         rg.add_arc((5.0,), 2, 3, cost=5.0)
@@ -440,22 +439,22 @@ class TestCloneTopology:
         rg2 = rg.clone_topology()
 
         arc_clone = rg2.get_arc(arc_id)
-        assert len(arc_clone.dual_rows) == 0
+        assert len(arc_clone.rows) == 0
 
     def test_original_rows_preserved(self):
         """After clone_topology(), the original graph still has its rows."""
         rg = _make_graph()
-        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=(0, 1.0))
+        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 1.0))
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.clone_topology()
 
         arc_orig = rg.get_arc(arc_id)
-        assert len(arc_orig.dual_rows) == 1
+        assert len(arc_orig.rows) == 1
 
     def test_add_rows_to_topology_clone(self):
         """Rows can be added to a topology clone independently of the original."""
         rg = _make_graph()
-        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=(0, 1.0))
+        arc_id = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 1.0))
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.add_arc((20.0,), 0, 2, cost=20.0)
         rg.add_arc((5.0,), 2, 3, cost=5.0)
@@ -464,18 +463,18 @@ class TestCloneTopology:
         rg2.add_rows_to_arc(arc_id, [(0, 5.0)])
 
         arc_clone = rg2.get_arc(arc_id)
-        assert len(arc_clone.dual_rows) == 1
-        assert math.isclose(arc_clone.dual_rows[0].coefficient, 5.0, abs_tol=1e-9)
+        assert len(arc_clone.rows) == 1
+        assert math.isclose(arc_clone.rows[0].coefficient, 5.0, abs_tol=1e-9)
 
         # Original is untouched
         arc_orig = rg.get_arc(arc_id)
-        assert len(arc_orig.dual_rows) == 1
-        assert math.isclose(arc_orig.dual_rows[0].coefficient, 1.0, abs_tol=1e-9)
+        assert len(arc_orig.rows) == 1
+        assert math.isclose(arc_orig.rows[0].coefficient, 1.0, abs_tol=1e-9)
 
     def test_topology_clone_solves_correctly(self):
         """A topology clone without rows solves like a clean graph."""
         rg = _make_graph()
-        rg.add_arc((10.0,), 0, 1, cost=10.0, dual_rows=(0, 99.0))
+        rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 99.0))
         rg.add_arc((15.0,), 1, 3, cost=15.0)
         rg.add_arc((20.0,), 0, 2, cost=20.0)
         rg.add_arc((5.0,), 2, 3, cost=5.0)
@@ -510,10 +509,11 @@ class TestCloneRemovedArcs:
         assert len(sols) >= 1
 
     def test_removed_arc_absent_without_flag(self):
-        """clone(clone_removed_arcs=False) drops removed arcs; restoring them is a no-op.
+        """clone(clone_removed_arcs=False) drops removed arcs; restoring them is a no-
+        op.
 
-        restore_arcs silently skips IDs that are not in the removed set, so the
-        only reliable check is that the clone solves as if those arcs are gone.
+        restore_arcs silently skips IDs that are not in the removed set, so the only
+        reliable check is that the clone solves as if those arcs are gone.
         """
         rg = _make_graph()
         arc0 = rg.add_arc((10.0,), 0, 1, cost=10.0)
@@ -532,9 +532,9 @@ class TestCloneRemovedArcs:
         sols = rg2.solve()
         assert len(sols) >= 1
         # Node 1 is only reachable via arc0 (0→1); if arc0 is gone it can't appear
-        assert all(1 not in s.path_node_ids for s in sols), (
-            "Node 1 should be unreachable when arc0 (0→1) is absent from the clone"
-        )
+        assert all(
+            1 not in s.path_node_ids for s in sols
+        ), "Node 1 should be unreachable when arc0 (0→1) is absent from the clone"
         assert sols[0].path_node_ids == [0, 2, 3]
 
     def test_independent_restore(self):

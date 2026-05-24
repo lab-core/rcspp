@@ -23,21 +23,21 @@ class Arc {
     public:
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
             std::unique_ptr<Extender<ResourceType>> arc_extender, double arc_cost,
-            std::vector<Row> dual_rows = {})
+            std::vector<Row> rows = {})
             : id(arc_id),
               origin(origin_node),
               destination(destination_node),
               extender(std::move(arc_extender)),
               cost(arc_cost),
-              dual_rows(std::move(dual_rows)) {}
+              rows(std::move(rows)) {}
 
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            double arc_cost, std::vector<Row> dual_rows = {})
-            : Arc(arc_id, origin_node, destination_node, nullptr, arc_cost, std::move(dual_rows)) {}
+            double arc_cost, std::vector<Row> rows = {})
+            : Arc(arc_id, origin_node, destination_node, nullptr, arc_cost, std::move(rows)) {}
 
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            std::vector<Row> dual_rows = {})
-            : Arc(arc_id, origin_node, destination_node, 0, std::move(dual_rows)) {}
+            std::vector<Row> rows = {})
+            : Arc(arc_id, origin_node, destination_node, 0, std::move(rows)) {}
 
         const size_t id;
 
@@ -49,7 +49,7 @@ class Arc {
 
         double cost;
 
-        std::vector<Row> dual_rows;
+        std::vector<Row> rows;
 
         [[nodiscard]] std::string to_string() const {
             std::stringstream ss;

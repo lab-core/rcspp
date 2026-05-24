@@ -147,7 +147,7 @@ void init_graph(py::module_& m) {
                  py::arg("origin_id"),
                  py::arg("destination_id"),
                  py::arg("cost") = 0.0,
-                 py::arg("dual_rows") = std::vector<Row>{},
+                 py::arg("rows") = std::vector<Row>{},
                  py::return_value_policy::reference);
     }
 
@@ -175,7 +175,7 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
-        .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows)
+        .def_readwrite("rows", &Arc<RealRC>::rows)
         .def("__str__", &Arc<RealRC>::to_string)
         .def("__repr__", &Arc<RealRC>::to_string);
 

@@ -346,20 +346,18 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
              &G::add_rows_to_arc,
              py::arg("arc_id"),
              py::arg("rows"),
-             "Append rows to an arc's dual_rows. Returns false if arc_id is invalid.")
+             "Append rows to an arc's rows. Returns false if arc_id is invalid.")
         .def("next_arc_id",
              &G::next_arc_id,
              "Return the next arc ID that will be assigned by add_arc().")
         .def(
             "_add_rows_bulk",
-            [](G& g,
-               py::array_t<double, py::array::c_style | py::array::forcecast> rows) {
+            [](G& g, py::array_t<double, py::array::c_style | py::array::forcecast> rows) {
                 auto r = rows.unchecked<2>();
                 for (py::ssize_t i = 0; i < r.shape(0); ++i) {
-                    g.add_rows_to_arc(
-                        static_cast<size_t>(r(i, 0)),
-                        {Row{.index = static_cast<size_t>(r(i, 1)),
-                             .coefficient = static_cast<long double>(r(i, 2))}});
+                    g.add_rows_to_arc(static_cast<size_t>(r(i, 0)),
+                                      {Row{.index = static_cast<size_t>(r(i, 1)),
+                                           .coefficient = static_cast<long double>(r(i, 2))}});
                 }
             },
             py::arg("rows"),
@@ -480,7 +478,7 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
         py::arg("origin_node_id"),
         py::arg("destination_node_id"),
         py::arg("cost") = 0.0,
-        py::arg("dual_rows") = std::vector<Row>{},
+        py::arg("rows") = std::vector<Row>{},
         py::return_value_policy::reference);
 
     rg.def("update_arc",
@@ -497,16 +495,16 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
            const std::vector<size_t>& origins,
            const std::vector<size_t>& dests,
            const std::vector<double>& costs,
-           const std::vector<std::vector<Row>>& dual_rows) {
+           const std::vector<std::vector<Row>>& rows) {
             for (size_t i = 0; i < consumptions.size(); ++i) {
-                rg.add_arc(consumptions[i], origins[i], dests[i], costs[i], dual_rows[i]);
+                rg.add_arc(consumptions[i], origins[i], dests[i], costs[i], rows[i]);
             }
         },
         py::arg("consumptions"),
         py::arg("origin_ids"),
         py::arg("destination_ids"),
         py::arg("costs"),
-        py::arg("dual_rows"),
+        py::arg("rows"),
         py::call_guard<py::gil_scoped_release>());
 
     if constexpr ((std::is_same_v<ResourceTypes, RealResource> || ...)) {
@@ -544,7 +542,7 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
             [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },
             py::return_value_policy::reference)
         .def_readwrite("cost", &Arc<RC>::cost)
-        .def_readwrite("dual_rows", &Arc<RC>::dual_rows)
+        .def_readwrite("rows", &Arc<RC>::rows)
         .def("__str__", &Arc<RC>::to_string)
         .def("__repr__", &Arc<RC>::to_string);
 

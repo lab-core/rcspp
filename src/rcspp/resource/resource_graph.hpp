@@ -142,11 +142,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
                 resource_consumption,
             size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
-            std::vector<Row> dual_rows = {}) {
+            std::vector<Row> rows = {}) {
             auto& arc = Graph<ResourceCompositionType>::add_arc(origin_node_id,
                                                                 destination_node_id,
                                                                 cost,
-                                                                dual_rows);
+                                                                rows);
 
             auto extender = resource_factory_.create_extender(resource_consumption, arc);
             arc.extender = std::move(extender);
@@ -158,7 +158,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const std::tuple<ComponentInitializerTypeTuple_t<ExtenderResourceTypes>...>&
                 extender_resource_consumption,
             size_t origin_node_id, size_t destination_node_id, double cost = 0.0,
-            std::vector<Row> dual_rows = {}) {
+            std::vector<Row> rows = {}) {
             // build the full resource consumption tuple from the extender resource consumption
             std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>
                 resource_consumption;
@@ -176,11 +176,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             };  // NOLINT
             apply_indices(std::make_index_sequence<sizeof...(ExtenderResourceTypes)>{});
 
-            return add_arc(resource_consumption,
-                           origin_node_id,
-                           destination_node_id,
-                           cost,
-                           dual_rows);
+            return add_arc(resource_consumption, origin_node_id, destination_node_id, cost, rows);
         }
 
         ResourceCompositionFactory<ResourceTypes...>& get_resource_factory() {
@@ -196,7 +192,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///    the cloned factory) and overrides with clones of the original resources;
         ///  - copies arcs at their exact IDs using add_arc_at, then clones extenders.
         ///
-        /// @param include_rows       Copy arc dual_rows (set false for topology-only clones).
+        /// @param include_rows       Copy arc rows (set false for topology-only clones).
         /// @param clone_removed_arcs Also clone removed arcs (re-removed in the clone).
         [[nodiscard]] std::unique_ptr<ResourceGraph<ResourceTypes...>> clone(
             bool include_rows = true, bool clone_removed_arcs = false) const {
@@ -205,8 +201,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // constructor; std::make_unique cannot (it's an external template).
             auto new_rg = std::unique_ptr<ResourceGraph<ResourceTypes...>>(
                 new ResourceGraph<ResourceTypes...>(std::move(*factory_clone)));
-            Graph<ResourceCompositionType>::clone_topology_into(
-                *new_rg, include_rows, clone_removed_arcs);
+            Graph<ResourceCompositionType>::clone_topology_into(*new_rg,
+                                                                include_rows,
+                                                                clone_removed_arcs);
             return new_rg;
         }
 
@@ -433,14 +430,14 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
             this->for_each_arc([&](auto& arc) {
                 double reduced_cost = arc.cost;
-                for (const auto& dual_row : arc.dual_rows) {
-                    if (dual_row.index >= duals.size()) {
+                for (const auto& row : arc.rows) {
+                    if (row.index >= duals.size()) {
                         throw std::out_of_range(
                             "ResourceGraph::update_reduced_costs: dual index " +
-                            std::to_string(dual_row.index) +
+                            std::to_string(row.index) +
                             " is out of range (duals.size()=" + std::to_string(duals.size()) + ")");
                     }
-                    reduced_cost -= dual_row.coefficient * duals[dual_row.index];
+                    reduced_cost -= row.coefficient * duals[row.index];
                 }
                 update_arc<CostResourceType>(&arc, cost_index, reduced_cost);
             });

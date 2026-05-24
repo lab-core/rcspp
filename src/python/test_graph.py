@@ -178,11 +178,11 @@ def test_force_arc_solve_uses_forced_path():
 # ── update_reduced_costs numpy tests ──────────────────────────────────────────
 
 
-def _make_rg_with_dual_rows():
+def _make_rg_with_rows():
     """2-arc graph where arc costs are set via dual rows.
 
-    Arc 0 (0→1): base cost=10, dual_row index=0 coef=1  → reduced = 10 - duals[0]
-    Arc 1 (1→2): base cost=20, dual_row index=1 coef=2  → reduced = 20 - 2*duals[1]
+    Arc 0 (0→1): base cost=10, row index=0 coef=1  → reduced = 10 - duals[0]
+    Arc 1 (1→2): base cost=20, row index=1 coef=2  → reduced = 20 - 2*duals[1]
     """
     from rcspp.graph import Row
 
@@ -196,15 +196,15 @@ def _make_rg_with_dual_rows():
     rg.add_node(0, source=True)
     rg.add_node(1)
     rg.add_node(2, sink=True)
-    rg.add_arc(1.0, 0, 1, cost=10.0, dual_rows=[Row(0, 1.0)])
-    rg.add_arc(1.0, 1, 2, cost=20.0, dual_rows=[Row(1, 2.0)])
+    rg.add_arc(1.0, 0, 1, cost=10.0, rows=[Row(0, 1.0)])
+    rg.add_arc(1.0, 1, 2, cost=20.0, rows=[Row(1, 2.0)])
     rg.update()
     return rg
 
 
 def test_update_reduced_costs_numpy_1d():
     """update_reduced_costs accepts a 1-D numpy array and applies it correctly."""
-    rg = _make_rg_with_dual_rows()
+    rg = _make_rg_with_rows()
     duals = np.array([3.0, 4.0])  # reduced: arc0 = 10-3=7, arc1 = 20-8=12
 
     rg.update_reduced_costs(duals)
@@ -300,8 +300,8 @@ def test_remove_restore_arcs_roundtrip():
 
 def test_update_reduced_costs_numpy_matches_list():
     """Numpy array and plain list produce identical reduced costs."""
-    rg_np = _make_rg_with_dual_rows()
-    rg_list = _make_rg_with_dual_rows()
+    rg_np = _make_rg_with_rows()
+    rg_list = _make_rg_with_rows()
     duals_list = [5.0, 3.0]
     duals_np = np.array(duals_list)
 

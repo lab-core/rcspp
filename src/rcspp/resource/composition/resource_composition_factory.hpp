@@ -158,8 +158,8 @@ class ResourceCompositionFactory
         /// Clones each per-type ResourceFactory (via the Composition copy constructor,
         /// which calls clone() on every element) then rebuilds the composition-level
         /// resource prototype from the cloned sub-factories.
-        [[nodiscard]] std::unique_ptr<ResourceCompositionFactory<ResourceTypes...>>
-        clone_factory() const {
+        [[nodiscard]] std::unique_ptr<ResourceCompositionFactory<ResourceTypes...>> clone_factory()
+            const {
             // Construct with default composition functions so resource_prototype_ is
             // valid before update_resource_prototype() is called.
             auto new_factory = std::make_unique<ResourceCompositionFactory<ResourceTypes...>>(

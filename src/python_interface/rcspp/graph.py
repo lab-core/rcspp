@@ -187,15 +187,15 @@ class ResourceGraph:
             self._graph._add_nodes_bulk(self._node_buffer)
             self._node_buffer.clear()
         if self._arc_buffer:
-            consumptions, origins, dests, costs, all_dual_rows = [], [], [], [], []
-            for raw_cons, origin_id, dest_id, cost, dual_rows in self._arc_buffer:
+            consumptions, origins, dests, costs, all_rows = [], [], [], [], []
+            for raw_cons, origin_id, dest_id, cost, rows in self._arc_buffer:
                 consumptions.append(self._normalize_consumption(raw_cons))
                 origins.append(origin_id)
                 dests.append(dest_id)
                 costs.append(cost)
-                all_dual_rows.append(dual_rows)
+                all_rows.append(rows)
             self._arc_buffer.clear()
-            self._graph._add_arcs_bulk(consumptions, origins, dests, costs, all_dual_rows)
+            self._graph._add_arcs_bulk(consumptions, origins, dests, costs, all_rows)
         if self._rows_buffer:
             import numpy as np
 
@@ -240,7 +240,7 @@ class ResourceGraph:
 
     @staticmethod
     def _normalize_rows(rows) -> list:
-        """Normalise dual_rows to a list of Row objects.
+        """Normalise rows to a list of Row objects.
 
         Args:
             rows: None, a single ``(index, coeff)`` tuple, a list of such tuples,
@@ -275,7 +275,7 @@ class ResourceGraph:
         origin_id: int,
         destination_id: int,
         cost: float = 0.0,
-        dual_rows=None,
+        rows=None,
     ):
         """Buffer an arc for insertion.
 
@@ -283,7 +283,7 @@ class ResourceGraph:
         operation to flush the buffer.  Arc resource normalization happens at flush
         time so resources must be registered before :meth:`update` is called.
         """
-        dual_rows = self._normalize_rows(dual_rows)
+        rows = self._normalize_rows(rows)
         arc_id = self._next_arc_id
         self._next_arc_id += 1
         self._arc_buffer.append(
@@ -292,7 +292,7 @@ class ResourceGraph:
                 int(origin_id),
                 int(destination_id),
                 float(cost),
-                dual_rows,
+                rows,
             )
         )
         return arc_id
@@ -418,9 +418,7 @@ class ResourceGraph:
         else:
             self._rows_buffer.extend(data)
 
-    def clone(
-        self, include_rows: bool = True, clone_removed_arcs: bool = False
-    ) -> "ResourceGraph":
+    def clone(self, include_rows: bool = True, clone_removed_arcs: bool = False) -> "ResourceGraph":
         """Return a deep clone of this ResourceGraph with stable arc IDs.
 
         Flushes all pending buffers before cloning so the clone reflects the
@@ -428,7 +426,7 @@ class ResourceGraph:
         remove/restore state and its own resource factory copy.
 
         Args:
-            include_rows: Copy arc dual_rows into the clone (set *False* for a
+            include_rows: Copy arc rows into the clone (set *False* for a
                 topology-only clone to be populated via :meth:`add_rows`).
             clone_removed_arcs: Also clone arcs currently removed from the
                 graph (they will be re-removed in the clone).
@@ -453,7 +451,7 @@ class ResourceGraph:
         return cloned
 
     def clone_topology(self) -> "ResourceGraph":
-        """Clone topology only (arc dual_rows are empty in the clone).
+        """Clone topology only (arc rows are empty in the clone).
 
         Use :meth:`add_rows` or :meth:`add_rows_to_arc` to populate rows per
         (demand, time) slice after cloning.
@@ -523,7 +521,7 @@ class ResourceGraph:
         For each arc, computes::
 
             reduced_cost = arc.cost - sum(row.coefficient * duals[row.index]
-                                          for row in arc.dual_rows)
+                                          for row in arc.rows)
 
         and writes ``reduced_cost`` to extender resource slot *cost_index*.
         ``arc.cost`` (base cost) is never modified, so repeated calls with
@@ -633,8 +631,8 @@ class ResourceGraph:
 
             resource_init = tuple(data["resource"])
             cost = data.get("cost", 0.0)
-            dual_rows = data.get("dual_rows", [])
-            self.add_arc(resource_init, int(u), int(v), cost, dual_rows)
+            rows = data.get("rows", [])
+            self.add_arc(resource_init, int(u), int(v), cost, rows)
 
         # Update the graph once everything is buffered
         self.update()
