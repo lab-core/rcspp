@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 defaults:
   run:
     shell: bash
@@ -34,7 +37,7 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake llvm
+          brew install llvm
           echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
       - uses: actions/setup-python@v5
