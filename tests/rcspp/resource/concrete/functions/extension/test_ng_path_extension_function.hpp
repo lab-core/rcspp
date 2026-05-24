@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "rcspp/rcspp.hpp"
+#include <gtest/gtest.h>
 
+#include "rcspp/rcspp.hpp"
 #include "util/test_arc.hpp"
 
 #include <map>
@@ -22,7 +23,6 @@ inline SetResource<int> make_set_resource(const std::set<int>& values) {
     return r;
 }
 
-// Build the ng-path map used by the worked example in the analysis discussion.
 inline std::map<size_t, std::set<int>> sample_ng_map() {
     return {
         {0, {1, 2, 3}},
@@ -34,146 +34,77 @@ inline std::map<size_t, std::set<int>> sample_ng_map() {
 
 }  // namespace ng_path_test
 
-// Happy path: binding the prototype to arc (1 -> 2) via create() runs preprocess
-// internally, loading ng_neighborhood_ from N_1 = {0, 2, 3}. extend then performs
-// (old_ng intersect N_1) union {extender}. Confirms the bug fix (==/!=) actually
-// loads the right neighborhood through the production binding path.
-bool test_ng_path_preprocess_forward_extend() {
+// Happy path: binding the prototype to arc (1→2) loads N_1={0,2,3}.
+// extend: ({0} ∩ {0,2,3}) ∪ {1} = {0,1}.
+TEST(NgPathExtensionFunction, PreprocessForwardExtend) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-
-    test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/1, /*destination_id=*/2);
+    test_util::TestArc<SetResource<int>> fixture(1, 2);
     auto fn = proto.create(fixture.arc);
 
-    auto old_ng       = ng_path_test::make_set_resource({0});  // label arriving at 1 carries {0}
-    auto extender_val = ng_path_test::make_set_resource({1});  // visiting node 1 on this arc
+    auto old_ng       = ng_path_test::make_set_resource({0});
+    auto extender_val = ng_path_test::make_set_resource({1});
     auto extended     = ng_path_test::make_set_resource({});
-
     fn->extend(old_ng, extender_val, &extended);
 
-    // ({0} intersect {0, 2, 3}) union {1} = {0, 1}
-    const std::set<int> expected = {0, 1};
-    if (extended.get_value() != expected) {
-        LOG_ERROR("test_ng_path_preprocess_forward_extend: expected {0,1}, got ",
-                  extended.to_string(), "\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(extended.get_value(), (std::set<int>{0, 1}));
 }
 
-// Same path two arcs later (2 -> 3): N_2 = {1, 3, 4} should drop the stale node 0.
-bool test_ng_path_preprocess_drops_stale_node() {
+// Same path two arcs later (2→3): N_2={1,3,4} drops stale node 0.
+// extend: ({0,1} ∩ {1,3,4}) ∪ {2} = {1,2}.
+TEST(NgPathExtensionFunction, PreprocessDropsStaleNode) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-
-    test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/2, /*destination_id=*/3);
+    test_util::TestArc<SetResource<int>> fixture(2, 3);
     auto fn = proto.create(fixture.arc);
 
-    auto old_ng       = ng_path_test::make_set_resource({0, 1});  // label entering 2 carries {0, 1}
+    auto old_ng       = ng_path_test::make_set_resource({0, 1});
     auto extender_val = ng_path_test::make_set_resource({2});
     auto extended     = ng_path_test::make_set_resource({});
-
     fn->extend(old_ng, extender_val, &extended);
 
-    // ({0,1} intersect {1,3,4}) union {2} = {1, 2}   — node 0 falls off
-    const std::set<int> expected = {1, 2};
-    if (extended.get_value() != expected) {
-        LOG_ERROR("test_ng_path_preprocess_drops_stale_node: expected {1,2}, got ",
-                  extended.to_string(), "\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(extended.get_value(), (std::set<int>{1, 2}));
 }
 
-// Missing key (origin): preprocess must leave ng_neighborhood_ empty so the extension
-// behaves as "no neighborhood constraint" rather than dereferencing end() (UB) or
-// inheriting an unrelated value.
-bool test_ng_path_preprocess_missing_origin() {
+// Missing key (origin): ng_neighborhood_ stays empty.
+// extend: ({0,1,2} ∩ {}) ∪ {99} = {99}.
+TEST(NgPathExtensionFunction, PreprocessMissingOrigin) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-
-    test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/99, /*destination_id=*/2);
+    test_util::TestArc<SetResource<int>> fixture(99, 2);
     auto fn = proto.create(fixture.arc);
 
     auto old_ng       = ng_path_test::make_set_resource({0, 1, 2});
     auto extender_val = ng_path_test::make_set_resource({99});
     auto extended     = ng_path_test::make_set_resource({});
-
     fn->extend(old_ng, extender_val, &extended);
 
-    // ({0,1,2} intersect {}) union {99} = {99}
-    const std::set<int> expected = {99};
-    if (extended.get_value() != expected) {
-        LOG_ERROR("test_ng_path_preprocess_missing_origin: expected {99}, got ",
-                  extended.to_string(), "\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(extended.get_value(), (std::set<int>{99}));
 }
 
-// Backward extension uses ng_neighborhood_back_, which is loaded from the destination.
-bool test_ng_path_preprocess_backward_extend() {
+// Backward extension uses ng_neighborhood_back_ loaded from destination.
+// extend_back on arc (2→3): N_3={2,4,5}; ({2,5} ∩ {2,4,5}) ∪ {3} = {2,3,5}.
+TEST(NgPathExtensionFunction, PreprocessBackwardExtend) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-
-    test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/2, /*destination_id=*/3);
+    test_util::TestArc<SetResource<int>> fixture(2, 3);
     auto fn = proto.create(fixture.arc);
 
     auto old_ng       = ng_path_test::make_set_resource({2, 5});
     auto extender_val = ng_path_test::make_set_resource({3});
     auto extended     = ng_path_test::make_set_resource({});
-
     fn->extend_back(old_ng, extender_val, &extended);
 
-    // ({2,5} intersect N_3={2,4,5}) union {3} = {2, 3, 5}
-    const std::set<int> expected = {2, 3, 5};
-    if (extended.get_value() != expected) {
-        LOG_ERROR("test_ng_path_preprocess_backward_extend: expected {2,3,5}, got ",
-                  extended.to_string(), "\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(extended.get_value(), (std::set<int>{2, 3, 5}));
 }
 
 // Missing key (destination): ng_neighborhood_back_ stays empty.
-bool test_ng_path_preprocess_missing_destination() {
+// extend_back: ({2,5} ∩ {}) ∪ {77} = {77}.
+TEST(NgPathExtensionFunction, PreprocessMissingDestination) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-
-    test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/2, /*destination_id=*/77);
+    test_util::TestArc<SetResource<int>> fixture(2, 77);
     auto fn = proto.create(fixture.arc);
 
     auto old_ng       = ng_path_test::make_set_resource({2, 5});
     auto extender_val = ng_path_test::make_set_resource({77});
     auto extended     = ng_path_test::make_set_resource({});
-
     fn->extend_back(old_ng, extender_val, &extended);
 
-    // ({2,5} intersect {}) union {77} = {77}
-    const std::set<int> expected = {77};
-    if (extended.get_value() != expected) {
-        LOG_ERROR("test_ng_path_preprocess_missing_destination: expected {77}, got ",
-                  extended.to_string(), "\n");
-        return false;
-    }
-    return true;
-}
-
-inline std::pair<int, int> all_tests_ng_path_extension_function() {
-    int passed = 0;
-    int total = 0;
-
-    auto run = [&](bool (*fn)(), const char* name) {
-        LOG_INFO("Run test ", name, '\n');
-        ++total;
-        if (fn()) {
-            ++passed;
-        } else {
-            LOG_ERROR("FAILED: ", name, "\n");
-        }
-    };
-
-    run(test_ng_path_preprocess_forward_extend,    "test_ng_path_preprocess_forward_extend");
-    run(test_ng_path_preprocess_drops_stale_node,  "test_ng_path_preprocess_drops_stale_node");
-    run(test_ng_path_preprocess_missing_origin,    "test_ng_path_preprocess_missing_origin");
-    run(test_ng_path_preprocess_backward_extend,   "test_ng_path_preprocess_backward_extend");
-    run(test_ng_path_preprocess_missing_destination,
-        "test_ng_path_preprocess_missing_destination");
-
-    return {passed, total};
+    EXPECT_EQ(extended.get_value(), (std::set<int>{77}));
 }
