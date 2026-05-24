@@ -1,4 +1,5 @@
 #include "test_main.hpp"
+#include "test_graph.hpp"
 #include "test_label_buckets.hpp"
 #include "test_solution_pool.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
@@ -44,8 +45,8 @@ int main() {
     passed += p.first;
     total += p.second;
 
-    // Test SolutionPool and FilteredSolutionPool
-    p = all_tests_solution_pool();
+    // Test Graph methods (force_arc)
+    p = all_tests_graph();
     passed += p.first;
     total += p.second;
 

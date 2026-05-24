@@ -257,6 +257,11 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
 
     return c.def("get_node", &G::get_node, py::arg("id"), py::return_value_policy::reference)
         .def("get_arc", &G::get_arc, py::arg("id"), py::return_value_policy::reference)
+        .def("get_arcs",
+             &G::get_arcs,
+             py::arg("origin_id"),
+             py::arg("destination_id"),
+             py::return_value_policy::reference)
         .def("node_ids", &G::get_node_ids)
         .def("arc_ids", &G::get_arc_ids)
         .def("source_node_ids", &G::get_source_node_ids)
@@ -277,6 +282,11 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
                 });
             },
             py::arg("comp"))
+        .def("reserve",
+             &G::reserve,
+             py::arg("n_nodes"),
+             py::arg("n_arcs"),
+             "Pre-allocate hash-map buckets to avoid rehashing during bulk inserts.")
         .def("remove_arc", static_cast<bool (G::*)(size_t)>(&G::remove_arc), py::arg("arc_id"))
         .def(
             "remove_arc",
@@ -305,7 +315,26 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
                 return g.restore_arcs_if(
                     [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
-            py::arg("pred"));
+            py::arg("pred"))
+        .def("remove_arcs",
+             static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::remove_arcs),
+             py::arg("arc_ids"),
+             py::call_guard<py::gil_scoped_release>())
+        .def("restore_arcs",
+             static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::restore_arcs),
+             py::arg("arc_ids"),
+             py::call_guard<py::gil_scoped_release>())
+        .def("force_arc",
+             static_cast<std::vector<size_t> (G::*)(size_t)>(&G::force_arc),
+             py::arg("arc_id"),
+             "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
+             "destination. Returns the ids of the removed arcs.")
+        .def(
+            "force_arc",
+            [](G& g, ArcType* arc) { return g.force_arc(*arc); },
+            py::arg("arc"),
+            "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
+            "destination. Returns the ids of the removed arcs.");
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────
@@ -368,7 +397,16 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
         .def("is_connected",
              &RG::is_connected,
              py::arg("origin_node_id"),
-             py::arg("destination_node_id"));
+             py::arg("destination_node_id"))
+        .def(
+            "_add_nodes_bulk",
+            [](RG& rg, const std::vector<std::tuple<size_t, bool, bool>>& nodes) {
+                for (const auto& [id, source, sink] : nodes) {
+                    rg.add_node(id, source, sink);
+                }
+            },
+            py::arg("nodes"),
+            py::call_guard<py::gil_scoped_release>());
 }
 
 // ─── Helper: bind one add_resource method ────────────────────────────────────
@@ -416,6 +454,32 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
            py::arg("arc"),
            py::arg("resource_consumption"),
            py::arg("cost") = std::nullopt);
+
+    rg.def(
+        "_add_arcs_bulk",
+        [](RG& rg,
+           const std::vector<AddArcTuple>& consumptions,
+           const std::vector<size_t>& origins,
+           const std::vector<size_t>& dests,
+           const std::vector<double>& costs,
+           const std::vector<std::vector<Row>>& dual_rows,
+           const std::vector<std::optional<size_t>>& arc_ids) {
+            for (size_t i = 0; i < consumptions.size(); ++i) {
+                rg.add_arc(consumptions[i],
+                           origins[i],
+                           dests[i],
+                           costs[i],
+                           dual_rows[i],
+                           arc_ids[i]);
+            }
+        },
+        py::arg("consumptions"),
+        py::arg("origin_ids"),
+        py::arg("destination_ids"),
+        py::arg("costs"),
+        py::arg("dual_rows"),
+        py::arg("arc_ids"),
+        py::call_guard<py::gil_scoped_release>());
 
     if constexpr ((std::is_same_v<ResourceTypes, RealResource> || ...)) {
         rg.def(

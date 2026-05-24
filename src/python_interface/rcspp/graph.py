@@ -73,7 +73,14 @@ for _attr in dir(_ext.graph):
 class ResourceGraph:
     """Factory that defers C++ ResourceGraph instantiation until the first graph
     operation, picking the right template from the resources added via
-    :meth:`add_real_resource` / :meth:`add_int_resource` / etc."""
+    :meth:`add_real_resource` / :meth:`add_int_resource` / etc.
+
+    Nodes and arcs added via :meth:`add_node` / :meth:`add_arc` are buffered in
+    Python and sent to C++ in one batch when the graph is first used (solve,
+    get_node, get_arc, …) or when :meth:`update` is called explicitly.  This
+    eliminates per-call Python→C++ overhead and allows the C++ hash-maps to be
+    pre-allocated with a single ``reserve`` call.
+    """
 
     def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
@@ -85,6 +92,10 @@ class ResourceGraph:
         self._graph_canonical: tuple[str, ...] = ()
         self._registered_order: tuple[str, ...] = ()
         self._full_registration_order: list[str] = []  # per-instance, incl. duplicates
+        # Buffers for deferred node/arc insertion
+        self._node_buffer: list = []  # list of (id, source, sink)
+        self._arc_buffer: list = []  # list of (raw_consumption, origin, dest, cost, rows, arc_id)
+        self._reserve_hint: tuple[int, int] = (0, 0)  # (n_nodes, n_arcs) hint from reserve()
         if nx_graph is not None:
             self.from_networkx(nx_graph)
 
@@ -157,7 +168,35 @@ class ResourceGraph:
             self._refs.extend([ext, feas, cost, dom])
         self._pending.clear()
 
-    # ── Explicit forwarding for common operations ─────────────────────────────
+    def _flush(self):
+        """Flush buffered nodes and arcs to C++, creating the graph if needed.
+
+        Calls ``reserve`` once with the total expected counts so the C++ hash-maps
+        are allocated in a single shot instead of rehashing on every insert.
+        """
+        self._ensure_graph()
+        if not self._node_buffer and not self._arc_buffer:
+            return
+        n_nodes = max(self._reserve_hint[0], self._graph.number_of_nodes() + len(self._node_buffer))
+        n_arcs = max(self._reserve_hint[1], self._graph.number_of_arcs() + len(self._arc_buffer))
+        self._graph.reserve(n_nodes, n_arcs)
+        self._reserve_hint = (0, 0)
+        if self._node_buffer:
+            self._graph._add_nodes_bulk(self._node_buffer)
+            self._node_buffer.clear()
+        if self._arc_buffer:
+            consumptions, origins, dests, costs, all_dual_rows, arc_ids = [], [], [], [], [], []
+            for raw_cons, origin_id, dest_id, cost, dual_rows, arc_id in self._arc_buffer:
+                consumptions.append(self._normalize_consumption(raw_cons))
+                origins.append(origin_id)
+                dests.append(dest_id)
+                costs.append(cost)
+                all_dual_rows.append(dual_rows)
+                arc_ids.append(arc_id)
+            self._arc_buffer.clear()
+            self._graph._add_arcs_bulk(consumptions, origins, dests, costs, all_dual_rows, arc_ids)
+
+    # ── Normalisation helper ──────────────────────────────────────────────────
 
     def _normalize_consumption(self, consumption):
         """Normalise a resource-consumption argument into canonical-ordered per-type
@@ -192,27 +231,134 @@ class ResourceGraph:
             result[slot].append(item if isinstance(item, tuple) else (item,))
         return tuple(result)
 
-    def add_node(self, *args, **kwargs):
-        self._ensure_graph()
-        return self._graph.add_node(*args, **kwargs)
+    # ── Graph mutation (buffered) ─────────────────────────────────────────────
 
-    def add_arc(self, resource_consumption, *args, **kwargs):
-        self._ensure_graph()
-        norm_res_cons = self._normalize_consumption(resource_consumption)
-        return self._graph.add_arc(norm_res_cons, *args, **kwargs)
+    def add_node(self, node_id: int, source: bool = False, sink: bool = False):
+        """Buffer a node for insertion.
 
-    def update_arc(self, arc, resource_consumption, *args, **kwargs):
-        self._ensure_graph()
-        norm_res_cons = self._normalize_consumption(resource_consumption)
-        return self._graph.update_arc(arc, norm_res_cons, *args, **kwargs)
+        The node is not sent to C++ immediately; call :meth:`update` or any read
+        operation to flush the buffer.
+        """
+        self._node_buffer.append((int(node_id), bool(source), bool(sink)))
 
-    def get_arc(self, arc_id):
-        self._ensure_graph()
-        return self._graph.get_arc(arc_id)
+    def add_arc(
+        self,
+        resource_consumption,
+        origin_id: int,
+        destination_id: int,
+        cost: float = 0.0,
+        dual_rows=None,
+        arc_id=None,
+    ):
+        """Buffer an arc for insertion.
+
+        The arc is not sent to C++ immediately; call :meth:`update` or any read
+        operation to flush the buffer.  Arc resource normalization happens at flush
+        time so resources must be registered before :meth:`update` is called.
+        """
+        if dual_rows is None:
+            dual_rows = []
+        self._arc_buffer.append(
+            (
+                resource_consumption,
+                int(origin_id),
+                int(destination_id),
+                float(cost),
+                dual_rows,
+                arc_id,
+            )
+        )
+
+    def remove_arcs(self, arc_ids):
+        """Remove a batch of arcs by id.
+
+        Args:
+            arc_ids: list of arc ids **or** a 1-D numpy integer array.
+
+        Returns:
+            List of ids that were actually removed (ids not found in the graph
+            are silently skipped).
+        """
+        self._flush()
+        if hasattr(arc_ids, "tolist"):
+            arc_ids = arc_ids.tolist()
+        return self._graph.remove_arcs(arc_ids)
+
+    def restore_arcs(self, arc_ids):
+        """Restore a batch of previously removed arcs by id.
+
+        Args:
+            arc_ids: list of arc ids **or** a 1-D numpy integer array.
+
+        Returns:
+            List of ids that were actually restored (ids not in the removed-arc
+            pool are silently skipped).
+        """
+        self._flush()
+        if hasattr(arc_ids, "tolist"):
+            arc_ids = arc_ids.tolist()
+        return self._graph.restore_arcs(arc_ids)
+
+    def update(self):
+        """Flush all buffered nodes and arcs to the C++ graph.
+
+        Call this explicitly after bulk insertions if you need the graph to be
+        up-to-date before inspecting it (e.g. ``get_node``, ``get_arc``, …).
+        All read operations flush the buffer automatically, so this call is
+        optional but can be useful for explicit control.
+        """
+        self._flush()
+
+    def reserve(self, n_nodes: int, n_arcs: int):
+        """Pre-allocate capacity for *n_nodes* nodes and *n_arcs* arcs.
+
+        When called before the graph has been flushed, the hint is stored and applied at
+        flush time so the C++ hash-maps are allocated in one shot. When called after the
+        graph is already populated, the reservation is forwarded to C++ immediately.
+        """
+        if self._graph is not None:
+            self._graph.reserve(n_nodes, n_arcs)
+        else:
+            self._reserve_hint = (
+                max(self._reserve_hint[0], n_nodes),
+                max(self._reserve_hint[1], n_arcs),
+            )
+
+    # ── Graph size (no flush required — includes buffered counts) ─────────────
+
+    def get_nodes_size(self) -> int:
+        """Return the total number of nodes, including those still in the buffer."""
+        n = len(self._node_buffer)
+        if self._graph is not None:
+            n += self._graph.number_of_nodes()
+        return n
+
+    def get_arcs_size(self) -> int:
+        """Return the total number of arcs, including those still in the buffer."""
+        n = len(self._arc_buffer)
+        if self._graph is not None:
+            n += self._graph.number_of_arcs()
+        return n
+
+    # ── Graph read operations (flush first) ───────────────────────────────────
 
     def get_node(self, node_id):
-        self._ensure_graph()
+        self._flush()
         return self._graph.get_node(node_id)
+
+    def get_arc(self, arc_id):
+        self._flush()
+        return self._graph.get_arc(arc_id)
+
+    def get_arcs(self, origin_id: int, destination_id: int):
+        """Return all arcs between *origin_id* and *destination_id* as a list."""
+        self._flush()
+        return self._graph.get_arcs(origin_id, destination_id)
+
+    def update_arc(self, arc, resource_consumption, *args, **kwargs):
+        self._flush()
+        norm_res_cons = self._normalize_consumption(resource_consumption)
+        return self._graph.update_arc(arc, norm_res_cons, *args, **kwargs)
 
     def sort_nodes(self, comp=None):
         """Sort graph nodes in place.
@@ -222,7 +368,7 @@ class ResourceGraph:
                 *node1* should come before *node2*.  When omitted, nodes are sorted
                 by ascending ``node.id``.
         """
-        self._ensure_graph()
+        self._flush()
         if comp is None:
             self._graph.sort_nodes()
         else:
@@ -256,7 +402,7 @@ class ResourceGraph:
         _ext.graph.check_interrupted()
         if params is None:
             params = _ext.graph.AlgorithmParams()
-        self._ensure_graph()
+        self._flush()
         if isinstance(algorithm, str):
             factory = _ALGORITHM_MAP.get(algorithm)
             if factory is None:
@@ -288,7 +434,7 @@ class ResourceGraph:
         """
         if cost_index < 0:
             raise ValueError(f"cost_index must be non-negative, got {cost_index}")
-        self._ensure_graph()
+        self._flush()
         # The pybind binding only registers update_reduced_costs on graph
         # specialisations that include RealResource (see graph_impl.hpp). Without
         # this guard, int-only graphs raise a cryptic AttributeError referencing
@@ -298,20 +444,22 @@ class ResourceGraph:
                 "update_reduced_costs requires a graph with a RealResource cost "
                 "slot; this graph has none."
             )
+
         if isinstance(duals, dict):
             if not duals:
                 return  # honor the docstring: empty dict ⇒ leave reduced costs unchanged
             max_idx = max(duals.keys())
             duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
         else:
-            duals_list = list(duals)
+            duals_list = duals.tolist() if hasattr(duals, "tolist") else list(duals)
         self._graph.update_reduced_costs(duals_list, cost_index)
 
     # ── String representation ─────────────────────────────────────────────────
 
     def to_string(self, print_arcs: bool = True) -> str:
-        if self._graph is None:
+        if self._graph is None and not self._node_buffer and not self._arc_buffer:
             return ""
+        self._flush()
         return self._graph.to_string(print_arcs)
 
     def __str__(self) -> str:
@@ -323,8 +471,9 @@ class ResourceGraph:
     # ── Transparent delegation for everything else ────────────────────────────
 
     def __getattr__(self, name: str):
-        # Called only when normal lookup fails — forwards C++ graph methods.
-        self._ensure_graph()
+        # Called only when normal lookup fails — flushes the buffer and forwards
+        # to the C++ graph.
+        self._flush()
         return getattr(self._graph, name)
 
     # ── NetworkX integration ──────────────────────────────────────────────────
@@ -366,7 +515,7 @@ class ResourceGraph:
                     f"  G.add_edge(u, v, resource=(val1, val2, ...))"
                 )
 
-        # ── Build graph ───────────────────────────────────────────────────────
+        # ── Buffer nodes and arcs — flushed as one batch when graph is used ───
         for node_id, data in nx_graph.nodes(data=True):
             source = data.get("source", False) is True
             sink = data.get("sink", False) is True
@@ -385,6 +534,9 @@ class ResourceGraph:
             dual_rows = data.get("dual_rows", [])
             self.add_arc(resource_init, int(u), int(v), cost, dual_rows, arc_id)
 
+        # Update the graph once everything is buffered
+        self.update()
+
 
 # ── Generate add_<type>_resource methods ─────────────────────────────────────
 
@@ -396,8 +548,8 @@ def _make_add_resource_method(canonical_type: str):
         if self._graph is not None:
             raise RuntimeError(
                 f"Cannot call add_{canonical_type}_resource after the graph has been "
-                "initialized (i.e. after the first add_node / add_arc / solve call). "
-                "Add all resources before performing any graph operation."
+                "initialized (i.e. after the first solve / update / get_node call). "
+                "Add all resources before using the graph."
             )
         if len(self._pending) == 0 and canonical_type != "real":
             raise ValueError(

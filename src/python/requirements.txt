@@ -1,3 +1,4 @@
 mip
 networkx
 pytest
+numpy
