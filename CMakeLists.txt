@@ -11,6 +11,8 @@ option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 
+enable_testing()
+
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
 endif()

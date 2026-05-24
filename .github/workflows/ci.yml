@@ -45,7 +45,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DUSE_PYTHON=ON -DUSE_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build-type }} -j
+        run: cmake --build build --config ${{ matrix.build-type }} --parallel
 
       - name: C++ tests
         run: ctest --test-dir build -C ${{ matrix.build-type }} --output-on-failure
