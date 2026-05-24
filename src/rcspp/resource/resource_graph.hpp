@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -412,11 +413,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             this->for_each_arc([&](auto& arc) {
                 double reduced_cost = arc.cost;
                 for (const auto& dual_row : arc.dual_rows) {
-                    // Out-of-range indices are treated as 0 so callers can pass a sparse
-                    // (or empty) duals vector without sizing it to cover every arc.
-                    const auto dual_value =
-                        (dual_row.index < duals.size()) ? duals[dual_row.index] : 0.0;
-                    reduced_cost -= dual_row.coefficient * dual_value;
+                    if (dual_row.index >= duals.size()) {
+                        throw std::out_of_range(
+                            "ResourceGraph::update_reduced_costs: dual index " +
+                            std::to_string(dual_row.index) +
+                            " is out of range (duals.size()=" + std::to_string(duals.size()) + ")");
+                    }
+                    reduced_cost -= dual_row.coefficient * duals[dual_row.index];
                 }
                 update_arc<CostResourceType>(&arc, cost_index, reduced_cost);
             });
