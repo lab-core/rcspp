@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <limits>
 #include <optional>
 
 #include "cg/master_problem.hpp"
@@ -18,6 +19,14 @@ using namespace rcspp;
 using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 using ResourceType =
     ResourceTypeComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
+
+/// @brief Result of a template VRP::solve() run.
+struct SolveResult {
+        /// @brief Per-algorithm timing in the same order as the algorithm parameters.
+        std::vector<Timer> timers;
+        /// @brief Final LP relaxation cost from the master problem after column generation.
+        double lp_cost = std::numeric_limits<double>::infinity();
+};
 
 /// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
 ///
@@ -45,7 +54,7 @@ class VRP {
 
         template <template <typename, typename> class... AlgorithmTypes,
                   typename LabelContainerType>
-        std::vector<Timer> solve(                        // NOLINT
+        SolveResult solve(                               // NOLINT
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
             std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {},
@@ -210,7 +219,7 @@ class VRP {
                 LOG_DEBUG(std::string(45, '*'), '\n');
             }
 
-            return timers;
+            return SolveResult{timers, master_solution.cost};
         }
 
         RGraph& get_graph() { return graph_; }

@@ -6,6 +6,7 @@
 #ifdef RCSPP_VRP_HAS_BOOST
 #include "cg/subproblem/boost/boost_subproblem.hpp"
 #endif
+#include "benchmark_common.hpp"
 #include "instance.hpp"
 #include "instance_reader.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
@@ -14,76 +15,12 @@
 #include "solution_output.hpp"
 #include "vrp.hpp"
 
-constexpr size_t METRIC_WIDTH = 15;
-constexpr size_t COL_WIDTH = 12;
-
-std::string print_timer_table(const std::string& instance, const std::vector<Timer>& timers,
-                              const std::vector<std::string>& labels, bool print_headers = true,
-                              size_t metric_w = METRIC_WIDTH, size_t min_col_w = COL_WIDTH) {
-    std::ostringstream out;
-    if (timers.size() != labels.size()) {
-        out << "print_timer_table_flipped: mismatch between timers and labels sizes\n";
-        return out.str();
-    }
-
-    // prepare formatted metric strings and compute column widths
-    std::vector<std::string> secs_str(timers.size());
-    std::vector<std::string> hms_str(timers.size());
-    for (size_t i = 0; i < timers.size(); ++i) {
-        std::ostringstream tmp;
-        double s = timers[i].elapsed_seconds();
-        tmp << std::fixed << std::setprecision(3) << (std::isfinite(s) ? s : NAN);
-        secs_str[i] = tmp.str();
-        hms_str[i] = timers[i].elapsed_to_hms();
-    }
-
-    const std::string metric_label = "Instance";
-    // compute column widths for each label column
-    std::vector<size_t> col_w(timers.size());
-    for (size_t i = 0; i < timers.size(); ++i) {
-        col_w[i] = std::max({labels[i].size(), secs_str[i].size(), hms_str[i].size(), min_col_w});
-    }
-
-    // total width for separator
-    size_t total_w = metric_w + 1;  // metric column + space
-    for (size_t w : col_w) {
-        total_w += (w + 1);  // each column + space
-    }
-
-    // header row: metric label + labels as column headers
-    if (print_headers) {
-        out << std::left << std::setw(metric_w) << metric_label << " ";
-        for (size_t i = 0; i < labels.size(); ++i) {
-            out << std::right << std::setw(static_cast<int>(col_w[i])) << labels[i] << " ";
-        }
-        out << "\n" << std::string(total_w, '-') << "\n";
-    }
-
-    // // Seconds row
-    // out << std::left << std::setw(metric_w) << "Seconds" << " ";
-    // for (size_t i = 0; i < secs_str.size(); ++i) {
-    //   out << std::right << std::setw(static_cast<int>(col_w[i])) << secs_str[i] << " ";
-    // }
-    // out << "\n";
-
-    // HH:MM:SS row
-    // out << std::left << std::setw(metric_w) << "HH:MM:SS" << " ";
-    out << std::left << std::setw(metric_w) << instance << " ";
-    for (size_t i = 0; i < hms_str.size(); ++i) {
-        out << std::right << std::setw(static_cast<int>(col_w[i])) << hms_str[i] << " ";
-    }
-    out << "\n";
-
-    return out.str();
-}
-
 int main(int argc, char* argv[]) {
     try {
         Logger::init(LogLevel::Info);
 
         LOG_TRACE(__FUNCTION__, '\n');
 
-        // std::vector<std::string> instance_names = {"toy"};
         std::vector<std::string> instance_names;
         size_t max_instance_index = 2;
         bool run_boost = false;
@@ -104,36 +41,28 @@ int main(int argc, char* argv[]) {
             instance_names.emplace_back("R10" + std::to_string(instance_num));
             instance_names.emplace_back("RC10" + std::to_string(instance_num));
         }
-        // BucketSimple uses time (resource index 0) for both bucket partition and
-        // within-bucket sort.  range_buckets=5 keeps ~200 buckets for a 1000-unit
-        // horizon, giving tight pruning at modest overhead.
+
         constexpr size_t kBucketRange = 50;
         constexpr size_t kBucketResourceIdx = 0;
         constexpr size_t kSortResourceIdx = 0;
         using BucketLC = LabelBuckets<IntResource, RealResource, ResourceType>;
 
-        std::vector<std::string> labels = std::vector<std::string>{"Simple",
-                                                                   "Pushing",
-                                                                   "Pulling",
-                                                                   "Diversif",
-                                                                   "BucketS",
-                                                                   "BucketP"};
+        std::vector<std::string> labels =
+            {"Simple", "Pushing", "Pulling", "Diversif", "BucketS", "BucketP"};
         if (run_boost) {
             labels.insert(labels.begin(), "Boost");
         }
         std::string root_dir = file_parent_dir(__FILE__, 3);
 
         std::vector<Timer> total_timers;
-        std::string stats;
-        bool first_instance = true;
+        std::vector<std::tuple<std::string, double, std::vector<Timer>>> rows;
+
         for (const auto& instance_name : instance_names) {
             std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
 
             LOG_INFO("Instance: ", instance_path, '\n');
             InstanceReader instance_reader(instance_path);
-
             auto instance = instance_reader.read();
-
             VRP vrp(instance);
 
             // ── LabelList algorithms ───────────────────────────────────────────
@@ -147,11 +76,10 @@ int main(int argc, char* argv[]) {
             auto tabu_search_algo =
                 vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
                                                                         std::move(greedy_algo));
-
             std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
                 tabu_search_algo.get()};
 
-            // ── LabelBuckets algorithms (same graph, cross-checked each CG iter) ──
+            // ── LabelBuckets algorithms ────────────────────────────────────────
             BucketLC bucket_container_s(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
             AlgorithmParams<BucketLC> bucket_params_s(std::move(bucket_container_s));
             auto bucket_simple =
@@ -174,33 +102,28 @@ int main(int argc, char* argv[]) {
                  },
                  true}};
 
-            // ── Single CG solve: all algorithms share the same duals each iter ──
+            // ── Single CG solve ────────────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto timers = vrp.solve<SimpleDominanceAlgorithm,
-                                    PushingDominanceAlgorithm,
-                                    PullingDominanceAlgorithm>(list_params,
-                                                               std::nullopt,
-                                                               list_algorithms,
-                                                               run_boost,
-                                                               extra_solvers);  // NOLINT
+            auto [timers, lp_cost] = vrp.solve<SimpleDominanceAlgorithm,
+                                               PushingDominanceAlgorithm,
+                                               PullingDominanceAlgorithm>(list_params,
+                                                                          std::nullopt,
+                                                                          list_algorithms,
+                                                                          run_boost,
+                                                                          extra_solvers);  // NOLINT
 
-            if (first_instance) {
+            if (total_timers.empty()) {
                 total_timers = timers;
             } else {
                 for (size_t i = 0; i < timers.size(); ++i) {
                     total_timers[i] += timers[i];
                 }
             }
-            auto instance_stats = print_timer_table(instance_name, timers, labels, first_instance);
-            first_instance = false;
-            stats += instance_stats;
-
-            LOG_INFO("Instance: ", instance_name, '\n');
-            LOG_INFO('\n', instance_stats, '\n');
+            rows.emplace_back(instance_name, lp_cost, timers);
         }
 
-        auto total_stats = print_timer_table("Total", total_timers, labels, false);
-        LOG_INFO('\n', std::string(80, '='), '\n', stats, std::string(80, '='), '\n', total_stats);
+        auto table = format_benchmark_table(rows, labels, total_timers);
+        LOG_INFO('\n', std::string(80, '='), '\n', table, std::string(80, '='), '\n');
 
         return 0;
     } catch (const std::exception& e) {
