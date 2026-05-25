@@ -155,7 +155,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             return {};
         }
 
-        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
+        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
             throw std::runtime_error("No get_path_arc_ids");
         }
 
