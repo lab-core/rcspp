@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include <cmath>
+#include <gtest/gtest.h>
+
 #include <initializer_list>
 #include <list>
 #include <unordered_map>
@@ -34,7 +35,7 @@ Solution make_pool_solution(double col_cost, std::vector<Row> rows,
 
 // ─── add / deduplication ────────────────────────────────────────────────────
 
-bool test_pool_add_deduplication() {
+TEST(SolutionPool, AddDeduplication) {
     SolutionPool pool;
     auto fp = pool.new_filter();
 
@@ -46,23 +47,14 @@ bool test_pool_add_deduplication() {
     auto id2 = fp.add(s2);  // must return same id (exact duplicate)
     auto id3 = fp.add(s3);
 
-    if (id1 != id2) {
-        LOG_ERROR("test_pool_add_deduplication: duplicate got different ids: ",
-                  id1, " vs ", id2, '\n');
-        return false;
-    }
-    if (id1 == id3 || id1 == SolutionPool::kNoId || id3 == SolutionPool::kNoId) {
-        LOG_ERROR("test_pool_add_deduplication: distinct solutions got same id or kNoId\n");
-        return false;
-    }
-    if (fp.size() != 2) {
-        LOG_ERROR("test_pool_add_deduplication: expected size 2, got ", fp.size(), '\n');
-        return false;
-    }
-    return true;
+    EXPECT_EQ(id1, id2);
+    EXPECT_NE(id1, id3);
+    EXPECT_NE(id1, SolutionPool::kNoId);
+    EXPECT_NE(id3, SolutionPool::kNoId);
+    EXPECT_EQ(fp.size(), 2u);
 }
 
-bool test_pool_add_batch() {
+TEST(SolutionPool, AddBatch) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto s1 = make_pool_solution(5.0, {{0, 1.0L}}, {10, 11});
@@ -70,46 +62,30 @@ bool test_pool_add_batch() {
 
     auto ids = fp.add({s1, s2, s1});  // s1 added twice: second must return same id
 
-    if (fp.size() != 2) {
-        LOG_ERROR("test_pool_add_batch: expected size 2, got ", fp.size(), '\n');
-        return false;
-    }
-    if (ids.size() != 3 || ids[0] != ids[2]) {
-        LOG_ERROR("test_pool_add_batch: duplicate s1 should return same ColumnId\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(fp.size(), 2u);
+    ASSERT_EQ(ids.size(), 3u);
+    EXPECT_EQ(ids[0], ids[2]);
 }
 
 // ─── get ────────────────────────────────────────────────────────────────────
 
-bool test_pool_get_by_id() {
+TEST(SolutionPool, GetById) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto s1 = make_pool_solution(5.0, {{0, 1.0L}}, {10, 11});
     auto id = fp.add(s1);
 
     auto retrieved = fp.get(id);
-    if (!retrieved) {
-        LOG_ERROR("test_pool_get_by_id: get() returned nullopt for valid id\n");
-        return false;
-    }
-    if (std::abs(retrieved->column.cost - 5.0) > 1e-9) {
-        LOG_ERROR("test_pool_get_by_id: wrong cost ", retrieved->column.cost, '\n');
-        return false;
-    }
+    ASSERT_TRUE(retrieved.has_value());
+    EXPECT_NEAR(retrieved->column.cost, 5.0, 1e-9);
 
     auto missing = fp.get(SolutionPool::kNoId);
-    if (missing) {
-        LOG_ERROR("test_pool_get_by_id: get(kNoId) should return nullopt\n");
-        return false;
-    }
-    return true;
+    EXPECT_FALSE(missing.has_value());
 }
 
 // ─── price ──────────────────────────────────────────────────────────────────
 
-bool test_pool_price_threshold() {
+TEST(SolutionPool, PriceThreshold) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     // column.cost=10, rows=[{0,1}]
@@ -118,34 +94,17 @@ bool test_pool_price_threshold() {
     auto id = fp.add(make_pool_solution(10.0, {{0, 1.0L}}, {0, 1}));
 
     auto r1 = fp.price({3.0});
-    if (!r1.empty()) {
-        LOG_ERROR("test_pool_price_threshold: expected empty result for rc=7\n");
-        return false;
-    }
+    EXPECT_TRUE(r1.empty());
 
     auto r2 = fp.price({11.0});
-    if (r2.size() != 1) {
-        LOG_ERROR("test_pool_price_threshold: expected 1 result for rc=-1, got ", r2.size(), '\n');
-        return false;
-    }
-    if (r2[0].id != id) {
-        LOG_ERROR("test_pool_price_threshold: wrong ColumnId in result\n");
-        return false;
-    }
-    if (std::abs(r2[0].reduced_cost - (-1.0)) > 1e-9) {
-        LOG_ERROR("test_pool_price_threshold: wrong reduced_cost ", r2[0].reduced_cost, '\n');
-        return false;
-    }
+    ASSERT_EQ(r2.size(), 1u);
+    EXPECT_EQ(r2[0].id, id);
+    EXPECT_NEAR(r2[0].reduced_cost, -1.0, 1e-9);
     // solution.cost must NOT be overwritten — still holds original arc cost
-    if (std::abs(r2[0].solution->column.cost - 10.0) > 1e-9) {
-        LOG_ERROR("test_pool_price_threshold: solution.cost was mutated to ",
-                  r2[0].solution->column.cost, " (should stay 10.0)\n");
-        return false;
-    }
-    return true;
+    EXPECT_NEAR(r2[0].solution->column.cost, 10.0, 1e-9);
 }
 
-bool test_pool_price_does_not_mutate_stored_cost() {
+TEST(SolutionPool, PriceDoesNotMutateStoredCost) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     // column.cost=6, rows=[{0,2},{1,1}]
@@ -156,15 +115,10 @@ bool test_pool_price_does_not_mutate_stored_cost() {
 
     // The stored column.cost must remain 6.0 (not 2.0)
     auto all = fp.get_all();
-    if (std::abs(std::get<1>(all[0]).column.cost - 6.0) > 1e-9) {
-        LOG_ERROR("test_pool_price_does_not_mutate_stored_cost: stored cost changed to ",
-                  std::get<1>(all[0]).column.cost, " (should stay 6.0)\n");
-        return false;
-    }
-    return true;
+    EXPECT_NEAR(std::get<1>(all[0]).column.cost, 6.0, 1e-9);
 }
 
-bool test_pool_price_out_of_range_dual() {
+TEST(SolutionPool, PriceOutOfRangeDual) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     // rows=[{5, 1.0}] but only 3 duals provided → dual at index 5 treated as 0
@@ -172,23 +126,16 @@ bool test_pool_price_out_of_range_dual() {
     fp.add(make_pool_solution(8.0, {{5, 1.0L}}, {0, 1}));
 
     auto r = fp.price({1.0, 2.0, 3.0});  // only indices 0-2 provided
+    EXPECT_TRUE(r.empty());
 
-    if (!r.empty()) {
-        LOG_ERROR("test_pool_price_out_of_range_dual: expected no results (rc=8 > 0)\n");
-        return false;
-    }
     // Verify stored cost unchanged
     auto all = fp.get_all();
-    if (std::abs(std::get<1>(all[0]).column.cost - 8.0) > 1e-9) {
-        LOG_ERROR("test_pool_price_out_of_range_dual: stored cost changed\n");
-        return false;
-    }
-    return true;
+    EXPECT_NEAR(std::get<1>(all[0]).column.cost, 8.0, 1e-9);
 }
 
 // ─── pool-managed activity tracking ─────────────────────────────────────────
 
-bool test_pool_activity_tracking() {
+TEST(SolutionPool, ActivityTracking) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     // column.cost=10, rows=[{0,1}]
@@ -196,69 +143,48 @@ bool test_pool_activity_tracking() {
     // duals=[11]: rc=-1 (negative, age=0, use_count++)
     auto id = fp.add(make_pool_solution(10.0, {{0, 1.0L}}, {0, 1}));
 
-    if (fp.pricing_count() != 0) {
-        LOG_ERROR("test_pool_activity_tracking: pricing_count should start at 0\n");
-        return false;
-    }
+    EXPECT_EQ(fp.pricing_count(), 0u);
 
     {
         auto act = fp.get_activity(id);
-        if (!act || act->created_at != 0) {
-            LOG_ERROR("test_pool_activity_tracking: created_at should be 0\n");
-            return false;
-        }
+        ASSERT_TRUE(act.has_value());
+        EXPECT_EQ(act->created_at, 0u);
     }
 
     (void)fp.price({3.0});
     {
         auto act = fp.get_activity(id);
-        if (!act || act->age != 1 || act->use_count != 0 || act->last_was_negative) {
-            LOG_ERROR("test_pool_activity_tracking: after positive pricing: age=",
-                      act->age, " use_count=", act->use_count, '\n');
-            return false;
-        }
-        if (fp.pricing_count() != 1) {
-            LOG_ERROR("test_pool_activity_tracking: pricing_count should be 1\n");
-            return false;
-        }
+        ASSERT_TRUE(act.has_value());
+        EXPECT_EQ(act->age, 1u);
+        EXPECT_EQ(act->use_count, 0u);
+        EXPECT_FALSE(act->last_was_negative);
+        EXPECT_EQ(fp.pricing_count(), 1u);
     }
 
     (void)fp.price({11.0});
     {
         auto act = fp.get_activity(id);
-        if (!act || act->age != 0 || act->use_count != 1 || !act->last_was_negative) {
-            LOG_ERROR("test_pool_activity_tracking: after negative pricing: age=",
-                      act->age, " use_count=", act->use_count, '\n');
-            return false;
-        }
-        const double rate = act->usage_rate(fp.pricing_count());
-        if (std::abs(rate - 0.5) > 1e-9) {
-            LOG_ERROR("test_pool_activity_tracking: usage_rate should be 0.5, got ", rate, '\n');
-            return false;
-        }
+        ASSERT_TRUE(act.has_value());
+        EXPECT_EQ(act->age, 0u);
+        EXPECT_EQ(act->use_count, 1u);
+        EXPECT_TRUE(act->last_was_negative);
+        EXPECT_NEAR(act->usage_rate(fp.pricing_count()), 0.5, 1e-9);
     }
 
     (void)fp.price({3.0});
     (void)fp.price({3.0});
     {
         auto act = fp.get_activity(id);
-        if (!act || act->age != 2 || act->use_count != 1) {
-            LOG_ERROR("test_pool_activity_tracking: after two positive pricings: age=",
-                      act->age, " use_count=", act->use_count, '\n');
-            return false;
-        }
-        const double rate = act->usage_rate(fp.pricing_count());
-        if (std::abs(rate - 0.25) > 1e-9) {
-            LOG_ERROR("test_pool_activity_tracking: usage_rate should be 0.25, got ", rate, '\n');
-            return false;
-        }
+        ASSERT_TRUE(act.has_value());
+        EXPECT_EQ(act->age, 2u);
+        EXPECT_EQ(act->use_count, 1u);
+        EXPECT_NEAR(act->usage_rate(fp.pricing_count()), 0.25, 1e-9);
     }
-    return true;
 }
 
 // ─── row filters via FilteredSolutionPool ────────────────────────────────────
 
-bool test_pool_price_compulsory_rows() {
+TEST(SolutionPool, PriceCompulsoryRows) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}, {1, 1.0L}}, {10, 11}));
@@ -270,35 +196,26 @@ bool test_pool_price_compulsory_rows() {
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({0}));
         auto r = fp2.price(duals);
-        if (r.size() != 1 || r[0].id != id1) {
-            LOG_ERROR("test_pool_price_compulsory_rows: expected only s1, got ", r.size(), '\n');
-            return false;
-        }
+        ASSERT_EQ(r.size(), 1u);
+        EXPECT_EQ(r[0].id, id1);
     }
     // compulsory_rows={0,1}: only s1 has both
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({0, 1}));
         auto r = fp2.price(duals);
-        if (r.size() != 1 || r[0].id != id1) {
-            LOG_ERROR("test_pool_price_compulsory_rows: compulsory {0,1}: expected s1, got ",
-                      r.size(), '\n');
-            return false;
-        }
+        ASSERT_EQ(r.size(), 1u);
+        EXPECT_EQ(r[0].id, id1);
     }
     // compulsory_rows={0,2}: no column has both → empty
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({0, 2}));
         auto r = fp2.price(duals);
-        if (!r.empty()) {
-            LOG_ERROR("test_pool_price_compulsory_rows: compulsory {0,2}: expected empty, got ",
-                      r.size(), '\n');
-            return false;
-        }
+        EXPECT_TRUE(r.empty());
     }
-    return true;
+    (void)id2;
 }
 
-bool test_pool_price_forbidden_rows() {
+TEST(SolutionPool, PriceForbiddenRows) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}, {1, 1.0L}}, {10, 11}));
@@ -310,24 +227,19 @@ bool test_pool_price_forbidden_rows() {
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({}, {1}));
         auto r = fp2.price(duals);
-        if (r.size() != 1 || r[0].id != id2) {
-            LOG_ERROR("test_pool_price_forbidden_rows: expected only s2, got ", r.size(), '\n');
-            return false;
-        }
+        ASSERT_EQ(r.size(), 1u);
+        EXPECT_EQ(r[0].id, id2);
     }
     // forbidden_rows={0,2}: s1 (row 0) and s2 (row 2) both filtered → empty
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({}, {0, 2}));
         auto r = fp2.price(duals);
-        if (!r.empty()) {
-            LOG_ERROR("test_pool_price_forbidden_rows: expected empty, got ", r.size(), '\n');
-            return false;
-        }
+        EXPECT_TRUE(r.empty());
     }
-    return true;
+    (void)id1;
 }
 
-bool test_pool_price_combined_filters() {
+TEST(SolutionPool, PriceCombinedFilters) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     fp.add(make_pool_solution(5.0, {{0, 1.0L}, {1, 1.0L}}, {10, 11}));
@@ -339,16 +251,13 @@ bool test_pool_price_combined_filters() {
     // compulsory={0}, forbidden={1}: must have row 0 AND NOT row 1 → only s2
     auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({0}, {1}));
     auto r = fp2.price(duals);
-    if (r.size() != 1 || r[0].id != id2) {
-        LOG_ERROR("test_pool_price_combined_filters: expected only s2, got ", r.size(), '\n');
-        return false;
-    }
-    return true;
+    ASSERT_EQ(r.size(), 1u);
+    EXPECT_EQ(r[0].id, id2);
 }
 
 // ─── external variable association ──────────────────────────────────────────
 
-bool test_pool_external_variable_association() {
+TEST(SolutionPool, ExternalVariableAssociation) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -363,12 +272,7 @@ bool test_pool_external_variable_association() {
 
     auto priced = fp.price({10.0, 10.0});
     for (const auto& pc : priced) {
-        bool m1_has = master1_vars.contains(pc.id);
-        if (!m1_has) {
-            LOG_ERROR("test_pool_external_variable_association: master1 missing var for id ",
-                      pc.id, '\n');
-            return false;
-        }
+        EXPECT_TRUE(master1_vars.contains(pc.id));
     }
 
     for (const auto& pc : priced) {
@@ -376,16 +280,13 @@ bool test_pool_external_variable_association() {
             master2_vars[pc.id] = 300;
         }
     }
-    if (!master2_vars.contains(id2) || master2_vars[id2] != 300) {
-        LOG_ERROR("test_pool_external_variable_association: master2 failed to add new column\n");
-        return false;
-    }
-    return true;
+    ASSERT_TRUE(master2_vars.contains(id2));
+    EXPECT_EQ(master2_vars[id2], 300);
 }
 
 // ─── remove_if ───────────────────────────────────────────────────────────────
 
-bool test_pool_remove_if_by_cost() {
+TEST(SolutionPool, RemoveIfByCost) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     fp.add(make_pool_solution(5.0,  {{0, 1.0L}}, {10, 11}));
@@ -397,27 +298,16 @@ bool test_pool_remove_if_by_cost() {
             return sol.column.cost > 10.0;
         });
 
-    if (removed_ids.size() != 1) {
-        LOG_ERROR("test_pool_remove_if_by_cost: expected 1 removed, got ", removed_ids.size(), '\n');
-        return false;
-    }
-    if (fp.size() != 2) {
-        LOG_ERROR("test_pool_remove_if_by_cost: expected 2, got ", fp.size(), '\n');
-        return false;
-    }
+    EXPECT_EQ(removed_ids.size(), 1u);
+    EXPECT_EQ(fp.size(), 2u);
     for (const auto& [col_id, sol, act] : fp.get_all()) {
-        if (sol.column.cost > 10.0) {
-            LOG_ERROR("test_pool_remove_if_by_cost: solution with cost ", sol.column.cost,
-                      " should have been removed\n");
-            return false;
-        }
+        EXPECT_LE(sol.column.cost, 10.0);
     }
-    return true;
 }
 
 // ─── remove_stale ────────────────────────────────────────────────────────────
 
-bool test_pool_remove_stale_by_age() {
+TEST(SolutionPool, RemoveStaleByAge) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -428,23 +318,16 @@ bool test_pool_remove_stale_by_age() {
 
     auto removed_ids = fp.global_remove_stale(1);
 
-    if (removed_ids.size() != 1 || removed_ids[0] != id2) {
-        LOG_ERROR("test_pool_remove_stale_by_age: expected id2 removed\n");
-        return false;
-    }
-    if (fp.size() != 1) {
-        LOG_ERROR("test_pool_remove_stale_by_age: expected 1 entry, got ", fp.size(), '\n');
-        return false;
-    }
+    ASSERT_EQ(removed_ids.size(), 1u);
+    EXPECT_EQ(removed_ids[0], id2);
+    EXPECT_EQ(fp.size(), 1u);
+
     auto all = fp.get_all();
-    if (std::abs(std::get<1>(all[0]).column.cost - 5.0) > 1e-9) {
-        LOG_ERROR("test_pool_remove_stale_by_age: wrong solution kept\n");
-        return false;
-    }
-    return true;
+    EXPECT_NEAR(std::get<1>(all[0]).column.cost, 5.0, 1e-9);
+    (void)id1;
 }
 
-bool test_pool_remove_stale_by_usage_rate() {
+TEST(SolutionPool, RemoveStaleByUsageRate) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(3.0,   {{0, 1.0L}}, {10, 11}));
@@ -458,22 +341,13 @@ bool test_pool_remove_stale_by_usage_rate() {
     // s1: use_count=4, usage_rate=1.0 → kept; s2: use_count=0, usage_rate=0.0 < 0.1 → removed
     auto removed_ids = fp.global_remove_stale(/*max_age=*/100, /*min_usage_rate=*/0.1);
 
-    if (removed_ids.size() != 1 || removed_ids[0] != id2) {
-        LOG_ERROR("test_pool_remove_stale_by_usage_rate: expected id2 removed\n");
-        return false;
-    }
-    if (fp.size() != 1) {
-        LOG_ERROR("test_pool_remove_stale_by_usage_rate: expected 1, got ", fp.size(), '\n');
-        return false;
-    }
-    if (!fp.get(id1)) {
-        LOG_ERROR("test_pool_remove_stale_by_usage_rate: id1 should still be present\n");
-        return false;
-    }
-    return true;
+    ASSERT_EQ(removed_ids.size(), 1u);
+    EXPECT_EQ(removed_ids[0], id2);
+    EXPECT_EQ(fp.size(), 1u);
+    EXPECT_TRUE(fp.get(id1).has_value());
 }
 
-bool test_pool_remove_preserves_id_consistency() {
+TEST(SolutionPool, RemovePreservesIdConsistency) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0,  {{0, 1.0L}}, {10, 11}));
@@ -484,34 +358,19 @@ bool test_pool_remove_preserves_id_consistency() {
         return cid == id2;
     });
 
-    if (fp.size() != 2) {
-        LOG_ERROR("test_pool_remove_preserves_id_consistency: expected 2, got ", fp.size(), '\n');
-        return false;
-    }
-    if (!fp.get(id1) || !fp.get(id3)) {
-        LOG_ERROR("test_pool_remove_preserves_id_consistency: id1 or id3 missing after remove\n");
-        return false;
-    }
-    if (fp.get(id2)) {
-        LOG_ERROR("test_pool_remove_preserves_id_consistency: id2 should be gone\n");
-        return false;
-    }
+    EXPECT_EQ(fp.size(), 2u);
+    EXPECT_TRUE(fp.get(id1).has_value());
+    EXPECT_TRUE(fp.get(id3).has_value());
+    EXPECT_FALSE(fp.get(id2).has_value());
+
     auto new_id = fp.add(make_pool_solution(8.0, {{1, 1.0L}}, {20, 21}));
-    if (fp.size() != 3) {
-        LOG_ERROR("test_pool_remove_preserves_id_consistency: re-add after remove failed, "
-                  "size=", fp.size(), '\n');
-        return false;
-    }
-    if (new_id == id2) {
-        LOG_ERROR("test_pool_remove_preserves_id_consistency: re-added entry reused old id\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(fp.size(), 3u);
+    EXPECT_NE(new_id, id2);
 }
 
 // ─── update_activity (LP basis membership) ───────────────────────────────────
 
-bool test_pool_update_activity() {
+TEST(SolutionPool, UpdateActivity) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0,  {{0, 1.0L}}, {10, 11}));
@@ -522,47 +381,33 @@ bool test_pool_update_activity() {
     {
         auto act1 = fp.get_activity(id1);
         auto act2 = fp.get_activity(id2);
-        if (!act1 || !act2) {
-            LOG_ERROR("test_pool_update_activity: get_activity returned nullopt\n");
-            return false;
-        }
-        if (act1->age != 0 || act1->use_count != 1 || !act1->last_was_negative) {
-            LOG_ERROR("test_pool_update_activity: id1 in basis: age=", act1->age,
-                      " use_count=", act1->use_count, '\n');
-            return false;
-        }
-        if (act2->age != 1 || act2->use_count != 0 || act2->last_was_negative) {
-            LOG_ERROR("test_pool_update_activity: id2 not in basis: age=", act2->age,
-                      " use_count=", act2->use_count, '\n');
-            return false;
-        }
+        ASSERT_TRUE(act1.has_value());
+        ASSERT_TRUE(act2.has_value());
+        EXPECT_EQ(act1->age, 0u);
+        EXPECT_EQ(act1->use_count, 1u);
+        EXPECT_TRUE(act1->last_was_negative);
+        EXPECT_EQ(act2->age, 1u);
+        EXPECT_EQ(act2->use_count, 0u);
+        EXPECT_FALSE(act2->last_was_negative);
     }
 
     fp.update_activity({});
     {
         auto act1 = fp.get_activity(id1);
         auto act2 = fp.get_activity(id2);
-        if (!act1 || act1->age != 1 || act1->use_count != 1) {
-            LOG_ERROR("test_pool_update_activity: id1 after second update: age=",
-                      act1->age, '\n');
-            return false;
-        }
-        if (!act2 || act2->age != 2 || act2->use_count != 0) {
-            LOG_ERROR("test_pool_update_activity: id2 after second update: age=",
-                      act2->age, '\n');
-            return false;
-        }
+        ASSERT_TRUE(act1.has_value());
+        ASSERT_TRUE(act2.has_value());
+        EXPECT_EQ(act1->age, 1u);
+        EXPECT_EQ(act1->use_count, 1u);
+        EXPECT_EQ(act2->age, 2u);
+        EXPECT_EQ(act2->use_count, 0u);
     }
-    if (fp.pricing_count() != 0) {
-        LOG_ERROR("test_pool_update_activity: pricing_count should remain 0\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(fp.pricing_count(), 0u);
 }
 
 // ─── arc-based filters via FilteredSolutionPool ──────────────────────────────
 
-bool test_pool_price_arc_filters() {
+TEST(SolutionPool, PriceArcFilters) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}, {1, 1.0L}}, {10, 11}));
@@ -574,40 +419,29 @@ bool test_pool_price_arc_filters() {
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {10}));
         auto r = fp2.price(duals);
-        if (r.size() != 1 || r[0].id != id1) {
-            LOG_ERROR("test_pool_price_arc_filters: compulsory arc 10: expected s1, got ",
-                      r.size(), '\n');
-            return false;
-        }
+        ASSERT_EQ(r.size(), 1u);
+        EXPECT_EQ(r[0].id, id1);
     }
 
     // forbidden_arc_ids={10}: s1 filtered; only s2 returned
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10}));
         auto r = fp2.price(duals);
-        if (r.size() != 1 || r[0].id != id2) {
-            LOG_ERROR("test_pool_price_arc_filters: forbidden arc 10: expected s2, got ",
-                      r.size(), '\n');
-            return false;
-        }
+        ASSERT_EQ(r.size(), 1u);
+        EXPECT_EQ(r[0].id, id2);
     }
 
     // forbidden_arc_ids={10,20}: both paths filtered → empty
     {
         auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10, 20}));
         auto r = fp2.price(duals);
-        if (!r.empty()) {
-            LOG_ERROR("test_pool_price_arc_filters: forbidden {10,20}: expected empty, got ",
-                      r.size(), '\n');
-            return false;
-        }
+        EXPECT_TRUE(r.empty());
     }
-    return true;
 }
 
 // ─── remove_if_arc_present ───────────────────────────────────────────────────
 
-bool test_pool_remove_if_arc_present() {
+TEST(SolutionPool, RemoveIfArcPresent) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -616,27 +450,16 @@ bool test_pool_remove_if_arc_present() {
 
     auto removed = fp.global_remove_if_arc_present(10);
 
-    if (removed.size() != 2) {
-        LOG_ERROR("test_pool_remove_if_arc_present: expected 2 removed, got ",
-                  removed.size(), '\n');
-        return false;
-    }
-    if (fp.size() != 1) {
-        LOG_ERROR("test_pool_remove_if_arc_present: expected 1 remaining, got ",
-                  fp.size(), '\n');
-        return false;
-    }
-    if (!fp.get(id2) || fp.get(id1) || fp.get(id3)) {
-        LOG_ERROR("test_pool_remove_if_arc_present: wrong column kept/removed\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(removed.size(), 2u);
+    EXPECT_EQ(fp.size(), 1u);
+    EXPECT_TRUE(fp.get(id2).has_value());
+    EXPECT_FALSE(fp.get(id1).has_value());
+    EXPECT_FALSE(fp.get(id3).has_value());
 }
 
 // ─── FilteredSolutionPool ────────────────────────────────────────────────────
 
-// new_filter: creates a FilteredSolutionPool with row/arc constraints
-bool test_pool_new_filter() {
+TEST(SolutionPool, NewFilter) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -644,23 +467,17 @@ bool test_pool_new_filter() {
 
     // new_filter with no predicate: all entries visible
     auto fp_all = pool.new_filter();
-    if (fp_all.size() != 2) {
-        LOG_ERROR("test_pool_new_filter: no-filter pool should have 2 entries, got ",
-                  fp_all.size(), '\n');
-        return false;
-    }
+    EXPECT_EQ(fp_all.size(), 2u);
 
     // new_filter with arc constraint: only id2 (no arc 10)
     auto fp2 = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10}));
-    if (fp2.size() != 1 || !fp2.get(id2) || fp2.get(id1)) {
-        LOG_ERROR("test_pool_new_filter: wrong initial population\n");
-        return false;
-    }
-    return true;
+    EXPECT_EQ(fp2.size(), 1u);
+    EXPECT_TRUE(fp2.get(id2).has_value());
+    EXPECT_FALSE(fp2.get(id1).has_value());
 }
 
 // Auto-propagation: fp.add() forwards to all other registered FilteredSolutionPools
-bool test_pool_autopropagation_add() {
+TEST(SolutionPool, AutopropagationAdd) {
     SolutionPool pool;
     // fp1: no filter (all); fp2: forbidden arc 10
     auto fp1 = pool.new_filter();
@@ -668,26 +485,17 @@ bool test_pool_autopropagation_add() {
 
     // Add s1 (no arc 10) via fp1: both pools should receive it
     auto id1 = fp1.add(make_pool_solution(5.0, {{0, 1.0L}}, {20, 21}));
-    if (!fp1.get(id1) || !fp2.get(id1)) {
-        LOG_ERROR("test_pool_autopropagation_add: s1 (no arc 10) not propagated correctly\n");
-        return false;
-    }
+    EXPECT_TRUE(fp1.get(id1).has_value());
+    EXPECT_TRUE(fp2.get(id1).has_value());
 
     // Add s2 (has arc 10) via fp1: fp1 receives it, fp2 does not
     auto id2 = fp1.add(make_pool_solution(7.0, {{1, 1.0L}}, {10, 11}));
-    if (!fp1.get(id2)) {
-        LOG_ERROR("test_pool_autopropagation_add: s2 not in fp1\n");
-        return false;
-    }
-    if (fp2.get(id2)) {
-        LOG_ERROR("test_pool_autopropagation_add: s2 should not be in fp2 (arc 10 forbidden)\n");
-        return false;
-    }
-    return true;
+    EXPECT_TRUE(fp1.get(id2).has_value());
+    EXPECT_FALSE(fp2.get(id2).has_value());
 }
 
 // Auto-propagation: global_remove_if() removes from all registered FilteredSolutionPools
-bool test_pool_autopropagation_remove() {
+TEST(SolutionPool, AutopropagationRemove) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -696,33 +504,24 @@ bool test_pool_autopropagation_remove() {
     auto fp1 = pool.new_filter();
     auto fp2 = pool.new_filter();
 
-    if (fp1.size() != 2 || fp2.size() != 2) {
-        LOG_ERROR("test_pool_autopropagation_remove: both pools should have 2 entries\n");
-        return false;
-    }
+    EXPECT_EQ(fp1.size(), 2u);
+    EXPECT_EQ(fp2.size(), 2u);
 
     // Remove id1 globally: both filtered pools should lose it
     fp.global_remove_if([&](SolutionPool::ColumnId cid, const Solution&, const ColumnActivity&) {
         return cid == id1;
     });
 
-    if (fp1.get(id1) || fp2.get(id1)) {
-        LOG_ERROR("test_pool_autopropagation_remove: id1 still in filtered pools after removal\n");
-        return false;
-    }
-    if (!fp1.get(id2) || !fp2.get(id2)) {
-        LOG_ERROR("test_pool_autopropagation_remove: id2 should remain in filtered pools\n");
-        return false;
-    }
-    if (fp1.size() != 1 || fp2.size() != 1) {
-        LOG_ERROR("test_pool_autopropagation_remove: expected size 1 in each filtered pool\n");
-        return false;
-    }
-    return true;
+    EXPECT_FALSE(fp1.get(id1).has_value());
+    EXPECT_FALSE(fp2.get(id1).has_value());
+    EXPECT_TRUE(fp1.get(id2).has_value());
+    EXPECT_TRUE(fp2.get(id2).has_value());
+    EXPECT_EQ(fp1.size(), 1u);
+    EXPECT_EQ(fp2.size(), 1u);
 }
 
 // FilteredSolutionPool destructor unregisters: adding after fp goes out of scope is safe
-bool test_filtered_pool_destructor_unregisters() {
+TEST(FilteredSolutionPool, DestructorUnregisters) {
     SolutionPool pool;
     {
         auto fp = pool.new_filter();
@@ -732,17 +531,11 @@ bool test_filtered_pool_destructor_unregisters() {
     // If fp was not unregistered, the next add would access dangling pointer → UB.
     auto fp2 = pool.new_filter();
     fp2.add(make_pool_solution(7.0, {{1, 1.0L}}, {20, 21}));
-    if (fp2.size() != 2) {
-        LOG_ERROR("test_filtered_pool_destructor_unregisters: expected size 2, got ",
-                  fp2.size(), '\n');
-        return false;
-    }
-    return true;
+    EXPECT_EQ(fp2.size(), 2u);
 }
 
 // FilteredSolutionPool::add(): main pool always gets it; subpool only if filter passes.
-// The caller FilteredSolutionPool handles its own filtered_ids_ directly.
-bool test_filtered_pool_add() {
+TEST(FilteredSolutionPool, Add) {
     SolutionPool pool;
     auto fp = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10}));  // forbid arc 10
 
@@ -751,25 +544,18 @@ bool test_filtered_pool_add() {
     // s2: uses arc 10 → rejected by filter (but added to main pool)
     auto id2 = fp.add(make_pool_solution(7.0, {{1, 1.0L}}, {10, 11}));
 
-    if (fp.size() != 1) {
-        LOG_ERROR("test_filtered_pool_add: expected 1 in subpool, got ", fp.size(), '\n');
-        return false;
-    }
-    if (!fp.get(id1) || fp.get(id2)) {
-        LOG_ERROR("test_filtered_pool_add: filter not applied on add\n");
-        return false;
-    }
+    EXPECT_EQ(fp.size(), 1u);
+    EXPECT_TRUE(fp.get(id1).has_value());
+    EXPECT_FALSE(fp.get(id2).has_value());
+
     // Verify both are in the main pool via an unfiltered view
     auto fp_all = pool.new_filter();
-    if (!fp_all.get(id1) || !fp_all.get(id2)) {
-        LOG_ERROR("test_filtered_pool_add: main pool missing entries\n");
-        return false;
-    }
-    return true;
+    EXPECT_TRUE(fp_all.get(id1).has_value());
+    EXPECT_TRUE(fp_all.get(id2).has_value());
 }
 
 // price() prices only the filtered subset
-bool test_filtered_pool_price() {
+TEST(FilteredSolutionPool, Price) {
     SolutionPool pool;
     auto fp_all = pool.new_filter();
     auto id1 = fp_all.add(make_pool_solution(5.0, {{0, 1.0L}}, {20, 21}));
@@ -779,68 +565,49 @@ bool test_filtered_pool_price() {
     auto fp = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10}));
 
     auto priced = fp.price({20.0});  // rc = 5 - 20 = -15 for both
-    if (priced.size() != 1 || priced[0].id != id1) {
-        LOG_ERROR("test_filtered_pool_price: expected only s1 priced, got ", priced.size(), '\n');
-        return false;
-    }
+    ASSERT_EQ(priced.size(), 1u);
+    EXPECT_EQ(priced[0].id, id1);
+
     // s1's activity updated; s2 (filtered out) untouched
     auto act1 = fp_all.get_activity(id1);
     auto act2 = fp_all.get_activity(id2);
-    if (!act1 || act1->use_count != 1 || act1->age != 0) {
-        LOG_ERROR("test_filtered_pool_price: s1 activity wrong\n");
-        return false;
-    }
-    if (!act2 || act2->use_count != 0 || act2->age != 0) {
-        LOG_ERROR("test_filtered_pool_price: s2 activity should be untouched\n");
-        return false;
-    }
-    return true;
+    ASSERT_TRUE(act1.has_value());
+    ASSERT_TRUE(act2.has_value());
+    EXPECT_EQ(act1->use_count, 1u);
+    EXPECT_EQ(act1->age, 0u);
+    EXPECT_EQ(act2->use_count, 0u);
+    EXPECT_EQ(act2->age, 0u);
 }
 
 // remove_if_arc_present (local): subpool loses entry, main pool keeps it
-bool test_filtered_pool_remove_arc_backtrack() {
+TEST(FilteredSolutionPool, RemoveArcBacktrack) {
     SolutionPool pool;
     auto fp_all = pool.new_filter();
     auto id1 = fp_all.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 20}));
     auto id2 = fp_all.add(make_pool_solution(7.0, {{1, 1.0L}}, {30, 40}));
 
     FilteredSolutionPool fp(pool);  // no base filter: both entries present
-    if (fp.size() != 2) {
-        LOG_ERROR("test_filtered_pool_remove_arc_backtrack: expected 2 initial, got ",
-                  fp.size(), '\n');
-        return false;
-    }
+    EXPECT_EQ(fp.size(), 2u);
 
     auto removed = fp.remove_if_arc_present(10);
-    if (removed.size() != 1 || removed[0] != id1) {
-        LOG_ERROR("test_filtered_pool_remove_arc_backtrack: wrong entry removed from subpool\n");
-        return false;
-    }
-    if (fp.size() != 1 || fp.get(id1) || !fp.get(id2)) {
-        LOG_ERROR("test_filtered_pool_remove_arc_backtrack: subpool state wrong after remove\n");
-        return false;
-    }
+    ASSERT_EQ(removed.size(), 1u);
+    EXPECT_EQ(removed[0], id1);
+    EXPECT_EQ(fp.size(), 1u);
+    EXPECT_FALSE(fp.get(id1).has_value());
+    EXPECT_TRUE(fp.get(id2).has_value());
 
     // Main pool must NOT have lost s1
-    if (!fp_all.get(id1)) {
-        LOG_ERROR("test_filtered_pool_remove_arc_backtrack: main pool lost s1 (backtrack broken)\n");
-        return false;
-    }
+    EXPECT_TRUE(fp_all.get(id1).has_value());
 
     // Simulate backtrack: fp goes out of scope. Rebuild for parent node.
     {
         FilteredSolutionPool parent_fp(pool);
-        if (parent_fp.size() != 2) {
-            LOG_ERROR("test_filtered_pool_remove_arc_backtrack: after backtrack, expected 2, got ",
-                      parent_fp.size(), '\n');
-            return false;
-        }
+        EXPECT_EQ(parent_fp.size(), 2u);
     }
-    return true;
 }
 
 // Activity is shared: update via FilteredSolutionPool is visible through main pool and vice versa
-bool test_filtered_pool_activity_shared() {
+TEST(FilteredSolutionPool, ActivityShared) {
     SolutionPool pool;
     auto fp_all = pool.new_filter();
     auto id1 = fp_all.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -853,27 +620,23 @@ bool test_filtered_pool_activity_shared() {
 
     auto act1 = fp_all.get_activity(id1);
     auto act2 = fp_all.get_activity(id2);
-    if (!act1 || act1->use_count != 1 || act1->age != 0) {
-        LOG_ERROR("test_filtered_pool_activity_shared: s1 activity via fp_all wrong\n");
-        return false;
-    }
-    if (!act2 || act2->use_count != 0 || act2->age != 1) {
-        LOG_ERROR("test_filtered_pool_activity_shared: s2 activity via fp_all wrong\n");
-        return false;
-    }
+    ASSERT_TRUE(act1.has_value());
+    ASSERT_TRUE(act2.has_value());
+    EXPECT_EQ(act1->use_count, 1u);
+    EXPECT_EQ(act1->age, 0u);
+    EXPECT_EQ(act2->use_count, 0u);
+    EXPECT_EQ(act2->age, 1u);
 
     // Update via fp_all; visible through fp
     fp_all.update_activity({id1, id2});  // both in basis
     auto fp_act2 = fp.get_activity(id2);
-    if (!fp_act2 || fp_act2->use_count != 1 || fp_act2->age != 0) {
-        LOG_ERROR("test_filtered_pool_activity_shared: shared activity update failed\n");
-        return false;
-    }
-    return true;
+    ASSERT_TRUE(fp_act2.has_value());
+    EXPECT_EQ(fp_act2->use_count, 1u);
+    EXPECT_EQ(fp_act2->age, 0u);
 }
 
 // No-filter constructor
-bool test_filtered_pool_no_filter() {
+TEST(FilteredSolutionPool, NoFilter) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
@@ -881,15 +644,12 @@ bool test_filtered_pool_no_filter() {
     fp.add(make_pool_solution(3.0, {{2, 1.0L}}, {30, 31}));
 
     FilteredSolutionPool fp2(pool);
-    if (fp2.size() != 3 || fp2.size() != fp.size()) {
-        LOG_ERROR("test_filtered_pool_no_filter: expected 3, got ", fp2.size(), '\n');
-        return false;
-    }
-    return true;
+    EXPECT_EQ(fp2.size(), 3u);
+    EXPECT_EQ(fp2.size(), fp.size());
 }
 
 // Chain filtering: fp.new_filter(pred) produces a further-narrowed view
-bool test_filtered_pool_chain_filter() {
+TEST(FilteredSolutionPool, ChainFilter) {
     SolutionPool pool;
     auto fp = pool.new_filter();
     // s1: arc 10, row 0; s2: arc 20, row 0; s3: arc 10, row 1
@@ -899,73 +659,19 @@ bool test_filtered_pool_chain_filter() {
 
     // Base: compulsory row 0 → s1, s2
     auto fp1 = pool.new_filter(FilteredSolutionPool::make_filter({0}));
-    if (fp1.size() != 2 || !fp1.get(id1) || !fp1.get(id2)) {
-        LOG_ERROR("test_filtered_pool_chain_filter: fp1 should have s1 and s2\n");
-        return false;
-    }
+    EXPECT_EQ(fp1.size(), 2u);
+    EXPECT_TRUE(fp1.get(id1).has_value());
+    EXPECT_TRUE(fp1.get(id2).has_value());
 
     // Chain: also forbid arc 10 → only s2 remains
     auto fp2 = fp1.new_filter(FilteredSolutionPool::make_filter({}, {}, {}, {10}));
-    if (fp2.size() != 1 || !fp2.get(id2) || fp2.get(id1) || fp2.get(id3)) {
-        LOG_ERROR("test_filtered_pool_chain_filter: fp2 should only have s2, got size=",
-                  fp2.size(), '\n');
-        return false;
-    }
+    EXPECT_EQ(fp2.size(), 1u);
+    EXPECT_TRUE(fp2.get(id2).has_value());
+    EXPECT_FALSE(fp2.get(id1).has_value());
+    EXPECT_FALSE(fp2.get(id3).has_value());
 
     // Adding a new solution: it propagates through the combined filter
     auto id4 = fp.add(make_pool_solution(4.0, {{0, 1.0L}}, {25, 26}));  // row 0, no arc 10/20
-    if (!fp1.get(id4) || !fp2.get(id4)) {
-        LOG_ERROR("test_filtered_pool_chain_filter: new column id4 should be in fp1 and fp2\n");
-        return false;
-    }
-    return true;
-}
-
-// ─── runner ─────────────────────────────────────────────────────────────────
-
-std::pair<int, int> all_tests_solution_pool() {
-    int passed = 0;
-    int total = 0;
-
-    auto run = [&](bool (*fn)(), const char* name) {
-        LOG_INFO("Run test ", name, '\n');
-        ++total;
-        if (fn()) {
-            ++passed;
-        } else {
-            LOG_ERROR("FAILED: ", name, '\n');
-        }
-    };
-
-    run(test_pool_add_deduplication,               "test_pool_add_deduplication");
-    run(test_pool_add_batch,                       "test_pool_add_batch");
-    run(test_pool_get_by_id,                       "test_pool_get_by_id");
-    run(test_pool_price_threshold,                 "test_pool_price_threshold");
-    run(test_pool_price_does_not_mutate_stored_cost,
-                                                   "test_pool_price_does_not_mutate_stored_cost");
-    run(test_pool_price_out_of_range_dual,         "test_pool_price_out_of_range_dual");
-    run(test_pool_activity_tracking,               "test_pool_activity_tracking");
-    run(test_pool_price_compulsory_rows,           "test_pool_price_compulsory_rows");
-    run(test_pool_price_forbidden_rows,            "test_pool_price_forbidden_rows");
-    run(test_pool_price_combined_filters,          "test_pool_price_combined_filters");
-    run(test_pool_external_variable_association,   "test_pool_external_variable_association");
-    run(test_pool_remove_if_by_cost,               "test_pool_remove_if_by_cost");
-    run(test_pool_remove_stale_by_age,             "test_pool_remove_stale_by_age");
-    run(test_pool_remove_stale_by_usage_rate,      "test_pool_remove_stale_by_usage_rate");
-    run(test_pool_remove_preserves_id_consistency, "test_pool_remove_preserves_id_consistency");
-    run(test_pool_update_activity,                 "test_pool_update_activity");
-    run(test_pool_price_arc_filters,               "test_pool_price_arc_filters");
-    run(test_pool_remove_if_arc_present,           "test_pool_remove_if_arc_present");
-    run(test_pool_new_filter,                      "test_pool_new_filter");
-    run(test_pool_autopropagation_add,             "test_pool_autopropagation_add");
-    run(test_pool_autopropagation_remove,          "test_pool_autopropagation_remove");
-    run(test_filtered_pool_destructor_unregisters, "test_filtered_pool_destructor_unregisters");
-    run(test_filtered_pool_add,                    "test_filtered_pool_add");
-    run(test_filtered_pool_price,                  "test_filtered_pool_price");
-    run(test_filtered_pool_remove_arc_backtrack,   "test_filtered_pool_remove_arc_backtrack");
-    run(test_filtered_pool_activity_shared,        "test_filtered_pool_activity_shared");
-    run(test_filtered_pool_no_filter,              "test_filtered_pool_no_filter");
-    run(test_filtered_pool_chain_filter,           "test_filtered_pool_chain_filter");
-
-    return {passed, total};
+    EXPECT_TRUE(fp1.get(id4).has_value());
+    EXPECT_TRUE(fp2.get(id4).has_value());
 }
