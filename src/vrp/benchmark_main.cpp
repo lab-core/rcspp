@@ -97,7 +97,16 @@ int main(int argc, char* argv[]) {
             instance_names.emplace_back("R10" + std::to_string(instance_num));
             instance_names.emplace_back("RC10" + std::to_string(instance_num));
         }
-        std::vector<std::string> labels = {"Boost", "Simple", "Pushing", "Pulling", "Diversif"};
+        // BucketSimple uses time (resource index 0) for both bucket partition and
+        // within-bucket sort.  range_buckets=5 keeps ~200 buckets for a 1000-unit
+        // horizon, giving tight pruning at modest overhead.
+        constexpr size_t kBucketRange = 5;
+        constexpr size_t kBucketResourceIdx = 0;
+        constexpr size_t kSortResourceIdx = 0;
+        using BucketLC = LabelBuckets<RealResource, RealResource, ResourceType>;
+
+        std::vector<std::string> labels =
+            {"Boost", "Simple", "Pushing", "Pulling", "Diversif", "BucketS", "BucketP"};
         std::string root_dir = file_parent_dir(__FILE__, 3);
 
         std::vector<Timer> total_timers;
@@ -110,6 +119,8 @@ int main(int argc, char* argv[]) {
             InstanceReader instance_reader(instance_path);
 
             auto instance = instance_reader.read();
+
+            // ── Run 1: standard LabelList algorithms ──────────────────────────
             VRP vrp(instance);
 
             AlgorithmParams<LabelList<ResourceType>> other_params;
@@ -123,15 +134,31 @@ int main(int argc, char* argv[]) {
                 vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
                                                                         std::move(greedy_algo));
 
-            std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> algorithms = {
+            std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
                 tabu_search_algo.get()};
 
-            Timer timer(true);
-            AlgorithmParams<LabelList<ResourceType>> params;
-            auto timers = vrp.solve<SimpleDominanceAlgorithm,
-                                    PushingDominanceAlgorithm,
-                                    PullingDominanceAlgorithm>(params, labels.size(), algorithms);
-            timer.stop();
+            AlgorithmParams<LabelList<ResourceType>> list_params;
+            // list_timers: [Boost, Simple, Pushing, Pulling, Diversif]
+            auto list_timers =
+                vrp.solve<SimpleDominanceAlgorithm,
+                          PushingDominanceAlgorithm,
+                          PullingDominanceAlgorithm>(list_params, 5, list_algorithms);  // NOLINT
+
+            // ── Run 2: LabelBuckets / SimpleDominanceAlgorithm ────────────────
+            VRP vrp_bucket(instance);  // fresh VRP for a fair comparison
+            BucketLC bucket_container(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
+            AlgorithmParams<BucketLC> bucket_params(std::move(bucket_container));
+            // bucket_timers: [Boost(ignored), BucketSimple, BucketPulling]
+            auto bucket_timers =
+                vrp_bucket.solve<SimpleDominanceAlgorithm, PullingDominanceAlgorithm>(
+                    bucket_params,
+                    3,
+                    {});  // NOLINT
+
+            // ── Combine into a single timer row ────────────────────────────────
+            std::vector<Timer> timers = list_timers;  // Boost, Simple, Pushing, Pulling, Diversif
+            timers.push_back(bucket_timers[1]);       // BucketSimple
+            timers.push_back(bucket_timers[2]);       // BucketPulling
 
             if (first_instance) {
                 total_timers = timers;
