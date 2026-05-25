@@ -549,11 +549,17 @@ class ResourceGraph:
         if isinstance(duals, dict):
             if not duals:
                 return  # honor the docstring: empty dict ⇒ leave reduced costs unchanged
+            import numpy as np
             max_idx = max(duals.keys())
-            duals_list = [duals.get(i, 0.0) for i in range(max_idx + 1)]
+            duals_arr = np.zeros(max_idx + 1, dtype=np.float64)
+            for k, v in duals.items():
+                duals_arr[k] = v
         else:
-            duals_list = duals.tolist() if hasattr(duals, "tolist") else list(duals)
-        self._graph.update_reduced_costs(duals_list, cost_index)
+            import numpy as np
+            # ascontiguousarray is a no-op when duals is already a C-contiguous
+            # float64 ndarray (the common hot-path case), avoiding tolist() overhead.
+            duals_arr = np.ascontiguousarray(duals, dtype=np.float64)
+        self._graph.update_reduced_costs(duals_arr, cost_index)
 
     # ── String representation ─────────────────────────────────────────────────
 

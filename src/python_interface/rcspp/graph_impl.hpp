@@ -442,6 +442,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             },
             py::arg("include_rows") = true,
             py::arg("clone_removed_arcs") = false,
+            py::call_guard<py::gil_scoped_release>(),
             "Clone this ResourceGraph. Arc IDs are stable across the clone. "
             "The clone has an independent remove/restore state.");
 }
@@ -510,9 +511,18 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
     if constexpr ((std::is_same_v<ResourceTypes, RealResource> || ...)) {
         rg.def(
             "update_reduced_costs",
-            [](RG& rg, const std::vector<double>& duals, size_t cost_index) {
+            [](RG& rg,
+               py::array_t<double, py::array::c_style | py::array::forcecast> duals_arr,
+               size_t cost_index) {
+                // Buffer access while GIL is held — just a pointer read (O(1)).
+                // Copy via fast memcpy into a vector, then release the GIL for
+                // the actual reduced-cost computation across all arcs.
+                auto buf = duals_arr.request();
+                std::vector<double> duals_vec(
+                    static_cast<const double*>(buf.ptr),
+                    static_cast<const double*>(buf.ptr) + buf.size);
                 ActiveCall::run_interruptible(
-                    [&] { rg.template update_reduced_costs<RealResource>(duals, cost_index); });
+                    [&] { rg.template update_reduced_costs<RealResource>(duals_vec, cost_index); });
             },
             py::arg("duals"),
             py::arg("cost_index") = 0);
