@@ -5,22 +5,21 @@ project(rcspp-vrp LANGUAGES CXX)
 # Use the canonical FindGUROBI.cmake from src/cmake
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# Boost -----------------------------------------------------------------------
+# Boost (optional) ------------------------------------------------------------
 find_package(Boost CONFIG QUIET)
 if(NOT Boost_FOUND)
   find_package(Boost)  # fall back to module mode (FindBoost.cmake)
 endif()
-if(NOT Boost_FOUND)
-  message(STATUS "Boost not found; skipping VRP targets.")
-  return()
-endif()
-message(STATUS "Boost found: ${Boost_VERSION}")
-
-# Boost::headers is only defined in CONFIG mode; create a shim in module mode
-# so downstream link/include lines below can use Boost::headers uniformly.
-if(NOT TARGET Boost::headers)
-  add_library(Boost::headers INTERFACE IMPORTED)
-  target_include_directories(Boost::headers INTERFACE ${Boost_INCLUDE_DIRS})
+if(Boost_FOUND)
+  message(STATUS "Boost found: ${Boost_VERSION}")
+  # Boost::headers is only defined in CONFIG mode; create a shim in module mode
+  # so downstream link/include lines below can use Boost::headers uniformly.
+  if(NOT TARGET Boost::headers)
+    add_library(Boost::headers INTERFACE IMPORTED)
+    target_include_directories(Boost::headers INTERFACE ${Boost_INCLUDE_DIRS})
+  endif()
+else()
+  message(STATUS "Boost not found; building without Boost subproblem.")
 endif()
 
 # Gurobi ----------------------------------------------------------------------
@@ -41,8 +40,15 @@ endif()
 # Sources ---------------------------------------------------------------------
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp")
+if(NOT Boost_FOUND)
+  file(GLOB BOOST_CPP_FILES "${CMAKE_CURRENT_SOURCE_DIR}/cg/subproblem/boost/*.cpp")
+  list(REMOVE_ITEM SOURCE_FILES ${BOOST_CPP_FILES})
+endif()
 
-set(LIBS rcspp Boost::headers)
+set(LIBS rcspp)
+if(Boost_FOUND)
+  set(LIBS ${LIBS} Boost::headers)
+endif()
 if(TARGET GUROBI::gurobi_cxx)
   set(LIBS ${LIBS} GUROBI::gurobi_cxx)
 else()
@@ -54,6 +60,9 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
+if(Boost_FOUND)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE RCSPP_VRP_HAS_BOOST)
+endif()
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:rcspp>"
@@ -67,6 +76,9 @@ add_executable(${BENCHMARK_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp
 target_include_directories(${BENCHMARK_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(${BENCHMARK_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
 target_link_libraries(${BENCHMARK_NAME} PRIVATE ${LIBS})
+if(Boost_FOUND)
+  target_compile_definitions(${BENCHMARK_NAME} PRIVATE RCSPP_VRP_HAS_BOOST)
+endif()
 add_custom_command(TARGET ${BENCHMARK_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:rcspp>"

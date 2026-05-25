@@ -11,7 +11,9 @@
 
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
+#ifdef RCSPP_VRP_HAS_BOOST
 #include "cg/subproblem/boost/boost_subproblem.hpp"
+#endif
 #include "rcspp/rcspp.hpp"
 #include "rcspp/resource/concrete/functions/extension/ng-path_extension_function.hpp"
 
@@ -196,14 +198,17 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         //     }
         // }
 
+#ifdef RCSPP_VRP_HAS_BOOST
         std::vector<Solution> solutions_boost;
         total_subproblem_time_boost_.start();
         solutions_boost = solve_with_boost(dual_by_id);
         total_subproblem_time_boost_.stop();
+#endif
 
         min_reduced_cost = 0;
         std::vector<Solution> negative_red_cost_solutions;
 
+#ifdef RCSPP_VRP_HAS_BOOST
         // Cross-check both solvers only when both return results
         if (!solutions_boost.empty() && !solutions_rcspp.empty()) {
             LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
@@ -219,11 +224,17 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
                 // break;
             }
         }
+#endif
 
         // Select solutions from the chosen solver; move to avoid unnecessary copy
         std::vector<Solution> solutions;
         if (use_boost) {
+#ifdef RCSPP_VRP_HAS_BOOST
             solutions = std::move(solutions_boost);
+#else
+            LOG_WARN("Boost is not compiled in; ignoring use_boost=true\n");
+            solutions = std::move(solutions_rcspp);
+#endif
         } else {
             solutions = std::move(solutions_rcspp);
         }
@@ -279,6 +290,7 @@ const std::vector<Path>& VRP::get_paths() const {
     return paths_;
 }
 
+#ifdef RCSPP_VRP_HAS_BOOST
 std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual_by_id) {
     BoostSubproblem subproblem(instance_, &dual_by_id);
 
@@ -294,6 +306,7 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
 
     return solutions;
 }
+#endif
 
 std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');

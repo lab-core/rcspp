@@ -3,7 +3,9 @@
 
 #include <iostream>
 
+#ifdef RCSPP_VRP_HAS_BOOST
 #include "cg/subproblem/boost/boost_subproblem.hpp"
+#endif
 #include "instance.hpp"
 #include "instance_reader.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
@@ -84,8 +86,13 @@ int main(int argc, char* argv[]) {
         // std::vector<std::string> instance_names = {"toy"};
         std::vector<std::string> instance_names;
         size_t max_instance_index = 2;
-        if (argc >= 2) {
-            max_instance_index = std::stoull(argv[1]);
+        bool run_boost = false;
+        for (int i = 1; i < argc; ++i) {
+            if (std::string(argv[i]) == "--boost") {
+                run_boost = true;
+            } else {
+                max_instance_index = std::stoull(argv[i]);
+            }
         }
         if (max_instance_index > 9) {  // NOLINT(readability-magic-numbers)
             LOG_ERROR(
@@ -100,13 +107,24 @@ int main(int argc, char* argv[]) {
         // BucketSimple uses time (resource index 0) for both bucket partition and
         // within-bucket sort.  range_buckets=5 keeps ~200 buckets for a 1000-unit
         // horizon, giving tight pruning at modest overhead.
-        constexpr size_t kBucketRange = 5;
+        constexpr size_t kBucketRange = 50;
         constexpr size_t kBucketResourceIdx = 0;
         constexpr size_t kSortResourceIdx = 0;
-        using BucketLC = LabelBuckets<RealResource, RealResource, ResourceType>;
+        using BucketLC = LabelBuckets<IntResource, RealResource, ResourceType>;
 
-        std::vector<std::string> labels =
-            {"Boost", "Simple", "Pushing", "Pulling", "Diversif", "BucketS", "BucketP"};
+        std::vector<std::string> labels = run_boost ? std::vector<std::string>{"Boost",
+                                                                               "Simple",
+                                                                               "Pushing",
+                                                                               "Pulling",
+                                                                               "Diversif",
+                                                                               "BucketS",
+                                                                               "BucketP"}
+                                                    : std::vector<std::string>{"Simple",
+                                                                               "Pushing",
+                                                                               "Pulling",
+                                                                               "Diversif",
+                                                                               "BucketS",
+                                                                               "BucketP"};
         std::string root_dir = file_parent_dir(__FILE__, 3);
 
         std::vector<Timer> total_timers;
@@ -138,27 +156,29 @@ int main(int argc, char* argv[]) {
                 tabu_search_algo.get()};
 
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            // list_timers: [Boost, Simple, Pushing, Pulling, Diversif]
-            auto list_timers =
-                vrp.solve<SimpleDominanceAlgorithm,
-                          PushingDominanceAlgorithm,
-                          PullingDominanceAlgorithm>(list_params, 5, list_algorithms);  // NOLINT
+            auto list_timers = vrp.solve<SimpleDominanceAlgorithm,
+                                         PushingDominanceAlgorithm,
+                                         PullingDominanceAlgorithm>(list_params,
+                                                                    std::nullopt,
+                                                                    list_algorithms,
+                                                                    run_boost);  // NOLINT
 
             // ── Run 2: LabelBuckets / SimpleDominanceAlgorithm ────────────────
             VRP vrp_bucket(instance);  // fresh VRP for a fair comparison
             BucketLC bucket_container(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
             AlgorithmParams<BucketLC> bucket_params(std::move(bucket_container));
-            // bucket_timers: [Boost(ignored), BucketSimple, BucketPulling]
             auto bucket_timers =
                 vrp_bucket.solve<SimpleDominanceAlgorithm, PullingDominanceAlgorithm>(
                     bucket_params,
-                    3,
-                    {});  // NOLINT
+                    std::nullopt,
+                    {},
+                    run_boost);  // NOLINT
 
             // ── Combine into a single timer row ────────────────────────────────
-            std::vector<Timer> timers = list_timers;  // Boost, Simple, Pushing, Pulling, Diversif
-            timers.push_back(bucket_timers[1]);       // BucketSimple
-            timers.push_back(bucket_timers[2]);       // BucketPulling
+            std::vector<Timer> timers = list_timers;
+            const size_t bucket_offset = run_boost ? 1 : 0;
+            timers.push_back(bucket_timers[bucket_offset]);      // BucketSimple
+            timers.push_back(bucket_timers[bucket_offset + 1]);  // BucketPulling
 
             if (first_instance) {
                 total_timers = timers;

@@ -7,9 +7,9 @@ Covers:
 - next_arc_id() returns the expected next arc ID
 - add_rows_to_arc buffers rows and flushes them correctly
 - add_rows adds rows in bulk from a list of triples or a 2-D numpy array
-- update_reduced_costs uses stored dual rows to compute reduced costs
+- update_reduced_costs uses stored rows to compute reduced costs
 - clone() produces an independent copy with stable arc IDs and preserved rows
-- clone_topology() produces an independent copy with empty dual rows
+- clone_topology() produces an independent copy with empty rows
 - clone_removed_arcs=True preserves removed arcs in the clone
 - Removing arcs in a clone does not affect the original graph
 """
@@ -62,7 +62,7 @@ def _make_graph() -> ResourceGraph:
 # ── add_arc with rows variants ──────────────────────────────────────────
 
 
-class TestAddArcDualRows:
+class TestAddArcRows:
     """Test rows normalisation in add_arc."""
 
     def test_single_tuple(self):
@@ -261,7 +261,7 @@ class TestAddRows:
 
 
 class TestUpdateReducedCosts:
-    """Test that update_reduced_costs correctly applies dual rows."""
+    """Test that update_reduced_costs correctly applies rows."""
 
     def test_rows_shift_optimal_path(self):
         """After update_reduced_costs, the path with negative reduced cost wins.
@@ -327,7 +327,7 @@ class TestClone:
     """Test ResourceGraph.clone()."""
 
     def test_clone_preserves_rows(self):
-        """Clone() carries dual rows into the copy."""
+        """Clone() carries rows into the copy."""
         rg = _make_graph()
         arc0 = rg.add_arc((10.0,), 0, 1, cost=10.0, rows=(0, 2.0))
         rg.add_arc((15.0,), 1, 3, cost=15.0)
@@ -426,7 +426,7 @@ class TestClone:
 
 
 class TestCloneTopology:
-    """Test ResourceGraph.clone_topology() — clone with no dual rows."""
+    """Test ResourceGraph.clone_topology() — clone with no rows."""
 
     def test_rows_stripped(self):
         """clone_topology() produces arcs with empty rows."""

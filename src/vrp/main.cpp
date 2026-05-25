@@ -3,7 +3,9 @@
 
 #include <iostream>
 
+#ifdef RCSPP_VRP_HAS_BOOST
 #include "cg/subproblem/boost/boost_subproblem.hpp"
+#endif
 #include "instance.hpp"
 #include "instance_reader.hpp"
 #include "rcspp/rcspp.hpp"

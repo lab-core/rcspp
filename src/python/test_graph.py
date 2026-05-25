@@ -179,7 +179,7 @@ def test_force_arc_solve_uses_forced_path():
 
 
 def _make_rg_with_rows():
-    """2-arc graph where arc costs are set via dual rows.
+    """2-arc graph where arc costs are set via rows.
 
     Arc 0 (0→1): base cost=10, row index=0 coef=1  → reduced = 10 - duals[0]
     Arc 1 (1→2): base cost=20, row index=1 coef=2  → reduced = 20 - 2*duals[1]

@@ -457,7 +457,7 @@ class ResourceGraph:
         (demand, time) slice after cloning.
 
         Returns:
-            A new :class:`ResourceGraph` with no dual rows on arcs.
+            A new :class:`ResourceGraph` with no rows on arcs.
         """
         return self.clone(include_rows=False)
 

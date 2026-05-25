@@ -36,10 +36,18 @@ class VRP {
         std::vector<Timer> solve(                        // NOLINT
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
-            std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {}) {  // NOLINT
+            std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {},
+            bool run_boost = false) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
-            size_t num_total_algos = sizeof...(AlgorithmTypes) + 1 + algorithms.size();
+#ifndef RCSPP_VRP_HAS_BOOST
+            if (run_boost) {
+                LOG_WARN("Boost is not compiled in; setting run_boost to false.\n");
+                run_boost = false;
+            }
+#endif
+            size_t num_total_algos =
+                sizeof...(AlgorithmTypes) + (run_boost ? 1 : 0) + algorithms.size();
 
             if (numAlgos.has_value()) {
                 size_t nAlgos = numAlgos.value();
@@ -64,13 +72,17 @@ class VRP {
                     calculate_dual(master_solution.dual_by_var_id, std::nullopt, nb_iter);
 
                 std::vector<Solution> solutions_boost;
-                timers.front().start();
-                solutions_boost = solve_with_boost(dual_by_id);
-                timers.front().stop();
+#ifdef RCSPP_VRP_HAS_BOOST
+                if (run_boost) {
+                    timers.front().start();
+                    solutions_boost = solve_with_boost(dual_by_id);
+                    timers.front().stop();
+                }
+#endif
 
                 // Run RCSPP for each AlgorithmType and collect the first algorithm's solutions
                 std::vector<Solution> solutions_rcspp_any;
-                size_t algo_index = 1;  // timers[0] used by boost
+                size_t algo_index = run_boost ? 1 : 0;
 
                 auto collect_solutions = [&](auto sols,
                                              Algorithm<ResourceType, LabelContainerType>* algo =
@@ -207,8 +219,10 @@ class VRP {
         Timer total_subproblem_time_;
         Timer total_subproblem_solve_time_;
 
+#ifdef RCSPP_VRP_HAS_BOOST
         Timer total_subproblem_time_boost_;
         Timer total_subproblem_solve_time_boost_;
+#endif
 
         std::vector<std::vector<double>> distances_;
 
@@ -277,8 +291,10 @@ class VRP {
             return solutions;
         }
 
+#ifdef RCSPP_VRP_HAS_BOOST
         [[nodiscard]] std::vector<Solution> solve_with_boost(
             const std::map<size_t, double>& dual_by_id);
+#endif
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(
             const std::map<size_t, double>& master_dual_by_var_id,
