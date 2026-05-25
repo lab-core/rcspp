@@ -127,6 +127,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             if (feasible && update_non_dominated_labels(new_label)) {
                 // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
                 // feasible and non dominated.
+                // Record parent for O(hops) path reconstruction and bump the refcount so the
+                // pool does not recycle label_ptr while this child is still alive.
+                new_label.parent_ = label_ptr;
+                ++label_ptr->child_refcount_;
                 // points to the newly inserted element
                 auto new_label_it =
                     non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos())
@@ -142,62 +146,19 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
-        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {  // NOLINT
+        /// @brief Reconstruct the path by following parent pointers.
+        ///
+        /// O(hops) and always correct: every accepted label stores a pointer to the label
+        /// that was extended to produce it, with the pool keeping it alive via
+        /// @ref child_refcount_ until this label is released.
+        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
             std::vector<size_t> path_arc_ids;
-
-            auto in_arc_ptr = label.get_in_arc();
-
-            if (in_arc_ptr != nullptr) {
-                path_arc_ids.push_back(in_arc_ptr->id);
-
-                auto prev_node_ptr = in_arc_ptr->origin;
-
-                const Label<ResourceType>* current_label_ptr = &label;
-
-                while (prev_node_ptr != nullptr) {
-                    bool found = false;
-                    for (const auto label_ptr :
-                         non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos()).get_labels()) {
-                        // if cannot reach the current label from this label, skip it
-                        if (!label_ptr->is_reachable(in_arc_ptr->destination->id)) {
-                            continue;
-                        }
-                        auto& next_label_ref =
-                            this->label_pool_.get_next_label(in_arc_ptr->destination);
-                        label_ptr->extend(*in_arc_ptr, &next_label_ref);
-
-                        if (next_label_ref <= *current_label_ptr) {
-                            current_label_ptr = label_ptr;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found) {
-                        // if at source, we find a feasible path.
-                        // We check only here to authorize to pass several times by the source if
-                        // needed
-                        if (prev_node_ptr->source) {
-                            prev_node_ptr = nullptr;
-                        } else {  // otherwise, no feasible path has been found
-                            LOG_ERROR(
-                                "Error while extracting path: could not find previous label.\n");
-                            return {};
-                        }
-                    } else {
-                        in_arc_ptr = current_label_ptr->get_in_arc();
-                        if (in_arc_ptr != nullptr) {
-                            path_arc_ids.push_back(in_arc_ptr->id);
-                            prev_node_ptr = in_arc_ptr->origin;
-                        } else {
-                            prev_node_ptr = nullptr;
-                        }
-                    }
-                }
+            const Label<ResourceType>* cur = &label;
+            while (cur->get_in_arc() != nullptr) {
+                path_arc_ids.push_back(cur->get_in_arc()->id);
+                cur = cur->parent_;
             }
-
             std::ranges::reverse(path_arc_ids);
-
             return path_arc_ids;
         }
 

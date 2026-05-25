@@ -29,6 +29,8 @@ class Label {
         Label(size_t label_id, std::unique_ptr<Resource<ResourceType>> resource)
             : id(label_id),
               dominated(false),
+              parent_(nullptr),
+              child_refcount_(0),
               resource_(std::move(resource)),
               end_node_(nullptr),
               in_arc_(nullptr),
@@ -39,6 +41,8 @@ class Label {
               const Arc<ResourceType>* out_arc)
             : id(label_id),
               dominated(false),
+              parent_(nullptr),
+              child_refcount_(0),
               resource_(std::move(resource)),
               end_node_(end_node),
               in_arc_(in_arc),
@@ -75,6 +79,16 @@ class Label {
         [[nodiscard]] const Arc<ResourceType>* get_in_arc() const { return in_arc_; }
 
         bool dominated;
+
+        /// @brief Pointer to the label that was extended to produce this label.
+        ///
+        /// Null for source labels. Used for O(hops) path reconstruction.
+        Label<ResourceType>* parent_;
+
+        /// @brief Number of living child labels that hold a pointer to this label.
+        ///
+        /// The pool defers recycling until this count reaches zero.
+        size_t child_refcount_;
 
     private:
         // Resource consumed by the label.

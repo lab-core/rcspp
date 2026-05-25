@@ -30,6 +30,10 @@
 
 namespace rcspp {
 
+// Forward declaration so AlgorithmBaseParams::with_container can name the return type.
+template <typename LabelContainerType>
+struct AlgorithmParams;
+
 template <typename ResourceType>
 using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 
@@ -96,6 +100,15 @@ struct AlgorithmBaseParams {
         bool tabu_random_noise = true;
 
         int seed = 0;
+
+        /// @brief Wrap these base params in an AlgorithmParams with the given container.
+        ///
+        /// @param container Label container instance (e.g. LabelList or LabelBuckets).
+        ///                  Defaults to a default-constructed LC{} when LC is
+        ///                  default-constructible (e.g. LabelList).
+        /// @return AlgorithmParams<LC> inheriting all settings from *this.
+        template <typename LC>
+        AlgorithmParams<LC> with_container(LC container = LC{}) const;
 };
 
 template <typename LabelContainerType>
@@ -110,6 +123,12 @@ struct AlgorithmParams : AlgorithmBaseParams {
         // Container to store labels, could be overridden with Buckets
         const LabelContainerType labels;
 };
+
+// Out-of-line definition: AlgorithmParams is now complete.
+template <typename LC>
+AlgorithmParams<LC> AlgorithmBaseParams::with_container(LC container) const {
+    return AlgorithmParams<LC>(*this, std::move(container));
+}
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>

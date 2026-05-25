@@ -54,15 +54,16 @@ class LabelPool {
             return *label_ptr;
         }
 
+        /// @brief Attempt to return a label to the pool.
+        ///
+        /// If the label still has living children (@ref child_refcount_ > 0) it is left
+        /// in place; @ref do_release will cascade-recycle it once the last child is gone.
         void release_label(Label<ResourceType>* label_ptr) {
-            available_labels_.push_back(label_ptr);
-        }
-
-        void release_all_labels() {
-            available_labels_.clear();
-            for (auto& label_uptr : labels_) {
-                available_labels_.push_back(label_uptr.get());
+            if (label_ptr->child_refcount_ == 0) {
+                do_release(label_ptr);
             }
+            // else: children still alive; marked dominated, not processed,
+            // will be recycled by the last child's release path.
         }
 
         void clear() {
@@ -75,6 +76,21 @@ class LabelPool {
         [[nodiscard]] int64_t get_nb_reused_labels() const { return nb_reused_labels_; }
 
     private:
+        /// @brief Unconditionally return a label to the free list and cascade to its parent.
+        ///
+        /// Decrements the parent's @ref child_refcount_ and recurses into the parent when it
+        /// becomes zero and is already dominated — avoiding a separate traversal at solve end.
+        void do_release(Label<ResourceType>* label) {
+            if (label->parent_ != nullptr) {
+                auto* parent = label->parent_;
+                label->parent_ = nullptr;
+                if (--parent->child_refcount_ == 0 && parent->dominated) {
+                    do_release(parent);
+                }
+            }
+            available_labels_.push_back(label);
+        }
+
         std::unique_ptr<LabelFactory<ResourceType>> label_factory_;
         std::vector<std::unique_ptr<Label<ResourceType>>> labels_;
         std::vector<Label<ResourceType>*> available_labels_;

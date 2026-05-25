@@ -38,6 +38,8 @@ class LabelFactory {
             label->in_arc_ = in_arc;
             label->out_arc_ = out_arc;
             label->dominated = false;
+            label->parent_ = nullptr;
+            label->child_refcount_ = 0;
 
             label->get_resource().reset(*end_node->resource);
         }
