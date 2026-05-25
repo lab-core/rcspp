@@ -48,31 +48,31 @@ class BellmanFordAlgorithm {
 
             // Prepare distance table
             std::vector<ArcRelaxation> arc_relaxations;
-            for (const auto& [arc_id, arc] : graph_.get_arcs_by_id()) {
+            graph_.for_each_arc([&](const auto& arc) {
                 // fetch cost
-                // get the origin cost of the cost resource
                 if (cost_index.has_value()) {
+                    // get the origin cost of the cost resource
                     const auto& origin_cost_resource =
-                        arc->origin->resource->template get_component<CostResourceType>(
+                        arc.origin->resource->template get_component<CostResourceType>(
                             cost_index.value());
                     double origin_cost = origin_cost_resource.get_value().get_value();
                     // extend the resource
                     Resource<ResourceTypeComposition<ResourceTypes...>> resource(
-                        *arc->destination->resource);
-                    arc->extender->extend(*arc->origin->resource, &resource);
+                        *arc.destination->resource);
+                    arc.extender->extend(*arc.origin->resource, &resource);
                     // fetch the new value of the cost resource
                     const auto& cost_resource =
                         resource.template get_component<CostResourceType>(cost_index.value());
                     double cost = cost_resource.get_value().get_value();
                     // compute the weight, i.e., cost difference
-                    arc_relaxations.emplace_back(arc->origin->id,
-                                                 arc->destination->id,
+                    arc_relaxations.emplace_back(arc.origin->id,
+                                                 arc.destination->id,
                                                  cost - origin_cost);
                 } else {
                     // use default cost
-                    arc_relaxations.emplace_back(arc->origin->id, arc->destination->id, arc->cost);
+                    arc_relaxations.emplace_back(arc.origin->id, arc.destination->id, arc.cost);
                 }
-            }
+            });
 
             // In backward shortest path computation, we need to reverse the order of arc
             // relaxations to ensure that relaxation proceeds from destination to origin, correctly

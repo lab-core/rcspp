@@ -170,8 +170,7 @@ void VRPSubproblem::add_arc_to_graph(RGraph* resource_graph, size_t customer_ori
         customer_orig_id,
         customer_dest_id,
         distance,
-        {Row(customer_orig_id, row_coefficient)},
-        arc_id);
+        {Row(customer_orig_id, row_coefficient)});
 }
 
 double VRPSubproblem::calculate_distance(const Customer& customer1, const Customer& customer2) {

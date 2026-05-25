@@ -126,7 +126,33 @@ void init_graph(py::module_& m) {
         .def_readwrite("cost", &Solution::cost)
         .def_readwrite("path_node_ids", &Solution::path_node_ids)
         .def_readwrite("path_arc_ids", &Solution::path_arc_ids)
-        .def_readwrite("column", &Solution::column);
+        .def_readwrite("column", &Solution::column)
+        .def(
+            "to_arrays",
+            [](const Solution& sol) -> py::tuple {
+                // nodes: int64 array
+                const auto& nids = sol.path_node_ids;
+                auto nodes = py::array_t<int64_t>(static_cast<py::ssize_t>(nids.size()));
+                auto nptr = nodes.mutable_unchecked<1>();
+                py::ssize_t k = 0;
+                for (size_t n : nids) {
+                    nptr(k++) = static_cast<int64_t>(n);
+                }
+                // rows: separate int64 (index) and float64 (coefficient) arrays
+                const auto& rows = sol.column.rows;
+                size_t nr = rows.size();
+                auto ridx = py::array_t<int64_t>(static_cast<py::ssize_t>(nr));
+                auto rcoeff = py::array_t<double>(static_cast<py::ssize_t>(nr));
+                auto rip = ridx.mutable_unchecked<1>();
+                auto rcp = rcoeff.mutable_unchecked<1>();
+                for (size_t i = 0; i < nr; ++i) {
+                    rip(static_cast<py::ssize_t>(i)) = static_cast<int64_t>(rows[i].index);
+                    rcp(static_cast<py::ssize_t>(i)) = static_cast<double>(rows[i].coefficient);
+                }
+                return py::make_tuple(sol.cost, nodes, ridx, rcoeff);
+            },
+            "Return (cost, node_ids, row_indices, row_coefficients) as numpy arrays. "
+            "Avoids per-Row Python object overhead during column extraction.");
 
     // ══════════════════════════════════════════════════════════════════════════
     // RealResource — primary bindings with full Node/Arc/Graph public exposure
@@ -143,13 +169,11 @@ void init_graph(py::module_& m) {
                  py::arg("sink") = false,
                  py::return_value_policy::reference)
             .def("add_arc",
-                 py::overload_cast<size_t, size_t, double, std::vector<Row>, std::optional<size_t>>(
-                     &RealGraph::add_arc),
+                 py::overload_cast<size_t, size_t, double, std::vector<Row>>(&RealGraph::add_arc),
                  py::arg("origin_id"),
                  py::arg("destination_id"),
                  py::arg("cost") = 0.0,
-                 py::arg("dual_rows") = std::vector<Row>{},
-                 py::arg("id") = std::nullopt,
+                 py::arg("rows") = std::vector<Row>{},
                  py::return_value_policy::reference);
     }
 
@@ -177,7 +201,7 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
-        .def_readwrite("dual_rows", &Arc<RealRC>::dual_rows)
+        .def_readwrite("rows", &Arc<RealRC>::rows)
         .def("__str__", &Arc<RealRC>::to_string)
         .def("__repr__", &Arc<RealRC>::to_string);
 

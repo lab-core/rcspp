@@ -123,19 +123,19 @@ class VRP:
         # Depot→depot arc: assign an infinite base cost so it is never used.
         if orig.depot and dest.depot:
             base_cost = math.inf
-            dual_rows: list[Row] = []
+            rows: list[Row] = []
         else:
             base_cost = distance
             # Non-depot origin: store the dual coefficient so update_reduced_costs
             # can compute  reduced_cost = distance - π_{orig_id}  without rebuilding.
-            dual_rows = [] if orig.depot else [Row(orig_id, 1.0)]
+            rows = [] if orig.depot else [Row(orig_id, 1.0)]
 
         resource_graph.add_arc(
             (base_cost, travel_time, demand),
             orig_id,
             dest_id,
             base_cost,
-            dual_rows,
+            rows,
         )
 
     # ── Utility ───────────────────────────────────────────────────────────────
