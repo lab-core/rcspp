@@ -112,19 +112,15 @@ int main(int argc, char* argv[]) {
         constexpr size_t kSortResourceIdx = 0;
         using BucketLC = LabelBuckets<IntResource, RealResource, ResourceType>;
 
-        std::vector<std::string> labels = run_boost ? std::vector<std::string>{"Boost",
-                                                                               "Simple",
-                                                                               "Pushing",
-                                                                               "Pulling",
-                                                                               "Diversif",
-                                                                               "BucketS",
-                                                                               "BucketP"}
-                                                    : std::vector<std::string>{"Simple",
-                                                                               "Pushing",
-                                                                               "Pulling",
-                                                                               "Diversif",
-                                                                               "BucketS",
-                                                                               "BucketP"};
+        std::vector<std::string> labels = std::vector<std::string>{"Simple",
+                                                                   "Pushing",
+                                                                   "Pulling",
+                                                                   "Diversif",
+                                                                   "BucketS",
+                                                                   "BucketP"};
+        if (run_boost) {
+            labels.insert(labels.begin(), "Boost");
+        }
         std::string root_dir = file_parent_dir(__FILE__, 3);
 
         std::vector<Timer> total_timers;
