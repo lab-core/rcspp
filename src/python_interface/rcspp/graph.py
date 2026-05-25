@@ -550,12 +550,14 @@ class ResourceGraph:
             if not duals:
                 return  # honor the docstring: empty dict ⇒ leave reduced costs unchanged
             import numpy as np
+
             max_idx = max(duals.keys())
             duals_arr = np.zeros(max_idx + 1, dtype=np.float64)
             for k, v in duals.items():
                 duals_arr[k] = v
         else:
             import numpy as np
+
             # ascontiguousarray is a no-op when duals is already a C-contiguous
             # float64 ndarray (the common hot-path case), avoiding tolist() overhead.
             duals_arr = np.ascontiguousarray(duals, dtype=np.float64)

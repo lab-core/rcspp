@@ -512,15 +512,15 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
         rg.def(
             "update_reduced_costs",
             [](RG& rg,
-               py::array_t<double, py::array::c_style | py::array::forcecast> duals_arr,
+               py::array_t<double, py::array::c_style | py::array::forcecast>
+                   duals_arr,
                size_t cost_index) {
                 // Buffer access while GIL is held — just a pointer read (O(1)).
                 // Copy via fast memcpy into a vector, then release the GIL for
                 // the actual reduced-cost computation across all arcs.
                 auto buf = duals_arr.request();
-                std::vector<double> duals_vec(
-                    static_cast<const double*>(buf.ptr),
-                    static_cast<const double*>(buf.ptr) + buf.size);
+                std::vector<double> duals_vec(static_cast<const double*>(buf.ptr),
+                                              static_cast<const double*>(buf.ptr) + buf.size);
                 ActiveCall::run_interruptible(
                     [&] { rg.template update_reduced_costs<RealResource>(duals_vec, cost_index); });
             },

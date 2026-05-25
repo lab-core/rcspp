@@ -146,10 +146,8 @@ void init_graph(py::module_& m) {
                 auto rip = ridx.mutable_unchecked<1>();
                 auto rcp = rcoeff.mutable_unchecked<1>();
                 for (size_t i = 0; i < nr; ++i) {
-                    rip(static_cast<py::ssize_t>(i)) =
-                        static_cast<int64_t>(rows[i].index);
-                    rcp(static_cast<py::ssize_t>(i)) =
-                        static_cast<double>(rows[i].coefficient);
+                    rip(static_cast<py::ssize_t>(i)) = static_cast<int64_t>(rows[i].index);
+                    rcp(static_cast<py::ssize_t>(i)) = static_cast<double>(rows[i].coefficient);
                 }
                 return py::make_tuple(sol.cost, nodes, ridx, rcoeff);
             },
