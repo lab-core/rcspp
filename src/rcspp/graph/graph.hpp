@@ -249,7 +249,17 @@ class Graph {
 
         [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
 
-        // Iterate over all active arcs without allocating. fn receives a const Arc& reference.
+        /// @brief Iterates over all active arcs without allocating, passing a mutable Arc&.
+        template <typename F>
+        void for_each_arc(F&& fn) {
+            for (auto& arc : arcs_) {
+                if (arc) {
+                    fn(*arc);
+                }
+            }
+        }
+
+        /// @brief Iterates over all active arcs without allocating, passing a const Arc&.
         template <typename F>
         void for_each_arc(F&& fn) const {
             for (const auto& arc : arcs_) {

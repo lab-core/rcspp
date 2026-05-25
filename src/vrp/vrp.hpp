@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <optional>
 
 #include "cg/master_problem.hpp"
@@ -17,6 +18,17 @@ using namespace rcspp;
 using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 using ResourceType =
     ResourceTypeComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
+
+/// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
+///
+/// Wrap any algorithm whose LabelContainerType differs from the primary one using
+/// run_algorithm() so it participates in each CG iteration alongside the main algorithms.
+struct ExtraSolver {
+        /// @brief Callable invoked at every CG iteration with the current dual values.
+        std::function<std::vector<Solution>(const std::map<size_t, double>&)> fn;
+        /// @brief Whether fn always finds the optimal solution (used for cross-checking).
+        bool optimal = true;
+};
 
 class VRP {
     public:
@@ -37,7 +49,7 @@ class VRP {
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
             std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {},
-            bool run_boost = false) {  // NOLINT
+            bool run_boost = false, std::vector<ExtraSolver> extra_solvers = {}) {  // NOLINT
             LOG_TRACE(__FUNCTION__, '\n');
 
 #ifndef RCSPP_VRP_HAS_BOOST
@@ -46,8 +58,8 @@ class VRP {
                 run_boost = false;
             }
 #endif
-            size_t num_total_algos =
-                sizeof...(AlgorithmTypes) + (run_boost ? 1 : 0) + algorithms.size();
+            size_t num_total_algos = sizeof...(AlgorithmTypes) + (run_boost ? 1 : 0) +
+                                     algorithms.size() + extra_solvers.size();
 
             if (numAlgos.has_value()) {
                 size_t nAlgos = numAlgos.value();
@@ -82,13 +94,11 @@ class VRP {
 
                 // Run RCSPP for each AlgorithmType and collect the first algorithm's solutions
                 std::vector<Solution> solutions_rcspp_any;
-                size_t algo_index = run_boost ? 1 : 0;
+                const size_t first_rcspp_idx = run_boost ? 1 : 0;
+                size_t algo_index = first_rcspp_idx;
 
-                auto collect_solutions = [&](auto sols,
-                                             Algorithm<ResourceType, LabelContainerType>* algo =
-                                                 nullptr) {
-                    bool non_optimal =
-                        algo == nullptr ? params.could_be_non_optimal() : !algo->is_optimal();
+                auto collect_solutions = [&](auto sols, bool is_optimal) {
+                    bool non_optimal = !is_optimal;
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
                             // RCSPP can be better as it uses int for some resources (e.g., load,
@@ -121,21 +131,31 @@ class VRP {
                                   " | nb_solutions=",
                                   sols.size(),
                                   '\n');
-                        if (algo_index > 1 && sols.size() != solutions_rcspp_any.size() &&
-                            !non_optimal) {
-                            LOG_WARN("The number of solutions from RCSPP (algo ",
-                                     algo_index,
-                                     ") differs from that of the first algorithm: ",
-                                     sols.size(),
-                                     " vs ",
-                                     solutions_rcspp_any.size(),
-                                     "\n");
+                        if (algo_index > first_rcspp_idx && !non_optimal &&
+                            !solutions_rcspp_any.empty()) {
+                            double diff = abs(sols[0].cost - solutions_rcspp_any[0].cost);
+                            if (diff > COST_COMPARISON_EPSILON) {
+                                LOG_ERROR("RCSPP (algo ",
+                                          algo_index,
+                                          ") best cost differs from first algorithm: ",
+                                          sols[0].cost,
+                                          " vs ",
+                                          solutions_rcspp_any[0].cost,
+                                          "\n");
+                            }
                         }
                     } else {
                         LOG_DEBUG("Solution RCSPP (algo ", algo_index, ") returned no solutions\n");
+                        if (algo_index > first_rcspp_idx && !non_optimal &&
+                            !solutions_rcspp_any.empty() &&
+                            solutions_rcspp_any[0].cost < -EPSILON) {
+                            LOG_ERROR("RCSPP (algo ",
+                                      algo_index,
+                                      ") found no solution while first algorithm did\n");
+                        }
                     }
 
-                    if (algo_index == 1) {
+                    if (algo_index == first_rcspp_idx) {
                         solutions_rcspp_any = sols;
                     }
                     ++algo_index;
@@ -146,14 +166,21 @@ class VRP {
                     timers[algo_index].start();
                     auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params);
                     timers[algo_index].stop();
-                    return collect_solutions(sols);
+                    return collect_solutions(sols, !params.could_be_non_optimal());
                 }())...};
 
                 for (auto* algorithm : algorithms) {
                     timers[algo_index].start();
                     auto sols = solve_with_rcspp(dual_by_id, algorithm);
                     timers[algo_index].stop();
-                    collect_solutions(sols, algorithm);
+                    collect_solutions(sols, algorithm->is_optimal());
+                }
+
+                for (auto& extra : extra_solvers) {
+                    timers[algo_index].start();
+                    auto sols = extra.fn(dual_by_id);
+                    timers[algo_index].stop();
+                    collect_solutions(sols, extra.optimal);
                 }
 
                 // Collect negative reduced cost solutions from the chosen RCSPP results
@@ -187,6 +214,20 @@ class VRP {
         }
 
         RGraph& get_graph() { return graph_; }
+
+        /// @brief Runs a single algorithm on the current graph with the given dual values.
+        ///
+        /// Intended for building ExtraSolver lambdas: the caller creates an algorithm on
+        /// get_graph() and captures it in a lambda that calls this method.
+        ///
+        /// @param dual_by_id Dual values keyed by arc id.
+        /// @param algo       Pre-constructed algorithm to run; reused across CG iterations.
+        /// @return           Solutions found by the algorithm.
+        template <class AlgorithmType>
+        [[nodiscard]] std::vector<Solution> run_algorithm(
+            const std::map<size_t, double>& dual_by_id, AlgorithmType* algo) {
+            return solve_with_rcspp(dual_by_id, algo);
+        }
 
         void sort_nodes();
         void sort_nodes_by_connectivity();

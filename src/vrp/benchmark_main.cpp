@@ -138,9 +138,9 @@ int main(int argc, char* argv[]) {
 
             auto instance = instance_reader.read();
 
-            // ── Run 1: standard LabelList algorithms ──────────────────────────
             VRP vrp(instance);
 
+            // ── LabelList algorithms ───────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> other_params;
             other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
             other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
@@ -155,30 +155,38 @@ int main(int argc, char* argv[]) {
             std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
                 tabu_search_algo.get()};
 
+            // ── LabelBuckets algorithms (same graph, cross-checked each CG iter) ──
+            BucketLC bucket_container_s(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
+            AlgorithmParams<BucketLC> bucket_params_s(std::move(bucket_container_s));
+            auto bucket_simple =
+                vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm, BucketLC>(
+                    bucket_params_s);
+
+            BucketLC bucket_container_p(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
+            AlgorithmParams<BucketLC> bucket_params_p(std::move(bucket_container_p));
+            auto bucket_pulling =
+                vrp.get_graph().create_algorithm<PullingDominanceAlgorithm, BucketLC>(
+                    bucket_params_p);
+
+            std::vector<ExtraSolver> extra_solvers = {
+                {[&vrp, algo = bucket_simple.get()](const std::map<size_t, double>& dual) {
+                     return vrp.run_algorithm(dual, algo);
+                 },
+                 true},
+                {[&vrp, algo = bucket_pulling.get()](const std::map<size_t, double>& dual) {
+                     return vrp.run_algorithm(dual, algo);
+                 },
+                 true}};
+
+            // ── Single CG solve: all algorithms share the same duals each iter ──
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto list_timers = vrp.solve<SimpleDominanceAlgorithm,
-                                         PushingDominanceAlgorithm,
-                                         PullingDominanceAlgorithm>(list_params,
-                                                                    std::nullopt,
-                                                                    list_algorithms,
-                                                                    run_boost);  // NOLINT
-
-            // ── Run 2: LabelBuckets / SimpleDominanceAlgorithm ────────────────
-            VRP vrp_bucket(instance);  // fresh VRP for a fair comparison
-            BucketLC bucket_container(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
-            AlgorithmParams<BucketLC> bucket_params(std::move(bucket_container));
-            auto bucket_timers =
-                vrp_bucket.solve<SimpleDominanceAlgorithm, PullingDominanceAlgorithm>(
-                    bucket_params,
-                    std::nullopt,
-                    {},
-                    run_boost);  // NOLINT
-
-            // ── Combine into a single timer row ────────────────────────────────
-            std::vector<Timer> timers = list_timers;
-            const size_t bucket_offset = run_boost ? 1 : 0;
-            timers.push_back(bucket_timers[bucket_offset]);      // BucketSimple
-            timers.push_back(bucket_timers[bucket_offset + 1]);  // BucketPulling
+            auto timers = vrp.solve<SimpleDominanceAlgorithm,
+                                    PushingDominanceAlgorithm,
+                                    PullingDominanceAlgorithm>(list_params,
+                                                               std::nullopt,
+                                                               list_algorithms,
+                                                               run_boost,
+                                                               extra_solvers);  // NOLINT
 
             if (first_instance) {
                 total_timers = timers;
