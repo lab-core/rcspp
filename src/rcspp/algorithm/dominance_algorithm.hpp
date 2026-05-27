@@ -36,6 +36,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
         void initialize_labels() override {
+            // Release all labels from the previous run (including any pending_release ones)
+            // so the pool is fully reset before we start fresh.
+            this->label_pool_.release_all_labels();
+
             non_dominated_labels_by_node_pos_.clear();
             non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
@@ -94,7 +98,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 // label dominated -> continue to next one
                 auto& label = *label_iterator_pair.first;
                 if (label.dominated) {
-                    this->label_pool_.release_label(&label);
+                    this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
                 if (this->params_.prune_based_on_upper_bound_ &&
@@ -128,7 +132,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     this->total_full_extend_time_.stop();
                 } else {
                     remove_label(label_iterator_pair.second);
-                    this->label_pool_.release_label(&label);
+                    this->label_pool_.release_with_ref_count(&label);
                 }
             }
         }
@@ -161,36 +165,34 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             if (feasible && update_non_dominated_labels(new_label)) {
                 // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
                 // feasible and non dominated.
-                // Record parent for O(hops) path reconstruction and bump the refcount so the
-                // pool does not recycle label_ptr while this child is still alive.
-                new_label.parent_ = label_ptr;
-                ++label_ptr->child_refcount_;
                 // points to the newly inserted element
                 auto new_label_it =
                     non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos())
                         .add_label(&new_label);
                 add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
+                // Pin predecessor: keep it alive until this label is released.
+                new_label.set_prev_label(label_ptr);
             } else {
                 if (!feasible) {
                     ++this->nb_infeasible_labels_;
                 } else {
                     ++this->nb_dominated_labels_;
                 }
+                // new_label was never a predecessor; release immediately.
                 this->label_pool_.release_label(&new_label);
             }
         }
 
-        /// @brief Reconstruct the path by following parent pointers.
+        /// @brief Reconstruct the path by following prev_label pointers.
         ///
-        /// O(hops) and always correct: every accepted label stores a pointer to the label
-        /// that was extended to produce it, with the pool keeping it alive via
-        /// @ref child_refcount_ until this label is released.
+        /// O(hops): every accepted label stores a pointer to its predecessor,
+        /// kept alive via @ref ref_count until this label is released.
         std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
             std::vector<size_t> path_arc_ids;
             const Label<ResourceType>* cur = &label;
-            while (cur->get_in_arc() != nullptr) {
+            while (cur != nullptr && cur->get_in_arc() != nullptr) {
                 path_arc_ids.push_back(cur->get_in_arc()->id);
-                cur = cur->parent_;
+                cur = cur->prev_label;
             }
             std::ranges::reverse(path_arc_ids);
             return path_arc_ids;
@@ -302,10 +304,10 @@ struct NodeUnprocessedLabelsManager {
         void resize_unprocessed_labels(
             std::list<LabelIteratorPair<ResourceType>>* unprocessed_labels, size_t new_size,
             LabelPool<ResourceType>* label_pool, bool sort) {
-            int num_exceeding_labels = unprocessed_labels->size() - new_size;
-            if (num_exceeding_labels <= 0) {
+            if (unprocessed_labels->size() <= new_size) {
                 return;
             }
+            size_t num_exceeding_labels = unprocessed_labels->size() - new_size;
 
             if (sort) {
                 // sort labels by cost (ascending)
@@ -324,7 +326,7 @@ struct NodeUnprocessedLabelsManager {
             for (auto& p : *unprocessed_labels) {
                 if (i++ >= new_size) {
                     if (p.first->dominated && label_pool) {
-                        label_pool->release_label(p.first);
+                        label_pool->release_with_ref_count(p.first);
                         p.first = nullptr;
                     } else {
                         store_truncated_unprocessed_label(p);

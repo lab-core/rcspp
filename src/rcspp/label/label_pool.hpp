@@ -51,19 +51,48 @@ class LabelPool {
             }
             ++nb_labels_;
 
+            // reset also prev label
+            label_ptr->prev_label = nullptr;
+            label_ptr->ref_count = 0;
+            label_ptr->pending_release = false;
+
             return *label_ptr;
         }
 
-        /// @brief Attempt to return a label to the pool.
-        ///
-        /// If the label still has living children (@ref child_refcount_ > 0) it is left
-        /// in place; @ref do_release will cascade-recycle it once the last child is gone.
+        /// @brief Return a label to the pool's free list.
         void release_label(Label<ResourceType>* label_ptr) {
-            if (label_ptr->child_refcount_ == 0) {
-                do_release(label_ptr);
+            available_labels_.push_back(label_ptr);
+        }
+
+        /// @brief Release a label, cascading up the prev_label chain as predecessors become free.
+        ///
+        /// If @p label_ptr is still referenced by alive successors (@ref ref_count > 0), it is
+        /// marked @ref pending_release and left in place; the last successor's release will
+        /// cascade back up through this method.
+        void release_with_ref_count(Label<ResourceType>* label_ptr) {
+            while (label_ptr != nullptr) {
+                if (label_ptr->ref_count > 0) {
+                    label_ptr->pending_release = true;
+                    break;
+                }
+                Label<ResourceType>* prev = label_ptr->prev_label;
+                if (prev != nullptr) {
+                    --prev->ref_count;
+                }
+                release_label(label_ptr);
+                if (prev == nullptr || !prev->pending_release) {
+                    break;
+                }
+                label_ptr = prev;
             }
-            // else: children still alive; marked dominated, not processed,
-            // will be recycled by the last child's release path.
+        }
+
+        /// @brief Return all labels to the free list without destroying them.
+        void release_all_labels() {
+            available_labels_.clear();
+            for (auto& label_uptr : labels_) {
+                available_labels_.push_back(label_uptr.get());
+            }
         }
 
         void clear() {
