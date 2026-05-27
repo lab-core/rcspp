@@ -106,7 +106,7 @@ class VRP {
                 const size_t first_rcspp_idx = run_boost ? 1 : 0;
                 size_t algo_index = first_rcspp_idx;
 
-                auto collect_solutions = [&](auto sols, bool is_optimal) {
+                auto collect_solutions = [&](std::vector<Solution>& sols, bool is_optimal) {
                     bool non_optimal = !is_optimal;
                     if (!solutions_boost.empty()) {
                         if (!sols.empty()) {
@@ -165,7 +165,7 @@ class VRP {
                     }
 
                     if (algo_index == first_rcspp_idx) {
-                        solutions_rcspp_any = sols;
+                        solutions_rcspp_any = std::move(sols);
                     }
                     ++algo_index;
                     return 0;
