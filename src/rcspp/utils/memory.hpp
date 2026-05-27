@@ -219,15 +219,15 @@ struct MemoryLimitHelper {
             pressure_fraction = pressure_fraction_in;
             if (max_memory_gb > 0.0) {
                 effective_limit = static_cast<size_t>(max_memory_gb * kGB);
-                // LOG_DEBUG: resolve() is called on every G.solve() invocation,
-                // so LOG_INFO here produces thousands of identical lines per run.
-                LOG_DEBUG("Memory limit: ", max_memory_gb, " GB (explicit).\n");
+                // LOG_TRACE: resolve() is called on every G.solve() invocation,
+                // so anything above TRACE produces thousands of lines per run.
+                LOG_TRACE("Memory limit: ", max_memory_gb, " GB (explicit).\n");
             } else if (limit_to_available_ram) {
                 const size_t ref = MemoryInfo::available_system_bytes();
                 if (ref > 0) {
                     effective_limit =
                         static_cast<size_t>(static_cast<double>(ref) * memory_limit_fraction);
-                    LOG_DEBUG("Memory limit: ",
+                    LOG_TRACE("Memory limit: ",
                               effective_limit / kMB,
                               " MB (",
                               static_cast<int>(memory_limit_fraction * 100.0),
@@ -245,7 +245,7 @@ struct MemoryLimitHelper {
                 if (ref > 0) {
                     effective_limit =
                         static_cast<size_t>(static_cast<double>(ref) * memory_limit_fraction);
-                    LOG_DEBUG("Memory limit: ",
+                    LOG_TRACE("Memory limit: ",
                               effective_limit / kMB,
                               " MB (",
                               static_cast<int>(memory_limit_fraction * 100.0),
