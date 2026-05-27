@@ -71,6 +71,19 @@ class LabelPool {
             available_labels_.clear();
         }
 
+        /// @brief Free all label memory and release backing storage to the OS.
+        ///
+        /// Unlike clear(), which only destroys label objects but retains the
+        /// vector capacity for reuse, release() also calls shrink_to_fit() on
+        /// both internal vectors.  Use this at the end of a solve to reclaim
+        /// RAM when the pool will not be reused immediately.
+        void release() {
+            labels_.clear();
+            labels_.shrink_to_fit();
+            available_labels_.clear();
+            available_labels_.shrink_to_fit();
+        }
+
         [[nodiscard]] int64_t get_nb_created_labels() const { return nb_created_labels_; }
 
         [[nodiscard]] int64_t get_nb_reused_labels() const { return nb_reused_labels_; }

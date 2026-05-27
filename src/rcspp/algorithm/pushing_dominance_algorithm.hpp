@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <list>
 #include <utility>
 
 #include "rcspp/algorithm/dominance_algorithm.hpp"
@@ -42,7 +43,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                 this->current_unprocessed_labels_ = std::move(
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_));
                 // truncate/limit the number of labels extended per node
-                this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
+                this->resize_current_unprocessed_labels(this->effective_max_labels_per_node_,
                                                         &this->label_pool_);
             }
 
@@ -65,5 +66,44 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         }
 
         void prepareNextPhase() override { this->restore_truncated_unprocessed_labels(); }
+
+        /// @brief Trim per-node queues when memory pressure is detected.
+        ///
+        /// **First call**: trims all per-node queues to
+        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node labels.
+        /// Dominated excess labels are immediately recycled; non-dominated excess
+        /// labels are stored aside for the next phase (like truncated labeling).
+        /// Also tightens the per-node extension cap permanently so that future
+        /// extensions do not re-inflate the queues.
+        ///
+        /// **Subsequent calls**: additionally releases the labels that were stored
+        /// aside on the first call, since memory is still under pressure and they
+        /// would only be restored at the next phase anyway.
+        void on_memory_pressure() override {
+            const size_t limit = this->params_.memory_pressure_max_labels_per_node;
+
+            // Permanently tighten the per-node extension cap.
+            this->effective_max_labels_per_node_ = limit;
+
+            if (this->memory_pressure_triggered_) {
+                // Second+ call: labels stored aside are still consuming memory.
+                // Release them (remove from non-dominated set + return to pool).
+                this->release_truncated_labels(
+                    &this->label_pool_,
+                    [this](const typename std::list<Label<ResourceType>*>::iterator& it) {
+                        this->remove_label(it);
+                    });
+            }
+            this->memory_pressure_triggered_ = true;
+
+            // Trim the current unprocessed queues.
+            this->trim_all_queues(limit, &this->label_pool_);
+        }
+
+        /// @brief Release label memory and clear all unprocessed queues.
+        void release_label_memory() override {
+            DominanceAlgorithm<ResourceType, LabelContainerType>::release_label_memory();
+            this->clear_all_queues();
+        }
 };
 }  // namespace rcspp

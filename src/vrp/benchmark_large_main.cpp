@@ -84,7 +84,7 @@ static SolveResult run_vrp(const std::string& instance_path, bool run_boost) {
             extra_solvers);  // NOLINT
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {  // NOLINT
     try {
         Logger::init(LogLevel::Info);
 

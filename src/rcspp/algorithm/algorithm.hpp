@@ -26,6 +26,7 @@
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
 
 namespace rcspp {
@@ -42,6 +43,14 @@ using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
 constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
+
+// ── Memory-limit algorithm defaults ──────────────────────────────────────────
+/// Default fraction of RAM to use as the memory limit.
+constexpr double kDefaultMemoryLimitFraction = 0.9;
+/// Default number of main-loop iterations between RSS measurements.
+constexpr size_t kDefaultMemoryCheckInterval = 50'000;
+/// Default per-node queue size cap when memory pressure is triggered.
+constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
 
 struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
@@ -100,6 +109,74 @@ struct AlgorithmBaseParams {
         bool tabu_random_noise = true;
 
         int seed = 0;
+
+        // ── Memory-limit parameters ─────────────────────────────────────────
+
+        /// @brief Hard upper bound on process RSS in gibibytes (GiB); 0 means unlimited.
+        ///
+        /// When non-zero, the algorithm stops (returning whatever solutions have
+        /// been found so far) as soon as the measured RSS reaches this value.
+        /// Fractional values are accepted (e.g. 0.5 for 512 MiB, 1.5 for 1.5 GiB).
+        ///
+        /// This takes priority over @ref limit_to_available_ram and
+        /// @ref limit_to_total_ram; both of those are ignored when this is set.
+        ///
+        /// @code
+        ///   params.max_memory_gb = 8.0;   // 8 GiB hard limit
+        ///   params.max_memory_gb = 0.5;   // 512 MiB hard limit
+        /// @endcode
+        double max_memory_gb = 0.0;
+
+        /// @brief Automatically derive the memory limit from currently *available* RAM.
+        ///
+        /// If true, the limit is set to
+        /// @ref memory_limit_fraction × available-system-RAM at the start of
+        /// solve().  "Available" means memory the OS can give out without
+        /// swapping — it fluctuates as other processes allocate and free memory.
+        ///
+        /// Ignored when @ref max_memory_gb is non-zero.
+        /// Takes priority over @ref limit_to_total_ram.
+        bool limit_to_available_ram = false;
+
+        /// @brief Automatically derive the memory limit from the machine's *total* RAM.
+        ///
+        /// If true, the limit is set to
+        /// @ref memory_limit_fraction × total-physical-RAM at the start of
+        /// solve().  Unlike @ref limit_to_available_ram, total RAM is a fixed
+        /// hardware constant (e.g. 16 GiB) and does not change between solves.
+        /// This gives a stable, reproducible limit regardless of what other
+        /// processes are doing.
+        ///
+        /// Ignored when @ref max_memory_gb is non-zero or when
+        /// @ref limit_to_available_ram is true.
+        bool limit_to_total_ram = false;
+
+        /// @brief Fraction of RAM to use when @ref limit_to_available_ram or
+        ///        @ref limit_to_total_ram is true.
+        ///
+        /// Must be in (0, 1].  Default 0.9 leaves a 10 % safety margin.
+        double memory_limit_fraction = kDefaultMemoryLimitFraction;
+
+        /// @brief Number of main-loop iterations between consecutive RSS checks.
+        ///
+        /// Larger values reduce measurement overhead; smaller values react
+        /// faster to memory spikes.  Must be > 0.
+        size_t memory_check_interval = kDefaultMemoryCheckInterval;
+
+        /// @brief Pressure threshold as a fraction of the effective memory limit.
+        ///
+        /// When `current_rss >= memory_pressure_fraction × effective_limit`,
+        /// @ref on_memory_pressure() is called to prune label queues before
+        /// growth reaches the hard limit.  Default 0.8 triggers at 80 %.
+        double memory_pressure_fraction = kDefaultMemoryPressureFraction;
+
+        /// @brief Max unprocessed labels to retain per node under memory pressure.
+        ///
+        /// When @ref on_memory_pressure() fires, each per-node unprocessed
+        /// queue is trimmed to this many entries (cheapest labels kept).
+        /// Dominated excess labels are recycled; non-dominated excess labels
+        /// are stored for a future phase, consistent with truncated labeling.
+        size_t memory_pressure_max_labels_per_node = kDefaultMemoryPressureMaxLabelsPerNode;
 
         /// @brief Wrap these base params in an AlgorithmParams with the given container.
         ///
@@ -173,12 +250,19 @@ class Algorithm {
             best_cost_upper_bound_ = cost_upper_bound;
             label_pool_.clear();
             solutions_.clear();
+            effective_max_labels_per_node_ = params_.num_labels_to_extend_by_node;
+            memory_pressure_triggered_ = false;
         }
 
         virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
                                             double cost_upper_bound) {
             // initialization
             Timer timer(true);
+            memory_limit_.resolve(params_.max_memory_gb,
+                                  params_.limit_to_available_ram,
+                                  params_.limit_to_total_ram,
+                                  params_.memory_limit_fraction,
+                                  params_.memory_pressure_fraction);
             initialize(graph, cost_upper_bound);
 
             // initialize labels
@@ -234,6 +318,9 @@ class Algorithm {
                 solutions.resize(params_.stop_after_X_solutions);
             }
 
+            // Release label memory so RAM is reclaimed when the caller returns.
+            release_label_memory();
+
             return solutions;
         }
 
@@ -245,6 +332,24 @@ class Algorithm {
 
     protected:
         bool print_{false};
+
+        /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
+        ///
+        /// The default implementation does nothing.  Subclasses that own
+        /// unprocessed label queues (e.g. PushingDominanceAlgorithm) override
+        /// this to trim those queues, slowing further RSS growth before the
+        /// hard limit is hit.
+        virtual void on_memory_pressure() {}
+
+        /// @brief Release all label memory held by the pool and label containers.
+        ///
+        /// Called at the end of solve() so that RSS is reclaimed as soon as the
+        /// caller returns.  The default implementation frees the pool (including
+        /// shrink_to_fit).  Subclasses override this to also clear their own
+        /// label pointer containers (non-dominated sets, unprocessed queues).
+        virtual void release_label_memory() { label_pool_.release(); }
+
+        // ── Core virtuals ───────────────────────────────────────────────────
 
         virtual void initialize_labels() = 0;
 
@@ -324,6 +429,22 @@ class Algorithm {
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
         const AlgorithmParams<LabelContainerType> params_;
+        MemoryLimitHelper memory_limit_;  ///< Resolved at the start of each solve().
+
+        /// @brief Effective per-node extension cap.
+        ///
+        /// Starts at @ref AlgorithmBaseParams::num_labels_to_extend_by_node at the
+        /// beginning of each solve and is tightened to
+        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node when
+        /// @ref on_memory_pressure() fires.  Subclasses use this instead of
+        /// @c params_.num_labels_to_extend_by_node wherever the per-node limit is enforced.
+        size_t effective_max_labels_per_node_ = MAX_INT;
+
+        /// @brief True after on_memory_pressure() has been called at least once this solve.
+        ///
+        /// Used by subclasses to distinguish a first pressure event (prune & store aside)
+        /// from subsequent ones (prune & discard stored labels to free more memory).
+        bool memory_pressure_triggered_ = false;
 
         double cost_upper_bound_ = std::numeric_limits<double>::infinity();
         double best_cost_upper_bound_ = std::numeric_limits<double>::infinity();

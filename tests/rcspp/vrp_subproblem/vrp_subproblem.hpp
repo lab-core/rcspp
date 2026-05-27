@@ -19,14 +19,17 @@ class VRPSubproblem {
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
     template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
-    std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
+    std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id,
+                                AlgorithmBaseParams params = AlgorithmBaseParams()) {
         LOG_TRACE(__FUNCTION__, '\n');
 
         total_subproblem_time_.start();
-        auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id);
+        auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id, std::move(params));
         total_subproblem_time_.stop();
 
-        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
+        if (!solutions_rcspp.empty()) {
+            LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
+        }
 
         LOG_DEBUG("\n", std::string(45, '*'), "\n");
         LOG_DEBUG("total_subproblem_time_: ", total_subproblem_time_.elapsed_seconds());
@@ -79,7 +82,8 @@ class VRPSubproblem {
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id) {
+            const std::map<size_t, double>& dual_by_id,
+            AlgorithmBaseParams params = AlgorithmBaseParams()) {
                 LOG_TRACE(__FUNCTION__, '\n');
 
                 if (graph_.get_number_of_nodes() == 0) {
@@ -88,9 +92,7 @@ class VRPSubproblem {
                     update_resource_graph(&graph_, &dual_by_id);
                 }
 
-                auto solutions = graph_.solve<AlgorithmType>();
-
-                return solutions;
+                return graph_.solve<AlgorithmType>(std::move(params));
         }
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(

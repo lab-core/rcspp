@@ -23,6 +23,18 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
     protected:
+        /// @brief Release label memory and clear the non-dominated label containers.
+        ///
+        /// Overrides @ref Algorithm::release_label_memory() to also clear
+        /// @ref non_dominated_labels_by_node_pos_ so that no dangling label
+        /// pointers remain after the pool is freed.  Subclasses that own
+        /// additional label containers (e.g. unprocessed queues) should
+        /// override this further and call this base implementation.
+        void release_label_memory() override {
+            Algorithm<ResourceType, LabelContainerType>::release_label_memory();
+            non_dominated_labels_by_node_pos_.clear();
+        }
+
         void initialize_labels() override {
             non_dominated_labels_by_node_pos_.clear();
             non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
@@ -47,6 +59,28 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 if (this->is_interrupted()) {
                     break;
                 }
+
+                // Periodic memory check (skip i == 0 to avoid cost on every first iteration).
+                if (i > 0 && this->memory_limit_.effective_limit > 0 &&
+                    i % this->params_.memory_check_interval == 0) {
+                    if (this->memory_limit_.is_exceeded()) {
+                        LOG_WARN("Memory limit (",
+                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
+                                 " MB) exceeded (current: ",
+                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
+                                 " MB). Stopping early.\n");
+                        break;
+                    }
+                    if (this->memory_limit_.is_under_pressure()) {
+                        LOG_INFO("Memory pressure: ",
+                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
+                                 " MB / ",
+                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
+                                 " MB. Trimming label queues.\n");
+                        this->on_memory_pressure();
+                    }
+                }
+
                 ++i;
 
                 // next label to process
@@ -321,6 +355,63 @@ struct NodeUnprocessedLabelsManager {
             // restart the loop at the beginning
             initialize_unprocessed_labels(unprocessed_labels_by_node_pos_.size());
             assert(check_number_of_unprocessed_labels());
+        }
+
+        /// @brief Trim all per-node unprocessed queues to at most max_per_node labels.
+        ///
+        /// Dominated excess labels are immediately recycled into @p pool.
+        /// Non-dominated excess labels are stored in the truncated queue for a
+        /// subsequent phase, consistent with resize_unprocessed_labels().
+        ///
+        /// @param max_per_node Maximum labels to retain per node (cheapest ones).
+        /// @param pool  Label pool to recycle dominated labels into. May be nullptr.
+        void trim_all_queues(size_t max_per_node, LabelPool<ResourceType>* pool) {
+            resize_current_unprocessed_labels(max_per_node, pool);
+            for (auto& labels_at_node : unprocessed_labels_by_node_pos_) {
+                resize_unprocessed_labels(&labels_at_node, max_per_node, pool, /*sort=*/true);
+            }
+        }
+
+        /// @brief Release and discard all labels currently in the truncated queue.
+        ///
+        /// For each truncated label: invokes @p remove_from_nondom (a callable with
+        /// signature `void(const std::list<Label<ResourceType>*>::iterator&)`) to
+        /// remove it from the non-dominated container, then recycles it into @p pool.
+        /// Clears the truncated queues afterwards.
+        ///
+        /// Truncated labels are not counted in @ref num_unprocessed_labels_, so no
+        /// counter update is needed.
+        ///
+        /// @param pool              Pool to recycle labels into.
+        /// @param remove_from_nondom  Callable that removes a label from its node's
+        ///                            non-dominated set given the list iterator.
+        template <typename RemoveFn>
+        void release_truncated_labels(LabelPool<ResourceType>* pool,
+                                      RemoveFn&& remove_from_nondom) {
+            for (auto& truncated_list : truncated_unprocessed_labels_by_node_pos_) {
+                for (auto& [label_ptr, label_iter] : truncated_list) {
+                    remove_from_nondom(label_iter);
+                    pool->release_label(label_ptr);
+                }
+                truncated_list.clear();
+            }
+        }
+
+        /// @brief Clear all unprocessed and truncated queues.
+        ///
+        /// Does NOT release the Label objects (pool owns them).  Call this
+        /// after the pool has been freed so no dangling pointers remain in
+        /// the queues.
+        void clear_all_queues() {
+            current_unprocessed_labels_.clear();
+            for (auto& labels : unprocessed_labels_by_node_pos_) {
+                labels.clear();
+            }
+            for (auto& labels : truncated_unprocessed_labels_by_node_pos_) {
+                labels.clear();
+            }
+            num_unprocessed_labels_ = 0;
+            current_unprocessed_node_pos_ = 0;
         }
 
         [[nodiscard]] bool check_number_of_unprocessed_labels() const {

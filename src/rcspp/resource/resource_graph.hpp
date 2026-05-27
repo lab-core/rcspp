@@ -287,6 +287,30 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                            cost_index);
         }
 
+        /// @brief Solve using base algorithm parameters (without explicit container type).
+        ///
+        /// Convenience overload that wraps @p base_params in a default-constructed
+        /// AlgorithmParams so callers only need to set the base fields (e.g. memory
+        /// limits, stop conditions) without knowing the internal ResourceCompositionType.
+        ///
+        /// @param base_params    Base algorithm parameters (memory limits, stop conditions…).
+        /// @param upper_bound    Cost upper bound; solutions above this are discarded.
+        /// @param preprocess     Whether to run preprocessing before solving.
+        /// @param cost_index     Index of the cost component to use.
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+            requires is_numerical_resource_v<CostResourceType>
+        std::vector<Solution> solve(AlgorithmBaseParams base_params,
+                                    double upper_bound = std::numeric_limits<double>::infinity(),
+                                    bool preprocess = true, size_t cost_index = 0) {
+            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+                upper_bound,
+                AlgorithmParams<LabelContainerType>(std::move(base_params)),
+                preprocess,
+                cost_index);
+        }
+
         template <typename AlgorithmType, typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
         std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)

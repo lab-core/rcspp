@@ -1,0 +1,5 @@
+if(EXISTS "/Users/legraina/git/rcspp/build_asan/tests/rcspp/tests-rcspp[1]_tests.cmake")
+  include("/Users/legraina/git/rcspp/build_asan/tests/rcspp/tests-rcspp[1]_tests.cmake")
+else()
+  add_test(tests-rcspp_NOT_BUILT tests-rcspp_NOT_BUILT)
+endif()

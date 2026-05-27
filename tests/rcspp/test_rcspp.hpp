@@ -83,3 +83,148 @@ DEFINE_RCSPP_TESTS(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_RCSPP_TESTS(PullingDominance, PullingDominanceAlgorithm)
 
 #undef DEFINE_RCSPP_TESTS
+
+// ── Memory-limit tests ────────────────────────────────────────────────────────
+
+/// Verify that setting max_memory_bytes = 1 (immediately exceeded on the first
+/// check) causes solve() to stop cleanly without crashing or hanging, and
+/// returns either an empty result or whatever solutions were found before the
+/// limit fired.
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_memory_limit_immediate_stop() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    // ~1 byte expressed as GiB: always exceeded on the very first check.
+    constexpr double kTinyLimitGiB = 1e-9;
+    AlgorithmBaseParams base;
+    base.max_memory_gb = kTinyLimitGiB;
+    base.memory_check_interval = 1;
+
+    // Must not crash or hang.  Solutions may be empty (stopped before any found).
+    ASSERT_NO_THROW(vrp_subproblem.solve<AlgorithmType>(dual_by_id, base));
+}
+
+/// Verify that enabling limit_to_available_ram causes solve() to complete
+/// without crashing regardless of whether the limit is hit.
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_memory_limit_available_ram() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    // 99 % of available RAM is very generous — the solve should complete normally.
+    constexpr double kGenerousLimit = 0.99;
+    AlgorithmBaseParams base;
+    base.limit_to_available_ram = true;
+    base.memory_limit_fraction = kGenerousLimit;
+
+    auto solutions = vrp_subproblem.solve<AlgorithmType>(dual_by_id, base);
+    ASSERT_FALSE(solutions.empty());
+    constexpr double kOptimal = -319.87786809696524415;
+    EXPECT_NEAR(solutions[0].cost, kOptimal, 1e-9);
+}
+
+/// Verify that memory-pressure pruning fires (pressure_fraction = 0 → always
+/// triggered) without corrupting results: the optimal solution must still be
+/// found when the hard limit is not reached.
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_memory_pressure_pruning() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    // Trigger pruning on every check (pressure_fraction = 0 → always under pressure)
+    // but never stop (max_memory_gb very large → limit never exceeded).
+    constexpr size_t kGenerousQueueSize = 10'000;
+    constexpr size_t kCheckInterval = 1'000;
+    AlgorithmBaseParams base;
+    constexpr double kHugeLimitGiB = 1e9;  // 1 billion GiB — effectively unlimited
+    base.max_memory_gb = kHugeLimitGiB;
+    base.memory_pressure_fraction = 0.0;
+    base.memory_check_interval = kCheckInterval;
+    base.memory_pressure_max_labels_per_node = kGenerousQueueSize;
+
+    auto solutions = vrp_subproblem.solve<AlgorithmType>(dual_by_id, base);
+    // Pruning should not corrupt the result.
+    ASSERT_FALSE(solutions.empty());
+    constexpr double kOptimal = -319.87786809696524415;
+    EXPECT_NEAR(solutions[0].cost, kOptimal, 1e-9);
+}
+
+/// Verify that limit_to_total_ram with a very generous fraction finds the
+/// optimal solution, and that the explicit kGB unit constant is usable.
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_memory_limit_total_ram() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    // 99 % of total RAM — always generous enough to complete.
+    constexpr double kGenerousLimit = 0.99;
+    AlgorithmBaseParams base_frac;
+    base_frac.limit_to_total_ram = true;
+    base_frac.memory_limit_fraction = kGenerousLimit;
+    auto solutions_frac = vrp_subproblem.solve<AlgorithmType>(dual_by_id, base_frac);
+    ASSERT_FALSE(solutions_frac.empty());
+    constexpr double kOptimal = -319.87786809696524415;
+    EXPECT_NEAR(solutions_frac[0].cost, kOptimal, 1e-9);
+
+    // Also verify an explicit GiB limit produces the expected result
+    // when the limit is very generous (1 000 GiB >> any realistic RSS).
+    constexpr double kVeryLargeLimit = 1000.0;  // GiB
+    AlgorithmBaseParams base_abs;
+    base_abs.max_memory_gb = kVeryLargeLimit;
+    auto solutions_abs = vrp_subproblem.solve<AlgorithmType>(dual_by_id, base_abs);
+    ASSERT_FALSE(solutions_abs.empty());
+    EXPECT_NEAR(solutions_abs[0].cost, kOptimal, 1e-9);
+}
+
+#define DEFINE_MEMORY_LIMIT_TESTS(AlgoSuffix, AlgoType)                                    \
+    TEST(Rcspp_##AlgoSuffix, MemoryLimitImmediateStop) {                                   \
+        test_memory_limit_immediate_stop<AlgoType>();                                      \
+    }                                                                                      \
+    TEST(Rcspp_##AlgoSuffix, MemoryLimitAvailableRam) {                                   \
+        test_memory_limit_available_ram<AlgoType>();                                       \
+    }                                                                                      \
+    TEST(Rcspp_##AlgoSuffix, MemoryLimitTotalRam) {                                       \
+        test_memory_limit_total_ram<AlgoType>();                                           \
+    }                                                                                      \
+    TEST(Rcspp_##AlgoSuffix, MemoryPressurePruning) {                                     \
+        test_memory_pressure_pruning<AlgoType>();                                          \
+    }
+
+DEFINE_MEMORY_LIMIT_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
+DEFINE_MEMORY_LIMIT_TESTS(PushingDominance, PushingDominanceAlgorithm)
+DEFINE_MEMORY_LIMIT_TESTS(PullingDominance, PullingDominanceAlgorithm)
+
+#undef DEFINE_MEMORY_LIMIT_TESTS

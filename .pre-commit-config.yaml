@@ -92,6 +92,7 @@ repos:
     hooks:
       - id: markdownlint
         files: .*\.md$
+        exclude: ^(build|build_[^/]+)/
         args: ["--fix"]
 
   # -------------------------
