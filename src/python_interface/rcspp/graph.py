@@ -16,6 +16,7 @@ _ALGORITHM_MAP = {
     "pushing": lambda: _ext.graph.Algorithm.Pushing,
     "pulling": lambda: _ext.graph.Algorithm.Pulling,
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
+    "tabu": lambda: _ext.graph.Algorithm.Tabu,
 }
 
 # Kept for backward compatibility
@@ -94,9 +95,14 @@ class ResourceGraph:
         self._full_registration_order: list[str] = []  # per-instance, incl. duplicates
         # Buffers for deferred node/arc insertion
         self._node_buffer: list = []  # list of (id, source, sink)
-        self._arc_buffer: list = []  # list of (raw_consumption, origin, dest, cost, rows)
+        self._arc_buffer: list = (
+            []
+        )  # list of (raw_consumption, origin, dest, cost, rows)
         self._rows_buffer: list = []  # list of (arc_id, row_index, coeff) triples
-        self._reserve_hint: tuple[int, int] = (0, 0)  # (n_nodes, n_arcs) hint from reserve()
+        self._reserve_hint: tuple[int, int] = (
+            0,
+            0,
+        )  # (n_nodes, n_arcs) hint from reserve()
         self._next_arc_id: int = 0  # mirrors C++ next_arc_id_; returned by add_arc
         if nx_graph is not None:
             self.from_networkx(nx_graph)
@@ -133,7 +139,9 @@ class ResourceGraph:
 
         # The first registered resource must be a real-valued cost resource.
         if not full_reg_order:
-            raise ValueError("At least one resource must be registered before using the graph.")
+            raise ValueError(
+                "At least one resource must be registered before using the graph."
+            )
         if full_reg_order[0] != "real":
             raise ValueError(
                 f"The first registered resource must be a real resource for the cost, "
@@ -149,7 +157,11 @@ class ResourceGraph:
         if cls_name is None:
             # Find the smallest C++ class that is a superset of the requested types.
             candidates = sorted(
-                ((combo, cls) for combo, cls in _RG_CLASS.items() if requested <= frozenset(combo)),
+                (
+                    (combo, cls)
+                    for combo, cls in _RG_CLASS.items()
+                    if requested <= frozenset(combo)
+                ),
                 key=lambda x: len(x[0]),
             )
             if not candidates:
@@ -179,8 +191,13 @@ class ResourceGraph:
         self._ensure_graph()
         if not self._node_buffer and not self._arc_buffer and not self._rows_buffer:
             return
-        n_nodes = max(self._reserve_hint[0], self._graph.number_of_nodes() + len(self._node_buffer))
-        n_arcs = max(self._reserve_hint[1], self._graph.number_of_arcs() + len(self._arc_buffer))
+        n_nodes = max(
+            self._reserve_hint[0],
+            self._graph.number_of_nodes() + len(self._node_buffer),
+        )
+        n_arcs = max(
+            self._reserve_hint[1], self._graph.number_of_arcs() + len(self._arc_buffer)
+        )
         self._graph.reserve(n_nodes, n_arcs)
         self._reserve_hint = (0, 0)
         if self._node_buffer:
@@ -418,7 +435,9 @@ class ResourceGraph:
         else:
             self._rows_buffer.extend(data)
 
-    def clone(self, include_rows: bool = True, clone_removed_arcs: bool = False) -> "ResourceGraph":
+    def clone(
+        self, include_rows: bool = True, clone_removed_arcs: bool = False
+    ) -> "ResourceGraph":
         """Return a deep clone of this ResourceGraph with stable arc IDs.
 
         Flushes all pending buffers before cloning so the clone reflects the
@@ -589,7 +608,9 @@ class ResourceGraph:
 
     def from_networkx(self, nx_graph: nx.DiGraph):
         # ── Structural validation ─────────────────────────────────────────────
-        source_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("source") is True]
+        source_nodes = [
+            n for n, d in nx_graph.nodes(data=True) if d.get("source") is True
+        ]
         sink_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("sink") is True]
         if not source_nodes:
             raise ValueError(
@@ -611,7 +632,9 @@ class ResourceGraph:
         # otherwise the C++ binding would be called with the wrong argument types.
         resources_registered = bool(self._pending) or (self._graph is not None)
         if resources_registered:
-            missing = [(u, v) for u, v, d in nx_graph.edges(data=True) if "resource" not in d]
+            missing = [
+                (u, v) for u, v, d in nx_graph.edges(data=True) if "resource" not in d
+            ]
             if missing:
                 n_res = len(self._pending) or len(self._full_registration_order)
                 pairs = ", ".join(f"({u} → {v})" for u, v in missing[:5])
@@ -651,7 +674,11 @@ class ResourceGraph:
 
 def _make_add_resource_method(canonical_type: str):
     def add_resource_method(
-        self, extension_function, feasibility_function, cost_function, dominance_function
+        self,
+        extension_function,
+        feasibility_function,
+        cost_function,
+        dominance_function,
     ):
         if self._graph is not None:
             raise RuntimeError(

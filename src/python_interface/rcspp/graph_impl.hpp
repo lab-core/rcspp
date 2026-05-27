@@ -113,7 +113,7 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Tabu, DiversificationSearch>>;
+                                  AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub,

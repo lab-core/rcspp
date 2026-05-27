@@ -1,7 +1,9 @@
 .vs/*
+.cache/*
 out/*
 build/
 build_*/
+**/__pycache__/**
 *.dll
 *.lib
 *.exp

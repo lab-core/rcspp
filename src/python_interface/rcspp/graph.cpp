@@ -79,7 +79,8 @@ void init_graph(py::module_& m) {
         .value("Simple", SolverAlgorithm::Simple)
         .value("Pushing", SolverAlgorithm::Pushing)
         .value("Pulling", SolverAlgorithm::Pulling)
-        .value("Greedy", SolverAlgorithm::Greedy);
+        .value("Greedy", SolverAlgorithm::Greedy)
+        .value("Tabu", SolverAlgorithm::Tabu);
 
     // ── Shared scalar types ───────────────────────────────────────────────────
 
@@ -107,7 +108,30 @@ void init_graph(py::module_& m) {
         .def_readwrite("tabu_tenure", &PyAlgorithmParams::tabu_tenure)
         .def_readwrite("forbidden_tabu", &PyAlgorithmParams::forbidden_tabu)
         .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
-        .def_readwrite("seed", &PyAlgorithmParams::seed);
+        .def_readwrite("seed", &PyAlgorithmParams::seed)
+        // ── Memory-limit parameters ──────────────────────────────────────
+        .def_readwrite("max_memory_gb",
+                       &PyAlgorithmParams::max_memory_gb,
+                       "Hard cap on process RSS in GiB (0 = unlimited). "
+                       "The solver stops early and returns whatever solutions have been found.")
+        .def_readwrite("limit_to_available_ram",
+                       &PyAlgorithmParams::limit_to_available_ram,
+                       "Derive limit from currently-available system RAM.")
+        .def_readwrite("limit_to_total_ram",
+                       &PyAlgorithmParams::limit_to_total_ram,
+                       "Derive limit from total physical RAM.")
+        .def_readwrite("memory_limit_fraction",
+                       &PyAlgorithmParams::memory_limit_fraction,
+                       "Fraction of RAM to use as limit (default 0.9).")
+        .def_readwrite("memory_check_interval",
+                       &PyAlgorithmParams::memory_check_interval,
+                       "Main-loop iterations between RSS checks (default 50 000).")
+        .def_readwrite("memory_pressure_fraction",
+                       &PyAlgorithmParams::memory_pressure_fraction,
+                       "RSS/limit fraction that triggers queue pruning (default 0.8).")
+        .def_readwrite("memory_pressure_max_labels_per_node",
+                       &PyAlgorithmParams::memory_pressure_max_labels_per_node,
+                       "Max labels per node when under memory pressure (default 200).");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())
