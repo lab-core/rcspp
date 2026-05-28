@@ -78,11 +78,11 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost) {
     return vrp.solve<SimpleDominanceAlgorithm,
                      PushingDominanceAlgorithm,
                      PullingDominanceAlgorithm,
-                     AStarDominanceAlgorithm>(list_params,
-                                              std::nullopt,
-                                              list_algorithms,
-                                              run_boost,
-                                              extra_solvers);  // NOLINT
+                     AStarAlgoBound<RealResource>::Algo>(list_params,
+                                                         std::nullopt,
+                                                         list_algorithms,
+                                                         run_boost,
+                                                         extra_solvers);  // NOLINT
 }
 
 int main(int argc, char* argv[]) {  // NOLINT
