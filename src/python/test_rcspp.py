@@ -10,8 +10,9 @@ import sys
 import threading
 import time
 
-relative_path = "../python_interface/"
-sys.path.insert(0, os.path.abspath(relative_path))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_interface")
+)
 
 from rcspp import LogLevel, set_log_level
 from rcspp.graph import Algorithm, AlgorithmParams, BucketAlgorithmParams, ResourceGraph

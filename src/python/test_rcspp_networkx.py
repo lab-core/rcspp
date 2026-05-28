@@ -9,8 +9,9 @@ import sys
 
 import networkx as nx
 
-relative_path = "../python_interface/"
-sys.path.insert(0, os.path.abspath(relative_path))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_interface")
+)
 
 from rcspp.graph import Algorithm, AlgorithmParams, ResourceGraph
 from rcspp.resource import (

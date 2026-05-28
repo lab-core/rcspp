@@ -18,10 +18,13 @@ import math
 import os
 import sys
 
-import numpy as np
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_interface")
+)
 
-relative_path = "../python_interface/"
-sys.path.insert(0, os.path.abspath(relative_path))
+import pytest  # noqa: E402
+
+np = pytest.importorskip("numpy")
 
 from rcspp.graph import ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
