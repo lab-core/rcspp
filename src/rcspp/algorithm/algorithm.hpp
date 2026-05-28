@@ -157,6 +157,13 @@ struct AlgorithmBaseParams {
         std::set<size_t> forbidden_tabu;
         bool tabu_random_noise = true;
 
+        /// @brief Consecutive non-improving dives before a diversification step.
+        ///
+        /// Used by @ref ImprovingTabuSearch: when this many dives in a row fail
+        /// to strictly improve the best known cost, @c grow_extra() is called on
+        /// the tabu list to force exploration of unexplored regions.
+        size_t diversification_tenure = 10;  // NOLINT(readability-magic-numbers)
+
         int seed = 0;
 
         /// @brief Index of the cost resource component used to compute the A* heuristic.
