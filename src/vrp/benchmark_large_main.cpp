@@ -30,7 +30,7 @@
 
 namespace fs = std::filesystem;
 
-static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost) {
+static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost, bool run_astar) {
     InstanceReader reader(instance_path);
     auto instance = reader.read();
     VRP vrp(instance);
@@ -40,20 +40,23 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost) {
     constexpr size_t kSortResourceIdx = 0;
     using BucketLC = LabelBuckets<IntResource, RealResource, ResourceType>;
 
-    AlgorithmParams<LabelList<ResourceType>> other_params;
-    other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
-    other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
-    auto greedy_algo = vrp.get_graph().create_algorithm<GreedyAlgorithm>(other_params);
+    // ── Heuristic algorithms ───────────────────────────────────────────────────
+    AlgorithmParams<LabelList<ResourceType>> constructive_tabu_params;
+    constructive_tabu_params.stop_after_X_solutions = 20;  // NOLINT
+    constructive_tabu_params.max_iterations = 1e6;         // NOLINT
+    auto constructive_tabu_algo =
+        vrp.get_graph().create_algorithm<DiversificationSearch>(constructive_tabu_params);
 
     AlgorithmParams<LabelList<ResourceType>> tabu_params;
     tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
-    tabu_params.max_iterations = 1e6;         // NOLINT(readability-magic-numbers)
-    auto tabu_search_algo =
-        vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
-                                                                std::move(greedy_algo));
-    std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
-        tabu_search_algo.get()};
+    tabu_params.max_iterations = 1e3;         // NOLINT(readability-magic-numbers)
+    auto tabu_algo = vrp.get_graph().create_algorithm<ImprovingTabuSearch>(tabu_params);
 
+    std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
+        constructive_tabu_algo.get(),
+        tabu_algo.get()};
+
+    // ── Bucket algorithms ──────────────────────────────────────────────────────
     BucketLC bucket_container_s(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
     AlgorithmParams<BucketLC> bucket_params_s(std::move(bucket_container_s));
     auto bucket_simple =
@@ -74,15 +77,26 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost) {
          },
          true}};
 
+    std::unique_ptr<Algorithm<ResourceType, LabelList<ResourceType>>> astar_algo;
+    if (run_astar) {
+        AlgorithmParams<LabelList<ResourceType>> astar_params;
+        astar_algo =
+            vrp.get_graph().create_algorithm<AStarAlgoBound<RealResource>::Algo>(astar_params);
+        extra_solvers.push_back(
+            {[&vrp, algo = astar_algo.get()](const std::map<size_t, double>& dual) {
+                 return vrp.run_algorithm(dual, algo);
+             },
+             true});
+    }
+
     AlgorithmParams<LabelList<ResourceType>> list_params;
-    return vrp.solve<SimpleDominanceAlgorithm,
-                     PushingDominanceAlgorithm,
-                     PullingDominanceAlgorithm,
-                     AStarAlgoBound<RealResource>::Algo>(list_params,
-                                                         std::nullopt,
-                                                         list_algorithms,
-                                                         run_boost,
-                                                         extra_solvers);  // NOLINT
+    return vrp
+        .solve<SimpleDominanceAlgorithm, PushingDominanceAlgorithm, PullingDominanceAlgorithm>(
+            list_params,
+            std::nullopt,
+            list_algorithms,
+            run_boost,
+            extra_solvers);  // NOLINT
 }
 
 int main(int argc, char* argv[]) {  // NOLINT
@@ -92,12 +106,15 @@ int main(int argc, char* argv[]) {  // NOLINT
         size_t max_c2_rc2 = 2;
         size_t max_r2 = 0;  // 0 = same as max_c2_rc2
         bool run_boost = false;
+        bool run_astar = false;
         std::string gh_dir;
 
         for (int i = 1; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--boost") {
                 run_boost = true;
+            } else if (arg == "--astar") {
+                run_astar = true;
             } else if (arg == "--r2-max" && i + 1 < argc) {
                 max_r2 = std::stoull(argv[++i]);
             } else if (arg == "--gh-dir" && i + 1 < argc) {
@@ -149,7 +166,10 @@ int main(int argc, char* argv[]) {  // NOLINT
         }
 
         std::vector<std::string> labels =
-            {"Simple", "Pushing", "Pulling", "AStar", "Diversif", "BucketS", "BucketP"};
+            {"Simple", "Pushing", "Pulling", "ConstructiveTabu", "Tabu", "BucketS", "BucketP"};
+        if (run_astar) {
+            labels.push_back("AStar");
+        }
         if (run_boost) {
             labels.insert(labels.begin(), "Boost");
         }
@@ -161,7 +181,7 @@ int main(int argc, char* argv[]) {  // NOLINT
         for (const auto& name : instance_names) {
             std::string path = inst_dir + name + ".txt";
             LOG_INFO("Instance: ", path, '\n');
-            auto [timers, lp_cost] = run_vrp(path, run_boost);
+            auto [timers, lp_cost] = run_vrp(path, run_boost, run_astar);
             if (total_timers.empty()) {
                 total_timers = timers;
             } else {
@@ -176,7 +196,7 @@ int main(int argc, char* argv[]) {  // NOLINT
         for (const auto& path : gh_instance_paths) {
             std::string name = fs::path(path).stem().string();
             LOG_INFO("Instance: ", path, '\n');
-            auto [timers, lp_cost] = run_vrp(path, run_boost);
+            auto [timers, lp_cost] = run_vrp(path, run_boost, run_astar);
             if (total_timers.empty()) {
                 total_timers = timers;
             } else {

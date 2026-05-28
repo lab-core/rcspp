@@ -47,8 +47,18 @@ int main(int argc, char* argv[]) {
         constexpr size_t kSortResourceIdx = 0;
         using BucketLC = LabelBuckets<IntResource, RealResource, ResourceType>;
 
+        bool run_astar = false;
+        for (int i = 1; i < argc; ++i) {
+            if (std::string(argv[i]) == "--astar") {
+                run_astar = true;
+            }
+        }
+
         std::vector<std::string> labels =
-            {"Simple", "Pushing", "Pulling", "AStar", "Diversif", "BucketS", "BucketP"};
+            {"Simple", "Pushing", "Pulling", "ConstructiveTabu", "Tabu", "BucketS", "BucketP"};
+        if (run_astar) {
+            labels.push_back("AStar");
+        }
         if (run_boost) {
             labels.insert(labels.begin(), "Boost");
         }
@@ -65,19 +75,21 @@ int main(int argc, char* argv[]) {
             auto instance = instance_reader.read();
             VRP vrp(instance);
 
-            // ── LabelList algorithms ───────────────────────────────────────────
-            AlgorithmParams<LabelList<ResourceType>> other_params;
-            other_params.stop_after_X_solutions = 1;  // NOLINT(readability-magic-numbers)
-            other_params.max_iterations = 1e3;        // NOLINT(readability-magic-numbers)
-            auto greedy_algo = vrp.get_graph().create_algorithm<GreedyAlgorithm>(other_params);
+            // ── Heuristic algorithms ───────────────────────────────────────────
+            AlgorithmParams<LabelList<ResourceType>> constructive_tabu_params;
+            constructive_tabu_params.stop_after_X_solutions = 20;  // NOLINT
+            constructive_tabu_params.max_iterations = 1e6;         // NOLINT
+            auto constructive_tabu_algo =
+                vrp.get_graph().create_algorithm<DiversificationSearch>(constructive_tabu_params);
+
             AlgorithmParams<LabelList<ResourceType>> tabu_params;
             tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
-            tabu_params.max_iterations = 1e6;         // NOLINT(readability-magic-numbers)
-            auto tabu_search_algo =
-                vrp.get_graph().create_algorithm<DiversificationSearch>(tabu_params,
-                                                                        std::move(greedy_algo));
+            tabu_params.max_iterations = 1e3;         // NOLINT(readability-magic-numbers)
+            auto tabu_algo = vrp.get_graph().create_algorithm<ImprovingTabuSearch>(tabu_params);
+
             std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
-                tabu_search_algo.get()};
+                constructive_tabu_algo.get(),
+                tabu_algo.get()};
 
             // ── LabelBuckets algorithms ────────────────────────────────────────
             BucketLC bucket_container_s(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
@@ -102,17 +114,27 @@ int main(int argc, char* argv[]) {
                  },
                  true}};
 
+            std::unique_ptr<Algorithm<ResourceType, LabelList<ResourceType>>> astar_algo;
+            if (run_astar) {
+                AlgorithmParams<LabelList<ResourceType>> astar_params;
+                astar_algo = vrp.get_graph().create_algorithm<AStarAlgoBound<RealResource>::Algo>(
+                    astar_params);
+                extra_solvers.push_back(
+                    {[&vrp, algo = astar_algo.get()](const std::map<size_t, double>& dual) {
+                         return vrp.run_algorithm(dual, algo);
+                     },
+                     true});
+            }
+
             // ── Single CG solve ────────────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto [timers, lp_cost] =
-                vrp.solve<SimpleDominanceAlgorithm,
-                          PushingDominanceAlgorithm,
-                          PullingDominanceAlgorithm,
-                          AStarAlgoBound<RealResource>::Algo>(list_params,
-                                                              std::nullopt,
-                                                              list_algorithms,
-                                                              run_boost,
-                                                              extra_solvers);  // NOLINT
+            auto [timers, lp_cost] = vrp.solve<SimpleDominanceAlgorithm,
+                                               PushingDominanceAlgorithm,
+                                               PullingDominanceAlgorithm>(list_params,
+                                                                          std::nullopt,
+                                                                          list_algorithms,
+                                                                          run_boost,
+                                                                          extra_solvers);  // NOLINT
 
             if (total_timers.empty()) {
                 total_timers = timers;
