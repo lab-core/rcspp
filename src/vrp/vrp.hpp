@@ -20,8 +20,8 @@ using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTB
 using ResourceType =
     ResourceTypeComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 
-/// @brief Result of a template VRP::solve() run.
-struct SolveResult {
+/// @brief Result of a column-generation VRP::solve() run.
+struct CGSolveResult {
         /// @brief Per-algorithm timing in the same order as the algorithm parameters.
         std::vector<Timer> timers;
         /// @brief Final LP relaxation cost from the master problem after column generation.
@@ -54,7 +54,7 @@ class VRP {
 
         template <template <typename, typename> class... AlgorithmTypes,
                   typename LabelContainerType>
-        SolveResult solve(                               // NOLINT
+        CGSolveResult solve(                             // NOLINT
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
             std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {},
@@ -219,7 +219,7 @@ class VRP {
                 LOG_DEBUG(std::string(45, '*'), '\n');
             }
 
-            return SolveResult{timers, master_solution.cost};
+            return CGSolveResult{timers, master_solution.cost};
         }
 
         RGraph& get_graph() { return graph_; }
@@ -310,7 +310,7 @@ class VRP {
 
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
-            auto solutions = graph_.solve<AlgorithmType>(-EPSILON, params);
+            auto result = graph_.solve<AlgorithmType>(-EPSILON, params);
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",
@@ -319,7 +319,7 @@ class VRP {
 
             total_subproblem_solve_time_.stop();
 
-            return solutions;
+            return std::move(result.solutions);
         }
 
         template <class AlgorithmType>
@@ -329,7 +329,7 @@ class VRP {
 
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
-            auto solutions = graph_.solve(algo, -EPSILON);
+            auto result = graph_.solve(algo, -EPSILON);
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",
@@ -338,7 +338,7 @@ class VRP {
 
             total_subproblem_solve_time_.stop();
 
-            return solutions;
+            return std::move(result.solutions);
         }
 
 #ifdef RCSPP_VRP_HAS_BOOST

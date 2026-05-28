@@ -10,6 +10,15 @@ class Algorithm(Enum):
     Pushing: Algorithm
     Pulling: Algorithm
     Greedy: Algorithm
+    Tabu: Algorithm
+
+class AlgorithmStatus(Enum):
+    Complete: AlgorithmStatus
+    Timeout: AlgorithmStatus
+    MaxSolutions: AlgorithmStatus
+    MaxPhases: AlgorithmStatus
+    Interrupted: AlgorithmStatus
+    MemoryLimit: AlgorithmStatus
 
 class Row:
     index: int
@@ -36,6 +45,23 @@ class Solution:
         np.ndarray[Any, np.dtype[np.float64]],
     ]: ...
 
+class SolveResult:
+    """Result of a solve() call.
+
+    Behaves like a ``list[Solution]`` for backward compatibility
+    (``len()``, indexing, iteration) while also exposing ``.status``.
+    """
+
+    solutions: list[Solution]
+    status: AlgorithmStatus
+    def __init__(self) -> None: ...
+    def status_string(self) -> str: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Any: ...
+    def __getitem__(self, index: int) -> Solution: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
+
 class AlgorithmParams:
     stop_after_X_solutions: int
     return_dominated_solutions: bool
@@ -43,15 +69,27 @@ class AlgorithmParams:
     num_labels_to_extend_by_node: int
     num_max_phases: int
     max_iterations: int
+    timeout_s: float
+    tolerance: float
+    release_after_solve: bool
     tabu_tenure: int
     forbidden_tabu: set[int]
     tabu_random_noise: bool
     seed: int
+    max_memory_gb: float
+    limit_to_available_ram: bool
+    limit_to_total_ram: bool
+    memory_limit_fraction: float
+    memory_check_interval: int
+    memory_pressure_fraction: float
+    memory_pressure_max_labels_per_node: int
     def __init__(self) -> None: ...
     def check(self) -> None: ...
     def could_be_non_optimal(self) -> bool: ...
 
 class BucketAlgorithmParams(AlgorithmParams):
+    """Low-level C++ bucket params.  Prefer the Python wrapper in rcspp.graph."""
+
     range_buckets: int
     bucket_resource_index: int
     sort_resource_index: int

@@ -92,7 +92,7 @@ class VRPSubproblem {
                     update_resource_graph(&graph_, &dual_by_id);
                 }
 
-                return graph_.solve<AlgorithmType>(std::move(params));
+                return std::move(graph_.solve<AlgorithmType>(std::move(params)).solutions);
         }
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(

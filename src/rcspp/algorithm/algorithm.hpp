@@ -31,6 +31,41 @@
 
 namespace rcspp {
 
+/// @brief Exit status returned by Algorithm::solve().
+enum class AlgorithmStatus {
+    COMPLETE,       ///< All labels processed; result is optimal (given other params).
+    TIMEOUT,        ///< Wall-clock timeout reached before completion.
+    MAX_SOLUTIONS,  ///< stop_after_X_solutions reached.
+    MAX_PHASES,     ///< num_max_phases exhausted with labels still remaining.
+    INTERRUPTED,    ///< External should_stop callback returned true.
+    MEMORY_LIMIT,   ///< RSS memory limit reached.
+};
+
+/// @brief Return value of Algorithm::solve().
+struct SolveResult {
+        std::vector<Solution> solutions;
+        AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+
+        /// @brief Human-readable name of the exit status.
+        [[nodiscard]] std::string status_string() const {
+            switch (status) {
+                case AlgorithmStatus::COMPLETE:
+                    return "complete";
+                case AlgorithmStatus::TIMEOUT:
+                    return "timeout";
+                case AlgorithmStatus::MAX_SOLUTIONS:
+                    return "max_solutions";
+                case AlgorithmStatus::MAX_PHASES:
+                    return "max_phases";
+                case AlgorithmStatus::INTERRUPTED:
+                    return "interrupted";
+                case AlgorithmStatus::MEMORY_LIMIT:
+                    return "memory_limit";
+            }
+            return "unknown";
+        }
+};
+
 // Forward declaration so AlgorithmBaseParams::with_container can name the return type.
 template <typename LabelContainerType>
 struct AlgorithmParams;
@@ -75,7 +110,8 @@ struct AlgorithmBaseParams {
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            return ((stop_after_X_solutions < MAX_INT) || (num_labels_to_extend_by_node < MAX_INT));
+            return ((stop_after_X_solutions < MAX_INT) ||
+                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s));
         }
 
         // stop after finding X solutions (not going to optimality)
@@ -100,11 +136,24 @@ struct AlgorithmBaseParams {
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
 
+        // wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s
+        double timeout_s = std::numeric_limits<double>::infinity();
+
         // callable returning true if the algorithm should stop early (e.g. SIGINT)
         std::function<bool()> should_stop;
 
+        // numerical tolerance used for cost comparisons
+        double tolerance = 1e-9;  // NOLINT(readability-magic-numbers)
+
+        /// @brief If true (default), release all label memory at the end of solve().
+        ///
+        /// Set to false when the same algorithm instance is called repeatedly in a
+        /// tight loop (e.g., inside DiversificationSearch) so the pool capacity is
+        /// retained across calls and shrink_to_fit() overhead is avoided.
+        bool release_after_solve = true;
+
         // for tabu search algorithms
-        size_t tabu_tenure = 5;  // NOLINT
+        size_t tabu_tenure = 5;  // NOLINT(readability-magic-numbers)
         std::set<size_t> forbidden_tabu;
         bool tabu_random_noise = true;
 
@@ -254,10 +303,11 @@ class Algorithm {
             memory_pressure_triggered_ = false;
         }
 
-        virtual std::vector<Solution> solve(const Graph<ResourceType>* graph,
-                                            double cost_upper_bound) {
+        virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             // initialization
             Timer timer(true);
+            timed_out_ = false;
+            solve_timer_ = &timer;
             memory_limit_.resolve(params_.max_memory_gb,
                                   params_.limit_to_available_ram,
                                   params_.limit_to_total_ram,
@@ -269,10 +319,7 @@ class Algorithm {
             this->initialize_labels();
 
             size_t num_phases = 0;
-            while (solutions_.size() < params_.stop_after_X_solutions && number_of_labels() > 0) {
-                if (is_interrupted()) {
-                    break;
-                }
+            while (!should_stop() && number_of_labels() > 0) {
                 // main labeling loop
                 main_loop();
 
@@ -287,6 +334,8 @@ class Algorithm {
                 }
             }
 
+            solve_timer_ = nullptr;
+
             if (LOG_DEBUG_ACTIVE()) {
                 LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
                 print_labels();
@@ -300,8 +349,10 @@ class Algorithm {
             }
 
             // prepare next phase to ensure that all_labels_processed() returns the right value
-            // Also, next solve() is ready to start if needed
-            prepareNextPhase();
+            // (if not releasing all labels). Also, next solve() is ready to start if needed
+            if (!params_.release_after_solve) {
+                prepareNextPhase();
+            }
 
             // sort solutions
             std::ranges::sort(solutions,
@@ -318,10 +369,28 @@ class Algorithm {
                 solutions.resize(params_.stop_after_X_solutions);
             }
 
-            // Release label memory so RAM is reclaimed when the caller returns.
-            release_label_memory();
+            // determine exit status
+            AlgorithmStatus status;
+            if (timed_out_) {
+                status = AlgorithmStatus::TIMEOUT;
+            } else if (is_interrupted()) {
+                status = AlgorithmStatus::INTERRUPTED;
+            } else if (memory_limit_.is_exceeded()) {
+                status = AlgorithmStatus::MEMORY_LIMIT;
+            } else if (number_of_labels() == 0) {
+                status = AlgorithmStatus::COMPLETE;
+            } else if (solutions.size() >= params_.stop_after_X_solutions) {
+                status = AlgorithmStatus::MAX_SOLUTIONS;
+            } else {
+                status = AlgorithmStatus::MAX_PHASES;
+            }
 
-            return solutions;
+            // Optionally release label memory so RAM is reclaimed when the caller returns.
+            if (params_.release_after_solve) {
+                release_label_memory();
+            }
+
+            return {.solutions = std::move(solutions), .status = status};
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
@@ -426,6 +495,30 @@ class Algorithm {
             solutions_.insert(std::move(sol));
         }
 
+        /// @brief Returns true when the wall-clock timeout has been exceeded.
+        ///
+        /// Sets timed_out_ on the first call that exceeds the limit so subsequent
+        /// calls are O(1) (no timer read).  Safe to call only during solve().
+        bool is_time_out() {
+            if (!timed_out_ && solve_timer_ != nullptr &&
+                solve_timer_->elapsed_seconds() >= params_.timeout_s) {
+                timed_out_ = true;
+            }
+            return timed_out_;
+        }
+
+        /// @brief Returns true when solve() should terminate the outer loop.
+        ///
+        /// Checks (in order): iteration budget, solution budget, timeout, and the
+        /// external stop callback.  Pass iteration=0 to skip the iteration check.
+        ///
+        /// @param iteration Current iteration index (default 0 = no iteration limit check).
+        bool should_stop(size_t iteration = 0) {
+            return iteration >= params_.max_iterations ||
+                   solutions_.size() >= params_.stop_after_X_solutions || is_time_out() ||
+                   is_interrupted();
+        }
+
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
         const AlgorithmParams<LabelContainerType> params_;
@@ -453,5 +546,8 @@ class Algorithm {
         size_t nb_dominated_labels_{0};
         size_t num_extended_labels_ = 0;
         Timer total_full_extend_time_;
+
+        bool timed_out_ = false;
+        const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().
 };
 }  // namespace rcspp

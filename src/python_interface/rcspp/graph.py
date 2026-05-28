@@ -95,9 +95,7 @@ class ResourceGraph:
         self._full_registration_order: list[str] = []  # per-instance, incl. duplicates
         # Buffers for deferred node/arc insertion
         self._node_buffer: list = []  # list of (id, source, sink)
-        self._arc_buffer: list = (
-            []
-        )  # list of (raw_consumption, origin, dest, cost, rows)
+        self._arc_buffer: list = []  # list of (raw_consumption, origin, dest, cost, rows)
         self._rows_buffer: list = []  # list of (arc_id, row_index, coeff) triples
         self._reserve_hint: tuple[int, int] = (
             0,
@@ -139,9 +137,7 @@ class ResourceGraph:
 
         # The first registered resource must be a real-valued cost resource.
         if not full_reg_order:
-            raise ValueError(
-                "At least one resource must be registered before using the graph."
-            )
+            raise ValueError("At least one resource must be registered before using the graph.")
         if full_reg_order[0] != "real":
             raise ValueError(
                 f"The first registered resource must be a real resource for the cost, "
@@ -157,11 +153,7 @@ class ResourceGraph:
         if cls_name is None:
             # Find the smallest C++ class that is a superset of the requested types.
             candidates = sorted(
-                (
-                    (combo, cls)
-                    for combo, cls in _RG_CLASS.items()
-                    if requested <= frozenset(combo)
-                ),
+                ((combo, cls) for combo, cls in _RG_CLASS.items() if requested <= frozenset(combo)),
                 key=lambda x: len(x[0]),
             )
             if not candidates:
@@ -195,9 +187,7 @@ class ResourceGraph:
             self._reserve_hint[0],
             self._graph.number_of_nodes() + len(self._node_buffer),
         )
-        n_arcs = max(
-            self._reserve_hint[1], self._graph.number_of_arcs() + len(self._arc_buffer)
-        )
+        n_arcs = max(self._reserve_hint[1], self._graph.number_of_arcs() + len(self._arc_buffer))
         self._graph.reserve(n_nodes, n_arcs)
         self._reserve_hint = (0, 0)
         if self._node_buffer:
@@ -435,9 +425,7 @@ class ResourceGraph:
         else:
             self._rows_buffer.extend(data)
 
-    def clone(
-        self, include_rows: bool = True, clone_removed_arcs: bool = False
-    ) -> "ResourceGraph":
+    def clone(self, include_rows: bool = True, clone_removed_arcs: bool = False) -> "ResourceGraph":
         """Return a deep clone of this ResourceGraph with stable arc IDs.
 
         Flushes all pending buffers before cloning so the clone reflects the
@@ -509,13 +497,17 @@ class ResourceGraph:
         Args:
             algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
                 ``Algorithm.Pulling``, ``Algorithm.Greedy``, or the equivalent strings
-                ``'simple'``, ``'pushing'``, `'pulling'``, ``'greedy'``.
+                ``'simple'``, ``'pushing'``, ``'pulling'``, ``'greedy'``.
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.
             cost_index: Index within the cost resource type (the first ``real``
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
+
+        Returns:
+            :class:`SolveResult` with a ``solutions`` list and an
+            ``AlgorithmStatus`` indicating why the solver stopped.
         """
         if cost_index < 0:
             raise ValueError(f"cost_index must be non-negative, got {cost_index}")
@@ -523,6 +515,8 @@ class ResourceGraph:
         if params is None:
             params = _ext.graph.AlgorithmParams()
         self._flush()
+        if isinstance(params, BucketAlgorithmParams):
+            params = params._to_cpp(self._full_registration_order)
         if isinstance(algorithm, str):
             factory = _ALGORITHM_MAP.get(algorithm)
             if factory is None:
@@ -608,9 +602,7 @@ class ResourceGraph:
 
     def from_networkx(self, nx_graph: nx.DiGraph):
         # ── Structural validation ─────────────────────────────────────────────
-        source_nodes = [
-            n for n, d in nx_graph.nodes(data=True) if d.get("source") is True
-        ]
+        source_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("source") is True]
         sink_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("sink") is True]
         if not source_nodes:
             raise ValueError(
@@ -632,9 +624,7 @@ class ResourceGraph:
         # otherwise the C++ binding would be called with the wrong argument types.
         resources_registered = bool(self._pending) or (self._graph is not None)
         if resources_registered:
-            missing = [
-                (u, v) for u, v, d in nx_graph.edges(data=True) if "resource" not in d
-            ]
+            missing = [(u, v) for u, v, d in nx_graph.edges(data=True) if "resource" not in d]
             if missing:
                 n_res = len(self._pending) or len(self._full_registration_order)
                 pairs = ", ".join(f"({u} → {v})" for u, v in missing[:5])
@@ -712,3 +702,96 @@ for _k in dir(_ext.graph):
 
 # Patch the C++ submodule so `from rcspp._core.graph import ResourceGraph` resolves correctly
 _ext.graph.ResourceGraph = ResourceGraph
+
+# ── BucketAlgorithmParams Python wrapper ─────────────────────────────────────
+# Keep a reference to the raw C++ class so the wrapper can instantiate it.
+_CppBucketAlgorithmParams = _ext.graph.BucketAlgorithmParams
+
+
+class BucketAlgorithmParams:
+    """AlgorithmParams variant using a bucket-partitioned label container.
+
+    Pass ``bucket_resource_pos`` and/or ``sort_resource_pos`` to identify
+    resources by their registration order (0 = first ``add_<type>_resource()``
+    call, 1 = second, etc.).  Python resolves the position to the correct C++
+    resource type and within-type index at solve time.
+
+    When a position is not given (``None``), the corresponding C++ field
+    (``bucket_resource_type`` / ``sort_resource_index``) is used as-is,
+    preserving backward compatibility with code that sets those fields directly.
+
+    Args:
+        range_buckets: Width of each bucket along the bucket resource axis.
+        bucket_resource_pos: Registration-order position of the resource used
+            to partition labels into buckets.  ``None`` (default) keeps the
+            C++ default (empty ``bucket_resource_type`` → cost resource).
+        sort_resource_pos: Registration-order position of the resource used to
+            sort labels within each bucket.  Must be a numerical resource
+            (``real`` or ``int``).  ``None`` (default) keeps the C++ default
+            (``sort_resource_index=0``).
+        **kwargs: Additional :class:`AlgorithmParams` fields
+            (e.g. ``stop_after_X_solutions``, ``timeout_s``, ``max_memory_gb``).
+    """
+
+    def __init__(
+        self,
+        range_buckets: int = 100,
+        bucket_resource_pos=None,
+        sort_resource_pos=None,
+        **kwargs,
+    ):
+        self._bucket_resource_pos = (
+            None if bucket_resource_pos is None else int(bucket_resource_pos)
+        )
+        self._sort_resource_pos = None if sort_resource_pos is None else int(sort_resource_pos)
+        self._cpp = _CppBucketAlgorithmParams()
+        self._cpp.range_buckets = int(range_buckets)
+        for k, v in kwargs.items():
+            setattr(self._cpp, k, v)
+
+    def __getattr__(self, name: str):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._cpp, name)
+
+    def __setattr__(self, name: str, value):
+        if name.startswith("_"):
+            super().__setattr__(name, value)
+        else:
+            setattr(self._cpp, name, value)
+
+    def _to_cpp(self, full_registration_order: list) -> "_CppBucketAlgorithmParams":
+        """Resolve resource positions and return the underlying C++ params object.
+
+        Args:
+            full_registration_order: Per-instance list of canonical resource type
+                names in the order ``add_<type>_resource()`` was called
+                (from :attr:`ResourceGraph._full_registration_order`).
+
+        Returns:
+            The configured C++ ``BucketAlgorithmParams`` ready for ``solve()``.
+        """
+        reg = full_registration_order
+        n = len(reg)
+
+        def resolve(pos: int, label: str) -> tuple:
+            if pos < 0 or pos >= n:
+                raise ValueError(
+                    f"{label}={pos} out of range; graph has {n} registered "
+                    f"resource(s) (valid: 0–{n - 1})."
+                )
+            t = reg[pos]
+            idx = sum(1 for r in reg[:pos] if r == t)
+            return t, idx
+
+        if self._bucket_resource_pos is not None:
+            bucket_type, bucket_idx = resolve(self._bucket_resource_pos, "bucket_resource_pos")
+            # Translate Python canonical name to the C++ prefix expected by run_bucket_solve.
+            self._cpp.bucket_resource_type = CPP_NAME.get(bucket_type, bucket_type)
+            self._cpp.bucket_resource_index = bucket_idx
+
+        if self._sort_resource_pos is not None:
+            _, sort_idx = resolve(self._sort_resource_pos, "sort_resource_pos")
+            self._cpp.sort_resource_index = sort_idx
+
+        return self._cpp

@@ -782,6 +782,41 @@ def example_bucket_labels():
     sols_one = rg.solve(params=bp_inh)
     assert len(sols_one) == 1, f"Expected 1 solution, got {len(sols_one)}"
 
+    # ── Position-based API: bucket by int (pos 1), sort by real (pos 0) ───────
+    # rg2 has real at registration pos 0 and int at pos 1.
+    # bucket_resource_pos=1 → int resource; sort_resource_pos=0 → real (cost).
+    bp_pos = BucketAlgorithmParams(
+        range_buckets=3,
+        bucket_resource_pos=1,
+        sort_resource_pos=0,
+    )
+    sols_pos = rg2.solve(params=bp_pos)
+    print_solutions("BucketAlgorithmParams pos-based (bucket=int, sort=real)", sols_pos)
+    assert sols_pos, "bucket solve (pos-based) returned no solutions"
+    assert math.isclose(
+        sols_pos[0].cost, ref2_cost, abs_tol=1e-6
+    ), f"bucket pos-based cost {sols_pos[0].cost} != reference {ref2_cost}"
+
+    # Bucket by real (pos 0), sort by real (pos 0) — same type, first instance.
+    bp_pos_real = BucketAlgorithmParams(
+        range_buckets=5,
+        bucket_resource_pos=0,
+        sort_resource_pos=0,
+    )
+    sols_pos_real = rg2.solve(params=bp_pos_real)
+    assert sols_pos_real, "bucket solve (pos 0,0) returned no solutions"
+    assert math.isclose(
+        sols_pos_real[0].cost, ref2_cost, abs_tol=1e-6
+    ), f"bucket pos(0,0) cost {sols_pos_real[0].cost} != reference {ref2_cost}"
+
+    # Out-of-range position raises ValueError.
+    bp_oob = BucketAlgorithmParams(bucket_resource_pos=99)
+    try:
+        rg2.solve(params=bp_oob)
+        assert False, "Expected ValueError for out-of-range bucket_resource_pos"
+    except ValueError:
+        pass  # expected
+
 
 # ── Run all examples ──────────────────────────────────────────────────────────
 

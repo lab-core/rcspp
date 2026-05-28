@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -47,8 +48,8 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
             return {};
         }
 
-        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
-            std::list<size_t> path_arc_ids;
+        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
+            std::vector<size_t> path_arc_ids;
             for (const auto& p : path_) {
                 const auto* in_arc = p.first->get_in_arc();
                 if (in_arc != nullptr) {

@@ -30,7 +30,7 @@
 
 namespace fs = std::filesystem;
 
-static SolveResult run_vrp(const std::string& instance_path, bool run_boost) {
+static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost) {
     InstanceReader reader(instance_path);
     auto instance = reader.read();
     VRP vrp(instance);

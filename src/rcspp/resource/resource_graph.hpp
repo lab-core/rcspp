@@ -262,7 +262,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(
+        SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
@@ -276,8 +276,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
-                                    bool preprocess = true, size_t cost_index = 0) {
+        SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
+                          size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
                                                                                  params);
             return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
@@ -301,9 +301,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(AlgorithmBaseParams base_params,
-                                    double upper_bound = std::numeric_limits<double>::infinity(),
-                                    bool preprocess = true, size_t cost_index = 0) {
+        SolveResult solve(AlgorithmBaseParams base_params,
+                          double upper_bound = std::numeric_limits<double>::infinity(),
+                          bool preprocess = true, size_t cost_index = 0) {
             return solve<AlgorithmType, CostResourceType, LabelContainerType>(
                 upper_bound,
                 AlgorithmParams<LabelContainerType>(std::move(base_params)),
@@ -313,7 +313,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         template <typename AlgorithmType, typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
+        SolveResult solve(  // NOLINT(readability-function-cognitive-complexity)
             AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
             bool preprocess = true, size_t cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
@@ -394,7 +394,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             this->build_csr();
 
             // solve the rcspp
-            std::vector<Solution> sols = algorithm->solve(this, upper_bound);
+            SolveResult result = algorithm->solve(this, upper_bound);
 
             // restore the removed arcs for the next resolution
             if (preprocess) {
@@ -404,7 +404,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 this->track_modifications();  // mark as unmodified after restoring arcs
             }
 
-            return sols;
+            return result;
         }
 
         void process_feasibility() {

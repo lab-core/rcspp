@@ -50,6 +50,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                 auto alg_params = this->params_;
                 alg_params.stop_after_X_solutions = 1;  // only need one solution per iteration
                 alg_params.max_iterations = 20;  // ensure early termination if needed // NOLINT
+                alg_params.release_after_solve = false;  // pool reused each iteration; skip shrink
                 algo_ = std::make_unique<GreedyAlgorithm<ResourceType, LabelContainerType>>(
                     resource_factory,
                     alg_params);
@@ -83,7 +84,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
                 // solve (important to clear the label pool, as the graph is changing)
                 std::vector<Solution> sols =
-                    algo_->solve(graph_copy_.get(), this->cost_upper_bound_);
+                    algo_->solve(graph_copy_.get(), this->cost_upper_bound_).solutions;
                 if (sols.empty()) {
                     break;
                 }

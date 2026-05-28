@@ -82,6 +82,49 @@ void init_graph(py::module_& m) {
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu);
 
+    // ── AlgorithmStatus enum ──────────────────────────────────────────────────
+
+    py::enum_<AlgorithmStatus>(m, "AlgorithmStatus")
+        .value("Complete", AlgorithmStatus::COMPLETE)
+        .value("Timeout", AlgorithmStatus::TIMEOUT)
+        .value("MaxSolutions", AlgorithmStatus::MAX_SOLUTIONS)
+        .value("MaxPhases", AlgorithmStatus::MAX_PHASES)
+        .value("Interrupted", AlgorithmStatus::INTERRUPTED)
+        .value("MemoryLimit", AlgorithmStatus::MEMORY_LIMIT);
+
+    // ── SolveResult ───────────────────────────────────────────────────────────
+
+    py::class_<SolveResult>(m, "SolveResult")
+        .def(py::init<>())
+        .def_readwrite("solutions", &SolveResult::solutions)
+        .def_readwrite("status", &SolveResult::status)
+        .def("status_string", &SolveResult::status_string)
+        // Sequence protocol — lets existing code treat SolveResult like list[Solution].
+        .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
+        .def(
+            "__iter__",
+            [](const SolveResult& r) {
+                return py::make_iterator(r.solutions.begin(), r.solutions.end());
+            },
+            py::keep_alive<0, 1>())
+        .def(
+            "__getitem__",
+            [](const SolveResult& r, py::ssize_t i) -> const Solution& {
+                if (i < 0) {
+                    i += static_cast<py::ssize_t>(r.solutions.size());
+                }
+                if (i < 0 || static_cast<size_t>(i) >= r.solutions.size()) {
+                    throw py::index_error("index out of range");
+                }
+                return r.solutions[static_cast<size_t>(i)];
+            },
+            py::return_value_policy::reference_internal)
+        .def("__bool__", [](const SolveResult& r) { return !r.solutions.empty(); })
+        .def("__repr__", [](const SolveResult& r) {
+            return "SolveResult(status=" + r.status_string() +
+                   ", solutions=" + std::to_string(r.solutions.size()) + ")";
+        });
+
     // ── Shared scalar types ───────────────────────────────────────────────────
 
     py::class_<Row>(m, "Row")
@@ -105,6 +148,19 @@ void init_graph(py::module_& m) {
                        &PyAlgorithmParams::num_labels_to_extend_by_node)
         .def_readwrite("num_max_phases", &PyAlgorithmParams::num_max_phases)
         .def_readwrite("max_iterations", &PyAlgorithmParams::max_iterations)
+        .def_readwrite("timeout_s",
+                       &PyAlgorithmParams::timeout_s,
+                       "Wall-clock timeout in seconds; solve() returns early when elapsed >= "
+                       "timeout_s (default: inf).")
+        .def_readwrite("tolerance",
+                       &PyAlgorithmParams::tolerance,
+                       "Numerical tolerance for cost comparisons (default 1e-9).")
+        .def_readwrite(
+            "release_after_solve",
+            &PyAlgorithmParams::release_after_solve,
+            "If true (default), release label memory after solve(). Set to false when the "
+            "same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() "
+            "overhead.")
         .def_readwrite("tabu_tenure", &PyAlgorithmParams::tabu_tenure)
         .def_readwrite("forbidden_tabu", &PyAlgorithmParams::forbidden_tabu)
         .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
