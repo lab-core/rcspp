@@ -97,7 +97,8 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
             size_t i = 0;
             while (i < this->params_.max_iterations &&
                    this->solutions_.size() < this->params_.stop_after_X_solutions &&
-                   !this->is_interrupted()) {
+                   !this->is_interrupted() &&
+                   !this->is_time_out()) {
                 ++i;
 
                 bool reached_sink = dive_to_sink();
