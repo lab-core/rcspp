@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
         using BucketLC = LabelBuckets<IntResource, RealResource, ResourceType>;
 
         std::vector<std::string> labels =
-            {"Simple", "Pushing", "Pulling", "Diversif", "BucketS", "BucketP"};
+            {"Simple", "Pushing", "Pulling", "AStar", "Diversif", "BucketS", "BucketP"};
         if (run_boost) {
             labels.insert(labels.begin(), "Boost");
         }
@@ -106,11 +106,12 @@ int main(int argc, char* argv[]) {
             AlgorithmParams<LabelList<ResourceType>> list_params;
             auto [timers, lp_cost] = vrp.solve<SimpleDominanceAlgorithm,
                                                PushingDominanceAlgorithm,
-                                               PullingDominanceAlgorithm>(list_params,
-                                                                          std::nullopt,
-                                                                          list_algorithms,
-                                                                          run_boost,
-                                                                          extra_solvers);  // NOLINT
+                                               PullingDominanceAlgorithm,
+                                               AStarDominanceAlgorithm>(list_params,
+                                                                        std::nullopt,
+                                                                        list_algorithms,
+                                                                        run_boost,
+                                                                        extra_solvers);  // NOLINT
 
             if (total_timers.empty()) {
                 total_timers = timers;

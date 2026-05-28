@@ -17,6 +17,7 @@ _ALGORITHM_MAP = {
     "pulling": lambda: _ext.graph.Algorithm.Pulling,
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
     "tabu": lambda: _ext.graph.Algorithm.Tabu,
+    "astar": lambda: _ext.graph.Algorithm.AStar,
 }
 
 # Kept for backward compatibility
@@ -496,8 +497,9 @@ class ResourceGraph:
 
         Args:
             algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
-                ``Algorithm.Pulling``, ``Algorithm.Greedy``, or the equivalent strings
-                ``'simple'``, ``'pushing'``, ``'pulling'``, ``'greedy'``.
+                ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.AStar``,
+                or the equivalent strings ``'simple'``, ``'pushing'``, ``'pulling'``,
+                ``'greedy'``, ``'astar'``.
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.

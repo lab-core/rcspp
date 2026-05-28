@@ -75,13 +75,14 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost) {
          true}};
 
     AlgorithmParams<LabelList<ResourceType>> list_params;
-    return vrp
-        .solve<SimpleDominanceAlgorithm, PushingDominanceAlgorithm, PullingDominanceAlgorithm>(
-            list_params,
-            std::nullopt,
-            list_algorithms,
-            run_boost,
-            extra_solvers);  // NOLINT
+    return vrp.solve<SimpleDominanceAlgorithm,
+                     PushingDominanceAlgorithm,
+                     PullingDominanceAlgorithm,
+                     AStarDominanceAlgorithm>(list_params,
+                                              std::nullopt,
+                                              list_algorithms,
+                                              run_boost,
+                                              extra_solvers);  // NOLINT
 }
 
 int main(int argc, char* argv[]) {  // NOLINT
@@ -148,7 +149,7 @@ int main(int argc, char* argv[]) {  // NOLINT
         }
 
         std::vector<std::string> labels =
-            {"Simple", "Pushing", "Pulling", "Diversif", "BucketS", "BucketP"};
+            {"Simple", "Pushing", "Pulling", "AStar", "Diversif", "BucketS", "BucketP"};
         if (run_boost) {
             labels.insert(labels.begin(), "Boost");
         }

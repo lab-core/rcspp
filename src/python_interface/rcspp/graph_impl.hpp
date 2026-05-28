@@ -97,7 +97,7 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu };
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
 
 template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
@@ -112,7 +112,8 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>>;
+                                  AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
+                                  AlgoEntry<SolverAlgorithm::AStar, AStarDominanceAlgorithm>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,

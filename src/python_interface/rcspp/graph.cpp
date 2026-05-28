@@ -80,7 +80,8 @@ void init_graph(py::module_& m) {
         .value("Pushing", SolverAlgorithm::Pushing)
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
-        .value("Tabu", SolverAlgorithm::Tabu);
+        .value("Tabu", SolverAlgorithm::Tabu)
+        .value("AStar", SolverAlgorithm::AStar);
 
     // ── AlgorithmStatus enum ──────────────────────────────────────────────────
 

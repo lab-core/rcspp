@@ -222,21 +222,27 @@ def example_algorithm_params():
     rg.add_arc((3.0,), 1, 2, cost=3.0)
     rg.add_arc((10.0,), 0, 2, cost=10.0)
 
-    # Enum values: Algorithm.Simple, Algorithm.Pushing, Algorithm.Pulling, Algorithm.Greedy
+    # Enum values: Algorithm.Simple, Algorithm.Pushing, Algorithm.Pulling, Algorithm.Greedy, Algorithm.AStar
     sols_simple = rg.solve(Algorithm.Simple)
     sols_pushing = rg.solve(Algorithm.Pushing)
     sols_pulling = rg.solve(Algorithm.Pulling)
     sols_greedy = rg.solve(Algorithm.Greedy)
+    sols_astar = rg.solve(Algorithm.AStar)
     # String aliases are also accepted for convenience
     sols_str = rg.solve("simple")
+    sols_astar_str = rg.solve("astar")
 
     print_solutions("Algorithm.Simple", sols_simple)
     print_solutions("Algorithm.Pushing", sols_pushing)
     print_solutions("Algorithm.Pulling", sols_pulling)
     print_solutions("Algorithm.Greedy", sols_greedy)
+    print_solutions("Algorithm.AStar", sols_astar)
 
     assert sols_simple[0].cost == sols_str[0].cost, "string alias must match enum"
-    assert all(s.cost == 8.0 for s in [sols_simple[0], sols_pulling[0], sols_greedy[0]])
+    assert sols_astar[0].cost == sols_astar_str[0].cost, "astar string alias must match enum"
+    assert all(
+        s.cost == 8.0 for s in [sols_simple[0], sols_pulling[0], sols_greedy[0], sols_astar[0]]
+    )
 
     # AlgorithmParams: stop after the first solution
     params = AlgorithmParams()

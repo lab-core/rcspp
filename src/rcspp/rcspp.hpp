@@ -2,6 +2,7 @@
 #pragma once
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/astar_dominance_algorithm.hpp"
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
 #include "rcspp/algorithm/dominance_algorithm.hpp"
