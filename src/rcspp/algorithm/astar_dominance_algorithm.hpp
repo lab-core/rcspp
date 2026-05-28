@@ -3,13 +3,14 @@
 
 #pragma once
 
-#include <algorithm>
 #include <limits>
 #include <queue>
 #include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/dominance_algorithm.hpp"
+#include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -25,9 +26,14 @@ namespace rcspp {
 /// reduces the total number of labels extended compared to FIFO ordering
 /// when arc costs are heterogeneous.
 ///
-/// @tparam ResourceType      Composed resource type (must satisfy ResourceTypeConcept).
-/// @tparam LabelContainerType  Non-dominated label container (default: LabelList).
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+/// @tparam ResourceType       Composed resource type (must satisfy ResourceTypeConcept).
+/// @tparam LabelContainerType Non-dominated label container (default: LabelList).
+/// @tparam CostResourceType   Numerical resource whose component value gives arc cost for
+///                            the heuristic Bellman–Ford.  When it is not present in
+///                            @p ResourceType, the algorithm falls back to @p arc.cost.
+///                            Injected by AStarAlgoEntry so it matches the labeling cost.
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
+          typename CostResourceType = RealResource>
     requires ResourceTypeConcept<ResourceType>
 class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType> {
     public:
@@ -71,36 +77,44 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
         /// @brief Initialize the heuristic vector and per-node counters.
         ///
-        /// Runs a backward Bellman–Ford from all sinks using arc costs as weights
-        /// to compute @ref h_to_sink_ (admissible lower bounds on the remaining
-        /// cost to any sink), then rebuilds the empty priority queues.
-        ///
-        /// Uses arc costs directly (not a resource component) so that the
-        /// computation is independent of the ResourceType template parameter.
+        /// Runs a backward Bellman–Ford from all sinks to fill @ref h_to_sink_.
+        /// When @p CostResourceType is present in @p ResourceType, the arc weight
+        /// is read from the resource extender at @p params_.heuristic_cost_index
+        /// (the reduced cost), giving a tight admissible lower bound aligned with
+        /// the labeling cost.  Otherwise falls back to @p arc.cost.
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
 
             number_of_extended_labels_per_node_.assign(graph->get_number_of_nodes(), 0);
 
-            // Backward Bellman-Ford from all sinks using arc.cost as weight.
-            // h_to_sink_[pos] = shortest path cost from node at pos to any sink.
-            const size_t num_nodes = graph->get_number_of_nodes();
-            h_to_sink_.assign(num_nodes, std::numeric_limits<double>::infinity());
-            for (size_t sink_id : graph->get_sink_node_ids()) {
-                h_to_sink_[graph->get_node(sink_id)->pos()] = 0.0;
-            }
-            for (size_t iter = 0; iter < num_nodes; ++iter) {
-                bool modified = false;
-                graph->for_each_arc([&](const auto& arc) {
-                    double candidate = h_to_sink_[arc.destination->pos()] + arc.cost;
-                    if (candidate < h_to_sink_[arc.origin->pos()]) {
-                        h_to_sink_[arc.origin->pos()] = candidate;
-                        modified = true;
-                    }
-                });
-                if (!modified) {
-                    break;
+            // Backward Bellman-Ford from sinks using the same cost slot as the labeling algorithm.
+            // Reduced costs can create negative-weight cycles (impossible with arc.cost alone),
+            // so we fall back to the arc-cost overload when that happens.
+            Distance dist;
+            try {
+                if constexpr (is_cost_in_composition_v<CostResourceType, ResourceType>) {
+                    dist = BellmanFordAlgorithm::solve<CostResourceType>(
+                        *graph,
+                        graph->get_sink_node_ids(),
+                        this->params_.heuristic_cost_index,
+                        /*forward=*/false);
+                } else {
+                    dist = BellmanFordAlgorithm::solve(*graph,
+                                                       graph->get_sink_node_ids(),
+                                                       /*forward=*/false);
                 }
+            } catch (const std::runtime_error&) {
+                // Negative-weight cycle in reduced costs: fall back to arc.cost (always positive).
+                dist = BellmanFordAlgorithm::solve(*graph,
+                                                   graph->get_sink_node_ids(),
+                                                   /*forward=*/false);
+            }
+            h_to_sink_.resize(graph->get_number_of_nodes());
+            for (size_t node_id : graph->get_node_ids()) {
+                const auto* node = graph->get_node(node_id);
+                auto it = dist.find(node_id);
+                h_to_sink_[node->pos()] =
+                    (it != dist.end()) ? it->second : std::numeric_limits<double>::infinity();
             }
 
             // Rebuild priority queues with the fresh comparator.
@@ -241,6 +255,19 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
         /// @brief Count of labels extended per node in the current phase.
         std::vector<size_t> number_of_extended_labels_per_node_;
+};
+
+/// @brief Presents AStarDominanceAlgorithm<RT, LC, CostRC> as a 2-param template.
+///
+/// Required because C++ template template parameters must match exactly in arity
+/// (P0522 matching is not reliably supported).  Use AStarAlgoBound<CostRC>::Algo
+/// wherever a @c template<typename,typename> class argument is expected.
+template <typename CostRC>
+struct AStarAlgoBound {
+        template <typename RT, typename LC>
+        class Algo : public AStarDominanceAlgorithm<RT, LC, CostRC> {
+                using AStarDominanceAlgorithm<RT, LC, CostRC>::AStarDominanceAlgorithm;
+        };
 };
 
 }  // namespace rcspp

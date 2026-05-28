@@ -108,12 +108,27 @@ struct AlgoEntry {
         }
 };
 
+// Dispatch entry for A*: injects cost_index into params and binds CostRC.
+template <SolverAlgorithm E>
+struct AStarAlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC, typename LC>
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            p.heuristic_cost_index = ci;
+            return rg.template solve<AStarAlgoBound<CostRC>::template Algo, CostRC, LC>(
+                ub,
+                std::move(p),
+                pre,
+                ci);
+        }
+};
+
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::AStar, AStarDominanceAlgorithm>>;
+                                  AStarAlgoEntry<SolverAlgorithm::AStar>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,

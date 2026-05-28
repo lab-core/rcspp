@@ -159,6 +159,13 @@ struct AlgorithmBaseParams {
 
         int seed = 0;
 
+        /// @brief Index of the cost resource component used to compute the A* heuristic.
+        ///
+        /// Injected by the dispatch layer (see AStarAlgoEntry in graph_impl.hpp) so that
+        /// AStarDominanceAlgorithm::initialize() runs Bellman–Ford on the same cost slot
+        /// as the labeling algorithm itself.  Ignored by all other algorithm types.
+        size_t heuristic_cost_index = 0;
+
         // ── Memory-limit parameters ─────────────────────────────────────────
 
         /// @brief Hard upper bound on process RSS in gibibytes (GiB); 0 means unlimited.

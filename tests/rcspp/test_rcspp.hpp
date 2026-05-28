@@ -81,7 +81,7 @@ void test_rcspp_non_integer_dual_row_coef() {
 DEFINE_RCSPP_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_RCSPP_TESTS(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_RCSPP_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_RCSPP_TESTS(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_RCSPP_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_RCSPP_TESTS
 
@@ -227,6 +227,6 @@ void test_memory_limit_total_ram() {
 DEFINE_MEMORY_LIMIT_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_MEMORY_LIMIT_TESTS(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_MEMORY_LIMIT_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_MEMORY_LIMIT_TESTS
