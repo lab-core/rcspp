@@ -3,6 +3,7 @@
 
 #define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
 #include "rcspp/rcspp.hpp"
+#include "rcspp/utils/memory.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -57,4 +58,12 @@ PYBIND11_MODULE(_core, m) {
         py::arg("to_console") = true,
         py::arg("file_path") = std::string{},
         "Initialize the logger (level, console output, optional log file).");
+
+    // ── Memory helpers ────────────────────────────────────────────────────────
+    m.def("process_memory_bytes",
+          []() { return rcspp::MemoryInfo::process_bytes(); },
+          "Current process Resident Set Size (RSS) in bytes.");
+    m.def("available_memory_bytes",
+          []() { return rcspp::MemoryInfo::available_system_bytes(); },
+          "Available system RAM in bytes.");
 }

@@ -108,9 +108,9 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                         if (sink_label->get_cost() + this->params_.tolerance <
                             this->best_cost_upper_bound_) {
                             this->best_cost_upper_bound_ = sink_label->get_cost();
-                            LOG_INFO("Found a better solution with cost ",
-                                     sink_label->get_cost(),
-                                     "\n");
+                            LOG_DEBUG("Found a better solution with cost ",
+                                      sink_label->get_cost(),
+                                      "\n");
                         }
                         size_t before = this->solutions_.size();
                         this->extract_solution(*sink_label);
