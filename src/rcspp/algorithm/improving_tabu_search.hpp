@@ -148,8 +148,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             }
             this->clear_path();
 
-            if (this->solutions_.size() >= this->params_.stop_after_X_solutions ||
-                this->is_interrupted()) {
+            if (this->should_stop()) {
                 return;
             }
 
@@ -157,7 +156,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             tabu_active_ = true;
             size_t no_improve_count = 0;
 
-            for (size_t i = 0; i < this->params_.max_iterations && !this->is_interrupted(); ++i) {
+            for (size_t i = 0; !this->should_stop(i); ++i) {
                 this->seed_path_from_sources();
                 if (this->path_.empty()) {
                     break;
@@ -213,7 +212,6 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
 
     private:
         // ─── helpers ─────────────────────────────────────────────────────────
-
         bool dive_to_sink() {
             while (!this->path_.empty()) {
                 auto* current = this->path_.back().first;
@@ -248,7 +246,6 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
         }
 
         // ─── state ───────────────────────────────────────────────────────────
-
         TabuList tabu_;
         bool tabu_active_ = false;
 };
