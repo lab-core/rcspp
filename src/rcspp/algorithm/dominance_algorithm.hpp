@@ -59,11 +59,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
-                if (this->is_interrupted()) {
-                    break;
-                }
-
+            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
                 // Periodic memory check (skip i == 0 to avoid cost on every first iteration).
                 if (i > 0 && this->memory_limit_.effective_limit > 0 &&
                     i % this->params_.memory_check_interval == 0) {
