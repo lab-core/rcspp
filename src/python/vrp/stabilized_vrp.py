@@ -23,8 +23,8 @@ class StabilizedVRP(VRP):
     def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
         self.time_start = time.time()
         self.generate_initial_paths()
-        self.max_special_var_value = math.inf
-        self.min_reduced_cost = -math.inf
+        self.max_special_var_value = -math.inf
+        self.min_reduced_cost = math.inf
 
         self._initialize_dual_box(subproblem_max_nb_solutions)
         self._run_stabilized_cg(subproblem_max_nb_solutions)

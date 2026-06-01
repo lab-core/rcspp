@@ -28,37 +28,14 @@ if __name__ == "__main__":
     instance_path = instances_dir + name + ".txt"
     instance_reader = InstanceReader(instance_path)
     instance = instance_reader.read()
-    for n_cols in n_cols_added:
-        vrp = VRP(instance, verbose=False)
-        solution = vrp.solve(n_cols)
-        duals[name+f"_{n_cols}"] = solution.dual_by_var_id
-
-    save_dict_to_json(f"{SOLUTIONS_DIR}Number_added_column/", "all_duals", duals)
-
-    print("---------------------------------------------End test_diff_duals.py")
-
+    
     dual_optimal = {}
-    closer_duals = {}
-
     with open(f"{SOLUTIONS_DIR}Duaux/duaux_optimaux.json", "r") as f:
-        dual_optimal[name] = {int(k): v for k,v in json.load(f)[name].items()}
+        dual_optimal = json.load(f)
 
-    value = sum([i for i in dual_optimal[name].values()])
-    diff_by_sol = {}
-    diff_by_sol[name] = {}    
-   
-    for n in n_cols_added:
-        dual_by_id = duals[f"{name}_{n}"]
-        print(f"Duals for {name} with {n} columns added")
-        dist = dict_l2_norm(dict_addition(dual_by_id, dict_scalar_mult(dual_optimal[name], -1)))
-        diff_by_sol[name][n] = 100* dist/value
-
-    sorted_dict = sorted(diff_by_sol[name].items(), key=lambda item: item[1])
-    closer_duals[name] = {}
-    for n, value in sorted_dict[-5:]:
-        closer_duals[name][n] = duals[f"{name}_{n}"]
-        
-    save_dict_to_json(f"{SOLUTIONS_DIR}Number_added_column/", "Closest_duals", closer_duals)
+    closer_duals = {}
+    with open(f"{SOLUTIONS_DIR}Number_added_column/Closest_duals.json", "r") as f:
+        closer_duals = json.load(f)
 
     print("---------------------------------------------Start test_diff_duals.py - Part 2")
 
@@ -66,12 +43,12 @@ if __name__ == "__main__":
 
     print(f"---------------------------------------------------------------Processing instance {name}...")
 
-    ref_dual = dual_optimal[name]
+    ref_dual = {int(k):v for k,v in dual_optimal[name].items()}
     ref_sol_dict = vrp_stabilized_instance(instance, ref_dual, dir=f"{SOLUTIONS_DIR}solutions/", verbose=False)
     solutions[name] = ref_sol_dict
 
     for n in closer_duals[name]:
-        dual = closer_duals[name][n]
+        dual = {int(k):v for k,v in closer_duals[name][n].items()}
         sol_dict = vrp_stabilized_instance(instance, dual, dir=f"{SOLUTIONS_DIR}solutions/", verbose=False)
         solutions[name+f"_{n}"] = sol_dict
 

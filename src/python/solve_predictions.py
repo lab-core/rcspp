@@ -5,7 +5,7 @@ import sys
 from vrp.instance_reader import InstanceReader
 from utils.definitions import DATASETS_DIR
 from utils.experiments import run_prediction_instance
-from utils.experiment_utils import read_instances_name
+from utils.experiment_utils import ensure_parent_dir, read_instances_name
 
 dataset_dir = f"{DATASETS_DIR}dataset_30/"
 verbose = True
@@ -31,20 +31,31 @@ except ValueError:
     print("Error: TASK_NUMBER is not an integer")
     sys.exit(1)
 
+try:
+    model_name = str(os.environ.get('MODEL_NAME', 0))
+except ValueError:
+    print("Error: MODEL_NAME is not a string")
+    sys.exit(1)
+
 
 print(f"######### TASK_NUMBER: {task_number}")
+print(f"######### MODEL_NAME: {model_name}")
  
 # Global index across all batches (0-based)
 instance_index = task_offset + task_number*(task_id - 1)
 
 all_instances = read_instances_name(f"{dataset_dir}Instances/instances_name.txt")
 
+solutions_dir_train = f"{dataset_dir}Solutions/{model_name}_solutions/train/"
+solutions_dir_test = f"{dataset_dir}Solutions/{model_name}_solutions/test/"
+ensure_parent_dir(solutions_dir_train)
+ensure_parent_dir(solutions_dir_test)
 
 for i in range(task_number):
 
     instance_name = all_instances[instance_index]
 
-    l = os.listdir(f"{dataset_dir}Solutions/MLP-C_solutions/test/") + os.listdir(f"{dataset_dir}Solutions/MLP-C_solutions/train/")
+    l = os.listdir(f"{dataset_dir}Solutions/{model_name}_solutions/test/") + os.listdir(f"{dataset_dir}Solutions/{model_name}_solutions/train/")
     
     if instance_name+ ".json" in l:
         print(f"Instance {instance_name} already has a solution, skipping.")
@@ -62,7 +73,7 @@ for i in range(task_number):
 
     reader = InstanceReader(f"{dataset_dir}Instances/{Itype}/{instance_name}.txt")
     instance = reader.read()
-    run_prediction_instance(instance, "MLP-C", dataset_dir)
+    run_prediction_instance(instance, model_name, dataset_dir)
 
     instance_index += 1
    
