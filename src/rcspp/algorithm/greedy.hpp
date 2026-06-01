@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <list>
+#include <sstream>
+#include <string>
 #include <utility>
 
 #include "rcspp/algorithm/algorithm.hpp"
@@ -27,16 +29,20 @@ namespace rcspp {
  * graphs where full enumeration is computationally expensive, and a balance between speed and
  * solution quality is desired.
  */
-template <typename ResourceType>
-class GreedyAlgorithm : public Algorithm<ResourceType> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     public:
-        GreedyAlgorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
-            : Algorithm<ResourceType>(resource_factory, std::move(params)) {}
+        GreedyAlgorithm(ResourceFactory<ResourceType>* resource_factory,
+                        AlgorithmParams<LabelContainerType> params)
+            : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
     protected:
         void main_loop() override {
             size_t i = 0;
             while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
+                if (this->is_interrupted()) {
+                    break;
+                }
                 ++i;
 
                 // get the label
@@ -45,6 +51,9 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
                 // check if we can update the best label or extend
                 if (label->get_end_node()->sink) {
                     if (label->get_cost() < this->cost_upper_bound_) {
+                        if (label->get_cost() < this->best_cost_upper_bound_) {
+                            this->best_cost_upper_bound_ = label->get_cost();
+                        }
                         this->extract_solution(*label);
                         if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
                             LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
@@ -117,7 +126,11 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             // create all possible extensions
             auto* end_node = label->get_end_node();
             std::list<Label<ResourceType>*> all_labels;
-            for (auto* arc : end_node->out_arcs) {
+            for (auto* arc : this->graph_->get_out_arcs(end_node)) {
+                // check if can reach this destination node
+                if (!label->is_reachable(arc->destination->id)) {
+                    continue;
+                }
                 // extend along arc
                 auto& new_label = this->label_pool_.get_next_label(arc->destination);
                 label->extend(*arc, &new_label);
@@ -169,6 +182,15 @@ class GreedyAlgorithm : public Algorithm<ResourceType> {
             auto first = labels.front();
             labels.pop_front();
             path_.emplace_back(first, std::move(labels));
+        }
+
+        [[nodiscard]] std::string to_string() const {
+            std::stringstream ss;
+            size_t n = path_.size();
+            for (const auto& p : path_) {
+                ss << p.first->get_end_node()->id << (--n == 0 ? "" : " -> ");
+            }
+            return ss.str();
         }
 
         std::list<std::pair<Label<ResourceType>*, std::list<Label<ResourceType>*>>> path_;

@@ -43,7 +43,7 @@ namespace rcspp {
  *    to obtain full matrices or source->sink maps.
  */
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class ConnectivityMatrix {
     public:
         using GraphT = Graph<ResourceType>;

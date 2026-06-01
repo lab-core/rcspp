@@ -18,43 +18,25 @@ VRPSubproblem::VRPSubproblem(Instance instance,
     construct_resource_graph(&graph_);
 }
 
-std::map<size_t, std::pair<int, int>> VRPSubproblem::initialize_time_windows() {
+std::map<size_t, std::pair<double, double>> VRPSubproblem::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');
 
-    std::map<size_t, std::pair<int, int>> time_window_by_customer_id;
+    std::map<size_t, std::pair<double, double>> time_window_by_customer_id;
 
     const auto& customers_by_id = instance_.get_customers_by_id();
     for (const auto& [customer_id, customer] : customers_by_id) {
         time_window_by_customer_id.emplace(
             customer_id,
-            std::pair<int, int>{customer.ready_time, customer.due_time});
+            std::pair<double, double>{customer.ready_time, customer.due_time});
     }
 
-    const auto& source_customer = customers_by_id.at(0);
+    time_window_by_customer_id.insert_or_assign(
+    0,
+    std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
     size_t sink_id = customers_by_id.size();
-    time_window_by_customer_id.emplace(
+    time_window_by_customer_id.insert_or_assign(
         sink_id,
-        std::pair<int, int>{0, std::numeric_limits<int>::max() / 2});  // prevent overflow
-
-    for (const auto& [customer_id, customer] : customers_by_id) {
-        int min_time = 0;
-        int max_time = std::numeric_limits<int>::max() / 2;  // prevent overflow
-        if (time_window_by_customer_id.contains(customer_id)) {
-            min_time = time_window_by_customer_id.at(customer_id).first;
-            max_time = time_window_by_customer_id.at(customer_id).second;
-        }
-        min_time_window_by_node_id_.emplace(customer_id, min_time);
-        max_time_window_by_node_id_.emplace(customer_id, max_time);
-    }
-
-    int min_time = 0;
-    int max_time = std::numeric_limits<int>::max() / 2;  // prevent overflow
-    if (time_window_by_customer_id.contains(sink_id)) {
-        min_time = time_window_by_customer_id.at(sink_id).first;
-        max_time = time_window_by_customer_id.at(sink_id).second;
-    }
-    min_time_window_by_node_id_.emplace(sink_id, min_time);
-    max_time_window_by_node_id_.emplace(sink_id, max_time);
+        std::pair<double, double>{0, std::numeric_limits<double>::max() / 2});  // prevent overflow
 
     return time_window_by_customer_id;
 }
@@ -73,8 +55,8 @@ RGraph* resource_graph,
 
     // Time
     resource_graph->add_resource<RealResource>(
-        std::make_unique<TimeWindowExtensionFunction<RealResource>>(&min_time_window_by_node_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(&max_time_window_by_node_id_),
+        std::make_unique<TimeWindowExtensionFunction<RealResource>>(time_window_by_customer_id_),
+        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(time_window_by_customer_id_),
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
@@ -187,7 +169,6 @@ void VRPSubproblem::add_arc_to_graph(RGraph* resource_graph, size_t customer_ori
         {reduced_cost, time, demand},
         customer_orig_id,
         customer_dest_id,
-        arc_id,
         distance,
         {Row(customer_orig_id, row_coefficient)});
 }

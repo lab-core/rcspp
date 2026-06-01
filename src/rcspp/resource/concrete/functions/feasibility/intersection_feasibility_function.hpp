@@ -4,8 +4,8 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <set>
-#include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
@@ -13,19 +13,22 @@
 
 namespace rcspp {
 
-// Deduce the container/value type by calling get_value() on the concrete Resource
+// ValueType is the element type stored in the per-node forbidden/required sets and is
+// fed to ContainerResourceType::set_value. The default matches the element type the
+// resource advertises; override it to point IFF at an alternative set_value overload.
 template <typename ContainerResourceType,
-          typename ValueType =
-              std::decay_t<decltype(std::declval<Resource<ContainerResourceType>>().get_value())>>
+          typename ValueType = typename ContainerResourceType::ValueType>
 class IntersectionFeasibilityFunction
     : public Clonable<IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
                       FeasibilityFunction<ContainerResourceType>> {
     public:
         explicit IntersectionFeasibilityFunction(
-            const std::map<size_t, std::set<ValueType>>* values_by_node_id, bool forbidden = true)
-            : values_by_node_id_(values_by_node_id), forbidden_(forbidden) {}
+            std::map<size_t, std::set<ValueType>> values_by_node_id, bool forbidden = true)
+            : values_by_node_id_(std::make_shared<const std::map<size_t, std::set<ValueType>>>(
+                  std::move(values_by_node_id))),
+              forbidden_(forbidden) {}
 
-        auto is_feasible(const Resource<ContainerResourceType>& resource) -> bool override {
+        auto is_feasible(const ContainerResourceType& resource) -> bool override {
             if (empty_) {
                 return true;  // no values to check, always feasible
             }
@@ -35,7 +38,7 @@ class IntersectionFeasibilityFunction
         }
 
     private:
-        const std::map<size_t, std::set<ValueType>>* const values_by_node_id_;
+        std::shared_ptr<const std::map<size_t, std::set<ValueType>>> values_by_node_id_;
         ContainerResourceType values_;
         bool forbidden_;     // values are forbidden or required
         bool empty_ = true;  // to avoid checking intersection if no values to check

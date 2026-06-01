@@ -3,73 +3,38 @@
 
 #pragma once
 
-#include <iostream>
-#include <tuple>
-
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/composition/extender_composition.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
 
 template <typename... ResourceTypes>
+    requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionExtensionFunction
     : public Clonable<CompositionExtensionFunction<ResourceTypes...>,
-                      ExtensionFunction<ResourceComposition<ResourceTypes...>>> {
+                      ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> {
+        using ResourceType = ResourceTypeComposition<ResourceTypes...>;
+
     public:
-        void extend(const Resource<ResourceComposition<ResourceTypes...>>& resource,
-                    const Extender<ResourceComposition<ResourceTypes...>>& extender,
-                    Resource<ResourceComposition<ResourceTypes...>>* extended_resource) override {
-            auto& resource_components = resource.get_resource_components();
-            auto& extender_components = extender.get_extender_components();
-            auto& extended_resource_components = extended_resource->get_resource_components();
-
-            /*const auto extend_res_function = [&](const auto& sing_res_vec, const auto&
-              sing_exp_vec, const auto& extended_sing_res_vec) {
-
-              for (int i = 0; i < sing_res_vec.size(); i++) {
-                sing_exp_vec[i]->extend(*sing_res_vec[i], *extended_sing_res_vec[i]);
-              }
-              };*/
-
-            /*std::apply([&](auto && ... args_res) {
-              std::apply([&](auto && ... args_exp) {
-                std::apply([&](auto && ... args_extended) {
-
-                  (extend_res_function(args_res, args_exp, args_extended), ...);
-
-                  }, extended_resource_components);
-                }, extender_components);
-              }, resource_components);*/
-
-            std::apply(
-                [&](auto&&... args_res) {
-                    std::apply(
-                        [&](auto&&... args_exp) {
-                            std::apply(
-                                [&](auto&&... args_extended) {
-                                    (extend_resource(args_res, args_exp, args_extended), ...);
-                                },
-                                extended_resource_components);
-                        },
-                        extender_components);
-                },
-                resource_components);
-
-            post_extend(resource, extender, extended_resource);
+        void extend(const Resource<ResourceType>& resource, const Extender<ResourceType>& extender,
+                    Resource<ResourceType>* extended_resource) override {
+            extended_resource->for_each_component(
+                resource,
+                extender,
+                [](auto& ext_res, const auto& res, const auto& exp) { exp.extend(res, &ext_res); });
         }
 
-    protected:
-        void extend_resource(const auto& sing_res_vec, const auto& sing_exp_vec,
-                             const auto& extended_sing_res_vec) const {
-            for (int i = 0; i < sing_res_vec.size(); i++) {
-                sing_exp_vec[i]->extend(*sing_res_vec[i], extended_sing_res_vec[i].get());
-            }
+        void extend_back(const Resource<ResourceType>& resource,
+                         const Extender<ResourceType>& extender,
+                         Resource<ResourceType>* extended_resource) override {
+            extended_resource->for_each_component(
+                resource,
+                extender,
+                [](auto& ext_res, const auto& res, const auto& exp) {
+                    exp.extend_back(res, &ext_res);
+                });
         }
-
-        virtual void post_extend(
-            const Resource<ResourceComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceComposition<ResourceTypes...>>& extender,
-            Resource<ResourceComposition<ResourceTypes...>>* extended_resource) {}
 };
 }  // namespace rcspp

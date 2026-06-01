@@ -12,7 +12,6 @@
 namespace rcspp {
 
 template <typename ResourceType>
-// requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
 class LabelFactory {
     public:
         explicit LabelFactory(ResourceFactory<ResourceType>* resource_factory)
@@ -21,7 +20,7 @@ class LabelFactory {
         std::unique_ptr<Label<ResourceType>> make_label(
             size_t label_id, const Node<ResourceType>* end_node,
             const Arc<ResourceType>* in_arc = nullptr, const Arc<ResourceType>* out_arc = nullptr) {
-            auto resource = resource_factory_.make_resource(*end_node->resource);
+            auto resource = resource_factory_.copy_resource(*end_node);
 
             return std::make_unique<Label<ResourceType>>(label_id,
                                                          std::move(resource),

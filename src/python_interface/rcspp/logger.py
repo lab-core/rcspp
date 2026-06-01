@@ -1,35 +1,25 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
-import importlib
+from . import _core as _ext
 
-_ext = importlib.import_module("rcsppy")
-
-# Importer LogLevel depuis le sous-module C++
 LogLevel = _ext.logger.LogLevel
 
-# Créer une classe Logger wrapper en Python
-class Logger:
-    """Wrapper Python pour le Logger C++"""
-    
-    @staticmethod
-    def init(level=LogLevel.Info, to_console=True, file_path=""):
-        """Initialiser le logger"""
-        _ext.logger.init(level, to_console, file_path)
-    
-    @staticmethod
-    def set_level(level):
-        """Changer le niveau de log"""
-        _ext.logger.set_level(level)
-    
-    @staticmethod
-    def level():
-        """Obtenir le niveau de log actuel"""
-        return _ext.logger.level()
-    
-    @staticmethod
-    def is_level_active(level):
-        """Vérifier si un niveau est actif"""
-        return _ext.logger.is_level_active(level)
 
-__all__ = ["Logger", "LogLevel"]
+def set_log_level(level: LogLevel) -> None:
+    """Set the minimum log level for the rcspp C++ logger."""
+    _ext.logger.set_level(level)
+
+
+def get_log_level() -> LogLevel:
+    """Return the current log level."""
+    return _ext.logger.get_level()
+
+
+def init_logger(
+    level: LogLevel = LogLevel.Info,
+    to_console: bool = True,
+    file_path: str = "",
+) -> None:
+    """Initialize the logger (level, console output, optional log file path)."""
+    _ext.logger.init(level, to_console, file_path)

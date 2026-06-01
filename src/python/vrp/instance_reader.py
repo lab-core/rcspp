@@ -1,13 +1,33 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 
+import os
+
 from vrp.instance import Instance
 from utils.definitions import *
 
 
+def _resolve_path(file_path: str) -> str:
+    """Return file_path if it exists, else search for its basename in any instances/
+    directory found by walking up from the current directory."""
+    if os.path.exists(file_path):
+        return file_path
+    basename = os.path.basename(file_path)
+    directory = os.path.abspath(os.curdir)
+    while True:
+        candidate = os.path.join(directory, "instances", basename)
+        if os.path.exists(candidate):
+            return candidate
+        parent = os.path.dirname(directory)
+        if parent == directory:
+            break
+        directory = parent
+    return file_path  # let open() raise the natural FileNotFoundError
+
+
 class InstanceReader:
     def __init__(self, file_path: str):
-        self.file_path_ = file_path
+        self.file_path_ = _resolve_path(file_path)
         self.solutions = None
 
     def read(self) -> Instance:

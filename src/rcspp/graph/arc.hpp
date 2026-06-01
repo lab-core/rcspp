@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -12,31 +13,31 @@
 #include "rcspp/graph/node.hpp"
 #include "rcspp/graph/row.hpp"
 #include "rcspp/resource/base/extender.hpp"
-#include "rcspp/resource/base/resource.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
-// requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Arc {
     public:
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
             std::unique_ptr<Extender<ResourceType>> arc_extender, double arc_cost,
-            std::vector<Row> dual_rows = {})
+            std::vector<Row> rows = {})
             : id(arc_id),
               origin(origin_node),
               destination(destination_node),
               extender(std::move(arc_extender)),
               cost(arc_cost),
-              dual_rows(std::move(dual_rows)) {}
+              rows(std::move(rows)) {}
 
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            double arc_cost, std::vector<Row> dual_rows = {})
-            : Arc(arc_id, origin_node, destination_node, nullptr, arc_cost, std::move(dual_rows)) {}
+            double arc_cost, std::vector<Row> rows = {})
+            : Arc(arc_id, origin_node, destination_node, nullptr, arc_cost, std::move(rows)) {}
 
         Arc(size_t arc_id, Node<ResourceType>* origin_node, Node<ResourceType>* destination_node,
-            std::vector<Row> dual_rows = {})
-            : Arc(arc_id, origin_node, destination_node, 0, std::move(dual_rows)) {}
+            std::vector<Row> rows = {})
+            : Arc(arc_id, origin_node, destination_node, 0, std::move(rows)) {}
 
         const size_t id;
 
@@ -48,12 +49,16 @@ class Arc {
 
         double cost;
 
-        std::vector<Row> dual_rows;
+        std::vector<Row> rows;
 
         [[nodiscard]] std::string to_string() const {
             std::stringstream ss;
             ss << "Arc(id=" << id << ", origin=" << origin->id
-               << ", destination=" << destination->id << ", cost=" << cost << ")\n";
+               << ", destination=" << destination->id << ", cost=" << cost;
+            if (extender) {
+                ss << ", extender=[" << extender->to_string() << "]";
+            }
+            ss << ")\n";
             return ss.str();
         }
 };

@@ -7,19 +7,25 @@
 #include <cassert>
 #include <cmath>
 #include <concepts>  // NOLINT(build/include_order)
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <list>
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
+#include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/timer.hpp"
 
 namespace rcspp {
@@ -31,10 +37,10 @@ template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
-constexpr int MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
+constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
-struct AlgorithmParams {
-        AlgorithmParams& check() {
+struct AlgorithmBaseParams {
+        void check() const {  // NOLINT(readability-make-member-function-const)
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
                 LOG_WARN(
                     "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
@@ -53,7 +59,6 @@ struct AlgorithmParams {
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "stop_after_X_solutions to a lower value.\n");
             }
-            return *this;
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
@@ -65,6 +70,9 @@ struct AlgorithmParams {
 
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
+
+        // if true, prune label if greater than the best upper bound
+        bool prune_based_on_upper_bound_ = false;
 
         // for using label pool (should normally always be true)
         bool use_pool = true;
@@ -79,6 +87,9 @@ struct AlgorithmParams {
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
 
+        // callable returning true if the algorithm should stop early (e.g. SIGINT)
+        std::function<bool()> should_stop;
+
         // for tabu search algorithms
         size_t tabu_tenure = 5;  // NOLINT
         std::set<size_t> forbidden_tabu;
@@ -87,14 +98,30 @@ struct AlgorithmParams {
         int seed = 0;
 };
 
-template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+template <typename LabelContainerType>
+struct AlgorithmParams : AlgorithmBaseParams {
+        explicit AlgorithmParams(LabelContainerType labels = LabelContainerType())
+            : AlgorithmBaseParams(), labels(std::move(labels)) {}
+
+        explicit AlgorithmParams(AlgorithmBaseParams base_params,
+                                 LabelContainerType labels = LabelContainerType())
+            : AlgorithmBaseParams(std::move(base_params)), labels(std::move(labels)) {}
+
+        // Container to store labels, could be overridden with Buckets
+        const LabelContainerType labels;
+};
+
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Algorithm {
     public:
-        Algorithm(ResourceFactory<ResourceType>* resource_factory, AlgorithmParams params)
+        Algorithm(ResourceFactory<ResourceType>* resource_factory,
+                  AlgorithmParams<LabelContainerType> params)
             : label_pool_(std::make_unique<LabelFactory<ResourceType>>(resource_factory)),
               graph_(nullptr),
-              params_(std::move(params.check())) {}
+              params_(std::move(params)) {
+            params_.check();
+        }
 
         virtual ~Algorithm() = default;
 
@@ -124,6 +151,7 @@ class Algorithm {
 
             graph_ = graph;
             cost_upper_bound_ = cost_upper_bound;
+            best_cost_upper_bound_ = cost_upper_bound;
             label_pool_.clear();
             solutions_.clear();
         }
@@ -139,6 +167,9 @@ class Algorithm {
 
             size_t num_phases = 0;
             while (solutions_.size() < params_.stop_after_X_solutions && number_of_labels() > 0) {
+                if (is_interrupted()) {
+                    break;
+                }
                 // main labeling loop
                 main_loop();
 
@@ -189,6 +220,10 @@ class Algorithm {
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
 
+        [[nodiscard]] bool is_interrupted() const {
+            return params_.should_stop && params_.should_stop();
+        }
+
     protected:
         bool print_{false};
 
@@ -211,6 +246,15 @@ class Algorithm {
 
         virtual void print_labels() const {}
 
+        virtual std::string path_to_string(const Label<ResourceType>& label) {
+            auto path = get_path_arc_ids(label);
+            std::stringstream ss;
+            for (const size_t arc_id : path) {
+                ss << graph_->get_arc(arc_id)->destination->id << " ";
+            }
+            return ss.str();
+        }
+
         virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
         virtual void extract_solution(const Label<ResourceType>& end_label) {
@@ -223,13 +267,31 @@ class Algorithm {
                 return;
             }
 
+            // Build column: sum original arc costs and aggregate constraint coefficients
+            Column column;
+            std::unordered_map<size_t, long double> row_map;
             std::list<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
-                path_node_ids.push_back(this->graph_->get_arc(arc_id)->origin->id);
+                const auto* arc = this->graph_->get_arc(arc_id);
+                path_node_ids.push_back(arc->origin->id);
+                column.cost += arc->cost;
+                for (const auto& row : arc->rows) {
+                    row_map[row.index] += row.coefficient;
+                }
             }
             path_node_ids.push_back(end_label.get_end_node()->id);
-            auto sol =
-                Solution(end_label.get_cost(), std::move(path_node_ids), std::move(path_arc_ids));
+            column.rows.reserve(row_map.size());
+            for (auto& [idx, coef] : row_map) {
+                column.rows.push_back({idx, coef});
+            }
+            std::sort(column.rows.begin(), column.rows.end(), [](const Row& a, const Row& b) {
+                return a.index < b.index;
+            });
+
+            auto sol = Solution(end_label.get_cost(),
+                                std::move(path_node_ids),
+                                std::move(path_arc_ids),
+                                std::move(column));
 
             // solution already extracted
             if (solutions_.contains(sol)) {
@@ -241,9 +303,10 @@ class Algorithm {
 
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
-        const AlgorithmParams params_;
+        const AlgorithmParams<LabelContainerType> params_;
 
         double cost_upper_bound_ = std::numeric_limits<double>::infinity();
+        double best_cost_upper_bound_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};

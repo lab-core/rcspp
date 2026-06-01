@@ -10,6 +10,9 @@
 #include <limits>
 #include <list>
 #include <utility>
+#include <vector>
+
+#include "rcspp/graph/row.hpp"
 
 namespace rcspp {
 
@@ -37,27 +40,36 @@ static std::uint64_t fnv1a_mix_uint64(std::uint64_t v, std::uint64_t h = FNV_OFF
 
 struct Solution {
         Solution() = default;
-        Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids)
+        Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids,
+                 Column _column = {})
             : cost(_cost),
               path_node_ids(std::move(_path_node_ids)),
-              path_arc_ids(std::move(_path_arc_ids)) {
+              path_arc_ids(std::move(_path_arc_ids)),
+              column(std::move(_column)) {
             init_hash();
         }
 
-        bool operator==(const Solution& rhs) const noexcept { return hash_ == rhs.hash_; }
+        // Hash equality is used as a fast prefilter (short-circuits the cheap path);
+        // on a match we still compare the arc paths so genuine FNV collisions don't
+        // silently coalesce distinct solutions in the unordered_set used by
+        // extract_solution.
+        bool operator==(const Solution& rhs) const noexcept {
+            return hash_ == rhs.hash_ && path_arc_ids == rhs.path_arc_ids;
+        }
 
         [[nodiscard]] uint64_t get_hash() const noexcept { return hash_; }
 
         double cost = std::numeric_limits<double>::infinity();
         std::list<size_t> path_node_ids;
         std::list<size_t> path_arc_ids;
+        Column column;
 
     private:
         std::uint64_t hash_ = 0;
 
-        // Order-sensitive hash: different order -> different hash
-        // Should not have any collisions for small sequences of arc ids
-        // WARNING: Hash collisions will silently skip solutions, which can compromise correctness.
+        // Order-sensitive hash: different arc-id sequence -> different hash. Used as
+        // the fast prefilter in operator==; the path-equality fallback there handles
+        // collisions correctly, so this hash function does not need to be perfect.
         void init_hash() {
             hash_ = FNV_OFFSET_BASIS;             // initialize hash
             for (std::size_t a : path_arc_ids) {  // hash each arc id sequentially

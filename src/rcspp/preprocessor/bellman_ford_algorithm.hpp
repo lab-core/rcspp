@@ -4,12 +4,12 @@
 #pragma once
 
 #include <limits>
-#include <random>
 #include <unordered_map>
 #include <vector>
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -38,7 +38,8 @@ class BellmanFordAlgorithm {
         // nodes to any of the given targets (backward)
         // cost = nullopt -> use default arc cost
         template <typename CostResourceType = RealResource, typename... ResourceTypes>
-        static Distance solve(const Graph<ResourceComposition<ResourceTypes...>>& graph_,
+            requires is_numerical_resource_v<CostResourceType>
+        static Distance solve(const Graph<ResourceTypeComposition<ResourceTypes...>>& graph_,
                               const std::vector<size_t>& target_ids,
                               std::optional<size_t> cost_index = std::nullopt,
                               bool forward = true) {
@@ -47,32 +48,31 @@ class BellmanFordAlgorithm {
 
             // Prepare distance table
             std::vector<ArcRelaxation> arc_relaxations;
-            for (const auto& [arc_id, arc] : graph_.get_arcs_by_id()) {
+            graph_.for_each_arc([&](const auto& arc) {
                 // fetch cost
-                // get the origin cost of the cost resource
                 if (cost_index.has_value()) {
-                    const CostResourceType& origin_cost_resource =
-                        arc->origin->resource->template get_resource_component<CostResourceType>(
+                    // get the origin cost of the cost resource
+                    const auto& origin_cost_resource =
+                        arc.origin->resource->template get_component<CostResourceType>(
                             cost_index.value());
-                    double origin_cost = origin_cost_resource.get_value();
+                    double origin_cost = origin_cost_resource.get_value().get_value();
                     // extend the resource
-                    Resource<ResourceComposition<ResourceTypes...>> resource(
-                        *arc->destination->resource);
-                    arc->extender->extend(*arc->origin->resource, &resource);
+                    Resource<ResourceTypeComposition<ResourceTypes...>> resource(
+                        *arc.destination->resource);
+                    arc.extender->extend(*arc.origin->resource, &resource);
                     // fetch the new value of the cost resource
-                    const CostResourceType& cost_resource =
-                        resource.template get_resource_component<CostResourceType>(
-                            cost_index.value());
-                    double cost = cost_resource.get_value();
+                    const auto& cost_resource =
+                        resource.template get_component<CostResourceType>(cost_index.value());
+                    double cost = cost_resource.get_value().get_value();
                     // compute the weight, i.e., cost difference
-                    arc_relaxations.emplace_back(arc->origin->id,
-                                                 arc->destination->id,
+                    arc_relaxations.emplace_back(arc.origin->id,
+                                                 arc.destination->id,
                                                  cost - origin_cost);
                 } else {
                     // use default cost
-                    arc_relaxations.emplace_back(arc->origin->id, arc->destination->id, arc->cost);
+                    arc_relaxations.emplace_back(arc.origin->id, arc.destination->id, arc.cost);
                 }
-            }
+            });
 
             // In backward shortest path computation, we need to reverse the order of arc
             // relaxations to ensure that relaxation proceeds from destination to origin, correctly
@@ -83,7 +83,7 @@ class BellmanFordAlgorithm {
             }
 
             // Relax arcs |N|-1 times, on |N| iteration -> check for negative-weight cycles
-            const size_t nodes_size = graph_.get_node_ids().size();
+            const size_t nodes_size = graph_.get_nodes_size();
             for (size_t i = 0; i < nodes_size; ++i) {
                 bool modified = false;
                 bool last_iteration = (i == nodes_size - 1);

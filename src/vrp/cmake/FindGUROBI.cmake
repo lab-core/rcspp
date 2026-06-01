@@ -5,29 +5,47 @@ option(GUROBI_REQUIRE_CXX "Fail if Gurobi C++ library not found" ON)
 
 # Allow -DGUROBI_HOME or environment variable
 set(_GUROBI_HINTS
-    ${GUROBI_DIR}
-    $ENV{GUROBI_HOME}
+        ${GUROBI_DIR}
+        $ENV{GUROBI_HOME}
 )
+
+# Auto-discover standard install locations when no hint is provided
+if(APPLE)
+    file(GLOB _GUROBI_MACOS_HINTS
+            "/Library/gurobi*/macos_universal2"
+            "/Library/gurobi*/macos_arm64"
+            "/Library/gurobi*/mac64"
+    )
+    list(SORT _GUROBI_MACOS_HINTS ORDER DESCENDING)
+    list(APPEND _GUROBI_HINTS ${_GUROBI_MACOS_HINTS})
+elseif(UNIX)
+    file(GLOB _GUROBI_LINUX_HINTS
+            "/opt/gurobi*/linux64"
+            "/opt/gurobi*"
+    )
+    list(SORT _GUROBI_LINUX_HINTS ORDER DESCENDING)
+    list(APPEND _GUROBI_HINTS ${_GUROBI_LINUX_HINTS})
+endif()
 
 # Include directories (both headers live in same include dir)
 find_path(GUROBI_INCLUDE_DIRS
-    NAMES gurobi_c.h
-    HINTS ${_GUROBI_HINTS}
-    PATH_SUFFIXES include
+        NAMES gurobi_c.h
+        HINTS ${_GUROBI_HINTS}
+        PATH_SUFFIXES include
 )
 
 # Core (C) library (names differ by version)
 find_library(GUROBI_LIBRARY
-    NAMES gurobi gurobi130 gurobi120 gurobi110 gurobi100
-    HINTS ${_GUROBI_HINTS}
-    PATH_SUFFIXES lib
+        NAMES gurobi gurobi130 gurobi120 gurobi110 gurobi100
+        HINTS ${_GUROBI_HINTS}
+        PATH_SUFFIXES lib
 )
 
 # C++ header (presence indicates you likely use the C++ API)
 find_path(GUROBI_CXX_INCLUDE_DIR
-    NAMES gurobi_c++.h
-    HINTS ${_GUROBI_HINTS}
-    PATH_SUFFIXES include
+        NAMES gurobi_c++.h
+        HINTS ${_GUROBI_HINTS}
+        PATH_SUFFIXES include
 )
 
 # If user manually supplies GUROBI_CXX_LIBRARY, respect it; otherwise search.
@@ -35,32 +53,32 @@ if(NOT GUROBI_CXX_LIBRARY AND NOT GUROBI_CXX_LIBRARY_RELEASE)
     # Try explicit variant names Gurobi ships on Windows
     # Dynamic runtime (/MD)
     find_library(GUROBI_CXX_LIBRARY_RELEASE_MD
-        NAMES gurobi_c++md2017
-        HINTS ${_GUROBI_HINTS}
-        PATH_SUFFIXES lib
+            NAMES gurobi_c++md2017
+            HINTS ${_GUROBI_HINTS}
+            PATH_SUFFIXES lib
     )
     find_library(GUROBI_CXX_LIBRARY_DEBUG_MD
-        NAMES gurobi_c++mdd2017
-        HINTS ${_GUROBI_HINTS}
-        PATH_SUFFIXES lib
+            NAMES gurobi_c++mdd2017
+            HINTS ${_GUROBI_HINTS}
+            PATH_SUFFIXES lib
     )
     # Static runtime (/MT)
     find_library(GUROBI_CXX_LIBRARY_RELEASE_MT
-        NAMES gurobi_c++mt2017
-        HINTS ${_GUROBI_HINTS}
-        PATH_SUFFIXES lib
+            NAMES gurobi_c++mt2017
+            HINTS ${_GUROBI_HINTS}
+            PATH_SUFFIXES lib
     )
     find_library(GUROBI_CXX_LIBRARY_DEBUG_MT
-        NAMES gurobi_c++mtd2017
-        HINTS ${_GUROBI_HINTS}
-        PATH_SUFFIXES lib
+            NAMES gurobi_c++mtd2017
+            HINTS ${_GUROBI_HINTS}
+            PATH_SUFFIXES lib
     )
 
     # Fallback generic (older naming) if none of the above found
     find_library(GUROBI_CXX_LIBRARY
-        NAMES gurobi_c++
-        HINTS ${_GUROBI_HINTS}
-        PATH_SUFFIXES lib
+            NAMES gurobi_c++
+            HINTS ${_GUROBI_HINTS}
+            PATH_SUFFIXES lib
     )
 endif()
 
@@ -123,19 +141,20 @@ endif()
 
 # Core is required
 find_package_handle_standard_args(GUROBI
-    REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIRS
+        REQUIRED_VARS GUROBI_LIBRARY GUROBI_INCLUDE_DIRS
 )
 
 if(NOT GUROBI_FOUND)
-    message(FATAL_ERROR "Failed to locate Gurobi core library.")
+    message(STATUS "Gurobi core library not found; VRP targets will be skipped.")
+    return()
 endif()
 
 # If C++ header present and required, enforce at least a release lib
 if(GUROBI_REQUIRE_CXX AND GUROBI_CXX_INCLUDE_DIR AND NOT GUROBI_CXX_LIBRARY_RELEASE)
-    message(FATAL_ERROR
-        "Gurobi C++ header found at ${GUROBI_CXX_INCLUDE_DIR} but no matching C++ library was found.\n"
-        "Searched variants: gurobi_c++md2017 / mdd / mt / mtd.\n"
-        "Check that these files exist in <GUROBI_HOME>/lib or pass -DGUROBI_CXX_LIBRARY=<path>."
+    message(WARNING
+            "Gurobi C++ header found at ${GUROBI_CXX_INCLUDE_DIR} but no matching C++ library was found. "
+            "Searched variants: gurobi_c++md2017 / mdd / mt / mtd. "
+            "Check that these files exist in <GUROBI_HOME>/lib or pass -DGUROBI_CXX_LIBRARY=<path>."
     )
 endif()
 
@@ -143,8 +162,8 @@ endif()
 if(NOT TARGET GUROBI::gurobi)
     add_library(GUROBI::gurobi UNKNOWN IMPORTED)
     set_target_properties(GUROBI::gurobi PROPERTIES
-        IMPORTED_LOCATION "${GUROBI_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
+            IMPORTED_LOCATION "${GUROBI_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS}"
     )
 endif()
 
@@ -155,19 +174,19 @@ if(GUROBI_CXX_LIBRARY_RELEASE)
         # If we have a debug variant use configuration-specific properties
         if(GUROBI_CXX_LIBRARY_DEBUG)
             set_target_properties(GUROBI::gurobi_cxx PROPERTIES
-                IMPORTED_LOCATION "${GUROBI_CXX_LIBRARY_RELEASE}"
-                IMPORTED_LOCATION_RELEASE "${GUROBI_CXX_LIBRARY_RELEASE}"
-                IMPORTED_LOCATION_RELWITHDEBINFO "${GUROBI_CXX_LIBRARY_RELEASE}"
-                IMPORTED_LOCATION_MINSIZEREL "${GUROBI_CXX_LIBRARY_RELEASE}"
-                IMPORTED_LOCATION_DEBUG "${GUROBI_CXX_LIBRARY_DEBUG}"
-                INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS};${GUROBI_CXX_INCLUDE_DIR}"
-                INTERFACE_LINK_LIBRARIES "GUROBI::gurobi"
+                    IMPORTED_LOCATION "${GUROBI_CXX_LIBRARY_RELEASE}"
+                    IMPORTED_LOCATION_RELEASE "${GUROBI_CXX_LIBRARY_RELEASE}"
+                    IMPORTED_LOCATION_RELWITHDEBINFO "${GUROBI_CXX_LIBRARY_RELEASE}"
+                    IMPORTED_LOCATION_MINSIZEREL "${GUROBI_CXX_LIBRARY_RELEASE}"
+                    IMPORTED_LOCATION_DEBUG "${GUROBI_CXX_LIBRARY_DEBUG}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS};${GUROBI_CXX_INCLUDE_DIR}"
+                    INTERFACE_LINK_LIBRARIES "GUROBI::gurobi"
             )
         else()
             set_target_properties(GUROBI::gurobi_cxx PROPERTIES
-                IMPORTED_LOCATION "${GUROBI_CXX_LIBRARY_RELEASE}"
-                INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS};${GUROBI_CXX_INCLUDE_DIR}"
-                INTERFACE_LINK_LIBRARIES "GUROBI::gurobi"
+                    IMPORTED_LOCATION "${GUROBI_CXX_LIBRARY_RELEASE}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${GUROBI_INCLUDE_DIRS};${GUROBI_CXX_INCLUDE_DIR}"
+                    INTERFACE_LINK_LIBRARIES "GUROBI::gurobi"
             )
         endif()
     endif()

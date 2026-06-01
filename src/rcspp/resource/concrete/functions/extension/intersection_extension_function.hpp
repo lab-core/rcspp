@@ -4,7 +4,6 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
-#include "rcspp/resource/base/extender.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -14,11 +13,11 @@ class IntersectionExtensionFunction
     : public Clonable<IntersectionExtensionFunction<ContainerResourceType>,
                       ExtensionFunction<ContainerResourceType>> {
     public:
-        void extend(const Resource<ContainerResourceType>& resource,
-                    const Extender<ContainerResourceType>& extender,
-                    Resource<ContainerResourceType>* extended_resource) override {
-            auto intersection_container = resource.get_intersection(extender.get_value());
-            extended_resource->set_value(intersection_container);
+        void extend(const ContainerResourceType& resource,
+                    const ContainerResourceType& extender_value,
+                    ContainerResourceType* extended_resource) override {
+            auto intersection_value = resource.get_intersection(extender_value.get_value());
+            extended_resource->set_value(intersection_value);
         }
 };
 }  // namespace rcspp

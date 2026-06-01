@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
 
     LOG_TRACE(__FUNCTION__, '\n');
 
-    std::string instance_name = "R101";
+    std::string instance_name = "RC201_12";  // R101 RC201_12
     std::string root_dir = file_parent_dir(__FILE__, 3);
     std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
     if (argc >= 2) {

@@ -10,11 +10,10 @@
 #include <set>
 #include <sstream>
 #include <string>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
@@ -23,7 +22,7 @@ namespace rcspp {
 // ValueT is the logical value type of the resource (e.g. for a bitset resource
 // the container element_type is uint64_t but the logical value type is size_t).
 template <typename Container, typename DerivedType, typename ValueType>
-class ContainerResource : public ResourceBase<DerivedType> {
+class ContainerResource {
     public:
         ContainerResource() = default;
         explicit ContainerResource(Container container) : container_(std::move(container)) {}
@@ -46,9 +45,9 @@ class ContainerResource : public ResourceBase<DerivedType> {
         [[nodiscard]] virtual size_t size() const { return container_.size(); }
         [[nodiscard]] virtual bool empty() const { return container_.empty(); }
 
-        void reset() override { this->container_.clear(); }
+        void reset() { this->container_.clear(); }
 
-        [[nodiscard]] std::string to_string() const override { return to_string(container_); }
+        [[nodiscard]] virtual std::string to_string() const { return to_string(container_); }
 
         template <typename C>
         [[nodiscard]] std::string to_string(const C& list) const {
@@ -171,6 +170,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         // -> necessary for an initializer with a set (i.e. ResourceInitializerTypeTuple)
         void set_value(const std::set<ValueType>& indices) {
             this->container_.clear();
+            size_ = 0;
             for (auto idx : indices) {
                 add(idx);
             }
@@ -179,28 +179,44 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         void set_value(Container container) override {
             ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(
                 std::move(container));
+            size_ = compute_size();
+        }
+
+        void reset() {
+            this->container_.clear();
+            size_ = 0;
         }
 
         // Note: idx >> 6 is a bitwise right shift of idx by 6 bits — equivalent to integer division
         // by 64 (floor). In this bitset code it computes which 64-bit word (slot) contains bit
         // number idx. The companion idx & 63 computes idx % 64 (bit offset inside that word).
+        // Only add the value, if not already present
         void add(const ValueType& idx) override {
-            ensure_size(idx + 1);
-            this->container_[idx >> 6] |= (1ULL << (idx & 63));  // NOLINT
+            ensure_words_size(idx + 1);
+            const uint64_t bit = 1ULL << (idx & 63);    // NOLINT
+            if (!(this->container_[idx >> 6] & bit)) {  // NOLINT
+                this->container_[idx >> 6] |= bit;      // NOLINT
+                ++size_;
+            }
         }
 
         void add(const Container& other_words) override {
             // OR the other words into this bitset
             const size_t other_words_count = other_words.size();
-            ensure_size(other_words_count * 64);  // NOLINT
+            ensure_words_size(other_words_count * 64);  // NOLINT
             for (size_t i = 0; i < other_words_count; ++i) {
                 this->container_[i] |= other_words[i];
             }
+            size_ = compute_size();
         }
 
         void remove(const ValueType& idx) override {
-            if (idx < 64 * this->container_.size()) {                 // avoid out-of-bounds  NOLINT
-                this->container_[idx >> 6] &= ~(1ULL << (idx & 63));  // NOLINT
+            if (idx < 64 * this->container_.size()) {     // avoid out-of-bounds  NOLINT
+                const uint64_t bit = 1ULL << (idx & 63);  // NOLINT
+                if (this->container_[idx >> 6] & bit) {   // NOLINT
+                    this->container_[idx >> 6] &= ~bit;   // NOLINT
+                    --size_;
+                }
             }
         }
 
@@ -292,18 +308,17 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
         [[nodiscard]] const Container& words() const { return this->container_; }
 
-        [[nodiscard]] size_t size() const override {
-            size_t ones_cnt = 0;
+        [[nodiscard]] size_t size() const override { return size_; }
+
+        [[nodiscard]] size_t compute_size() const {
+            size_t size = 0;
             for (const uint64_t w : this->container_) {
-                ones_cnt += static_cast<size_t>(std::popcount(w));
+                size += static_cast<size_t>(std::popcount(w));
             }
-            return ones_cnt;
+            return size;
         }
 
-        [[nodiscard]] bool empty() const override {
-            return std::ranges::all_of(this->container_,
-                                       [](const uint64_t w) { return w == 0ULL; });
-        }
+        [[nodiscard]] bool empty() const override { return size_ == 0; }
 
         [[nodiscard]] std::set<ValueType> to_set() const {
             std::set<ValueType> result;
@@ -324,8 +339,9 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
 
     private:
         // storage is inherited from ContainerResource as `container_`.
+        size_t size_{0};
 
-        void ensure_size(ValueType requested_nb_bits) {
+        void ensure_words_size(ValueType requested_nb_bits) {
             const size_t new_words = (requested_nb_bits + 63) / 64;
             if (this->container_.size() < new_words) {
                 this->container_.resize(new_words, 0ULL);

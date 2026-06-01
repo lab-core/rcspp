@@ -9,7 +9,7 @@
 #include <optional>
 #include <string>
 
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
@@ -40,7 +40,7 @@ bool value_lt(T lhs, T rhs) noexcept {
 }
 
 template <typename T>
-class NumericalResource : public ResourceBase<NumericalResource<T>> {
+class NumericalResource {
     public:
         explicit NumericalResource(T value = 0) : value_(value) {}
 
@@ -52,9 +52,9 @@ class NumericalResource : public ResourceBase<NumericalResource<T>> {
 
         void add(T value) { value_ += value; }
 
-        void reset() override { value_ = 0; }
+        void reset() { value_ = 0; }
 
-        [[nodiscard]] std::string to_string() const override { return std::to_string(value_); }
+        [[nodiscard]] std::string to_string() const { return std::to_string(value_); }
 
         [[nodiscard]] bool leq(const NumericalResource<T>& other) const {
             return leq(other.get_value());

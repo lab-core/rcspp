@@ -5,6 +5,7 @@
 
 #include <limits>
 #include <map>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -19,27 +20,39 @@ class SizeFeasibilityFunction
     public:
         SizeFeasibilityFunction(
             size_t default_min_size, size_t default_max_size,
-            const std::map<size_t, std::pair<size_t, size_t>>* min_max_size_by_node_id = nullptr)
-            : min_max_size_by_node_id_(min_max_size_by_node_id),
+            std::map<size_t, std::pair<size_t, size_t>> min_max_size_by_node_id = {})
+            : min_max_size_by_node_id_(
+                  min_max_size_by_node_id.empty()
+                      ? nullptr
+                      : std::make_shared<const std::map<size_t, std::pair<size_t, size_t>>>(
+                            std::move(min_max_size_by_node_id))),
+              default_min_size_(default_min_size),
+              default_max_size_(default_max_size),
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
         explicit SizeFeasibilityFunction(
-            const std::map<size_t, std::pair<size_t, size_t>>* min_max_by_node_id,
+            std::map<size_t, std::pair<size_t, size_t>> min_max_size_by_node_id,
             size_t default_min_size = 0,
             size_t default_max_size = std::numeric_limits<size_t>::max() / 2)  // prevent overflow
-            : min_max_size_by_node_id_(min_max_by_node_id),
+            : min_max_size_by_node_id_(
+                  std::make_shared<const std::map<size_t, std::pair<size_t, size_t>>>(
+                      std::move(min_max_size_by_node_id))),
+              default_min_size_(default_min_size),
+              default_max_size_(default_max_size),
               min_size_(default_min_size),
               max_size_(default_max_size) {}
 
-        auto is_feasible(const Resource<ResourceType>& resource) -> bool override {
+        auto is_feasible(const ResourceType& resource) -> bool override {
             const size_t size = resource.size();
             return size >= min_size_ && size <= max_size_;
         }
 
     private:
-        const std::map<size_t, std::pair<size_t, size_t>>* const min_max_size_by_node_id_;
+        std::shared_ptr<const std::map<size_t, std::pair<size_t, size_t>>> min_max_size_by_node_id_;
 
+        size_t default_min_size_;
+        size_t default_max_size_;
         size_t min_size_;
         size_t max_size_;
 
@@ -48,10 +61,12 @@ class SizeFeasibilityFunction
                 return;
             }
             auto it = min_max_size_by_node_id_->find(node_id);
-            // if not found, keep previous min_/max_ values
             if (it != min_max_size_by_node_id_->end()) {
                 min_size_ = it->second.first;
                 max_size_ = it->second.second;
+            } else {
+                min_size_ = default_min_size_;
+                max_size_ = default_max_size_;
             }
         }
 };

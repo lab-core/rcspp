@@ -5,23 +5,26 @@
 
 #include <concepts>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/base/resource_base.hpp"
+#include "rcspp/resource/base/resource_type.hpp"
 
 namespace rcspp {
 
 template <typename ResourceType>
+    requires ResourceTypeConcept<ResourceType>
 class Arc;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Graph;
 
 template <typename ResourceType>
-    requires std::derived_from<ResourceType, ResourceBase<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
 class Node {
     public:
         explicit Node(size_t node_id, bool source, bool sink)
@@ -58,6 +61,9 @@ class Node {
                 ss << ", sink";
             }
             ss << ")\n";
+            if (resource) {
+                ss << "    resource: [" << resource->to_string() << "]\n";
+            }
             ss << "    predecessors: [";
             for (const auto* arc : in_arcs) {
                 ss << arc->origin->id << " ";
@@ -74,6 +80,10 @@ class Node {
     private:
         friend class Graph<ResourceType>;
         std::optional<size_t> pos_;
+        size_t csr_out_start_{0};
+        size_t csr_out_count_{0};
+        size_t csr_in_start_{0};
+        size_t csr_in_count_{0};
 };
 template <typename ResourceType>
 std::ostream& operator<<(std::ostream& os, const Node<ResourceType>& node) {
