@@ -2,6 +2,8 @@ import os
 import sys
 from utils.definitions import RSCPP_DIR
 
+sys.path.insert(0, os.path.abspath("../python_interface/"))
+sys.path.insert(0, os.path.abspath("."))
 
 os_name = sys.platform
 absolute_path = RSCPP_DIR

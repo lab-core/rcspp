@@ -1,11 +1,18 @@
-from gurobipy import GRB, LinExpr, Model
+import mip
 from vrp.cg.mp_solution import MPSolution
-from vrp.cg.master_problem import MasterProblem
+from vrp.cg.master_problem import MasterProblem, _make_model
 
 class DualBoxMasterProblem(MasterProblem):
+    """Master problem avec stabilisation par boîte duale.
+    
+    Ajoute des variables de stabilisation y1 et y2 pour chaque nœud,
+    avec contraintes : sum(path_visits) - y1 + y2 = 1
+    et optionnellement : y1 ≤ penalty, y2 ≤ penalty
+    """
+    
     def __init__(self, node_ids, dual_box_center, dual_box_radius: float, 
-                 penalty=None, verbose=True):
-        super().__init__(node_ids, verbose=verbose)
+                 penalty=None):
+        super().__init__(node_ids)
         self.left_special_var_by_id = {}
         self.right_special_var_by_id = {}
         self.penalty = penalty
@@ -23,61 +30,65 @@ class DualBoxMasterProblem(MasterProblem):
             self.dual_box_center_ = dual_box_center
         self.dual_box_radius = dual_box_radius
 
-    def add_variables(self, paths):
-        super().add_variables(paths)
-
+    def _build_model(self) -> None:
+        """Construit le modèle LP avec variables de stabilisation."""
+        m = _make_model("dual_box_master_problem")
+        
+        # Ajouter les variables de chemin
+        for pid, cost, _ in self._columns:
+            self._path_vars[pid] = m.add_var(
+                name=f"y_{pid}", lb=0.0, obj=cost, var_type=mip.CONTINUOUS
+            )
+        
+        # Ajouter les variables spéciales et construire les contraintes
         for i, node_id in enumerate(self.node_ids_):
-            # Coût initial selon le centre courant
-            cost_left  =  self.dual_box_radius - self.dual_box_center_[i]
-            cost_right =  self.dual_box_radius + self.dual_box_center_[i]
+            cost_left = self.dual_box_radius - self.dual_box_center_[i]
+            cost_right = self.dual_box_radius + self.dual_box_center_[i]
 
-            left_var = self.model_.addVar(
+            left_var = m.add_var(
                 lb=0.0,
-                ub=GRB.INFINITY,
+                ub=mip.INF,
                 obj=cost_left,
-                vtype=GRB.CONTINUOUS,
+                var_type=mip.CONTINUOUS,
                 name=f"y1_{node_id}",
             )
             self.left_special_var_by_id[node_id] = left_var
 
-            right_var = self.model_.addVar(
+            right_var = m.add_var(
                 lb=0.0,
-                ub=GRB.INFINITY,
+                ub=mip.INF,
                 obj=cost_right,
-                vtype=GRB.CONTINUOUS,
+                var_type=mip.CONTINUOUS,
                 name=f"y2_{node_id}",
             )
             self.right_special_var_by_id[node_id] = right_var
 
-    def add_node_constraint(self, i):
-        node_id = self.node_ids_[i]
-        constr_lin_expr_lhs = LinExpr()
-
-        for path_id, path in self._paths_by_id.items():
-            path_var = self._path_variables_by_id[path_id]
-            path_visits_node = path.visited_nodes.count(node_id)
-            constr_lin_expr_lhs += path_visits_node * path_var
-
-        constr_lin_expr_lhs -= self.left_special_var_by_id[node_id]
-        constr_lin_expr_lhs += self.right_special_var_by_id[node_id]
-
-        constr = self.model_.addConstr(
-            constr_lin_expr_lhs == 1.0, name=f"c_{node_id}"
-        )
-        self._node_constraints_by_id[node_id] = constr
-
-        if self.have_penalty_:
-            left_constr_lin_expr = LinExpr()
-            left_constr_lin_expr += self.left_special_var_by_id[node_id]
-            left_constr_lin_expr -= self.penalty
-            left_constr = self.model_.addConstr(left_constr_lin_expr <= 0, name=f"c_left_penalty_{node_id}")
-            right_constr_lin_expr = LinExpr()
-            right_constr_lin_expr += self.right_special_var_by_id[node_id]
-            right_constr_lin_expr -= self.penalty
-            right_constr = self.model_.addConstr(right_constr_lin_expr <= 0, name=f"c_right_penalty_{node_id}")
+            # Contrainte: sum(path_visits) - y1 + y2 = 1
+            terms = [
+                coeffs[node_id] * self._path_vars[pid]
+                for pid, _, coeffs in self._columns
+                if node_id in coeffs
+            ]
+            terms.append(-left_var)
+            terms.append(right_var)
             
-            self._left_penalty_constraints_by_id[node_id] = left_constr
-            self._right_penalty_constraints_by_id[node_id] = right_constr
+            self._constrs[node_id] = m.add_constr(
+                mip.xsum(terms) == 1.0, name=f"c_{node_id}"
+            )
+
+            if self.have_penalty_:
+                left_constr = m.add_constr(
+                    left_var <= self.penalty,
+                    name=f"c_left_penalty_{node_id}"
+                )
+                right_constr = m.add_constr(
+                    right_var <= self.penalty,
+                    name=f"c_right_penalty_{node_id}"
+                )
+                self._left_penalty_constraints_by_id[node_id] = left_constr
+                self._right_penalty_constraints_by_id[node_id] = right_constr
+
+        self._model = m
 
     def update_center(self, new_center: dict):
         """Met à jour les coefs objectif quand le centre de stabilisation change."""
@@ -94,7 +105,6 @@ class DualBoxMasterProblem(MasterProblem):
             self.right_special_var_by_id[node_id].obj = (
                 self.dual_box_radius + self.dual_box_center_[i]
             )
-        self.model_.update()
 
     def update_radius(self, new_radius: float):
         self.dual_box_radius = new_radius
@@ -105,56 +115,21 @@ class DualBoxMasterProblem(MasterProblem):
             self.right_special_var_by_id[node_id].obj = (
                 self.dual_box_radius + self.dual_box_center_[i]
             )
-        self.model_.update()
 
     def update_penalty(self, new_penalty: float):
         """Met à jour la valeur RHS des contraintes de pénalité."""
         self.penalty = new_penalty
         for node_id in self.node_ids_:
-            self._left_penalty_constraints_by_id[node_id].RHS  = new_penalty
-            self._right_penalty_constraints_by_id[node_id].RHS = new_penalty
-        self.model_.update()
-            
+            self._left_penalty_constraints_by_id[node_id].rhs = new_penalty
+            self._right_penalty_constraints_by_id[node_id].rhs = new_penalty
 
-    def extract_solution(self, model, dual=False):
-        model_variables_by_var_name = {v.VarName: v for v in model.getVars()}
-        model_constraints_by_constr_name = {c.ConstrName: c for c in model.getConstrs()}
-
-        value_by_var_id = {}
-        dual_by_var_id = {}
-
-        if model.Status in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
-            for path_id, path_var in self._path_variables_by_id.items():
-                model_path_var = model_variables_by_var_name[
-                    path_var.VarName
-                ]  # Necessary if model is relaxed
-                value_by_var_id[path_id] = model_path_var.X  # .X gives solution value
-
-            for i in range(len(self.node_ids_)):
-                node_id = self.node_ids_[i]
-                model_left_special_var = model_variables_by_var_name[
-                    self.left_special_var_by_id[node_id].VarName
-                ]
-                value_by_var_id[f"y1_{node_id}"] = model_left_special_var.X
-
-                model_right_special_var = model_variables_by_var_name[
-                    self.right_special_var_by_id[node_id].VarName
-                ]
-                value_by_var_id[f"y2_{node_id}"] = model_right_special_var.X
-
-            if dual:
-                for node_id, node_constr in self._node_constraints_by_id.items():
-                    model_node_constr = model_constraints_by_constr_name[
-                        node_constr.ConstrName
-                    ]  # Necessary if model is relaxed
-                    dual_by_var_id[node_id] = model_node_constr.Pi  # reduced cost / dual val
-
-            cost = model.ObjVal
-
-        solution = MPSolution()
-        solution.value_by_var_id = value_by_var_id
-        solution.dual_by_var_id  = dual_by_var_id
-        solution.cost = cost
-
-        print(f"solution.cost={solution.cost}")
+    def _extract(self, dual: bool) -> MPSolution:
+        """Extrait la solution du modèle, incluant les variables spéciales."""
+        solution = super()._extract(dual)
+        
+        # Ajouter les valeurs des variables spéciales y1 et y2
+        for node_id in self.node_ids_:
+            solution.value_by_var_id[f"y1_{node_id}"] = self.left_special_var_by_id[node_id].x
+            solution.value_by_var_id[f"y2_{node_id}"] = self.right_special_var_by_id[node_id].x
+        
         return solution

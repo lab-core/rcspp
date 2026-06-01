@@ -55,7 +55,7 @@ def test_graph_construction():
     """VRP object can be created from a tiny in-memory instance."""
     inst = make_tiny_instance()
     vrp = VRP(inst)
-    rg = vrp._VRP__resource_graph  # name-mangled attribute
+    rg = vrp._resource_graph  # name-mangled attribute
     # 4 customers + 1 artificial sink = 5 nodes
     assert rg.number_of_nodes() == 5, f"Expected 5 nodes, got {rg.number_of_nodes()}"
     # No arc should point back to the source (depot, id=0)
@@ -215,7 +215,7 @@ def test_cg_tiny():
     assert mp_sol.cost > 0, f"IP cost must be positive, got {mp_sol.cost}"
 
     demand_ids = set(inst.get_demand_customers_id())
-    paths_by_id = {p.id: p for p in vrp._VRP__paths}
+    paths_by_id = {p.id: p for p in vrp._paths}
     covered = set()
     for pid, val in mp_sol.value_by_var_id.items():
         if val > 0.5:

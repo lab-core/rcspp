@@ -5,34 +5,32 @@ import math
 import time
 from typing import Optional
 
-from vrp.cg.master_problem import MasterProblem
 from vrp.cg.path import Path
 from vrp.instance import Customer, Instance
 
-from rcspp.graph import ResourceGraph, Solution
+from utils.utils import dict_addition, dict_dot_product, dict_l1_norm, dict_scalar_mult
+
+from rcspp.graph import ResourceGraph, Row, Solution
 from rcspp.resource import (
+    AdditionExtensionFunction,
     MinMaxFeasibilityFunction,
-    RealAdditionExtensionFunction,
-    RealTrivialFeasibilityFunction,
-    RealValueCostFunction,
-    RealValueDominanceFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
+    TrivialCostFunction,
+    TrivialFeasibilityFunction,
+    ValueCostFunction,
+    ValueDominanceFunction,
 )
-from utils.utils import *
 
 class VRP:
     EPSILON = 0.00000001
 
     def __init__(self, instance: Instance, verbose = True):
         self._instance = instance
-        self._min_time_window_by_node_id = {}
-        self._max_time_window_by_node_id = {}
         self._path_id = 0
         self._paths = []
         self._total_subproblem_time = 0.0
         self._total_problem_time = 0.0
-        self._subproblem_graph = None
         self._dual_values_history = []
         self._state_history = []
         self._n_iterations = 0
@@ -41,231 +39,120 @@ class VRP:
         self._smoothing = False
         self._verbose = verbose
 
-        self._time_window_by_customer_id = self.initialize_time_windows()
+
+        self._time_window_by_node_id = {}
+        self.initialize_time_windows()
         self._resource_graph = self.construct_resource_graph()
 
     def initialize_time_windows(self):
-        # print("initialize_time_windows")
-
-        time_window_by_customer_id: dict[int, tuple[float, float]] = {}
-
         customers_by_id = self._instance.get_customers_by_id()
         for customer_id, customer in customers_by_id.items():
-            time_window_by_customer_id[customer_id] = (
+            self._time_window_by_node_id[customer_id] = (
                 customer.ready_time,
                 customer.due_time,
             )
 
         # Add sink node
         sink_id = len(customers_by_id)
-        time_window_by_customer_id[sink_id] = (0.0, math.inf)
+        self._time_window_by_node_id[sink_id] = (0.0, math.inf)
 
-        for customer_dest_id, (min_time, max_time) in time_window_by_customer_id.items():
-            self._min_time_window_by_node_id[customer_dest_id] = min_time
-            self._max_time_window_by_node_id[customer_dest_id] = max_time
+        return self._time_window_by_node_id
 
-        return time_window_by_customer_id
+    # ── Graph construction ────────────────────────────────────────────────────
 
-    def add_nodes_and_arcs(
-        self,
-        resource_graph: ResourceGraph,
-        dual_by_id: Optional[dict[int, float]] = None,
-    ):
-        time_start = time.time()
+    def construct_resource_graph(self) -> ResourceGraph:
+        resource_graph = ResourceGraph()
 
-        self.add_all_nodes_to_graph(resource_graph)
+        # Resource 0: distance / reduced cost (used as the optimisation objective)
+        resource_graph.add_real_resource(
+            AdditionExtensionFunction(),
+            TrivialFeasibilityFunction(),
+            ValueCostFunction(),
+            ValueDominanceFunction(),
+        )
 
-        time_nodes = time.time()
+        # Resource 1: cumulative travel time (time-window feasibility)
+        resource_graph.add_real_resource(
+            TimeWindowExtensionFunction(self._time_window_by_node_id),
+            TimeWindowFeasibilityFunction(self._time_window_by_node_id),
+            TrivialCostFunction(),
+            ValueDominanceFunction(),
+        )
 
-        self.add_all_arcs_to_graph(resource_graph, dual_by_id)
+        # Resource 2: cumulative demand (capacity feasibility)
+        resource_graph.add_real_resource(
+            AdditionExtensionFunction(),
+            MinMaxFeasibilityFunction(0.0, self._instance.get_capacity()),
+            TrivialCostFunction(),
+            ValueDominanceFunction(),
+        )
 
-        time_end = time.time()
+        self._add_nodes_and_arcs(resource_graph)
+        return resource_graph
 
-        self.vprint(f"construct_graph Time: {int((time_end - time_start) * 1000)} ms")
-        self.vprint(f"construct_graph Time Nodes: {int((time_nodes - time_start) * 1000)} ms")
-        self.vprint(f"construct_graph Time Arcs: {int((time_end - time_nodes) * 1000)} ms")
-
-    def add_all_nodes_to_graph(self, resource_graph: ResourceGraph) -> None:
-        # print("add_all_nodes_to_graph")
-
+    def _add_nodes_and_arcs(self, resource_graph: ResourceGraph) -> None:
+        t0 = time.time()
         customers_by_id = self._instance.get_customers_by_id()
         sink_id = len(customers_by_id)
 
         for customer_id, customer in customers_by_id.items():
             resource_graph.add_node(customer_id, customer.depot)
-
             if customer.depot:
                 self.depot_id_ = customer.id
-                # Add the depot as a sink as well
                 resource_graph.add_node(sink_id, False, True)
 
-    def add_all_arcs_to_graph(
-        self,
-        resource_graph: ResourceGraph,
-        dual_by_id: Optional[dict[int, float]] = None,
-    ) -> None:
-        # print("add_all_arcs_to_graph")
-
-        customers_by_id = self._instance.get_customers_by_id()
-        sink_id = len(customers_by_id)
-
-        arc_id = 0
         for customer_orig_id, customer_orig in customers_by_id.items():
             for customer_dest_id, customer_dest in customers_by_id.items():
-                if customer_orig_id != customer_dest_id:
-                    self.add_arc_to_graph(
+                # Skip self-loops and arcs back to the depot source; the return
+                # to depot is represented by the explicit arc to the sink below.
+                if customer_orig_id != customer_dest_id and not customer_dest.depot:
+                    self._add_arc(
                         resource_graph,
                         customer_orig_id,
                         customer_dest_id,
                         customer_orig,
                         customer_dest,
-                        dual_by_id,
-                        arc_id,
                     )
-                    arc_id += 1
-
-            # Add arcs to sink
             sink_customer = customers_by_id[self.depot_id_]
-            self.add_arc_to_graph(
-                resource_graph,
-                customer_orig_id,
-                sink_id,
-                customer_orig,
-                sink_customer,
-                dual_by_id,
-                arc_id,
-            )
-            arc_id += 1
+            self._add_arc(resource_graph, customer_orig_id, sink_id, customer_orig, sink_customer)
 
-        # print(f"Number of arcs added: {arc_id}")
+        print(f"construct_graph: {int((time.time() - t0) * 1000)} ms")
 
-    def add_arc_to_graph(
+    def _add_arc(
         self,
         resource_graph: ResourceGraph,
-        customer_orig_id: int,
-        customer_dest_id: int,
-        customer_orig: Customer,
-        customer_dest: Customer,
-        dual_by_id: Optional[dict[int, float]],
-        arc_id: int,
+        orig_id: int,
+        dest_id: int,
+        orig: Customer,
+        dest: Customer,
     ) -> None:
-        # print("add_arc_to_graph")
+        distance = self.calculate_distance(orig, dest)
+        travel_time = orig.service_time + distance
+        demand = dest.demand
 
-        origin_node_id = customer_orig_id
-        destination_node_id = customer_dest_id
+        # Depot→depot arc: assign an infinite base cost so it is never used.
+        if orig.depot and dest.depot:
+            base_cost = math.inf
+            rows: list[Row] = []
+        else:
+            base_cost = distance
+            # Non-depot origin: store the dual coefficient so update_reduced_costs
+            # can compute  reduced_cost = distance - π_{orig_id}  without rebuilding.
+            rows = [] if orig.depot else [Row(orig_id, 1.0)]
 
-        distance = self.calculate_distance(customer_orig, customer_dest)
-
-        customer_pi = 0.0
-        if not customer_orig.depot and dual_by_id is not None:
-            customer_pi = dual_by_id[customer_orig_id]
-
-        reduced_cost = distance - customer_pi
-        if customer_orig.depot and customer_dest.depot:
-            reduced_cost = math.inf
-
-        travel_time = customer_orig.service_time + distance
-        demand = customer_dest.demand
-
-        # print(f"reduced_cost: {reduced_cost} | travel_time: {reduced_cost} "
-        #       f"| demand: {reduced_cost}")
-        # print(f"origin_node_id: {origin_node_id} | destination_node_id: "
-        #       f"{destination_node_id} | arc_id: {arc_id}")
-
-        arc = resource_graph.add_arc(  # noqa: F841
-            ([(reduced_cost,), (travel_time,), (demand,)],),
-            origin_node_id,
-            destination_node_id,
-            arc_id,
-            reduced_cost,
+        resource_graph.add_arc(
+            (base_cost, travel_time, demand),
+            orig_id,
+            dest_id,
+            base_cost,
+            rows,
         )
 
-        # print(f"{arc.id}: ({arc.get_origin().id},{arc.get_destination().id}) "
-        #       f"-> {arc.cost} ({customer_pi}) | {travel_time} | {demand}")
+    # ── Utility ───────────────────────────────────────────────────────────────
 
-    def update_all_arcs_to_graph(
-        self,
-        resource_graph: ResourceGraph,
-        dual_by_id: Optional[dict[int, float]] = None,
-    ) -> None:
-        customers_by_id = self._instance.get_customers_by_id()
-        sink_id = len(customers_by_id)
-
-        arc_id = 0
-        for customer_orig_id, customer_orig in customers_by_id.items():
-            for customer_dest_id, customer_dest in customers_by_id.items():
-                if customer_orig_id != customer_dest_id:
-                    self.update_arc_to_graph(
-                        resource_graph,
-                        customer_orig_id,
-                        customer_dest_id,
-                        customer_orig,
-                        customer_dest,
-                        dual_by_id,
-                        arc_id,
-                    )
-                    arc_id += 1
-
-            # Add arcs to sink
-            sink_customer = customers_by_id[self.depot_id_]
-            self.update_arc_to_graph(
-                resource_graph,
-                customer_orig_id,
-                sink_id,
-                customer_orig,
-                sink_customer,
-                dual_by_id,
-                arc_id,
-            )
-            arc_id += 1
-
-        # print(f"Number of arcs added: {arc_id}")
-
-    def update_arc_to_graph(
-        self,
-        resource_graph: ResourceGraph,
-        customer_orig_id: int,
-        customer_dest_id: int,
-        customer_orig: Customer,
-        customer_dest: Customer,
-        dual_by_id: Optional[dict[int, float]],
-        arc_id: int,
-    ) -> None:
-        origin_node_id = customer_orig_id  # noqa: F841
-        destination_node_id = customer_dest_id  # noqa: F841
-
-        distance = self.calculate_distance(customer_orig, customer_dest)
-
-        customer_pi = 0.0
-        if not customer_orig.depot and dual_by_id is not None:
-            customer_pi = dual_by_id[customer_orig_id]
-
-        reduced_cost = distance - customer_pi
-        if customer_orig.depot and customer_dest.depot:
-            reduced_cost = math.inf
-
-        travel_time = customer_orig.service_time + distance
-        demand = customer_dest.demand
-
-        # print(f"reduced_cost: {reduced_cost} | travel_time: {reduced_cost} | "
-        #       f"demand: {reduced_cost}")
-        # print(f"origin_node_id: {origin_node_id} | destination_node_id: "
-        #       f"{destination_node_id} | arc_id: {arc_id}")
-
-        arc = resource_graph.get_arc(arc_id)
-
-        resource_graph.update_arc(
-            arc, ([(reduced_cost,), (travel_time,), (demand,)],), reduced_cost
-        )
-
-        # print(f"{arc.id}: ({arc.get_origin().id},{arc.get_destination().id})"
-        #       f" -> {arc.cost} ({customer_pi}) | {travel_time} | {demand}")
-
-    def calculate_distance(self, customer1: Customer, customer2: Customer) -> float:
-        return math.sqrt(
-            (customer2.pos_x - customer1.pos_x) ** 2 + (customer2.pos_y - customer1.pos_y) ** 2
-        )
-
+    def calculate_distance(self, c1: Customer, c2: Customer) -> float:
+        return math.sqrt((c2.pos_x - c1.pos_x) ** 2 + (c2.pos_y - c1.pos_y) ** 2)
+    
     def convex_combinaison_to_dict(self, dict1:dict, dict2:dict, alpha:float) -> dict:
         if not 0 <= alpha <= 1:
             raise ValueError("Alpha must be between 0 and 1")
@@ -273,133 +160,92 @@ class VRP:
         if dict1.keys() != dict2.keys():
             raise ValueError("Dicts must have the same keys")
 
-        combinaison = {}
-        for key in dict1:
-            combinaison[key] = alpha*dict1[key] + (1-alpha)*dict2[key]
+        return {key: alpha*dict1[key] + (1-alpha)*dict2[key] for key in dict1}
 
-        return combinaison
-
-    def construct_resource_graph(self, dual_by_id: Optional[dict[int, float]] = None):
-        resource_graph = ResourceGraph()
-
-        # print(f"Add distance resource...")
-        distance_expansion_function = RealAdditionExtensionFunction()
-        distance_feasibility_function = RealTrivialFeasibilityFunction()
-        distance_cost_function = RealValueCostFunction()
-        distance_dominance_function = RealValueDominanceFunction()
-
-        resource_graph.add_real_resource(
-            distance_expansion_function,
-            distance_feasibility_function,
-            distance_cost_function,
-            distance_dominance_function,
-        )
-
-        # print(f"Add time resource...")
-        time_expansion_function = TimeWindowExtensionFunction(self._min_time_window_by_node_id)
-        time_feasibility_function = TimeWindowFeasibilityFunction(self._max_time_window_by_node_id)
-        time_cost_function = RealValueCostFunction()
-        time_dominance_function = RealValueDominanceFunction()
-
-        resource_graph.add_real_resource(
-            time_expansion_function,
-            time_feasibility_function,
-            time_cost_function,
-            time_dominance_function,
-        )
-
-        # print(f"Add demand resource...")
-        demand_expansion_function = RealAdditionExtensionFunction()
-        demand_feasibility_function = MinMaxFeasibilityFunction(0.0, self._instance.get_capacity())
-        demand_cost_function = RealValueCostFunction()
-        demand_dominance_function = RealValueDominanceFunction()
-
-        resource_graph.add_real_resource(
-            demand_expansion_function,
-            demand_feasibility_function,
-            demand_cost_function,
-            demand_dominance_function,
-        )
-
-        self.add_nodes_and_arcs(resource_graph, dual_by_id)
-
-        return resource_graph
-
-    def update_resource_graph(
-        self,
-        resource_graph: ResourceGraph,
-        dual_by_id: Optional[dict[int, float]] = None,
-    ):
-        self.vprint("update_resource_graph")
-
-        self.update_all_arcs_to_graph(resource_graph, dual_by_id)
-
-        return resource_graph
+    # ── Initial paths ─────────────────────────────────────────────────────────
 
     def generate_initial_paths(self):
-        depot_customer = self._instance.get_depot_customer()
-
+        depot = self._instance.get_depot_customer()
         customers_by_id = self._instance.get_customers_by_id()
-
+        sink_id = len(customers_by_id)
         for customer_id in self._instance.get_demand_customers_id():
             customer = customers_by_id[customer_id]
-            path_cost = self.calculate_distance(depot_customer, customer) + self.calculate_distance(
-                customer, depot_customer
+            path_cost = self.calculate_distance(depot, customer) + self.calculate_distance(
+                customer, depot
             )
-            path_time = path_cost + customer.service_time  # noqa: F841
-            path_demand = customer.demand  # noqa: F841
-
-            visited_nodes = [depot_customer.id, customer_id, depot_customer.id]
-            path = Path(self._path_id, path_cost, visited_nodes)
+            path = Path(self._path_id, path_cost, [depot.id, customer_id, sink_id])
             self._paths.append(path)
-
             self._path_id += 1
-
         return self._paths
 
     def add_paths(self, solutions: list[Solution]):
-        # print(f"VRP::add_paths: {len(solutions)}")
-
+        new_paths = []
         for solution in solutions:
-            solution_cost = self.calculate_solution_cost(solution)
-            path = Path(self._path_id, solution_cost, solution.path_node_ids)
+            cost = self.calculate_solution_cost(solution)
+            path = Path(self._path_id, cost, solution.path_node_ids)
             self._paths.append(path)
             self._path_id += 1
-            self.master_problem.add_column(path)
+            new_paths.append(path)
+        return new_paths
 
-    def calculate_solution_cost(self, solution: Solution):
-        cost = 0.0
+    def calculate_solution_cost(self, solution: Solution) -> float:
+        """Return the true (non-reduced) cost by summing base arc costs."""
+        return sum(self._resource_graph.get_arc(arc_id).cost for arc_id in solution.path_arc_ids)
 
-        for arc_id in solution.path_arc_ids:
-            cost += self._resource_graph.get_arc(arc_id).cost
+    # ── Column generation ─────────────────────────────────────────────────────
 
-        return cost
+    def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
+        from vrp.cg.master_problem import MasterProblem  # requires mip
+
+        self.time_start = time.time()
+
+        self.best_lagrangian_lb = - math.inf
+
+        self.generate_initial_paths()
+
+        self.master_problem = MasterProblem(self._instance.get_demand_customers_id())
+        self.master_problem.add_paths(self._paths)
+
+        self._n_iterations = 0
+
+        if self._smoothing:
+            self._smoothing = False
+            self.first_iteration(subproblem_max_nb_solutions)
+            self._smoothing = True
+
+        master_solution = self.cg_iterations(subproblem_max_nb_solutions)
+
+        master_solution = self.last_iteration()
+
+        self._total_problem_time = time.time() - self.time_start
+        print(f"Time ratio subproblem/total: {self._total_subproblem_time / self._total_problem_time} | Total time: {self._total_problem_time} s")
+
+        return master_solution
 
     def get_negative_reduced_cost_column(self, dual_by_id:dict[int, float], subproblem_max_nb_solutions: Optional[int] = None):
         solutions = self.solve_subproblem(dual_by_id)
 
         if len(solutions) > 0:
-            print(f"Solution RCSPP cost: {solutions[0].cost}")
+            print(f"best RCSPP reduced cost: {solutions[0].cost:.6f}")
         else:
             print("No solution found!")
+
 
         if subproblem_max_nb_solutions is not None:
             nb_solutions = min(subproblem_max_nb_solutions, len(solutions))
             solutions = solutions[:nb_solutions]
 
-        negative_red_cost_solutions = []
+        min_reduced_cost = min((s.cost for s in solutions), default=math.inf)
 
-        min_reduced_cost = math.inf
-        for sol in solutions:
-            if sol.cost < min_reduced_cost:
-                min_reduced_cost = sol.cost
-            if sol.cost < -self.EPSILON:
-                negative_red_cost_solutions.append(sol)
-        return negative_red_cost_solutions, min_reduced_cost
+        improving = [s for s in solutions if s.cost < -self.EPSILON]
+        new_paths = self.add_paths(improving)
+        self.master_problem.add_paths(new_paths)
+
+        return improving, min_reduced_cost
 
     def column_generation_iteration(self, subproblem_max_nb_solutions: Optional[int] = None):
 
-        master_solution = self.master_problem.solve(True)        
+        master_solution = self.master_problem.solve(relax=True)        
 
         dual_by_id = master_solution.dual_by_var_id
         self._dual_values_history.append(dual_by_id)
@@ -408,12 +254,12 @@ class VRP:
             self._last_outer_point = dual_by_id
             dual_by_id = self.convex_combinaison_to_dict(self._smoothing_center, dual_by_id, self._smoothing_parameter)
 
-        negative_red_cost_solutions, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
+        improving, min_reduced_cost = self.get_negative_reduced_cost_column(dual_by_id, subproblem_max_nb_solutions)
 
         if min_reduced_cost >= -self.EPSILON:
             self.final_dual_by_id = dual_by_id
 
-        return master_solution, negative_red_cost_solutions, min_reduced_cost
+        return master_solution, min_reduced_cost
 
     def cg_iterations(self, subproblem_max_nb_solutions: Optional[int] = None):
         self.min_reduced_cost = -math.inf
@@ -424,13 +270,11 @@ class VRP:
             if self._smoothing:
                 self._smoothing_parameter = max(0, 1- self._mis_price_k*(1-self._smoothing_parameter))
 
-            master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
+            master_solution, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
             lb = sum(master_solution.dual_by_var_id.values()) + self._instance.get_nb_vehicles() * self.min_reduced_cost
             if lb > self.best_lagrangian_lb + self.EPSILON:
                 self.best_lagrangian_lb = lb
-
-            self.add_paths(negative_red_cost_solutions)
 
             self._n_iterations += 1
 
@@ -466,46 +310,21 @@ class VRP:
         master_solution.dual_by_var_id = self.final_dual_by_id
         return master_solution
 
-    def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
-        self.time_start = time.time()
-
-        self.best_lagrangian_lb = - math.inf
-
-        self.generate_initial_paths()
-
-        self.master_problem = MasterProblem(self._instance.get_demand_customers_id(), self._verbose)
-        self.master_problem.construct_model(self._paths)
-
-        self._n_iterations = 0
-
-        if self._smoothing:
-            self._smoothing = False
-            self.first_iteration(subproblem_max_nb_solutions)
-            self._smoothing = True
-
-        master_solution = self.cg_iterations(subproblem_max_nb_solutions)
-
-        master_solution = self.last_iteration()
-
-        self._total_problem_time = time.time() - self.time_start
-        print(f"Time ratio subproblem/total: {self._total_subproblem_time / self._total_problem_time} | Total time: {self._total_problem_time} s")
-
-        return master_solution
+    
 
     def solve_subproblem(self, dual_by_id: Optional[dict[int, float]] = None):
-        # Rebuild the subproblem graph each iteration. The in-place C++ update path
-        # currently triggers a native crash on the second solve.
-        subproblem_time_start = time.time()
-        self._subproblem_graph = self.construct_resource_graph(dual_by_id)
+        """Update arc reduced costs in-place, then solve.
 
-        # subproblem = Subproblem(resource_graph)
+        The graph is built once in ``__init__``; only extender resource 0 (the cost
+        resource) is rewritten each iteration.
+        """
+        if dual_by_id is not None:
+            self._resource_graph.update_reduced_costs(dual_by_id)
 
-        solutions = self._subproblem_graph.solve()
-
-        subproblem_time_end = time.time()
-        self._total_subproblem_time += subproblem_time_end - subproblem_time_start
-        self.vprint(f"Solve: {subproblem_time_end - subproblem_time_start}")
-
+        t0 = time.time()
+        solutions = self._resource_graph.solve()
+        print(f"Solve: {time.time() - t0:.3f}s")
+        self._total_subproblem_time += time.time() - t0
         return solutions
 
     def enable_smoothing(self, alpha:float):
@@ -564,7 +383,7 @@ class VRP:
         self.vprint("*********************************************")
 
     def first_iteration(self, subproblem_max_nb_solutions: Optional[int] = None):
-        master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
+        master_solution, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
 
         dual_by_id = master_solution.dual_by_var_id
 
@@ -573,9 +392,7 @@ class VRP:
 
         self.dual_box_center_ = dual_by_id
         if hasattr(self, 'kappa'):
-            self.box_radius = dict_l1_norm(self.dual_box_center_)/self.kappa
-
-        self.add_paths(negative_red_cost_solutions)
+            self.box_radius = dict_l1_norm(self.dual_box_center_)/(self.kappa * len(self.dual_box_center_))
 
         lb = sum([i for i in master_solution.dual_by_var_id.values()]) + self._instance.get_nb_vehicles() *self.min_reduced_cost
         self.best_lagrangian_lb = lb
@@ -596,6 +413,6 @@ class VRP:
                  "best_lb": self.best_lagrangian_lb}
         
         if self._smoothing:
-            state["smoothing_parameter": self._smoothing_parameter]
+            state["smoothing_parameter"] = self._smoothing_parameter
         
         self._state_history.append(state)

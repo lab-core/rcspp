@@ -39,7 +39,7 @@ class StabilizedVRP(VRP):
         while True:
             self.print_begin_iteration()
             
-            master_solution, negative_red_cost_solutions, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
+            master_solution, self.min_reduced_cost = self.column_generation_iteration(subproblem_max_nb_solutions)
             
             lb = sum(master_solution.dual_by_var_id.values()) + self._instance.get_nb_vehicles() * self.min_reduced_cost
             if lb > self.best_lagrangian_lb + self.EPSILON:
@@ -53,7 +53,6 @@ class StabilizedVRP(VRP):
             if self.max_special_var_value < self.EPSILON:
                 self._change_radius(self.box_radius*0.5)
 
-            self.add_paths(negative_red_cost_solutions)
             self._save_state(master_solution)
             self._n_iterations += 1
 
@@ -65,9 +64,9 @@ class StabilizedVRP(VRP):
     
     def _initialize_dual_box(self, subproblem_max_nb_solutions):
         """Initialise le centre et le rayon de la boîte duale."""
-        self.master_problem = MasterProblem(self._instance.get_demand_customers_id(), verbose=self._verbose)
+        self.master_problem = MasterProblem(self._instance.get_demand_customers_id())
+        self.master_problem.add_paths(self._paths)
         self.vprint("Constructing master problem with initial paths...")
-        self.master_problem.construct_model(self._paths)
 
         if self.dual_estimate is None:
             self.first_iteration(subproblem_max_nb_solutions)
@@ -79,9 +78,9 @@ class StabilizedVRP(VRP):
 
     def _run_stabilized_cg(self, subproblem_max_nb_solutions):
         """Boucle de méta-itération avec réduction de pénalité."""
-        self.master_problem = DualBoxMasterProblem(self._instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value, verbose=self._verbose)
+        self.master_problem = DualBoxMasterProblem(self._instance.get_demand_customers_id(), self.dual_box_center_, self.box_radius, self.penalty_value)
+        self.master_problem.add_paths(self._paths)
         self.vprint("Constructing dual box master problem with initial paths...")
-        self.master_problem.construct_model(self._paths)
 
         while True:
             solution = self.cg_iterations(subproblem_max_nb_solutions)

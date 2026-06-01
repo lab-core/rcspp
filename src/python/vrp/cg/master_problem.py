@@ -138,25 +138,3 @@ class MasterProblem:
                 solution.dual_by_var_id[node_id] = constr.pi
 
         return solution
-
-
-    def add_column(self, path):
-        col = Column()
-
-        for node_id in self.node_ids_:
-            coeff = path.visited_nodes.count(node_id)
-            if coeff != 0:
-                col.addTerms(coeff, self._node_constraints_by_id[node_id])
-
-        path_var_name = f"y_{path.id}"
-        path_var = self.model_.addVar(
-            lb=0.0,
-            obj=path.cost,        # ← coût directement dans addVar, pas besoin de set_objective
-            vtype=GRB.BINARY,
-            name=path_var_name,
-            column=col
-        )
-        self._path_variables_by_id[path.id] = path_var
-        self._paths_by_id[path.id] = path
-
-        self.model_.update()
