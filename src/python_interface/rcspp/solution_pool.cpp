@@ -13,6 +13,19 @@ namespace py = pybind11;
 
 using namespace rcspp;
 
+namespace {
+// Python-facing priced column. The C++ SolutionPool::PricedColumn keeps a zero-copy
+// `const Solution*` into the pool entry (valid only until the next pool modification); this OWNS a
+// copy of the Solution, taken at price() time while the entry is alive. The copy is paid only at
+// the Python boundary, so the result can never dangle after a later pool mutation while C++
+// pricing stays allocation-free.
+struct PyPricedColumn {
+        SolutionPool::ColumnId id;
+        double reduced_cost;
+        Solution solution;
+};
+}  // namespace
+
 void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognitive-complexity)
     // ColumnActivity is stored per-entry in SolutionPool and updated on every price() call.
     // usage_rate(current_pricing_count) returns use_count / (current - created_at).
@@ -28,14 +41,12 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
     // PricedColumn: result of FilteredSolutionPool.price().
     // id             → stable ColumnId for use in per-master variable/activity maps
     // reduced_cost   → newly computed rc = column.cost - dot(duals, rows)
-    // solution       → reference to pool entry data (valid until next pool modification)
-    py::class_<SolutionPool::PricedColumn>(m, "PricedColumn")
-        .def_readonly("id", &SolutionPool::PricedColumn::id)
-        .def_readonly("reduced_cost", &SolutionPool::PricedColumn::reduced_cost)
-        .def_property_readonly(
-            "solution",
-            [](const SolutionPool::PricedColumn& pc) -> const Solution& { return *pc.solution; },
-            py::return_value_policy::reference);
+    // solution       → an owned copy of the column's Solution (taken at price() time while the
+    //                  pool entry was alive), so it stays valid after later pool mutations.
+    py::class_<PyPricedColumn>(m, "PricedColumn")
+        .def_readonly("id", &PyPricedColumn::id)
+        .def_readonly("reduced_cost", &PyPricedColumn::reduced_cost)
+        .def_readonly("solution", &PyPricedColumn::solution);
 
     // SolutionPool: storage-only. All pricing/removal operations go through
     // FilteredSolutionPool objects created via new_filter().
@@ -261,7 +272,22 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             py::arg("solutions"),
             py::arg("check_filter") = true)
         // price() prices only the filtered subset; updates ColumnActivity for those entries.
-        .def("price", &FilteredSolutionPool::price, py::arg("duals"), py::arg("threshold") = 0.0)
+        // The binding copies each returned column's Solution into a Python-owned PyPricedColumn at
+        // price() time (entry still alive), so the result never dangles after later pool edits.
+        .def(
+            "price",
+            [](FilteredSolutionPool& fp, const std::vector<double>& duals, double threshold) {
+                const auto priced = fp.price(duals, threshold);
+                std::vector<PyPricedColumn> out;
+                out.reserve(priced.size());
+                for (const auto& pc : priced) {
+                    out.push_back(
+                        {.id = pc.id, .reduced_cost = pc.reduced_cost, .solution = *pc.solution});
+                }
+                return out;
+            },
+            py::arg("duals"),
+            py::arg("threshold") = 0.0)
         .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_ids"))
         // Local removes (this view only, supports B&B backtracking):
         .def(

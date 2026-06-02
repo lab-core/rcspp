@@ -364,6 +364,32 @@ def test_get_entry_and_get_all():
     assert all_entries[0][0] == id1
 
 
+# ── PricedColumn lifetime (P-2) ───────────────────────────────────────────────
+
+
+def test_priced_column_solution_survives_pool_removal():
+    pool = SolutionPool()
+    fp = pool.new_filter()
+    fp.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
+    fp.add(make_solution(7.0, [(0, 1.0)], [20, 21]))
+
+    # duals=[100] → rc = 5-100 and 7-100, both < 0 → both columns returned
+    priced = fp.price([100.0])
+    assert len(priced) == 2
+    costs_before = sorted(pc.solution.column.cost for pc in priced)
+    assert costs_before == [5.0, 7.0]
+
+    # Hard-delete every column. PricedColumn.solution owns a copy taken at price() time, so the
+    # already-returned results must stay valid — a borrowed pointer here would be a use-after-free.
+    removed = fp.global_remove_if(lambda cid, sol, act: True)
+    assert len(removed) == 2 and len(fp) == 0
+
+    costs_after = sorted(pc.solution.column.cost for pc in priced)
+    assert costs_after == costs_before
+    for pc in priced:
+        assert len(pc.solution.path_arc_ids) == 2  # path data preserved in the copy
+
+
 # ── runner ────────────────────────────────────────────────────────────────────
 
 _TESTS = [
@@ -388,6 +414,7 @@ _TESTS = [
     test_add_filter_mutates_view,
     test_custom_filter,
     test_get_entry_and_get_all,
+    test_priced_column_solution_survives_pool_removal,
 ]
 
 if __name__ == "__main__":

@@ -201,7 +201,7 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference)
         .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
-        .def_readwrite("rows", &Arc<RealRC>::rows, py::return_value_policy::reference)
+        .def_readwrite("rows", &Arc<RealRC>::rows)
         .def("__str__", &Arc<RealRC>::to_string)
         .def("__repr__", &Arc<RealRC>::to_string);
 
