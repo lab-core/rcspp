@@ -110,6 +110,10 @@ class SolutionPool {
 
         std::vector<ColumnId> remove_if_locked(const Predicate& pred);
 
+        // Hard-delete a specific set of ids. Used by the snapshot-based global_remove_if so the
+        // user predicate runs with no lock held. Tolerant of ids already gone / duplicated.
+        std::vector<ColumnId> remove_ids_locked(const std::vector<ColumnId>& ids);
+
         static bool passes_row_filter(const Solution& sol,
                                       const std::vector<size_t>& compulsory_rows,
                                       const std::vector<size_t>& forbidden_rows) {
@@ -171,18 +175,23 @@ class FilteredSolutionPool {
         using Predicate = SolutionPool::Predicate;
 
         // Build a filtered view. filter=nullptr accepts all existing and future entries.
-        // Acquires exclusive lock to populate filtered_entries_ and register with pool.
+        // Snapshots existing entries and registers under one lock (atomically, so no concurrent
+        // add is missed), then evaluates the filter OFF the lock via populate_off_lock so a
+        // re-entrant user filter cannot deadlock. Register is done last in the locked block so a
+        // throwing snapshot leaves nothing registered.
         explicit FilteredSolutionPool(SolutionPool& pool,
                                       std::function<bool(const Solution&)> filter = nullptr)
             : pool_(pool), filter_(std::move(filter)) {
-            std::unique_lock lock(pool_.mutex_);
-            for (auto& entry : pool_.entries_) {
-                if (accepts(entry.solution)) {
-                    filtered_entries_.push_back(&entry);
-                    filtered_ids_.emplace(entry.id, std::prev(filtered_entries_.end()));
+            std::vector<std::pair<ColumnId, Solution>> snapshot;
+            {
+                std::unique_lock lock(pool_.mutex_);
+                snapshot.reserve(pool_.entries_.size());
+                for (const auto& entry : pool_.entries_) {
+                    snapshot.emplace_back(entry.id, entry.solution);
                 }
+                pool_.registered_pools_.push_back(this);
             }
-            pool_.registered_pools_.push_back(this);
+            populate_off_lock(std::move(snapshot));
         }
 
         // Unregisters from pool on destruction.
@@ -289,14 +298,41 @@ class FilteredSolutionPool {
         // ── Local removes (this view only — supports B&B backtracking) ─────────
 
         // Remove entries from this view only (NOT from the main pool).
+        // The user predicate may inspect or even mutate the pool, so it is evaluated on a
+        // snapshot with NO lock held — a std::shared_mutex is non-recursive, so running the
+        // predicate under the lock would deadlock on re-entry. Phases: snapshot under a
+        // shared lock → evaluate unlocked → apply under a unique lock.
         std::vector<ColumnId> remove_if(const Predicate& pred) {
-            std::shared_lock lock(pool_.mutex_);
-            return remove_if_local(pred);
+            std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> snapshot;
+            {
+                std::shared_lock lock(pool_.mutex_);
+                snapshot.reserve(filtered_entries_.size());
+                for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                    snapshot.emplace_back(entry_ptr->id, entry_ptr->solution, entry_ptr->activity);
+                }
+            }
+            std::vector<ColumnId> selected;
+            for (const auto& [id, sol, act] : snapshot) {
+                if (pred(id, sol, act)) {
+                    selected.push_back(id);
+                }
+            }
+            std::unique_lock lock(pool_.mutex_);
+            std::vector<ColumnId> removed;
+            removed.reserve(selected.size());
+            for (const ColumnId id : selected) {
+                if (on_remove_unlocked(id)) {  // local-only erase; tolerant of already-gone ids
+                    removed.push_back(id);
+                }
+            }
+            return removed;
         }
 
         // Remove from this view all columns whose path traverses arc_id.
+        // The predicate is internal (cannot re-enter the pool), so it is safe to run under the
+        // lock; the lock is exclusive because remove_if_local mutates this view.
         std::vector<ColumnId> remove_if_arc_present(size_t arc_id) {
-            std::shared_lock lock(pool_.mutex_);
+            std::unique_lock lock(pool_.mutex_);
             return remove_if_local([arc_id](ColumnId, const Solution& sol, const ColumnActivity&) {
                 return std::ranges::find(sol.path_arc_ids, arc_id) != sol.path_arc_ids.end();
             });
@@ -304,7 +340,7 @@ class FilteredSolutionPool {
 
         // Remove from this view entries where age > max_age OR usage_rate < min_usage_rate.
         std::vector<ColumnId> remove_stale(size_t max_age, double min_usage_rate = 0.0) {
-            std::shared_lock lock(pool_.mutex_);
+            std::unique_lock lock(pool_.mutex_);  // exclusive: remove_if_local mutates this view
             const size_t pc = pool_.pricing_count_;
             return remove_if_local([max_age, min_usage_rate, pc](ColumnId,
                                                                  const Solution&,
@@ -316,9 +352,25 @@ class FilteredSolutionPool {
         // ── Global hard deletes (from pool, propagates to all views) ───────────
 
         // Hard delete from pool, propagates to all registered FilteredSolutionPools.
+        // Like remove_if, the user predicate is evaluated on a snapshot with NO lock held, then
+        // the still-present matches are deleted under an exclusive lock.
         std::vector<ColumnId> global_remove_if(const Predicate& pred) {
+            std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> snapshot;
+            {
+                std::shared_lock lock(pool_.mutex_);
+                snapshot.reserve(pool_.entries_.size());
+                for (const SolutionPool::Entry& entry : pool_.entries_) {
+                    snapshot.emplace_back(entry.id, entry.solution, entry.activity);
+                }
+            }
+            std::vector<ColumnId> selected;
+            for (const auto& [id, sol, act] : snapshot) {
+                if (pred(id, sol, act)) {
+                    selected.push_back(id);
+                }
+            }
             std::unique_lock lock(pool_.mutex_);
-            return pool_.remove_if_locked(pred);
+            return pool_.remove_ids_locked(selected);
         }
 
         // Hard delete all columns whose path traverses arc_id.
@@ -343,7 +395,7 @@ class FilteredSolutionPool {
 
         // Purge stale references left by pool-level removals that bypassed propagation.
         void cleanup() {
-            std::shared_lock lock(pool_.mutex_);
+            std::unique_lock lock(pool_.mutex_);  // exclusive: mutates this view's containers
             for (auto list_it = filtered_entries_.begin(); list_it != filtered_entries_.end();) {
                 const ColumnId id = (*list_it)->id;
                 if (!pool_.id_index_.contains(id)) {
@@ -401,7 +453,10 @@ class FilteredSolutionPool {
             return pool_.pricing_count_;
         }
 
-        [[nodiscard]] size_t size() const { return filtered_entries_.size(); }
+        [[nodiscard]] size_t size() const {
+            std::shared_lock lock(pool_.mutex_);
+            return filtered_entries_.size();
+        }
 
         [[nodiscard]] std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> get_all() const {
             std::shared_lock lock(pool_.mutex_);
@@ -439,17 +494,31 @@ class FilteredSolutionPool {
             if (!pred) {
                 return;
             }
-            std::unique_lock lock(pool_.mutex_);
-            if (filter_) {
-                filter_ = [old = filter_, p = std::move(pred)](const Solution& sol) {
-                    return old(sol) && p(sol);
-                };
-            } else {
-                filter_ = std::move(pred);
+            // Narrow the filter, then prune entries that no longer pass — evaluating the (user)
+            // filter OFF the lock on a snapshot so it cannot deadlock on re-entry. `f` is a
+            // copy of the composed filter so the off-lock evaluation is safe even if another
+            // thread reassigns filter_ via a concurrent add_filter.
+            std::function<bool(const Solution&)> f;
+            std::vector<std::pair<ColumnId, Solution>> snapshot;
+            {
+                std::unique_lock lock(pool_.mutex_);
+                filter_ = compose_and(std::move(filter_), std::move(pred));
+                f = filter_;
+                snapshot.reserve(filtered_entries_.size());
+                for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                    snapshot.emplace_back(entry_ptr->id, entry_ptr->solution);
+                }
             }
-            remove_if_local([this](ColumnId, const Solution& sol, const ColumnActivity&) {
-                return !filter_(sol);
-            });
+            std::vector<ColumnId> to_remove;
+            for (const auto& [id, sol] : snapshot) {
+                if (f && !f(sol)) {
+                    to_remove.push_back(id);
+                }
+            }
+            std::unique_lock lock(pool_.mutex_);
+            for (const ColumnId id : to_remove) {
+                on_remove_unlocked(id);
+            }
         }
 
         // Convenience: build filter from row/arc constraints, then add_filter().
@@ -493,18 +562,37 @@ class FilteredSolutionPool {
 
         bool registered_{true};
 
-        // Chain constructor: starts from parent's filtered entries with a combined filter.
+        // Chain constructor: a view over `parent`'s current entries whose filter is
+        // (parent.filter_ AND additional_pred). Composing the filter (reads parent.filter_),
+        // snapshotting parent's entries, and registering happen under ONE lock; the combined
+        // filter is then evaluated OFF the lock via populate_off_lock. Register is last in the
+        // locked block for exception safety.
         FilteredSolutionPool(const FilteredSolutionPool& parent,
-                             std::function<bool(const Solution&)> combined_filter)
-            : pool_(parent.pool_), filter_(std::move(combined_filter)) {
-            std::unique_lock lock(pool_.mutex_);
-            for (SolutionPool::Entry* entry_ptr : parent.filtered_entries_) {
-                if (!filter_ || filter_(entry_ptr->solution)) {
-                    filtered_entries_.push_back(entry_ptr);
-                    filtered_ids_.emplace(entry_ptr->id, std::prev(filtered_entries_.end()));
+                             std::function<bool(const Solution&)> additional_pred)
+            : pool_(parent.pool_) {
+            std::vector<std::pair<ColumnId, Solution>> snapshot;
+            {
+                std::unique_lock lock(pool_.mutex_);
+                filter_ = compose_and(parent.filter_, std::move(additional_pred));
+                snapshot.reserve(parent.filtered_entries_.size());
+                for (const SolutionPool::Entry* entry_ptr : parent.filtered_entries_) {
+                    snapshot.emplace_back(entry_ptr->id, entry_ptr->solution);
                 }
+                pool_.registered_pools_.push_back(this);
             }
-            pool_.registered_pools_.push_back(this);
+            populate_off_lock(std::move(snapshot));
+        }
+
+        // Compose two filter predicates into (a AND b); a null predicate means accept-all, so a
+        // null operand is dropped. Shared by the chain constructor (new_filter) and add_filter.
+        static std::function<bool(const Solution&)> compose_and(
+            std::function<bool(const Solution&)> a, std::function<bool(const Solution&)> b) {
+            if (a && b) {
+                return [a = std::move(a), b = std::move(b)](const Solution& sol) {
+                    return a(sol) && b(sol);
+                };
+            }
+            return a ? std::move(a) : std::move(b);
         }
 
         [[nodiscard]] bool accepts(const Solution& sol) const { return !filter_ || filter_(sol); }
@@ -517,15 +605,56 @@ class FilteredSolutionPool {
             }
         }
 
-        // Called by pool when an entry is removed (pool unique_lock already held).
-        void on_remove_unlocked(ColumnId id) {
+        // Drop `id` from THIS view if present (pool unique_lock already held). Returns whether it
+        // was present. Used both for pool-driven propagation and for remove_if's apply phase.
+        bool on_remove_unlocked(ColumnId id) {
             if (id == SolutionPool::kNoId) {
-                return;
+                return false;
             }
             auto it = filtered_ids_.find(id);
             if (it != filtered_ids_.end()) {
                 filtered_entries_.erase(it->second);
                 filtered_ids_.erase(it);
+                return true;
+            }
+            return false;
+        }
+
+        // Constructor helper: evaluate filter_ on `snapshot` OFF the lock (a re-entrant user
+        // filter must not run while the mutex is held), then add the accepted entries that are
+        // still present and not already added via propagation, under the lock. `this` must already
+        // be registered. If the (user) filter throws, deregister and rethrow so a half-built view
+        // is never left dangling in registered_pools_. New entries added during the off-lock
+        // window arrive via propagation (we registered before releasing the lock); the
+        // `filtered_ids_.contains` guard makes the apply phase idempotent against that overlap.
+        void populate_off_lock(std::vector<std::pair<ColumnId, Solution>> snapshot) {
+            try {
+                std::vector<ColumnId> accepted;
+                accepted.reserve(snapshot.size());
+                for (const auto& [id, sol] : snapshot) {
+                    if (!filter_ || filter_(sol)) {
+                        accepted.push_back(id);
+                    }
+                }
+                std::unique_lock lock(pool_.mutex_);
+                for (const ColumnId id : accepted) {
+                    if (filtered_ids_.contains(id)) {
+                        continue;  // already added via propagation during off-lock evaluation
+                    }
+                    auto it = pool_.id_index_.find(id);
+                    if (it != pool_.id_index_.end()) {  // still present
+                        filtered_entries_.push_back(&(*it->second));
+                        filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
+                    }
+                }
+            } catch (...) {
+                std::unique_lock lock(pool_.mutex_);
+                auto& reg = pool_.registered_pools_;
+                if (auto it = std::ranges::find(reg, this); it != reg.end()) {
+                    reg.erase(it);
+                }
+                registered_ = false;
+                throw;
             }
         }
 
@@ -628,6 +757,39 @@ inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_if_locked(const 
     return removed_ids;
 }
 
+inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_ids_locked(
+    const std::vector<ColumnId>& ids) {
+    std::vector<ColumnId> removed;
+    removed.reserve(ids.size());
+    for (const ColumnId cid : ids) {
+        auto idx_it = id_index_.find(cid);
+        if (idx_it == id_index_.end()) {
+            continue;  // already gone (removed concurrently, or a duplicate id in `ids`)
+        }
+        const EntryIter entry_it = idx_it->second;
+        const uint64_t hash = entry_it->solution.get_hash();
+
+        if (auto bucket_it = hash_index_.find(hash); bucket_it != hash_index_.end()) {
+            auto& bucket = bucket_it->second;
+            if (auto f = std::ranges::find(bucket, entry_it); f != bucket.end()) {
+                bucket.erase(f);
+            }
+            if (bucket.empty()) {
+                hash_index_.erase(bucket_it);
+            }
+        }
+        id_index_.erase(idx_it);
+
+        for (auto* fp : registered_pools_) {
+            fp->on_remove_unlocked(cid);
+        }
+
+        removed.push_back(cid);
+        entries_.erase(entry_it);
+    }
+    return removed;
+}
+
 inline FilteredSolutionPool SolutionPool::new_filter(std::function<bool(const Solution&)> filter) {
     return FilteredSolutionPool(*this, std::move(filter));
 }
@@ -653,17 +815,9 @@ inline std::function<bool(const Solution&)> SolutionPool::make_filter(
 
 inline FilteredSolutionPool FilteredSolutionPool::new_filter(
     std::function<bool(const Solution&)> pred) const {
-    std::function<bool(const Solution&)> combined;
-    if (filter_ && pred) {
-        combined = [old = filter_, p = std::move(pred)](const Solution& sol) {
-            return old(sol) && p(sol);
-        };
-    } else if (filter_) {
-        combined = filter_;
-    } else {
-        combined = std::move(pred);
-    }
-    return {*this, std::move(combined)};
+    // The chain constructor composes (this->filter_ AND pred) under a single lock, so filter_ is
+    // never read here without synchronization.
+    return {*this, std::move(pred)};
 }
 
 }  // namespace rcspp

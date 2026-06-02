@@ -5,9 +5,16 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
+#include <chrono>
+#include <future>
 #include <initializer_list>
 #include <list>
+#include <memory>
+#include <stdexcept>
+#include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -674,4 +681,288 @@ TEST(FilteredSolutionPool, ChainFilter) {
     auto id4 = fp.add(make_pool_solution(4.0, {{0, 1.0L}}, {25, 26}));  // row 0, no arc 10/20
     EXPECT_TRUE(fp1.get(id4).has_value());
     EXPECT_TRUE(fp2.get(id4).has_value());
+}
+
+// ─── concurrency / locking ────────────────────────────────────────────────────
+//
+// These verify the pool's locking discipline. The "no-deadlock" tests pass a predicate or filter
+// that re-enters the pool: because predicates and filters are evaluated with no lock held, they
+// must complete; were they run under the (non-recursive) pool mutex they would self-deadlock. A
+// watchdog turns a genuine deadlock into a failed assertion instead of hanging the test binary.
+// The stress tests check that concurrent add/price/remove/read keep the per-view containers
+// consistent; run them under a thread sanitizer (-fsanitize=thread) to also catch data races.
+
+namespace {
+
+// Runs `body` (which returns its own pass/fail) on a detached worker and returns
+// {completed_within_timeout, body_result}. The shared state is held in shared_ptrs captured by
+// the worker, so a timed-out (deadlocked) worker is safely leaked rather than left dangling.
+template <typename Body>
+std::pair<bool, bool> run_guarded(std::chrono::milliseconds timeout, Body body) {
+    auto result = std::make_shared<std::atomic<bool>>(false);
+    auto prom = std::make_shared<std::promise<void>>();
+    std::future<void> fut = prom->get_future();
+    std::thread([prom, result, body = std::move(body)]() mutable {
+        const bool ok = body();
+        result->store(ok);
+        prom->set_value();
+    }).detach();
+    const bool completed = fut.wait_for(timeout) == std::future_status::ready;
+    return {completed, result->load()};
+}
+
+constexpr std::chrono::seconds kWatchdog{5};
+
+}  // namespace
+
+// A global_remove_if predicate that reads the pool must not deadlock (it runs off-lock).
+TEST(SolutionPoolConcurrency, GlobalRemoveIfReentrantPredicateDoesNotDeadlock) {
+    auto [completed, passed] = run_guarded(kWatchdog, [] {
+        SolutionPool pool;
+        auto fp = pool.new_filter();
+        const auto id0 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
+        fp.add(make_pool_solution(7.0, {{1, 1.0L}}, {20, 21}));
+        const auto removed = fp.global_remove_if(
+            [&fp, id0](SolutionPool::ColumnId cid, const Solution&, const ColumnActivity&) {
+                (void)fp.size();      // re-entrant reads from inside the predicate
+                (void)fp.get(cid);
+                (void)fp.get_all();
+                return cid == id0;
+            });
+        return removed.size() == 1 && fp.size() == 1;
+    });
+    ASSERT_TRUE(completed) << "global_remove_if deadlocked on a re-entrant predicate";
+    EXPECT_TRUE(passed);
+}
+
+// Same for the local remove_if.
+TEST(SolutionPoolConcurrency, LocalRemoveIfReentrantPredicateDoesNotDeadlock) {
+    auto [completed, passed] = run_guarded(kWatchdog, [] {
+        SolutionPool pool;
+        auto fp = pool.new_filter();
+        const auto id0 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
+        fp.add(make_pool_solution(7.0, {{1, 1.0L}}, {20, 21}));
+        const auto removed = fp.remove_if(
+            [&fp, id0](SolutionPool::ColumnId cid, const Solution&, const ColumnActivity&) {
+                (void)fp.size();
+                (void)fp.get_all();
+                return cid == id0;
+            });
+        return removed.size() == 1 && fp.size() == 1;
+    });
+    ASSERT_TRUE(completed) << "remove_if deadlocked on a re-entrant predicate";
+    EXPECT_TRUE(passed);
+}
+
+// A filter that reads the pool while a view is being constructed must not deadlock.
+TEST(SolutionPoolConcurrency, NewFilterReentrantFilterDoesNotDeadlock) {
+    auto [completed, passed] = run_guarded(kWatchdog, [] {
+        SolutionPool pool;
+        auto seed = pool.new_filter();
+        seed.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
+        seed.add(make_pool_solution(7.0, {{1, 1.0L}}, {20, 21}));
+        auto fp = pool.new_filter([&seed](const Solution&) {
+            (void)seed.size();  // re-entrant read during construction
+            return true;
+        });
+        return fp.size() == 2;
+    });
+    ASSERT_TRUE(completed) << "new_filter deadlocked on a re-entrant filter";
+    EXPECT_TRUE(passed);
+}
+
+// Same for add_filter (in-place narrowing).
+TEST(SolutionPoolConcurrency, AddFilterReentrantFilterDoesNotDeadlock) {
+    auto [completed, passed] = run_guarded(kWatchdog, [] {
+        SolutionPool pool;
+        auto fp = pool.new_filter();
+        fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
+        fp.add(make_pool_solution(7.0, {{1, 1.0L}}, {20, 21}));
+        fp.add_filter([&fp](const Solution&) {
+            (void)fp.size();  // re-entrant read while pruning
+            return true;
+        });
+        return fp.size() == 2;
+    });
+    ASSERT_TRUE(completed) << "add_filter deadlocked on a re-entrant filter";
+    EXPECT_TRUE(passed);
+}
+
+// A filter that throws during construction must rethrow AND deregister the half-built view, so the
+// pool's registration list is never left with a dangling pointer.
+TEST(SolutionPoolConcurrency, ThrowingFilterDuringConstructionLeavesPoolUsable) {
+    SolutionPool pool;
+    {
+        auto seed = pool.new_filter();
+        seed.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
+        seed.add(make_pool_solution(7.0, {{1, 1.0L}}, {20, 21}));
+    }
+    EXPECT_THROW(
+        {
+            auto bad = pool.new_filter(
+                [](const Solution&) -> bool { throw std::runtime_error("boom"); });
+            (void)bad.size();
+        },
+        std::runtime_error);
+
+    // If `bad` had stayed registered, this add would propagate to a dangling view (UB / crash).
+    auto fp = pool.new_filter();
+    EXPECT_EQ(fp.size(), 2u);
+    const auto id = fp.add(make_pool_solution(9.0, {{2, 1.0L}}, {30, 31}));
+    EXPECT_NE(id, SolutionPool::kNoId);
+    EXPECT_EQ(fp.size(), 3u);
+}
+
+// Concurrent adds (each via its own view) and reads on a shared unfiltered view: every distinct
+// column must reach the base view exactly once, and size() must agree with get_all().
+TEST(SolutionPoolConcurrency, ConcurrentAddsAndReadsCountInvariant) {
+    SolutionPool pool;
+    auto base = pool.new_filter();  // no filter — receives every column via propagation
+
+    constexpr int kWriters = 4;
+    constexpr int kPerWriter = 100;
+    std::atomic<size_t> next_arc{1000};
+    std::atomic<bool> go{false};
+    std::atomic<bool> stop_readers{false};
+
+    std::vector<std::thread> writers;
+    for (int t = 0; t < kWriters; ++t) {
+        writers.emplace_back([&] {
+            auto view = pool.new_filter();  // each writer drives its own view
+            while (!go.load()) {            // start together to maximise contention
+            }
+            for (int i = 0; i < kPerWriter; ++i) {
+                const size_t arc = next_arc.fetch_add(1);  // distinct arc ⇒ distinct path ⇒ no dedup
+                view.add(make_pool_solution(1.0, {{0, 1.0L}}, {arc}));
+                (void)view.price({0.5});
+                (void)view.size();
+            }
+        });
+    }
+
+    std::vector<std::thread> readers;
+    for (int r = 0; r < 2; ++r) {
+        readers.emplace_back([&] {
+            while (!stop_readers.load()) {
+                (void)base.size();     // unsynchronised list-size read before C-3
+                (void)base.get_all();  // racing iteration of filtered_entries_
+                (void)base.pricing_count();
+            }
+        });
+    }
+
+    go.store(true);
+    for (auto& w : writers) {
+        w.join();
+    }
+    stop_readers.store(true);
+    for (auto& rd : readers) {
+        rd.join();
+    }
+
+    EXPECT_EQ(base.size(), static_cast<size_t>(kWriters * kPerWriter));
+    EXPECT_EQ(base.size(), base.get_all().size());
+}
+
+// Several threads run local remove_if concurrently on the SAME view (disjoint id residue classes),
+// while another reads it. With removers under an exclusive lock this is race-free and empties the
+// view; under the old shared-lock-while-mutating bug it would corrupt the view's containers.
+TEST(SolutionPoolConcurrency, ConcurrentLocalRemoveIfOnSharedView) {
+    SolutionPool pool;
+    auto v = pool.new_filter();
+    constexpr int kN = 600;
+    for (int i = 0; i < kN; ++i) {
+        v.add(make_pool_solution(1.0, {{0, 1.0L}}, {static_cast<size_t>(7000 + i)}));
+    }
+
+    constexpr int kRemovers = 3;
+    std::atomic<bool> go{false};
+    std::atomic<bool> stop_reader{false};
+    std::vector<std::thread> removers;
+    for (int t = 0; t < kRemovers; ++t) {
+        removers.emplace_back([&, t] {
+            while (!go.load()) {
+            }
+            v.remove_if([t](SolutionPool::ColumnId cid, const Solution&, const ColumnActivity&) {
+                return (cid % kRemovers) == static_cast<SolutionPool::ColumnId>(t);  // disjoint
+            });
+        });
+    }
+    std::thread reader([&] {
+        while (!stop_reader.load()) {
+            (void)v.size();
+            (void)v.get_all();
+        }
+    });
+
+    go.store(true);
+    for (auto& th : removers) {
+        th.join();
+    }
+    stop_reader.store(true);
+    reader.join();
+
+    // Residue classes 0..kRemovers-1 cover every id (1..kN) ⇒ all removed.
+    EXPECT_EQ(v.size(), 0u);
+    EXPECT_EQ(v.get_all().size(), 0u);
+}
+
+// Building filtered views concurrently with adds: each view must contain only entries that pass
+// its filter (the constructor evaluates the filter off-lock, then applies under the lock).
+TEST(SolutionPoolConcurrency, ConcurrentNewFilterDuringAddsRespectsFilter) {
+    SolutionPool pool;
+    constexpr int kWriters = 3;
+    constexpr int kPerWriter = 150;
+    std::atomic<size_t> next_arc{1};
+    std::atomic<bool> go{false};
+    std::atomic<bool> stop_ctor{false};
+    std::atomic<bool> violation{false};
+    std::atomic<int> views_built{0};
+
+    const auto cost_filter = [](const Solution& s) { return s.column.cost < 100.0; };
+
+    std::vector<std::thread> writers;
+    for (int t = 0; t < kWriters; ++t) {
+        writers.emplace_back([&] {
+            auto w = pool.new_filter();
+            while (!go.load()) {
+            }
+            for (int i = 0; i < kPerWriter; ++i) {
+                const size_t arc = next_arc.fetch_add(1);
+                w.add(make_pool_solution(static_cast<double>(arc), {{0, 1.0L}}, {arc}));
+            }
+        });
+    }
+
+    std::thread ctor([&] {
+        while (!go.load()) {
+        }
+        while (!stop_ctor.load()) {
+            auto view = pool.new_filter(cost_filter);
+            for (const auto& [id, sol, act] : view.get_all()) {
+                if (!(sol.column.cost < 100.0)) {
+                    violation.store(true);
+                }
+            }
+            views_built.fetch_add(1);
+            std::this_thread::yield();
+        }
+    });
+
+    go.store(true);
+    for (auto& w : writers) {
+        w.join();
+    }
+    stop_ctor.store(true);
+    ctor.join();
+
+    EXPECT_FALSE(violation.load()) << "a concurrently-built view contained an entry failing its filter";
+    EXPECT_GT(views_built.load(), 0);
+
+    // Built after all adds: exactly the columns with cost < 100 (arcs 1..99).
+    auto final_view = pool.new_filter(cost_filter);
+    EXPECT_EQ(final_view.size(), 99u);
+    for (const auto& [id, sol, act] : final_view.get_all()) {
+        EXPECT_LT(sol.column.cost, 100.0);
+    }
 }
