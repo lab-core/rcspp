@@ -110,6 +110,16 @@ def test_price_threshold():
     assert abs(r2[0].solution.column.cost - 10.0) < 1e-9, "price must not mutate stored cost"
 
 
+def test_price_fractional_coefficients():
+    pool = SolutionPool()
+    fp = pool.new_filter()
+    # col.cost=2.5, rows=[(0,0.1),(1,0.2)]; duals=[3,4] → rc = 2.5 - 0.3 - 0.8 = 1.4
+    id1 = fp.add(make_solution(2.5, [(0, 0.1), (1, 0.2)], [10, 11]))
+    r = fp.price([3.0, 4.0], 2.0)  # rc 1.4 < 2.0 → returned
+    assert len(r) == 1 and r[0].id == id1
+    assert abs(r[0].reduced_cost - 1.4) < 1e-9
+
+
 def test_price_does_not_mutate_stored_cost():
     pool = SolutionPool()
     fp = pool.new_filter()
@@ -461,6 +471,7 @@ _TESTS = [
     test_duplicate_add_refreshes_column,
     test_get_by_id,
     test_price_threshold,
+    test_price_fractional_coefficients,
     test_price_does_not_mutate_stored_cost,
     test_price_out_of_range_dual,
     test_activity_tracking,

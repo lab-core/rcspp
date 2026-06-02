@@ -176,6 +176,19 @@ TEST(SolutionPool, PriceThreshold) {
     EXPECT_NEAR(r2[0].solution->column.cost, 10.0, 1e-9);
 }
 
+// L-7: pricing accumulates the reduced cost in long double and narrows once — verify a fractional
+// computation comes out correct (exercises the non-integer coefficient/dual path).
+TEST(SolutionPool, PriceFractionalCoefficients) {
+    SolutionPool pool;
+    auto fp = pool.new_filter();
+    // column.cost=2.5, rows=[{0,0.1},{1,0.2}], duals=[3,4]: rc = 2.5 - 0.1*3 - 0.2*4 = 1.4
+    auto id = fp.add(make_pool_solution(2.5, {{0, 0.1L}, {1, 0.2L}}, {10, 11}));
+    auto r = fp.price({3.0, 4.0}, /*threshold=*/2.0);  // rc 1.4 < 2.0 → returned
+    ASSERT_EQ(r.size(), 1u);
+    EXPECT_EQ(r[0].id, id);
+    EXPECT_NEAR(r[0].reduced_cost, 1.4, 1e-9);
+}
+
 TEST(SolutionPool, PriceDoesNotMutateStoredCost) {
     SolutionPool pool;
     auto fp = pool.new_filter();

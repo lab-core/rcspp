@@ -682,19 +682,23 @@ class FilteredSolutionPool {
             const size_t n_duals = duals.size();
             for (SolutionPool::Entry* entry_ptr : filtered_entries_) {
                 auto& entry = *entry_ptr;
-                double rc = entry.solution.column.cost;
+                // Accumulate in long double to match Row::coefficient's precision (the rest of the
+                // codebase aggregates coefficients in long double); narrow once to the LP-facing
+                // double below, instead of narrowing each coefficient per term.
+                long double rc = entry.solution.column.cost;
                 for (const Row& row : entry.solution.column.rows) {
                     if (row.index < n_duals) {
-                        rc -= static_cast<double>(row.coefficient) * duals[row.index];
+                        rc -= row.coefficient * static_cast<long double>(duals[row.index]);
                     }
                 }
-                entry.activity.last_reduced_cost = rc;
+                const double rc_d = static_cast<double>(rc);
+                entry.activity.last_reduced_cost = rc_d;
                 ++entry.activity.priced_count;  // this column was priced this round
-                if (rc < threshold) {
+                if (rc_d < threshold) {
                     entry.activity.age = 0;
                     ++entry.activity.use_count;
                     entry.activity.last_was_negative = true;
-                    result.push_back({entry.id, rc, &entry.solution});
+                    result.push_back({entry.id, rc_d, &entry.solution});
                 } else {
                     ++entry.activity.age;
                     entry.activity.last_was_negative = false;
@@ -748,7 +752,9 @@ inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_if_locked(const 
             const uint64_t hash = it->solution.get_hash();
 
             auto& bucket = hash_index_[hash];
-            bucket.erase(std::ranges::find(bucket, it));
+            if (auto f = std::ranges::find(bucket, it); f != bucket.end()) {
+                bucket.erase(f);  // guard: never erase(end()) if the iterator isn't in the bucket
+            }
             if (bucket.empty()) {
                 hash_index_.erase(hash);
             }
