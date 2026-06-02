@@ -22,20 +22,20 @@ namespace rcspp {
 // Activity stats for a column — stored in the pool and updated on every price() call
 // and on update_activity() calls (LP basis membership).
 struct ColumnActivity {
-        size_t age = 0;         // pricing iterations since last returned (reset on use)
-        size_t use_count = 0;   // total times returned by price() or found in LP basis
-        size_t created_at = 0;  // pool's pricing_count_ at time of insertion
+        size_t age = 0;           // price() rounds since last returned (reset on return/basis/re-add)
+        size_t use_count = 0;     // times returned by price() (rc < threshold)
+        size_t priced_count = 0;  // times this column was included in a price() call
+        size_t created_at = 0;    // pool's pricing_count_ at insertion (diagnostic)
         bool last_was_negative = false;
         double last_reduced_cost = std::numeric_limits<double>::infinity();
 
-        // Fraction of price() calls since insertion in which this column was returned.
-        [[nodiscard]] double usage_rate(size_t current_pricing_count) const {
-            const size_t lifetime =
-                current_pricing_count > created_at ? current_pricing_count - created_at : 0;
-            if (lifetime == 0) {
-                return 0.0;
-            }
-            return static_cast<double>(use_count) / static_cast<double>(lifetime);
+        // Fraction of this column's own pricings in which it was returned: use_count / priced_count.
+        // Per-column (independent of other views' pricing traffic) and always in [0, 1]; a column
+        // that has never been priced returns 0.0.
+        [[nodiscard]] double usage_rate() const {
+            return priced_count == 0
+                       ? 0.0
+                       : static_cast<double>(use_count) / static_cast<double>(priced_count);
         }
 };
 
@@ -275,9 +275,10 @@ class FilteredSolutionPool {
             return price_subset_locked(duals, threshold);
         }
 
-        // Update activity for entries in this view based on LP basis membership.
-        // Columns in basis_ids (and in this view): age reset, ++use_count.
-        // Columns in this view but NOT in basis_ids: ++age.
+        // Update activity for entries in this view based on LP basis membership. Basis membership
+        // is not a pricing event, so a basis column has its age reset (it is "in use") and
+        // last_was_negative set, but use_count/priced_count are left untouched (those count
+        // pricings only, so usage_rate stays a true fraction). Columns NOT in basis_ids: ++age.
         // Columns outside this view: untouched. Does NOT increment pricing_count.
         void update_activity(const std::vector<ColumnId>& basis_ids) {
             std::unique_lock lock(pool_.mutex_);
@@ -286,7 +287,6 @@ class FilteredSolutionPool {
                 auto& entry = *entry_ptr;
                 if (basis_set.contains(entry.id)) {
                     entry.activity.age = 0;
-                    ++entry.activity.use_count;
                     entry.activity.last_was_negative = true;
                 } else {
                     ++entry.activity.age;
@@ -338,14 +338,16 @@ class FilteredSolutionPool {
             });
         }
 
-        // Remove from this view entries where age > max_age OR usage_rate < min_usage_rate.
+        // Remove from this view entries where age > max_age, or (once priced) usage_rate is below
+        // min_usage_rate. A never-priced column (priced_count == 0) is never evicted by the usage
+        // criterion, so a freshly added column is not dropped before it has been priced.
         std::vector<ColumnId> remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);  // exclusive: remove_if_local mutates this view
-            const size_t pc = pool_.pricing_count_;
-            return remove_if_local([max_age, min_usage_rate, pc](ColumnId,
-                                                                 const Solution&,
-                                                                 const ColumnActivity& act) {
-                return act.age > max_age || act.usage_rate(pc) < min_usage_rate;
+            return remove_if_local([max_age, min_usage_rate](ColumnId,
+                                                             const Solution&,
+                                                             const ColumnActivity& act) {
+                return act.age > max_age ||
+                       (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
             });
         }
 
@@ -382,14 +384,14 @@ class FilteredSolutionPool {
                 });
         }
 
-        // Hard delete stale columns from pool.
+        // Hard delete stale columns from pool (same criterion as remove_stale).
         std::vector<ColumnId> global_remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);
-            const size_t pc = pool_.pricing_count_;
-            return pool_.remove_if_locked([max_age, min_usage_rate, pc](ColumnId,
-                                                                        const Solution&,
-                                                                        const ColumnActivity& act) {
-                return act.age > max_age || act.usage_rate(pc) < min_usage_rate;
+            return pool_.remove_if_locked([max_age, min_usage_rate](ColumnId,
+                                                                    const Solution&,
+                                                                    const ColumnActivity& act) {
+                return act.age > max_age ||
+                       (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
             });
         }
 
@@ -687,6 +689,7 @@ class FilteredSolutionPool {
                     }
                 }
                 entry.activity.last_reduced_cost = rc;
+                ++entry.activity.priced_count;  // this column was priced this round
                 if (rc < threshold) {
                     entry.activity.age = 0;
                     ++entry.activity.use_count;
@@ -710,7 +713,14 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
     if (hit != hash_index_.end()) {
         for (const auto& entry_it : hit->second) {
             if (entry_it->solution.path_arc_ids == sol.path_arc_ids) {
-                return entry_it->id;  // exact duplicate (path-based)
+                // Same arc path ⇒ same column identity. Refresh the stored column/cost with the
+                // re-proposed values (master coefficients may have changed) and reset age, since a
+                // just-regenerated column is not stale. path_arc_ids — and thus the hash — is
+                // unchanged, so hash_index_/id_index_ stay valid and the id is preserved.
+                entry_it->solution.column = sol.column;
+                entry_it->solution.cost = sol.cost;
+                entry_it->activity.age = 0;
+                return entry_it->id;
             }
         }
     }

@@ -28,15 +28,16 @@ struct PyPricedColumn {
 
 void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognitive-complexity)
     // ColumnActivity is stored per-entry in SolutionPool and updated on every price() call.
-    // usage_rate(current_pricing_count) returns use_count / (current - created_at).
+    // usage_rate() returns use_count / priced_count (∈ [0, 1]; 0.0 if the column was never priced).
     py::class_<ColumnActivity>(m, "ColumnActivity")
         .def(py::init<>())
         .def_readwrite("age", &ColumnActivity::age)
         .def_readwrite("use_count", &ColumnActivity::use_count)
+        .def_readwrite("priced_count", &ColumnActivity::priced_count)
         .def_readwrite("created_at", &ColumnActivity::created_at)
         .def_readwrite("last_was_negative", &ColumnActivity::last_was_negative)
         .def_readwrite("last_reduced_cost", &ColumnActivity::last_reduced_cost)
-        .def("usage_rate", &ColumnActivity::usage_rate, py::arg("current_pricing_count"));
+        .def("usage_rate", &ColumnActivity::usage_rate);
 
     // PricedColumn: result of FilteredSolutionPool.price().
     // id             → stable ColumnId for use in per-master variable/activity maps

@@ -105,6 +105,40 @@ TEST(SolutionPool, AddBatch) {
     EXPECT_EQ(ids[0], ids[2]);
 }
 
+// ─── duplicate add refreshes the stored column (L-3) ──────────────────────────
+
+TEST(SolutionPool, DuplicateAddRefreshesColumnAndResetsAge) {
+    SolutionPool pool;
+    auto fp = pool.new_filter();
+    const auto id1 = fp.add(make_pool_solution(5.0, {{0, 1.0L}}, {10, 11}));
+
+    // Age the entry with a pricing round that does not return it (rc = 5 - 0 > 0 → age++).
+    (void)fp.price({0.0});
+    {
+        auto act = fp.get_activity(id1);
+        ASSERT_TRUE(act.has_value());
+        EXPECT_EQ(act->age, 1u);
+    }
+
+    // Re-propose the SAME arc path with a different (cheaper) column.
+    const auto id2 = fp.add(make_pool_solution(3.0, {{1, 2.0L}}, {10, 11}));
+    EXPECT_EQ(id1, id2);       // deduped to the same column id
+    EXPECT_EQ(fp.size(), 1u);  // no new entry created
+
+    // The stored column reflects the LATEST cost/rows, not the first-seen values.
+    auto got = fp.get(id1);
+    ASSERT_TRUE(got.has_value());
+    EXPECT_NEAR(got->column.cost, 3.0, 1e-9);
+    ASSERT_EQ(got->column.rows.size(), 1u);
+    EXPECT_EQ(got->column.rows[0].index, 1u);
+    EXPECT_NEAR(static_cast<double>(got->column.rows[0].coefficient), 2.0, 1e-9);
+
+    // Re-proposing resets age (a regenerated column is fresh, not stale).
+    auto act = fp.get_activity(id1);
+    ASSERT_TRUE(act.has_value());
+    EXPECT_EQ(act->age, 0u);
+}
+
 // ─── get ────────────────────────────────────────────────────────────────────
 
 TEST(SolutionPool, GetById) {
@@ -206,7 +240,7 @@ TEST(SolutionPool, ActivityTracking) {
         EXPECT_EQ(act->age, 0u);
         EXPECT_EQ(act->use_count, 1u);
         EXPECT_TRUE(act->last_was_negative);
-        EXPECT_NEAR(act->usage_rate(fp.pricing_count()), 0.5, 1e-9);
+        EXPECT_NEAR(act->usage_rate(), 0.5, 1e-9);
     }
 
     (void)fp.price({3.0});
@@ -216,7 +250,7 @@ TEST(SolutionPool, ActivityTracking) {
         ASSERT_TRUE(act.has_value());
         EXPECT_EQ(act->age, 2u);
         EXPECT_EQ(act->use_count, 1u);
-        EXPECT_NEAR(act->usage_rate(fp.pricing_count()), 0.25, 1e-9);
+        EXPECT_NEAR(act->usage_rate(), 0.25, 1e-9);
     }
 }
 
@@ -422,7 +456,7 @@ TEST(SolutionPool, UpdateActivity) {
         ASSERT_TRUE(act1.has_value());
         ASSERT_TRUE(act2.has_value());
         EXPECT_EQ(act1->age, 0u);
-        EXPECT_EQ(act1->use_count, 1u);
+        EXPECT_EQ(act1->use_count, 0u);  // basis membership does not bump use_count
         EXPECT_TRUE(act1->last_was_negative);
         EXPECT_EQ(act2->age, 1u);
         EXPECT_EQ(act2->use_count, 0u);
@@ -436,11 +470,71 @@ TEST(SolutionPool, UpdateActivity) {
         ASSERT_TRUE(act1.has_value());
         ASSERT_TRUE(act2.has_value());
         EXPECT_EQ(act1->age, 1u);
-        EXPECT_EQ(act1->use_count, 1u);
+        EXPECT_EQ(act1->use_count, 0u);  // basis membership does not bump use_count
         EXPECT_EQ(act2->age, 2u);
         EXPECT_EQ(act2->use_count, 0u);
     }
     EXPECT_EQ(fp.pricing_count(), 0u);
+}
+
+// ─── usage_rate semantics (L-1 / L-2 / L-4) ──────────────────────────────────
+
+// L-1: basis membership (update_activity) must not inflate use_count or push usage_rate above 1.
+TEST(SolutionPool, UsageRateIsAFractionNotInflatedByBasis) {
+    SolutionPool pool;
+    auto fp = pool.new_filter();
+    auto id = fp.add(make_pool_solution(1.0, {{0, 1.0L}}, {10, 11}));
+    (void)fp.price({2.0});  // rc = 1 - 2 = -1 < 0 → returned: priced_count=1, use_count=1
+    for (int i = 0; i < 5; ++i) {
+        fp.update_activity({id});  // in basis 5×
+    }
+    auto act = fp.get_activity(id);
+    ASSERT_TRUE(act.has_value());
+    EXPECT_EQ(act->priced_count, 1u);
+    EXPECT_EQ(act->use_count, 1u);              // basis does not bump use_count
+    EXPECT_NEAR(act->usage_rate(), 1.0, 1e-9);  // 1/1, never > 1
+}
+
+// L-4: usage_rate depends only on the column's own pricings, not on other views' pricing traffic.
+TEST(SolutionPool, UsageRateIsViewTrafficIndependent) {
+    SolutionPool pool;
+    auto root = pool.new_filter();
+    root.add(make_pool_solution(1.0, {{0, 1.0L}}, {10, 11}));              // column A (arc 10)
+    auto id_b = root.add(make_pool_solution(1.0, {{0, 1.0L}}, {20, 21}));  // column B (arc 20)
+
+    auto fp_a = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {10}));  // only A
+    auto fp_b = pool.new_filter(FilteredSolutionPool::make_filter({}, {}, {20}));  // only B
+
+    for (int i = 0; i < 10; ++i) {
+        (void)fp_a.price({2.0});  // high-traffic view: A priced 10× (rc = -1 → returned)
+    }
+    for (int i = 0; i < 2; ++i) {
+        (void)fp_b.price({2.0});  // low-traffic view: B priced 2×
+    }
+
+    auto act_b = fp_b.get_activity(id_b);
+    ASSERT_TRUE(act_b.has_value());
+    EXPECT_EQ(act_b->priced_count, 2u);          // only B's own pricings, not A's 10 rounds
+    EXPECT_EQ(act_b->use_count, 2u);
+    EXPECT_NEAR(act_b->usage_rate(), 1.0, 1e-9);  // 2/2 = 1.0 (would be 2/12 under the pool-wide bug)
+}
+
+// L-2: a never-priced column must not be evicted by the usage-rate criterion.
+TEST(SolutionPool, RemoveStaleKeepsNeverPricedColumn) {
+    SolutionPool pool;
+    auto fp = pool.new_filter();
+    auto id1 = fp.add(make_pool_solution(10.0, {{0, 1.0L}}, {10, 11}));
+    (void)fp.price({0.0});  // rc = 10 > 0 → priced but not returned (priced_count=1, use_count=0)
+    (void)fp.price({0.0});
+    // Added after pricing ⇒ never priced (priced_count == 0).
+    auto id2 = fp.add(make_pool_solution(5.0, {{1, 1.0L}}, {20, 21}));
+
+    auto removed = fp.global_remove_stale(/*max_age=*/1000, /*min_usage_rate=*/0.5);
+    ASSERT_EQ(removed.size(), 1u);
+    EXPECT_EQ(removed[0], id1);            // priced & unused → evicted
+    EXPECT_TRUE(fp.get(id2).has_value());  // never-priced column survives
+    EXPECT_FALSE(fp.get(id1).has_value());
+    EXPECT_EQ(fp.size(), 1u);
 }
 
 // ─── arc-based filters via FilteredSolutionPool ──────────────────────────────
@@ -669,8 +763,8 @@ TEST(FilteredSolutionPool, ActivityShared) {
     fp_all.update_activity({id1, id2});  // both in basis
     auto fp_act2 = fp.get_activity(id2);
     ASSERT_TRUE(fp_act2.has_value());
-    EXPECT_EQ(fp_act2->use_count, 1u);
-    EXPECT_EQ(fp_act2->age, 0u);
+    EXPECT_EQ(fp_act2->use_count, 0u);  // basis membership does not bump use_count
+    EXPECT_EQ(fp_act2->age, 0u);         // but it resets age — and that update is visible via fp
 }
 
 // No-filter constructor

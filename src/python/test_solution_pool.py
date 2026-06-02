@@ -59,6 +59,22 @@ def test_add_batch():
     assert ids[0] == ids[2], "duplicate s1 should return same id"
 
 
+def test_duplicate_add_refreshes_column():
+    pool = SolutionPool()
+    fp = pool.new_filter()
+    id1 = fp.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
+    # Re-add the same arc path with an updated (cheaper) column; latest column must win.
+    id2 = fp.add(make_solution(3.0, [(1, 2.0)], [10, 11]))
+    assert id1 == id2  # deduped by path
+    assert len(fp) == 1
+    got = fp.get(id1)
+    assert got is not None
+    assert abs(got.column.cost - 3.0) < 1e-9  # was 5.0 before the refresh
+    assert len(got.column.rows) == 1
+    assert got.column.rows[0].index == 1
+    assert abs(got.column.rows[0].coefficient - 2.0) < 1e-9
+
+
 # ── get ───────────────────────────────────────────────────────────────────────
 
 
@@ -132,13 +148,13 @@ def test_activity_tracking():
     fp.price([11.0])  # rc=-1 → returned: age=0, use_count=1
     act = fp.get_activity(id1)
     assert act.age == 0 and act.use_count == 1 and act.last_was_negative
-    assert abs(act.usage_rate(fp.pricing_count()) - 0.5) < 1e-9
+    assert abs(act.usage_rate() - 0.5) < 1e-9
 
     fp.price([3.0])
     fp.price([3.0])
     act = fp.get_activity(id1)
     assert act.age == 2 and act.use_count == 1
-    assert abs(act.usage_rate(fp.pricing_count()) - 0.25) < 1e-9
+    assert abs(act.usage_rate() - 0.25) < 1e-9
 
 
 # ── row/arc filters ───────────────────────────────────────────────────────────
@@ -267,9 +283,39 @@ def test_update_activity():
     fp.update_activity([id1])
     act1 = fp.get_activity(id1)
     act2 = fp.get_activity(id2)
-    assert act1.age == 0 and act1.use_count == 1 and act1.last_was_negative
+    # basis membership resets age and sets last_was_negative, but does NOT bump use_count
+    assert act1.age == 0 and act1.use_count == 0 and act1.last_was_negative
     assert act2.age == 1 and act2.use_count == 0 and not act2.last_was_negative
     assert fp.pricing_count() == 0
+
+
+# ── usage_rate semantics (L-1 / L-2 / L-4) ────────────────────────────────────
+
+
+def test_usage_rate_not_inflated_by_basis():
+    pool = SolutionPool()
+    fp = pool.new_filter()
+    id1 = fp.add(make_solution(1.0, [(0, 1.0)], [10, 11]))
+    fp.price([2.0])  # rc = 1 - 2 = -1 → returned: priced_count=1, use_count=1
+    for _ in range(5):
+        fp.update_activity([id1])  # basis membership must not bump use_count or inflate usage_rate
+    act = fp.get_activity(id1)
+    assert act.priced_count == 1
+    assert act.use_count == 1
+    assert abs(act.usage_rate() - 1.0) < 1e-9  # 1/1, never > 1
+
+
+def test_remove_stale_keeps_never_priced_column():
+    pool = SolutionPool()
+    fp = pool.new_filter()
+    id1 = fp.add(make_solution(10.0, [(0, 1.0)], [10, 11]))
+    fp.price([0.0])  # rc = 10 → priced but not returned (use_count=0)
+    fp.price([0.0])
+    id2 = fp.add(make_solution(5.0, [(1, 1.0)], [20, 21]))  # added after pricing → never priced
+    removed = fp.global_remove_stale(max_age=1000, min_usage_rate=0.5)
+    assert removed == [id1]  # priced & unused → evicted
+    assert fp.get(id2) is not None  # never-priced column survives (priced_count == 0)
+    assert len(fp) == 1
 
 
 # ── auto-propagation ──────────────────────────────────────────────────────────
@@ -412,6 +458,7 @@ def test_priced_column_solution_survives_pool_removal():
 _TESTS = [
     test_add_deduplication,
     test_add_batch,
+    test_duplicate_add_refreshes_column,
     test_get_by_id,
     test_price_threshold,
     test_price_does_not_mutate_stored_cost,
@@ -425,6 +472,8 @@ _TESTS = [
     test_remove_stale_by_age,
     test_local_remove_arc_backtrack,
     test_update_activity,
+    test_usage_rate_not_inflated_by_basis,
+    test_remove_stale_keeps_never_priced_column,
     test_autopropagation_add,
     test_autopropagation_remove,
     test_chain_filter,
