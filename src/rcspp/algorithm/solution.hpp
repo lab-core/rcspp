@@ -39,7 +39,7 @@ static std::uint64_t fnv1a_mix_uint64(std::uint64_t v, std::uint64_t h = FNV_OFF
 }
 
 struct Solution {
-        Solution() = default;
+        Solution() noexcept { init_hash(); }
         Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids,
                  Column _column = {})
             : cost(_cost),
@@ -58,6 +58,10 @@ struct Solution {
         }
 
         [[nodiscard]] uint64_t get_hash() const noexcept { return hash_; }
+
+        // Recompute the content hash from path_arc_ids. The value constructor hashes automatically;
+        // call this after mutating path_arc_ids directly (the Python path_arc_ids setter does).
+        void rehash() noexcept { init_hash(); }
 
         double cost = std::numeric_limits<double>::infinity();
         std::list<size_t> path_node_ids;

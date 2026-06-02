@@ -125,8 +125,19 @@ void init_graph(py::module_& m) {
         .def(py::init<>())
         .def_readwrite("cost", &Solution::cost)
         .def_readwrite("path_node_ids", &Solution::path_node_ids)
-        .def_readwrite("path_arc_ids", &Solution::path_arc_ids)
+        // path_arc_ids is exposed via a property whose setter recomputes the content hash, so a
+        // Solution built the idiomatic Python way (default ctor + attribute assignment) gets the
+        // same hash as one built via the value constructor. A plain def_readwrite would leave
+        // hash_ stale (the empty-path hash), collapsing SolutionPool's hash_index_ into one bucket.
+        .def_property(
+            "path_arc_ids",
+            [](const Solution& s) -> const std::list<size_t>& { return s.path_arc_ids; },
+            [](Solution& s, std::list<size_t> v) {
+                s.path_arc_ids = std::move(v);
+                s.rehash();
+            })
         .def_readwrite("column", &Solution::column)
+        .def("get_hash", &Solution::get_hash)
         .def(
             "to_arrays",
             [](const Solution& sol) -> py::tuple {

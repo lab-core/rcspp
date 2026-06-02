@@ -364,6 +364,23 @@ def test_get_entry_and_get_all():
     assert all_entries[0][0] == id1
 
 
+# ── Solution hashing (H-1) ────────────────────────────────────────────────────
+
+
+def test_solution_hash_tracks_path_arc_ids():
+    # The idiomatic Python build (default ctor + attribute assignment) must yield a content hash,
+    # not the stale empty-path hash — otherwise SolutionPool's hash_index_ collapses to one bucket.
+    empty_hash = Solution().get_hash()
+
+    s1 = make_solution(5.0, [(0, 1.0)], [10, 11])
+    s2 = make_solution(7.0, [(1, 1.0)], [10, 11])  # same arc path, different cost/rows
+    s3 = make_solution(5.0, [(0, 1.0)], [20, 21])  # different arc path
+
+    assert s1.get_hash() == s2.get_hash(), "same arc path → same hash"
+    assert s1.get_hash() != s3.get_hash(), "different arc path → different hash (was all-0 before)"
+    assert s1.get_hash() != empty_hash, "a populated solution must not keep the empty-path hash"
+
+
 # ── PricedColumn lifetime (P-2) ───────────────────────────────────────────────
 
 
@@ -414,6 +431,7 @@ _TESTS = [
     test_add_filter_mutates_view,
     test_custom_filter,
     test_get_entry_and_get_all,
+    test_solution_hash_tracks_path_arc_ids,
     test_priced_column_solution_survives_pool_removal,
 ]
 

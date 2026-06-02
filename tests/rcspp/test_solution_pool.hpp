@@ -40,6 +40,37 @@ Solution make_pool_solution(double col_cost, std::vector<Row> rows,
 
 }  // namespace
 
+// ─── Solution hashing (H-1) ───────────────────────────────────────────────────
+
+// A default-constructed Solution must carry the empty-path hash (FNV offset basis), matching a
+// value-constructed empty-path Solution — so operator== / std::hash are consistent.
+TEST(Solution, DefaultConstructedHashMatchesEmptyPath) {
+    Solution def;                 // default ctor now computes the (empty-path) hash
+    Solution param(0.0, {}, {});  // value ctor, empty path
+    EXPECT_EQ(def.get_hash(), FNV_OFFSET_BASIS);
+    EXPECT_EQ(def.get_hash(), param.get_hash());
+    EXPECT_TRUE(def == param);  // was false before (0 vs FNV_OFFSET_BASIS) despite equal paths
+}
+
+// rehash() recomputes the hash after path_arc_ids is mutated directly, matching the value ctor.
+TEST(Solution, RehashReflectsPathMutation) {
+    Solution s;  // empty path
+    const auto empty_hash = s.get_hash();
+    s.path_arc_ids = {10, 11};  // mutate the public member directly
+    s.rehash();                 // recompute (the Python path_arc_ids setter does this for you)
+    EXPECT_NE(s.get_hash(), empty_hash);
+    Solution ref(0.0, {}, {10, 11});  // value ctor with the same path
+    EXPECT_EQ(s.get_hash(), ref.get_hash());
+    EXPECT_TRUE(s == ref);
+}
+
+// Distinct arc paths hash differently (the index actually discriminates).
+TEST(Solution, DistinctPathsDistinctHash) {
+    Solution a(0.0, {}, {10, 11});
+    Solution b(0.0, {}, {20, 21});
+    EXPECT_NE(a.get_hash(), b.get_hash());
+}
+
 // ─── add / deduplication ────────────────────────────────────────────────────
 
 TEST(SolutionPool, AddDeduplication) {
