@@ -43,25 +43,44 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
 
-# Find all .py files in rcspp (recursively)
+# Collect .py files from the C++/pybind11 interface directory.
 file(GLOB_RECURSE PYTHON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.py")
+
+# Also collect pure-Python helpers from src/python/rcspp/ (e.g. pricing_pool.py).
+file(GLOB_RECURSE PYTHON_EXTRA_SOURCES "${CMAKE_SOURCE_DIR}/src/python/rcspp/*.py")
 
 # Build per-file copy rules with explicit OUTPUT so CMake re-copies whenever a
 # .py file changes, without requiring the C++ extension to rebuild.
 set(PYTHON_COPY_OUTPUTS "")
-foreach(PY_FILE IN LISTS PYTHON_SOURCES)
-  file(RELATIVE_PATH REL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/rcspp" "${PY_FILE}")
+
+# Helper macro to register one copy rule.
+macro(add_py_copy_rule PY_FILE BASE_DIR)
+  file(RELATIVE_PATH REL_PATH "${BASE_DIR}" "${PY_FILE}")
   get_filename_component(REL_DIR "${REL_PATH}" DIRECTORY)
   set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_PATH}")
   list(APPEND PYTHON_COPY_OUTPUTS "${OUT_FILE}")
-
   add_custom_command(
     OUTPUT "${OUT_FILE}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PY_FILE}" "${OUT_FILE}"
     DEPENDS "${PY_FILE}"
     COMMENT "Copying ${REL_PATH} to build tree"
   )
+endmacro()
+
+foreach(PY_FILE IN LISTS PYTHON_SOURCES)
+  add_py_copy_rule("${PY_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/rcspp")
+endforeach()
+
+foreach(PY_FILE IN LISTS PYTHON_EXTRA_SOURCES)
+  # Skip files that would produce an output already covered by PYTHON_SOURCES
+  # (e.g. __init__.py exists in both directories; the interface version wins).
+  file(RELATIVE_PATH _rel "${CMAKE_SOURCE_DIR}/src/python/rcspp" "${PY_FILE}")
+  set(_out "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${_rel}")
+  if(NOT "${_out}" IN_LIST PYTHON_COPY_OUTPUTS)
+    add_py_copy_rule("${PY_FILE}" "${CMAKE_SOURCE_DIR}/src/python/rcspp")
+  endif()
 endforeach()
 
 # Dedicated target that drives all .py copies; rebuilds only when sources change.
@@ -74,6 +93,13 @@ install(TARGETS ${PYTHON_EXTENSION_NAME}
 )
 
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/"
+    DESTINATION ${PYTHON_PACKAGE_NAME}
+    FILES_MATCHING
+    PATTERN "*.py"
+)
+
+# Install pure-Python helpers from src/python/rcspp/ (e.g. pricing_pool.py).
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/src/python/rcspp/"
     DESTINATION ${PYTHON_PACKAGE_NAME}
     FILES_MATCHING
     PATTERN "*.py"
