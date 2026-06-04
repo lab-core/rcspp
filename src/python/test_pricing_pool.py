@@ -45,10 +45,41 @@ def test_create_and_attach():
             # Write via pool, read via worker — verifies they share the same memory.
             pool.add(make_solution(42.0, [(3, 1.5)], [1]))
             assert worker.count == 1
+            # matrix[:,0] = cost; matrix[:,j+1] = coef for constraint j
             assert abs(worker.matrix_view[0, 0] - 42.0) < 1e-9
-            assert abs(worker.matrix_view[0, 4] - 1.5) < 1e-9  # index 3 → col 4 (0-indexed cost)
+            assert abs(worker.matrix_view[0, 4] - 1.5) < 1e-9  # constraint 3 → column 4
+            # col_costs_view and row_matrix_view are zero-copy views.
+            assert abs(float(worker.col_costs_view[0]) - 42.0) < 1e-9
+            assert abs(float(worker.row_matrix_view[0, 3]) - 1.5) < 1e-9
         finally:
             worker.close()
+    finally:
+        pool.unlink()
+
+
+def test_alignment():
+    """matrix_offset must be 8-byte aligned for any max_cols value."""
+    for max_cols in [1, 5, 7, 8, 100, 1_000]:
+        pool = SharedPricingPool(n_constraints=5, max_cols=max_cols)
+        try:
+            assert (
+                pool._matrix_offset % 8 == 0
+            ), f"matrix_offset {pool._matrix_offset} not 8-byte aligned for max_cols={max_cols}"
+        finally:
+            pool.unlink()
+
+
+def test_add_batch():
+    pool = SharedPricingPool(n_constraints=5, max_cols=50)
+    try:
+        solutions = [make_solution(float(i), [(0, float(i))], [i]) for i in range(5)]
+        idxs = pool.add_columns(solutions)
+        assert idxs == [0, 1, 2, 3, 4]
+        assert pool.count == 5
+        assert pool.active_count == 5
+        for i in range(5):
+            assert abs(pool.col_costs_view[i] - float(i)) < 1e-9
+            assert abs(pool.row_matrix_view[i, 0] - float(i)) < 1e-9
     finally:
         pool.unlink()
 
