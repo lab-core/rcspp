@@ -1,36 +1,99 @@
 """Cross-process shared pricing pool for RCSPP column generation.
 
+Three-class design
+------------------
+
+:class:`SharedPricingPool`
+    **The raw shared-memory object.**  Stores LP column data (costs +
+    constraint coefficients) in CSR format inside a single
+    ``multiprocessing.shared_memory.SharedMemory`` segment.  Multiple
+    processes attach to the *same* segment and call :meth:`price` concurrently
+    without a lock.  Only writes (``add``, ``invalidate``) are locked.
+
+    *Typical user*: worker processes that only need to price columns.
+
+    Usage::
+
+        # Master process — create once, pass handle to workers.
+        pool = SharedPricingPool(n_constraints=200, max_cols=50_000)
+        pool.add(solution)              # write-locked
+        handle = pool.handle()          # picklable dict
+
+        # Worker process — attach and price.
+        worker_pool = SharedPricingPool.attach(handle)
+        indices, rcs = worker_pool.price(duals)   # lock-free
+
+:class:`FilteredSharedPricingPool`
+    **A process-local filter view over a** ``SharedPricingPool``.  Holds a
+    boolean numpy mask (in the calling process's heap, *not* in shared
+    memory) that restricts which column slots are visible during pricing.
+    Mirrors the concept of the C++ ``FilteredSolutionPool`` but in pure
+    Python/numpy.
+
+    Use for Branch-and-Bound: each B&B node creates its own
+    ``FilteredSharedPricingPool`` that excludes columns covering forbidden
+    arcs or missing compulsory rows.  :meth:`remove_from_view` /
+    :meth:`add_to_view` support backtracking without touching shared memory.
+
+    *Typical user*: master process or any process doing B&B pricing.
+
+    Usage::
+
+        fpool = FilteredSharedPricingPool(pool, view_indices=allowed_idx)
+        fpool.remove_from_view([slot_of_forbidden_column])
+        indices, rcs = fpool.price(duals)   # only allowed columns
+
+        # Or create from a C++ FilteredSolutionPool via PricingPool:
+        fpool = pricing_pool.new_numpy_filter(cpp_fp)
+
+:class:`PricingPool`
+    **Master-side coordinator** — keeps a C++ ``FilteredSolutionPool`` and a
+    ``SharedPricingPool`` in sync.  All C++ pool operations (add, remove,
+    activity tracking, arc/row filters) go through the ``FilteredSolutionPool``
+    as usual.  Cross-process pricing uses the ``SharedPricingPool`` underneath.
+
+    *Typical user*: the master process in a column-generation loop.
+
+    Usage::
+
+        cpp_pool = SolutionPool()
+        pp = PricingPool(cpp_pool.new_filter(), n_constraints=200)
+        handle = pp.shared_handle()       # pass to worker processes
+
+        # Add/remove columns — both C++ pool and shared pool are updated.
+        pp.add(solution)
+        pp.remove_stale(max_age=50)
+
+        # Master-side pricing (delegates to SharedPricingPool).
+        indices, rcs = pp.price_shared(duals)
+
+        # Pricing with a C++ arc/row filter (creates FilteredSharedPricingPool).
+        restricted_fp = cpp_pool.new_filter(forbidden_arc_ids=[10, 11])
+        indices, rcs = pp.new_numpy_filter(restricted_fp).price(duals)
+
+        # Worker processes only need SharedPricingPool.attach(handle).
+
 Memory layout (single SharedMemory segment)
 -------------------------------------------
-Offset 0 … HEADER_BYTES-1:
-    Structured header — see ``_HEADER_DTYPE`` below.
-    Written once at construction; read-only after that.
+::
 
-CSR regions (all committed under the write lock):
+    [header 128 B][valid uint8][col_costs f64][row_starts i32][col_indices i32][col_values f64]
 
-    ``valid[max_cols]``              uint8   — 0=empty/invalid, 1=active
-    ``col_costs[max_cols]``          float64 — LP cost per column
-    ``row_starts[max_cols + 1]``     int32   — CSR row-pointer array
-    ``col_indices[max_nnz]``         int32   — constraint indices (non-zeros)
-    ``col_values[max_nnz]``          float64 — constraint coefficients
+CSR pricing formula
+-------------------
+``rc[i] = col_costs[i] - A[i] @ duals``
 
-The ``row_starts`` sentinel pattern:
-    row_starts[0]   = 0
-    row_starts[i+1] = row_starts[i] + nnz_for_column_i
-
-CSR pricing formula (lock-free, via scipy.sparse SPMV)
--------------------------------------------------------
-``rc[i] = col_costs[i] - A[i, :n_duals] @ duals[:n_duals]``
-
-where ``A`` is built as a ``scipy.sparse.csr_matrix`` directly over the shared
-memory buffers (zero-copy when dtypes match: ``int32`` indices, ``float64`` values).
-Complexity: ``O(nnz)`` — independent of ``n_constraints``.
+where ``A`` is a ``scipy.sparse.csr_matrix`` view over the shared CSR buffers
+(zero-copy).  Complexity: ``O(nnz)`` — independent of ``n_constraints``.
+Falls back to a numpy ``bincount`` SPMV with a one-time warning if scipy is
+not installed.
 
 Dynamic cuts
 ------------
-``n_constraints`` is over-allocated at creation (e.g. 1000).  New cuts only
-add new entries in the dual vector.  Old columns already have no entry at those
-indices, so they are handled correctly without any data update.
+``n_constraints`` is over-allocated at creation (e.g. 1000).  When new cuts
+are added their LP duals just appear as new entries in the ``duals`` vector.
+Old columns have no coefficient at those indices (the CSR rows contain no
+entry for them), so they are handled correctly without any data update.
 """
 
 from __future__ import annotations
@@ -82,29 +145,48 @@ def _align_up(n: int, align: int) -> int:
 class SharedPricingPool:
     """Cross-process shared pricing pool with CSR storage and scipy SPMV pricing.
 
-    Stores LP column data in **CSR format** (cost vector + sparse coefficient
-    matrix).  Columns are sparse in practice (VRP: 2–5 rows per column out of
-    50–200 constraints), so CSR avoids storing and multiplying the many zeros
-    that a dense layout would contain.
+    Stores LP column data in **CSR format** inside a single ``SharedMemory``
+    segment.  Multiple processes attach to the same segment; ``price()`` is
+    lock-free.  Only ``add()`` and ``invalidate()`` acquire the write lock.
 
-    Pricing is **O(nnz)** — independent of ``n_constraints``.
+    Columns are sparse in CG (VRP: 2–5 active constraints per route out of
+    50–200), so CSR is both memory-efficient and O(nnz) at pricing time.
 
-    If **scipy** is installed, ``price()`` uses ``scipy.sparse.csr_matrix``
-    (zero-copy SPMV over the shared buffers).  If scipy is absent, a pure
-    numpy fallback via ``np.bincount`` is used; a one-time warning is printed
-    recommending ``pip install scipy``.
+    If **scipy** is installed, ``price()`` uses a zero-copy ``csr_matrix``
+    SPMV directly over the shared buffers.  Without scipy a ``np.bincount``
+    fallback is used (same complexity, slightly slower) with a one-time
+    warning.
 
-    ``price(duals)`` is **lock-free**.
+    Typical usage (master creates, workers attach)::
+
+        # ── master ────────────────────────────────────────────────────────
+        pool = SharedPricingPool(n_constraints=200, max_cols=50_000)
+        for sol in initial_solutions:
+            pool.add(sol)
+        handle = pool.handle()   # picklable — pass to workers
+
+        # ── worker ────────────────────────────────────────────────────────
+        worker_pool = SharedPricingPool.attach(handle)
+
+        # Lock-free pricing each CG iteration:
+        indices, rcs = worker_pool.price(duals)
+        # indices: positions in the shared pool sorted by rc (best first)
+        # rcs:     reduced costs, all < threshold (default -1e-9)
+
+        # ── master: invalidate removed columns ────────────────────────────
+        pool.invalidate([slot_of_removed_col])
 
     Args:
-        n_constraints: Highest constraint index that will appear + 1.
-            Over-allocate (e.g. 1000) to leave room for future cuts.
-        max_cols: Maximum number of column slots.
-        max_nnz_per_col: Expected maximum non-zeros per column (default 50).
-            ``max_nnz = max_cols × max_nnz_per_col``.
-        name: Explicit name for the SharedMemory segment; auto-generated if None.
-        lock: External lock (e.g. ``Manager().Lock()`` for spawn-safe use).
-            A plain ``Lock()`` is created if None.
+        n_constraints: Highest constraint index + 1.  Over-allocate (e.g.
+            1000) so future cuts need no reallocation — just pass a longer
+            ``duals`` vector.
+        max_cols: Column capacity.
+        max_nnz_per_col: Maximum non-zeros per column (default 50).
+            Total capacity: ``max_nnz = max_cols × max_nnz_per_col``.
+        name: SharedMemory segment name; auto-generated if ``None``.
+        lock: External lock for spawn-safe multiprocessing.  Use
+            ``multiprocessing.Manager().Lock()`` when starting workers with
+            ``spawn``; the default ``Lock()`` works with ``fork``.
     """
 
     def __init__(
@@ -509,17 +591,40 @@ class SharedPricingPool:
 
 
 class FilteredSharedPricingPool:
-    """A local (per-process) filtered view over a :class:`SharedPricingPool`.
+    """A process-local filter view over a :class:`SharedPricingPool`.
 
-    Holds a numpy boolean mask that restricts which column slots are visible
-    during pricing.  The mask is process-local (not in shared memory), making
-    this suitable for Branch-and-Bound where each node has its own exclusions.
+    Holds a numpy boolean mask (in the calling process's heap, **not** in
+    shared memory) that restricts which column slots are visible when calling
+    :meth:`price`.  This mirrors the C++ ``FilteredSolutionPool`` concept but
+    operates entirely in Python/numpy.
 
-    Typically constructed via :meth:`PricingPool.new_numpy_filter`.
+    Use cases:
+
+    * **Branch-and-Bound**: each B&B node creates its own
+      ``FilteredSharedPricingPool`` excluding columns that violate the node's
+      arc/row restrictions.  :meth:`remove_from_view` / :meth:`add_to_view`
+      support cheap backtracking without touching shared memory.
+    * **Subset pricing**: price only a curated subset of columns (e.g. the
+      elite columns that were in the LP basis recently).
+
+    Typically obtained from :meth:`PricingPool.new_numpy_filter`, which
+    automatically populates the mask from a C++ ``FilteredSolutionPool``::
+
+        # Mirror a C++ filter that forbids arc 10.
+        cpp_fp = cpp_pool.new_filter(forbidden_arc_ids=[10])
+        fpool  = pricing_pool.new_numpy_filter(cpp_fp)
+        indices, rcs = fpool.price(duals)
+
+    Can also be built directly::
+
+        fpool = FilteredSharedPricingPool(shared_pool, view_indices=allowed_idx)
+        fpool.remove_from_view([slot_i, slot_j])   # B&B restriction
+        indices, rcs = fpool.price(duals)
+        fpool.add_to_view([slot_i, slot_j])         # backtrack
 
     Args:
         shared: The backing ``SharedPricingPool``.
-        view_indices: 1-D integer array of shared indices in this view.
+        view_indices: 1-D integer array of shared indices to include.
             ``None`` → all currently valid columns are included.
     """
 
@@ -595,33 +700,64 @@ class FilteredSharedPricingPool:
 
 
 class PricingPool:
-    """Keeps a C++ ``FilteredSolutionPool`` and a ``SharedPricingPool`` in sync.
+    """Master-side coordinator: keeps a C++ pool and a shared pool in sync.
 
-    The master process owns both objects:
+    The **master process** owns a ``PricingPool``.  It routes:
 
-    * Structural operations (add, remove, filter, activity) go through the C++
-      ``FilteredSolutionPool``.
-    * Cross-process pricing uses the ``SharedPricingPool`` (CSR, scipy SPMV).
+    * All **structural operations** (``add``, ``remove_stale``,
+      ``global_remove_if``, activity tracking, arc/row filters) through the
+      underlying C++ ``FilteredSolutionPool`` — unchanged from pure-C++ usage.
+    * **Cross-process pricing** through the ``SharedPricingPool`` so workers
+      can price without any C++ dependency.
 
-    Worker processes receive a ``shared_handle()`` and call
-    ``SharedPricingPool.attach(handle)`` — they never touch the C++ pool.
+    A ``ColumnId → shared_index`` map is maintained internally so that when
+    the C++ pool removes a column, the corresponding shared slot is
+    automatically invalidated.
+
+    **Worker processes** never need this class.  They receive
+    ``shared_handle()`` and call ``SharedPricingPool.attach(handle)``.
+
+    Typical column-generation loop::
+
+        cpp_pool = SolutionPool()
+        pp = PricingPool(cpp_pool.new_filter(), n_constraints=200, max_cols=50_000)
+        handle = pp.shared_handle()   # send to workers once
+
+        for iteration in range(max_iter):
+            # Workers solve pricing with different duals, return solutions.
+            new_solutions = solve_in_parallel(handle, duals)
+
+            # Master adds new columns to both pools atomically.
+            for sol in new_solutions:
+                pp.add(sol)
+
+            # Master solves LP master, gets new duals …
+
+            # Master prunes stale columns from both pools.
+            pp.remove_stale(max_age=100, min_usage_rate=0.01)
+
+        pp.close()   # release shared memory
+
+    Filtered pricing (Branch-and-Bound)::
+
+        # Restrict to columns not covering a forbidden arc.
+        restricted_cpp = cpp_pool.new_filter(forbidden_arc_ids=[arc_id])
+        fpool = pp.new_numpy_filter(restricted_cpp)
+        indices, rcs = fpool.price(duals)
+
+        # Shorthand when the pool's own filter is already restricted:
+        indices, rcs = pp.filtered_price(duals)
+
+    All methods not explicitly defined here (``price``, ``update_activity``,
+    ``get_all``, ``new_filter``, etc.) are forwarded to the C++
+    ``FilteredSolutionPool`` via ``__getattr__``.
 
     Args:
         filtered_pool: Existing ``FilteredSolutionPool`` from the C++ bindings.
-        n_constraints: Passed to ``SharedPricingPool``.
-        max_cols: Column capacity of the shared pool.
+        n_constraints: Constraint capacity for the shared pool (over-allocate).
+        max_cols: Column capacity.
         max_nnz_per_col: Maximum non-zeros per column (default 50).
-        lock: Optional external lock for spawn-safe multiprocessing.
-
-    Example::
-
-        pool = SolutionPool()
-        pp = PricingPool(pool.new_filter(), n_constraints=200, max_cols=50_000)
-        handle = pp.shared_handle()   # pass to workers
-
-        # worker:
-        shared = SharedPricingPool.attach(handle)
-        indices, rcs = shared.price(duals)
+        lock: External lock for spawn-safe multiprocessing.
     """
 
     def __init__(
