@@ -316,7 +316,7 @@ def test_pricing_pool_new_filter_activity():
 
 
 def test_pricing_pool_remove_from_view_list():
-    """remove_from_view accepts lists of arc_ids and cpp_ids."""
+    """remove_from_view accepts lists of arc_ids and col_ids."""
     pool = PricingPool(n_constraints=3, max_cols=20)
     try:
         c0 = pool.add(make_solution(5.0, [(0, 3.0)], [10]))
@@ -330,7 +330,7 @@ def test_pricing_pool_remove_from_view_list():
         assert len(indices) == 0
 
         # Backtrack.
-        sub.add_to_view(cpp_ids=[c0, c1])
+        sub.add_to_view(col_ids=[c0, c1])
         indices, _ = sub.price(duals)
         assert len(indices) == 2
     finally:
