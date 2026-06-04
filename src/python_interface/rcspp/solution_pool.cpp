@@ -145,7 +145,22 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             py::arg("forbidden_rows") = std::vector<size_t>{},
             py::arg("compulsory_arc_ids") = std::vector<size_t>{},
             py::arg("forbidden_arc_ids") = std::vector<size_t>{})
-        .def_readonly_static("NO_ID", &SolutionPool::kNoId);
+        .def_readonly_static("NO_ID", &SolutionPool::kNoId)
+        // get_lp_arrays(): return the internal LP CSR data as four numpy arrays.
+        // Useful for bulk-populating a SharedPricingPool without iterating column.rows.
+        .def("get_lp_arrays", [](const SolutionPool& pool) {
+            std::vector<double> col_costs;
+            std::vector<uint32_t> row_starts, row_indices;
+            std::vector<double> row_coefs;
+            pool.get_lp_data(col_costs, row_starts, row_indices, row_coefs);
+            return py::make_tuple(
+                py::array_t<double>(static_cast<py::ssize_t>(col_costs.size()), col_costs.data()),
+                py::array_t<uint32_t>(static_cast<py::ssize_t>(row_starts.size()),
+                                      row_starts.data()),
+                py::array_t<uint32_t>(static_cast<py::ssize_t>(row_indices.size()),
+                                      row_indices.data()),
+                py::array_t<double>(static_cast<py::ssize_t>(row_coefs.size()), row_coefs.data()));
+        });
 
     // ── FilteredSolutionPool ──────────────────────────────────────────────────
     // A scoped, filtered view over a SolutionPool for use in B&B column generation.

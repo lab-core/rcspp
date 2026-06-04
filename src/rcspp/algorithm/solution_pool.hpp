@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <limits>
 #include <list>
@@ -36,6 +37,43 @@ struct ColumnActivity {
             return priced_count == 0
                        ? 0.0
                        : static_cast<double>(use_count) / static_cast<double>(priced_count);
+        }
+};
+
+// ─── Internal atomic activity storage ─────────────────────────────────────────
+// Used inside Entry so that price() and update_activity() can hold shared_lock
+// while concurrently updating per-entry counters without data races.
+// ColumnActivity (the public, non-atomic type) is obtained via snapshot().
+struct AtomicColumnActivity {
+        std::atomic<size_t> age{0};
+        std::atomic<size_t> use_count{0};
+        std::atomic<size_t> priced_count{0};
+        size_t created_at{0};  // set once at insertion; no concurrent write
+        std::atomic<bool> last_was_negative{false};
+        std::atomic<double> last_reduced_cost{std::numeric_limits<double>::infinity()};
+
+        AtomicColumnActivity() = default;
+        // Atomic types are not copy/move-constructible by default; provide them
+        // so std::list<Entry> can grow and Entry can be moved into the list.
+        AtomicColumnActivity(const AtomicColumnActivity& o) noexcept
+            : age(o.age.load()),
+              use_count(o.use_count.load()),
+              priced_count(o.priced_count.load()),
+              created_at(o.created_at),
+              last_was_negative(o.last_was_negative.load()),
+              last_reduced_cost(o.last_reduced_cost.load()) {}
+        AtomicColumnActivity(AtomicColumnActivity&& o) noexcept
+            : AtomicColumnActivity(static_cast<const AtomicColumnActivity&>(o)) {}
+        AtomicColumnActivity& operator=(const AtomicColumnActivity&) = delete;
+
+        /// Return a non-atomic snapshot suitable for the public ColumnActivity API.
+        [[nodiscard]] ColumnActivity snapshot() const {
+            return {age.load(std::memory_order_relaxed),
+                    use_count.load(std::memory_order_relaxed),
+                    priced_count.load(std::memory_order_relaxed),
+                    created_at,
+                    last_was_negative.load(std::memory_order_relaxed),
+                    last_reduced_cost.load(std::memory_order_relaxed)};
         }
 };
 
@@ -85,6 +123,18 @@ class SolutionPool {
             std::vector<size_t> compulsory_arc_ids = {},
             std::vector<size_t> forbidden_arc_ids = {});
 
+        // Return the internal LP SoA arrays as copies for bulk population of
+        // external stores such as SharedPricingPool.
+        void get_lp_data(std::vector<double>& out_col_costs, std::vector<uint32_t>& out_row_starts,
+                         std::vector<uint32_t>& out_row_indices,
+                         std::vector<double>& out_row_coefs) const {
+            std::shared_lock lock(mutex_);
+            out_col_costs = lp_.col_costs;
+            out_row_starts = lp_.row_starts;
+            out_row_indices = lp_.row_indices;
+            out_row_coefs = lp_.row_coefs;
+        }
+
     private:
         // ── SoA LP store: contiguous arrays for cache-friendly pricing ─────────
         // Append-only. lp_index in Entry is a permanent handle into these arrays.
@@ -121,7 +171,7 @@ class SolutionPool {
         struct Entry {
                 ColumnId id;
                 Solution solution;
-                ColumnActivity activity;
+                AtomicColumnActivity activity;
                 uint32_t lp_index{0};  // index into LpStore arrays
         };
         using EntryIter = std::list<Entry>::iterator;
@@ -136,7 +186,7 @@ class SolutionPool {
         // registered FilteredSolutionPools for auto-propagation
         std::vector<FilteredSolutionPool*> registered_pools_;
         ColumnId next_id_{1};
-        size_t pricing_count_{0};
+        std::atomic<size_t> pricing_count_{0};
 
         // caller: if non-null, this FilteredSolutionPool handles its own update directly and
         // should be skipped during propagation.
@@ -302,20 +352,20 @@ class FilteredSolutionPool {
 
         // Price the filtered subset. Increments pricing_count; updates ColumnActivity
         // only for entries in this view.
+        // price() uses shared_lock because activity fields are atomic — concurrent
+        // calls from different FilteredSolutionPool instances are safe.
         [[nodiscard]] std::vector<PricedColumn> price(const std::vector<double>& duals,
                                                       double threshold = 0.0) {
-            std::unique_lock lock(pool_.mutex_);
-            ++pool_.pricing_count_;
+            std::shared_lock lock(pool_.mutex_);
+            ++pool_.pricing_count_;  // std::atomic<size_t>: safe under shared_lock
             return price_subset_locked(duals, threshold);
         }
 
-        // Update activity for entries in this view based on LP basis membership. Basis membership
-        // is not a pricing event, so a basis column has its age reset (it is "in use") and
-        // last_was_negative set, but use_count/priced_count are left untouched (those count
-        // pricings only, so usage_rate stays a true fraction). Columns NOT in basis_ids: ++age.
-        // Columns outside this view: untouched. Does NOT increment pricing_count.
+        // update_activity() uses shared_lock for the same reason: activity writes
+        // are now atomic, so concurrent price()/update_activity() calls are safe.
+        // Columns NOT in basis_ids: ++age. Columns outside this view: untouched.
         void update_activity(const std::vector<ColumnId>& basis_ids) {
-            std::unique_lock lock(pool_.mutex_);
+            std::shared_lock lock(pool_.mutex_);
             const std::unordered_set<ColumnId> basis_set(basis_ids.begin(), basis_ids.end());
             for (SolutionPool::Entry* entry_ptr : filtered_entries_) {
                 auto& entry = *entry_ptr;
@@ -342,7 +392,9 @@ class FilteredSolutionPool {
                 std::shared_lock lock(pool_.mutex_);
                 snapshot.reserve(filtered_entries_.size());
                 for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
-                    snapshot.emplace_back(entry_ptr->id, entry_ptr->solution, entry_ptr->activity);
+                    snapshot.emplace_back(entry_ptr->id,
+                                          entry_ptr->solution,
+                                          entry_ptr->activity.snapshot());
                 }
             }
             std::vector<ColumnId> selected;
@@ -395,7 +447,7 @@ class FilteredSolutionPool {
                 std::shared_lock lock(pool_.mutex_);
                 snapshot.reserve(pool_.entries_.size());
                 for (const SolutionPool::Entry& entry : pool_.entries_) {
-                    snapshot.emplace_back(entry.id, entry.solution, entry.activity);
+                    snapshot.emplace_back(entry.id, entry.solution, entry.activity.snapshot());
                 }
             }
             std::vector<ColumnId> selected;
@@ -464,7 +516,7 @@ class FilteredSolutionPool {
             if (it == filtered_ids_.end()) {
                 return std::nullopt;
             }
-            return filtered_entries_[it->second]->activity;
+            return filtered_entries_[it->second]->activity.snapshot();
         }
 
         // Returns (id, solution, activity) in a single lock-acquire; nullopt if not in this view.
@@ -479,7 +531,7 @@ class FilteredSolutionPool {
                 return std::nullopt;
             }
             const auto& e = *filtered_entries_[it->second];
-            return std::make_tuple(e.id, e.solution, e.activity);
+            return std::make_tuple(e.id, e.solution, e.activity.snapshot());
         }
 
         [[nodiscard]] size_t pricing_count() const {
@@ -498,7 +550,7 @@ class FilteredSolutionPool {
             result.reserve(filtered_entries_.size());
             for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
                 const auto& entry = *entry_ptr;
-                result.emplace_back(entry.id, entry.solution, entry.activity);
+                result.emplace_back(entry.id, entry.solution, entry.activity.snapshot());
             }
             return result;
         }
@@ -705,7 +757,7 @@ class FilteredSolutionPool {
         std::vector<ColumnId> remove_if_local(const Predicate& pred) {
             std::vector<ColumnId> to_remove;
             for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
-                if (pred(entry_ptr->id, entry_ptr->solution, entry_ptr->activity)) {
+                if (pred(entry_ptr->id, entry_ptr->solution, entry_ptr->activity.snapshot())) {
                     to_remove.push_back(entry_ptr->id);
                 }
             }
@@ -774,8 +826,8 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
         }
     }
     const ColumnId new_id = next_id_++;
-    ColumnActivity activity;
-    activity.created_at = pricing_count_;
+    AtomicColumnActivity activity;
+    activity.created_at = pricing_count_.load(std::memory_order_relaxed);
     const uint32_t lp_idx = lp_.append(sol.column);
     entries_.push_back({new_id, sol, std::move(activity), lp_idx});
     auto new_it = std::prev(entries_.end());
@@ -793,7 +845,7 @@ inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_if_locked(const 
     std::vector<ColumnId> removed_ids;
     auto it = entries_.begin();
     while (it != entries_.end()) {
-        if (pred(it->id, it->solution, it->activity)) {
+        if (pred(it->id, it->solution, it->activity.snapshot())) {
             const ColumnId cid = it->id;
             const uint64_t hash = it->solution.get_hash();
 

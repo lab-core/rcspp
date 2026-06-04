@@ -237,15 +237,20 @@ def test_pricing_pool_basic():
 
 
 def test_pricing_pool_shared_shortcut():
-    """`pool.shared()` and `pool.handle()` + `PricingPool.attach()` are equivalent."""
+    """`pool.price()` returns ColumnIds; `shared.price()` returns slot indices."""
     pool = PricingPool(n_constraints=5, max_cols=20)
     try:
         pool.add(make_solution(5.0, [(0, 3.0)], [0]))
         shared = pool.shared()
         duals = np.array([4.0, 0.0, 0.0, 0.0, 0.0])
-        indices1, rcs1 = pool.price(duals)
-        indices2, rcs2 = shared.price(duals)
-        assert list(indices1) == list(indices2)
+        # pool.price() → ColumnIds (uint64)
+        col_ids, rcs1 = pool.price(duals)
+        assert col_ids.dtype == np.uint64
+        assert len(col_ids) == 1
+        # shared.price() → shared slot indices (intp)
+        slot_ids, rcs2 = shared.price(duals)
+        assert len(slot_ids) == 1
+        # Reduced costs must match.
         assert list(rcs1) == list(rcs2)
     finally:
         pool.close()
@@ -372,7 +377,7 @@ def test_pricing_pool_remove_stale():
 
 
 def test_pricing_pool_price_matches_cpp():
-    """pool.price() results are consistent with what the C++ pool prices."""
+    """pool.price() returns ColumnIds consistent with C++ pricing results."""
     pool = PricingPool(n_constraints=5, max_cols=50)
     try:
         solutions = [
@@ -380,20 +385,23 @@ def test_pricing_pool_price_matches_cpp():
             make_solution(3.0, [(0, 0.5)], [20, 21]),
             make_solution(8.0, [(1, 3.0)], [30, 31]),
         ]
+        col_ids_map = {}  # ColumnId → solution
         for sol in solutions:
-            pool.add(sol)
+            cid = pool.add(sol)
+            col_ids_map[cid] = sol
 
         duals = [4.0, 1.5, 0.0, 0.0, 0.0]
         # C++ pool pricing (returns all with rc < 0, unsorted).
         cpp_results = pool._cpp_fp.price(duals, threshold=0.0)
         cpp_ids = {pc.id for pc in cpp_results}
 
-        # Shared pool pricing (sorted, threshold=-1e-9).
-        indices, rcs = pool.price(np.array(duals))
+        # pool.price() returns ColumnIds (uint64), sorted best-first.
+        returned_ids, rcs = pool.price(np.array(duals))
+        assert returned_ids.dtype == np.uint64
 
-        assert len(indices) == len(cpp_ids)
-        for idx, rc in zip(indices, rcs):
-            sol = solutions[idx]
+        assert len(returned_ids) == len(cpp_ids)
+        for col_id, rc in zip(returned_ids, rcs):
+            sol = col_ids_map[int(col_id)]
             expected_rc = sol.column.cost - sum(
                 float(row.coefficient) * duals[row.index]
                 for row in sol.column.rows
@@ -432,5 +440,147 @@ def test_price_numpy_binding():
         assert isinstance(ids, np.ndarray) and isinstance(rcs, np.ndarray)
         assert len(ids) == 1
         assert abs(rcs[0] - (-1.0)) < 1e-9
+    finally:
+        pool.close()
+
+
+# ── New improvements ──────────────────────────────────────────────────────────
+
+
+def test_price_returns_column_ids():
+    """pool.price() and sub.price() return uint64 ColumnIds, not shared indices."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        cid = pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        duals = np.array([4.0, 0.0, 0.0])
+        ids, rcs = pool.price(duals)
+        assert ids.dtype == np.uint64
+        assert len(ids) == 1
+        assert int(ids[0]) == cid
+        # Filtered pool also returns ColumnIds.
+        sub = pool.new_filter()
+        fids, frcs = sub.price(duals)
+        assert fids.dtype == np.uint64
+        assert len(fids) == 1
+        assert int(fids[0]) == cid
+    finally:
+        pool.close()
+
+
+def test_dedup_no_extra_shared_slot():
+    """Adding the same path twice must not allocate a second shared slot."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        s = make_solution(5.0, [(0, 1.0)], [99])
+        c1 = pool.add(s)
+        c2 = pool.add(s)  # duplicate path → same ColumnId
+        assert c1 == c2
+        assert pool.shared().count == 1  # only one shared slot
+        assert pool.shared().active_count == 1
+    finally:
+        pool.close()
+
+
+def test_id_to_shared_grows_dynamically():
+    """_id_to_shared must grow when ColumnIds exceed initial capacity."""
+    # Start with a tiny initial capacity to force growth.
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        pool._id_to_shared = np.full(3, -1, dtype=np.int64)  # force small initial
+        for i in range(1, 11):  # start at 1 so rc = i - 100*i < 0 for all
+            pool.add(make_solution(float(i), [(0, float(i))], [i]))
+        assert pool.shared().count == 10
+        duals = np.zeros(3)
+        duals[0] = 100.0
+        ids, rcs = pool.price(duals)
+        assert len(ids) == 10  # all columns have rc < 0
+    finally:
+        pool.close()
+
+
+def test_filtered_pool_refresh():
+    """Refresh() rebuilds the numpy mask from the current C++ view."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        duals = np.array([4.0, 0.0, 0.0])
+        # No columns yet.
+        ids, _ = sub.price(duals)
+        assert len(ids) == 0
+        # Add through the main pool (not through sub → mask not auto-updated).
+        pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        ids, _ = sub.price(duals)
+        assert len(ids) == 0  # mask not yet updated
+        # Refresh syncs mask from C++ view.
+        sub.refresh()
+        ids, _ = sub.price(duals)
+        assert len(ids) == 1
+    finally:
+        pool.close()
+
+
+def test_stats_properties():
+    """column_count, shared_count, active_shared_count return correct values."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        assert pool.column_count == 0
+        assert pool.shared_count == 0
+        pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        pool.add(make_solution(3.0, [(0, 1.0)], [1]))
+        assert pool.column_count == 2
+        assert pool.shared_count == 2
+        assert pool.active_shared_count == 2
+        sub = pool.new_filter()
+        assert sub.column_count == 2
+        assert sub.shared_count == 2
+        assert sub.active_shared_count == 2
+    finally:
+        pool.close()
+
+
+def test_concurrent_pricing_shared_lock():
+    """Price() and update_activity() now use shared_lock — test under threading."""
+    import threading
+
+    pool = PricingPool(n_constraints=3, max_cols=50)
+    try:
+        for i in range(10):
+            pool.add(make_solution(5.0, [(0, float(i + 1))], [i]))
+        duals = np.array([3.0, 0.0, 0.0])
+
+        results = []
+        errors = []
+
+        def do_price():
+            try:
+                ids, rcs = pool.price(duals)
+                results.append(len(ids))
+            except Exception as e:  # noqa: BLE001
+                errors.append(str(e))
+
+        threads = [threading.Thread(target=do_price) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors: {errors}"
+        # All threads should see the same number of negative-rc columns.
+        assert len(set(results)) == 1
+    finally:
+        pool.close()
+
+
+def test_get_lp_arrays_binding():
+    """SolutionPool.get_lp_arrays() returns four numpy arrays."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(5.0, [(0, 1.0), (2, 2.0)], [0]))
+        pool.add(make_solution(3.0, [(1, 0.5)], [1]))
+        costs, row_starts, col_indices, col_values = pool._cpp_pool.get_lp_arrays()
+        assert isinstance(costs, np.ndarray) and costs.dtype == np.float64
+        assert isinstance(row_starts, np.ndarray) and row_starts.dtype == np.uint32
+        assert len(costs) >= 2
+        assert int(col_indices[0]) in {0, 1, 2}  # valid constraint index
     finally:
         pool.close()
