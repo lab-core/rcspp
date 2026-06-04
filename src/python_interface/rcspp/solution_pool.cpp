@@ -389,6 +389,10 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
              py::arg("max_age"),
              py::arg("min_usage_rate") = 0.0)
         .def("cleanup", &FilteredSolutionPool::cleanup)
+        // sort_by_lp_index(): re-sort filtered_entries_ by lp_index so the pricing
+        // loop accesses SoA arrays sequentially (cache-friendly).  Called automatically
+        // at filter construction; call again after batch adds if needed.
+        .def("sort_by_lp_index", &FilteredSolutionPool::sort_by_lp_index)
         .def("get", &FilteredSolutionPool::get, py::arg("id"))
         .def("get_activity", &FilteredSolutionPool::get_activity, py::arg("id"))
         .def("get_entry", &FilteredSolutionPool::get_entry, py::arg("id"))

@@ -547,12 +547,12 @@ class FilteredPricingPool:
         self._numpy_fp = self._build_numpy_filter()
 
     def _build_numpy_filter(self) -> FilteredSharedPricingPool:
-        cpp_ids = self._cpp_fp.get_column_ids()  # np.ndarray[uint64]
-        if len(cpp_ids) == 0:
+        col_ids = self._cpp_fp.get_column_ids()  # np.ndarray[uint64]
+        if len(col_ids) == 0:
             return FilteredSharedPricingPool(
                 self._parent._shared, view_indices=np.empty(0, dtype=np.intp)
             )
-        shared_indices = self._parent._id_to_shared[cpp_ids.astype(np.int64)]
+        shared_indices = self._parent._id_to_shared[col_ids.astype(np.int64)]
         valid = shared_indices >= 0
         return FilteredSharedPricingPool(
             self._parent._shared,
@@ -582,9 +582,9 @@ class FilteredPricingPool:
 
         Returns list of ColumnIds.
         """
-        cpp_ids = self._cpp_fp.add(solutions)
+        col_ids = self._cpp_fp.add(solutions)
         result = []
-        for sol, cid_raw in zip(solutions, cpp_ids):
+        for sol, cid_raw in zip(solutions, col_ids):
             cid = int(cid_raw)
             self._parent._ensure_id_capacity(cid)
             if self._parent._id_to_shared[cid] < 0:
@@ -634,8 +634,8 @@ class FilteredPricingPool:
 
     # ── Remove / invalidate ───────────────────────────────────────────────────
 
-    def _cpp_ids_to_shared(self, cpp_ids) -> np.ndarray:
-        arr = np.asarray(cpp_ids, dtype=np.int64)
+    def _col_ids_to_shared(self, col_ids) -> np.ndarray:
+        arr = np.asarray(col_ids, dtype=np.int64)
         sidxs = self._parent._id_to_shared[arr]
         return sidxs[sidxs >= 0]
 
@@ -643,7 +643,7 @@ class FilteredPricingPool:
         """Remove stale columns from C++ + shared pool."""
         removed = self._cpp_fp.remove_stale(max_age, min_usage_rate)
         if removed:
-            sidxs = self._cpp_ids_to_shared(removed)
+            sidxs = self._col_ids_to_shared(removed)
             ids_arr = np.asarray(removed, dtype=np.int64)
             self._parent._shared_to_id[sidxs] = -1
             self._parent._id_to_shared[ids_arr] = -1
@@ -654,7 +654,7 @@ class FilteredPricingPool:
         """Hard-delete from both pools."""
         removed = self._cpp_fp.global_remove_if(pred)
         if removed:
-            sidxs = self._cpp_ids_to_shared(removed)
+            sidxs = self._col_ids_to_shared(removed)
             ids_arr = np.asarray(removed, dtype=np.int64)
             self._parent._shared_to_id[sidxs] = -1
             self._parent._id_to_shared[ids_arr] = -1
@@ -687,9 +687,9 @@ class FilteredPricingPool:
             for arc_id in arc_ids:
                 removed = self._cpp_fp.remove_if_arc_present(arc_id)
                 if removed:
-                    sidxs += self._cpp_ids_to_shared(removed).tolist()
+                    sidxs += self._col_ids_to_shared(removed).tolist()
         if col_ids is not None:
-            sidxs += self._cpp_ids_to_shared(col_ids).tolist()
+            sidxs += self._col_ids_to_shared(col_ids).tolist()
         if sidxs:
             self._numpy_fp.remove_from_view(sidxs)
 
@@ -715,7 +715,7 @@ class FilteredPricingPool:
         """
         sidxs: list[int] = []
         if col_ids is not None:
-            sidxs = self._cpp_ids_to_shared(col_ids).tolist()
+            sidxs = self._col_ids_to_shared(col_ids).tolist()
         if sidxs:
             self._numpy_fp.add_to_view(sidxs)
 
@@ -821,8 +821,8 @@ class PricingPool:
             new_arr[: len(self._shared_to_id)] = self._shared_to_id
             self._shared_to_id = new_arr
 
-    def _cpp_ids_to_shared(self, cpp_ids) -> np.ndarray:
-        arr = np.asarray(cpp_ids, dtype=np.int64)
+    def _col_ids_to_shared(self, col_ids) -> np.ndarray:
+        arr = np.asarray(col_ids, dtype=np.int64)
         arr = arr[arr < len(self._id_to_shared)]
         sidxs = self._id_to_shared[arr]
         return sidxs[sidxs >= 0]
@@ -879,9 +879,9 @@ class PricingPool:
 
         Returns list of ColumnIds.
         """
-        cpp_ids = self._cpp_fp.add(solutions)
+        col_ids = self._cpp_fp.add(solutions)
         result = []
-        for sol, cid_raw in zip(solutions, cpp_ids):
+        for sol, cid_raw in zip(solutions, col_ids):
             cid = int(cid_raw)
             self._ensure_id_capacity(cid)
             if self._id_to_shared[cid] < 0:
@@ -967,7 +967,7 @@ class PricingPool:
         """
         removed = self._cpp_fp.remove_stale(max_age, min_usage_rate)
         if removed:
-            sidxs = self._cpp_ids_to_shared(removed)
+            sidxs = self._col_ids_to_shared(removed)
             ids_arr = np.asarray(removed, dtype=np.int64)
             valid_arr = ids_arr[ids_arr < len(self._id_to_shared)]
             self._shared_to_id[sidxs] = -1
@@ -982,7 +982,7 @@ class PricingPool:
         """
         removed = self._cpp_fp.global_remove_if(pred)
         if removed:
-            sidxs = self._cpp_ids_to_shared(removed)
+            sidxs = self._col_ids_to_shared(removed)
             ids_arr = np.asarray(removed, dtype=np.int64)
             valid_arr = ids_arr[ids_arr < len(self._id_to_shared)]
             self._shared_to_id[sidxs] = -1

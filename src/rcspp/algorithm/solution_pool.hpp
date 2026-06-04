@@ -480,6 +480,14 @@ class FilteredSolutionPool {
         }
 
         // Purge stale references left by pool-level removals that bypassed propagation.
+        // Re-sort filtered_entries_ by lp_index after a batch add or a removal that
+        // disrupted the order.  Call this after add(solutions) / add_columns() for
+        // best cache behaviour during subsequent price() calls.
+        void sort_by_lp_index() {
+            std::unique_lock lock(pool_.mutex_);
+            sort_by_lp_index_unlocked();
+        }
+
         void cleanup() {
             std::unique_lock lock(pool_.mutex_);  // exclusive: mutates this view's containers
             std::vector<ColumnId> stale;
@@ -721,6 +729,21 @@ class FilteredSolutionPool {
         // is never left dangling in registered_pools_. New entries added during the off-lock
         // window arrive via propagation (we registered before releasing the lock); the
         // `filtered_ids_.contains` guard makes the apply phase idempotent against that overlap.
+        // Sort filtered_entries_ by lp_index ascending so the pricing loop
+        // accesses the SoA arrays (col_costs, row_starts, row_coefs…) sequentially,
+        // maximising cache-line reuse.  O(n log n) once; new entries appended by
+        // on_add_unlocked always have the highest lp_index so they naturally preserve
+        // the order.  Caller must hold the pool unique_lock.
+        void sort_by_lp_index_unlocked() {
+            std::ranges::sort(filtered_entries_,
+                              [](const SolutionPool::Entry* a, const SolutionPool::Entry* b) {
+                                  return a->lp_index < b->lp_index;
+                              });
+            for (size_t i = 0; i < filtered_entries_.size(); ++i) {
+                filtered_ids_[filtered_entries_[i]->id] = i;
+            }
+        }
+
         void populate_off_lock(std::vector<std::pair<ColumnId, Solution>> snapshot) {
             try {
                 std::vector<ColumnId> accepted;
@@ -741,6 +764,8 @@ class FilteredSolutionPool {
                         filtered_entries_.push_back(&(*it->second));
                     }
                 }
+                // Sort by lp_index so the pricing loop accesses SoA arrays sequentially.
+                sort_by_lp_index_unlocked();
             } catch (...) {
                 std::unique_lock lock(pool_.mutex_);
                 auto& reg = pool_.registered_pools_;
