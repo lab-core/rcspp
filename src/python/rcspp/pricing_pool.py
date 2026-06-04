@@ -667,19 +667,19 @@ class FilteredPricingPool:
         self,
         *,
         arc_ids: list[int] | None = None,
-        cpp_ids: list[int] | None = None,
+        col_ids: list[int] | None = None,
     ) -> None:
         """Exclude columns from numpy mask (no shared-memory write, B&B restriction).
 
         Both args accept lists; any combination is valid::
 
             sub.remove_from_view(arc_ids=[10, 11])          # by arc
-            sub.remove_from_view(cpp_ids=[col_id_1, col_id_2])  # by ColumnId
-            sub.remove_from_view(arc_ids=[10], cpp_ids=[col_id_3])  # combined
+            sub.remove_from_view(col_ids=[col_id_1, col_id_2])  # by ColumnId
+            sub.remove_from_view(arc_ids=[10], col_ids=[col_id_3])  # combined
 
         Args:
             arc_ids: Exclude all columns whose path traverses any of these arcs.
-            cpp_ids: Exclude columns by ColumnId (as returned by :meth:`add`
+            col_ids: Exclude columns by ColumnId (as returned by :meth:`add`
                 or :meth:`price`).
         """
         sidxs: list[int] = []
@@ -688,21 +688,21 @@ class FilteredPricingPool:
                 removed = self._cpp_fp.remove_if_arc_present(arc_id)
                 if removed:
                     sidxs += self._cpp_ids_to_shared(removed).tolist()
-        if cpp_ids is not None:
-            sidxs += self._cpp_ids_to_shared(cpp_ids).tolist()
+        if col_ids is not None:
+            sidxs += self._cpp_ids_to_shared(col_ids).tolist()
         if sidxs:
             self._numpy_fp.remove_from_view(sidxs)
 
     def add_to_view(
         self,
         *,
-        cpp_ids: list[int] | None = None,
+        col_ids: list[int] | None = None,
     ) -> None:
         """Re-include columns previously excluded by :meth:`remove_from_view`.
 
         Modifies the numpy mask only — O(k), no shared-memory write::
 
-            sub.add_to_view(cpp_ids=[col_id_1, col_id_2])   # backtrack
+            sub.add_to_view(col_ids=[col_id_1, col_id_2])   # backtrack
 
         .. note::
             To undo an arc-based restriction, save the ColumnIds returned by
@@ -710,12 +710,12 @@ class FilteredPricingPool:
             them back here.
 
         Args:
-            cpp_ids: ColumnIds to re-include (as returned by :meth:`add`
+            col_ids: ColumnIds to re-include (as returned by :meth:`add`
                 or :meth:`price`).
         """
         sidxs: list[int] = []
-        if cpp_ids is not None:
-            sidxs = self._cpp_ids_to_shared(cpp_ids).tolist()
+        if col_ids is not None:
+            sidxs = self._cpp_ids_to_shared(col_ids).tolist()
         if sidxs:
             self._numpy_fp.add_to_view(sidxs)
 
