@@ -30,8 +30,8 @@ Solution make_pool_solution(double col_cost, std::vector<Row> rows,
     col.cost = col_cost;
     col.rows = std::move(rows);
 
-    std::list<size_t> arc_list(arc_ids);
-    std::list<size_t> node_list;
+    std::vector<size_t> arc_list(arc_ids);
+    std::vector<size_t> node_list;
     for (size_t i = 0; i <= arc_ids.size(); ++i) {
         node_list.push_back(i);
     }

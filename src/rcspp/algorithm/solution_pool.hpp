@@ -22,16 +22,16 @@ namespace rcspp {
 // Activity stats for a column — stored in the pool and updated on every price() call
 // and on update_activity() calls (LP basis membership).
 struct ColumnActivity {
-        size_t age = 0;           // price() rounds since last returned (reset on return/basis/re-add)
-        size_t use_count = 0;     // times returned by price() (rc < threshold)
+        size_t age = 0;        // price() rounds since last returned (reset on return/basis/re-add)
+        size_t use_count = 0;  // times returned by price() (rc < threshold)
         size_t priced_count = 0;  // times this column was included in a price() call
         size_t created_at = 0;    // pool's pricing_count_ at insertion (diagnostic)
         bool last_was_negative = false;
         double last_reduced_cost = std::numeric_limits<double>::infinity();
 
-        // Fraction of this column's own pricings in which it was returned: use_count / priced_count.
-        // Per-column (independent of other views' pricing traffic) and always in [0, 1]; a column
-        // that has never been priced returns 0.0.
+        // Fraction of this column's own pricings in which it was returned: use_count /
+        // priced_count. Per-column (independent of other views' pricing traffic) and always in [0,
+        // 1]; a column that has never been priced returns 0.0.
         [[nodiscard]] double usage_rate() const {
             return priced_count == 0
                        ? 0.0
@@ -86,15 +86,49 @@ class SolutionPool {
             std::vector<size_t> forbidden_arc_ids = {});
 
     private:
+        // ── SoA LP store: contiguous arrays for cache-friendly pricing ─────────
+        // Append-only. lp_index in Entry is a permanent handle into these arrays.
+        // Removed entries leave their slots orphaned (not freed); slots are never
+        // reused and are only accessed while their ColumnId is still live.
+        struct LpStore {
+                std::vector<double> col_costs;  // col_costs[i] = column LP cost
+                std::vector<uint32_t>
+                    row_starts;  // CSR: rows for col i are [row_starts[i], row_starts[i+1])
+                std::vector<uint32_t> row_indices;  // constraint indices
+                std::vector<double> row_coefs;      // matching coefficients
+
+                [[nodiscard]] size_t size() const { return col_costs.size(); }
+
+                // Append one column's LP data; return its lp_index.
+                // row_starts has n+1 entries for n columns (standard CSR sentinel).
+                uint32_t append(const Column& col) {
+                    const auto idx = static_cast<uint32_t>(col_costs.size());
+                    col_costs.push_back(col.cost);
+                    // Push start offset for the new column's rows.
+                    if (row_starts.empty()) {
+                        row_starts.push_back(0);
+                    }
+                    for (const auto& row : col.rows) {
+                        row_indices.push_back(static_cast<uint32_t>(row.index));
+                        row_coefs.push_back(static_cast<double>(row.coefficient));
+                    }
+                    // Push end-of-column sentinel: row_starts[idx+1].
+                    row_starts.push_back(static_cast<uint32_t>(row_indices.size()));
+                    return idx;
+                }
+        };
+
         struct Entry {
                 ColumnId id;
                 Solution solution;
                 ColumnActivity activity;
+                uint32_t lp_index{0};  // index into LpStore arrays
         };
         using EntryIter = std::list<Entry>::iterator;
 
         mutable std::shared_mutex mutex_;
         std::list<Entry> entries_;
+        LpStore lp_;  // parallel SoA LP data; indexed by Entry::lp_index
         // hash → iterators into entries_ (for deduplication)
         std::unordered_map<uint64_t, std::vector<EntryIter>> hash_index_;
         // id → iterator into entries_ (O(1) access and removal)
@@ -150,9 +184,9 @@ class SolutionPool {
 // The primary interface for all pool operations — pricing, activity tracking,
 // adding columns, and local/global removal.
 //
-// Internally keeps a std::list<Entry*> (filtered_entries_) for O(n_filtered) iteration
-// with no hash lookup per element, and an unordered_map<ColumnId, list::iterator>
-// (filtered_ids_) for O(1) membership test and removal.
+// Internally keeps a std::vector<Entry*> (filtered_entries_) for cache-friendly O(n_filtered)
+// iteration over the pricing hot path, and an unordered_map<ColumnId, size_t> (filtered_ids_)
+// for O(1) membership test and O(1) swap-and-pop removal.
 //
 // Auto-propagation: registers with its pool on construction; pool.add_unlocked() and
 // pool.remove_if_locked() propagate to all registered pools automatically.
@@ -240,8 +274,8 @@ class FilteredSolutionPool {
             if (!filtered_ids_.contains(id) && (!check_filter || accepts(sol))) {
                 auto entry_it = pool_.id_index_.find(id);
                 if (entry_it != pool_.id_index_.end()) {
+                    filtered_ids_.emplace(id, filtered_entries_.size());
                     filtered_entries_.push_back(&(*entry_it->second));
-                    filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
                 }
             }
             return id;
@@ -257,8 +291,8 @@ class FilteredSolutionPool {
                 if (!filtered_ids_.contains(id) && (!check_filter || accepts(sol))) {
                     auto entry_it = pool_.id_index_.find(id);
                     if (entry_it != pool_.id_index_.end()) {
+                        filtered_ids_.emplace(id, filtered_entries_.size());
                         filtered_entries_.push_back(&(*entry_it->second));
-                        filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
                     }
                 }
                 ids.push_back(id);
@@ -343,12 +377,11 @@ class FilteredSolutionPool {
         // criterion, so a freshly added column is not dropped before it has been priced.
         std::vector<ColumnId> remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);  // exclusive: remove_if_local mutates this view
-            return remove_if_local([max_age, min_usage_rate](ColumnId,
-                                                             const Solution&,
-                                                             const ColumnActivity& act) {
-                return act.age > max_age ||
-                       (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
-            });
+            return remove_if_local(
+                [max_age, min_usage_rate](ColumnId, const Solution&, const ColumnActivity& act) {
+                    return act.age > max_age ||
+                           (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
+                });
         }
 
         // ── Global hard deletes (from pool, propagates to all views) ───────────
@@ -387,25 +420,24 @@ class FilteredSolutionPool {
         // Hard delete stale columns from pool (same criterion as remove_stale).
         std::vector<ColumnId> global_remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);
-            return pool_.remove_if_locked([max_age, min_usage_rate](ColumnId,
-                                                                    const Solution&,
-                                                                    const ColumnActivity& act) {
-                return act.age > max_age ||
-                       (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
-            });
+            return pool_.remove_if_locked(
+                [max_age, min_usage_rate](ColumnId, const Solution&, const ColumnActivity& act) {
+                    return act.age > max_age ||
+                           (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
+                });
         }
 
         // Purge stale references left by pool-level removals that bypassed propagation.
         void cleanup() {
             std::unique_lock lock(pool_.mutex_);  // exclusive: mutates this view's containers
-            for (auto list_it = filtered_entries_.begin(); list_it != filtered_entries_.end();) {
-                const ColumnId id = (*list_it)->id;
-                if (!pool_.id_index_.contains(id)) {
-                    filtered_ids_.erase(id);
-                    list_it = filtered_entries_.erase(list_it);
-                } else {
-                    ++list_it;
+            std::vector<ColumnId> stale;
+            for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                if (!pool_.id_index_.contains(entry_ptr->id)) {
+                    stale.push_back(entry_ptr->id);
                 }
+            }
+            for (ColumnId id : stale) {
+                on_remove_unlocked(id);
             }
         }
 
@@ -420,7 +452,7 @@ class FilteredSolutionPool {
             if (it == filtered_ids_.end()) {
                 return std::nullopt;
             }
-            return (*it->second)->solution;
+            return filtered_entries_[it->second]->solution;
         }
 
         [[nodiscard]] std::optional<ColumnActivity> get_activity(ColumnId id) const {
@@ -432,7 +464,7 @@ class FilteredSolutionPool {
             if (it == filtered_ids_.end()) {
                 return std::nullopt;
             }
-            return (*it->second)->activity;
+            return filtered_entries_[it->second]->activity;
         }
 
         // Returns (id, solution, activity) in a single lock-acquire; nullopt if not in this view.
@@ -446,7 +478,7 @@ class FilteredSolutionPool {
             if (it == filtered_ids_.end()) {
                 return std::nullopt;
             }
-            const auto& e = *(*it->second);
+            const auto& e = *filtered_entries_[it->second];
             return std::make_tuple(e.id, e.solution, e.activity);
         }
 
@@ -556,11 +588,12 @@ class FilteredSolutionPool {
         SolutionPool& pool_;
         std::function<bool(const Solution&)> filter_;
 
-        // Ordered list of Entry* for efficient O(n_filtered) iteration with no hash lookups.
-        using FilteredEntryList = std::list<SolutionPool::Entry*>;
-        FilteredEntryList filtered_entries_;
-        // ColumnId → iterator into filtered_entries_ for O(1) membership test and removal.
-        std::unordered_map<ColumnId, FilteredEntryList::iterator> filtered_ids_;
+        // Contiguous vector of Entry* for cache-friendly O(n_filtered) pricing iteration.
+        // Invariant: filtered_entries_[filtered_ids_[id]] == entry_ptr for all active entries.
+        // Removal uses swap-and-pop for O(1) amortised cost.
+        std::vector<SolutionPool::Entry*> filtered_entries_;
+        // ColumnId → index into filtered_entries_ for O(1) membership test and removal.
+        std::unordered_map<ColumnId, size_t> filtered_ids_;
 
         bool registered_{true};
 
@@ -602,24 +635,31 @@ class FilteredSolutionPool {
         // Called by pool when a new entry is added (pool unique_lock already held).
         void on_add_unlocked(ColumnId id, SolutionPool::Entry& entry) {
             if (accepts(entry.solution)) {
+                filtered_ids_.emplace(id, filtered_entries_.size());
                 filtered_entries_.push_back(&entry);
-                filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
             }
         }
 
         // Drop `id` from THIS view if present (pool unique_lock already held). Returns whether it
-        // was present. Used both for pool-driven propagation and for remove_if's apply phase.
+        // was present. Uses swap-and-pop for O(1) removal without invalidating other indices.
         bool on_remove_unlocked(ColumnId id) {
             if (id == SolutionPool::kNoId) {
                 return false;
             }
             auto it = filtered_ids_.find(id);
-            if (it != filtered_ids_.end()) {
-                filtered_entries_.erase(it->second);
-                filtered_ids_.erase(it);
-                return true;
+            if (it == filtered_ids_.end()) {
+                return false;
             }
-            return false;
+            const size_t pos = it->second;
+            const size_t last = filtered_entries_.size() - 1;
+            if (pos != last) {
+                // Move the last entry into the gap.
+                filtered_entries_[pos] = filtered_entries_[last];
+                filtered_ids_[filtered_entries_[pos]->id] = pos;
+            }
+            filtered_entries_.pop_back();
+            filtered_ids_.erase(it);
+            return true;
         }
 
         // Constructor helper: evaluate filter_ on `snapshot` OFF the lock (a re-entrant user
@@ -645,8 +685,8 @@ class FilteredSolutionPool {
                     }
                     auto it = pool_.id_index_.find(id);
                     if (it != pool_.id_index_.end()) {  // still present
+                        filtered_ids_.emplace(id, filtered_entries_.size());
                         filtered_entries_.push_back(&(*it->second));
-                        filtered_ids_.emplace(id, std::prev(filtered_entries_.end()));
                     }
                 }
             } catch (...) {
@@ -661,39 +701,42 @@ class FilteredSolutionPool {
         }
 
         // Local removal without acquiring the pool lock (caller must hold at least shared lock).
+        // Collects matching entries first, then applies swap-and-pop for each.
         std::vector<ColumnId> remove_if_local(const Predicate& pred) {
-            std::vector<ColumnId> removed;
-            for (auto list_it = filtered_entries_.begin(); list_it != filtered_entries_.end();) {
-                auto& entry = **list_it;
-                if (pred(entry.id, entry.solution, entry.activity)) {
-                    removed.push_back(entry.id);
-                    filtered_ids_.erase(entry.id);
-                    list_it = filtered_entries_.erase(list_it);
-                } else {
-                    ++list_it;
+            std::vector<ColumnId> to_remove;
+            for (const SolutionPool::Entry* entry_ptr : filtered_entries_) {
+                if (pred(entry_ptr->id, entry_ptr->solution, entry_ptr->activity)) {
+                    to_remove.push_back(entry_ptr->id);
                 }
             }
-            return removed;
+            for (ColumnId id : to_remove) {
+                on_remove_unlocked(id);
+            }
+            return to_remove;
         }
 
         [[nodiscard]] std::vector<PricedColumn> price_subset_locked(
             const std::vector<double>& duals, double threshold) {
             std::vector<PricedColumn> result;
-            const size_t n_duals = duals.size();
+            const auto n_duals = static_cast<uint32_t>(duals.size());
+            const auto& lp = pool_.lp_;
             for (SolutionPool::Entry* entry_ptr : filtered_entries_) {
                 auto& entry = *entry_ptr;
-                // Accumulate in long double to match Row::coefficient's precision (the rest of the
-                // codebase aggregates coefficients in long double); narrow once to the LP-facing
-                // double below, instead of narrowing each coefficient per term.
-                long double rc = entry.solution.column.cost;
-                for (const Row& row : entry.solution.column.rows) {
-                    if (row.index < n_duals) {
-                        rc -= row.coefficient * static_cast<long double>(duals[row.index]);
+                // Walk the SoA CSR arrays — all contiguous, no pointer chasing.
+                // Accumulate in long double to match Row::coefficient's original precision;
+                // narrow to double once for the LP-facing threshold comparison.
+                const uint32_t li = entry.lp_index;
+                long double rc = lp.col_costs[li];
+                // row_starts has n+1 entries, so row_starts[li+1] is always valid.
+                for (uint32_t j = lp.row_starts[li]; j < lp.row_starts[li + 1]; ++j) {
+                    if (lp.row_indices[j] < n_duals) {
+                        rc -= static_cast<long double>(lp.row_coefs[j]) *
+                              static_cast<long double>(duals[lp.row_indices[j]]);
                     }
                 }
-                const double rc_d = static_cast<double>(rc);
+                const auto rc_d = static_cast<double>(rc);
                 entry.activity.last_reduced_cost = rc_d;
-                ++entry.activity.priced_count;  // this column was priced this round
+                ++entry.activity.priced_count;
                 if (rc_d < threshold) {
                     entry.activity.age = 0;
                     ++entry.activity.use_count;
@@ -724,6 +767,8 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
                 entry_it->solution.column = sol.column;
                 entry_it->solution.cost = sol.cost;
                 entry_it->activity.age = 0;
+                // LP cost (col.cost) is a structural property of the path and does not
+                // change between proposals, so the SoA col_costs slot stays valid as-is.
                 return entry_it->id;
             }
         }
@@ -731,7 +776,8 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
     const ColumnId new_id = next_id_++;
     ColumnActivity activity;
     activity.created_at = pricing_count_;
-    entries_.push_back({new_id, sol, std::move(activity)});
+    const uint32_t lp_idx = lp_.append(sol.column);
+    entries_.push_back({new_id, sol, std::move(activity), lp_idx});
     auto new_it = std::prev(entries_.end());
     id_index_.emplace(new_id, new_it);
     hash_index_[hash].push_back(new_it);

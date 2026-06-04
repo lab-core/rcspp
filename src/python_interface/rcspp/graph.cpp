@@ -131,8 +131,8 @@ void init_graph(py::module_& m) {
         // hash_ stale (the empty-path hash), collapsing SolutionPool's hash_index_ into one bucket.
         .def_property(
             "path_arc_ids",
-            [](const Solution& s) -> const std::list<size_t>& { return s.path_arc_ids; },
-            [](Solution& s, std::list<size_t> v) {
+            [](const Solution& s) -> const std::vector<size_t>& { return s.path_arc_ids; },
+            [](Solution& s, std::vector<size_t> v) {
                 s.path_arc_ids = std::move(v);
                 s.rehash();
             })

@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -163,8 +164,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return {};
         }
 
-        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
-            std::list<size_t> path_arc_ids;
+        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
+            std::vector<size_t> path_arc_ids;
             for (const auto& p : path_) {
                 auto* l = p.first;
                 auto* in_arc = l->get_in_arc();

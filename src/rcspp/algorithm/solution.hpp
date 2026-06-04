@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <list>
 #include <utility>
 #include <vector>
 
@@ -40,8 +39,8 @@ static std::uint64_t fnv1a_mix_uint64(std::uint64_t v, std::uint64_t h = FNV_OFF
 
 struct Solution {
         Solution() noexcept { init_hash(); }
-        Solution(double _cost, std::list<size_t> _path_node_ids, std::list<size_t> _path_arc_ids,
-                 Column _column = {})
+        Solution(double _cost, std::vector<size_t> _path_node_ids,
+                 std::vector<size_t> _path_arc_ids, Column _column = {})
             : cost(_cost),
               path_node_ids(std::move(_path_node_ids)),
               path_arc_ids(std::move(_path_arc_ids)),
@@ -68,8 +67,8 @@ struct Solution {
         // stored separately; this defaults to +inf (the RCSPP unset/infeasible sentinel), so a
         // Solution built by setting only `column` leaves this field at +inf.
         double cost = std::numeric_limits<double>::infinity();
-        std::list<size_t> path_node_ids;
-        std::list<size_t> path_arc_ids;
+        std::vector<size_t> path_node_ids;
+        std::vector<size_t> path_arc_ids;
         Column column;
 
     private:
