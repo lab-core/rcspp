@@ -190,9 +190,21 @@ class SharedPricingPool:
     # ── Write operations ──────────────────────────────────────────────────────
 
     def add(self, solution: "Solution") -> int:
-        """Add one column.
+        """Add one column and return its internal shared slot index.
 
-        Returns the shared slot index.
+        The slot index is opaque to most callers — use :class:`PricingPool`
+        or :class:`FilteredPricingPool` if you need ColumnIds::
+
+            slot = shared.add(solution)   # used internally by PricingPool
+
+        Args:
+            solution: Solution whose ``column`` attribute contains LP cost and rows.
+
+        Returns:
+            Shared slot index (0-based, internal to this pool).
+
+        Raises:
+            RuntimeError: Pool is full (columns or non-zeros exhausted).
         """
         col = solution.column
         rows = [
@@ -221,7 +233,21 @@ class SharedPricingPool:
         return count
 
     def add_columns(self, solutions: list) -> list[int]:
-        """Batch-add under a single lock acquisition."""
+        """Batch-add multiple columns under a single lock acquisition.
+
+        More efficient than calling :meth:`add` in a loop::
+
+            slots = shared.add_columns([sol1, sol2, sol3])
+
+        Args:
+            solutions: List of Solution objects.
+
+        Returns:
+            List of shared slot indices, one per solution.
+
+        Raises:
+            RuntimeError: Batch would exceed column or non-zero capacity.
+        """
         if not solutions:
             return []
         costs = np.empty(len(solutions), dtype=np.float64)
@@ -323,7 +349,18 @@ class SharedPricingPool:
         return list(range(start, start + n_add))
 
     def invalidate(self, shared_indices: list[int]) -> None:
-        """Mark slots as deleted (skip during :meth:`price`)."""
+        """Mark column slots as deleted so they are skipped during :meth:`price`.
+
+        The slot data remains in memory; only the ``valid`` flag is cleared.
+        Called automatically by :meth:`PricingPool.remove_stale` — direct use
+        is rarely needed::
+
+            shared.invalidate([slot_0, slot_5])   # advanced use only
+
+        Args:
+            shared_indices: Slot indices previously returned by :meth:`add`.
+                An empty list is a no-op.
+        """
         if not shared_indices:
             return
         with self._lock:
@@ -562,9 +599,19 @@ class FilteredPricingPool:
     # ── Write ─────────────────────────────────────────────────────────────────
 
     def add(self, solution: "Solution") -> int:
-        """Add to C++ pool, shared pool, and numpy mask.
+        """Add to C++ pool, shared pool, and this numpy mask.  Returns ColumnId.
 
-        Returns ColumnId.
+        Deduplication: if the same arc path has already been added the existing
+        ColumnId is returned and no new shared slot is allocated::
+
+            col_id = sub.add(solution)
+            sub.update_activity([col_id])   # immediately mark as basis member
+
+        Args:
+            solution: Solution to add.
+
+        Returns:
+            C++ ColumnId (stable, can be used in ``update_activity``, ``get``, etc.)
         """
         cpp_id = self._cpp_fp.add(solution)
         cid = int(cpp_id)
@@ -578,9 +625,17 @@ class FilteredPricingPool:
         return cpp_id
 
     def add_columns(self, solutions: list) -> list[int]:
-        """Batch-add.
+        """Batch-add multiple solutions.  Returns list of ColumnIds.
 
-        Returns list of ColumnIds.
+        More efficient than calling :meth:`add` in a loop::
+
+            col_ids = pool.add_columns([sol1, sol2, sol3])
+
+        Args:
+            solutions: List of Solution objects.
+
+        Returns:
+            List of C++ ColumnIds, one per solution.
         """
         col_ids = self._cpp_fp.add(solutions)
         result = []
@@ -615,9 +670,18 @@ class FilteredPricingPool:
     # ── Filter narrowing ──────────────────────────────────────────────────────
 
     def new_filter(self, **kwargs) -> "FilteredPricingPool":
-        """Create a further-narrowed view.  All kwargs forwarded to C++ new_filter().
+        """Create a further-narrowed view.  All kwargs forwarded to C++
+        ``new_filter()``.
 
-        Accepts activity args: ``min_usage_rate``, ``max_age``, ``max_last_rc``.
+        Accepts solution-level args (``forbidden_arc_ids``, ``compulsory_rows``, …)
+        and activity-level args (``min_usage_rate``, ``max_age``, ``max_last_rc``)::
+
+            # Chain-narrow: columns must pass both the parent filter AND this one.
+            sub2 = sub.new_filter(compulsory_rows=[0], max_age=50)
+            ids, rcs = sub2.price(duals)
+
+        Returns:
+            A new :class:`FilteredPricingPool` further restricting this view.
         """
         return FilteredPricingPool(self._parent, self._cpp_fp.new_filter(**kwargs))
 
@@ -640,7 +704,22 @@ class FilteredPricingPool:
         return sidxs[sidxs >= 0]
 
     def remove_stale(self, max_age: int, min_usage_rate: float = 0.0) -> list[int]:
-        """Remove stale columns from C++ + shared pool."""
+        """Remove stale columns from the C++ view and invalidate shared slots.
+
+        A column is removed if ``age > max_age`` OR
+        (``priced_count > 0`` AND ``usage_rate < min_usage_rate``)::
+
+            removed = sub.remove_stale(max_age=100, min_usage_rate=0.01)
+            # Call sort_by_lp_index() afterwards if pricing performance matters.
+            sub.sort_by_lp_index()
+
+        Args:
+            max_age:         Remove if not seen for more than this many price() rounds.
+            min_usage_rate:  Remove if returned less than this fraction of pricings.
+
+        Returns:
+            List of removed ColumnIds.
+        """
         removed = self._cpp_fp.remove_stale(max_age, min_usage_rate)
         if removed:
             sidxs = self._col_ids_to_shared(removed)
@@ -651,7 +730,21 @@ class FilteredPricingPool:
         return removed
 
     def global_remove_if(self, pred) -> list[int]:
-        """Hard-delete from both pools."""
+        """Hard-delete columns from the main pool; propagates to all views.
+
+        Use sparingly — prefer :meth:`remove_stale` or the local C++ ``remove_if``
+        (accessible via ``__getattr__``) for B&B::
+
+            pool.global_remove_if(
+                lambda col_id, sol, act: act.age > 500
+            )
+
+        Args:
+            pred: Callable ``(ColumnId, Solution, ColumnActivity) -> bool``.
+
+        Returns:
+            List of permanently deleted ColumnIds.
+        """
         removed = self._cpp_fp.global_remove_if(pred)
         if removed:
             sidxs = self._col_ids_to_shared(removed)
@@ -859,10 +952,19 @@ class PricingPool:
     # ── Write operations ──────────────────────────────────────────────────────
 
     def add(self, solution: "Solution") -> int:
-        """Add to both pools.  Returns C++ ColumnId.
+        """Add to both C++ and shared pools.  Returns C++ ColumnId.
 
-        Deduplication: if the same path has been added before, the existing
-        ColumnId is returned and no new shared slot is allocated.
+        Deduplication: if the same arc path has been added before the existing
+        ColumnId is returned and no new shared slot is allocated::
+
+            col_id = pool.add(solution)
+            # col_id is stable; use in update_activity, get, new_filter, etc.
+
+        Args:
+            solution: Solution with a populated ``column`` attribute.
+
+        Returns:
+            C++ ColumnId (monotonically increasing, stable across calls).
         """
         cpp_id = self._cpp_fp.add(solution)
         cid = int(cpp_id)
@@ -875,9 +977,17 @@ class PricingPool:
         return cpp_id
 
     def add_columns(self, solutions: list) -> list[int]:
-        """Batch-add.
+        """Batch-add multiple solutions.  Returns list of ColumnIds.
 
-        Returns list of ColumnIds.
+        More efficient than calling :meth:`add` in a loop::
+
+            col_ids = pool.add_columns([sol1, sol2, sol3])
+
+        Args:
+            solutions: List of Solution objects.
+
+        Returns:
+            List of C++ ColumnIds, one per solution.
         """
         col_ids = self._cpp_fp.add(solutions)
         result = []
@@ -947,13 +1057,28 @@ class PricingPool:
     # ── Filter creation ───────────────────────────────────────────────────────
 
     def new_filter(self, **kwargs) -> FilteredPricingPool:
-        """Create a filtered view.  All kwargs forwarded to C++ new_filter().
+        """Create a filtered view.  All kwargs forwarded to C++ ``new_filter()``.
 
-        Activity args ``min_usage_rate``, ``max_age``, ``max_last_rc`` are
-        applied via C++ ``remove_if()`` so C++ view and numpy mask stay in sync.
+        Solution-level args (``forbidden_arc_ids``, ``compulsory_rows``, …) and
+        activity-level args (``min_usage_rate``, ``max_age``, ``max_last_rc``) are
+        forwarded to the C++ ``new_filter()`` and applied via ``remove_if()`` so the
+        C++ view and the numpy mask stay in sync.
 
-        Returns a :class:`FilteredPricingPool` whose :meth:`~FilteredPricingPool.price`
-        returns ColumnIds.
+        New columns added after the filter is created are NOT automatically included;
+        call :meth:`FilteredPricingPool.refresh` or use :meth:`FilteredPricingPool.add`
+        to add them explicitly::
+
+            sub = pool.new_filter(
+                forbidden_arc_ids=[10, 11],   # arc restriction
+                max_age=100,                  # activity filter
+                max_last_rc=0.0,              # only historically negative columns
+            )
+            ids, rcs = sub.price(duals)
+            sub.update_activity(lp_basis_ids)
+
+        Returns:
+            A :class:`FilteredPricingPool` whose :meth:`~FilteredPricingPool.price`
+            returns ColumnIds.
         """
         cpp_fp = self._cpp_fp.new_filter(**kwargs)
         return FilteredPricingPool(self, cpp_fp)
@@ -961,9 +1086,19 @@ class PricingPool:
     # ── Remove / invalidate ───────────────────────────────────────────────────
 
     def remove_stale(self, max_age: int, min_usage_rate: float = 0.0) -> list[int]:
-        """Remove stale columns from both pools.
+        """Remove stale columns from both the C++ pool and the shared pool.
 
-        Returns removed ColumnIds.
+        A column is removed if ``age > max_age`` OR
+        (``priced_count > 0`` AND ``usage_rate < min_usage_rate``)::
+
+            removed = pool.remove_stale(max_age=100, min_usage_rate=0.01)
+
+        Args:
+            max_age:         Remove if not returned by ``price()`` for > this rounds.
+            min_usage_rate:  Remove if returned < this fraction of pricings.
+
+        Returns:
+            List of removed ColumnIds.
         """
         removed = self._cpp_fp.remove_stale(max_age, min_usage_rate)
         if removed:
@@ -976,9 +1111,20 @@ class PricingPool:
         return removed
 
     def global_remove_if(self, pred) -> list[int]:
-        """Hard-delete from both pools.
+        """Hard-delete columns from the main pool; propagates to all views.
 
-        Returns removed ColumnIds.
+        Use sparingly — prefer :meth:`remove_stale` or the local C++ ``remove_if``
+        (via ``__getattr__``) for B&B node restrictions::
+
+            pool.global_remove_if(
+                lambda col_id, sol, act: act.age > 500
+            )
+
+        Args:
+            pred: Callable ``(ColumnId, Solution, ColumnActivity) -> bool``.
+
+        Returns:
+            List of permanently deleted ColumnIds.
         """
         removed = self._cpp_fp.global_remove_if(pred)
         if removed:

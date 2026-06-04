@@ -106,25 +106,65 @@ class SolutionPool {
 
         using Predicate = std::function<bool(ColumnId, const Solution&, const ColumnActivity&)>;
 
-        // Create a FilteredSolutionPool registered for auto-propagation.
-        // filter=nullptr accepts all existing and future entries.
+        /// @brief Create a scoped, filtered view over this pool.
+        ///
+        /// The new @ref FilteredSolutionPool is registered for auto-propagation:
+        /// every subsequent @ref add_unlocked() call is forwarded automatically.
+        /// @p filter=nullptr accepts all existing and future entries.
+        ///
+        /// @param filter Optional predicate ``(const Solution&) -> bool``.
+        ///               Entries that do not pass the predicate are excluded from
+        ///               the view; new columns are tested on arrival.
+        /// @return A new @ref FilteredSolutionPool registered with this pool.
         [[nodiscard]] FilteredSolutionPool new_filter(
             std::function<bool(const Solution&)> filter = nullptr);
 
-        // Convenience: build filter from row/arc constraints, then new_filter().
+        /// @brief Create a filtered view restricted by row/arc membership.
+        ///
+        /// Convenience overload — builds a predicate from the four constraint
+        /// vectors and delegates to the single-argument @ref new_filter().
+        ///
+        /// @param compulsory_rows    Solution must cover all these row indices.
+        /// @param forbidden_rows     Solution must not cover any of these.
+        /// @param compulsory_arc_ids Path must traverse all these arc IDs.
+        /// @param forbidden_arc_ids  Path must not traverse any of these.
+        /// @return A new @ref FilteredSolutionPool.
         [[nodiscard]] FilteredSolutionPool new_filter(std::vector<size_t> compulsory_rows,
                                                       std::vector<size_t> forbidden_rows,
                                                       std::vector<size_t> compulsory_arc_ids,
                                                       std::vector<size_t> forbidden_arc_ids);
 
-        // Build a filter predicate from row/arc constraints.
+        /// @brief Build a standalone filter predicate from row/arc constraints.
+        ///
+        /// Returns a callable ``(const Solution&) -> bool`` that can be passed to
+        /// @ref new_filter() or combined with other predicates.
+        ///
+        /// @param compulsory_rows    Solution must cover all of these row indices.
+        /// @param forbidden_rows     Solution must not cover any of these.
+        /// @param compulsory_arc_ids Path must traverse all of these arc IDs.
+        /// @param forbidden_arc_ids  Path must not traverse any of these.
+        /// @return A filter predicate suitable for @ref new_filter().
         [[nodiscard]] static std::function<bool(const Solution&)> make_filter(
             std::vector<size_t> compulsory_rows = {}, std::vector<size_t> forbidden_rows = {},
             std::vector<size_t> compulsory_arc_ids = {},
             std::vector<size_t> forbidden_arc_ids = {});
 
-        // Return the internal LP SoA arrays as copies for bulk population of
-        // external stores such as SharedPricingPool.
+        /// @brief Copy the internal LP SoA arrays for bulk transfer to an external store.
+        ///
+        /// Returns copies of the CSR-format LP data that is maintained alongside
+        /// every @ref Entry.  Use this to populate a cross-process
+        /// ``SharedPricingPool`` without iterating ``column.rows`` in Python:
+        ///
+        /// @code
+        ///   std::vector<double> costs, coefs;
+        ///   std::vector<uint32_t> starts, indices;
+        ///   pool.get_lp_data(costs, starts, indices, coefs);
+        /// @endcode
+        ///
+        /// @param[out] out_col_costs   LP cost per column (CSR column 0).
+        /// @param[out] out_row_starts  CSR row-pointer array (size = n_cols + 1).
+        /// @param[out] out_row_indices Constraint indices for each non-zero.
+        /// @param[out] out_row_coefs   Coefficient values for each non-zero.
         void get_lp_data(std::vector<double>& out_col_costs, std::vector<uint32_t>& out_row_starts,
                          std::vector<uint32_t>& out_row_indices,
                          std::vector<double>& out_row_coefs) const {
@@ -315,9 +355,19 @@ class FilteredSolutionPool {
 
         // ── Write operations ──────────────────────────────────────────────────
 
-        // Add to main pool (always); add to this view if check_filter is false or filter accepts.
-        // Always returns the pool-assigned id, even if this view's filter rejects the entry.
-        // Pool propagates to OTHER registered FilteredSolutionPools; this one updates itself.
+        /// @brief Add a column to the main pool and optionally to this view.
+        ///
+        /// The column is always inserted into the root @ref SolutionPool and
+        /// propagated to all other registered @ref FilteredSolutionPool instances.
+        /// It is added to @b this view only when @p check_filter is false or the
+        /// column passes this view's filter predicate.
+        ///
+        /// Duplicate detection: if the same arc path has been added before the
+        /// existing @ref ColumnId is returned and no new entry is created.
+        ///
+        /// @param sol          Column to add.
+        /// @param check_filter When false, bypass the filter and add unconditionally.
+        /// @return The @ref ColumnId assigned by the pool (stable across calls).
         ColumnId add(const Solution& sol, bool check_filter = true) {
             std::unique_lock lock(pool_.mutex_);
             const auto id = pool_.add_unlocked(sol, this);
@@ -331,6 +381,14 @@ class FilteredSolutionPool {
             return id;
         }
 
+        /// @brief Batch-add multiple columns under a single lock acquisition.
+        ///
+        /// Equivalent to calling @ref add(const Solution&, bool) in a loop but
+        /// more efficient — only one lock acquire/release.
+        ///
+        /// @param solutions    Columns to add.
+        /// @param check_filter When false, bypass the filter for all columns.
+        /// @return Vector of @ref ColumnId values, one per input solution.
         std::vector<ColumnId> add(const std::vector<Solution>& solutions,
                                   bool check_filter = true) {
             std::unique_lock lock(pool_.mutex_);
@@ -350,10 +408,20 @@ class FilteredSolutionPool {
             return ids;
         }
 
-        // Price the filtered subset. Increments pricing_count; updates ColumnActivity
-        // only for entries in this view.
-        // price() uses shared_lock because activity fields are atomic — concurrent
-        // calls from different FilteredSolutionPool instances are safe.
+        /// @brief Compute reduced costs and return columns with ``rc < threshold``.
+        ///
+        /// Iterates the filtered subset and for each column computes:
+        /// ``rc = col.cost - Σ(duals[row.index] × row.coefficient)``
+        ///
+        /// Uses @c shared_lock — multiple @ref FilteredSolutionPool instances on
+        /// different threads can call @ref price() simultaneously because all
+        /// @ref ColumnActivity writes are atomic.
+        ///
+        /// @param duals     LP dual values indexed by constraint index.
+        /// @param threshold Only columns with ``rc < threshold`` are returned (default 0.0).
+        /// @return          Priced columns with their ids, reduced costs, and @c Solution pointers.
+        ///                  The returned @c Solution* is valid until the next structural
+        ///                  modification of the pool.
         [[nodiscard]] std::vector<PricedColumn> price(const std::vector<double>& duals,
                                                       double threshold = 0.0) {
             std::shared_lock lock(pool_.mutex_);
@@ -361,9 +429,21 @@ class FilteredSolutionPool {
             return price_subset_locked(duals, threshold);
         }
 
-        // update_activity() uses shared_lock for the same reason: activity writes
-        // are now atomic, so concurrent price()/update_activity() calls are safe.
-        // Columns NOT in basis_ids: ++age. Columns outside this view: untouched.
+        /// @brief Update per-column activity based on LP basis membership.
+        ///
+        /// Intended to be called once per LP solve, after the master problem
+        /// returns the set of columns that entered the LP basis.
+        ///
+        /// For each column in @b this view:
+        ///   - In @p basis_ids → @c age reset to 0, @c last_was_negative = true.
+        ///   - Not in @p basis_ids → @c age incremented by 1.
+        ///
+        /// Columns outside this view are not touched.  Does @b not increment
+        /// @c pricing_count (that counter tracks @ref price() calls only).
+        ///
+        /// Uses @c shared_lock — safe to call concurrently with @ref price().
+        ///
+        /// @param basis_ids ColumnIds of columns currently in the LP basis.
         void update_activity(const std::vector<ColumnId>& basis_ids) {
             std::shared_lock lock(pool_.mutex_);
             const std::unordered_set<ColumnId> basis_set(basis_ids.begin(), basis_ids.end());
@@ -381,11 +461,22 @@ class FilteredSolutionPool {
 
         // ── Local removes (this view only — supports B&B backtracking) ─────────
 
-        // Remove entries from this view only (NOT from the main pool).
-        // The user predicate may inspect or even mutate the pool, so it is evaluated on a
-        // snapshot with NO lock held — a std::shared_mutex is non-recursive, so running the
-        // predicate under the lock would deadlock on re-entry. Phases: snapshot under a
-        // shared lock → evaluate unlocked → apply under a unique lock.
+        /// @brief Remove entries from @b this view only (main pool is unaffected).
+        ///
+        /// Supports Branch-and-Bound: the removed columns remain in the pool and
+        /// in other @ref FilteredSolutionPool views; letting the filtered pool go
+        /// out of scope restores full access automatically.
+        ///
+        /// The predicate is evaluated on a snapshot with @b no lock held (the
+        /// @c shared_mutex is non-recursive; holding it while calling user code
+        /// would deadlock on re-entry).  Phases:
+        ///   1. Snapshot under @c shared_lock.
+        ///   2. Evaluate predicate unlocked.
+        ///   3. Apply removals under @c unique_lock.
+        ///
+        /// @param pred Callable ``(ColumnId, const Solution&, const ColumnActivity&) -> bool``.
+        ///             Return @c true to remove the entry from this view.
+        /// @return ColumnIds of the removed entries.
         std::vector<ColumnId> remove_if(const Predicate& pred) {
             std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> snapshot;
             {
@@ -414,9 +505,13 @@ class FilteredSolutionPool {
             return removed;
         }
 
-        // Remove from this view all columns whose path traverses arc_id.
-        // The predicate is internal (cannot re-enter the pool), so it is safe to run under the
-        // lock; the lock is exclusive because remove_if_local mutates this view.
+        /// @brief Remove from this view all columns whose path uses @p arc_id.
+        ///
+        /// Local removal only — main pool and other views are unaffected.
+        /// Useful in Branch-and-Bound when branching on arc inclusion/exclusion.
+        ///
+        /// @param arc_id Arc to exclude.
+        /// @return ColumnIds of the removed entries.
         std::vector<ColumnId> remove_if_arc_present(size_t arc_id) {
             std::unique_lock lock(pool_.mutex_);
             return remove_if_local([arc_id](ColumnId, const Solution& sol, const ColumnActivity&) {
@@ -424,9 +519,20 @@ class FilteredSolutionPool {
             });
         }
 
-        // Remove from this view entries where age > max_age, or (once priced) usage_rate is below
-        // min_usage_rate. A never-priced column (priced_count == 0) is never evicted by the usage
-        // criterion, so a freshly added column is not dropped before it has been priced.
+        /// @brief Remove stale columns from this view (local; main pool unaffected).
+        ///
+        /// A column is removed if it satisfies either criterion:
+        ///   - @c age > @p max_age  (not returned by @ref price() for too long), or
+        ///   - @c priced_count > 0 and @c usage_rate() < @p min_usage_rate.
+        ///
+        /// A never-priced column (@c priced_count == 0) is immune to the usage-rate
+        /// criterion so freshly added columns are not immediately evicted.
+        ///
+        /// @param max_age         Remove if column has not been priced-and-returned for
+        ///                        more than this many @ref price() calls.
+        /// @param min_usage_rate  Remove if the column's usage fraction falls below this
+        ///                        value (ignored for never-priced columns).
+        /// @return ColumnIds of the removed entries.
         std::vector<ColumnId> remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);  // exclusive: remove_if_local mutates this view
             return remove_if_local(
@@ -438,9 +544,17 @@ class FilteredSolutionPool {
 
         // ── Global hard deletes (from pool, propagates to all views) ───────────
 
-        // Hard delete from pool, propagates to all registered FilteredSolutionPools.
-        // Like remove_if, the user predicate is evaluated on a snapshot with NO lock held, then
-        // the still-present matches are deleted under an exclusive lock.
+        /// @brief Hard-delete columns from the main pool; propagates to all views.
+        ///
+        /// Unlike @ref remove_if() this permanently removes entries from the root
+        /// @ref SolutionPool and all registered @ref FilteredSolutionPool instances.
+        ///
+        /// The predicate is evaluated on a snapshot with @b no lock held (same
+        /// rationale as @ref remove_if()), then deletions are applied under an
+        /// exclusive lock.
+        ///
+        /// @param pred Callable ``(ColumnId, const Solution&, const ColumnActivity&) -> bool``.
+        /// @return ColumnIds of the deleted entries.
         std::vector<ColumnId> global_remove_if(const Predicate& pred) {
             std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> snapshot;
             {
@@ -460,7 +574,12 @@ class FilteredSolutionPool {
             return pool_.remove_ids_locked(selected);
         }
 
-        // Hard delete all columns whose path traverses arc_id.
+        /// @brief Hard-delete all columns whose path traverses @p arc_id from the pool.
+        ///
+        /// Propagates to all registered @ref FilteredSolutionPool instances.
+        ///
+        /// @param arc_id Arc to exclude globally.
+        /// @return ColumnIds of the deleted entries.
         std::vector<ColumnId> global_remove_if_arc_present(size_t arc_id) {
             std::unique_lock lock(pool_.mutex_);
             return pool_.remove_if_locked(
@@ -469,7 +588,14 @@ class FilteredSolutionPool {
                 });
         }
 
-        // Hard delete stale columns from pool (same criterion as remove_stale).
+        /// @brief Hard-delete stale columns from the pool (propagates to all views).
+        ///
+        /// Same eviction criterion as @ref remove_stale() but applies globally:
+        /// entries are permanently removed from the root @ref SolutionPool.
+        ///
+        /// @param max_age        Remove if @c age > @p max_age.
+        /// @param min_usage_rate Remove if @c usage_rate() < this (when @c priced_count > 0).
+        /// @return ColumnIds of the deleted entries.
         std::vector<ColumnId> global_remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);
             return pool_.remove_if_locked(
@@ -479,15 +605,30 @@ class FilteredSolutionPool {
                 });
         }
 
-        // Purge stale references left by pool-level removals that bypassed propagation.
-        // Re-sort filtered_entries_ by lp_index after a batch add or a removal that
-        // disrupted the order.  Call this after add(solutions) / add_columns() for
-        // best cache behaviour during subsequent price() calls.
+        /// @brief Re-sort the filtered view by @c lp_index for cache-friendly pricing.
+        ///
+        /// The @ref price_subset_locked loop accesses the SoA LP arrays
+        /// (@c col_costs, @c row_starts, @c row_coefs…) via @c Entry::lp_index.
+        /// When @c filtered_entries_ is sorted by @c lp_index ascending, these
+        /// accesses are sequential and the hardware prefetcher can work effectively.
+        ///
+        /// Called automatically at filter construction via @ref populate_off_lock.
+        /// New entries appended by @ref on_add_unlocked() always have the highest
+        /// @c lp_index (monotone), so they preserve the sort order.  Only
+        /// swap-and-pop removals may disrupt it; call this method after
+        /// @ref remove_stale() or @ref remove_if() when performance matters.
         void sort_by_lp_index() {
             std::unique_lock lock(pool_.mutex_);
             sort_by_lp_index_unlocked();
         }
 
+        /// @brief Purge stale entry pointers left by pool-level removals.
+        ///
+        /// If a column is deleted from the root pool without going through the
+        /// normal @ref on_remove_unlocked() propagation path (e.g. direct pool
+        /// manipulation), this view may hold dangling @c Entry* pointers.
+        /// @ref cleanup() scans @c filtered_entries_ and drops any entries whose
+        /// @c ColumnId is no longer present in @c id_index_.
         void cleanup() {
             std::unique_lock lock(pool_.mutex_);  // exclusive: mutates this view's containers
             std::vector<ColumnId> stale;
@@ -503,6 +644,11 @@ class FilteredSolutionPool {
 
         // ── Read operations ───────────────────────────────────────────────────
 
+        /// @brief Fetch a column's @ref Solution by @ref ColumnId.
+        ///
+        /// @param id ColumnId returned by @ref add() or @ref price().
+        /// @return A copy of the @ref Solution, or @c std::nullopt if @p id is
+        ///         not in this filtered view (@ref kNoId, not present, or filtered out).
         [[nodiscard]] std::optional<Solution> get(ColumnId id) const {
             if (id == SolutionPool::kNoId) {
                 return std::nullopt;
@@ -515,6 +661,13 @@ class FilteredSolutionPool {
             return filtered_entries_[it->second]->solution;
         }
 
+        /// @brief Fetch a column's @ref ColumnActivity snapshot by @ref ColumnId.
+        ///
+        /// Returns an atomic snapshot of the activity counters (@c age, @c use_count,
+        /// @c last_reduced_cost, etc.) at the instant of the call.
+        ///
+        /// @param id ColumnId returned by @ref add() or @ref price().
+        /// @return A @ref ColumnActivity snapshot, or @c std::nullopt if not in view.
         [[nodiscard]] std::optional<ColumnActivity> get_activity(ColumnId id) const {
             if (id == SolutionPool::kNoId) {
                 return std::nullopt;
@@ -527,7 +680,14 @@ class FilteredSolutionPool {
             return filtered_entries_[it->second]->activity.snapshot();
         }
 
-        // Returns (id, solution, activity) in a single lock-acquire; nullopt if not in this view.
+        /// @brief Fetch id, solution, and activity in a single lock acquisition.
+        ///
+        /// More efficient than calling @ref get() and @ref get_activity() separately
+        /// when all three fields are needed.
+        ///
+        /// @param id ColumnId returned by @ref add() or @ref price().
+        /// @return Tuple ``(ColumnId, Solution, ColumnActivity)``, or @c std::nullopt
+        ///         if @p id is not in this filtered view.
         [[nodiscard]] std::optional<std::tuple<ColumnId, Solution, ColumnActivity>> get_entry(
             ColumnId id) const {
             if (id == SolutionPool::kNoId) {
@@ -542,16 +702,29 @@ class FilteredSolutionPool {
             return std::make_tuple(e.id, e.solution, e.activity.snapshot());
         }
 
+        /// @brief Total number of @ref price() calls on the root pool since creation.
+        ///
+        /// Used with @ref ColumnActivity::created_at to compute per-column lifetime
+        /// statistics.  All @ref FilteredSolutionPool instances sharing the same root
+        /// pool see the same counter.
         [[nodiscard]] size_t pricing_count() const {
             std::shared_lock lock(pool_.mutex_);
             return pool_.pricing_count_;
         }
 
+        /// @brief Number of columns currently in this filtered view.
         [[nodiscard]] size_t size() const {
             std::shared_lock lock(pool_.mutex_);
             return filtered_entries_.size();
         }
 
+        /// @brief Return a snapshot of all ``(ColumnId, Solution, ColumnActivity)`` tuples.
+        ///
+        /// Acquires a @c shared_lock and copies all entries visible in this filtered
+        /// view.  Useful for populating external data structures (e.g. the Python
+        /// @c SharedPricingPool) or for inspecting the full column set at once.
+        ///
+        /// @return Vector of tuples ordered by position in @c filtered_entries_.
         [[nodiscard]] std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> get_all() const {
             std::shared_lock lock(pool_.mutex_);
             std::vector<std::tuple<ColumnId, Solution, ColumnActivity>> result;
@@ -565,13 +738,28 @@ class FilteredSolutionPool {
 
         // ── Filtering ─────────────────────────────────────────────────────────
 
-        // Create a further-narrowed FilteredSolutionPool: entries must pass BOTH this filter
-        // AND pred. The new pool starts from this pool's current entries and is registered
-        // with the root pool for auto-propagation using the combined filter.
+        /// @brief Create a further-narrowed filtered view from this view.
+        ///
+        /// Entries in the new pool must pass @b both this view's existing filter
+        /// @b and @p pred.  The combined filter is applied to the current entries
+        /// off-lock (to avoid deadlock with re-entrant predicates), then the new
+        /// pool is registered with the root pool for future propagation.
+        ///
+        /// @param pred Additional predicate, or @c nullptr for no extra restriction.
+        /// @return A new @ref FilteredSolutionPool narrowing this view.
         [[nodiscard]] FilteredSolutionPool new_filter(
             std::function<bool(const Solution&)> pred = nullptr) const;
 
-        // Convenience: build filter from row/arc constraints, then new_filter().
+        /// @brief Create a further-narrowed view restricted by row/arc membership.
+        ///
+        /// Convenience overload — builds the filter predicate from the constraint
+        /// vectors and delegates to the single-argument @ref new_filter().
+        ///
+        /// @param compulsory_rows    Column must cover all these row indices.
+        /// @param forbidden_rows     Column must not cover any of these.
+        /// @param compulsory_arc_ids Path must traverse all these arc IDs.
+        /// @param forbidden_arc_ids  Path must not traverse any of these.
+        /// @return A new @ref FilteredSolutionPool narrowing this view.
         [[nodiscard]] FilteredSolutionPool new_filter(std::vector<size_t> compulsory_rows,
                                                       std::vector<size_t> forbidden_rows,
                                                       std::vector<size_t> compulsory_arc_ids,
@@ -582,8 +770,15 @@ class FilteredSolutionPool {
                                           std::move(forbidden_arc_ids)));
         }
 
-        // Narrow this view further: updates filter_ and removes entries that no longer pass it.
-        // Unlike new_filter(), this mutates the current pool instead of creating a new one.
+        /// @brief Narrow @b this view in-place by composing an additional predicate.
+        ///
+        /// Unlike @ref new_filter() (which creates a separate pool), this method
+        /// @b mutates the current view: entries that no longer pass the combined
+        /// filter are removed from @c filtered_entries_ immediately.
+        ///
+        /// The predicate is evaluated off-lock on a snapshot to avoid deadlock.
+        ///
+        /// @param pred Additional filter; composed AND-wise with the existing filter.
         void add_filter(std::function<bool(const Solution&)> pred) {
             if (!pred) {
                 return;
@@ -615,7 +810,15 @@ class FilteredSolutionPool {
             }
         }
 
-        // Convenience: build filter from row/arc constraints, then add_filter().
+        /// @brief Narrow this view in-place using row/arc membership constraints.
+        ///
+        /// Convenience overload — builds the filter predicate from the constraint
+        /// vectors and delegates to the single-argument @ref add_filter().
+        ///
+        /// @param compulsory_rows    Column must cover all these row indices.
+        /// @param forbidden_rows     Column must not cover any of these.
+        /// @param compulsory_arc_ids Path must traverse all these arc IDs.
+        /// @param forbidden_arc_ids  Path must not traverse any of these.
         void add_filter(std::vector<size_t> compulsory_rows, std::vector<size_t> forbidden_rows,
                         std::vector<size_t> compulsory_arc_ids,
                         std::vector<size_t> forbidden_arc_ids) {
@@ -625,7 +828,16 @@ class FilteredSolutionPool {
                                    std::move(forbidden_arc_ids)));
         }
 
-        // Build a filter predicate from row/arc constraints.
+        /// @brief Build a standalone filter predicate from row/arc membership constraints.
+        ///
+        /// Returns a callable that can be passed to @ref new_filter() or composed
+        /// manually.  Equivalent to @ref SolutionPool::make_filter().
+        ///
+        /// @param compulsory_rows    Column must cover all these row indices.
+        /// @param forbidden_rows     Column must not cover any of these.
+        /// @param compulsory_arc_ids Path must traverse all these arc IDs.
+        /// @param forbidden_arc_ids  Path must not traverse any of these.
+        /// @return A filter predicate ``(const Solution&) -> bool``.
         [[nodiscard]] static std::function<bool(const Solution&)> make_filter(
             std::vector<size_t> compulsory_rows = {}, std::vector<size_t> forbidden_rows = {},
             std::vector<size_t> compulsory_arc_ids = {},
