@@ -1,99 +1,58 @@
 """Cross-process shared pricing pool for RCSPP column generation.
 
-Three-class design
-------------------
-
-:class:`SharedPricingPool`
-    **The raw shared-memory object.**  Stores LP column data (costs +
-    constraint coefficients) in CSR format inside a single
-    ``multiprocessing.shared_memory.SharedMemory`` segment.  Multiple
-    processes attach to the *same* segment and call :meth:`price` concurrently
-    without a lock.  Only writes (``add``, ``invalidate``) are locked.
-
-    *Typical user*: worker processes that only need to price columns.
-
-    Usage::
-
-        # Master process — create once, pass handle to workers.
-        pool = SharedPricingPool(n_constraints=200, max_cols=50_000)
-        pool.add(solution)              # write-locked
-        handle = pool.handle()          # picklable dict
-
-        # Worker process — attach and price.
-        worker_pool = SharedPricingPool.attach(handle)
-        indices, rcs = worker_pool.price(duals)   # lock-free
-
-:class:`FilteredSharedPricingPool`
-    **A process-local filter view over a** ``SharedPricingPool``.  Holds a
-    boolean numpy mask (in the calling process's heap, *not* in shared
-    memory) that restricts which column slots are visible during pricing.
-    Mirrors the concept of the C++ ``FilteredSolutionPool`` but in pure
-    Python/numpy.
-
-    Use for Branch-and-Bound: each B&B node creates its own
-    ``FilteredSharedPricingPool`` that excludes columns covering forbidden
-    arcs or missing compulsory rows.  :meth:`remove_from_view` /
-    :meth:`add_to_view` support backtracking without touching shared memory.
-
-    *Typical user*: master process or any process doing B&B pricing.
-
-    Usage::
-
-        fpool = FilteredSharedPricingPool(pool, view_indices=allowed_idx)
-        fpool.remove_from_view([slot_of_forbidden_column])
-        indices, rcs = fpool.price(duals)   # only allowed columns
-
-        # Or create from a C++ FilteredSolutionPool via PricingPool:
-        fpool = pricing_pool.new_numpy_filter(cpp_fp)
+Two public entry points
+-----------------------
 
 :class:`PricingPool`
-    **Master-side coordinator** — keeps a C++ ``FilteredSolutionPool`` and a
-    ``SharedPricingPool`` in sync.  All C++ pool operations (add, remove,
-    activity tracking, arc/row filters) go through the ``FilteredSolutionPool``
-    as usual.  Cross-process pricing uses the ``SharedPricingPool`` underneath.
+    **Main pool** — the only object the master process needs.  Creates and
+    manages the internal C++ ``SolutionPool`` and the ``SharedPricingPool``
+    transparently.  Produces :class:`FilteredPricingPool` views via
+    :meth:`new_filter`.
 
-    *Typical user*: the master process in a column-generation loop.
+    Workers receive a handle via :meth:`handle` and call
+    ``PricingPool.attach(handle)`` to get a :class:`SharedPricingPool` for
+    lock-free pricing.
 
-    Usage::
+:class:`FilteredPricingPool`
+    **Filtered view** — returned by :meth:`PricingPool.new_filter` or
+    :meth:`FilteredPricingPool.new_filter`.  Wraps a C++
+    ``FilteredSolutionPool`` and a local numpy mask in one object.
 
-        cpp_pool = SolutionPool()
-        pp = PricingPool(cpp_pool.new_filter(), n_constraints=200)
-        handle = pp.shared_handle()       # pass to worker processes
+    Supports all the same column operations as ``PricingPool`` plus B&B
+    operators (:meth:`remove_from_view` / :meth:`add_to_view`) that modify
+    the numpy mask only (no shared-memory write, trivial backtracking).
 
-        # Add/remove columns — both C++ pool and shared pool are updated.
-        pp.add(solution)
-        pp.remove_stale(max_age=50)
+Advanced / worker classes
+--------------------------
 
-        # Master-side pricing (delegates to SharedPricingPool).
-        indices, rcs = pp.price_shared(duals)
+:class:`SharedPricingPool`
+    Raw shared-memory CSR pool — the only thing workers need.  Attach with
+    ``PricingPool.attach(handle)``.
 
-        # Pricing with a C++ arc/row filter (creates FilteredSharedPricingPool).
-        restricted_fp = cpp_pool.new_filter(forbidden_arc_ids=[10, 11])
-        indices, rcs = pp.new_numpy_filter(restricted_fp).price(duals)
+:class:`FilteredSharedPricingPool`
+    Process-local boolean mask over a ``SharedPricingPool``.  Used internally
+    by ``FilteredPricingPool``; also available for advanced users.
 
-        # Worker processes only need SharedPricingPool.attach(handle).
+Example workflow::
 
-Memory layout (single SharedMemory segment)
--------------------------------------------
-::
+    # Master
+    pool = PricingPool(n_constraints=200, max_cols=50_000)
+    pool.add(solution)
+    sub  = pool.new_filter(forbidden_arc_ids=[10], max_age=100)
+    handle = pool.handle()           # send to workers
 
-    [header 128 B][valid uint8][col_costs f64][row_starts i32][col_indices i32][col_values f64]
+    # Worker
+    shared = PricingPool.attach(handle)
+    indices, rcs = shared.price(duals)
 
-CSR pricing formula
--------------------
-``rc[i] = col_costs[i] - A[i] @ duals``
+    # B&B (master-side)
+    sub.remove_from_view(arc_ids=[10, 11])
+    indices, rcs = sub.price(duals)
+    sub.add_to_view(cpp_ids=[c1, c2])   # backtrack
 
-where ``A`` is a ``scipy.sparse.csr_matrix`` view over the shared CSR buffers
-(zero-copy).  Complexity: ``O(nnz)`` — independent of ``n_constraints``.
-Falls back to a numpy ``bincount`` SPMV with a one-time warning if scipy is
-not installed.
-
-Dynamic cuts
-------------
-``n_constraints`` is over-allocated at creation (e.g. 1000).  When new cuts
-are added their LP duals just appear as new entries in the ``duals`` vector.
-Old columns have no coefficient at those indices (the CSR rows contain no
-entry for them), so they are handled correctly without any data update.
+Shared-memory layout
+--------------------
+Single ``SharedMemory`` segment — see :class:`SharedPricingPool` for details.
 """
 
 from __future__ import annotations
@@ -112,29 +71,35 @@ try:
 except ImportError:  # pragma: no cover
     _SCIPY_AVAILABLE = False
 
-# Emit the fallback warning at most once per process lifetime.
-_scipy_warning_emitted = False
+try:
+    from rcspp._core import solution_pool as _sp
+
+    _SolutionPool = _sp.SolutionPool
+except ImportError:  # pragma: no cover — only missing in isolated test envs
+    _SolutionPool = None
 
 if TYPE_CHECKING:
     from rcspp._core.graph import Solution
 
+# Emit the scipy fallback warning at most once per process lifetime.
+_scipy_warning_emitted = False
+
 # ── Shared-memory header ──────────────────────────────────────────────────────
-# 10 × uint64 = 80 bytes, padded to 128 (two cache lines) for alignment.
 _HEADER_DTYPE = np.dtype(
     [
-        ("count", np.uint64),  # committed columns
-        ("nnz", np.uint64),  # committed non-zeros (total across all columns)
-        ("n_constraints", np.uint64),  # constraint capacity (over-allocated)
-        ("max_cols", np.uint64),  # column capacity
-        ("max_nnz", np.uint64),  # non-zero capacity
-        ("valid_offset", np.uint64),  # byte offset of valid[]
-        ("costs_offset", np.uint64),  # byte offset of col_costs[]
-        ("row_starts_offset", np.uint64),  # byte offset of row_starts[]
-        ("col_indices_offset", np.uint64),  # byte offset of col_indices[]
-        ("col_values_offset", np.uint64),  # byte offset of col_values[]
+        ("count", np.uint64),
+        ("nnz", np.uint64),
+        ("n_constraints", np.uint64),
+        ("max_cols", np.uint64),
+        ("max_nnz", np.uint64),
+        ("valid_offset", np.uint64),
+        ("costs_offset", np.uint64),
+        ("row_starts_offset", np.uint64),
+        ("col_indices_offset", np.uint64),
+        ("col_values_offset", np.uint64),
     ]
 )
-_HEADER_BYTES = 128  # two cache lines — header fits in 80, leave 48 spare
+_HEADER_BYTES = 128  # two cache lines
 
 
 def _align_up(n: int, align: int) -> int:
@@ -142,51 +107,29 @@ def _align_up(n: int, align: int) -> int:
     return (n + align - 1) & ~(align - 1)
 
 
+# ── SharedPricingPool ─────────────────────────────────────────────────────────
+
+
 class SharedPricingPool:
     """Cross-process shared pricing pool with CSR storage and scipy SPMV pricing.
 
-    Stores LP column data in **CSR format** inside a single ``SharedMemory``
-    segment.  Multiple processes attach to the same segment; ``price()`` is
-    lock-free.  Only ``add()`` and ``invalidate()`` acquire the write lock.
-
-    Columns are sparse in CG (VRP: 2–5 active constraints per route out of
-    50–200), so CSR is both memory-efficient and O(nnz) at pricing time.
+    Stores LP column data in CSR format inside a single ``SharedMemory``
+    segment.  Multiple processes attach to the same segment; :meth:`price` is
+    lock-free.  Only :meth:`add` and :meth:`invalidate` acquire the write lock.
 
     If **scipy** is installed, ``price()`` uses a zero-copy ``csr_matrix``
-    SPMV directly over the shared buffers.  Without scipy a ``np.bincount``
-    fallback is used (same complexity, slightly slower) with a one-time
-    warning.
+    SPMV.  Without scipy a ``np.bincount`` fallback is used (O(nnz)) with a
+    one-time warning.
 
-    Typical usage (master creates, workers attach)::
-
-        # ── master ────────────────────────────────────────────────────────
-        pool = SharedPricingPool(n_constraints=200, max_cols=50_000)
-        for sol in initial_solutions:
-            pool.add(sol)
-        handle = pool.handle()   # picklable — pass to workers
-
-        # ── worker ────────────────────────────────────────────────────────
-        worker_pool = SharedPricingPool.attach(handle)
-
-        # Lock-free pricing each CG iteration:
-        indices, rcs = worker_pool.price(duals)
-        # indices: positions in the shared pool sorted by rc (best first)
-        # rcs:     reduced costs, all < threshold (default -1e-9)
-
-        # ── master: invalidate removed columns ────────────────────────────
-        pool.invalidate([slot_of_removed_col])
+    Typically obtained from :meth:`PricingPool.handle` +
+    ``PricingPool.attach(handle)`` in worker processes.
 
     Args:
-        n_constraints: Highest constraint index + 1.  Over-allocate (e.g.
-            1000) so future cuts need no reallocation — just pass a longer
-            ``duals`` vector.
+        n_constraints: Highest constraint index + 1.  Over-allocate (e.g. 1000).
         max_cols: Column capacity.
-        max_nnz_per_col: Maximum non-zeros per column (default 50).
-            Total capacity: ``max_nnz = max_cols × max_nnz_per_col``.
+        max_nnz_per_col: Max non-zeros per column (default 50).
         name: SharedMemory segment name; auto-generated if ``None``.
-        lock: External lock for spawn-safe multiprocessing.  Use
-            ``multiprocessing.Manager().Lock()`` when starting workers with
-            ``spawn``; the default ``Lock()`` works with ``fork``.
+        lock: External lock for spawn-safe use (``Manager().Lock()``).
     """
 
     def __init__(
@@ -202,7 +145,6 @@ class SharedPricingPool:
         self._max_nnz = int(max_cols) * int(max_nnz_per_col)
         self._lock = lock if lock is not None else Lock()
 
-        # ── Compute offsets, all padded to 8-byte (float64) boundaries ────────
         valid_offset = _HEADER_BYTES
         costs_offset = _align_up(valid_offset + max_cols, 8)
         row_starts_offset = _align_up(costs_offset + max_cols * 8, 8)
@@ -211,9 +153,8 @@ class SharedPricingPool:
         total = col_values_offset + self._max_nnz * 8
 
         self._shm = SharedMemory(name=name, create=True, size=total)
-        self._shm.buf[:total] = b"\x00" * total  # zero-fill
+        self._shm.buf[:total] = b"\x00" * total
 
-        # ── Write header ───────────────────────────────────────────────────────
         hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=self._shm.buf)
         hdr["count"] = 0
         hdr["nnz"] = 0
@@ -232,12 +173,8 @@ class SharedPricingPool:
         self._col_indices_offset = col_indices_offset
         self._col_values_offset = col_values_offset
         self._init_views()
-        # row_starts[0] = 0 is already set by zero-fill.
-
-    # ── Views ─────────────────────────────────────────────────────────────────
 
     def _init_views(self) -> None:
-        """Build zero-copy numpy views over the shared buffer."""
         buf = self._shm.buf
         self._header = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=buf)
         self._valid = np.ndarray(
@@ -246,7 +183,6 @@ class SharedPricingPool:
         self._col_costs = np.ndarray(
             (self._max_cols,), dtype=np.float64, buffer=buf, offset=self._costs_offset
         )
-        # row_starts has max_cols+1 entries (CSR sentinel).
         self._row_starts = np.ndarray(
             (self._max_cols + 1,),
             dtype=np.int32,
@@ -260,23 +196,16 @@ class SharedPricingPool:
             (self._max_nnz,), dtype=np.float64, buffer=buf, offset=self._col_values_offset
         )
 
-    # ── Attach from another process ───────────────────────────────────────────
-
     @classmethod
     def attach(cls, handle: dict) -> "SharedPricingPool":
         """Attach to an existing pool from a worker process (zero-copy).
 
         Args:
             handle: dict returned by :meth:`handle`.
-
-        Returns:
-            A ``SharedPricingPool`` sharing the same memory.
         """
         obj = object.__new__(cls)
         obj._lock = handle["lock"]
         obj._shm = SharedMemory(name=handle["shm_name"], create=False)
-
-        # Read all layout params from the authoritative shared header.
         hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=obj._shm.buf)
         obj._n_constraints = int(hdr["n_constraints"][0])
         obj._max_cols = int(hdr["max_cols"][0])
@@ -290,52 +219,36 @@ class SharedPricingPool:
         return obj
 
     def handle(self) -> dict:
-        """Picklable handle — pass to worker processes via :meth:`attach`.
-
-        Returns:
-            ``{'shm_name': ..., 'lock': ...}`` — all layout params are read
-            from the shared header on attach.
-        """
+        """Return a picklable handle for :meth:`attach` in worker processes."""
         return {"shm_name": self._shm.name, "lock": self._lock}
 
     # ── Write operations ──────────────────────────────────────────────────────
 
     def add(self, solution: "Solution") -> int:
-        """Add one solution's LP column to the CSR pool.
+        """Add one column.
 
-        Writes cost, row indices, and row values, then commits ``valid`` and
-        ``count`` atomically under the lock.
-
-        Returns:
-            Shared index of the new column slot.
-
-        Raises:
-            RuntimeError: Pool is full (columns or non-zeros).
+        Returns the shared slot index.
         """
         col = solution.column
-        # Collect non-zeros outside the lock (pure Python, no contention).
         rows = [
             (int(r.index), float(r.coefficient))
             for r in col.rows
             if int(r.index) < self._n_constraints
         ]
-
         with self._lock:
             count = int(self._header["count"][0])
             nnz = int(self._header["nnz"][0])
             if count >= self._max_cols:
-                raise RuntimeError(f"SharedPricingPool is full (columns: {count}/{self._max_cols})")
+                raise RuntimeError(f"SharedPricingPool full (cols: {count}/{self._max_cols})")
             new_nnz = nnz + len(rows)
             if new_nnz > self._max_nnz:
                 raise RuntimeError(
-                    f"SharedPricingPool non-zero capacity exceeded " f"({new_nnz}/{self._max_nnz})"
+                    f"SharedPricingPool non-zero capacity exceeded ({new_nnz}/{self._max_nnz})"
                 )
-            # Write LP data.
             self._col_costs[count] = float(col.cost)
             for k, (idx, val) in enumerate(rows):
                 self._col_indices[nnz + k] = np.int32(idx)
                 self._col_values[nnz + k] = val
-            # Commit: update CSR sentinel, valid flag, then count and nnz.
             self._row_starts[count + 1] = np.int32(new_nnz)
             self._valid[count] = np.uint8(1)
             self._header["nnz"] = new_nnz
@@ -343,15 +256,9 @@ class SharedPricingPool:
         return count
 
     def add_columns(self, solutions: list) -> list[int]:
-        """Batch-add multiple solutions under a single lock acquisition.
-
-        Returns:
-            List of shared indices, one per solution.
-        """
+        """Batch-add under a single lock acquisition."""
         if not solutions:
             return []
-
-        # Prepare all CSR data outside the lock.
         costs = np.empty(len(solutions), dtype=np.float64)
         row_data: list[list[tuple[int, float]]] = []
         for k, sol in enumerate(solutions):
@@ -363,19 +270,16 @@ class SharedPricingPool:
                     if int(r.index) < self._n_constraints
                 ]
             )
-
         with self._lock:
             start = int(self._header["count"][0])
             nnz_start = int(self._header["nnz"][0])
             end = start + len(solutions)
             if end > self._max_cols:
                 raise RuntimeError(
-                    f"SharedPricingPool: adding {len(solutions)} columns would "
-                    f"exceed capacity ({start}/{self._max_cols})"
+                    f"SharedPricingPool: adding {len(solutions)} columns would exceed capacity"
                 )
-            # Write all columns.
             cursor = nnz_start
-            for i, (col_rows) in enumerate(row_data):
+            for i, col_rows in enumerate(row_data):
                 slot = start + i
                 self._col_costs[slot] = costs[i]
                 for idx, val in col_rows:
@@ -389,16 +293,11 @@ class SharedPricingPool:
         return list(range(start, end))
 
     def invalidate(self, shared_indices: list[int]) -> None:
-        """Mark columns as deleted (skip during pricing).
-
-        Args:
-            shared_indices: Shared indices returned by :meth:`add`.
-        """
+        """Mark columns as deleted (skip during pricing)."""
         if not shared_indices:
             return
-        idx = np.asarray(shared_indices, dtype=np.intp)
         with self._lock:
-            self._valid[idx] = np.uint8(0)
+            self._valid[np.asarray(shared_indices, dtype=np.intp)] = np.uint8(0)
 
     # ── Pricing (lock-free) ───────────────────────────────────────────────────
 
@@ -408,143 +307,96 @@ class SharedPricingPool:
         threshold: float = -1e-9,
         view_mask: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute reduced costs and return improving columns sorted best-first.
+        """Compute reduced costs; return improving columns sorted best-first.
 
-        **Lock-free.**  Reads a snapshot of ``count`` and ``nnz``, builds a
-        ``scipy.sparse.csr_matrix`` **view** over the committed CSR buffers
-        (zero-copy for ``int32`` indices and ``float64`` values), and calls
-        scipy's SPMV::
-
-            rc[i] = col_costs[i] - A[i, :] @ duals
-
-        Complexity: ``O(nnz)`` — independent of ``n_constraints``.
+        Lock-free.  Uses scipy CSR SPMV when available; falls back to numpy
+        bincount with a one-time warning otherwise.
 
         Args:
-            duals: 1-D float64 LP dual values, indexed by constraint.
-            threshold: Keep only columns with ``rc < threshold``.
-                Default ``-1e-9`` avoids near-zero columns.
-            view_mask: Optional boolean ``ndarray`` of shape ``(max_cols,)``.
-                If provided, only columns where ``view_mask[i] = True`` are
-                considered.  Used by :class:`FilteredSharedPricingPool`.
+            duals: 1-D float64 LP dual values.
+            threshold: Keep only columns with ``rc < threshold`` (default -1e-9).
+            view_mask: Optional bool array restricting which slots are priced.
 
         Returns:
-            ``(indices, reduced_costs)`` — 1-D arrays, sorted ascending by
-            ``reduced_costs`` (most improving first).
+            ``(indices, reduced_costs)`` sorted ascending by ``reduced_costs``.
         """
+        global _scipy_warning_emitted  # noqa: PLW0603
         duals = np.asarray(duals, dtype=np.float64)
-
-        # Lock-free snapshot reads.
         n = int(self._header["count"][0])
         nnz = int(self._header["nnz"][0])
         if n == 0:
             return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.float64)
 
         n_duals = min(len(duals), self._n_constraints)
-
-        col_costs = np.asarray(self._col_costs[:n], dtype=np.float64)  # contiguous copy
+        col_costs = np.asarray(self._col_costs[:n], dtype=np.float64)
 
         if _SCIPY_AVAILABLE:
-            # ── scipy SPMV: O(nnz), zero-copy CSR view ────────────────────────
-            # csr_matrix(copy=False) uses the shared-memory buffers directly when
-            # dtypes match (int32 indices, float64 values).
-            indptr = self._row_starts[: n + 1]  # int32 view
-            sp_idx = self._col_indices[:nnz]  # int32 view
-            sp_val = self._col_values[:nnz]  # float64 view
-            A = _sp_csr(
-                (sp_val, sp_idx, indptr),
-                shape=(n, self._n_constraints),
-                copy=False,
-            )
+            indptr = self._row_starts[: n + 1]
+            sp_idx = self._col_indices[:nnz]
+            sp_val = self._col_values[:nnz]
+            A = _sp_csr((sp_val, sp_idx, indptr), shape=(n, self._n_constraints), copy=False)
             d = np.zeros(self._n_constraints, dtype=np.float64)
             d[:n_duals] = duals[:n_duals]
             rc = col_costs - A @ d
         else:
-            # ── numpy fallback: O(nnz) via bincount ───────────────────────────
-            global _scipy_warning_emitted  # noqa: PLW0603
             if not _scipy_warning_emitted:
                 warnings.warn(
-                    "scipy is not installed — SharedPricingPool.price() is using a "
-                    "slower numpy fallback (O(nnz) via bincount).  "
-                    "Install scipy for full performance: pip install scipy",
+                    "scipy not installed — SharedPricingPool.price() uses a slower numpy "
+                    "fallback.  Install scipy: pip install scipy",
                     stacklevel=2,
                 )
                 _scipy_warning_emitted = True
-
             rc = col_costs.copy()
             if nnz > 0:
-                # row_idx[k] = column index of the k-th non-zero entry.
                 counts = np.diff(self._row_starts[: n + 1].astype(np.int64))
                 row_idx = np.repeat(np.arange(n, dtype=np.int64), counts)
                 ci = self._col_indices[:nnz].astype(np.int64)
-                # Only use dual entries within the supplied duals vector.
-                mask = ci < n_duals
-                contrib = np.bincount(
-                    row_idx[mask],
-                    weights=self._col_values[:nnz][mask] * duals[ci[mask]],
+                mask_nnz = ci < n_duals
+                rc -= np.bincount(
+                    row_idx[mask_nnz],
+                    weights=self._col_values[:nnz][mask_nnz] * duals[ci[mask_nnz]],
                     minlength=n,
                 )
-                rc -= contrib
 
-        # ── Filter: valid ∩ view_mask ∩ (rc < threshold) ─────────────────────
         valid = self._valid[:n].view(np.bool_)
         active = valid
         if view_mask is not None:
             active = active & view_mask[:n]
         active = active & (rc < threshold)
 
-        indices_out = np.where(active)[0]
-        if len(indices_out) == 0:
+        indices = np.where(active)[0]
+        if len(indices) == 0:
             return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.float64)
-
-        # Sort ascending by reduced cost (most improving first).
-        rc_sel = rc[indices_out]
+        rc_sel = rc[indices]
         order = np.argsort(rc_sel, kind="stable")
-        return indices_out[order], rc_sel[order]
+        return indices[order], rc_sel[order]
 
-    # ── Direct numpy views ────────────────────────────────────────────────────
+    # ── Views ─────────────────────────────────────────────────────────────────
 
     @property
     def col_costs_view(self) -> np.ndarray:
-        """Zero-copy 1-D view of LP costs for committed columns.
-
-        Shape: ``(count,)``.
-        """
+        """Zero-copy float64 view of LP costs for committed columns."""
         return self._col_costs[: self.count]
 
     @property
     def row_starts_view(self) -> np.ndarray:
-        """Zero-copy int32 CSR row-pointer array.
-
-        Shape: ``(count+1,)``.
-        """
-        n = self.count
-        return self._row_starts[: n + 1]
+        """Zero-copy int32 CSR row-pointer array ``(count+1,)``."""
+        return self._row_starts[: self.count + 1]
 
     @property
     def col_indices_view(self) -> np.ndarray:
-        """Zero-copy int32 constraint-index array for non-zeros.
-
-        Shape: ``(nnz,)``.
-        """
+        """Zero-copy int32 constraint-index array for non-zeros."""
         return self._col_indices[: self.nnz]
 
     @property
     def col_values_view(self) -> np.ndarray:
-        """Zero-copy float64 coefficient array for non-zeros.
-
-        Shape: ``(nnz,)``.
-        """
+        """Zero-copy float64 coefficient array for non-zeros."""
         return self._col_values[: self.nnz]
 
     @property
     def valid_view(self) -> np.ndarray:
-        """Zero-copy uint8 validity flags.
-
-        Shape: ``(max_cols,)``.
-        """
+        """Zero-copy uint8 validity flags ``(max_cols,)``."""
         return self._valid
-
-    # ── Counters ──────────────────────────────────────────────────────────────
 
     @property
     def count(self) -> int:
@@ -553,7 +405,7 @@ class SharedPricingPool:
 
     @property
     def nnz(self) -> int:
-        """Total committed non-zeros across all columns."""
+        """Total committed non-zeros."""
         return int(self._header["nnz"][0])
 
     @property
@@ -565,11 +417,11 @@ class SharedPricingPool:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     def close(self) -> None:
-        """Detach from the shared memory segment without destroying it."""
+        """Detach without destroying."""
         self._shm.close()
 
     def unlink(self) -> None:
-        """Destroy the shared memory segment.
+        """Destroy the segment.
 
         Call once from the owner.
         """
@@ -590,49 +442,22 @@ class SharedPricingPool:
         )
 
 
+# ── FilteredSharedPricingPool ─────────────────────────────────────────────────
+
+
 class FilteredSharedPricingPool:
-    """A process-local filter view over a :class:`SharedPricingPool`.
+    """Process-local boolean mask over a :class:`SharedPricingPool`.
 
-    Holds a numpy boolean mask (in the calling process's heap, **not** in
-    shared memory) that restricts which column slots are visible when calling
-    :meth:`price`.  This mirrors the C++ ``FilteredSolutionPool`` concept but
-    operates entirely in Python/numpy.
-
-    Use cases:
-
-    * **Branch-and-Bound**: each B&B node creates its own
-      ``FilteredSharedPricingPool`` excluding columns that violate the node's
-      arc/row restrictions.  :meth:`remove_from_view` / :meth:`add_to_view`
-      support cheap backtracking without touching shared memory.
-    * **Subset pricing**: price only a curated subset of columns (e.g. the
-      elite columns that were in the LP basis recently).
-
-    Typically obtained from :meth:`PricingPool.new_numpy_filter`, which
-    automatically populates the mask from a C++ ``FilteredSolutionPool``::
-
-        # Mirror a C++ filter that forbids arc 10.
-        cpp_fp = cpp_pool.new_filter(forbidden_arc_ids=[10])
-        fpool  = pricing_pool.new_numpy_filter(cpp_fp)
-        indices, rcs = fpool.price(duals)
-
-    Can also be built directly::
-
-        fpool = FilteredSharedPricingPool(shared_pool, view_indices=allowed_idx)
-        fpool.remove_from_view([slot_i, slot_j])   # B&B restriction
-        indices, rcs = fpool.price(duals)
-        fpool.add_to_view([slot_i, slot_j])         # backtrack
+    Used internally by :class:`FilteredPricingPool`.  Also available for
+    advanced use (e.g. creating a filtered view directly from a handle).
 
     Args:
         shared: The backing ``SharedPricingPool``.
-        view_indices: 1-D integer array of shared indices to include.
-            ``None`` → all currently valid columns are included.
+        view_indices: 1-D integer array of shared slot indices to include.
+            ``None`` → all currently valid columns.
     """
 
-    def __init__(
-        self,
-        shared: SharedPricingPool,
-        view_indices: np.ndarray | None = None,
-    ) -> None:
+    def __init__(self, shared: SharedPricingPool, view_indices: np.ndarray | None = None) -> None:
         self._shared = shared
         self._mask = np.zeros(shared._max_cols, dtype=np.bool_)
         if view_indices is not None and len(view_indices) > 0:
@@ -642,253 +467,383 @@ class FilteredSharedPricingPool:
             if n > 0:
                 self._mask[:n] = shared._valid[:n].view(np.bool_)
 
-    # ── View management ───────────────────────────────────────────────────────
-
     def add_to_view(self, shared_indices: list[int] | np.ndarray) -> None:
-        """Include additional column slots in this filter view.
-
-        Args:
-            shared_indices: Shared indices to add.
-        """
+        """Include additional slots (B&B backtrack)."""
         if len(shared_indices) > 0:
             self._mask[np.asarray(shared_indices, dtype=np.intp)] = True
 
     def remove_from_view(self, shared_indices: list[int] | np.ndarray) -> None:
-        """Exclude column slots from this filter view (B&B arc/row restriction).
-
-        Args:
-            shared_indices: Shared indices to exclude.
-        """
+        """Exclude slots from this view (B&B restriction)."""
         if len(shared_indices) > 0:
             self._mask[np.asarray(shared_indices, dtype=np.intp)] = False
 
-    # ── Pricing ───────────────────────────────────────────────────────────────
+    def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
+        """Price only slots in this view.
 
-    def price(
-        self,
-        duals: np.ndarray,
-        threshold: float = -1e-9,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Price only columns in this filter view.
-
-        Args:
-            duals: 1-D float64 LP dual values.
-            threshold: Keep only columns with ``rc < threshold``.
-
-        Returns:
-            ``(indices, reduced_costs)`` sorted ascending.
+        Returns sorted ``(indices, rcs)``.
         """
         return self._shared.price(duals, threshold=threshold, view_mask=self._mask)
 
-    # ── Properties ────────────────────────────────────────────────────────────
-
     @property
     def view_count(self) -> int:
-        """Number of column slots currently in this filter view."""
+        """Number of slots in this view."""
         n = self._shared.count
         return int(self._mask[:n].sum()) if n > 0 else 0
 
     @property
     def mask(self) -> np.ndarray:
-        """Zero-copy boolean mask array ``(max_cols,)``."""
+        """Zero-copy boolean mask ``(max_cols,)``."""
         return self._mask
 
     def __repr__(self) -> str:
-        return (
-            f"FilteredSharedPricingPool(view_count={self.view_count}, " f"shared={self._shared!r})"
-        )
+        return f"FilteredSharedPricingPool(view_count={self.view_count})"
 
 
-class PricingPool:
-    """Master-side coordinator: keeps a C++ pool and a shared pool in sync.
+# ── FilteredPricingPool ───────────────────────────────────────────────────────
 
-    The **master process** owns a ``PricingPool``.  It routes:
 
-    * All **structural operations** (``add``, ``remove_stale``,
-      ``global_remove_if``, activity tracking, arc/row filters) through the
-      underlying C++ ``FilteredSolutionPool`` — unchanged from pure-C++ usage.
-    * **Cross-process pricing** through the ``SharedPricingPool`` so workers
-      can price without any C++ dependency.
+class FilteredPricingPool:
+    """Unified C++ + numpy filtered view over a :class:`PricingPool`.
 
-    A ``ColumnId → shared_index`` map is maintained internally so that when
-    the C++ pool removes a column, the corresponding shared slot is
-    automatically invalidated.
+    Wraps a C++ ``FilteredSolutionPool`` (for deduplication, activity tracking,
+    removals) and a :class:`FilteredSharedPricingPool` (for lock-free pricing).
+    Both are kept in sync automatically.
 
-    **Worker processes** never need this class.  They receive
-    ``shared_handle()`` and call ``SharedPricingPool.attach(handle)``.
+    Obtained via :meth:`PricingPool.new_filter` or by chaining
+    :meth:`new_filter` on another ``FilteredPricingPool``.
 
-    Typical column-generation loop::
+    The numpy mask is built by snapshotting the C++ view at construction time
+    using the vectorized ``_id_to_shared`` array on the parent — no Python
+    loops.
 
-        cpp_pool = SolutionPool()
-        pp = PricingPool(cpp_pool.new_filter(), n_constraints=200, max_cols=50_000)
-        handle = pp.shared_handle()   # send to workers once
-
-        for iteration in range(max_iter):
-            # Workers solve pricing with different duals, return solutions.
-            new_solutions = solve_in_parallel(handle, duals)
-
-            # Master adds new columns to both pools atomically.
-            for sol in new_solutions:
-                pp.add(sol)
-
-            # Master solves LP master, gets new duals …
-
-            # Master prunes stale columns from both pools.
-            pp.remove_stale(max_age=100, min_usage_rate=0.01)
-
-        pp.close()   # release shared memory
-
-    Filtered pricing (Branch-and-Bound)::
-
-        # Restrict to columns not covering a forbidden arc.
-        restricted_cpp = cpp_pool.new_filter(forbidden_arc_ids=[arc_id])
-        fpool = pp.new_numpy_filter(restricted_cpp)
-        indices, rcs = fpool.price(duals)
-
-        # Shorthand when the pool's own filter is already restricted:
-        indices, rcs = pp.filtered_price(duals)
-
-    All methods not explicitly defined here (``price``, ``update_activity``,
-    ``get_all``, ``new_filter``, etc.) are forwarded to the C++
-    ``FilteredSolutionPool`` via ``__getattr__``.
-
-    Args:
-        filtered_pool: Existing ``FilteredSolutionPool`` from the C++ bindings.
-        n_constraints: Constraint capacity for the shared pool (over-allocate).
-        max_cols: Column capacity.
-        max_nnz_per_col: Maximum non-zeros per column (default 50).
-        lock: External lock for spawn-safe multiprocessing.
+    B&B operators (:meth:`remove_from_view`, :meth:`add_to_view`) modify only
+    the numpy mask and are O(k) with zero shared-memory writes, making
+    backtracking trivially cheap.
     """
 
-    def __init__(
-        self,
-        filtered_pool: object,
-        n_constraints: int,
-        max_cols: int = 50_000,
-        max_nnz_per_col: int = 50,
-        lock: object | None = None,
-    ) -> None:
-        object.__setattr__(self, "_fp", filtered_pool)
-        object.__setattr__(
-            self,
-            "_shared",
-            SharedPricingPool(
-                n_constraints=n_constraints,
-                max_cols=max_cols,
-                max_nnz_per_col=max_nnz_per_col,
-                lock=lock,
-            ),
-        )
-        object.__setattr__(self, "_id_to_idx", {})
+    def __init__(self, parent: "PricingPool", cpp_fp: object) -> None:
+        self._parent = parent
+        self._cpp_fp = cpp_fp  # C++ FilteredSolutionPool (activity-filtered by remove_if)
+        self._numpy_fp = self._build_numpy_filter()
 
-    def shared_handle(self) -> dict:
-        """Picklable handle for workers to attach to the shared pool."""
-        return self._shared.handle()
+    def _build_numpy_filter(self) -> FilteredSharedPricingPool:
+        """Snapshot C++ view → numpy mask (vectorized, no Python loop)."""
+        cpp_ids = self._cpp_fp.get_column_ids()  # np.ndarray[uint64] from C++
+        if len(cpp_ids) == 0:
+            # Empty C++ view → empty mask (NOT "include all").
+            return FilteredSharedPricingPool(
+                self._parent._shared, view_indices=np.empty(0, dtype=np.intp)
+            )
+        # Vectorized fancy-index: ColumnId → shared slot index.
+        shared_indices = self._parent._id_to_shared[cpp_ids.astype(np.int64)]
+        valid = shared_indices >= 0
+        arr = shared_indices[valid].astype(np.intp)
+        return FilteredSharedPricingPool(self._parent._shared, view_indices=arr)
 
-    # ── Write operations (keep both pools in sync) ────────────────────────────
+    # ── Write operations ──────────────────────────────────────────────────────
 
     def add(self, solution: "Solution") -> int:
-        """Add to both C++ pool and shared pool.
+        """Add to C++ pool, shared pool, and numpy mask.
 
-        Returns C++ ColumnId.
+        Returns ColumnId.
         """
-        cpp_id = self._fp.add(solution)
-        shared_idx = self._shared.add(solution)
-        self._id_to_idx[int(cpp_id)] = shared_idx
+        cpp_id = self._cpp_fp.add(solution)
+        shared_idx = self._parent._shared.add(solution)
+        self._parent._id_to_shared[int(cpp_id)] = shared_idx
+        self._numpy_fp.add_to_view([shared_idx])
         return cpp_id
 
     def add_columns(self, solutions: list) -> list[int]:
         """Batch-add to both pools.
 
-        Returns list of C++ ColumnIds.
+        Returns list of ColumnIds.
         """
-        cpp_ids = self._fp.add(solutions)
-        shared_idxs = self._shared.add_columns(solutions)
-        for cid, sidx in zip(cpp_ids, shared_idxs):
-            self._id_to_idx[int(cid)] = sidx
+        cpp_ids = self._cpp_fp.add(solutions)
+        shared_idxs = self._parent._shared.add_columns(solutions)
+        ids_arr = np.asarray(cpp_ids, dtype=np.int64)
+        sidx_arr = np.asarray(shared_idxs, dtype=np.int64)
+        self._parent._id_to_shared[ids_arr] = sidx_arr
+        self._numpy_fp.add_to_view(shared_idxs)
         return cpp_ids
-
-    def remove_stale(self, max_age: int, min_usage_rate: float = 0.0) -> list[int]:
-        """Remove stale columns from both pools.
-
-        Returns removed C++ ColumnIds.
-        """
-        removed_ids = self._fp.remove_stale(max_age, min_usage_rate)
-        self._shared.invalidate(
-            [self._id_to_idx.pop(int(i)) for i in removed_ids if int(i) in self._id_to_idx]
-        )
-        return removed_ids
-
-    def global_remove_if(self, pred) -> list[int]:
-        """Global hard-delete from both pools.
-
-        Returns removed C++ ColumnIds.
-        """
-        removed_ids = self._fp.global_remove_if(pred)
-        self._shared.invalidate(
-            [self._id_to_idx.pop(int(i)) for i in removed_ids if int(i) in self._id_to_idx]
-        )
-        return removed_ids
-
-    # ── Filtered numpy views ──────────────────────────────────────────────────
-
-    def new_numpy_filter(
-        self,
-        cpp_filter=None,
-    ) -> FilteredSharedPricingPool:
-        """Create a FilteredSharedPricingPool mirroring a C++ FilteredSolutionPool.
-
-        Snapshots the column IDs currently in the C++ filter view, maps them to
-        shared indices, and returns a ``FilteredSharedPricingPool``.
-
-        Args:
-            cpp_filter: A ``FilteredSolutionPool`` to mirror.
-                ``None`` → use this pool's own filter (all columns).
-
-        Returns:
-            A process-local ``FilteredSharedPricingPool``.
-        """
-        fp = cpp_filter if cpp_filter is not None else self._fp
-        cpp_ids = [int(entry[0]) for entry in fp.get_all()]
-        shared_indices = [self._id_to_idx[cid] for cid in cpp_ids if cid in self._id_to_idx]
-        arr = np.asarray(shared_indices, dtype=np.intp) if shared_indices else None
-        return FilteredSharedPricingPool(self._shared, view_indices=arr)
 
     # ── Pricing ───────────────────────────────────────────────────────────────
 
-    def price_shared(
-        self,
-        duals: np.ndarray,
-        threshold: float = -1e-9,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Lock-free CSR pricing (all valid columns).
+    def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
+        """Lock-free filtered pricing.
 
-        Returns ``(indices, reduced_costs)`` sorted ascending.
+        Returns sorted ``(indices, rcs)``.
+        """
+        return self._numpy_fp.price(duals, threshold)
+
+    # ── Filter narrowing ──────────────────────────────────────────────────────
+
+    def new_filter(self, **kwargs) -> "FilteredPricingPool":
+        """Create a further-narrowed view.  All kwargs forwarded to C++.
+
+        Accepts all :meth:`PricingPool.new_filter` kwargs including activity
+        filters (``min_usage_rate``, ``max_age``, ``max_last_rc``).
+        """
+        return FilteredPricingPool(self._parent, self._cpp_fp.new_filter(**kwargs))
+
+    # ── Remove / invalidate ───────────────────────────────────────────────────
+
+    def _cpp_ids_to_shared(self, cpp_ids) -> np.ndarray:
+        """Vectorized ColumnId → shared_index; filters out unregistered ids."""
+        arr = np.asarray(cpp_ids, dtype=np.int64)
+        sidxs = self._parent._id_to_shared[arr]
+        return sidxs[sidxs >= 0]
+
+    def remove_stale(self, max_age: int, min_usage_rate: float = 0.0) -> list[int]:
+        """Remove stale columns from C++ + shared pool."""
+        removed = self._cpp_fp.remove_stale(max_age, min_usage_rate)
+        if removed:
+            sidxs = self._cpp_ids_to_shared(removed)
+            self._parent._id_to_shared[np.asarray(removed, dtype=np.int64)] = -1
+            self._parent._shared.invalidate(sidxs.tolist())
+        return removed
+
+    def global_remove_if(self, pred) -> list[int]:
+        """Hard-delete from both pools."""
+        removed = self._cpp_fp.global_remove_if(pred)
+        if removed:
+            sidxs = self._cpp_ids_to_shared(removed)
+            self._parent._id_to_shared[np.asarray(removed, dtype=np.int64)] = -1
+            self._parent._shared.invalidate(sidxs.tolist())
+        return removed
+
+    # ── B&B operators (numpy mask only) ──────────────────────────────────────
+
+    def remove_from_view(
+        self,
+        *,
+        arc_ids: list[int] | None = None,
+        cpp_ids: list[int] | None = None,
+        shared_indices: list[int] | None = None,
+    ) -> None:
+        """Exclude columns from this view.  Modifies numpy mask only — no shared-memory
+        write, trivially backtrackable.
+
+        Args:
+            arc_ids: List of arc IDs — exclude all columns whose path uses any.
+            cpp_ids: List of C++ ColumnIds to exclude.
+            shared_indices: List of shared slot indices to exclude directly.
+        """
+        sidxs_list: list[int] = list(shared_indices or [])
+        if arc_ids is not None:
+            for arc_id in arc_ids:
+                removed = self._cpp_fp.remove_if_arc_present(arc_id)
+                if removed:
+                    sidxs_list += self._cpp_ids_to_shared(removed).tolist()
+        if cpp_ids is not None:
+            sidxs_list += self._cpp_ids_to_shared(cpp_ids).tolist()
+        if sidxs_list:
+            self._numpy_fp.remove_from_view(sidxs_list)
+
+    def add_to_view(
+        self,
+        *,
+        cpp_ids: list[int] | None = None,
+        shared_indices: list[int] | None = None,
+    ) -> None:
+        """Re-include columns (B&B backtrack).
+
+        Args:
+            cpp_ids: List of C++ ColumnIds to re-include.
+            shared_indices: List of shared slot indices to re-include directly.
+        """
+        sidxs_list: list[int] = list(shared_indices or [])
+        if cpp_ids is not None:
+            sidxs_list += self._cpp_ids_to_shared(cpp_ids).tolist()
+        if sidxs_list:
+            self._numpy_fp.add_to_view(sidxs_list)
+
+    # ── Shortcut accessors ────────────────────────────────────────────────────
+
+    def shared(self) -> SharedPricingPool:
+        """Return the underlying ``SharedPricingPool``."""
+        return self._parent._shared
+
+    def handle(self) -> dict:
+        """Return the picklable worker handle (same as parent pool's handle)."""
+        return self._parent.handle()
+
+    def __getattr__(self, name: str) -> object:
+        """Delegate unknown attributes to the C++ ``FilteredSolutionPool``."""
+        return getattr(self._cpp_fp, name)
+
+    def __repr__(self) -> str:
+        return f"FilteredPricingPool(view_count={self._numpy_fp.view_count})"
+
+
+# ── PricingPool ───────────────────────────────────────────────────────────────
+
+
+class PricingPool:
+    """Main column-generation pricing pool.
+
+    Creates and manages the internal C++ ``SolutionPool`` and the
+    :class:`SharedPricingPool` transparently.  All C++ pool operations (add,
+    remove, activity tracking, filtering) go through the internal C++ pool;
+    cross-process pricing goes through the shared memory pool.
+
+    Example::
+
+        pool = PricingPool(n_constraints=200, max_cols=50_000)
+
+        # Add columns (syncs both C++ and shared pool).
+        pool.add(solution)
+
+        # Create a filtered view (one call — no separate numpy step).
+        sub = pool.new_filter(forbidden_arc_ids=[10], max_age=100)
+        indices, rcs = sub.price(duals)
+
+        # Pass shared pool to workers.
+        handle = pool.handle()
+        shared = PricingPool.attach(handle)   # in worker process
+
+        pool.close()
+
+    Args:
+        n_constraints: Constraint capacity (over-allocate, e.g. 1000).
+        max_cols: Column capacity.
+        max_nnz_per_col: Max non-zeros per column (default 50).
+        lock: External lock for spawn-safe multiprocessing.
+    """
+
+    def __init__(
+        self,
+        n_constraints: int,
+        max_cols: int = 50_000,
+        max_nnz_per_col: int = 50,
+        lock: object | None = None,
+    ) -> None:
+        # Hidden internal C++ pool.
+        self._cpp_pool = _SolutionPool()
+        self._cpp_fp = self._cpp_pool.new_filter()  # main unfiltered view
+
+        self._shared = SharedPricingPool(
+            n_constraints=n_constraints,
+            max_cols=max_cols,
+            max_nnz_per_col=max_nnz_per_col,
+            lock=lock,
+        )
+
+        # Vectorized ColumnId → shared_index mapping.
+        # ColumnIds are sequential starting at 1; pre-fill with -1 (= unregistered).
+        # Size = max_cols + 2 to safely handle ids up to max_cols+1.
+        self._id_to_shared = np.full(max_cols + 2, -1, dtype=np.int64)
+
+    # ── Worker support ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def attach(handle: dict) -> SharedPricingPool:
+        """Attach to the shared pool from a worker process.
+
+        Args:
+            handle: dict returned by :meth:`handle`.
+
+        Returns:
+            A :class:`SharedPricingPool` for lock-free pricing.
+        """
+        return SharedPricingPool.attach(handle)
+
+    def handle(self) -> dict:
+        """Return a picklable handle for worker processes."""
+        return self._shared.handle()
+
+    def shared(self) -> SharedPricingPool:
+        """Return the underlying :class:`SharedPricingPool` (master shortcut)."""
+        return self._shared
+
+    # ── Write operations ──────────────────────────────────────────────────────
+
+    def add(self, solution: "Solution") -> int:
+        """Add to both C++ and shared pool.
+
+        Returns C++ ColumnId.
+        """
+        cpp_id = self._cpp_fp.add(solution)
+        shared_idx = self._shared.add(solution)
+        self._id_to_shared[int(cpp_id)] = shared_idx
+        return cpp_id
+
+    def add_columns(self, solutions: list) -> list[int]:
+        """Batch-add.
+
+        Returns list of C++ ColumnIds.
+        """
+        cpp_ids = self._cpp_fp.add(solutions)
+        shared_idxs = self._shared.add_columns(solutions)
+        self._id_to_shared[np.asarray(cpp_ids, dtype=np.int64)] = np.asarray(
+            shared_idxs, dtype=np.int64
+        )
+        return cpp_ids
+
+    # ── Pricing (unfiltered, lock-free) ──────────────────────────────────────
+
+    def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
+        """Price all valid columns.
+
+        Returns sorted ``(indices, rcs)``.
         """
         return self._shared.price(duals, threshold)
 
-    def filtered_price(
-        self,
-        duals: np.ndarray,
-        threshold: float = -1e-9,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Price only the C++ pool's current filter view.
+    # ── Filter creation ───────────────────────────────────────────────────────
 
-        Shorthand for ``new_numpy_filter().price(duals)``.
+    def new_filter(self, **kwargs) -> FilteredPricingPool:
+        """Create a filtered view combining C++ filter + numpy mask.
 
-        Returns ``(indices, reduced_costs)`` sorted ascending.
+        All kwargs are forwarded to the C++ ``SolutionPool.new_filter()``.
+        Activity-based args (``min_usage_rate``, ``max_age``, ``max_last_rc``)
+        apply a local ``remove_if`` on the C++ view so the numpy mask and the
+        C++ view are always in sync.
+
+        Args:
+            filter: Custom Python predicate ``(Solution) -> bool``.
+            compulsory_rows: Column must cover all these constraint indices.
+            forbidden_rows: Column must not cover any of these.
+            compulsory_arc_ids: Path must use all these arcs.
+            forbidden_arc_ids: Path must not use any of these arcs.
+            min_usage_rate: Exclude columns priced but returned < this fraction.
+            max_age: Exclude columns not returned for > this many rounds.
+            max_last_rc: Exclude columns whose last reduced cost was ≥ this.
+
+        Returns:
+            A :class:`FilteredPricingPool`.
         """
-        return self.new_numpy_filter().price(duals, threshold=threshold)
+        cpp_fp = self._cpp_fp.new_filter(**kwargs)
+        return FilteredPricingPool(self, cpp_fp)
 
-    # ── Properties / delegation ───────────────────────────────────────────────
+    # ── Remove / invalidate ───────────────────────────────────────────────────
 
-    @property
-    def shared_pool(self) -> SharedPricingPool:
-        """The underlying ``SharedPricingPool`` for direct CSR access."""
-        return self._shared
+    def _cpp_ids_to_shared(self, cpp_ids) -> np.ndarray:
+        arr = np.asarray(cpp_ids, dtype=np.int64)
+        sidxs = self._id_to_shared[arr]
+        return sidxs[sidxs >= 0]
+
+    def remove_stale(self, max_age: int, min_usage_rate: float = 0.0) -> list[int]:
+        """Remove stale columns from both pools."""
+        removed = self._cpp_fp.remove_stale(max_age, min_usage_rate)
+        if removed:
+            sidxs = self._cpp_ids_to_shared(removed)
+            self._id_to_shared[np.asarray(removed, dtype=np.int64)] = -1
+            self._shared.invalidate(sidxs.tolist())
+        return removed
+
+    def global_remove_if(self, pred) -> list[int]:
+        """Hard-delete from both pools."""
+        removed = self._cpp_fp.global_remove_if(pred)
+        if removed:
+            sidxs = self._cpp_ids_to_shared(removed)
+            self._id_to_shared[np.asarray(removed, dtype=np.int64)] = -1
+            self._shared.invalidate(sidxs.tolist())
+        return removed
+
+    # ── Delegation ────────────────────────────────────────────────────────────
 
     def __getattr__(self, name: str) -> object:
-        return getattr(self._fp, name)
+        """Delegate unknown attributes to the C++ ``FilteredSolutionPool``."""
+        return getattr(self._cpp_fp, name)
 
     def close(self) -> None:
         """Release the shared memory segment."""

@@ -4,6 +4,7 @@
 // graph_impl.hpp defines PYBIND11_USE_SMART_HOLDER_AS_DEFAULT before the pybind11 includes.
 
 #define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -70,7 +71,13 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                std::vector<size_t>
                    compulsory_arc_ids,
                std::vector<size_t>
-                   forbidden_arc_ids) -> FilteredSolutionPool* {
+                   forbidden_arc_ids,
+               std::optional<double>
+                   min_usage_rate,
+               std::optional<size_t>
+                   max_age,
+               std::optional<double>
+                   max_last_rc) -> FilteredSolutionPool* {
                 std::function<bool(const Solution&)> combined;
                 if (!compulsory_rows.empty() || !forbidden_rows.empty() ||
                     !compulsory_arc_ids.empty() || !forbidden_arc_ids.empty()) {
@@ -94,13 +101,30 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                         combined = py_pred;
                     }
                 }
-                return new FilteredSolutionPool(pool, std::move(combined));
+                auto* fp = new FilteredSolutionPool(pool, std::move(combined));
+                if (min_usage_rate.has_value() || max_age.has_value() || max_last_rc.has_value()) {
+                    fp->remove_if([=](SolutionPool::ColumnId,
+                                      const Solution&,
+                                      const ColumnActivity& act) -> bool {
+                        if (max_age.has_value() && act.age > *max_age) return true;
+                        if (min_usage_rate.has_value() && act.priced_count > 0 &&
+                            act.usage_rate() < *min_usage_rate)
+                            return true;
+                        if (max_last_rc.has_value() && act.last_reduced_cost >= *max_last_rc)
+                            return true;
+                        return false;
+                    });
+                }
+                return fp;
             },
             py::arg("filter") = py::none(),
             py::arg("compulsory_rows") = std::vector<size_t>{},
             py::arg("forbidden_rows") = std::vector<size_t>{},
             py::arg("compulsory_arc_ids") = std::vector<size_t>{},
             py::arg("forbidden_arc_ids") = std::vector<size_t>{},
+            py::arg("min_usage_rate") = py::none(),
+            py::arg("max_age") = py::none(),
+            py::arg("max_last_rc") = py::none(),
             py::keep_alive<0, 1>())  // returned FilteredSolutionPool keeps pool alive
         // make_filter(...): build a filter predicate from row/arc constraints.
         .def_static(
@@ -179,7 +203,13 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                std::vector<size_t>
                    compulsory_arc_ids,
                std::vector<size_t>
-                   forbidden_arc_ids) -> FilteredSolutionPool* {
+                   forbidden_arc_ids,
+               std::optional<double>
+                   min_usage_rate,
+               std::optional<size_t>
+                   max_age,
+               std::optional<double>
+                   max_last_rc) -> FilteredSolutionPool* {
                 std::function<bool(const Solution&)> combined;
                 if (!compulsory_rows.empty() || !forbidden_rows.empty() ||
                     !compulsory_arc_ids.empty() || !forbidden_arc_ids.empty()) {
@@ -203,13 +233,30 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                         combined = py_pred;
                     }
                 }
-                return new FilteredSolutionPool(fp.new_filter(std::move(combined)));
+                auto* child = new FilteredSolutionPool(fp.new_filter(std::move(combined)));
+                if (min_usage_rate.has_value() || max_age.has_value() || max_last_rc.has_value()) {
+                    child->remove_if([=](SolutionPool::ColumnId,
+                                         const Solution&,
+                                         const ColumnActivity& act) -> bool {
+                        if (max_age.has_value() && act.age > *max_age) return true;
+                        if (min_usage_rate.has_value() && act.priced_count > 0 &&
+                            act.usage_rate() < *min_usage_rate)
+                            return true;
+                        if (max_last_rc.has_value() && act.last_reduced_cost >= *max_last_rc)
+                            return true;
+                        return false;
+                    });
+                }
+                return child;
             },
             py::arg("filter") = py::none(),
             py::arg("compulsory_rows") = std::vector<size_t>{},
             py::arg("forbidden_rows") = std::vector<size_t>{},
             py::arg("compulsory_arc_ids") = std::vector<size_t>{},
             py::arg("forbidden_arc_ids") = std::vector<size_t>{},
+            py::arg("min_usage_rate") = py::none(),
+            py::arg("max_age") = py::none(),
+            py::arg("max_last_rc") = py::none(),
             py::keep_alive<0, 1>())  // returned pool keeps self (and thus root pool) alive
         // add_filter: mutate this view to further narrow by predicate/row-arc constraints.
         // Removes entries that no longer pass the combined filter.
@@ -332,6 +379,41 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         .def("get_entry", &FilteredSolutionPool::get_entry, py::arg("id"))
         .def("pricing_count", &FilteredSolutionPool::pricing_count)
         .def("get_all", &FilteredSolutionPool::get_all)
+        // get_column_ids(): return ColumnIds as a contiguous uint64 numpy array.
+        // Faster than get_all() when only the ids are needed (no Solution copies).
+        .def("get_column_ids",
+             [](const FilteredSolutionPool& fp) {
+                 auto entries = fp.get_all();
+                 auto result = py::array_t<uint64_t>(static_cast<py::ssize_t>(entries.size()));
+                 auto buf = result.mutable_unchecked<1>();
+                 for (size_t i = 0; i < entries.size(); ++i) {
+                     buf(static_cast<py::ssize_t>(i)) =
+                         static_cast<uint64_t>(std::get<0>(entries[i]));
+                 }
+                 return result;
+             })
+        // price_numpy(): like price() but returns (ids: uint64[n], rcs: float64[n])
+        // instead of a list of PricedColumn objects — zero Python-object allocations.
+        .def(
+            "price_numpy",
+            [](FilteredSolutionPool& fp,
+               py::array_t<double, py::array::c_style | py::array::forcecast>
+                   duals,
+               double threshold) {
+                const std::vector<double> dv(duals.data(), duals.data() + duals.size());
+                const auto priced = fp.price(dv, threshold);
+                auto ids = py::array_t<uint64_t>(static_cast<py::ssize_t>(priced.size()));
+                auto rcs = py::array_t<double>(static_cast<py::ssize_t>(priced.size()));
+                auto id_buf = ids.mutable_unchecked<1>();
+                auto rc_buf = rcs.mutable_unchecked<1>();
+                for (size_t i = 0; i < priced.size(); ++i) {
+                    id_buf(static_cast<py::ssize_t>(i)) = static_cast<uint64_t>(priced[i].id);
+                    rc_buf(static_cast<py::ssize_t>(i)) = priced[i].reduced_cost;
+                }
+                return py::make_tuple(ids, rcs);
+            },
+            py::arg("duals"),
+            py::arg("threshold") = 0.0)
         .def("__len__", &FilteredSolutionPool::size)
         .def("size", &FilteredSolutionPool::size)
         .def("pool",

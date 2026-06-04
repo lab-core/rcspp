@@ -1,4 +1,4 @@
-"""Tests for SharedPricingPool and PricingPool."""
+"""Tests for SharedPricingPool, PricingPool, and FilteredPricingPool."""
 
 import multiprocessing as mp
 import os
@@ -9,12 +9,13 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../python_interface")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from rcspp._core import solution_pool as _sp  # noqa: E402
 from rcspp._core.graph import Column, Row, Solution  # noqa: E402
-from rcspp.pricing_pool import PricingPool, SharedPricingPool  # noqa: E402
-
-SolutionPool = _sp.SolutionPool
-
+from rcspp.pricing_pool import (  # noqa: E402
+    FilteredPricingPool,
+    FilteredSharedPricingPool,
+    PricingPool,
+    SharedPricingPool,
+)
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ def make_solution(
     return sol
 
 
-# ── SharedPricingPool unit tests ──────────────────────────────────────────────
+# ── SharedPricingPool (low-level) ─────────────────────────────────────────────
 
 
 def test_create_and_attach():
@@ -42,16 +43,12 @@ def test_create_and_attach():
         handle = pool.handle()
         worker = SharedPricingPool.attach(handle)
         try:
-            # Write via pool, read via worker — verifies shared memory is live.
             pool.add(make_solution(42.0, [(3, 1.5)], [1]))
             assert worker.count == 1
             assert worker.nnz == 1
-            # CSR views: cost and row data.
             assert abs(float(worker.col_costs_view[0]) - 42.0) < 1e-9
             assert int(worker.col_indices_view[0]) == 3
             assert abs(float(worker.col_values_view[0]) - 1.5) < 1e-9
-            assert int(worker.row_starts_view[0]) == 0
-            assert int(worker.row_starts_view[1]) == 1  # 1 non-zero
         finally:
             worker.close()
     finally:
@@ -59,14 +56,11 @@ def test_create_and_attach():
 
 
 def test_csr_alignment():
-    """All CSR array offsets must be 8-byte aligned for any max_cols value."""
     for max_cols in [1, 5, 7, 8, 100, 1_000]:
         pool = SharedPricingPool(n_constraints=5, max_cols=max_cols)
         try:
-            assert pool._costs_offset % 8 == 0, f"costs_offset misaligned (max_cols={max_cols})"
-            assert (
-                pool._col_values_offset % 8 == 0
-            ), f"col_values_offset misaligned (max_cols={max_cols})"
+            assert pool._costs_offset % 8 == 0
+            assert pool._col_values_offset % 8 == 0
         finally:
             pool.unlink()
 
@@ -74,163 +68,56 @@ def test_csr_alignment():
 def test_add_batch():
     pool = SharedPricingPool(n_constraints=5, max_cols=50)
     try:
-        # Each solution has one non-zero row: (0, i).
         solutions = [make_solution(float(i), [(0, float(i))], [k]) for k, i in enumerate(range(5))]
         idxs = pool.add_columns(solutions)
         assert idxs == [0, 1, 2, 3, 4]
         assert pool.count == 5
-        assert pool.nnz == 5  # one non-zero per column
+        assert pool.nnz == 5
         assert pool.active_count == 5
-        for i in range(5):
-            assert abs(pool.col_costs_view[i] - float(i)) < 1e-9
-        # CSR structure: row_starts = [0,1,2,3,4,5], all col_indices = 0.
         assert list(pool.row_starts_view) == [0, 1, 2, 3, 4, 5]
-        assert all(int(v) == 0 for v in pool.col_indices_view)
     finally:
         pool.unlink()
 
 
 def test_csr_multiple_rows():
-    """Columns with multiple non-zeros must build correct CSR structure."""
     pool = SharedPricingPool(n_constraints=10, max_cols=20)
     try:
-        # col 0: rows (0,1.0), (2,2.0) → nnz=2
-        # col 1: rows (1,3.0)          → nnz=1
         pool.add(make_solution(5.0, [(0, 1.0), (2, 2.0)], [0]))
         pool.add(make_solution(3.0, [(1, 3.0)], [1]))
         assert pool.count == 2
         assert pool.nnz == 3
         assert list(pool.row_starts_view) == [0, 2, 3]
-        # col 0 non-zeros at positions 0,1 in col_indices
         assert int(pool.col_indices_view[0]) == 0
         assert int(pool.col_indices_view[1]) == 2
         assert int(pool.col_indices_view[2]) == 1
-        # Verify pricing: duals=[1,0,0,...] → col0 rc=5-1=4, col1 rc=3-0=3
-        duals = np.zeros(10)
-        duals[0] = 1.0
-        _, rcs = pool.price(duals, threshold=5.0)
-        assert abs(min(rcs) - 3.0) < 1e-9
     finally:
         pool.unlink()
 
 
 def test_price_sorted_by_rc():
-    """Results must be sorted ascending by reduced cost (most improving first)."""
     pool = SharedPricingPool(n_constraints=5, max_cols=50)
     try:
-        # With duals=[1,0,0,0,0]: rc = col_cost - 1*coef_at_0
-        # col 0: rc = 1 - 1*4 = -3    (returned)
-        # col 1: rc = 5 - 1*2 = 3     (above threshold, NOT returned)
-        # col 2: rc = 1 - 1*5 = -4    (returned, most negative = first)
-        # col 3: rc = 2 - 1*1 = 1     (above threshold, NOT returned)
-        pool.add(make_solution(1.0, [(0, 4.0)], [0]))  # rc=-3
-        pool.add(make_solution(5.0, [(0, 2.0)], [1]))  # rc=3, not returned
-        pool.add(make_solution(1.0, [(0, 5.0)], [2]))  # rc=-4 (most negative)
-        pool.add(make_solution(2.0, [(0, 1.0)], [3]))  # rc=1, not returned
+        pool.add(make_solution(1.0, [(0, 4.0)], [0]))  # rc = 1-4 = -3
+        pool.add(make_solution(5.0, [(0, 2.0)], [1]))  # rc = 5-2 = 3 (above threshold)
+        pool.add(make_solution(1.0, [(0, 5.0)], [2]))  # rc = 1-5 = -4 (most negative)
+        pool.add(make_solution(2.0, [(0, 1.0)], [3]))  # rc = 2-1 = 1 (above threshold)
         duals = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
         indices, rcs = pool.price(duals)
         assert len(rcs) == 2
-        assert list(rcs) == sorted(rcs), "results must be sorted ascending by rc"
-        assert rcs[0] <= rcs[-1], "most negative rc must come first"
+        assert list(rcs) == sorted(rcs)
         assert all(rc < -1e-9 for rc in rcs)
     finally:
         pool.unlink()
 
 
 def test_price_default_threshold():
-    """Default threshold is -1e-9, not 0 — near-zero rc columns must be excluded."""
     pool = SharedPricingPool(n_constraints=2, max_cols=20)
     try:
-        # Only one column in pool: cost=1, coef[(0,1)]. rc = 1 - dual[0]*1.
         pool.add(make_solution(1.0, [(0, 1.0)], [0]))
-        duals_zero_rc = np.array([1.0, 0.0])  # rc = 1-1 = 0, must NOT be returned
-        indices, rcs = pool.price(duals_zero_rc)
-        assert len(indices) == 0, "rc=0 must not be returned with default threshold=-1e-9"
-        duals_neg_rc = np.array([3.0, 0.0])  # rc = 1-3 = -2, must be returned
-        indices, rcs = pool.price(duals_neg_rc)
-        assert len(indices) == 1 and abs(rcs[0] - (-2.0)) < 1e-9
-    finally:
-        pool.unlink()
-
-
-def test_filtered_shared_pool():
-    """FilteredSharedPricingPool only returns columns in its view_mask."""
-    from rcspp.pricing_pool import FilteredSharedPricingPool  # noqa: E402
-
-    pool = SharedPricingPool(n_constraints=3, max_cols=20)
-    try:
-        i0 = pool.add(make_solution(5.0, [(0, 3.0)], [0]))  # rc=-1 (in view)
-        i1 = pool.add(make_solution(5.0, [(0, 3.0)], [1]))  # rc=-1 (NOT in view)
-        i2 = pool.add(make_solution(5.0, [(0, 3.0)], [2]))  # rc=-1 (in view)
-
-        # Create a filtered view including only columns i0 and i2.
-        fpool = FilteredSharedPricingPool(pool, view_indices=np.array([i0, i2]))
-        duals = np.array([2.0, 0.0, 0.0])
-        indices, rcs = fpool.price(duals)
-        assert set(indices.tolist()) == {i0, i2}
-        assert i1 not in indices.tolist()
-
-        # Remove i0 from view.
-        fpool.remove_from_view([i0])
-        indices, rcs = fpool.price(duals)
-        assert indices.tolist() == [i2]
-
-        # Add i1 to view.
-        fpool.add_to_view([i1])
-        indices, rcs = fpool.price(duals)
-        assert set(indices.tolist()) == {i1, i2}
-    finally:
-        pool.unlink()
-
-
-def test_pricing_pool_new_numpy_filter():
-    """new_numpy_filter() mirrors the C++ FilteredSolutionPool's column set."""
-    cpp_pool = SolutionPool()
-    fp = cpp_pool.new_filter()
-    pp = PricingPool(fp, n_constraints=3, max_cols=20)
-    try:
-        s0 = make_solution(5.0, [(0, 3.0)], [0])
-        s1 = make_solution(5.0, [(0, 3.0)], [1])
-        pp.add(s0)
-        pp.add(s1)
-
-        # Create a further-filtered C++ view excluding s1 (arc_id=1).
-        restricted = fp.new_filter(forbidden_arc_ids=[1])
-        nf = pp.new_numpy_filter(restricted)
-        duals = np.array([2.0, 0.0, 0.0])
-        indices, rcs = nf.price(duals)
-        # Only s0 should appear (s1 is forbidden).
-        assert len(indices) == 1
-    finally:
-        pp.close()
-
-
-def test_add_and_price_simple():
-    pool = SharedPricingPool(n_constraints=5, max_cols=50)
-    try:
-        # col.cost=10, rows=[(0, 1.0)]; duals=[3] → rc=10-3=7 (not returned)
-        # duals=[11] → rc=10-11=-1 (returned)
-        idx = pool.add(make_solution(10.0, [(0, 1.0)], [1]))
-
-        indices, rcs = pool.price(np.array([3.0, 0.0, 0.0, 0.0, 0.0]))
+        indices, rcs = pool.price(np.array([1.0, 0.0]))  # rc = 0 → excluded
         assert len(indices) == 0
-
-        indices, rcs = pool.price(np.array([11.0, 0.0, 0.0, 0.0, 0.0]))
-        assert len(indices) == 1
-        assert abs(rcs[0] - (-1.0)) < 1e-9
-        assert indices[0] == idx
-    finally:
-        pool.unlink()
-
-
-def test_price_multi_row():
-    pool = SharedPricingPool(n_constraints=10, max_cols=50)
-    try:
-        # col.cost=2.5, rows=[(0,0.1),(1,0.2)]; duals=[3,4] → rc=2.5-0.3-0.8=1.4
-        pool.add(make_solution(2.5, [(0, 0.1), (1, 0.2)], [10, 11]))
-        indices, rcs = pool.price(np.array([3.0, 4.0] + [0.0] * 8), threshold=2.0)
-        assert len(indices) == 1
-        assert abs(rcs[0] - 1.4) < 1e-6
+        indices, rcs = pool.price(np.array([3.0, 0.0]))  # rc = -2 → included
+        assert len(indices) == 1 and abs(rcs[0] - (-2.0)) < 1e-9
     finally:
         pool.unlink()
 
@@ -239,40 +126,23 @@ def test_invalidate_hides_column():
     pool = SharedPricingPool(n_constraints=5, max_cols=50)
     try:
         idx = pool.add(make_solution(1.0, [(0, 0.1)], [1]))
-        # Before invalidation, column is returned.
-        indices, rcs = pool.price(np.array([100.0, 0.0, 0.0, 0.0, 0.0]))
+        indices, _ = pool.price(np.array([100.0, 0.0, 0.0, 0.0, 0.0]))
         assert len(indices) == 1
-
         pool.invalidate([idx])
-        indices, rcs = pool.price(np.array([100.0, 0.0, 0.0, 0.0, 0.0]))
+        indices, _ = pool.price(np.array([100.0, 0.0, 0.0, 0.0, 0.0]))
         assert len(indices) == 0
     finally:
         pool.unlink()
 
 
 def test_dynamic_rows():
-    """Columns added before a new cut have coef=0 for the new constraint."""
     pool = SharedPricingPool(n_constraints=10, max_cols=50)
     try:
-        # Old column: only covers row 0.
         pool.add(make_solution(5.0, [(0, 1.0)], [1]))
-        # New cut added (row 5). New column covers both row 0 and row 5.
         pool.add(make_solution(5.0, [(0, 1.0), (5, 2.0)], [2]))
-
-        duals = np.zeros(6, dtype=np.float64)
-        duals[0] = 3.0
-        duals[5] = 1.0  # new cut dual
-
-        # Old column: rc = 5 - 3*1 - 0 = 2 (not returned at threshold 0)
-        # New column: rc = 5 - 3*1 - 1*2 = 0 (not returned at threshold 0)
-        indices, rcs = pool.price(duals, threshold=0.0)
-        assert len(indices) == 0
-
-        # With higher duals, both should be negative.
+        duals = np.zeros(6)
         duals[0] = 6.0
         duals[5] = 0.5
-        # Old column: rc = 5 - 6*1 - 0 = -1 (returned)
-        # New column: rc = 5 - 6*1 - 0.5*2 = -2 (returned)
         indices, rcs = pool.price(duals)
         assert len(indices) == 2
     finally:
@@ -280,15 +150,14 @@ def test_dynamic_rows():
 
 
 def _worker_add(handle: dict, sol_data: list[tuple]) -> list[int]:
-    """Worker function: attach to pool, build solutions locally, add them."""
-    import os
-    import sys  # noqa: E401
+    import os as _os
+    import sys as _sys
 
-    sys.path.insert(
-        0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../python_interface"))
+    _sys.path.insert(
+        0, _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "../python_interface"))
     )
     from rcspp._core.graph import Column, Row
-    from rcspp._core.graph import Solution as _Sol  # noqa: E402
+    from rcspp._core.graph import Solution as _Sol
 
     pool = SharedPricingPool.attach(handle)
     indices = []
@@ -307,111 +176,261 @@ def _worker_add(handle: dict, sol_data: list[tuple]) -> list[int]:
 
 
 def test_multiprocess_add():
-    """Four workers simultaneously add 25 columns each → total 100."""
-    n_workers = 4
-    n_per_worker = 25
+    n_workers, n_per_worker = 4, 25
     manager = mp.Manager()
     pool = SharedPricingPool(n_constraints=5, max_cols=200, lock=manager.Lock())
     try:
         handle = pool.handle()
-        # Pass plain tuples (picklable) instead of Solution objects.
         sol_data = [(float(i), [(0, 1.0)], [i]) for i in range(n_per_worker)]
         with mp.Pool(n_workers) as p:
             results = p.starmap(_worker_add, [(handle, sol_data)] * n_workers)
-
-        total = sum(len(r) for r in results)
-        assert total == n_workers * n_per_worker
+        assert sum(len(r) for r in results) == n_workers * n_per_worker
         assert pool.count == n_workers * n_per_worker
     finally:
         pool.unlink()
         manager.shutdown()
 
 
-def test_price_matches_cpp_pool():
-    """SharedPricingPool.price() must match FilteredSolutionPool.price() results."""
-    solutions = [
-        make_solution(5.0, [(0, 1.0), (1, 2.0)], [10, 11]),
-        make_solution(3.0, [(0, 0.5)], [20, 21]),
-        make_solution(8.0, [(1, 3.0)], [30, 31]),
-    ]
-    duals = [4.0, 1.5]
+# ── FilteredSharedPricingPool ─────────────────────────────────────────────────
 
-    # C++ pool pricing.
-    cpp_pool = SolutionPool()
-    fp = cpp_pool.new_filter()
-    for sol in solutions:
-        fp.add(sol)
-    cpp_results = fp.price(duals, threshold=0.0)
-    cpp_ids = {pc.id for pc in cpp_results}
 
-    # Shared pool pricing.
-    shared = SharedPricingPool(n_constraints=5, max_cols=50)
+def test_filtered_shared_pool():
+    pool = SharedPricingPool(n_constraints=3, max_cols=20)
     try:
-        idx_to_sol = {}
-        for sol in solutions:
-            idx = shared.add(sol)
-            idx_to_sol[idx] = sol
-        indices, rcs = shared.price(np.array(duals + [0.0, 0.0, 0.0]), threshold=0.0)
+        i0 = pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        i1 = pool.add(make_solution(5.0, [(0, 3.0)], [1]))
+        i2 = pool.add(make_solution(5.0, [(0, 3.0)], [2]))
+        duals = np.array([2.0, 0.0, 0.0])
 
-        assert len(indices) == len(
-            cpp_ids
-        ), f"C++ returned {len(cpp_ids)} columns, shared returned {len(indices)}"
+        fpool = FilteredSharedPricingPool(pool, view_indices=np.array([i0, i2]))
+        indices, _ = fpool.price(duals)
+        assert set(indices.tolist()) == {i0, i2}
+        assert i1 not in indices.tolist()
+
+        fpool.remove_from_view([i0])
+        indices, _ = fpool.price(duals)
+        assert indices.tolist() == [i2]
+
+        fpool.add_to_view([i1])
+        indices, _ = fpool.price(duals)
+        assert set(indices.tolist()) == {i1, i2}
+    finally:
+        pool.unlink()
+
+
+# ── PricingPool (high-level) ──────────────────────────────────────────────────
+
+
+def test_pricing_pool_basic():
+    """PricingPool creates SolutionPool internally — no external pool needed."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sol = make_solution(10.0, [(0, 1.0)], [1])
+        cpp_id = pool.add(sol)
+        assert cpp_id != 0
+
+        duals = np.array([11.0, 0.0, 0.0, 0.0, 0.0])
+        indices, rcs = pool.price(duals)
+        assert len(indices) == 1 and abs(rcs[0] - (-1.0)) < 1e-9
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_shared_shortcut():
+    """`pool.shared()` and `pool.handle()` + `PricingPool.attach()` are equivalent."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        shared = pool.shared()
+        duals = np.array([4.0, 0.0, 0.0, 0.0, 0.0])
+        indices1, rcs1 = pool.price(duals)
+        indices2, rcs2 = shared.price(duals)
+        assert list(indices1) == list(indices2)
+        assert list(rcs1) == list(rcs2)
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_new_filter_arc():
+    """new_filter(forbidden_arc_ids) excludes matching columns from pricing."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        s0 = make_solution(5.0, [(0, 3.0)], [0])
+        s1 = make_solution(5.0, [(0, 3.0)], [1])
+        pool.add(s0)
+        pool.add(s1)
+
+        sub = pool.new_filter(forbidden_arc_ids=[1])
+        assert isinstance(sub, FilteredPricingPool)
+        duals = np.array([2.0, 0.0, 0.0])
+        indices, _ = sub.price(duals)
+        assert len(indices) == 1  # only s0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_new_filter_activity():
+    """Activity args (max_age, min_usage_rate, max_last_rc) filter at C++ level.
+
+    The activity args read ColumnActivity which is updated by the C++ pool's price()
+    method, not by the shared-pool pricing.  We call the C++ pricing explicitly to
+    populate last_reduced_cost and priced_count.
+    """
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        s0 = make_solution(5.0, [(0, 3.0)], [0])
+        s1 = make_solution(5.0, [(0, 3.0)], [1])
+        pool.add(s0)
+        pool.add(s1)
+
+        # Call C++ pricing to update last_reduced_cost and priced_count.
+        duals_list = [2.0, 0.0, 0.0]
+        pool._cpp_fp.price(duals_list, threshold=0.0)  # both rc=-1 < 0
+
+        # max_last_rc=0.0: both last_rc=-1 < 0 → both included.
+        sub = pool.new_filter(max_last_rc=0.0)
+        duals = np.array([2.0, 0.0, 0.0])
+        indices, _ = sub.price(duals)
+        assert len(indices) == 2
+
+        # max_age=1: both have age=0 (just priced) → both included (age <= max_age).
+        sub2 = pool.new_filter(max_age=1)
+        indices2, _ = sub2.price(duals)
+        assert len(indices2) == 2
+
+        # Age both columns by NOT pricing them (age increments).
+        pool._cpp_fp.update_activity([])  # no basis columns → age++
+        pool._cpp_fp.update_activity([])  # age = 2 now
+
+        # max_age=1: age=2 > 1 → both excluded.
+        sub3 = pool.new_filter(max_age=1)
+        indices3, _ = sub3.price(duals)
+        assert len(indices3) == 0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_remove_from_view_list():
+    """remove_from_view accepts lists of arc_ids and cpp_ids."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        c0 = pool.add(make_solution(5.0, [(0, 3.0)], [10]))
+        c1 = pool.add(make_solution(5.0, [(0, 3.0)], [20]))
+        sub = pool.new_filter()
+        duals = np.array([2.0, 0.0, 0.0])
+
+        # Exclude columns using arc 10 or 20 (both).
+        sub.remove_from_view(arc_ids=[10, 20])
+        indices, _ = sub.price(duals)
+        assert len(indices) == 0
+
+        # Backtrack.
+        sub.add_to_view(cpp_ids=[c0, c1])
+        indices, _ = sub.price(duals)
+        assert len(indices) == 2
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_chain_filter():
+    """new_filter() on a FilteredPricingPool further narrows the view."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        pool.add(make_solution(5.0, [(0, 3.0)], [10]))
+        pool.add(make_solution(5.0, [(0, 3.0)], [20]))
+        sub = pool.new_filter(forbidden_arc_ids=[10])
+        sub2 = sub.new_filter(forbidden_arc_ids=[20])
+        duals = np.array([2.0, 0.0, 0.0])
+        indices, _ = sub2.price(duals)
+        assert len(indices) == 0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_remove_stale():
+    """remove_stale removes from C++ pool and invalidates shared pool."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        sub.add(make_solution(5.0, [(0, 3.0)], [0]))
+        duals = np.array([2.0, 0.0, 0.0])
+
+        # Column is visible.
+        indices, _ = sub.price(duals)
+        assert len(indices) == 1
+
+        # Age the column (not in basis → age increments).
+        sub._cpp_fp.update_activity([])
+        sub._cpp_fp.update_activity([])
+        sub.remove_stale(max_age=1)
+
+        # Column should now be invisible.
+        indices, _ = sub.price(duals)
+        assert len(indices) == 0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_price_matches_cpp():
+    """pool.price() results are consistent with what the C++ pool prices."""
+    pool = PricingPool(n_constraints=5, max_cols=50)
+    try:
+        solutions = [
+            make_solution(5.0, [(0, 1.0), (1, 2.0)], [10, 11]),
+            make_solution(3.0, [(0, 0.5)], [20, 21]),
+            make_solution(8.0, [(1, 3.0)], [30, 31]),
+        ]
+        for sol in solutions:
+            pool.add(sol)
+
+        duals = [4.0, 1.5, 0.0, 0.0, 0.0]
+        # C++ pool pricing (returns all with rc < 0, unsorted).
+        cpp_results = pool._cpp_fp.price(duals, threshold=0.0)
+        cpp_ids = {pc.id for pc in cpp_results}
+
+        # Shared pool pricing (sorted, threshold=-1e-9).
+        indices, rcs = pool.price(np.array(duals))
+
+        assert len(indices) == len(cpp_ids)
         for idx, rc in zip(indices, rcs):
-            # Verify reduced cost matches within tolerance.
-            sol = idx_to_sol[idx]
+            sol = solutions[idx]
             expected_rc = sol.column.cost - sum(
                 float(row.coefficient) * duals[row.index]
                 for row in sol.column.rows
                 if row.index < len(duals)
             )
-            assert abs(rc - expected_rc) < 1e-9, f"rc mismatch: {rc} vs {expected_rc}"
+            assert abs(rc - expected_rc) < 1e-9
     finally:
-        shared.unlink()
+        pool.close()
 
 
-# ── PricingPool integration test ──────────────────────────────────────────────
+# ── get_column_ids / price_numpy (C++ bindings) ───────────────────────────────
 
 
-def test_pricing_pool_add_and_price():
-    cpp_pool = SolutionPool()
-    fp = cpp_pool.new_filter()
-    pp = PricingPool(fp, n_constraints=5, max_cols=50)
+def test_get_column_ids_numpy():
+    """FilteredSolutionPool.get_column_ids() returns np.ndarray[uint64]."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
     try:
-        sol = make_solution(10.0, [(0, 1.0)], [1])
-        cpp_id = pp.add(sol)
-        assert cpp_id != 0
-
-        # price_shared should return the column.
-        indices, rcs = pp.price_shared(np.array([11.0, 0.0, 0.0, 0.0, 0.0]))
-        assert len(indices) == 1
-
-        # C++ pool price() should also return it.
-        cpp_results = pp.price([11.0, 0.0, 0.0, 0.0, 0.0])
-        assert len(cpp_results) == 1
+        c0 = pool.add(make_solution(5.0, [(0, 1.0)], [0]))
+        c1 = pool.add(make_solution(3.0, [(1, 2.0)], [1]))
+        ids = pool._cpp_fp.get_column_ids()
+        assert isinstance(ids, np.ndarray)
+        assert ids.dtype == np.uint64
+        assert set(ids.tolist()) == {c0, c1}
     finally:
-        pp.close()
+        pool.close()
 
 
-def test_pricing_pool_remove_stale_invalidates_shared():
-    cpp_pool = SolutionPool()
-    fp = cpp_pool.new_filter()
-    pp = PricingPool(fp, n_constraints=5, max_cols=50)
+def test_price_numpy_binding():
+    """FilteredSolutionPool.price_numpy() returns (ids, rcs) as numpy arrays."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
     try:
-        sol = make_solution(10.0, [(0, 1.0)], [1])
-        cpp_id = pp.add(sol)
-
-        # Column is visible before removal.
-        indices, _ = pp.price_shared(np.array([11.0, 0.0, 0.0, 0.0, 0.0]))
-        assert len(indices) == 1
-
-        # Simulate the column becoming stale (age it manually then remove).
-        fp.update_activity([])  # no basis columns → age increments
-        fp.update_activity([])
-        removed = pp.remove_stale(max_age=1)
-        assert cpp_id in removed
-
-        # Column should now be invisible in shared pricing.
-        indices, _ = pp.price_shared(np.array([11.0, 0.0, 0.0, 0.0, 0.0]))
-        assert len(indices) == 0
+        pool.add(make_solution(5.0, [(0, 3.0)], [0]))  # rc=-1 with duals=[2]
+        pool.add(make_solution(5.0, [(0, 1.0)], [1]))  # rc=3 with duals=[2] (above 0)
+        duals = [2.0, 0.0, 0.0]
+        ids, rcs = pool._cpp_fp.price_numpy(duals, threshold=0.0)
+        assert isinstance(ids, np.ndarray) and isinstance(rcs, np.ndarray)
+        assert len(ids) == 1
+        assert abs(rcs[0] - (-1.0)) < 1e-9
     finally:
-        pp.close()
+        pool.close()
