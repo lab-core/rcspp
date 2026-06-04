@@ -84,6 +84,97 @@ def test_add_batch():
         pool.unlink()
 
 
+def test_price_sorted_by_rc():
+    """Results must be sorted ascending by reduced cost (most improving first)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=50)
+    try:
+        # With duals=[1,0,0,0,0]: rc = col_cost - 1*coef_at_0
+        # col 0: rc = 1 - 1*4 = -3    (returned)
+        # col 1: rc = 5 - 1*2 = 3     (above threshold, NOT returned)
+        # col 2: rc = 1 - 1*5 = -4    (returned, most negative = first)
+        # col 3: rc = 2 - 1*1 = 1     (above threshold, NOT returned)
+        pool.add(make_solution(1.0, [(0, 4.0)], [0]))  # rc=-3
+        pool.add(make_solution(5.0, [(0, 2.0)], [1]))  # rc=3, not returned
+        pool.add(make_solution(1.0, [(0, 5.0)], [2]))  # rc=-4 (most negative)
+        pool.add(make_solution(2.0, [(0, 1.0)], [3]))  # rc=1, not returned
+        duals = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
+        indices, rcs = pool.price(duals)
+        assert len(rcs) == 2
+        assert list(rcs) == sorted(rcs), "results must be sorted ascending by rc"
+        assert rcs[0] <= rcs[-1], "most negative rc must come first"
+        assert all(rc < -1e-9 for rc in rcs)
+    finally:
+        pool.unlink()
+
+
+def test_price_default_threshold():
+    """Default threshold is -1e-9, not 0 — near-zero rc columns must be excluded."""
+    pool = SharedPricingPool(n_constraints=2, max_cols=20)
+    try:
+        # Only one column in pool: cost=1, coef[(0,1)]. rc = 1 - dual[0]*1.
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        duals_zero_rc = np.array([1.0, 0.0])  # rc = 1-1 = 0, must NOT be returned
+        indices, rcs = pool.price(duals_zero_rc)
+        assert len(indices) == 0, "rc=0 must not be returned with default threshold=-1e-9"
+        duals_neg_rc = np.array([3.0, 0.0])  # rc = 1-3 = -2, must be returned
+        indices, rcs = pool.price(duals_neg_rc)
+        assert len(indices) == 1 and abs(rcs[0] - (-2.0)) < 1e-9
+    finally:
+        pool.unlink()
+
+
+def test_filtered_shared_pool():
+    """FilteredSharedPricingPool only returns columns in its view_mask."""
+    from rcspp.pricing_pool import FilteredSharedPricingPool  # noqa: E402
+
+    pool = SharedPricingPool(n_constraints=3, max_cols=20)
+    try:
+        i0 = pool.add(make_solution(5.0, [(0, 3.0)], [0]))  # rc=-1 (in view)
+        i1 = pool.add(make_solution(5.0, [(0, 3.0)], [1]))  # rc=-1 (NOT in view)
+        i2 = pool.add(make_solution(5.0, [(0, 3.0)], [2]))  # rc=-1 (in view)
+
+        # Create a filtered view including only columns i0 and i2.
+        fpool = FilteredSharedPricingPool(pool, view_indices=np.array([i0, i2]))
+        duals = np.array([2.0, 0.0, 0.0])
+        indices, rcs = fpool.price(duals)
+        assert set(indices.tolist()) == {i0, i2}
+        assert i1 not in indices.tolist()
+
+        # Remove i0 from view.
+        fpool.remove_from_view([i0])
+        indices, rcs = fpool.price(duals)
+        assert indices.tolist() == [i2]
+
+        # Add i1 to view.
+        fpool.add_to_view([i1])
+        indices, rcs = fpool.price(duals)
+        assert set(indices.tolist()) == {i1, i2}
+    finally:
+        pool.unlink()
+
+
+def test_pricing_pool_new_numpy_filter():
+    """new_numpy_filter() mirrors the C++ FilteredSolutionPool's column set."""
+    cpp_pool = SolutionPool()
+    fp = cpp_pool.new_filter()
+    pp = PricingPool(fp, n_constraints=3, max_cols=20)
+    try:
+        s0 = make_solution(5.0, [(0, 3.0)], [0])
+        s1 = make_solution(5.0, [(0, 3.0)], [1])
+        pp.add(s0)
+        pp.add(s1)
+
+        # Create a further-filtered C++ view excluding s1 (arc_id=1).
+        restricted = fp.new_filter(forbidden_arc_ids=[1])
+        nf = pp.new_numpy_filter(restricted)
+        duals = np.array([2.0, 0.0, 0.0])
+        indices, rcs = nf.price(duals)
+        # Only s0 should appear (s1 is forbidden).
+        assert len(indices) == 1
+    finally:
+        pp.close()
+
+
 def test_add_and_price_simple():
     pool = SharedPricingPool(n_constraints=5, max_cols=50)
     try:

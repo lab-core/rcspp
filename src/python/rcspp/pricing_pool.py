@@ -270,29 +270,36 @@ class SharedPricingPool:
     def price(
         self,
         duals: np.ndarray,
-        threshold: float = 0.0,
+        threshold: float = -1e-9,
+        view_mask: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute reduced costs for all valid columns.
+        """Compute reduced costs and return negative-RC columns sorted best-first.
 
-        **Lock-free.**  Reads a snapshot of ``count`` from the header, then
-        computes::
+        **Lock-free.**  Computes::
 
             rc[i] = matrix[i, 0] - matrix[i, 1:n_duals+1] @ duals[:n_duals]
 
-        over the entire committed region using a single BLAS DGEMV.  Results
-        are filtered by ``valid`` flags and ``threshold`` afterwards.
+        over the entire committed region (single BLAS DGEMV), then keeps only
+        columns that are active, pass the optional ``view_mask``, and have
+        ``rc < threshold``.  Results are returned sorted by reduced cost
+        ascending (most negative / most improving first).
 
         Dynamic cuts: pass a longer ``duals`` vector when new cuts are added.
-        Old columns have coefficient 0 for new constraint indices (zero-filled
-        at pool creation), so they are handled correctly without any update.
+        Old columns already have coefficient 0 at those indices (zero-filled at
+        pool creation), so no update is needed.
 
         Args:
             duals: 1-D float64 LP dual values, indexed by constraint.
-            threshold: Return only columns with ``rc < threshold``.
+            threshold: Keep only columns with ``rc < threshold``.
+                Default ``-1e-9`` avoids returning near-zero columns.
+            view_mask: Optional boolean numpy array of shape ``(max_cols,)``
+                restricting pricing to a subset of columns (for filtered views).
+                ``None`` → all valid columns are priced.
 
         Returns:
-            ``(indices, reduced_costs)`` — both 1-D arrays of the same length.
-            ``indices`` are positions in the shared matrix (0-based).
+            ``(indices, reduced_costs)`` — 1-D arrays of the same length,
+            sorted by ``reduced_costs`` ascending.  ``indices`` are 0-based
+            positions in the shared matrix.
         """
         duals = np.asarray(duals, dtype=np.float64)
 
@@ -305,22 +312,29 @@ class SharedPricingPool:
 
         # Slice views into the committed region (no copy).
         mat = self._matrix[:n]  # shape (n, n_constraints+1)
-        valid = self._valid[:n]  # shape (n,), dtype uint8
+        valid = self._valid[:n].view(np.bool_)  # zero-copy bool view
 
         # ── Core pricing: single BLAS DGEMV, no fancy indexing ────────────────
-        # mat[:, 0]         — LP costs (column-strided; numpy copies to 1-D)
-        # mat[:, 1:n_duals+1] @ duals  — constraint contributions (DGEMV)
-        # Both operations use the full committed region before filtering.
-        col_costs = mat[:, 0].copy()  # force contiguous for the subtraction
+        col_costs = mat[:, 0].copy()  # force contiguous (col-strided otherwise)
         if n_duals > 0:
             rc = col_costs - mat[:, 1 : n_duals + 1] @ duals[:n_duals]
         else:
-            rc = col_costs
+            rc = col_costs.copy()
 
-        # ── Filter: active columns below threshold ────────────────────────────
-        active = valid.view(np.bool_) & (rc < threshold)
+        # ── Filter: valid ∩ view_mask ∩ (rc < threshold) ─────────────────────
+        active = valid
+        if view_mask is not None:
+            active = active & view_mask[:n]
+        active = active & (rc < threshold)
+
         indices = np.where(active)[0]
-        return indices, rc[indices]
+        if len(indices) == 0:
+            return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.float64)
+
+        # Sort ascending by reduced cost (most improving first).
+        rc_sel = rc[indices]
+        order = np.argsort(rc_sel, kind="stable")
+        return indices[order], rc_sel[order]
 
     # ── Direct numpy views ────────────────────────────────────────────────────
 
@@ -398,6 +412,99 @@ class SharedPricingPool:
         return (
             f"SharedPricingPool(count={self.count}, active={self.active_count}, "
             f"max_cols={self._max_cols}, n_constraints={self._n_constraints})"
+        )
+
+
+class FilteredSharedPricingPool:
+    """A local (per-process) filtered view over a SharedPricingPool.
+
+    Mirrors the concept of ``FilteredSolutionPool`` in Python space: holds a
+    numpy boolean mask that restricts which column slots are visible during
+    pricing.  The mask is process-local (not in shared memory), making this
+    suitable for Branch-and-Bound where each node has its own column exclusions.
+
+    Typically constructed via :meth:`PricingPool.new_numpy_filter` which
+    automatically populates the mask from the corresponding C++
+    ``FilteredSolutionPool``.
+
+    Args:
+        shared: The backing ``SharedPricingPool``.
+        view_indices: 1-D integer array of shared indices that are in this view.
+            ``None`` → all currently valid columns are included.
+    """
+
+    def __init__(
+        self,
+        shared: SharedPricingPool,
+        view_indices: np.ndarray | None = None,
+    ) -> None:
+        self._shared = shared
+        self._mask = np.zeros(shared._max_cols, dtype=np.bool_)
+        if view_indices is not None and len(view_indices) > 0:
+            self._mask[np.asarray(view_indices, dtype=np.intp)] = True
+        elif view_indices is None:
+            # Include all currently valid column slots.
+            n = shared.count
+            if n > 0:
+                self._mask[:n] = shared._valid[:n].view(np.bool_)
+
+    # ── View management ───────────────────────────────────────────────────────
+
+    def add_to_view(self, shared_indices: list[int] | np.ndarray) -> None:
+        """Include additional column slots in this filter view.
+
+        Args:
+            shared_indices: Shared indices to add (e.g. newly added columns).
+        """
+        if len(shared_indices) > 0:
+            self._mask[np.asarray(shared_indices, dtype=np.intp)] = True
+
+    def remove_from_view(self, shared_indices: list[int] | np.ndarray) -> None:
+        """Exclude column slots from this filter view (B&B arc/row restriction).
+
+        Args:
+            shared_indices: Shared indices to exclude.
+        """
+        if len(shared_indices) > 0:
+            self._mask[np.asarray(shared_indices, dtype=np.intp)] = False
+
+    # ── Pricing ───────────────────────────────────────────────────────────────
+
+    def price(
+        self,
+        duals: np.ndarray,
+        threshold: float = -1e-9,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Price only columns in this filter view.
+
+        Delegates to :meth:`SharedPricingPool.price` with ``view_mask=self._mask``.
+        Returns columns sorted by reduced cost ascending (most improving first).
+
+        Args:
+            duals: 1-D float64 LP dual values.
+            threshold: Keep only columns with ``rc < threshold``.
+
+        Returns:
+            ``(indices, reduced_costs)`` sorted ascending by ``reduced_costs``.
+        """
+        return self._shared.price(duals, threshold=threshold, view_mask=self._mask)
+
+    # ── Properties ────────────────────────────────────────────────────────────
+
+    @property
+    def view_count(self) -> int:
+        """Number of column slots currently in this filter view."""
+        n = self._shared.count
+        return int(self._mask[:n].sum()) if n > 0 else 0
+
+    @property
+    def mask(self) -> np.ndarray:
+        """Zero-copy boolean mask array (shape: ``[max_cols]``)."""
+        return self._mask
+
+    def __repr__(self) -> str:
+        return (
+            f"FilteredSharedPricingPool(view_count={self.view_count}, " f"shared={self._shared!r})"
         )
 
 
@@ -496,18 +603,64 @@ class PricingPool:
         )
         return removed_ids
 
+    # ── Filtered numpy views ──────────────────────────────────────────────────
+
+    def new_numpy_filter(
+        self,
+        cpp_filter=None,
+    ) -> "FilteredSharedPricingPool":
+        """Create a FilteredSharedPricingPool mirroring a C++ FilteredSolutionPool.
+
+        Snapshots the column IDs currently in the C++ filter view, maps them to
+        shared indices via the internal ``ColumnId → shared_index`` mapping, and
+        returns a ``FilteredSharedPricingPool`` with that mask.
+
+        Columns added to the ``PricingPool`` after this call are NOT automatically
+        added to the returned filter (call :meth:`FilteredSharedPricingPool.add_to_view`
+        explicitly, or re-create the filter).  This matches CG/B&B usage where
+        the filter snapshot is taken at the start of a pricing round.
+
+        Args:
+            cpp_filter: A ``FilteredSolutionPool`` whose column selection to mirror.
+                ``None`` → use this pool's own ``FilteredSolutionPool`` (all columns).
+
+        Returns:
+            A process-local ``FilteredSharedPricingPool``.
+        """
+        fp = cpp_filter if cpp_filter is not None else self._fp
+        # get_all() returns list of (ColumnId, Solution, ColumnActivity).
+        cpp_ids = [int(entry[0]) for entry in fp.get_all()]
+        shared_indices = [self._id_to_idx[cid] for cid in cpp_ids if cid in self._id_to_idx]
+        arr = np.asarray(shared_indices, dtype=np.intp) if shared_indices else None
+        return FilteredSharedPricingPool(self._shared, view_indices=arr)
+
     # ── Pricing ───────────────────────────────────────────────────────────────
 
     def price_shared(
         self,
         duals: np.ndarray,
-        threshold: float = 0.0,
+        threshold: float = -1e-9,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Lock-free pricing on shared memory.
+        """Lock-free pricing on shared memory (all valid columns).
 
-        Returns (indices, reduced_costs).
+        Returns ``(indices, reduced_costs)`` sorted ascending by reduced cost.
         """
         return self._shared.price(duals, threshold)
+
+    def filtered_price(
+        self,
+        duals: np.ndarray,
+        threshold: float = -1e-9,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Price columns visible in this pool's own C++ filter view.
+
+        Convenience shorthand for ``self.new_numpy_filter().price(duals)``.
+        Re-snapshots the C++ filter on every call — use :meth:`new_numpy_filter`
+        and cache the result if you call this in a tight loop.
+
+        Returns ``(indices, reduced_costs)`` sorted ascending by reduced cost.
+        """
+        return self.new_numpy_filter().price(duals, threshold=threshold)
 
     # ── Direct numpy access ───────────────────────────────────────────────────
 
