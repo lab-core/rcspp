@@ -8,6 +8,7 @@
 #include <functional>
 #include <limits>
 #include <list>
+#include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <tuple>
