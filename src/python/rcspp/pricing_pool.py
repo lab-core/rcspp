@@ -3,41 +3,34 @@
 Memory layout (single SharedMemory segment)
 -------------------------------------------
 Offset 0 … HEADER_BYTES-1:
-    Structured header — see _HEADER_DTYPE below.
+    Structured header — see ``_HEADER_DTYPE`` below.
     Written once at construction; read-only after that.
 
-Offset HEADER_BYTES … HEADER_BYTES+max_cols-1:
-    ``valid[max_cols]`` — uint8 flag per column slot.
-    0 = empty or invalidated, 1 = active.
-    Written under lock; read lock-free during pricing.
+CSR regions (all committed under the write lock):
 
-Offset <aligned> … end:
-    ``matrix[max_cols, n_constraints+1]`` — float64, C-contiguous.
-    ``matrix[i, 0]``     = column i's LP cost (structural, from arc costs).
-    ``matrix[i, j+1]``   = column i's coefficient for constraint j.
-    Written under lock; read lock-free during pricing.
+    ``valid[max_cols]``              uint8   — 0=empty/invalid, 1=active
+    ``col_costs[max_cols]``          float64 — LP cost per column
+    ``row_starts[max_cols + 1]``     int32   — CSR row-pointer array
+    ``col_indices[max_nnz]``         int32   — constraint indices (non-zeros)
+    ``col_values[max_nnz]``          float64 — constraint coefficients
 
-Alignment
----------
-The matrix must start on an 8-byte boundary (float64 requirement).  The
-``valid`` region is padded up to the next multiple of 8 before the matrix
-begins.  The matrix itself is naturally aligned because the header is a
-multiple of 8 bytes and the pad ensures no fractional float64 slot.
+The ``row_starts`` sentinel pattern:
+    row_starts[0]   = 0
+    row_starts[i+1] = row_starts[i] + nnz_for_column_i
 
-Pricing formula (lock-free)
----------------------------
-``rc[i] = matrix[i, 0] - matrix[i, 1:n_duals+1] @ duals[:n_duals]``
+CSR pricing formula (lock-free, via scipy.sparse SPMV)
+-------------------------------------------------------
+``rc[i] = col_costs[i] - A[i, :n_duals] @ duals[:n_duals]``
 
-Computed as a single BLAS DGEMV on the full (n × n_constraints) coefficient
-sub-matrix, then filtered by validity and threshold.  No fancy (boolean-index)
-copies — all reads go directly to the shared buffer.
+where ``A`` is built as a ``scipy.sparse.csr_matrix`` directly over the shared
+memory buffers (zero-copy when dtypes match: ``int32`` indices, ``float64`` values).
+Complexity: ``O(nnz)`` — independent of ``n_constraints``.
 
 Dynamic cuts
 ------------
-``n_constraints`` is over-allocated at creation (e.g. 1000).  When a new cut
-is added its row index is just a new dimension in the dual vector.  Old columns
-have coefficient 0 at that index (zero-filled at allocation), so no
-reallocation is ever needed — just pass a longer ``duals`` array.
+``n_constraints`` is over-allocated at creation (e.g. 1000).  New cuts only
+add new entries in the dual vector.  Old columns already have no entry at those
+indices, so they are handled correctly without any data update.
 """
 
 from __future__ import annotations
@@ -48,21 +41,33 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+try:
+    from scipy.sparse import csr_matrix as _sp_csr
+
+    _SCIPY_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _SCIPY_AVAILABLE = False
+
 if TYPE_CHECKING:
     from rcspp._core.graph import Solution
 
 # ── Shared-memory header ──────────────────────────────────────────────────────
-# 5 × uint64 = 40 bytes, padded to 64 (one cache line) for clean alignment.
+# 10 × uint64 = 80 bytes, padded to 128 (two cache lines) for alignment.
 _HEADER_DTYPE = np.dtype(
     [
-        ("count", np.uint64),  # number of committed column slots
-        ("n_constraints", np.uint64),  # max constraint index + 1
-        ("max_cols", np.uint64),  # capacity
-        ("valid_offset", np.uint64),  # byte offset of the valid[] region
-        ("matrix_offset", np.uint64),  # byte offset of the matrix region
+        ("count", np.uint64),  # committed columns
+        ("nnz", np.uint64),  # committed non-zeros (total across all columns)
+        ("n_constraints", np.uint64),  # constraint capacity (over-allocated)
+        ("max_cols", np.uint64),  # column capacity
+        ("max_nnz", np.uint64),  # non-zero capacity
+        ("valid_offset", np.uint64),  # byte offset of valid[]
+        ("costs_offset", np.uint64),  # byte offset of col_costs[]
+        ("row_starts_offset", np.uint64),  # byte offset of row_starts[]
+        ("col_indices_offset", np.uint64),  # byte offset of col_indices[]
+        ("col_values_offset", np.uint64),  # byte offset of col_values[]
     ]
 )
-_HEADER_BYTES = 64  # one cache line — header fits in 40, leave 24 spare
+_HEADER_BYTES = 128  # two cache lines — header fits in 80, leave 48 spare
 
 
 def _align_up(n: int, align: int) -> int:
@@ -71,157 +76,197 @@ def _align_up(n: int, align: int) -> int:
 
 
 class SharedPricingPool:
-    """Cross-process shared pricing pool backed by a single SharedMemory segment.
+    """Cross-process shared pricing pool with CSR storage and scipy SPMV pricing.
 
-    ``price(duals)`` is **lock-free**: it reads the committed column count, valid
-    flags, and LP matrix directly from shared memory without acquiring any lock,
-    then performs a single BLAS DGEMV on the full active region.
+    Stores LP column data in **CSR format** (cost vector + sparse coefficient
+    matrix).  Columns are sparse in practice (VRP: 2–5 rows per column out of
+    50–200 constraints), so CSR avoids storing and multiplying the many zeros
+    that a dense layout would contain.
 
-    ``add(solution)`` and ``invalidate(indices)`` are write-locked.
+    Pricing is ``O(nnz)`` via ``scipy.sparse`` — independent of
+    ``n_constraints``.
+
+    ``price(duals)`` is **lock-free**: it reads a snapshot of ``count`` and
+    ``nnz`` from the header, builds a ``csr_matrix`` view over the committed
+    CSR buffers, and calls scipy's SPMV.
 
     Args:
-        n_constraints: Highest constraint index that will appear + 1.  Over-allocate
-            (e.g. 1000) to leave room for future cuts without reallocation.
-        max_cols: Maximum number of column slots.  Determines shared memory size.
+        n_constraints: Highest constraint index that will appear + 1.
+            Over-allocate (e.g. 1000) to leave room for future cuts.
+        max_cols: Maximum number of column slots.
+        max_nnz_per_col: Expected maximum non-zeros per column (default 50).
+            ``max_nnz = max_cols × max_nnz_per_col``.
         name: Explicit name for the SharedMemory segment; auto-generated if None.
-        lock: External lock object (e.g. ``Manager().Lock()`` for spawn-safe
-            multiprocessing).  A plain ``Lock()`` is created if None.
+        lock: External lock (e.g. ``Manager().Lock()`` for spawn-safe use).
+            A plain ``Lock()`` is created if None.
+
+    Raises:
+        ImportError: If scipy is not installed.
     """
 
     def __init__(
         self,
         n_constraints: int,
         max_cols: int = 50_000,
+        max_nnz_per_col: int = 50,
         name: str | None = None,
         lock: object | None = None,
     ) -> None:
+        if not _SCIPY_AVAILABLE:
+            raise ImportError(
+                "SharedPricingPool requires scipy.  Install it with: pip install scipy"
+            )
         self._n_constraints = int(n_constraints)
         self._max_cols = int(max_cols)
+        self._max_nnz = int(max_cols) * int(max_nnz_per_col)
         self._lock = lock if lock is not None else Lock()
 
-        # Layout:
-        #   [header:          _HEADER_BYTES bytes]
-        #   [valid:           max_cols bytes, padded to 8-byte boundary]
-        #   [matrix:          max_cols × (n_constraints+1) × 8 bytes]
+        # ── Compute offsets, all padded to 8-byte (float64) boundaries ────────
         valid_offset = _HEADER_BYTES
-        # Pad so the matrix starts on an 8-byte (float64) boundary.
-        matrix_offset = _align_up(valid_offset + max_cols, 8)
-        matrix_bytes = max_cols * (n_constraints + 1) * 8
-        total = matrix_offset + matrix_bytes
+        costs_offset = _align_up(valid_offset + max_cols, 8)
+        row_starts_offset = _align_up(costs_offset + max_cols * 8, 8)
+        col_indices_offset = _align_up(row_starts_offset + (max_cols + 1) * 4, 8)
+        col_values_offset = _align_up(col_indices_offset + self._max_nnz * 4, 8)
+        total = col_values_offset + self._max_nnz * 8
 
         self._shm = SharedMemory(name=name, create=True, size=total)
-        # Zero-fill (all valid flags = 0, all matrix slots = 0.0).
-        self._shm.buf[:total] = b"\x00" * total
+        self._shm.buf[:total] = b"\x00" * total  # zero-fill
 
-        # Write header.
-        header = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=self._shm.buf)
-        header["count"] = 0
-        header["n_constraints"] = n_constraints
-        header["max_cols"] = max_cols
-        header["valid_offset"] = valid_offset
-        header["matrix_offset"] = matrix_offset
+        # ── Write header ───────────────────────────────────────────────────────
+        hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=self._shm.buf)
+        hdr["count"] = 0
+        hdr["nnz"] = 0
+        hdr["n_constraints"] = n_constraints
+        hdr["max_cols"] = max_cols
+        hdr["max_nnz"] = self._max_nnz
+        hdr["valid_offset"] = valid_offset
+        hdr["costs_offset"] = costs_offset
+        hdr["row_starts_offset"] = row_starts_offset
+        hdr["col_indices_offset"] = col_indices_offset
+        hdr["col_values_offset"] = col_values_offset
 
         self._valid_offset = valid_offset
-        self._matrix_offset = matrix_offset
+        self._costs_offset = costs_offset
+        self._row_starts_offset = row_starts_offset
+        self._col_indices_offset = col_indices_offset
+        self._col_values_offset = col_values_offset
         self._init_views()
+        # row_starts[0] = 0 is already set by zero-fill.
+
+    # ── Views ─────────────────────────────────────────────────────────────────
 
     def _init_views(self) -> None:
-        """Build numpy views over the shared buffer.
-
-        Called after attaching.
-        """
+        """Build zero-copy numpy views over the shared buffer."""
         buf = self._shm.buf
         self._header = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=buf)
         self._valid = np.ndarray(
-            (self._max_cols,),
-            dtype=np.uint8,
-            buffer=buf,
-            offset=self._valid_offset,
+            (self._max_cols,), dtype=np.uint8, buffer=buf, offset=self._valid_offset
         )
-        # Full matrix: column i → [col_cost | row_coef_0 … row_coef_{n-1}]
-        self._matrix = np.ndarray(
-            (self._max_cols, self._n_constraints + 1),
-            dtype=np.float64,
+        self._col_costs = np.ndarray(
+            (self._max_cols,), dtype=np.float64, buffer=buf, offset=self._costs_offset
+        )
+        # row_starts has max_cols+1 entries (CSR sentinel).
+        self._row_starts = np.ndarray(
+            (self._max_cols + 1,),
+            dtype=np.int32,
             buffer=buf,
-            offset=self._matrix_offset,
+            offset=self._row_starts_offset,
+        )
+        self._col_indices = np.ndarray(
+            (self._max_nnz,), dtype=np.int32, buffer=buf, offset=self._col_indices_offset
+        )
+        self._col_values = np.ndarray(
+            (self._max_nnz,), dtype=np.float64, buffer=buf, offset=self._col_values_offset
         )
 
     # ── Attach from another process ───────────────────────────────────────────
 
     @classmethod
     def attach(cls, handle: dict) -> "SharedPricingPool":
-        """Attach to an existing pool from a worker process.
+        """Attach to an existing pool from a worker process (zero-copy).
 
         Args:
             handle: dict returned by :meth:`handle`.
 
         Returns:
-            A ``SharedPricingPool`` sharing the same memory (zero-copy).
+            A ``SharedPricingPool`` sharing the same memory.
         """
+        if not _SCIPY_AVAILABLE:
+            raise ImportError(
+                "SharedPricingPool requires scipy.  Install it with: pip install scipy"
+            )
         obj = object.__new__(cls)
         obj._lock = handle["lock"]
         obj._shm = SharedMemory(name=handle["shm_name"], create=False)
 
-        # Read layout from the header (authoritative source of offsets).
+        # Read all layout params from the authoritative shared header.
         hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=obj._shm.buf)
         obj._n_constraints = int(hdr["n_constraints"][0])
         obj._max_cols = int(hdr["max_cols"][0])
+        obj._max_nnz = int(hdr["max_nnz"][0])
         obj._valid_offset = int(hdr["valid_offset"][0])
-        obj._matrix_offset = int(hdr["matrix_offset"][0])
+        obj._costs_offset = int(hdr["costs_offset"][0])
+        obj._row_starts_offset = int(hdr["row_starts_offset"][0])
+        obj._col_indices_offset = int(hdr["col_indices_offset"][0])
+        obj._col_values_offset = int(hdr["col_values_offset"][0])
         obj._init_views()
         return obj
 
     def handle(self) -> dict:
-        """Picklable handle — pass to worker processes via ``attach()``.
+        """Picklable handle — pass to worker processes via :meth:`attach`.
 
         Returns:
-            dict with ``shm_name`` and ``lock``.  All layout parameters are
-            read from the shared header on attach, so no layout info needs to
-            travel through the handle.
+            ``{'shm_name': ..., 'lock': ...}`` — all layout params are read
+            from the shared header on attach.
         """
         return {"shm_name": self._shm.name, "lock": self._lock}
 
     # ── Write operations ──────────────────────────────────────────────────────
 
     def add(self, solution: "Solution") -> int:
-        """Add a solution's LP column (cost + row coefficients) to the pool.
+        """Add one solution's LP column to the CSR pool.
 
-        Acquires the write lock.  The column is committed atomically: the
-        valid flag and count are set last so workers never see a partial write.
-
-        Args:
-            solution: Solution with a populated ``column`` attribute.
+        Writes cost, row indices, and row values, then commits ``valid`` and
+        ``count`` atomically under the lock.
 
         Returns:
-            Shared index of the new slot (use with :meth:`invalidate`).
+            Shared index of the new column slot.
 
         Raises:
-            RuntimeError: Pool is full.
+            RuntimeError: Pool is full (columns or non-zeros).
         """
         col = solution.column
-
-        # Build row vector with numpy — one assignment per non-zero constraint.
-        row_vec = np.zeros(self._n_constraints, dtype=np.float64)
-        for row in col.rows:
-            if row.index < self._n_constraints:
-                row_vec[int(row.index)] = float(row.coefficient)
+        # Collect non-zeros outside the lock (pure Python, no contention).
+        rows = [
+            (int(r.index), float(r.coefficient))
+            for r in col.rows
+            if int(r.index) < self._n_constraints
+        ]
 
         with self._lock:
             count = int(self._header["count"][0])
+            nnz = int(self._header["nnz"][0])
             if count >= self._max_cols:
-                raise RuntimeError(f"SharedPricingPool is full ({count}/{self._max_cols})")
-            # Write data before setting valid/count (no partial-write visibility).
-            self._matrix[count, 0] = float(col.cost)
-            self._matrix[count, 1:] = row_vec
-            self._valid[count] = np.uint8(1)  # mark active
-            self._header["count"] = count + 1  # commit
+                raise RuntimeError(f"SharedPricingPool is full (columns: {count}/{self._max_cols})")
+            new_nnz = nnz + len(rows)
+            if new_nnz > self._max_nnz:
+                raise RuntimeError(
+                    f"SharedPricingPool non-zero capacity exceeded " f"({new_nnz}/{self._max_nnz})"
+                )
+            # Write LP data.
+            self._col_costs[count] = float(col.cost)
+            for k, (idx, val) in enumerate(rows):
+                self._col_indices[nnz + k] = np.int32(idx)
+                self._col_values[nnz + k] = val
+            # Commit: update CSR sentinel, valid flag, then count and nnz.
+            self._row_starts[count + 1] = np.int32(new_nnz)
+            self._valid[count] = np.uint8(1)
+            self._header["nnz"] = new_nnz
+            self._header["count"] = count + 1
         return count
 
     def add_columns(self, solutions: list) -> list[int]:
         """Batch-add multiple solutions under a single lock acquisition.
-
-        Args:
-            solutions: List of Solution objects.
 
         Returns:
             List of shared indices, one per solution.
@@ -229,35 +274,48 @@ class SharedPricingPool:
         if not solutions:
             return []
 
-        n_new = len(solutions)
-        # Build row matrix outside the lock (pure numpy, no GIL needed).
-        costs = np.empty(n_new, dtype=np.float64)
-        rows_mat = np.zeros((n_new, self._n_constraints), dtype=np.float64)
+        # Prepare all CSR data outside the lock.
+        costs = np.empty(len(solutions), dtype=np.float64)
+        row_data: list[list[tuple[int, float]]] = []
         for k, sol in enumerate(solutions):
             costs[k] = float(sol.column.cost)
-            for row in sol.column.rows:
-                if row.index < self._n_constraints:
-                    rows_mat[k, int(row.index)] = float(row.coefficient)
+            row_data.append(
+                [
+                    (int(r.index), float(r.coefficient))
+                    for r in sol.column.rows
+                    if int(r.index) < self._n_constraints
+                ]
+            )
 
         with self._lock:
             start = int(self._header["count"][0])
-            end = start + n_new
+            nnz_start = int(self._header["nnz"][0])
+            end = start + len(solutions)
             if end > self._max_cols:
                 raise RuntimeError(
-                    f"SharedPricingPool: adding {n_new} columns would exceed capacity "
-                    f"({start}/{self._max_cols})"
+                    f"SharedPricingPool: adding {len(solutions)} columns would "
+                    f"exceed capacity ({start}/{self._max_cols})"
                 )
-            self._matrix[start:end, 0] = costs
-            self._matrix[start:end, 1:] = rows_mat
-            self._valid[start:end] = np.uint8(1)
+            # Write all columns.
+            cursor = nnz_start
+            for i, (col_rows) in enumerate(row_data):
+                slot = start + i
+                self._col_costs[slot] = costs[i]
+                for idx, val in col_rows:
+                    self._col_indices[cursor] = np.int32(idx)
+                    self._col_values[cursor] = val
+                    cursor += 1
+                self._row_starts[slot + 1] = np.int32(cursor)
+                self._valid[slot] = np.uint8(1)
+            self._header["nnz"] = cursor
             self._header["count"] = end
         return list(range(start, end))
 
     def invalidate(self, shared_indices: list[int]) -> None:
-        """Mark column slots as deleted.  They will be skipped during pricing.
+        """Mark columns as deleted (skip during pricing).
 
         Args:
-            shared_indices: Shared indices previously returned by :meth:`add`.
+            shared_indices: Shared indices returned by :meth:`add`.
         """
         if not shared_indices:
             return
@@ -273,68 +331,72 @@ class SharedPricingPool:
         threshold: float = -1e-9,
         view_mask: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute reduced costs and return negative-RC columns sorted best-first.
+        """Compute reduced costs and return improving columns sorted best-first.
 
-        **Lock-free.**  Computes::
+        **Lock-free.**  Reads a snapshot of ``count`` and ``nnz``, builds a
+        ``scipy.sparse.csr_matrix`` **view** over the committed CSR buffers
+        (zero-copy for ``int32`` indices and ``float64`` values), and calls
+        scipy's SPMV::
 
-            rc[i] = matrix[i, 0] - matrix[i, 1:n_duals+1] @ duals[:n_duals]
+            rc[i] = col_costs[i] - A[i, :] @ duals
 
-        over the entire committed region (single BLAS DGEMV), then keeps only
-        columns that are active, pass the optional ``view_mask``, and have
-        ``rc < threshold``.  Results are returned sorted by reduced cost
-        ascending (most negative / most improving first).
-
-        Dynamic cuts: pass a longer ``duals`` vector when new cuts are added.
-        Old columns already have coefficient 0 at those indices (zero-filled at
-        pool creation), so no update is needed.
+        Complexity: ``O(nnz)`` — independent of ``n_constraints``.
 
         Args:
             duals: 1-D float64 LP dual values, indexed by constraint.
             threshold: Keep only columns with ``rc < threshold``.
-                Default ``-1e-9`` avoids returning near-zero columns.
-            view_mask: Optional boolean numpy array of shape ``(max_cols,)``
-                restricting pricing to a subset of columns (for filtered views).
-                ``None`` → all valid columns are priced.
+                Default ``-1e-9`` avoids near-zero columns.
+            view_mask: Optional boolean ``ndarray`` of shape ``(max_cols,)``.
+                If provided, only columns where ``view_mask[i] = True`` are
+                considered.  Used by :class:`FilteredSharedPricingPool`.
 
         Returns:
-            ``(indices, reduced_costs)`` — 1-D arrays of the same length,
-            sorted by ``reduced_costs`` ascending.  ``indices`` are 0-based
-            positions in the shared matrix.
+            ``(indices, reduced_costs)`` — 1-D arrays, sorted ascending by
+            ``reduced_costs`` (most improving first).
         """
         duals = np.asarray(duals, dtype=np.float64)
 
-        # Single aligned read of count — safe without lock on x86/arm64.
+        # Lock-free snapshot reads.
         n = int(self._header["count"][0])
+        nnz = int(self._header["nnz"][0])
         if n == 0:
             return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.float64)
 
         n_duals = min(len(duals), self._n_constraints)
 
-        # Slice views into the committed region (no copy).
-        mat = self._matrix[:n]  # shape (n, n_constraints+1)
-        valid = self._valid[:n].view(np.bool_)  # zero-copy bool view
+        # ── Build CSR view (zero-copy) ─────────────────────────────────────────
+        # scipy.csr_matrix with copy=False uses the shared-memory arrays directly
+        # when dtypes match (int32 indices, float64 values).
+        indptr = self._row_starts[: n + 1]  # view, int32
+        indices = self._col_indices[:nnz]  # view, int32
+        data = self._col_values[:nnz]  # view, float64
+        A = _sp_csr(
+            (data, indices, indptr),
+            shape=(n, self._n_constraints),
+            copy=False,
+        )
 
-        # ── Core pricing: single BLAS DGEMV, no fancy indexing ────────────────
-        col_costs = mat[:, 0].copy()  # force contiguous (col-strided otherwise)
-        if n_duals > 0:
-            rc = col_costs - mat[:, 1 : n_duals + 1] @ duals[:n_duals]
-        else:
-            rc = col_costs.copy()
+        # ── SPMV: rc = col_costs - A[:, :n_duals] @ duals[:n_duals] ──────────
+        col_costs = np.asarray(self._col_costs[:n], dtype=np.float64)  # contiguous copy
+        d = np.zeros(self._n_constraints, dtype=np.float64)
+        d[:n_duals] = duals[:n_duals]
+        rc = col_costs - A @ d
 
         # ── Filter: valid ∩ view_mask ∩ (rc < threshold) ─────────────────────
+        valid = self._valid[:n].view(np.bool_)
         active = valid
         if view_mask is not None:
             active = active & view_mask[:n]
         active = active & (rc < threshold)
 
-        indices = np.where(active)[0]
-        if len(indices) == 0:
+        indices_out = np.where(active)[0]
+        if len(indices_out) == 0:
             return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.float64)
 
         # Sort ascending by reduced cost (most improving first).
-        rc_sel = rc[indices]
+        rc_sel = rc[indices_out]
         order = np.argsort(rc_sel, kind="stable")
-        return indices[order], rc_sel[order]
+        return indices_out[order], rc_sel[order]
 
     # ── Direct numpy views ────────────────────────────────────────────────────
 
@@ -342,45 +404,54 @@ class SharedPricingPool:
     def col_costs_view(self) -> np.ndarray:
         """Zero-copy 1-D view of LP costs for committed columns.
 
-        Shape: ``(count,)``.  Strided (not contiguous); copy if needed for BLAS.
+        Shape: ``(count,)``.
         """
-        n = int(self._header["count"][0])
-        return self._matrix[:n, 0]
+        return self._col_costs[: self.count]
 
     @property
-    def row_matrix_view(self) -> np.ndarray:
-        """Zero-copy 2-D view of coefficient sub-matrix for committed columns.
+    def row_starts_view(self) -> np.ndarray:
+        """Zero-copy int32 CSR row-pointer array.
 
-        Shape: ``(count, n_constraints)``.  C-contiguous row slice.
-        Use ``row_matrix_view[:, :n_duals] @ duals`` for a pure-numpy DGEMV.
+        Shape: ``(count+1,)``.
         """
-        n = int(self._header["count"][0])
-        return self._matrix[:n, 1:]
+        n = self.count
+        return self._row_starts[: n + 1]
+
+    @property
+    def col_indices_view(self) -> np.ndarray:
+        """Zero-copy int32 constraint-index array for non-zeros.
+
+        Shape: ``(nnz,)``.
+        """
+        return self._col_indices[: self.nnz]
+
+    @property
+    def col_values_view(self) -> np.ndarray:
+        """Zero-copy float64 coefficient array for non-zeros.
+
+        Shape: ``(nnz,)``.
+        """
+        return self._col_values[: self.nnz]
 
     @property
     def valid_view(self) -> np.ndarray:
-        """Zero-copy uint8 view of the valid flags.
+        """Zero-copy uint8 validity flags.
 
         Shape: ``(max_cols,)``.
         """
         return self._valid
 
-    @property
-    def matrix_view(self) -> np.ndarray:
-        """Zero-copy view of the full committed matrix.
-
-        Shape: ``(count, n_constraints+1)``.  Column 0 is LP cost; columns 1…n
-        are constraint coefficients.
-        """
-        n = int(self._header["count"][0])
-        return self._matrix[:n]
-
     # ── Counters ──────────────────────────────────────────────────────────────
 
     @property
     def count(self) -> int:
-        """Total column slots committed (including invalidated ones)."""
+        """Total committed column slots (including invalidated ones)."""
         return int(self._header["count"][0])
+
+    @property
+    def nnz(self) -> int:
+        """Total committed non-zeros across all columns."""
+        return int(self._header["nnz"][0])
 
     @property
     def active_count(self) -> int:
@@ -410,26 +481,24 @@ class SharedPricingPool:
 
     def __repr__(self) -> str:
         return (
-            f"SharedPricingPool(count={self.count}, active={self.active_count}, "
-            f"max_cols={self._max_cols}, n_constraints={self._n_constraints})"
+            f"SharedPricingPool(count={self.count}, nnz={self.nnz}, "
+            f"active={self.active_count}, max_cols={self._max_cols}, "
+            f"n_constraints={self._n_constraints})"
         )
 
 
 class FilteredSharedPricingPool:
-    """A local (per-process) filtered view over a SharedPricingPool.
+    """A local (per-process) filtered view over a :class:`SharedPricingPool`.
 
-    Mirrors the concept of ``FilteredSolutionPool`` in Python space: holds a
-    numpy boolean mask that restricts which column slots are visible during
-    pricing.  The mask is process-local (not in shared memory), making this
-    suitable for Branch-and-Bound where each node has its own column exclusions.
+    Holds a numpy boolean mask that restricts which column slots are visible
+    during pricing.  The mask is process-local (not in shared memory), making
+    this suitable for Branch-and-Bound where each node has its own exclusions.
 
-    Typically constructed via :meth:`PricingPool.new_numpy_filter` which
-    automatically populates the mask from the corresponding C++
-    ``FilteredSolutionPool``.
+    Typically constructed via :meth:`PricingPool.new_numpy_filter`.
 
     Args:
         shared: The backing ``SharedPricingPool``.
-        view_indices: 1-D integer array of shared indices that are in this view.
+        view_indices: 1-D integer array of shared indices in this view.
             ``None`` → all currently valid columns are included.
     """
 
@@ -443,7 +512,6 @@ class FilteredSharedPricingPool:
         if view_indices is not None and len(view_indices) > 0:
             self._mask[np.asarray(view_indices, dtype=np.intp)] = True
         elif view_indices is None:
-            # Include all currently valid column slots.
             n = shared.count
             if n > 0:
                 self._mask[:n] = shared._valid[:n].view(np.bool_)
@@ -454,7 +522,7 @@ class FilteredSharedPricingPool:
         """Include additional column slots in this filter view.
 
         Args:
-            shared_indices: Shared indices to add (e.g. newly added columns).
+            shared_indices: Shared indices to add.
         """
         if len(shared_indices) > 0:
             self._mask[np.asarray(shared_indices, dtype=np.intp)] = True
@@ -477,15 +545,12 @@ class FilteredSharedPricingPool:
     ) -> tuple[np.ndarray, np.ndarray]:
         """Price only columns in this filter view.
 
-        Delegates to :meth:`SharedPricingPool.price` with ``view_mask=self._mask``.
-        Returns columns sorted by reduced cost ascending (most improving first).
-
         Args:
             duals: 1-D float64 LP dual values.
             threshold: Keep only columns with ``rc < threshold``.
 
         Returns:
-            ``(indices, reduced_costs)`` sorted ascending by ``reduced_costs``.
+            ``(indices, reduced_costs)`` sorted ascending.
         """
         return self._shared.price(duals, threshold=threshold, view_mask=self._mask)
 
@@ -499,7 +564,7 @@ class FilteredSharedPricingPool:
 
     @property
     def mask(self) -> np.ndarray:
-        """Zero-copy boolean mask array (shape: ``[max_cols]``)."""
+        """Zero-copy boolean mask array ``(max_cols,)``."""
         return self._mask
 
     def __repr__(self) -> str:
@@ -513,18 +578,18 @@ class PricingPool:
 
     The master process owns both objects:
 
-    * All structural operations (add, remove, filter, activity tracking) go
-      through the C++ ``FilteredSolutionPool``.
-    * Cross-process pricing uses the ``SharedPricingPool`` via shared memory.
+    * Structural operations (add, remove, filter, activity) go through the C++
+      ``FilteredSolutionPool``.
+    * Cross-process pricing uses the ``SharedPricingPool`` (CSR, scipy SPMV).
 
     Worker processes receive a ``shared_handle()`` and call
     ``SharedPricingPool.attach(handle)`` — they never touch the C++ pool.
 
     Args:
         filtered_pool: Existing ``FilteredSolutionPool`` from the C++ bindings.
-        n_constraints: Passed to ``SharedPricingPool``.  Should be ≥ the highest
-            row index that will appear in any column (over-allocate for cuts).
-        max_cols: Capacity of the shared pool.
+        n_constraints: Passed to ``SharedPricingPool``.
+        max_cols: Column capacity of the shared pool.
+        max_nnz_per_col: Maximum non-zeros per column (default 50).
         lock: Optional external lock for spawn-safe multiprocessing.
 
     Example::
@@ -543,14 +608,19 @@ class PricingPool:
         filtered_pool: object,
         n_constraints: int,
         max_cols: int = 50_000,
+        max_nnz_per_col: int = 50,
         lock: object | None = None,
     ) -> None:
-        # Set _fp before anything that might call __getattr__.
         object.__setattr__(self, "_fp", filtered_pool)
         object.__setattr__(
             self,
             "_shared",
-            SharedPricingPool(n_constraints=n_constraints, max_cols=max_cols, lock=lock),
+            SharedPricingPool(
+                n_constraints=n_constraints,
+                max_cols=max_cols,
+                max_nnz_per_col=max_nnz_per_col,
+                lock=lock,
+            ),
         )
         object.__setattr__(self, "_id_to_idx", {})
 
@@ -608,27 +678,20 @@ class PricingPool:
     def new_numpy_filter(
         self,
         cpp_filter=None,
-    ) -> "FilteredSharedPricingPool":
+    ) -> FilteredSharedPricingPool:
         """Create a FilteredSharedPricingPool mirroring a C++ FilteredSolutionPool.
 
         Snapshots the column IDs currently in the C++ filter view, maps them to
-        shared indices via the internal ``ColumnId → shared_index`` mapping, and
-        returns a ``FilteredSharedPricingPool`` with that mask.
-
-        Columns added to the ``PricingPool`` after this call are NOT automatically
-        added to the returned filter (call :meth:`FilteredSharedPricingPool.add_to_view`
-        explicitly, or re-create the filter).  This matches CG/B&B usage where
-        the filter snapshot is taken at the start of a pricing round.
+        shared indices, and returns a ``FilteredSharedPricingPool``.
 
         Args:
-            cpp_filter: A ``FilteredSolutionPool`` whose column selection to mirror.
-                ``None`` → use this pool's own ``FilteredSolutionPool`` (all columns).
+            cpp_filter: A ``FilteredSolutionPool`` to mirror.
+                ``None`` → use this pool's own filter (all columns).
 
         Returns:
             A process-local ``FilteredSharedPricingPool``.
         """
         fp = cpp_filter if cpp_filter is not None else self._fp
-        # get_all() returns list of (ColumnId, Solution, ColumnActivity).
         cpp_ids = [int(entry[0]) for entry in fp.get_all()]
         shared_indices = [self._id_to_idx[cid] for cid in cpp_ids if cid in self._id_to_idx]
         arr = np.asarray(shared_indices, dtype=np.intp) if shared_indices else None
@@ -641,9 +704,9 @@ class PricingPool:
         duals: np.ndarray,
         threshold: float = -1e-9,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Lock-free pricing on shared memory (all valid columns).
+        """Lock-free CSR pricing (all valid columns).
 
-        Returns ``(indices, reduced_costs)`` sorted ascending by reduced cost.
+        Returns ``(indices, reduced_costs)`` sorted ascending.
         """
         return self._shared.price(duals, threshold)
 
@@ -652,29 +715,22 @@ class PricingPool:
         duals: np.ndarray,
         threshold: float = -1e-9,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Price columns visible in this pool's own C++ filter view.
+        """Price only the C++ pool's current filter view.
 
-        Convenience shorthand for ``self.new_numpy_filter().price(duals)``.
-        Re-snapshots the C++ filter on every call — use :meth:`new_numpy_filter`
-        and cache the result if you call this in a tight loop.
+        Shorthand for ``new_numpy_filter().price(duals)``.
 
-        Returns ``(indices, reduced_costs)`` sorted ascending by reduced cost.
+        Returns ``(indices, reduced_costs)`` sorted ascending.
         """
         return self.new_numpy_filter().price(duals, threshold=threshold)
 
-    # ── Direct numpy access ───────────────────────────────────────────────────
+    # ── Properties / delegation ───────────────────────────────────────────────
 
     @property
     def shared_pool(self) -> SharedPricingPool:
-        """The underlying SharedPricingPool for direct numpy access."""
+        """The underlying ``SharedPricingPool`` for direct CSR access."""
         return self._shared
 
-    # ── Delegate everything else to the C++ FilteredSolutionPool ─────────────
-
     def __getattr__(self, name: str) -> object:
-        # Called only when normal attribute lookup fails.
-        # `_fp` is set via object.__setattr__ in __init__, so it is always found
-        # through normal lookup — no recursion risk here.
         return getattr(self._fp, name)
 
     def close(self) -> None:

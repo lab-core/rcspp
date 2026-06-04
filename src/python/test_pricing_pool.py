@@ -42,29 +42,31 @@ def test_create_and_attach():
         handle = pool.handle()
         worker = SharedPricingPool.attach(handle)
         try:
-            # Write via pool, read via worker — verifies they share the same memory.
+            # Write via pool, read via worker — verifies shared memory is live.
             pool.add(make_solution(42.0, [(3, 1.5)], [1]))
             assert worker.count == 1
-            # matrix[:,0] = cost; matrix[:,j+1] = coef for constraint j
-            assert abs(worker.matrix_view[0, 0] - 42.0) < 1e-9
-            assert abs(worker.matrix_view[0, 4] - 1.5) < 1e-9  # constraint 3 → column 4
-            # col_costs_view and row_matrix_view are zero-copy views.
+            assert worker.nnz == 1
+            # CSR views: cost and row data.
             assert abs(float(worker.col_costs_view[0]) - 42.0) < 1e-9
-            assert abs(float(worker.row_matrix_view[0, 3]) - 1.5) < 1e-9
+            assert int(worker.col_indices_view[0]) == 3
+            assert abs(float(worker.col_values_view[0]) - 1.5) < 1e-9
+            assert int(worker.row_starts_view[0]) == 0
+            assert int(worker.row_starts_view[1]) == 1  # 1 non-zero
         finally:
             worker.close()
     finally:
         pool.unlink()
 
 
-def test_alignment():
-    """matrix_offset must be 8-byte aligned for any max_cols value."""
+def test_csr_alignment():
+    """All CSR array offsets must be 8-byte aligned for any max_cols value."""
     for max_cols in [1, 5, 7, 8, 100, 1_000]:
         pool = SharedPricingPool(n_constraints=5, max_cols=max_cols)
         try:
+            assert pool._costs_offset % 8 == 0, f"costs_offset misaligned (max_cols={max_cols})"
             assert (
-                pool._matrix_offset % 8 == 0
-            ), f"matrix_offset {pool._matrix_offset} not 8-byte aligned for max_cols={max_cols}"
+                pool._col_values_offset % 8 == 0
+            ), f"col_values_offset misaligned (max_cols={max_cols})"
         finally:
             pool.unlink()
 
@@ -72,14 +74,42 @@ def test_alignment():
 def test_add_batch():
     pool = SharedPricingPool(n_constraints=5, max_cols=50)
     try:
-        solutions = [make_solution(float(i), [(0, float(i))], [i]) for i in range(5)]
+        # Each solution has one non-zero row: (0, i).
+        solutions = [make_solution(float(i), [(0, float(i))], [k]) for k, i in enumerate(range(5))]
         idxs = pool.add_columns(solutions)
         assert idxs == [0, 1, 2, 3, 4]
         assert pool.count == 5
+        assert pool.nnz == 5  # one non-zero per column
         assert pool.active_count == 5
         for i in range(5):
             assert abs(pool.col_costs_view[i] - float(i)) < 1e-9
-            assert abs(pool.row_matrix_view[i, 0] - float(i)) < 1e-9
+        # CSR structure: row_starts = [0,1,2,3,4,5], all col_indices = 0.
+        assert list(pool.row_starts_view) == [0, 1, 2, 3, 4, 5]
+        assert all(int(v) == 0 for v in pool.col_indices_view)
+    finally:
+        pool.unlink()
+
+
+def test_csr_multiple_rows():
+    """Columns with multiple non-zeros must build correct CSR structure."""
+    pool = SharedPricingPool(n_constraints=10, max_cols=20)
+    try:
+        # col 0: rows (0,1.0), (2,2.0) → nnz=2
+        # col 1: rows (1,3.0)          → nnz=1
+        pool.add(make_solution(5.0, [(0, 1.0), (2, 2.0)], [0]))
+        pool.add(make_solution(3.0, [(1, 3.0)], [1]))
+        assert pool.count == 2
+        assert pool.nnz == 3
+        assert list(pool.row_starts_view) == [0, 2, 3]
+        # col 0 non-zeros at positions 0,1 in col_indices
+        assert int(pool.col_indices_view[0]) == 0
+        assert int(pool.col_indices_view[1]) == 2
+        assert int(pool.col_indices_view[2]) == 1
+        # Verify pricing: duals=[1,0,0,...] → col0 rc=5-1=4, col1 rc=3-0=3
+        duals = np.zeros(10)
+        duals[0] = 1.0
+        _, rcs = pool.price(duals, threshold=5.0)
+        assert abs(min(rcs) - 3.0) < 1e-9
     finally:
         pool.unlink()
 

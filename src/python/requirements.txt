@@ -2,3 +2,4 @@ mip
 networkx
 pytest
 numpy
+scipy
