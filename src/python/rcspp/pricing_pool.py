@@ -668,16 +668,21 @@ class FilteredPricingPool:
         *,
         arc_ids: list[int] | None = None,
         cpp_ids: list[int] | None = None,
-        shared_indices: list[int] | None = None,
     ) -> None:
-        """Exclude columns from numpy mask (no shared-memory write).
+        """Exclude columns from numpy mask (no shared-memory write, B&B restriction).
+
+        Both args accept lists; any combination is valid::
+
+            sub.remove_from_view(arc_ids=[10, 11])          # by arc
+            sub.remove_from_view(cpp_ids=[col_id_1, col_id_2])  # by ColumnId
+            sub.remove_from_view(arc_ids=[10], cpp_ids=[col_id_3])  # combined
 
         Args:
-            arc_ids: Exclude all columns whose path uses any of these arcs.
-            cpp_ids: Exclude by ColumnId.
-            shared_indices: Exclude by shared slot index.
+            arc_ids: Exclude all columns whose path traverses any of these arcs.
+            cpp_ids: Exclude columns by ColumnId (as returned by :meth:`add`
+                or :meth:`price`).
         """
-        sidxs: list[int] = list(shared_indices or [])
+        sidxs: list[int] = []
         if arc_ids is not None:
             for arc_id in arc_ids:
                 removed = self._cpp_fp.remove_if_arc_present(arc_id)
@@ -692,17 +697,25 @@ class FilteredPricingPool:
         self,
         *,
         cpp_ids: list[int] | None = None,
-        shared_indices: list[int] | None = None,
     ) -> None:
-        """Re-include columns (B&B backtrack).
+        """Re-include columns previously excluded by :meth:`remove_from_view`.
+
+        Modifies the numpy mask only — O(k), no shared-memory write::
+
+            sub.add_to_view(cpp_ids=[col_id_1, col_id_2])   # backtrack
+
+        .. note::
+            To undo an arc-based restriction, save the ColumnIds returned by
+            the related :meth:`price` call before the restriction, then pass
+            them back here.
 
         Args:
-            cpp_ids: Re-include by ColumnId.
-            shared_indices: Re-include by shared slot index.
+            cpp_ids: ColumnIds to re-include (as returned by :meth:`add`
+                or :meth:`price`).
         """
-        sidxs: list[int] = list(shared_indices or [])
+        sidxs: list[int] = []
         if cpp_ids is not None:
-            sidxs += self._cpp_ids_to_shared(cpp_ids).tolist()
+            sidxs = self._cpp_ids_to_shared(cpp_ids).tolist()
         if sidxs:
             self._numpy_fp.add_to_view(sidxs)
 
@@ -800,6 +813,14 @@ class PricingPool:
             new_arr[: len(self._id_to_shared)] = self._id_to_shared
             self._id_to_shared = new_arr
 
+    def _ensure_shared_capacity(self, shared_idx: int) -> None:
+        """Grow ``_shared_to_id`` if ``shared_idx`` would be out of bounds."""
+        if shared_idx >= len(self._shared_to_id):
+            new_size = max(shared_idx + 2, len(self._shared_to_id) * 2)
+            new_arr = np.full(new_size, -1, dtype=np.int64)
+            new_arr[: len(self._shared_to_id)] = self._shared_to_id
+            self._shared_to_id = new_arr
+
     def _cpp_ids_to_shared(self, cpp_ids) -> np.ndarray:
         arr = np.asarray(cpp_ids, dtype=np.int64)
         arr = arr[arr < len(self._id_to_shared)]
@@ -812,11 +833,18 @@ class PricingPool:
     def attach(handle: dict) -> SharedPricingPool:
         """Attach to the shared pool from a worker process.
 
-        Returns a :class:`SharedPricingPool` whose :meth:`~SharedPricingPool.price`
-        method returns shared slot indices (not ColumnIds)::
+        Workers call this to get a :class:`SharedPricingPool` for lock-free
+        pricing.  The returned object's :meth:`~SharedPricingPool.price`
+        method returns internal shared slot indices — these are opaque to
+        workers and only used to communicate which columns have negative rc
+        back to the master process, which then resolves them to ColumnIds::
 
+            # Worker
             shared = PricingPool.attach(handle)
-            indices, rcs = shared.price(duals)
+            slot_indices, rcs = shared.price(duals)
+            # Return slot_indices to master; master calls pool.get_by_slot(...)
+            # or simply uses the shared indices to retrieve solutions via
+            # shared.col_costs_view[slot_indices], etc.
         """
         return SharedPricingPool.attach(handle)
 
@@ -841,6 +869,7 @@ class PricingPool:
         self._ensure_id_capacity(cid)
         if self._id_to_shared[cid] < 0:  # new column, not a duplicate
             shared_idx = self._shared.add(solution)
+            self._ensure_shared_capacity(shared_idx)
             self._id_to_shared[cid] = shared_idx
             self._shared_to_id[shared_idx] = cid
         return cpp_id
