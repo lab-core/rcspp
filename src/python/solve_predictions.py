@@ -7,7 +7,7 @@ from utils.definitions import DATASETS_DIR
 from utils.experiments import run_prediction_instance
 from utils.experiment_utils import ensure_parent_dir, read_instances_name
 
-dataset_dir = f"{DATASETS_DIR}dataset_30/"
+
 verbose = True
 
 try:
@@ -37,6 +37,13 @@ except ValueError:
     print("Error: MODEL_NAME is not a string")
     sys.exit(1)
 
+try:
+    dataset_name = str(os.environ.get('DATASET_NAME', 0))
+except ValueError:
+    print("Error: DATASET_NAME is not a string")
+    sys.exit(1)
+
+dataset_dir = f"{DATASETS_DIR}{dataset_name}/"
 
 print(f"######### TASK_NUMBER: {task_number}")
 print(f"######### MODEL_NAME: {model_name}")

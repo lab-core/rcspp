@@ -16,21 +16,26 @@ if __name__ == "__main__":
     
     print("Read instance...")
     instances_name = ["R101", "R102", "R103", "R104", "R105", "C101", "C102", "C103", "C104", "C105", "RC101", "RC102", "RC103", "RC104", "RC105"]
-    instances_name = ["RC101"]
+    instances_name = ["R202_2"]
     dual_optimal = {}
     with open("/home/jullarth/Documents/Solutions/Duaux/duaux_optimaux.json", "r") as f:
         optim = json.load(f)
-    dual_optimal = {int(k):v for k, v in optim["RC101"].items()}
+    dual_optimal = {int(k):v for k, v in optim["R102"].items()}
+
+    with open("/scratch/jullarth/datasets/dataset_30/Solutions/optimal_dual/R202_2.json", "r") as f:
+        optim = json.load(f)
+    dual_optimal = {int(k):v for k, v in optim.items()}
     
     verbose = True
 
     for name in instances_name:
-        instance_path = f"{INSTANCES_DIR}{name}.txt"
+        instance_path = f"/scratch/jullarth/datasets/dataset_30/Instances/R/{name}.txt"
         instance_reader = InstanceReader(instance_path)
         instance = instance_reader.read()
         vrp = VRP(instance, verbose=verbose)
         solution = vrp.solve()
         ref_sol_dict = _build_solution_dict(vrp, solution)
+
 
         svrp = StabilizedVRP(instance, verbose=verbose)
         ssolution = svrp.solve()

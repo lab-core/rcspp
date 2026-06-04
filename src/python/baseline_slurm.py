@@ -7,7 +7,7 @@ from utils.definitions import DATASETS_DIR
 from utils.experiments import baseline
 from utils.experiment_utils import read_instances_name
 
-dataset_dir = f"{DATASETS_DIR}dataset_10_bis/"
+
 verbose = True
 
 try:
@@ -31,13 +31,32 @@ except ValueError:
     print("Error: TASK_NUMBER is not an integer")
     sys.exit(1)
 
+try:
+    dataset_name = str(os.environ.get("DATASET_NAME", ""))
+except KeyError:
+    print("Dataset name not found")
+    sys.exit(1)
+
+try:
+    instances_filename = str(os.environ.get("INSTANCES_FILE_NAME", ""))
+except KeyError:
+    print("Instances file name not found")
+    sys.exit(1)
+
+dataset_dir = f"{DATASETS_DIR}{dataset_name}/"
 
 print(f"######### TASK_NUMBER: {task_number}")
  
 # Global index across all batches (0-based)
 instance_index = task_offset + task_number*(task_id - 1)
+print(f"Index: {instance_index}")
 
-all_instances = read_instances_name(f"{dataset_dir}Instances/instances_name.txt")
+all_instances = read_instances_name(f"{dataset_dir}Instances/{instances_filename}.txt")
+
+if task_number == 0:
+    print("Warning: TASK_NUMBER is 0, nothing to process")
+    sys.exit(0)
+
 
 for i in range(task_number):
 
@@ -54,7 +73,7 @@ for i in range(task_number):
 
     reader = InstanceReader(f"{dataset_dir}Instances/{Itype}/{instance_name}.txt")
     instance = reader.read()
-    baseline(instance, dataset_dir)
+    baseline(instance, dataset_dir, verbose)
 
     instance_index += 1
    
