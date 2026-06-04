@@ -35,6 +35,7 @@ indices, so they are handled correctly without any data update.
 
 from __future__ import annotations
 
+import warnings
 from multiprocessing import Lock
 from multiprocessing.shared_memory import SharedMemory
 from typing import TYPE_CHECKING
@@ -47,6 +48,9 @@ try:
     _SCIPY_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _SCIPY_AVAILABLE = False
+
+# Emit the fallback warning at most once per process lifetime.
+_scipy_warning_emitted = False
 
 if TYPE_CHECKING:
     from rcspp._core.graph import Solution
@@ -83,12 +87,14 @@ class SharedPricingPool:
     50–200 constraints), so CSR avoids storing and multiplying the many zeros
     that a dense layout would contain.
 
-    Pricing is ``O(nnz)`` via ``scipy.sparse`` — independent of
-    ``n_constraints``.
+    Pricing is **O(nnz)** — independent of ``n_constraints``.
 
-    ``price(duals)`` is **lock-free**: it reads a snapshot of ``count`` and
-    ``nnz`` from the header, builds a ``csr_matrix`` view over the committed
-    CSR buffers, and calls scipy's SPMV.
+    If **scipy** is installed, ``price()`` uses ``scipy.sparse.csr_matrix``
+    (zero-copy SPMV over the shared buffers).  If scipy is absent, a pure
+    numpy fallback via ``np.bincount`` is used; a one-time warning is printed
+    recommending ``pip install scipy``.
+
+    ``price(duals)`` is **lock-free**.
 
     Args:
         n_constraints: Highest constraint index that will appear + 1.
@@ -99,9 +105,6 @@ class SharedPricingPool:
         name: Explicit name for the SharedMemory segment; auto-generated if None.
         lock: External lock (e.g. ``Manager().Lock()`` for spawn-safe use).
             A plain ``Lock()`` is created if None.
-
-    Raises:
-        ImportError: If scipy is not installed.
     """
 
     def __init__(
@@ -112,10 +115,6 @@ class SharedPricingPool:
         name: str | None = None,
         lock: object | None = None,
     ) -> None:
-        if not _SCIPY_AVAILABLE:
-            raise ImportError(
-                "SharedPricingPool requires scipy.  Install it with: pip install scipy"
-            )
         self._n_constraints = int(n_constraints)
         self._max_cols = int(max_cols)
         self._max_nnz = int(max_cols) * int(max_nnz_per_col)
@@ -191,10 +190,6 @@ class SharedPricingPool:
         Returns:
             A ``SharedPricingPool`` sharing the same memory.
         """
-        if not _SCIPY_AVAILABLE:
-            raise ImportError(
-                "SharedPricingPool requires scipy.  Install it with: pip install scipy"
-            )
         obj = object.__new__(cls)
         obj._lock = handle["lock"]
         obj._shm = SharedMemory(name=handle["shm_name"], create=False)
@@ -364,23 +359,49 @@ class SharedPricingPool:
 
         n_duals = min(len(duals), self._n_constraints)
 
-        # ── Build CSR view (zero-copy) ─────────────────────────────────────────
-        # scipy.csr_matrix with copy=False uses the shared-memory arrays directly
-        # when dtypes match (int32 indices, float64 values).
-        indptr = self._row_starts[: n + 1]  # view, int32
-        indices = self._col_indices[:nnz]  # view, int32
-        data = self._col_values[:nnz]  # view, float64
-        A = _sp_csr(
-            (data, indices, indptr),
-            shape=(n, self._n_constraints),
-            copy=False,
-        )
-
-        # ── SPMV: rc = col_costs - A[:, :n_duals] @ duals[:n_duals] ──────────
         col_costs = np.asarray(self._col_costs[:n], dtype=np.float64)  # contiguous copy
-        d = np.zeros(self._n_constraints, dtype=np.float64)
-        d[:n_duals] = duals[:n_duals]
-        rc = col_costs - A @ d
+
+        if _SCIPY_AVAILABLE:
+            # ── scipy SPMV: O(nnz), zero-copy CSR view ────────────────────────
+            # csr_matrix(copy=False) uses the shared-memory buffers directly when
+            # dtypes match (int32 indices, float64 values).
+            indptr = self._row_starts[: n + 1]  # int32 view
+            sp_idx = self._col_indices[:nnz]  # int32 view
+            sp_val = self._col_values[:nnz]  # float64 view
+            A = _sp_csr(
+                (sp_val, sp_idx, indptr),
+                shape=(n, self._n_constraints),
+                copy=False,
+            )
+            d = np.zeros(self._n_constraints, dtype=np.float64)
+            d[:n_duals] = duals[:n_duals]
+            rc = col_costs - A @ d
+        else:
+            # ── numpy fallback: O(nnz) via bincount ───────────────────────────
+            global _scipy_warning_emitted  # noqa: PLW0603
+            if not _scipy_warning_emitted:
+                warnings.warn(
+                    "scipy is not installed — SharedPricingPool.price() is using a "
+                    "slower numpy fallback (O(nnz) via bincount).  "
+                    "Install scipy for full performance: pip install scipy",
+                    stacklevel=2,
+                )
+                _scipy_warning_emitted = True
+
+            rc = col_costs.copy()
+            if nnz > 0:
+                # row_idx[k] = column index of the k-th non-zero entry.
+                counts = np.diff(self._row_starts[: n + 1].astype(np.int64))
+                row_idx = np.repeat(np.arange(n, dtype=np.int64), counts)
+                ci = self._col_indices[:nnz].astype(np.int64)
+                # Only use dual entries within the supplied duals vector.
+                mask = ci < n_duals
+                contrib = np.bincount(
+                    row_idx[mask],
+                    weights=self._col_values[:nnz][mask] * duals[ci[mask]],
+                    minlength=n,
+                )
+                rc -= contrib
 
         # ── Filter: valid ∩ view_mask ∩ (rc < threshold) ─────────────────────
         valid = self._valid[:n].view(np.bool_)
