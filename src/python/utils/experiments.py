@@ -28,7 +28,7 @@ def _dispatch(
         vrp, solution, solution_dict = vrp_instance(
             instance, save=True, dir=solution_dir, verbose=verbose
         )
-        save_dict_to_json(optimal_dual_dir, instance.get_name(), solution.dual_by_var_id)
+        #save_dict_to_json(optimal_dual_dir, instance.get_name(), solution.dual_by_var_id)
 
     elif method == "stabilized":
         solution_dict = vrp_stabilized_instance(instance, dir=solution_dir, verbose=verbose)

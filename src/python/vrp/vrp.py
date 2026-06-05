@@ -10,7 +10,7 @@ from vrp.instance import Customer, Instance
 
 from utils.utils import dict_addition, dict_dot_product, dict_l1_norm, dict_scalar_mult
 
-from rcspp.graph import ResourceGraph, Row, Solution
+from rcspp.graph import ResourceGraph, Row, Solution, Algorithm, AlgorithmParams
 from rcspp.resource import (
     AdditionExtensionFunction,
     MinMaxFeasibilityFunction,
@@ -43,6 +43,12 @@ class VRP:
         self._time_window_by_node_id = {}
         self.initialize_time_windows()
         self._resource_graph = self.construct_resource_graph()
+
+        self.params = AlgorithmParams()
+        self.params.num_labels_to_extend_by_node = 100
+        #self.params.stop_after_X_solutions = 5
+
+        self.algo = Algorithm.Simple
 
     def initialize_time_windows(self):
         customers_by_id = self._instance.get_customers_by_id()
@@ -194,8 +200,11 @@ class VRP:
 
     # ── Column generation ─────────────────────────────────────────────────────
 
-    def solve(self, subproblem_max_nb_solutions: Optional[int] = None):
+    def solve(self, subproblem_max_nb_solutions: Optional[int] = None, algorithm: Optional[str] = None):
         from vrp.cg.master_problem import MasterProblem  # requires mip
+
+        if algorithm is not None:
+            self.algo = self.get_algo(algorithm)
 
         self.time_start = time.time()
 
@@ -322,7 +331,7 @@ class VRP:
             self._resource_graph.update_reduced_costs(dual_by_id)
 
         t0 = time.time()
-        solutions = self._resource_graph.solve()
+        solutions = self._resource_graph.solve(self.algo, params=self.params)
         print(f"Solve: {time.time() - t0:.3f}s")
         self._total_subproblem_time += time.time() - t0
         return solutions
@@ -416,3 +425,13 @@ class VRP:
             state["smoothing_parameter"] = self._smoothing_parameter
         
         self._state_history.append(state)
+
+    def get_algo(self, name: str):
+        if name == "simple":
+            return Algorithm.Simple
+        if name == "greedy":
+            return Algorithm.Greedy
+        if name == "pulling":
+            return Algorithm.Pulling
+        if name == "pushing":
+            return Algorithm.Pushing
