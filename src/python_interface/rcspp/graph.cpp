@@ -119,7 +119,26 @@ void init_graph(py::module_& m) {
     py::class_<Column>(m, "Column")
         .def(py::init<>())
         .def_readwrite("cost", &Column::cost)
-        .def_readwrite("rows", &Column::rows);
+        .def_readwrite("rows", &Column::rows)
+        // to_arrays(): extract the LP cost and row (index, coefficient) data as numpy
+        // arrays in one C++ call. Lets the Python pricing pool bulk-read a column without
+        // the per-Row pybind attribute overhead that dominates add()/update().
+        .def(
+            "to_arrays",
+            [](const Column& col) -> py::tuple {
+                const size_t nr = col.rows.size();
+                auto idx = py::array_t<int64_t>(static_cast<py::ssize_t>(nr));
+                auto coef = py::array_t<double>(static_cast<py::ssize_t>(nr));
+                auto ip = idx.mutable_unchecked<1>();
+                auto cp = coef.mutable_unchecked<1>();
+                for (size_t i = 0; i < nr; ++i) {
+                    ip(static_cast<py::ssize_t>(i)) = static_cast<int64_t>(col.rows[i].index);
+                    cp(static_cast<py::ssize_t>(i)) = static_cast<double>(col.rows[i].coefficient);
+                }
+                return py::make_tuple(col.cost, idx, coef);
+            },
+            "Return (cost, row_indices, row_coefficients) as numpy arrays "
+            "(int64 indices, float64 coefficients) — avoids per-Row Python overhead.");
 
     py::class_<Solution>(m, "Solution")
         .def(py::init<>())

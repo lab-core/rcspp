@@ -189,6 +189,18 @@ class SharedPricingPool:
 
     # ── Write operations ──────────────────────────────────────────────────────
 
+    def _filter_in_range(self, idx: np.ndarray, coef: np.ndarray):
+        """Drop (index, coefficient) pairs whose constraint index is out of range.
+
+        Vectorized; returns the inputs unchanged (no copy) when every index is
+        already ``< n_constraints`` — the common case with an over-allocated
+        ``n_constraints``.
+        """
+        mask = idx < self._n_constraints
+        if mask.all():
+            return idx, coef
+        return idx[mask], coef[mask]
+
     def add(self, solution: "Solution") -> int:
         """Add one column and return its internal shared slot index.
 
@@ -206,28 +218,24 @@ class SharedPricingPool:
         Raises:
             RuntimeError: Pool is full (columns or non-zeros exhausted).
         """
-        col = solution.column
-        rows = [
-            (int(r.index), float(r.coefficient))
-            for r in col.rows
-            if int(r.index) < self._n_constraints
-        ]
+        cost, idx, coef = solution.column.to_arrays()
+        idx, coef = self._filter_in_range(idx, coef)
+        n_rows = len(idx)
         with self._lock:
             count = int(self._header["count"][0])
             nnz = int(self._header["nnz"][0])
             if count >= self._max_cols:
                 raise RuntimeError(f"SharedPricingPool full (cols: {count}/{self._max_cols})")
-            new_nnz = nnz + len(rows)
+            new_nnz = nnz + n_rows
             if new_nnz > self._max_nnz:
                 raise RuntimeError(
                     f"SharedPricingPool non-zero capacity exceeded ({new_nnz}/{self._max_nnz})"
                 )
-            self._col_costs[count] = float(col.cost)
-            for k, (idx, val) in enumerate(rows):
-                self._col_indices[nnz + k] = np.int32(idx)
-                self._col_values[nnz + k] = val
-            self._row_starts[count + 1] = np.int32(new_nnz)
-            self._valid[count] = np.uint8(1)
+            self._col_costs[count] = cost
+            self._col_indices[nnz:new_nnz] = idx  # int64 → int32 cast on assignment
+            self._col_values[nnz:new_nnz] = coef
+            self._row_starts[count + 1] = new_nnz
+            self._valid[count] = 1
             self._header["nnz"] = new_nnz
             self._header["count"] = count + 1
         return count
@@ -251,33 +259,37 @@ class SharedPricingPool:
         if not solutions:
             return []
         costs = np.empty(len(solutions), dtype=np.float64)
-        row_data: list[list[tuple[int, float]]] = []
+        lengths = np.empty(len(solutions), dtype=np.int64)
+        idx_parts: list[np.ndarray] = []
+        coef_parts: list[np.ndarray] = []
         for k, sol in enumerate(solutions):
-            costs[k] = float(sol.column.cost)
-            row_data.append(
-                [
-                    (int(r.index), float(r.coefficient))
-                    for r in sol.column.rows
-                    if int(r.index) < self._n_constraints
-                ]
-            )
+            cost, idx, coef = sol.column.to_arrays()
+            idx, coef = self._filter_in_range(idx, coef)
+            costs[k] = cost
+            lengths[k] = len(idx)
+            idx_parts.append(idx)
+            coef_parts.append(coef)
+        all_idx = np.concatenate(idx_parts)
+        all_coef = np.concatenate(coef_parts)
+        total = int(lengths.sum())
         with self._lock:
             start = int(self._header["count"][0])
             nnz_start = int(self._header["nnz"][0])
             end = start + len(solutions)
             if end > self._max_cols:
-                raise RuntimeError("SharedPricingPool: batch add would exceed capacity")
-            cursor = nnz_start
-            for i, col_rows in enumerate(row_data):
-                slot = start + i
-                self._col_costs[slot] = costs[i]
-                for idx, val in col_rows:
-                    self._col_indices[cursor] = np.int32(idx)
-                    self._col_values[cursor] = val
-                    cursor += 1
-                self._row_starts[slot + 1] = np.int32(cursor)
-                self._valid[slot] = np.uint8(1)
-            self._header["nnz"] = cursor
+                raise RuntimeError("SharedPricingPool: batch add would exceed column capacity")
+            if nnz_start + total > self._max_nnz:
+                raise RuntimeError(
+                    f"SharedPricingPool: batch add would exceed non-zero capacity "
+                    f"({nnz_start + total}/{self._max_nnz})"
+                )
+            self._col_costs[start:end] = costs
+            self._col_indices[nnz_start : nnz_start + total] = all_idx
+            self._col_values[nnz_start : nnz_start + total] = all_coef
+            # CSR row pointers: prefix sums of per-column lengths, offset by nnz_start.
+            self._row_starts[start + 1 : end + 1] = nnz_start + np.cumsum(lengths)
+            self._valid[start:end] = 1
+            self._header["nnz"] = nnz_start + total
             self._header["count"] = end
         return list(range(start, end))
 
@@ -347,6 +359,58 @@ class SharedPricingPool:
             self._header["nnz"] = cursor
             self._header["count"] = start + n_add
         return list(range(start, start + n_add))
+
+    def update(self, shared_index: int, solution: "Solution") -> None:
+        """Refresh an existing slot's LP cost and coefficient values in place.
+
+        Mirrors the C++ ``SolutionPool`` dedup refresh ("latest column wins"):
+        the row *indices* are fixed by the arc path, so only ``col_cost`` and the
+        matching coefficient *values* are overwritten.  The non-zero layout is
+        left untouched, so the slot index stays valid and nothing is reallocated.
+        An index present in the stored slot but absent from ``solution`` keeps its
+        old value (consistent with the C++ in-place refresh)::
+
+            slot = shared.add(sol_v1)     # cost/coef v1
+            shared.update(slot, sol_v2)   # same arc path → refreshed in place
+
+        When the re-proposed column is identical to what is already stored (the
+        common "same column re-proposed unchanged" case), this returns after a
+        lock-free comparison — without acquiring the write lock or dirtying the
+        shared segment.
+
+        Args:
+            shared_index: Slot index previously returned by :meth:`add`.
+            solution: Solution carrying the refreshed column cost/coefficients.
+        """
+        cost, idx, coef = solution.column.to_arrays()
+        idx, coef = self._filter_in_range(idx, coef)
+        slot = int(shared_index)
+        new_cost = float(cost)
+        start = int(self._row_starts[slot])
+        end = int(self._row_starts[slot + 1])
+        stored_idx = self._col_indices[start:end]
+        stored_val = self._col_values[start:end]
+
+        # Build the target coefficient values for this slot, matching the C++ refresh:
+        # only indices that appear in the new column are overwritten; the rest are kept.
+        idx32 = idx.astype(np.int32, copy=False)
+        if len(idx32) == len(stored_idx) and np.array_equal(stored_idx, idx32):
+            target = coef  # same row structure & order (the normal case) → fully vectorized
+        else:
+            new_coef = dict(zip(idx.tolist(), coef.tolist()))
+            target = np.array(stored_val, dtype=np.float64)
+            for k, ix in enumerate(stored_idx.tolist()):
+                if ix in new_coef:
+                    target[k] = new_coef[ix]
+
+        # Short-circuit true duplicates: nothing changed → no lock, no write
+        # (lock-free compare, consistent with the lock-free reads in price()).
+        if self._col_costs[slot] == new_cost and np.array_equal(stored_val, target):
+            return
+
+        with self._lock:
+            self._col_costs[slot] = new_cost
+            self._col_values[start:end] = target
 
     def invalidate(self, shared_indices: list[int]) -> None:
         """Mark column slots as deleted so they are skipped during :meth:`price`.
@@ -616,12 +680,16 @@ class FilteredPricingPool:
         cpp_id = self._cpp_fp.add(solution)
         cid = int(cpp_id)
         self._parent._ensure_id_capacity(cid)
-        # Dedup guard: only add to shared pool if this ColumnId is new.
-        if self._parent._id_to_shared[cid] < 0:
+        # Dedup guard: allocate a new shared slot only for a new ColumnId; on a
+        # dedup hit refresh the existing slot so price() uses the latest column (H-1).
+        existing = self._parent._id_to_shared[cid]
+        if existing < 0:
             shared_idx = self._parent._shared.add(solution)
             self._parent._id_to_shared[cid] = shared_idx
             self._parent._shared_to_id[shared_idx] = cid
             self._numpy_fp.add_to_view([shared_idx])
+        else:
+            self._parent._shared.update(int(existing), solution)
         return cpp_id
 
     def add_columns(self, solutions: list) -> list[int]:
@@ -642,11 +710,14 @@ class FilteredPricingPool:
         for sol, cid_raw in zip(solutions, col_ids):
             cid = int(cid_raw)
             self._parent._ensure_id_capacity(cid)
-            if self._parent._id_to_shared[cid] < 0:
+            existing = self._parent._id_to_shared[cid]
+            if existing < 0:
                 shared_idx = self._parent._shared.add(sol)
                 self._parent._id_to_shared[cid] = shared_idx
                 self._parent._shared_to_id[shared_idx] = cid
                 self._numpy_fp.add_to_view([shared_idx])
+            else:  # dedup hit → refresh the shared slot (H-1)
+                self._parent._shared.update(int(existing), sol)
             result.append(cid_raw)
         return result
 
@@ -969,11 +1040,14 @@ class PricingPool:
         cpp_id = self._cpp_fp.add(solution)
         cid = int(cpp_id)
         self._ensure_id_capacity(cid)
-        if self._id_to_shared[cid] < 0:  # new column, not a duplicate
+        existing = self._id_to_shared[cid]
+        if existing < 0:  # new column, not a duplicate
             shared_idx = self._shared.add(solution)
             self._ensure_shared_capacity(shared_idx)
             self._id_to_shared[cid] = shared_idx
             self._shared_to_id[shared_idx] = cid
+        else:  # dedup hit → refresh the shared slot so price() uses the latest column
+            self._shared.update(int(existing), solution)
         return cpp_id
 
     def add_columns(self, solutions: list) -> list[int]:
@@ -994,10 +1068,13 @@ class PricingPool:
         for sol, cid_raw in zip(solutions, col_ids):
             cid = int(cid_raw)
             self._ensure_id_capacity(cid)
-            if self._id_to_shared[cid] < 0:
+            existing = self._id_to_shared[cid]
+            if existing < 0:
                 shared_idx = self._shared.add(sol)
                 self._id_to_shared[cid] = shared_idx
                 self._shared_to_id[shared_idx] = cid
+            else:  # dedup hit → refresh the shared slot (H-1)
+                self._shared.update(int(existing), sol)
             result.append(cid_raw)
         return result
 

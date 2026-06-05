@@ -79,6 +79,21 @@ def test_add_batch():
         pool.unlink()
 
 
+def test_add_columns_rejects_nnz_overflow():
+    """add_columns must raise RuntimeError (not a raw numpy IndexError) when a batch
+    exceeds the non-zero capacity — the documented contract."""
+    import pytest
+
+    pool = SharedPricingPool(n_constraints=10, max_cols=100, max_nnz_per_col=2)
+    try:
+        # Capacity = 100 * 2 = 200 nnz; this batch needs 100 * 3 = 300.
+        sols = [make_solution(1.0, [(0, 1.0), (1, 1.0), (2, 1.0)], [k]) for k in range(100)]
+        with pytest.raises(RuntimeError):
+            pool.add_columns(sols)
+    finally:
+        pool.unlink()
+
+
 def test_csr_multiple_rows():
     pool = SharedPricingPool(n_constraints=10, max_cols=20)
     try:
@@ -477,6 +492,61 @@ def test_dedup_no_extra_shared_slot():
         assert c1 == c2
         assert pool.shared().count == 1  # only one shared slot
         assert pool.shared().active_count == 1
+    finally:
+        pool.close()
+
+
+def test_dedup_refresh_updates_shared_pricing():
+    """H-1: re-adding the same arc path with a changed column must refresh the shared
+    pool so price() uses the latest cost/coefficients, not the first-seen (stale) ones.
+    """
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        c1 = pool.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
+        # Re-add the same arc path with a cheaper cost and a larger coefficient.
+        c2 = pool.add(make_solution(3.0, [(0, 2.0)], [10, 11]))
+        assert c1 == c2  # deduped by arc path
+        assert pool.shared().count == 1  # no second shared slot
+
+        # duals=[4]: stale column → 5 - 1*4 =  1 (>= 0, excluded);
+        #            refreshed     → 3 - 2*4 = -5 (<  0, returned).
+        duals = np.array([4.0, 0.0, 0.0])
+        ids, rcs = pool.price(duals)
+        assert len(ids) == 1 and int(ids[0]) == c1
+        assert abs(rcs[0] - (-5.0)) < 1e-9  # refreshed coefficient, not the stale 1.0
+    finally:
+        pool.close()
+
+
+def test_dedup_refresh_updates_shared_pricing_filtered():
+    """H-1 (filtered): the refresh path also runs through FilteredPricingPool.add."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        c1 = sub.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
+        c2 = sub.add(make_solution(3.0, [(0, 2.0)], [10, 11]))
+        assert c1 == c2
+        assert pool.shared().count == 1
+
+        duals = np.array([4.0, 0.0, 0.0])
+        ids, rcs = sub.price(duals)
+        assert len(ids) == 1 and int(ids[0]) == c1
+        assert abs(rcs[0] - (-5.0)) < 1e-9
+    finally:
+        pool.close()
+
+
+def test_dedup_identical_readd_short_circuit_preserves_data():
+    """Re-adding an identical column hits the update() no-change short-circuit and
+    must leave the stored cost/coefficients intact."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        c1 = pool.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
+        c2 = pool.add(make_solution(5.0, [(0, 1.0)], [10, 11]))  # identical → short-circuit
+        assert c1 == c2 and pool.shared().count == 1
+        # rc = 5 - 1*6 = -1 confirms cost=5 and coef=1.0 survived intact.
+        ids, rcs = pool.price(np.array([6.0, 0.0, 0.0]))
+        assert len(ids) == 1 and int(ids[0]) == c1 and abs(rcs[0] - (-1.0)) < 1e-9
     finally:
         pool.close()
 
