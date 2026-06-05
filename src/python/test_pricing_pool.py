@@ -330,6 +330,55 @@ def test_pricing_pool_new_filter_activity():
         pool.close()
 
 
+def test_public_price_updates_activity():
+    """H-2: the public pool.price() updates C++ ColumnActivity, so activity-based
+    filters work without a manual _cpp_fp.price() call."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        cid = pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        pool.add(make_solution(5.0, [(0, 3.0)], [1]))
+        duals = np.array([2.0, 0.0, 0.0])  # both rc = 5 - 3*2 = -1 < 0
+        ids, _ = pool.price(duals)
+        assert len(ids) == 2
+        # last_reduced_cost / priced_count / use_count are now populated.
+        act = pool.get_activity(cid)
+        assert act.priced_count == 1 and act.use_count == 1
+        assert abs(act.last_reduced_cost - (-1.0)) < 1e-9
+        assert abs(act.usage_rate() - 1.0) < 1e-9
+        # max_last_rc=0.0 keeps only historically-negative columns; both qualify.
+        # Would keep NONE if last_reduced_cost were still +inf (the H-2 bug).
+        sub = pool.new_filter(max_last_rc=0.0)
+        assert sub.column_count == 2
+    finally:
+        pool.close()
+
+
+def test_filtered_public_price_updates_activity():
+    """H-2: FilteredPricingPool.price() updates activity for its view as well."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        cid = pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        sub = pool.new_filter()
+        sub.price(np.array([2.0, 0.0, 0.0]))
+        assert sub.get_activity(cid).priced_count == 1
+    finally:
+        pool.close()
+
+
+def test_price_track_activity_opt_out():
+    """track_activity=False skips the C++ activity update (fast shared-only pricing)."""
+    pool = PricingPool(n_constraints=3, max_cols=20)
+    try:
+        cid = pool.add(make_solution(5.0, [(0, 3.0)], [0]))
+        duals = np.array([2.0, 0.0, 0.0])
+        pool.price(duals, track_activity=False)
+        assert pool.get_activity(cid).priced_count == 0  # untouched
+        pool.price(duals)  # default tracks
+        assert pool.get_activity(cid).priced_count == 1
+    finally:
+        pool.close()
+
+
 def test_pricing_pool_remove_from_view_list():
     """remove_from_view accepts lists of arc_ids and col_ids."""
     pool = PricingPool(n_constraints=3, max_cols=20)

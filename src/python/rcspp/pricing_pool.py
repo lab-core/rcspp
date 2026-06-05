@@ -723,14 +723,25 @@ class FilteredPricingPool:
 
     # ── Pricing ───────────────────────────────────────────────────────────────
 
-    def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
+    def price(
+        self, duals: np.ndarray, threshold: float = -1e-9, track_activity: bool = True
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Lock-free filtered pricing.  Returns ``(ColumnIds, rcs)`` sorted best-first.
 
         ColumnIds can be passed directly to ``update_activity``::
 
             ids, rcs = sub.price(duals)
             sub.update_activity(lp_basis_ids)   # forwarded to C++ pool
+
+        When ``track_activity`` is true (default) the C++ ``ColumnActivity`` for this
+        view's columns is also updated (see :meth:`PricingPool.price`) so activity-based
+        filters and :meth:`remove_stale` work off the public ``price()``.  Activity
+        follows the C++ filter view; columns hidden only via :meth:`remove_from_view`
+        (numpy mask) are still counted.  Pass ``track_activity=False`` to skip it.
         """
+        duals = np.asarray(duals, dtype=np.float64)
+        if track_activity:
+            self._cpp_fp.price_numpy(duals, threshold)  # side effect: update ColumnActivity
         shared_indices, rcs = self._numpy_fp.price(duals, threshold)
         if len(shared_indices) == 0:
             return np.empty(0, dtype=np.uint64), rcs
@@ -1116,14 +1127,28 @@ class PricingPool:
 
     # ── Pricing ───────────────────────────────────────────────────────────────
 
-    def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
+    def price(
+        self, duals: np.ndarray, threshold: float = -1e-9, track_activity: bool = True
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Price all valid columns.  Returns ``(ColumnIds, rcs)`` sorted best-first.
 
         ColumnIds can be passed directly to activity-tracking calls::
 
             ids, rcs = pool.price(duals)
             pool.update_activity(lp_basis_ids)
+
+        The fast result comes from the shared (scipy) pool.  When ``track_activity`` is
+        true (default) the C++ ``ColumnActivity`` is also updated — ``priced_count``,
+        ``use_count``, ``age`` and ``last_reduced_cost`` — so activity-based filters
+        (``max_last_rc``, ``min_usage_rate``) and :meth:`remove_stale` work off the
+        public ``price()`` instead of needing a manual C++ pricing call.  This
+        recomputes reduced costs in C++; the shared and C++ pools hold identical LP
+        data so the values match.  Pass ``track_activity=False`` to skip it when only
+        the fast shared result is needed and activity metrics are unused.
         """
+        duals = np.asarray(duals, dtype=np.float64)
+        if track_activity:
+            self._cpp_fp.price_numpy(duals, threshold)  # side effect: update ColumnActivity
         shared_indices, rcs = self._shared.price(duals, threshold)
         if len(shared_indices) == 0:
             return np.empty(0, dtype=np.uint64), rcs
