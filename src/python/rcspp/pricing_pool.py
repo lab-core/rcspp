@@ -192,9 +192,8 @@ class SharedPricingPool:
     def _filter_in_range(self, idx: np.ndarray, coef: np.ndarray):
         """Drop (index, coefficient) pairs whose constraint index is out of range.
 
-        Vectorized; returns the inputs unchanged (no copy) when every index is
-        already ``< n_constraints`` — the common case with an over-allocated
-        ``n_constraints``.
+        Vectorized; returns the inputs unchanged (no copy) when every index is already
+        ``< n_constraints`` — the common case with an over-allocated ``n_constraints``.
         """
         mask = idx < self._n_constraints
         if mask.all():
@@ -635,11 +634,11 @@ class FilteredSharedPricingPool:
 class FilteredPricingPool:
     """Unified C++ filter + numpy mask view.
 
-    :meth:`price` returns **ColumnIds** (not shared slot indices) so results
-    can be passed directly to ``update_activity``, ``get``, etc.
+    :meth:`price` returns **ColumnIds** (not shared slot indices) so results can be
+    passed directly to ``update_activity``, ``get``, etc.
 
-    All C++ ``FilteredSolutionPool`` methods are forwarded via ``__getattr__``
-    including ``update_activity(basis_col_ids)``.
+    All C++ ``FilteredSolutionPool`` methods are forwarded via ``__getattr__`` including
+    ``update_activity(basis_col_ids)``.
     """
 
     def __init__(self, parent: "PricingPool", cpp_fp: object) -> None:

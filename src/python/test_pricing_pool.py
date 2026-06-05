@@ -547,8 +547,8 @@ def test_dedup_no_extra_shared_slot():
 
 def test_dedup_refresh_updates_shared_pricing():
     """H-1: re-adding the same arc path with a changed column must refresh the shared
-    pool so price() uses the latest cost/coefficients, not the first-seen (stale) ones.
-    """
+    pool so price() uses the latest cost/coefficients, not the first-seen (stale)
+    ones."""
     pool = PricingPool(n_constraints=3, max_cols=20)
     try:
         c1 = pool.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
@@ -586,8 +586,8 @@ def test_dedup_refresh_updates_shared_pricing_filtered():
 
 
 def test_dedup_identical_readd_short_circuit_preserves_data():
-    """Re-adding an identical column hits the update() no-change short-circuit and
-    must leave the stored cost/coefficients intact."""
+    """Re-adding an identical column hits the update() no-change short-circuit and must
+    leave the stored cost/coefficients intact."""
     pool = PricingPool(n_constraints=3, max_cols=20)
     try:
         c1 = pool.add(make_solution(5.0, [(0, 1.0)], [10, 11]))
