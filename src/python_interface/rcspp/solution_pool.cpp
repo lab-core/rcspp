@@ -146,20 +146,32 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             py::arg("compulsory_arc_ids") = std::vector<size_t>{},
             py::arg("forbidden_arc_ids") = std::vector<size_t>{})
         .def_readonly_static("NO_ID", &SolutionPool::kNoId)
-        // get_lp_arrays(): return the internal LP CSR data as four numpy arrays.
-        // Useful for bulk-populating a SharedPricingPool without iterating column.rows.
+        // get_lp_arrays(): return the internal LP CSR data as four owned numpy arrays.
+        // The arrays own their data (allocated by numpy); the temporary std::vectors
+        // are only used to copy the data out and are safe to destroy afterwards.
         .def("get_lp_arrays", [](const SolutionPool& pool) {
             std::vector<double> col_costs;
             std::vector<uint32_t> row_starts, row_indices;
             std::vector<double> row_coefs;
             pool.get_lp_data(col_costs, row_starts, row_indices, row_coefs);
-            return py::make_tuple(
-                py::array_t<double>(static_cast<py::ssize_t>(col_costs.size()), col_costs.data()),
-                py::array_t<uint32_t>(static_cast<py::ssize_t>(row_starts.size()),
-                                      row_starts.data()),
-                py::array_t<uint32_t>(static_cast<py::ssize_t>(row_indices.size()),
-                                      row_indices.data()),
-                py::array_t<double>(static_cast<py::ssize_t>(row_coefs.size()), row_coefs.data()));
+
+            // Allocate owned numpy arrays and copy the data in — avoids returning
+            // views into the local vectors which would be dangling after the lambda.
+            auto make_f64 = [](const std::vector<double>& v) {
+                auto arr = py::array_t<double>(static_cast<py::ssize_t>(v.size()));
+                std::copy(v.begin(), v.end(), arr.mutable_data());
+                return arr;
+            };
+            auto make_u32 = [](const std::vector<uint32_t>& v) {
+                auto arr = py::array_t<uint32_t>(static_cast<py::ssize_t>(v.size()));
+                std::copy(v.begin(), v.end(), arr.mutable_data());
+                return arr;
+            };
+
+            return py::make_tuple(make_f64(col_costs),
+                                  make_u32(row_starts),
+                                  make_u32(row_indices),
+                                  make_f64(row_coefs));
         });
 
     // ── FilteredSolutionPool ──────────────────────────────────────────────────

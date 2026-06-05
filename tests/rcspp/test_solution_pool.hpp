@@ -139,6 +139,34 @@ TEST(SolutionPool, DuplicateAddRefreshesColumnAndResetsAge) {
     EXPECT_EQ(act->age, 0u);
 }
 
+// ─── duplicate add keeps price() consistent with get() (L-3b) ────────────────
+// Regression for: refresh updated solution.column but left the SoA LP store
+// (used by price_subset_locked) pointing at the old cost/coefs.
+
+TEST(SolutionPool, DuplicateAddRefreshesSoaForPricing) {
+    SolutionPool pool;
+    auto fp = pool.new_filter();
+
+    // Original column: cost=10, row 0 coef=1.
+    // With duals=[0], rc = 10-0 = 10 (above threshold 0, not returned).
+    const auto id1 = fp.add(make_pool_solution(10.0, {{0, 1.0L}}, {10, 11}));
+    {
+        auto priced = fp.price({0.0}, 0.0);
+        EXPECT_EQ(priced.size(), 0u);  // rc=10 > 0
+    }
+
+    // Re-add the same path with a cheaper column: cost=2, row 0 coef=1.
+    // rc = 2 - 3*1 = -1 (below 0, should be returned).
+    const auto id2 = fp.add(make_pool_solution(2.0, {{0, 1.0L}}, {10, 11}));
+    EXPECT_EQ(id1, id2);  // same id (deduped)
+
+    // price() must use the REFRESHED LP data.
+    auto priced = fp.price({3.0}, 0.0);
+    ASSERT_EQ(priced.size(), 1u);
+    EXPECT_EQ(priced[0].id, id1);
+    EXPECT_NEAR(priced[0].reduced_cost, -1.0, 1e-9);  // 2 - 3*1 = -1
+}
+
 // ─── get ────────────────────────────────────────────────────────────────────
 
 TEST(SolutionPool, GetById) {

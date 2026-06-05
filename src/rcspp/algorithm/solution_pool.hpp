@@ -1057,8 +1057,23 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
                 entry_it->solution.column = sol.column;
                 entry_it->solution.cost = sol.cost;
                 entry_it->activity.age = 0;
-                // LP cost (col.cost) is a structural property of the path and does not
-                // change between proposals, so the SoA col_costs slot stays valid as-is.
+                // Also refresh the SoA LP data so price() and get() stay consistent.
+                // The row *indices* are fixed by the arc path; only the cost and
+                // coefficient *values* may change (e.g. after update_reduced_costs).
+                const uint32_t li = entry_it->lp_index;
+                lp_.col_costs[li] = sol.column.cost;
+                // Update coefficient values in-place: build a lookup from the new column
+                // and overwrite matching entries in the existing CSR rows.
+                const uint32_t rstart = lp_.row_starts[li];
+                const uint32_t rend = lp_.row_starts[li + 1];
+                for (uint32_t j = rstart; j < rend; ++j) {
+                    for (const auto& row : sol.column.rows) {
+                        if (static_cast<uint32_t>(row.index) == lp_.row_indices[j]) {
+                            lp_.row_coefs[j] = static_cast<double>(row.coefficient);
+                            break;
+                        }
+                    }
+                }
                 return entry_it->id;
             }
         }
