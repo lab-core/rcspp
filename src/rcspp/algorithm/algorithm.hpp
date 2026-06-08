@@ -255,7 +255,7 @@ class Algorithm {
             return ss.str();
         }
 
-        virtual std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
+        virtual std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
         virtual void extract_solution(const Label<ResourceType>& end_label) {
             if (end_label.get_cost() >= cost_upper_bound_) {
@@ -270,7 +270,7 @@ class Algorithm {
             // Build column: sum original arc costs and aggregate constraint coefficients
             Column column;
             std::unordered_map<size_t, long double> row_map;
-            std::list<size_t> path_node_ids;
+            std::vector<size_t> path_node_ids;
             for (size_t arc_id : path_arc_ids) {
                 const auto* arc = this->graph_->get_arc(arc_id);
                 path_node_ids.push_back(arc->origin->id);

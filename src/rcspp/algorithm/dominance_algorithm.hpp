@@ -142,8 +142,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
-        std::list<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {  // NOLINT
-            std::list<size_t> path_arc_ids;
+        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {  // NOLINT
+            std::vector<size_t> path_arc_ids;
 
             auto in_arc_ptr = label.get_in_arc();
 
