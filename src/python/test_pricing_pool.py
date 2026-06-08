@@ -198,7 +198,11 @@ def test_multiprocess_add():
         handle = pool.handle()
         sol_data = [(float(i), [(0, 1.0)], [i]) for i in range(n_per_worker)]
         with mp.Pool(n_workers) as p:
-            results = p.starmap(_worker_add, [(handle, sol_data)] * n_workers)
+            async_result = p.starmap_async(_worker_add, [(handle, sol_data)] * n_workers)
+            # Bound the wait: a worker that dies mid-task (e.g. a spawn-related
+            # shared-memory failure) would otherwise make starmap hang forever.
+            # Fail fast instead of stalling CI for hours.
+            results = async_result.get(timeout=120)
         assert sum(len(r) for r in results) == n_workers * n_per_worker
         assert pool.count == n_workers * n_per_worker
     finally:

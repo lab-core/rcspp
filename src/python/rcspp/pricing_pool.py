@@ -51,6 +51,35 @@ if TYPE_CHECKING:
 
 _scipy_warning_emitted = False
 
+
+def _untrack_shared_memory(shm: SharedMemory) -> None:
+    """Detach a non-owned segment from the ``resource_tracker``.
+
+    When a process opens an existing :class:`SharedMemory` with
+    ``create=False``, CPython still registers the segment with the
+    per-process ``resource_tracker``, which unlinks it when that process
+    exits.  Under the ``spawn`` start method (the default on macOS and
+    Windows) every worker runs its own tracker, so the first worker to exit
+    destroys the owner's segment; later workers then fail to attach, die
+    mid-task, and :class:`multiprocessing.pool.Pool` deadlocks waiting for a
+    result that never arrives.
+
+    Unregistering here ensures only the owning process (via
+    :meth:`SharedPricingPool.unlink`) ever destroys the segment.  This is a
+    no-op on platforms or Python versions where the tracker is not used.
+
+    Args:
+        shm: The attached, non-owned shared-memory segment.
+    """
+    try:
+        from multiprocessing import resource_tracker
+
+        resource_tracker.unregister(shm._name, "shared_memory")
+    except Exception:  # noqa: BLE001  # pragma: no cover - platform dependent
+        # No resource_tracker (e.g. Windows) or already unregistered.
+        pass
+
+
 # ── Shared-memory header ──────────────────────────────────────────────────────
 _HEADER_DTYPE = np.dtype(
     [
@@ -171,6 +200,9 @@ class SharedPricingPool:
         obj = object.__new__(cls)
         obj._lock = handle["lock"]
         obj._shm = SharedMemory(name=handle["shm_name"], create=False)
+        # This process does not own the segment; prevent its resource_tracker
+        # from unlinking it on exit (spawn-safety — see _untrack_shared_memory).
+        _untrack_shared_memory(obj._shm)
         hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=obj._shm.buf)
         obj._n_constraints = int(hdr["n_constraints"][0])
         obj._max_cols = int(hdr["max_cols"][0])
