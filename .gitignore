@@ -50,3 +50,6 @@ Testing/
 
 # Claude Code project files
 .claude/
+
+# Clion
+.idea/
