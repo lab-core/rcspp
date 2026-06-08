@@ -393,3 +393,26 @@ def test_add_arc_id_survives_remove_restore():
     assert rg.get_arc(id0) is not None
     assert rg.get_arc(id1) is not None
     assert rg.get_arc(id2) is not None
+
+
+# ── Arc.rows binding (P-1: live references kept alive by the arc) ──────────────
+
+
+def test_arc_rows_are_live_references():
+    """Arc.rows exposes the arc's row vector as live references — kept alive by the parent arc
+    (return_value_policy::reference_internal), not as a frozen copy. Reads are correct and element
+    mutation writes back into the arc's C++ vector. Guards against the gratuitous
+    `return_value_policy::reference` override (no keep-alive) that P-1 removed.
+    """
+    rg = _make_rg_with_rows()  # arc 0 carries Row(index=0, coefficient=1.0)
+
+    arc = rg.get_arc(0)
+    rows = arc.rows
+    assert len(rows) == 1
+    assert rows[0].index == 0
+    assert abs(rows[0].coefficient - 1.0) < 1e-12
+
+    # Mutating through the returned reference writes back into the arc's vector (reference, not a
+    # copy); re-reading via a fresh get_arc/rows observes the change.
+    rows[0].coefficient = 9.0
+    assert abs(rg.get_arc(0).rows[0].coefficient - 9.0) < 1e-12

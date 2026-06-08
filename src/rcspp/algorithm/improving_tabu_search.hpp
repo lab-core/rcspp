@@ -119,7 +119,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             tabu_active_ = false;
         }
 
-        void main_loop() override {
+        void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
             if (this->params_.max_iterations >= MAX_INT) {
                 LOG_ERROR(
                     "ImprovingTabuSearch: max_iterations must be finite for the improvement "

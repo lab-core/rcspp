@@ -53,19 +53,25 @@ file(GLOB_RECURSE PYTHON_SOURCES
 # Build per-file copy rules with explicit OUTPUT so CMake re-copies whenever a
 # .py file changes, without requiring the C++ extension to rebuild.
 set(PYTHON_COPY_OUTPUTS "")
-foreach(PY_FILE IN LISTS PYTHON_SOURCES)
-  file(RELATIVE_PATH REL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/rcspp" "${PY_FILE}")
+
+# Helper macro to register one copy rule.
+macro(add_py_copy_rule PY_FILE BASE_DIR)
+  file(RELATIVE_PATH REL_PATH "${BASE_DIR}" "${PY_FILE}")
   get_filename_component(REL_DIR "${REL_PATH}" DIRECTORY)
   set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_PATH}")
   list(APPEND PYTHON_COPY_OUTPUTS "${OUT_FILE}")
-
   add_custom_command(
     OUTPUT "${OUT_FILE}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/${PYTHON_PACKAGE_NAME}/${REL_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PY_FILE}" "${OUT_FILE}"
     DEPENDS "${PY_FILE}"
     COMMENT "Copying ${REL_PATH} to build tree"
   )
+endmacro()
+
+foreach(PY_FILE IN LISTS PYTHON_SOURCES)
+  add_py_copy_rule("${PY_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/rcspp")
 endforeach()
 
 # Dedicated target that drives all .py copies; rebuilds only when sources change.

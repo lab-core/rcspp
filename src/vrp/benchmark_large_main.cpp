@@ -168,7 +168,7 @@ int main(int argc, char* argv[]) {  // NOLINT
         std::vector<std::string> labels =
             {"Simple", "Pushing", "Pulling", "ConstructiveTabu", "Tabu", "BucketS", "BucketP"};
         if (run_astar) {
-            labels.push_back("AStar");
+            labels.emplace_back("AStar");
         }
         if (run_boost) {
             labels.insert(labels.begin(), "Boost");
