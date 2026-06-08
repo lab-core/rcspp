@@ -38,7 +38,7 @@ static std::uint64_t fnv1a_mix_uint64(std::uint64_t v, std::uint64_t h = FNV_OFF
 }
 
 struct Solution {
-        Solution() = default;
+        Solution() noexcept { init_hash(); }
         Solution(double _cost, std::vector<size_t> _path_node_ids,
                  std::vector<size_t> _path_arc_ids, Column _column = {})
             : cost(_cost),
@@ -58,6 +58,14 @@ struct Solution {
 
         [[nodiscard]] uint64_t get_hash() const noexcept { return hash_; }
 
+        // Recompute the content hash from path_arc_ids. The value constructor hashes automatically;
+        // call this after mutating path_arc_ids directly (the Python path_arc_ids setter does).
+        void rehash() noexcept { init_hash(); }
+
+        // Path/route cost (sum of arc costs along the path). Distinct from column.cost — the
+        // master-LP column cost that SolutionPool prices on. The two are normally equal but are
+        // stored separately; this defaults to +inf (the RCSPP unset/infeasible sentinel), so a
+        // Solution built by setting only `column` leaves this field at +inf.
         double cost = std::numeric_limits<double>::infinity();
         std::vector<size_t> path_node_ids;
         std::vector<size_t> path_arc_ids;

@@ -13,6 +13,7 @@
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
+#include "rcspp/algorithm/solution_pool.hpp"
 #include "rcspp/algorithm/tabu_list.hpp"
 #include "rcspp/algorithm/tabu_search.hpp"
 #include "rcspp/general/clonable.hpp"

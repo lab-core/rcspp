@@ -200,14 +200,44 @@ void init_graph(py::module_& m) {
     py::class_<Column>(m, "Column")
         .def(py::init<>())
         .def_readwrite("cost", &Column::cost)
-        .def_readwrite("rows", &Column::rows);
+        .def_readwrite("rows", &Column::rows)
+        // to_arrays(): extract the LP cost and row (index, coefficient) data as numpy
+        // arrays in one C++ call. Lets the Python pricing pool bulk-read a column without
+        // the per-Row pybind attribute overhead that dominates add()/update().
+        .def(
+            "to_arrays",
+            [](const Column& col) -> py::tuple {
+                const size_t nr = col.rows.size();
+                auto idx = py::array_t<int64_t>(static_cast<py::ssize_t>(nr));
+                auto coef = py::array_t<double>(static_cast<py::ssize_t>(nr));
+                auto ip = idx.mutable_unchecked<1>();
+                auto cp = coef.mutable_unchecked<1>();
+                for (size_t i = 0; i < nr; ++i) {
+                    ip(static_cast<py::ssize_t>(i)) = static_cast<int64_t>(col.rows[i].index);
+                    cp(static_cast<py::ssize_t>(i)) = static_cast<double>(col.rows[i].coefficient);
+                }
+                return py::make_tuple(col.cost, idx, coef);
+            },
+            "Return (cost, row_indices, row_coefficients) as numpy arrays "
+            "(int64 indices, float64 coefficients) — avoids per-Row Python overhead.");
 
     py::class_<Solution>(m, "Solution")
         .def(py::init<>())
         .def_readwrite("cost", &Solution::cost)
         .def_readwrite("path_node_ids", &Solution::path_node_ids)
-        .def_readwrite("path_arc_ids", &Solution::path_arc_ids)
+        // path_arc_ids is exposed via a property whose setter recomputes the content hash, so a
+        // Solution built the idiomatic Python way (default ctor + attribute assignment) gets the
+        // same hash as one built via the value constructor. A plain def_readwrite would leave
+        // hash_ stale (the empty-path hash), collapsing SolutionPool's hash_index_ into one bucket.
+        .def_property(
+            "path_arc_ids",
+            [](const Solution& s) -> const std::vector<size_t>& { return s.path_arc_ids; },
+            [](Solution& s, std::vector<size_t> v) {
+                s.path_arc_ids = std::move(v);
+                s.rehash();
+            })
         .def_readwrite("column", &Solution::column)
+        .def("get_hash", &Solution::get_hash)
         .def(
             "to_arrays",
             [](const Solution& sol) -> py::tuple {
