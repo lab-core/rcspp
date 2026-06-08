@@ -100,7 +100,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 if (this->params_.prune_based_on_upper_bound_ &&
                     label.get_cost() >= this->best_cost_upper_bound_) {
                     remove_label(label_iterator_pair.second);
-                    this->label_pool_.release_label(&label);
+                    // Use release_with_ref_count (not release_label): this label was added to
+                    // the non-dominated set, so it pins a predecessor whose ref_count must be
+                    // decremented. Plain release_label would leak that predecessor.
+                    this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
 
@@ -389,7 +392,10 @@ struct NodeUnprocessedLabelsManager {
             for (auto& truncated_list : truncated_unprocessed_labels_by_node_pos_) {
                 for (auto& [label_ptr, label_iter] : truncated_list) {
                     remove_from_nondom(label_iter);
-                    pool->release_label(label_ptr);
+                    // Truncated labels were non-dominated (added to the set), so they pin a
+                    // predecessor and may themselves be pinned: release_with_ref_count keeps the
+                    // ref_count chain balanced instead of leaking it.
+                    pool->release_with_ref_count(label_ptr);
                 }
                 truncated_list.clear();
             }

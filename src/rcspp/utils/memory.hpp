@@ -14,6 +14,11 @@
 #include <mach/mach_host.h>  // HOST_VM_INFO64, vm_statistics64_data_t
 #include <sys/sysctl.h>      // sysctlbyname
 #elif defined(_WIN32)
+// Suppress the min()/max() macros from <windows.h>; they otherwise clobber
+// std::min / std::max / std::numeric_limits::max() used across the library.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 // windows.h must precede psapi.h: <psapi.h> declares PROCESS_MEMORY_COUNTERS /
 // GetProcessMemoryInfo using types (DWORD, HANDLE, ...) that <windows.h> defines,
 // and it does not include <windows.h> itself.

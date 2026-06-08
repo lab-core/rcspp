@@ -38,6 +38,27 @@ class VRPSubproblem {
         return solutions_rcspp;
     }
 
+    // Test helper (H3 regression): solve via an externally-owned algorithm so the caller can
+    // inspect the label pool's prev_label/ref_count bookkeeping after the solve. Returns true
+    // iff the pool is internally consistent; writes the best solution cost to *out_cost when a
+    // solution is found. Mirrors solve_with_rcspp()'s default (infinite upper bound) path.
+    template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+    bool solve_and_check_ref_counts(const std::map<size_t, double>& dual_by_id,
+                                    double* out_cost = nullptr) {
+        using RC = ResourceTypeComposition<RealResource, IntResource>;
+        if (graph_.get_number_of_nodes() == 0) {
+            construct_resource_graph(&graph_, &dual_by_id);
+        } else {
+            update_resource_graph(&graph_, &dual_by_id);
+        }
+        auto algorithm = graph_.create_algorithm<AlgorithmType>(AlgorithmParams<LabelList<RC>>());
+        auto result = graph_.solve(algorithm.get());
+        if (out_cost != nullptr && !result.solutions.empty()) {
+            *out_cost = result.solutions[0].cost;
+        }
+        return algorithm->get_label_pool().check_ref_count_consistency();
+    }
+
     private:
 
         const std::map<size_t, double>* row_coefficient_by_id_;

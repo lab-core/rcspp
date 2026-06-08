@@ -69,20 +69,23 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                      it != this->current_unprocessed_labels_.end();) {
                     auto& label = *it->first;
 
-                    // label dominated -> continue to next one
+                    // label dominated -> continue to next one.
+                    // release_with_ref_count (not release_label): in pulling a label may have
+                    // already served as an origin in a previous loop (ref_count > 0) and it
+                    // pins its own predecessor, so the ref_count chain must be unwound here.
                     if (label.dominated) {
-                        this->label_pool_.release_label(&label);
+                        this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (this->params_.prune_based_on_upper_bound_ &&
                                label.get_cost() >= this->best_cost_upper_bound_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
-                        this->label_pool_.release_label(&label);
+                        this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (std::isinf(label.get_cost())) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
-                        this->label_pool_.release_label(&label);
+                        this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else {
                         // check if sink and update best solution

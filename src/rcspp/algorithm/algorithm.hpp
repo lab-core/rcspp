@@ -413,6 +413,9 @@ class Algorithm {
             return params_.should_stop && params_.should_stop();
         }
 
+        /// @brief Read-only access to the label pool, for diagnostics and tests.
+        [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
+
     protected:
         bool print_{false};
 

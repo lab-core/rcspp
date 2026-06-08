@@ -230,3 +230,50 @@ DEFINE_MEMORY_LIMIT_TESTS(PullingDominance, PullingDominanceAlgorithm)
 DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_MEMORY_LIMIT_TESTS
+
+// ── Ref-count bookkeeping regression (H3) ──────────────────────────────────────
+//
+// A previous version released dominated / truncated labels with the raw
+// LabelPool::release_label(), which skipped the predecessor ref_count decrement that
+// release_with_ref_count() performs. That leaked pinned predecessors — defeating the
+// memory-limit reclamation — and, in pulling, could recycle a label a live successor
+// still pointed to. After a full solve the pool's prev_label/ref_count chain must be
+// internally consistent: every in-use label's ref_count equals the number of in-use
+// labels naming it as predecessor, and no in-use label points to a recycled predecessor.
+// (PushingDominance always used release_with_ref_count and serves as a control.)
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_ref_count_consistency_after_solve() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    double cost = 0.0;
+    const bool consistent =
+        vrp_subproblem.solve_and_check_ref_counts<AlgorithmType>(dual_by_id, &cost);
+
+    EXPECT_TRUE(consistent)
+        << "label pool prev_label/ref_count bookkeeping is inconsistent after solve: a release "
+           "path bypassed LabelPool::release_with_ref_count()";
+    // The fix must not change the optimum.
+    constexpr double kOptimal = -319.87786809696524415;
+    EXPECT_NEAR(cost, kOptimal, 1e-9);
+}
+
+#define DEFINE_REFCOUNT_TEST(AlgoSuffix, AlgoType)                                         \
+    TEST(Rcspp_##AlgoSuffix, RefCountConsistencyAfterSolve) {                              \
+        test_ref_count_consistency_after_solve<AlgoType>();                                \
+    }
+
+DEFINE_REFCOUNT_TEST(SimpleDominance, SimpleDominanceAlgorithm)
+DEFINE_REFCOUNT_TEST(PushingDominance, PushingDominanceAlgorithm)
+DEFINE_REFCOUNT_TEST(PullingDominance, PullingDominanceAlgorithm)
+DEFINE_REFCOUNT_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+
+#undef DEFINE_REFCOUNT_TEST

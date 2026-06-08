@@ -5,6 +5,8 @@
 
 #include <concepts>
 #include <memory>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -116,6 +118,61 @@ class LabelPool {
         [[nodiscard]] int64_t get_nb_created_labels() const { return nb_created_labels_; }
 
         [[nodiscard]] int64_t get_nb_reused_labels() const { return nb_reused_labels_; }
+
+        /// @brief Number of labels currently on the free list (available for reuse).
+        [[nodiscard]] size_t get_nb_available_labels() const { return available_labels_.size(); }
+
+        /// @brief Total number of label objects owned by the pool (in use + available).
+        [[nodiscard]] size_t get_nb_total_labels() const { return labels_.size(); }
+
+        /// @brief Diagnostic: verify the prev_label / ref_count bookkeeping is consistent.
+        ///
+        /// Considers a label "in use" when it is not on the free list.  For every in-use label
+        /// it checks that:
+        ///   - its @ref Label::ref_count equals the number of in-use labels that name it as their
+        ///     @ref Label::prev_label (no leaked over-count, no missing reference), and
+        ///   - its @ref Label::prev_label (when set) points to a label that is itself still in use
+        ///     (no dangling predecessor that was already recycled).
+        ///
+        /// Returns true when both invariants hold for every in-use label.  A false result means a
+        /// release path pushed a still-pinned label onto the free list without going through
+        /// @ref release_with_ref_count (i.e. it used the raw @ref release_label), leaking the
+        /// predecessor's reference or recycling a label that a live successor still points to.
+        /// Intended for tests; O(total labels).
+        [[nodiscard]] bool check_ref_count_consistency() const {
+            std::unordered_set<const Label<ResourceType>*> free_set(available_labels_.begin(),
+                                                                    available_labels_.end());
+            auto in_use = [&free_set](const Label<ResourceType>* label) {
+                return free_set.find(label) == free_set.end();
+            };
+
+            // Count, for each label, how many in-use labels reference it as their predecessor.
+            std::unordered_map<const Label<ResourceType>*, size_t> referencing_count;
+            for (const auto& label_uptr : labels_) {
+                const Label<ResourceType>* label = label_uptr.get();
+                if (!in_use(label) || label->prev_label == nullptr) {
+                    continue;
+                }
+                if (!in_use(label->prev_label)) {
+                    return false;  // dangling: in-use label points to a recycled predecessor
+                }
+                ++referencing_count[label->prev_label];
+            }
+
+            // Every in-use label's ref_count must equal its in-use referrer count.
+            for (const auto& label_uptr : labels_) {
+                const Label<ResourceType>* label = label_uptr.get();
+                if (!in_use(label)) {
+                    continue;
+                }
+                const auto it = referencing_count.find(label);
+                const size_t expected = (it == referencing_count.end()) ? 0 : it->second;
+                if (label->ref_count != expected) {
+                    return false;
+                }
+            }
+            return true;
+        }
 
     private:
         /// @brief Unconditionally return a label to the free list and cascade to its parent.

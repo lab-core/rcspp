@@ -32,9 +32,11 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
                 label_iterator_pair = unprocessed_labels_.front();
                 unprocessed_labels_.pop_front();
 
-                // if dominated, release the label
+                // if dominated, release the label. Use release_with_ref_count (not
+                // release_label): a dequeued label still pins the predecessor it was extended
+                // from, whose ref_count must be decremented to avoid leaking it.
                 if (label_iterator_pair.first->dominated) {
-                    this->label_pool_.release_label(label_iterator_pair.first);
+                    this->label_pool_.release_with_ref_count(label_iterator_pair.first);
                 } else {
                     // truncate/limit the number of labels extended per node
                     size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(
@@ -88,7 +90,7 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
                 // Release labels stored aside on the previous call.
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
                     this->remove_label(label_iter);
-                    this->label_pool_.release_label(label_ptr);
+                    this->label_pool_.release_with_ref_count(label_ptr);
                 }
                 unprocessed_truncated_labels_.clear();
             }
@@ -109,7 +111,7 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
             while (unprocessed_labels_.size() > max_total) {
                 auto& p = unprocessed_labels_.back();
                 if (p.first->dominated) {
-                    this->label_pool_.release_label(p.first);
+                    this->label_pool_.release_with_ref_count(p.first);
                 } else {
                     unprocessed_truncated_labels_.push_back(std::move(p));
                 }

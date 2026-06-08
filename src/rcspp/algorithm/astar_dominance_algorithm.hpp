@@ -132,7 +132,9 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 unprocessed_labels_.pop();
 
                 if (label_iterator_pair.first->dominated) {
-                    this->label_pool_.release_label(label_iterator_pair.first);
+                    // release_with_ref_count (not release_label): a dequeued label still pins
+                    // the predecessor it was extended from; decrement its ref_count to avoid leak.
+                    this->label_pool_.release_with_ref_count(label_iterator_pair.first);
                 } else {
                     size_t& num_extended = number_of_extended_labels_per_node_.at(
                         label_iterator_pair.first->get_end_node()->pos());
@@ -182,7 +184,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             if (this->memory_pressure_triggered_) {
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
                     this->remove_label(label_iter);
-                    this->label_pool_.release_label(label_ptr);
+                    this->label_pool_.release_with_ref_count(label_ptr);
                 }
                 unprocessed_truncated_labels_.clear();
             }
@@ -216,7 +218,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             for (size_t i = max_total; i < flat.size(); ++i) {
                 auto& p = flat[i];
                 if (p.first->dominated) {
-                    this->label_pool_.release_label(p.first);
+                    this->label_pool_.release_with_ref_count(p.first);
                 } else {
                     unprocessed_truncated_labels_.push_back(p);
                 }
