@@ -14,9 +14,11 @@
 #include <mach/mach_host.h>  // HOST_VM_INFO64, vm_statistics64_data_t
 #include <sys/sysctl.h>      // sysctlbyname
 #elif defined(_WIN32)
-// psapi.h must come after windows.h (PROCESS_MEMORY_COUNTERS, GetProcessMemoryInfo)
-#include <psapi.h>    // NOLINT(build/include_order) — must follow windows.h
-#include <windows.h>  // NOLINT(build/include_order) — platform SDK header
+// windows.h must precede psapi.h: <psapi.h> declares PROCESS_MEMORY_COUNTERS /
+// GetProcessMemoryInfo using types (DWORD, HANDLE, ...) that <windows.h> defines,
+// and it does not include <windows.h> itself.
+#include <windows.h>  // NOLINT(build/include_order) — platform SDK header, must precede psapi.h
+#include <psapi.h>    // NOLINT(build/include_order) — GetProcessMemoryInfo; needs windows.h first
 #else
 // POSIX fallback: peak RSS via getrusage (available on Linux/macOS/BSDs)
 #include <sys/resource.h>  // NOLINT(build/include_order) — POSIX header
