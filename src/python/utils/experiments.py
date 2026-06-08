@@ -10,9 +10,7 @@ from typing import Literal
 Method = Literal[
     "classic",
     "stabilized",
-    "stabilized_with_optimal_dual",
-    "smoothing",
-    "smoothing_with_optimal_dual",
+    "stabilized_with_optimal_dual"
 ]
 
 
@@ -26,27 +24,16 @@ def _dispatch(
 ) -> dict:
     if method == "classic":
         vrp, solution, solution_dict = vrp_instance(
-            instance, save=True, dir=solution_dir, verbose=verbose
+            instance, save=True, dir=solution_dir
         )
-        #save_dict_to_json(optimal_dual_dir, instance.get_name(), solution.dual_by_var_id)
+        save_dict_to_json(optimal_dual_dir, instance.get_name(), solution.dual_by_var_id)
 
     elif method == "stabilized":
-        solution_dict = vrp_stabilized_instance(instance, dir=solution_dir, verbose=verbose)
+        solution_dict = vrp_stabilized_instance(instance, dir=solution_dir)
 
     elif method == "stabilized_with_optimal_dual":
         solution_dict = vrp_stabilized_instance(
-            instance, dual_box_centre=dual_optimal, dir=solution_dir, verbose=verbose
-        )
-
-    elif method == "smoothing":
-        _, _, solution_dict = vrp_instance(
-            instance, smoothing=0.8, dir=solution_dir, verbose=verbose
-        )
-
-    elif method == "smoothing_with_optimal_dual":
-        _, _, solution_dict = vrp_instance(
-            instance, smoothing=0.8, dual_box_centre=dual_optimal, dir=solution_dir, verbose=verbose
-        )
+            instance, dual_box_centre=dual_optimal, dir=solution_dir)
 
     else:
         raise ValueError(f"Unknown method: '{method}'.")
@@ -105,7 +92,7 @@ def run_prediction_instance(instance: Instance, model_name:str, dataset_dir:str,
     
     predicted_solution = str_dict_to_int(predicted_solution[instance_name])
 
-    solution_dict = vrp_stabilized_instance(instance, dual_box_centre=predicted_solution, dir=prediction_solution_dir, verbose=verbose)
+    solution_dict = vrp_stabilized_instance(instance, dual_box_centre=predicted_solution, dir=prediction_solution_dir)
     save_dict_to_json(prediction_solution_dir, instance_name, solution_dict)
     print(f"Saved solutions to {prediction_solution_dir}{instance_name}")
 

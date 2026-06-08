@@ -26,14 +26,14 @@ def _save_formatted_solution(vrp, solution, instance, save, dir):
 
 
 def _dump_dual_history(vrp, instance, dir):
-    dual_history = vrp.get_dual_values_history()
+    dual_history = vrp._dual_values_history
     file_path = f"{dir}/dual_history/{instance.get_name()}.json"
     ensure_parent_dir(file_path)
     with open(file_path, "w") as f:
         json.dump(dual_history, f)
 
 def _dump_state_history(vrp, instance, dir):
-    state_history = vrp.get_state_history()
+    state_history = vrp._state_history
     file_path = f"{dir}/state_history/{instance.get_name()}.json"
     ensure_parent_dir(file_path)
     with open(file_path, "w") as f:
@@ -42,11 +42,11 @@ def _dump_state_history(vrp, instance, dir):
 
 def _build_solution_dict(vrp, solution, extra_fields=None):
     solution_dict = {
-        "n_iter": vrp.get_n_iterations(),
-        "total_time": vrp.get_total_problem_time(),
-        "lp_cost": vrp.get_lp_cost(),
+        "n_iter": vrp._n_iterations,
+        "total_time": vrp._total_problem_time,
+        "lp_cost": vrp._lp_cost,
         "solution_cost": solution.cost,
-        "time_ratio": vrp.get_total_subproblem_time() / vrp.get_total_problem_time(),
+        "time_ratio": vrp._total_subproblem_time / vrp._total_problem_time,
         "nb_added_columns": len(vrp._paths),
     }
     if extra_fields:
@@ -54,9 +54,9 @@ def _build_solution_dict(vrp, solution, extra_fields=None):
     return solution_dict
 
 
-def vrp_stabilized_instance(instance: Instance, dual_box_centre=None, save=False, dir="", verbose=True):
+def vrp_stabilized_instance(instance: Instance, dual_box_centre=None, save=False, dir=""):
     print("Construct VRP")
-    vrp = StabilizedVRP(instance, dual_box_centre, verbose=verbose)
+    vrp = StabilizedVRP(instance, dual_box_centre)
     print("Construct VRP ...Done")
 
     solution = vrp.solve()
@@ -68,13 +68,10 @@ def vrp_stabilized_instance(instance: Instance, dual_box_centre=None, save=False
     return solution_dict
 
 
-def vrp_instance(instance: Instance, smoothing=None, save=False, dir="", verbose=True):
+def vrp_instance(instance: Instance, save=False, dir="",):
     print("Construct VRP")
-    vrp = VRP(instance, verbose=verbose)
+    vrp = VRP(instance)
     print("Construct VRP ...Done")
-
-    if smoothing is not None:
-        vrp.enable_smoothing(smoothing)
 
     solution = vrp.solve()
     _save_formatted_solution(vrp, solution, instance, save, dir)
