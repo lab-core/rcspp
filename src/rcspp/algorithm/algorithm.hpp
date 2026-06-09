@@ -390,16 +390,23 @@ class Algorithm {
                 solutions.resize(params_.stop_after_X_solutions);
             }
 
-            // determine exit status
+            // Determine the exit status. "All labels processed" (number_of_labels() == 0) means
+            // the search finished and the result is optimal, so it takes precedence over the
+            // early-stop reasons below: a timeout / interrupt / memory flag must NOT downgrade a
+            // finished, optimal run. This matters because is_interrupted() and
+            // memory_limit_.is_exceeded() are re-evaluated here — the external stop callback may
+            // have flipped, or RSS may exceed the limit because of the retained solutions — even
+            // though the loop actually exited by exhausting all labels. The remaining branches
+            // describe why the search stopped *early* (labels still remain).
             AlgorithmStatus status;
-            if (timed_out_) {
+            if (number_of_labels() == 0) {
+                status = AlgorithmStatus::COMPLETE;
+            } else if (timed_out_) {
                 status = AlgorithmStatus::TIMEOUT;
             } else if (is_interrupted()) {
                 status = AlgorithmStatus::INTERRUPTED;
             } else if (memory_limit_.is_exceeded()) {
                 status = AlgorithmStatus::MEMORY_LIMIT;
-            } else if (number_of_labels() == 0) {
-                status = AlgorithmStatus::COMPLETE;
             } else if (solutions.size() >= params_.stop_after_X_solutions) {
                 status = AlgorithmStatus::MAX_SOLUTIONS;
             } else {
