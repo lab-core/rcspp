@@ -16,15 +16,27 @@ namespace rcspp {
 
 /// @brief Label-correcting dominance algorithm with A*-style priority ordering.
 ///
-/// Identical to @ref SimpleDominanceAlgorithm except the frontier is managed
-/// by a min-heap ordered by @f$ f = g + h @f$, where @f$ g @f$ is the label's
-/// current cost and @f$ h @f$ is a per-node admissible lower bound on the
-/// remaining cost to any sink, computed once via a backward Bellman–Ford pass.
+/// Identical to @ref SimpleDominanceAlgorithm except the frontier is a min-heap ordered by
+/// @f$ f = g + h @f$, where @f$ g @f$ is the label's current (reduced) cost and @f$ h(n) @f$ is a
+/// per-node lower bound on the remaining reduced cost from @p n to any sink, computed once via a
+/// backward Bellman–Ford pass over the same cost slot the labeling uses (see @ref initialize).
 ///
-/// Because @f$ h @f$ is admissible, optimality is preserved.  Labels with
-/// the smallest estimated total cost are expanded first, which typically
-/// reduces the total number of labels extended compared to FIFO ordering
-/// when arc costs are heterogeneous.
+/// Expanding the smallest-@f$ f @f$ labels first typically extends far fewer labels than FIFO
+/// ordering when arc costs are heterogeneous. Two things are worth being precise about:
+///
+///  - This is a *label-correcting* search: the whole frontier is processed (it does not stop at
+///    the first sink reached), so a FULL search returns the optimal solution for ANY @f$ h @f$ —
+///    the heuristic only changes the *order* of expansion, not which labels exist.
+///  - @f$ h @f$ matters for correctness only together with label-dropping truncation (a per-node
+///    extension cap, memory-pressure pruning, or @ref AlgorithmBaseParams::stop_after_X_solutions):
+///    those keep the lowest-@f$ f @f$ labels, so an *admissible* @f$ h @f$ (a true lower bound)
+///    keeps the most promising labels and the truncated result stays optimal far more often,
+///    whereas an over-estimating @f$ h @f$ could drop the optimal path.
+///
+/// If the reduced-cost relaxation contains a negative-cost cycle there is no finite lower bound,
+/// so the heuristic is disabled (@f$ h \equiv 0 @f$) and the search behaves like the non-A*
+/// dominance algorithms (ordered by current reduced cost); see @ref initialize for why arc.cost
+/// must not be used in that case.
 ///
 /// @tparam ResourceType       Composed resource type (must satisfy ResourceTypeConcept).
 /// @tparam LabelContainerType Non-dominated label container (default: LabelList).
@@ -75,23 +87,31 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
         // ─── Initialization ───────────────────────────────────────────────────
 
-        /// @brief Initialize the heuristic vector and per-node counters.
+        /// @brief Compute the per-node heuristic @ref h_to_sink_ and reset the per-node counters.
         ///
-        /// Runs a backward Bellman–Ford from all sinks to fill @ref h_to_sink_.
-        /// When @p CostResourceType is present in @p ResourceType, the arc weight
-        /// is read from the resource extender at @p params_.heuristic_cost_index
-        /// (the reduced cost), giving a tight admissible lower bound aligned with
-        /// the labeling cost.  Otherwise falls back to @p arc.cost.
+        /// The labeling cost @f$ g @f$ (Label::get_cost()) is the *reduced* cost, so for
+        /// @f$ f = g + h @f$ to be an admissible A* heuristic @f$ h(n) @f$ must lower-bound the
+        /// remaining REDUCED cost from @p n to a sink. We obtain that bound with a backward
+        /// Bellman–Ford over the SAME cost slot the labeling uses
+        /// (@p params_.heuristic_cost_index, the reduced cost): dropping the resource constraints
+        /// can only lower a path's cost, so the relaxed shortest reduced-cost-to-sink is a valid
+        /// lower bound on the true RCSPP cost-to-go. (When @p CostResourceType is not part of
+        /// @p ResourceType, @f$ g @f$ is simply @p arc.cost and the arc-cost Bellman–Ford gives the
+        /// matching bound.)
+        ///
+        /// Unreachable nodes get @f$ +\infty @f$; a negative-cost cycle disables the heuristic
+        /// (@f$ h \equiv 0 @f$) — see the catch block.
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
 
             number_of_extended_labels_per_node_.assign(graph->get_number_of_nodes(), 0);
+            // Default to h == 0 ("no heuristic"); overwritten below when a valid bound exists.
+            h_to_sink_.assign(graph->get_number_of_nodes(), 0.0);
 
-            // Backward Bellman-Ford from sinks using the same cost slot as the labeling algorithm.
-            // Reduced costs can create negative-weight cycles (impossible with arc.cost alone),
-            // so we fall back to the arc-cost overload when that happens.
-            Distance dist;
             try {
+                // Backward Bellman–Ford from the sinks over the labeling cost slot. Throws on a
+                // negative-cost cycle (possible with reduced costs, never with arc.cost alone).
+                Distance dist;
                 if constexpr (is_cost_in_composition_v<CostResourceType, ResourceType>) {
                     dist = BellmanFordAlgorithm::solve<CostResourceType>(
                         *graph,
@@ -103,18 +123,35 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                                                        graph->get_sink_node_ids(),
                                                        /*forward=*/false);
                 }
+                for (size_t node_id : graph->get_node_ids()) {
+                    const auto* node = graph->get_node(node_id);
+                    auto it = dist.find(node_id);
+                    // Unreachable nodes -> +inf so their labels sort to the back of the heap.
+                    h_to_sink_[node->pos()] =
+                        (it != dist.end()) ? it->second : std::numeric_limits<double>::infinity();
+                }
             } catch (const std::runtime_error&) {
-                // Negative-weight cycle in reduced costs: fall back to arc.cost (always positive).
-                dist = BellmanFordAlgorithm::solve(*graph,
-                                                   graph->get_sink_node_ids(),
-                                                   /*forward=*/false);
-            }
-            h_to_sink_.resize(graph->get_number_of_nodes());
-            for (size_t node_id : graph->get_node_ids()) {
-                const auto* node = graph->get_node(node_id);
-                auto it = dist.find(node_id);
-                h_to_sink_[node->pos()] =
-                    (it != dist.end()) ? it->second : std::numeric_limits<double>::infinity();
+                // The reduced-cost relaxation has a negative-cost cycle, so the shortest
+                // reduced-cost-to-sink is -inf: there is no finite lower bound to use as h.
+                //
+                // We deliberately do NOT fall back to arc.cost here (the previous behaviour).
+                // arc.cost is the ORIGINAL, non-negative arc weight — a different quantity from the
+                // reduced cost carried in g. Per arc, reduced cost <= original cost (the duals are
+                // non-negative) and is frequently negative, so a sum of arc.cost OVER-estimates the
+                // remaining reduced cost. An over-estimating h is NOT admissible: with per-node
+                // truncation or memory-pressure pruning (which retain the lowest-f labels) it can
+                // discard the labels lying on the true optimal path and then return a suboptimal
+                // solution while still reporting AlgorithmStatus::COMPLETE.
+                //
+                // With no valid lower bound available we disable the heuristic (h == 0, already set
+                // by the assign() above). A* then degrades to an ordinary reduced-cost-ordered
+                // label-correcting search — the same ordering the non-A* dominance algorithms use.
+                // A full (untruncated) search is still exact; under truncation it now prunes by
+                // current reduced cost (a sensible criterion) instead of by an unrelated
+                // original-cost metric.
+                LOG_DEBUG(
+                    "AStarDominanceAlgorithm: reduced-cost relaxation has a negative-cost cycle; "
+                    "disabling the A* heuristic (h = 0) for this solve.\n");
             }
 
             // Rebuild priority queues with the fresh comparator.

@@ -364,3 +364,74 @@ DEFINE_STATUS_TESTS(PullingDominance, PullingDominanceAlgorithm)
 DEFINE_STATUS_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_STATUS_TESTS
+
+// ── A* heuristic fallback on a negative-cost cycle (M1) ────────────────────────
+//
+// AStarDominanceAlgorithm seeds f = g + h from a backward Bellman-Ford over the (reduced) cost
+// slot. When that slot contains a negative-cost cycle the Bellman-Ford cannot converge and
+// throws; the algorithm catches it and disables the heuristic (h = 0) rather than falling back to
+// arc.cost (which is on the wrong scale, over-estimates the reduced cost-to-go, and would be
+// inadmissible — see astar_dominance_algorithm.hpp). This builds a graph whose cost slot has a
+// negative-cost cycle A<->B (sum -20), made finite by a capacity resource, and checks that A*:
+//   (a) does NOT propagate the Bellman-Ford exception (i.e. the catch fires), and
+//   (b) still returns the exact optimum found by the plain SimpleDominanceAlgorithm.
+//
+// Resource 0 (RealResource) is the cost; resource 1 (IntResource) is a hop budget in [0, 3] that
+// caps the path length so the negative-cost cycle cannot be traversed forever.
+inline std::unique_ptr<ResourceGraph<RealResource, IntResource>> make_negative_cycle_graph() {
+    auto graph = std::make_unique<ResourceGraph<RealResource, IntResource>>();
+    graph->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    constexpr int kCapacity = 3;
+    graph->add_resource<IntResource>(
+        std::make_unique<AdditionExtensionFunction<IntResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<IntResource>>(0, kCapacity),
+        std::make_unique<TrivialCostFunction<IntResource>>(),
+        std::make_unique<ValueDominanceFunction<IntResource>>());
+
+    graph->add_node(0, /*source=*/true);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3, /*source=*/false, /*sink=*/true);
+
+    // {cost, hops}. A->B->A sums to -20: a negative-cost cycle in the cost slot (slot 0).
+    graph->add_arc<RealResource, IntResource>({0.0, 1}, 0, 1);    // S -> A
+    graph->add_arc<RealResource, IntResource>({-10.0, 1}, 1, 2);  // A -> B
+    graph->add_arc<RealResource, IntResource>({-10.0, 1}, 2, 1);  // B -> A (closes the cycle)
+    graph->add_arc<RealResource, IntResource>({5.0, 1}, 1, 3);    // A -> T
+    graph->add_arc<RealResource, IntResource>({5.0, 1}, 2, 3);    // B -> T
+    return graph;
+}
+
+template <template <typename, typename> class AlgorithmType>
+SolveResult solve_no_preprocess(ResourceGraph<RealResource, IntResource>* graph) {
+    // preprocess=false: skip the preprocessing Bellman-Ford / arc removal so the negative-cost
+    // cycle is hit only by the A* heuristic seeding (the code path under test), not by
+    // preprocessing.
+    return graph->solve<AlgorithmType>(AlgorithmBaseParams{},
+                                       std::numeric_limits<double>::infinity(),
+                                       /*preprocess=*/false);
+}
+
+TEST(AStarHeuristic, NegativeCycleFallbackPreservesOptimum) {
+    // Reference optimum from the plain label-correcting algorithm (no heuristic).
+    auto ref_graph = make_negative_cycle_graph();
+    const SolveResult ref = solve_no_preprocess<SimpleDominanceAlgorithm>(ref_graph.get());
+    ASSERT_FALSE(ref.solutions.empty());
+    EXPECT_EQ(ref.status, AlgorithmStatus::COMPLETE);
+    EXPECT_NEAR(ref.solutions[0].cost, -5.0, 1e-9);  // S -> A -> B -> T (3 hops)
+
+    // A* on the same graph: the heuristic Bellman-Ford hits the negative-cost cycle, so the catch
+    // must fire (no exception escapes) and the disabled-heuristic search must match the optimum.
+    auto astar_graph = make_negative_cycle_graph();
+    SolveResult astar;
+    ASSERT_NO_THROW({
+        astar = solve_no_preprocess<AStarAlgoBound<RealResource>::Algo>(astar_graph.get());
+    });
+    ASSERT_FALSE(astar.solutions.empty());
+    EXPECT_EQ(astar.status, AlgorithmStatus::COMPLETE);
+    EXPECT_NEAR(astar.solutions[0].cost, ref.solutions[0].cost, 1e-9);
+}
