@@ -141,7 +141,8 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 // of arc.cost OVER-estimates the remaining reduced cost. An over-estimating h is
                 // NOT admissible: with per-node truncation or memory-pressure pruning (which retain
                 // the lowest-f labels) it can discard the labels lying on the true optimal path and
-                // then return a suboptimal solution while still reporting AlgorithmStatus::COMPLETE.
+                // then return a suboptimal solution while still reporting
+                // AlgorithmStatus::COMPLETE.
                 //
                 // With h == 0, A* is an ordinary reduced-cost-ordered label-correcting search — the
                 // same ordering the non-A* dominance algorithms use. A full (untruncated) search is

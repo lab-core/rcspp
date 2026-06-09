@@ -128,15 +128,19 @@ int main(int argc, char* argv[]) {
 
             // ── Single CG solve ────────────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto [timers, lp_cost, proven_optimal] = vrp.solve<SimpleDominanceAlgorithm,
-                                               PushingDominanceAlgorithm,
-                                               PullingDominanceAlgorithm>(list_params,
-                                                                          std::nullopt,
-                                                                          list_algorithms,
-                                                                          run_boost,
-                                                                          extra_solvers);  // NOLINT
+            auto [timers, lp_cost, proven_optimal] =
+                vrp.solve<SimpleDominanceAlgorithm,
+                          PushingDominanceAlgorithm,
+                          PullingDominanceAlgorithm>(list_params,
+                                                     std::nullopt,
+                                                     list_algorithms,
+                                                     run_boost,
+                                                     extra_solvers);  // NOLINT
             if (!proven_optimal) {
-                LOG_WARN("Instance ", instance_name, ": LP cost ", lp_cost,
+                LOG_WARN("Instance ",
+                         instance_name,
+                         ": LP cost ",
+                         lp_cost,
                          " is NOT proven optimal (pricing subproblem was cut short).\n");
             }
 

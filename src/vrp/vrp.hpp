@@ -224,12 +224,13 @@ class VRP {
                 if (min_reduced_cost >= -EPSILON &&
                     first_rcspp_status != AlgorithmStatus::COMPLETE) {
                     proven_optimal = false;
-                    LOG_WARN("Column generation stopped without proving optimality: the final "
-                             "pricing subproblem exited with status '",
-                             to_string(first_rcspp_status),
-                             "' (not complete). The LP objective ",
-                             master_solution.cost,
-                             " is a valid bound but is NOT proven optimal.\n");
+                    LOG_WARN(
+                        "Column generation stopped without proving optimality: the final "
+                        "pricing subproblem exited with status '",
+                        to_string(first_rcspp_status),
+                        "' (not complete). The LP objective ",
+                        master_solution.cost,
+                        " is a valid bound but is NOT proven optimal.\n");
                 }
 
                 add_paths(&master_problem, negative_red_cost_solutions);
@@ -334,8 +335,8 @@ class VRP {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename LabelContainerType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id,
-            AlgorithmParams<LabelContainerType> params, AlgorithmStatus* out_status = nullptr) {
+            const std::map<size_t, double>& dual_by_id, AlgorithmParams<LabelContainerType> params,
+            AlgorithmStatus* out_status = nullptr) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);

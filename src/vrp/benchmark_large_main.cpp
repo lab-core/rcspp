@@ -186,7 +186,10 @@ int main(int argc, char* argv[]) {  // NOLINT
             LOG_INFO("Instance: ", path, '\n');
             auto [timers, lp_cost, proven_optimal] = run_vrp(path, run_boost, run_astar);
             if (!proven_optimal) {
-                LOG_WARN("Instance ", name, ": LP cost ", lp_cost,
+                LOG_WARN("Instance ",
+                         name,
+                         ": LP cost ",
+                         lp_cost,
                          " is NOT proven optimal (pricing subproblem was cut short).\n");
             }
             if (total_timers.empty()) {
@@ -205,7 +208,10 @@ int main(int argc, char* argv[]) {  // NOLINT
             LOG_INFO("Instance: ", path, '\n');
             auto [timers, lp_cost, proven_optimal] = run_vrp(path, run_boost, run_astar);
             if (!proven_optimal) {
-                LOG_WARN("Instance ", name, ": LP cost ", lp_cost,
+                LOG_WARN("Instance ",
+                         name,
+                         ": LP cost ",
+                         lp_cost,
                          " is NOT proven optimal (pricing subproblem was cut short).\n");
             }
             if (total_timers.empty()) {
