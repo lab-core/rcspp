@@ -25,6 +25,9 @@ list(APPEND SOURCE_FILES
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+if(MSVC)
+  target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
+endif()
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
