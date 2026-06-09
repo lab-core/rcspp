@@ -141,13 +141,16 @@ int main(int argc, char* argv[]) {  // NOLINT
         std::string root_dir = file_parent_dir(__FILE__, 3);
         std::string inst_dir = root_dir + "/instances/";
 
+        // Solomon set-2 instances use a 2-digit index: C201..C208, RC201..RC208, R201..R211.
+        // Zero-pad so n >= 10 (R210, R211) is built correctly instead of "R2010"/"R2011".
+        auto pad2 = [](size_t n) { return (n < 10 ? "0" : "") + std::to_string(n); };
         std::vector<std::string> instance_names;
         for (size_t n = 1; n <= max_c2_rc2; ++n) {
-            instance_names.emplace_back("C20" + std::to_string(n));
-            instance_names.emplace_back("RC20" + std::to_string(n));
+            instance_names.emplace_back("C2" + pad2(n));
+            instance_names.emplace_back("RC2" + pad2(n));
         }
         for (size_t n = 1; n <= max_r2; ++n) {
-            instance_names.emplace_back("R20" + std::to_string(n));
+            instance_names.emplace_back("R2" + pad2(n));
         }
 
         // Optional Gehring & Homberger instances (200–1000 customers, Solomon format)
