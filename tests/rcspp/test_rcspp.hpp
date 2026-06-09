@@ -277,3 +277,90 @@ DEFINE_REFCOUNT_TEST(PullingDominance, PullingDominanceAlgorithm)
 DEFINE_REFCOUNT_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_REFCOUNT_TEST
+
+// ── Exit-status accuracy (foundation for H4) ───────────────────────────────────
+//
+// The VRP column-generation loop trusts "pricing found no improving column" as a proof of
+// LP-optimality ONLY when the pricing subproblem returns AlgorithmStatus::COMPLETE; any other
+// status means the solve was cut short, so optimality is not proven (VRP::solve then warns and
+// flags proven_optimal = false). These tests verify solve() reports that status accurately —
+// end-to-end through the real pricing solver — which is the signal the H4 fix consumes. (The
+// CG-loop branch itself runs only in the Gurobi-backed VRP build, which CI does not compile.)
+
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_solve_status_complete() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    // Default params are fully unbounded (no truncation / phase / solution / time / memory cap),
+    // so the labeling runs to exhaustion and the result must be COMPLETE.
+    const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id);
+    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE)
+        << "an unbounded solve must report COMPLETE, got '" << result.status_string() << "'";
+    ASSERT_FALSE(result.solutions.empty());
+    constexpr double kOptimal = -319.87786809696524415;
+    EXPECT_NEAR(result.solutions[0].cost, kOptimal, 1e-9);
+}
+
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_solve_status_memory_limit() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    AlgorithmBaseParams base;
+    base.max_memory_gb = 1e-9;  // ~1 byte: exceeded on the very first memory check
+    base.memory_check_interval = 1;
+    const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id, base);
+    EXPECT_EQ(result.status, AlgorithmStatus::MEMORY_LIMIT)
+        << "a tiny memory limit must report MEMORY_LIMIT, got '" << result.status_string() << "'";
+}
+
+template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+void test_solve_status_timeout() {
+    const std::string instance_name = "R101";
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
+
+    InstanceReader instance_reader(instance_path);
+    auto instance = instance_reader.read();
+    VRPSubproblem vrp_subproblem(instance);
+
+    auto dual_by_id =
+        InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
+
+    AlgorithmBaseParams base;
+    base.timeout_s = 0.0;  // a 0-second budget: exceeded on the first should_stop() check
+    const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id, base);
+    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT)
+        << "a 0-second timeout must report TIMEOUT, got '" << result.status_string() << "'";
+}
+
+#define DEFINE_STATUS_TESTS(AlgoSuffix, AlgoType)                                             \
+    TEST(Rcspp_##AlgoSuffix, SolveStatusComplete) { test_solve_status_complete<AlgoType>(); } \
+    TEST(Rcspp_##AlgoSuffix, SolveStatusMemoryLimit) {                                        \
+        test_solve_status_memory_limit<AlgoType>();                                           \
+    }                                                                                         \
+    TEST(Rcspp_##AlgoSuffix, SolveStatusTimeout) { test_solve_status_timeout<AlgoType>(); }
+
+DEFINE_STATUS_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
+DEFINE_STATUS_TESTS(PushingDominance, PushingDominanceAlgorithm)
+DEFINE_STATUS_TESTS(PullingDominance, PullingDominanceAlgorithm)
+DEFINE_STATUS_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+
+#undef DEFINE_STATUS_TESTS

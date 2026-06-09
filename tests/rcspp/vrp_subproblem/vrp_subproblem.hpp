@@ -59,6 +59,21 @@ class VRPSubproblem {
         return algorithm->get_label_pool().check_ref_count_consistency();
     }
 
+    // Test helper (H4): expose the full SolveResult — solutions + exit status — so tests can
+    // verify solve() reports the status the VRP column-generation loop relies on: COMPLETE when
+    // the pricing search was exhaustive vs MEMORY_LIMIT / TIMEOUT / ... when it was cut short. A
+    // wrong status would let CG mistake a cut-short solve for a proof of optimality.
+    template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+    SolveResult solve_result(const std::map<size_t, double>& dual_by_id,
+                             AlgorithmBaseParams params = AlgorithmBaseParams()) {
+        if (graph_.get_number_of_nodes() == 0) {
+            construct_resource_graph(&graph_, &dual_by_id);
+        } else {
+            update_resource_graph(&graph_, &dual_by_id);
+        }
+        return graph_.solve<AlgorithmType>(std::move(params));
+    }
+
     private:
 
         const std::map<size_t, double>* row_coefficient_by_id_;

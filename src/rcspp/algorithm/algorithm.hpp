@@ -41,29 +41,36 @@ enum class AlgorithmStatus {
     MEMORY_LIMIT,   ///< RSS memory limit reached.
 };
 
+/// @brief Human-readable name for an @ref AlgorithmStatus value.
+///
+/// Note: only @ref AlgorithmStatus::COMPLETE means the search was exhaustive; every other
+/// status indicates the solve was cut short (so e.g. "no solution found" does not prove that
+/// none exists).
+[[nodiscard]] inline std::string to_string(AlgorithmStatus status) {
+    switch (status) {
+        case AlgorithmStatus::COMPLETE:
+            return "complete";
+        case AlgorithmStatus::TIMEOUT:
+            return "timeout";
+        case AlgorithmStatus::MAX_SOLUTIONS:
+            return "max_solutions";
+        case AlgorithmStatus::MAX_PHASES:
+            return "max_phases";
+        case AlgorithmStatus::INTERRUPTED:
+            return "interrupted";
+        case AlgorithmStatus::MEMORY_LIMIT:
+            return "memory_limit";
+    }
+    return "unknown";
+}
+
 /// @brief Return value of Algorithm::solve().
 struct SolveResult {
         std::vector<Solution> solutions;
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
         /// @brief Human-readable name of the exit status.
-        [[nodiscard]] std::string status_string() const {
-            switch (status) {
-                case AlgorithmStatus::COMPLETE:
-                    return "complete";
-                case AlgorithmStatus::TIMEOUT:
-                    return "timeout";
-                case AlgorithmStatus::MAX_SOLUTIONS:
-                    return "max_solutions";
-                case AlgorithmStatus::MAX_PHASES:
-                    return "max_phases";
-                case AlgorithmStatus::INTERRUPTED:
-                    return "interrupted";
-                case AlgorithmStatus::MEMORY_LIMIT:
-                    return "memory_limit";
-            }
-            return "unknown";
-        }
+        [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
 
 // Forward declaration so AlgorithmBaseParams::with_container can name the return type.

@@ -26,6 +26,10 @@ struct CGSolveResult {
         std::vector<Timer> timers;
         /// @brief Final LP relaxation cost from the master problem after column generation.
         double lp_cost = std::numeric_limits<double>::infinity();
+        /// @brief False when CG stopped on "no improving column" but the final pricing solve did
+        /// not run to completion (timeout / memory / phase / solution cap) — the bound is then
+        /// valid but not proven optimal.
+        bool proven_optimal = true;
 };
 
 /// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
@@ -86,6 +90,7 @@ class VRP {
             double min_reduced_cost = -std::numeric_limits<double>::infinity();
             std::vector<Timer> timers(num_total_algos);
             int nb_iter = 0;
+            bool proven_optimal = true;
             while (min_reduced_cost < -EPSILON) {
                 master_solution = master_problem.solve();
 
@@ -105,6 +110,10 @@ class VRP {
                 std::vector<Solution> solutions_rcspp_any;
                 const size_t first_rcspp_idx = run_boost ? 1 : 0;
                 size_t algo_index = first_rcspp_idx;
+                // Exit status of the solve whose result drives min_reduced_cost (the first RCSPP
+                // algorithm). If that solve was cut short, a "no improving column" result does not
+                // prove optimality. (Extra solvers are type-erased and report no status.)
+                AlgorithmStatus first_rcspp_status = AlgorithmStatus::COMPLETE;
 
                 auto collect_solutions = [&](std::vector<Solution>& sols, bool is_optimal) {
                     bool non_optimal = !is_optimal;
@@ -173,15 +182,23 @@ class VRP {
 
                 (void)std::initializer_list<int>{([&]() {
                     timers[algo_index].start();
-                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params);
+                    AlgorithmStatus st = AlgorithmStatus::COMPLETE;
+                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params, &st);
                     timers[algo_index].stop();
+                    if (algo_index == first_rcspp_idx) {
+                        first_rcspp_status = st;
+                    }
                     return collect_solutions(sols, !params.could_be_non_optimal());
                 }())...};
 
                 for (auto* algorithm : algorithms) {
                     timers[algo_index].start();
-                    auto sols = solve_with_rcspp(dual_by_id, algorithm);
+                    AlgorithmStatus st = AlgorithmStatus::COMPLETE;
+                    auto sols = solve_with_rcspp(dual_by_id, algorithm, &st);
                     timers[algo_index].stop();
+                    if (algo_index == first_rcspp_idx) {
+                        first_rcspp_status = st;
+                    }
                     collect_solutions(sols, algorithm->is_optimal());
                 }
 
@@ -202,6 +219,19 @@ class VRP {
                     }
                 }
 
+                // No improving column this iteration -> CG is about to stop. If the pricing solve
+                // that produced this result was cut short, optimality is not proven.
+                if (min_reduced_cost >= -EPSILON &&
+                    first_rcspp_status != AlgorithmStatus::COMPLETE) {
+                    proven_optimal = false;
+                    LOG_WARN("Column generation stopped without proving optimality: the final "
+                             "pricing subproblem exited with status '",
+                             to_string(first_rcspp_status),
+                             "' (not complete). The LP objective ",
+                             master_solution.cost,
+                             " is a valid bound but is NOT proven optimal.\n");
+                }
+
                 add_paths(&master_problem, negative_red_cost_solutions);
 
                 LOG_DEBUG(std::string(45, '*'), '\n');
@@ -219,7 +249,7 @@ class VRP {
                 LOG_DEBUG(std::string(45, '*'), '\n');
             }
 
-            return CGSolveResult{timers, master_solution.cost};
+            return CGSolveResult{timers, master_solution.cost, proven_optimal};
         }
 
         RGraph& get_graph() { return graph_; }
@@ -305,7 +335,7 @@ class VRP {
                   typename LabelContainerType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id,
-            AlgorithmParams<LabelContainerType> params) {
+            AlgorithmParams<LabelContainerType> params, AlgorithmStatus* out_status = nullptr) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
@@ -319,12 +349,16 @@ class VRP {
 
             total_subproblem_solve_time_.stop();
 
+            if (out_status != nullptr) {
+                *out_status = result.status;
+            }
             return std::move(result.solutions);
         }
 
         template <class AlgorithmType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id, AlgorithmType* algo) {
+            const std::map<size_t, double>& dual_by_id, AlgorithmType* algo,
+            AlgorithmStatus* out_status = nullptr) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
@@ -338,6 +372,9 @@ class VRP {
 
             total_subproblem_solve_time_.stop();
 
+            if (out_status != nullptr) {
+                *out_status = result.status;
+            }
             return std::move(result.solutions);
         }
 
