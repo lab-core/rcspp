@@ -33,6 +33,27 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void main_loop() override {  // NOLINT
             size_t i = 0;
             while (number_of_labels() > 0 && i < this->params_.max_iterations) {
+                // Periodic memory check (pulling: each iteration processes one node).
+                if (i > 0 && this->memory_limit_.effective_limit > 0 &&
+                    i % this->params_.memory_check_interval == 0) {
+                    if (this->memory_limit_.is_exceeded()) {
+                        LOG_WARN("Memory limit (",
+                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
+                                 " MB) exceeded (current: ",
+                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
+                                 " MB). Stopping early.\n");
+                        break;
+                    }
+                    if (this->memory_limit_.is_under_pressure()) {
+                        LOG_INFO("Memory pressure: ",
+                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
+                                 " MB / ",
+                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
+                                 " MB. Trimming label queues.\n");
+                        this->on_memory_pressure();
+                    }
+                }
+
                 ++i;
 
                 // save unprocessed labels for the current node
@@ -48,20 +69,23 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                      it != this->current_unprocessed_labels_.end();) {
                     auto& label = *it->first;
 
-                    // label dominated -> continue to next one
+                    // label dominated -> continue to next one.
+                    // release_with_ref_count (not release_label): in pulling a label may have
+                    // already served as an origin in a previous loop (ref_count > 0) and it
+                    // pins its own predecessor, so the ref_count chain must be unwound here.
                     if (label.dominated) {
-                        this->label_pool_.release_label(&label);
+                        this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (this->params_.prune_based_on_upper_bound_ &&
                                label.get_cost() >= this->best_cost_upper_bound_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
-                        this->label_pool_.release_label(&label);
+                        this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else if (std::isinf(label.get_cost())) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
-                        this->label_pool_.release_label(&label);
+                        this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else {
                         // check if sink and update best solution
@@ -144,7 +168,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
             // truncate/limit the number of labels extended per node (only if not a sink)
             if (!current_node->sink) {
-                this->resize_current_unprocessed_labels(this->params_.num_labels_to_extend_by_node,
+                this->resize_current_unprocessed_labels(this->effective_max_labels_per_node_,
                                                         &this->label_pool_);
             }
             this->total_full_extend_time_.stop();
@@ -168,6 +192,34 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void prepareNextPhase() override {
             first_loop_ = true;
             this->restore_truncated_unprocessed_labels();
+        }
+
+        /// @brief Trim per-node queues when memory pressure is detected.
+        ///
+        /// Same two-phase behaviour as @ref PushingDominanceAlgorithm::on_memory_pressure():
+        /// first call trims + stores aside; subsequent calls also release stored-aside labels.
+        void on_memory_pressure() override {
+            const size_t limit = this->params_.memory_pressure_max_labels_per_node;
+
+            this->effective_max_labels_per_node_ = limit;
+
+            if (this->memory_pressure_triggered_) {
+                this->release_truncated_labels(
+                    &this->label_pool_,
+                    [this](const typename std::list<Label<ResourceType>*>::iterator& it) {
+                        this->remove_label(it);
+                    });
+            }
+            this->memory_pressure_triggered_ = true;
+
+            this->trim_all_queues(limit, &this->label_pool_);
+        }
+
+        /// @brief Release label memory and clear all unprocessed queues.
+        void release_label_memory() override {
+            DominanceAlgorithm<ResourceType, LabelContainerType>::release_label_memory();
+            this->clear_all_queues();
+            first_loop_ = true;
         }
 
         bool first_loop_ = true;

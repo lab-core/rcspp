@@ -4,6 +4,7 @@
 #pragma once
 
 #include <concepts>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -74,7 +75,22 @@ class Label {
 
         [[nodiscard]] const Arc<ResourceType>* get_in_arc() const { return in_arc_; }
 
+        void set_prev_label(Label<ResourceType>* predecessor) {
+            prev_label = predecessor;
+            ++predecessor->ref_count;
+        }
+
         bool dominated;
+
+        // Predecessor label set at extension time; valid as long as ref_count keeps it pinned.
+        Label<ResourceType>* prev_label = nullptr;
+        // Number of alive successors that reference this label as their predecessor. 32 bits so a
+        // high-out-degree node (e.g. a dense VRP pricing graph that extends one label to many
+        // hundreds or thousands of successors) cannot overflow the count, which would make
+        // release_with_ref_count() free a still-referenced predecessor.
+        uint32_t ref_count = 0;
+        // True when the algorithm wanted to release this label but ref_count was > 0.
+        bool pending_release = false;
 
     private:
         // Resource consumed by the label.

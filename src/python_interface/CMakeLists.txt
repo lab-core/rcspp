@@ -43,9 +43,12 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
 
-# Collect .py files from the C++/pybind11 interface directory (incl. pricing_pool.py,
-# which lives alongside _core so a single `rcspp` package exposes both).
-file(GLOB_RECURSE PYTHON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.py")
+# Find all .py, .pyi, and py.typed files in rcspp (recursively)
+file(GLOB_RECURSE PYTHON_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.py"
+  "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/*.pyi"
+  "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/py.typed"
+)
 
 # Build per-file copy rules with explicit OUTPUT so CMake re-copies whenever a
 # .py file changes, without requiring the C++ extension to rebuild.
@@ -84,4 +87,6 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/rcspp/"
     DESTINATION ${PYTHON_PACKAGE_NAME}
     FILES_MATCHING
     PATTERN "*.py"
+    PATTERN "*.pyi"
+    PATTERN "py.typed"
 )

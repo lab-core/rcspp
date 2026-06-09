@@ -145,3 +145,103 @@ TEST(LabelBuckets, Erase) {
     bl.erase_label(pos2);
     EXPECT_TRUE(bl.get_labels().empty());
 }
+
+// remove_dominated_labels with labels in multiple buckets.
+// Binary-search fast-path skips buckets that are entirely "after" the dominator.
+TEST(LabelBuckets, RemoveDominatedMultiBucket) {
+    // range=10: bucket [0,10], [15,25].
+    // Dominator at bucket=12 -> is_after_bucket check: bucket [0,10] has begin=0;
+    // 0 < 12-10=2? YES -> skipped by binary search.  Only bucket [15,25] is examined.
+    BucketLabelList bl(10, 0, 1);
+    auto l0 = make_label(0, 5.0, 3.0);   // bucket [0-10], sort=3
+    auto l1 = make_label(1, 20.0, 1.0);  // bucket [20-30], sort=1
+    auto l2 = make_label(2, 20.0, 4.0);  // bucket [20-30], sort=4
+    bl.add_label(l0.get());
+    bl.add_label(l1.get());
+    bl.add_label(l2.get());
+
+    // Dominator(12, 2): bucket=12 means binary search skips bucket [0-10] (5 < 12-10=2? NO,
+    // actually 5 >= 2 so it is NOT skipped — let's pick a value that does skip it).
+    // Actually with begin=5 and range=10: is_after_bucket(12) = 5 < 12-10=2? NO.
+    // Use dominator at bucket=18 to skip bucket [5-15] (begin=5, 5 < 18-10=8 -> YES, skipped).
+    // Dominator(18, 2) dominates l2(20,4) [18<=20, 2<=4] but not l1(20,1) [2>1].
+    // l0(5,3) is in the skipped bucket.
+    auto dominator = make_label(99, 18.0, 2.0);
+    size_t removed = bl.remove_dominated_labels(*dominator);
+    EXPECT_EQ(removed, 1u);  // only l2
+    const auto& labels = bl.get_labels();
+    ASSERT_EQ(labels.size(), 2u);
+    auto it = labels.begin();
+    EXPECT_EQ((*it)->id, 0u);  // l0 untouched (skipped bucket)
+    ++it;
+    EXPECT_EQ((*it)->id, 1u);  // l1 not dominated (sort 2 > 1)
+}
+
+// is_dominated with labels in multiple buckets.
+// Binary-search fast-path skips upper buckets that cannot dominate the query.
+TEST(LabelBuckets, IsDominatedMultiBucket) {
+    // Buckets: [5-15] contains l0(5,3); [20-30] contains l1(20,1).
+    BucketLabelList bl(10, 0, 1);
+    auto l0 = make_label(0, 5.0, 3.0);
+    auto l1 = make_label(1, 20.0, 1.0);
+    bl.add_label(l0.get());
+    bl.add_label(l1.get());
+
+    // Query(15, 2): binary search finds first bucket where begin_value >= 15.
+    // Bucket [5-15] has begin=5 (5 >= 15? NO). Bucket [20-30] has begin=20 (20 >= 15? YES).
+    // end_idx=1 -> only bucket [5-15] is checked.
+    // l0(5,3) <= Query(15,2)? 5<=15 AND 3<=2? NO. Sort pruning: !(3<=2)=true. Not dominated.
+    auto query_not_dominated = make_label(2, 15.0, 2.0);
+    EXPECT_FALSE(bl.is_dominated(*query_not_dominated));
+
+    // Query(25, 4): end_idx=2 -> both buckets checked.
+    // Bucket [5-15]: l0(5,3) <= (25,4)? 5<=25 AND 3<=4? YES -> dominated.
+    auto query_dominated = make_label(3, 25.0, 4.0);
+    EXPECT_TRUE(bl.is_dominated(*query_dominated));
+}
+
+// erase_label of a bucket begin in a multi-bucket scenario.
+// Verifies that begin_label_to_bucket_idx_ stays consistent after erase.
+TEST(LabelBuckets, EraseBeginMultiBucket) {
+    BucketLabelList bl(10, 0, 1);
+    // Bucket [5-15]: l1(sort=1) is begin, l0(sort=3) interior.
+    // Bucket [20-30]: l2 is begin.
+    auto l0 = make_label(0, 5.0, 3.0);
+    auto l1 = make_label(1, 5.0, 1.0);
+    auto l2 = make_label(2, 20.0, 2.0);
+    bl.add_label(l0.get());
+    auto pos1 = bl.add_label(l1.get());  // becomes bucket [5-15] begin (sort=1 < 3)
+    bl.add_label(l2.get());
+
+    // Erase l1 (bucket begin of bucket [5-15]); begin should advance to l0.
+    bl.erase_label(pos1);
+    const auto& labels = bl.get_labels();
+    ASSERT_EQ(labels.size(), 2u);
+    EXPECT_EQ(labels.front()->id, 0u);  // l0 is now the begin of bucket [5-15]
+    EXPECT_EQ(labels.back()->id, 2u);
+
+    // After erasing l1 the is_dominated path should still work correctly:
+    // l0(5,3) in bucket [5-15] can dominate query(10,4).
+    auto query = make_label(99, 10.0, 4.0);
+    EXPECT_TRUE(bl.is_dominated(*query));
+}
+
+// suggest_range returns a range calibrated for the requested number of buckets.
+TEST(LabelBuckets, SuggestRange) {
+    BucketLabelList bl(10, 0, 1);
+    // Add 7 labels, each 15 apart; with range=10 each lands in its own bucket.
+    std::vector<std::unique_ptr<Label<RComp>>> labels_storage;
+    for (int i = 0; i < 7; ++i) {
+        labels_storage.push_back(make_label(static_cast<size_t>(i), i * 15.0, 0.0));
+        bl.add_label(labels_storage.back().get());
+    }
+    // max_live_buckets_ == 7, range_buckets_ == 10 -> estimated_span = 70.
+    // suggest_range(7)  -> (70 + 6) / 7  = 10 (same number of buckets -> same range)
+    // suggest_range(14) -> (70 + 13) / 14 = 5  (twice as many buckets -> half the range)
+    // suggest_range(35) -> (70 + 34) / 35 = 2
+    EXPECT_EQ(bl.suggest_range(7), 10u);
+    EXPECT_EQ(bl.suggest_range(14), 5u);
+    EXPECT_EQ(bl.suggest_range(35), 2u);
+    // Edge: target=0 returns unchanged range_buckets_.
+    EXPECT_EQ(bl.suggest_range(0), 10u);
+}

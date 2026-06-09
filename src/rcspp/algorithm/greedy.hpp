@@ -40,10 +40,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     protected:
         void main_loop() override {
             size_t i = 0;
-            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
-                if (this->is_interrupted()) {
-                    break;
-                }
+            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
                 ++i;
 
                 // get the label

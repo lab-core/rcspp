@@ -1,0 +1,80 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_instances:
+        description: 'Instances per family for small benchmark (1–9; default 2)'
+        default: '2'
+        required: true
+        type: string
+      run_large:
+        description: 'Also run large benchmark (C2/R2/RC2)'
+        type: boolean
+        default: false
+      max_large_instances:
+        description: 'Instances per family for large benchmark (1–8; R2 up to 11)'
+        default: '2'
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  benchmark:
+    name: Benchmark / ubuntu
+    # NOTE: Gurobi must be installed on the runner and GUROBI_HOME must be set.
+    # Use a self-hosted runner with Gurobi, or adjust the "Install Gurobi" step.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install build dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y build-essential cmake
+
+      - name: Configure (Release, no Python, no tests)
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_PYTHON=OFF \
+            -DUSE_TESTS=OFF
+
+      - name: Build small benchmark
+        run: cmake --build build --target rcspp-vrp-benchmark --parallel
+
+      - name: Build large benchmark
+        if: inputs.run_large
+        run: cmake --build build --target rcspp-vrp-benchmark-large --parallel
+
+      - name: Run small benchmark (C1/R1/RC1)
+        run: |
+          ./build/bin/rcspp-vrp-benchmark ${{ inputs.max_instances }} \
+            2>&1 | tee benchmark_small.txt
+
+      - name: Run large benchmark (C2/R2/RC2)
+        if: inputs.run_large
+        run: |
+          ./build/bin/rcspp-vrp-benchmark-large ${{ inputs.max_large_instances }} \
+            2>&1 | tee benchmark_large.txt
+
+      - name: Upload small benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-small-${{ github.sha }}
+          path: benchmark_small.txt
+
+      - name: Upload large benchmark results
+        if: inputs.run_large
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-large-${{ github.sha }}
+          path: benchmark_large.txt

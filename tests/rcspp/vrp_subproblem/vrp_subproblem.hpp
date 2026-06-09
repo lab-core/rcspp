@@ -19,20 +19,59 @@ class VRPSubproblem {
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
     template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
-    std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id) {
+    std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id,
+                                AlgorithmBaseParams params = AlgorithmBaseParams()) {
         LOG_TRACE(__FUNCTION__, '\n');
 
         total_subproblem_time_.start();
-        auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id);
+        auto solutions_rcspp = solve_with_rcspp<AlgorithmType>(dual_by_id, std::move(params));
         total_subproblem_time_.stop();
 
-        LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
+        if (!solutions_rcspp.empty()) {
+            LOG_DEBUG("Solution RCSPP cost: ", solutions_rcspp[0].cost, '\n');
+        }
 
         LOG_DEBUG("\n", std::string(45, '*'), "\n");
         LOG_DEBUG("total_subproblem_time_: ", total_subproblem_time_.elapsed_seconds());
         LOG_DEBUG("\n", std::string(45, '*'), "\n");
 
         return solutions_rcspp;
+    }
+
+    // Test helper (H3 regression): solve via an externally-owned algorithm so the caller can
+    // inspect the label pool's prev_label/ref_count bookkeeping after the solve. Returns true
+    // iff the pool is internally consistent; writes the best solution cost to *out_cost when a
+    // solution is found. Mirrors solve_with_rcspp()'s default (infinite upper bound) path.
+    template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+    bool solve_and_check_ref_counts(const std::map<size_t, double>& dual_by_id,
+                                    double* out_cost = nullptr) {
+        using RC = ResourceTypeComposition<RealResource, IntResource>;
+        if (graph_.get_number_of_nodes() == 0) {
+            construct_resource_graph(&graph_, &dual_by_id);
+        } else {
+            update_resource_graph(&graph_, &dual_by_id);
+        }
+        auto algorithm = graph_.create_algorithm<AlgorithmType>(AlgorithmParams<LabelList<RC>>());
+        auto result = graph_.solve(algorithm.get());
+        if (out_cost != nullptr && !result.solutions.empty()) {
+            *out_cost = result.solutions[0].cost;
+        }
+        return algorithm->get_label_pool().check_ref_count_consistency();
+    }
+
+    // Test helper (H4): expose the full SolveResult — solutions + exit status — so tests can
+    // verify solve() reports the status the VRP column-generation loop relies on: COMPLETE when
+    // the pricing search was exhaustive vs MEMORY_LIMIT / TIMEOUT / ... when it was cut short. A
+    // wrong status would let CG mistake a cut-short solve for a proof of optimality.
+    template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+    SolveResult solve_result(const std::map<size_t, double>& dual_by_id,
+                             AlgorithmBaseParams params = AlgorithmBaseParams()) {
+        if (graph_.get_number_of_nodes() == 0) {
+            construct_resource_graph(&graph_, &dual_by_id);
+        } else {
+            update_resource_graph(&graph_, &dual_by_id);
+        }
+        return graph_.solve<AlgorithmType>(std::move(params));
     }
 
     private:
@@ -79,7 +118,8 @@ class VRPSubproblem {
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
-            const std::map<size_t, double>& dual_by_id) {
+            const std::map<size_t, double>& dual_by_id,
+            AlgorithmBaseParams params = AlgorithmBaseParams()) {
                 LOG_TRACE(__FUNCTION__, '\n');
 
                 if (graph_.get_number_of_nodes() == 0) {
@@ -88,9 +128,7 @@ class VRPSubproblem {
                     update_resource_graph(&graph_, &dual_by_id);
                 }
 
-                auto solutions = graph_.solve<AlgorithmType>();
-
-                return solutions;
+                return std::move(graph_.solve<AlgorithmType>(std::move(params)).solutions);
         }
 
         [[nodiscard]] static std::map<size_t, double> calculate_dual(

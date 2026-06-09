@@ -5,10 +5,13 @@ import math
 import os
 import sys
 
-import numpy as np
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_interface")
+)
 
-relative_path = "../python_interface/"
-sys.path.insert(0, os.path.abspath(relative_path))
+import pytest  # noqa: E402
+
+np = pytest.importorskip("numpy")
 
 from rcspp.graph import ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
@@ -179,7 +182,7 @@ def test_force_arc_solve_uses_forced_path():
 
 
 def _make_rg_with_rows():
-    """2-arc graph where arc costs are set via dual rows.
+    """2-arc graph where arc costs are set via rows.
 
     Arc 0 (0→1): base cost=10, row index=0 coef=1  → reduced = 10 - duals[0]
     Arc 1 (1→2): base cost=20, row index=1 coef=2  → reduced = 20 - 2*duals[1]

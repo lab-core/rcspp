@@ -10,8 +10,9 @@ import sys
 import threading
 import time
 
-relative_path = "../python_interface/"
-sys.path.insert(0, os.path.abspath(relative_path))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_interface")
+)
 
 from rcspp import LogLevel, set_log_level
 from rcspp.graph import Algorithm, AlgorithmParams, BucketAlgorithmParams, ResourceGraph
@@ -221,21 +222,27 @@ def example_algorithm_params():
     rg.add_arc((3.0,), 1, 2, cost=3.0)
     rg.add_arc((10.0,), 0, 2, cost=10.0)
 
-    # Enum values: Algorithm.Simple, Algorithm.Pushing, Algorithm.Pulling, Algorithm.Greedy
+    # Enum values: Algorithm.Simple, Algorithm.Pushing, Algorithm.Pulling, Algorithm.Greedy, Algorithm.AStar
     sols_simple = rg.solve(Algorithm.Simple)
     sols_pushing = rg.solve(Algorithm.Pushing)
     sols_pulling = rg.solve(Algorithm.Pulling)
     sols_greedy = rg.solve(Algorithm.Greedy)
+    sols_astar = rg.solve(Algorithm.AStar)
     # String aliases are also accepted for convenience
     sols_str = rg.solve("simple")
+    sols_astar_str = rg.solve("astar")
 
     print_solutions("Algorithm.Simple", sols_simple)
     print_solutions("Algorithm.Pushing", sols_pushing)
     print_solutions("Algorithm.Pulling", sols_pulling)
     print_solutions("Algorithm.Greedy", sols_greedy)
+    print_solutions("Algorithm.AStar", sols_astar)
 
     assert sols_simple[0].cost == sols_str[0].cost, "string alias must match enum"
-    assert all(s.cost == 8.0 for s in [sols_simple[0], sols_pulling[0], sols_greedy[0]])
+    assert sols_astar[0].cost == sols_astar_str[0].cost, "astar string alias must match enum"
+    assert all(
+        s.cost == 8.0 for s in [sols_simple[0], sols_pulling[0], sols_greedy[0], sols_astar[0]]
+    )
 
     # AlgorithmParams: stop after the first solution
     params = AlgorithmParams()
@@ -781,6 +788,41 @@ def example_bucket_labels():
     bp_inh.stop_after_X_solutions = 1
     sols_one = rg.solve(params=bp_inh)
     assert len(sols_one) == 1, f"Expected 1 solution, got {len(sols_one)}"
+
+    # ── Position-based API: bucket by int (pos 1), sort by real (pos 0) ───────
+    # rg2 has real at registration pos 0 and int at pos 1.
+    # bucket_resource_pos=1 → int resource; sort_resource_pos=0 → real (cost).
+    bp_pos = BucketAlgorithmParams(
+        range_buckets=3,
+        bucket_resource_pos=1,
+        sort_resource_pos=0,
+    )
+    sols_pos = rg2.solve(params=bp_pos)
+    print_solutions("BucketAlgorithmParams pos-based (bucket=int, sort=real)", sols_pos)
+    assert sols_pos, "bucket solve (pos-based) returned no solutions"
+    assert math.isclose(
+        sols_pos[0].cost, ref2_cost, abs_tol=1e-6
+    ), f"bucket pos-based cost {sols_pos[0].cost} != reference {ref2_cost}"
+
+    # Bucket by real (pos 0), sort by real (pos 0) — same type, first instance.
+    bp_pos_real = BucketAlgorithmParams(
+        range_buckets=5,
+        bucket_resource_pos=0,
+        sort_resource_pos=0,
+    )
+    sols_pos_real = rg2.solve(params=bp_pos_real)
+    assert sols_pos_real, "bucket solve (pos 0,0) returned no solutions"
+    assert math.isclose(
+        sols_pos_real[0].cost, ref2_cost, abs_tol=1e-6
+    ), f"bucket pos(0,0) cost {sols_pos_real[0].cost} != reference {ref2_cost}"
+
+    # Out-of-range position raises ValueError.
+    bp_oob = BucketAlgorithmParams(bucket_resource_pos=99)
+    try:
+        rg2.solve(params=bp_oob)
+        assert False, "Expected ValueError for out-of-range bucket_resource_pos"
+    except ValueError:
+        pass  # expected
 
 
 # ── Run all examples ──────────────────────────────────────────────────────────

@@ -23,7 +23,23 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
     protected:
+        /// @brief Release label memory and clear the non-dominated label containers.
+        ///
+        /// Overrides @ref Algorithm::release_label_memory() to also clear
+        /// @ref non_dominated_labels_by_node_pos_ so that no dangling label
+        /// pointers remain after the pool is freed.  Subclasses that own
+        /// additional label containers (e.g. unprocessed queues) should
+        /// override this further and call this base implementation.
+        void release_label_memory() override {
+            Algorithm<ResourceType, LabelContainerType>::release_label_memory();
+            non_dominated_labels_by_node_pos_.clear();
+        }
+
         void initialize_labels() override {
+            // Release all labels from the previous run (including any pending_release ones)
+            // so the pool is fully reset before we start fresh.
+            this->label_pool_.release_all_labels();
+
             non_dominated_labels_by_node_pos_.clear();
             non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
@@ -43,10 +59,28 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (this->number_of_labels() > 0 && i < this->params_.max_iterations) {
-                if (this->is_interrupted()) {
-                    break;
+            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
+                // Periodic memory check (skip i == 0 to avoid cost on every first iteration).
+                if (i > 0 && this->memory_limit_.effective_limit > 0 &&
+                    i % this->params_.memory_check_interval == 0) {
+                    if (this->memory_limit_.is_exceeded()) {
+                        LOG_WARN("Memory limit (",
+                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
+                                 " MB) exceeded (current: ",
+                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
+                                 " MB). Stopping early.\n");
+                        break;
+                    }
+                    if (this->memory_limit_.is_under_pressure()) {
+                        LOG_INFO("Memory pressure: ",
+                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
+                                 " MB / ",
+                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
+                                 " MB. Trimming label queues.\n");
+                        this->on_memory_pressure();
+                    }
                 }
+
                 ++i;
 
                 // next label to process
@@ -60,13 +94,16 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 // label dominated -> continue to next one
                 auto& label = *label_iterator_pair.first;
                 if (label.dominated) {
-                    this->label_pool_.release_label(&label);
+                    this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
                 if (this->params_.prune_based_on_upper_bound_ &&
                     label.get_cost() >= this->best_cost_upper_bound_) {
                     remove_label(label_iterator_pair.second);
-                    this->label_pool_.release_label(&label);
+                    // Use release_with_ref_count (not release_label): this label was added to
+                    // the non-dominated set, so it pins a predecessor whose ref_count must be
+                    // decremented. Plain release_label would leak that predecessor.
+                    this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
 
@@ -94,7 +131,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     this->total_full_extend_time_.stop();
                 } else {
                     remove_label(label_iterator_pair.second);
-                    this->label_pool_.release_label(&label);
+                    this->label_pool_.release_with_ref_count(&label);
                 }
             }
         }
@@ -132,72 +169,31 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos())
                         .add_label(&new_label);
                 add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
+                // Pin predecessor: keep it alive until this label is released.
+                new_label.set_prev_label(label_ptr);
             } else {
                 if (!feasible) {
                     ++this->nb_infeasible_labels_;
                 } else {
                     ++this->nb_dominated_labels_;
                 }
+                // new_label was never a predecessor; release immediately.
                 this->label_pool_.release_label(&new_label);
             }
         }
 
-        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {  // NOLINT
+        /// @brief Reconstruct the path by following prev_label pointers.
+        ///
+        /// O(hops): every accepted label stores a pointer to its predecessor,
+        /// kept alive via @ref ref_count until this label is released.
+        std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
             std::vector<size_t> path_arc_ids;
-
-            auto in_arc_ptr = label.get_in_arc();
-
-            if (in_arc_ptr != nullptr) {
-                path_arc_ids.push_back(in_arc_ptr->id);
-
-                auto prev_node_ptr = in_arc_ptr->origin;
-
-                const Label<ResourceType>* current_label_ptr = &label;
-
-                while (prev_node_ptr != nullptr) {
-                    bool found = false;
-                    for (const auto label_ptr :
-                         non_dominated_labels_by_node_pos_.at(prev_node_ptr->pos()).get_labels()) {
-                        // if cannot reach the current label from this label, skip it
-                        if (!label_ptr->is_reachable(in_arc_ptr->destination->id)) {
-                            continue;
-                        }
-                        auto& next_label_ref =
-                            this->label_pool_.get_next_label(in_arc_ptr->destination);
-                        label_ptr->extend(*in_arc_ptr, &next_label_ref);
-
-                        if (next_label_ref <= *current_label_ptr) {
-                            current_label_ptr = label_ptr;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found) {
-                        // if at source, we find a feasible path.
-                        // We check only here to authorize to pass several times by the source if
-                        // needed
-                        if (prev_node_ptr->source) {
-                            prev_node_ptr = nullptr;
-                        } else {  // otherwise, no feasible path has been found
-                            LOG_ERROR(
-                                "Error while extracting path: could not find previous label.\n");
-                            return {};
-                        }
-                    } else {
-                        in_arc_ptr = current_label_ptr->get_in_arc();
-                        if (in_arc_ptr != nullptr) {
-                            path_arc_ids.push_back(in_arc_ptr->id);
-                            prev_node_ptr = in_arc_ptr->origin;
-                        } else {
-                            prev_node_ptr = nullptr;
-                        }
-                    }
-                }
+            const Label<ResourceType>* cur = &label;
+            while (cur != nullptr && cur->get_in_arc() != nullptr) {
+                path_arc_ids.push_back(cur->get_in_arc()->id);
+                cur = cur->prev_label;
             }
-
             std::ranges::reverse(path_arc_ids);
-
             return path_arc_ids;
         }
 
@@ -307,10 +303,10 @@ struct NodeUnprocessedLabelsManager {
         void resize_unprocessed_labels(
             std::list<LabelIteratorPair<ResourceType>>* unprocessed_labels, size_t new_size,
             LabelPool<ResourceType>* label_pool, bool sort) {
-            int num_exceeding_labels = unprocessed_labels->size() - new_size;
-            if (num_exceeding_labels <= 0) {
+            if (unprocessed_labels->size() <= new_size) {
                 return;
             }
+            size_t num_exceeding_labels = unprocessed_labels->size() - new_size;
 
             if (sort) {
                 // sort labels by cost (ascending)
@@ -329,7 +325,7 @@ struct NodeUnprocessedLabelsManager {
             for (auto& p : *unprocessed_labels) {
                 if (i++ >= new_size) {
                     if (p.first->dominated && label_pool) {
-                        label_pool->release_label(p.first);
+                        label_pool->release_with_ref_count(p.first);
                         p.first = nullptr;
                     } else {
                         store_truncated_unprocessed_label(p);
@@ -360,6 +356,66 @@ struct NodeUnprocessedLabelsManager {
             // restart the loop at the beginning
             initialize_unprocessed_labels(unprocessed_labels_by_node_pos_.size());
             assert(check_number_of_unprocessed_labels());
+        }
+
+        /// @brief Trim all per-node unprocessed queues to at most max_per_node labels.
+        ///
+        /// Dominated excess labels are immediately recycled into @p pool.
+        /// Non-dominated excess labels are stored in the truncated queue for a
+        /// subsequent phase, consistent with resize_unprocessed_labels().
+        ///
+        /// @param max_per_node Maximum labels to retain per node (cheapest ones).
+        /// @param pool  Label pool to recycle dominated labels into. May be nullptr.
+        void trim_all_queues(size_t max_per_node, LabelPool<ResourceType>* pool) {
+            resize_current_unprocessed_labels(max_per_node, pool);
+            for (auto& labels_at_node : unprocessed_labels_by_node_pos_) {
+                resize_unprocessed_labels(&labels_at_node, max_per_node, pool, /*sort=*/true);
+            }
+        }
+
+        /// @brief Release and discard all labels currently in the truncated queue.
+        ///
+        /// For each truncated label: invokes @p remove_from_nondom (a callable with
+        /// signature `void(const std::list<Label<ResourceType>*>::iterator&)`) to
+        /// remove it from the non-dominated container, then recycles it into @p pool.
+        /// Clears the truncated queues afterwards.
+        ///
+        /// Truncated labels are not counted in @ref num_unprocessed_labels_, so no
+        /// counter update is needed.
+        ///
+        /// @param pool              Pool to recycle labels into.
+        /// @param remove_from_nondom  Callable that removes a label from its node's
+        ///                            non-dominated set given the list iterator.
+        template <typename RemoveFn>
+        void release_truncated_labels(LabelPool<ResourceType>* pool,
+                                      RemoveFn&& remove_from_nondom) {
+            for (auto& truncated_list : truncated_unprocessed_labels_by_node_pos_) {
+                for (auto& [label_ptr, label_iter] : truncated_list) {
+                    remove_from_nondom(label_iter);
+                    // Truncated labels were non-dominated (added to the set), so they pin a
+                    // predecessor and may themselves be pinned: release_with_ref_count keeps the
+                    // ref_count chain balanced instead of leaking it.
+                    pool->release_with_ref_count(label_ptr);
+                }
+                truncated_list.clear();
+            }
+        }
+
+        /// @brief Clear all unprocessed and truncated queues.
+        ///
+        /// Does NOT release the Label objects (pool owns them).  Call this
+        /// after the pool has been freed so no dangling pointers remain in
+        /// the queues.
+        void clear_all_queues() {
+            current_unprocessed_labels_.clear();
+            for (auto& labels : unprocessed_labels_by_node_pos_) {
+                labels.clear();
+            }
+            for (auto& labels : truncated_unprocessed_labels_by_node_pos_) {
+                labels.clear();
+            }
+            num_unprocessed_labels_ = 0;
+            current_unprocessed_node_pos_ = 0;
         }
 
         [[nodiscard]] bool check_number_of_unprocessed_labels() const {

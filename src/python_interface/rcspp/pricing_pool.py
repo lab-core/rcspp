@@ -199,10 +199,19 @@ class SharedPricingPool:
         """Attach to an existing pool from a worker process (zero-copy)."""
         obj = object.__new__(cls)
         obj._lock = handle["lock"]
-        obj._shm = SharedMemory(name=handle["shm_name"], create=False)
-        # This process does not own the segment; prevent its resource_tracker
-        # from unlinking it on exit (spawn-safety — see _untrack_shared_memory).
-        _untrack_shared_memory(obj._shm)
+        # This process does not own the segment, so it must not let its
+        # resource_tracker unlink it on exit (spawn-safety).  On Python 3.13+
+        # ``track=False`` keeps the segment out of the tracker entirely — the
+        # clean way, with no shutdown noise.  On older versions, register and
+        # then immediately unregister (see _untrack_shared_memory); that is
+        # still spawn-safe but the shared tracker logs a benign KeyError at
+        # exit because the owner's unlink() unregisters the same name again.
+        name = handle["shm_name"]
+        try:
+            obj._shm = SharedMemory(name=name, create=False, track=False)
+        except TypeError:  # Python < 3.13: no ``track`` parameter
+            obj._shm = SharedMemory(name=name, create=False)
+            _untrack_shared_memory(obj._shm)
         hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=obj._shm.buf)
         obj._n_constraints = int(hdr["n_constraints"][0])
         obj._max_cols = int(hdr["max_cols"][0])

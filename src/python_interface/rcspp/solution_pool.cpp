@@ -106,12 +106,16 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                     fp->remove_if([=](SolutionPool::ColumnId,
                                       const Solution&,
                                       const ColumnActivity& act) -> bool {
-                        if (max_age.has_value() && act.age > *max_age) return true;
+                        if (max_age.has_value() && act.age > *max_age) {
+                            return true;
+                        }
                         if (min_usage_rate.has_value() && act.priced_count > 0 &&
-                            act.usage_rate() < *min_usage_rate)
+                            act.usage_rate() < *min_usage_rate) {
                             return true;
-                        if (max_last_rc.has_value() && act.last_reduced_cost >= *max_last_rc)
+                        }
+                        if (max_last_rc.has_value() && act.last_reduced_cost >= *max_last_rc) {
                             return true;
+                        }
                         return false;
                     });
                 }

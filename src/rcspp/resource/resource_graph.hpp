@@ -262,7 +262,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(
+        SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
@@ -276,8 +276,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(AlgorithmParams<LabelContainerType> params,
-                                    bool preprocess = true, size_t cost_index = 0) {
+        SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
+                          size_t cost_index = 0) {
             AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
                                                                                  params);
             return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
@@ -287,9 +287,33 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                            cost_index);
         }
 
+        /// @brief Solve using base algorithm parameters (without explicit container type).
+        ///
+        /// Convenience overload that wraps @p base_params in a default-constructed
+        /// AlgorithmParams so callers only need to set the base fields (e.g. memory
+        /// limits, stop conditions) without knowing the internal ResourceCompositionType.
+        ///
+        /// @param base_params    Base algorithm parameters (memory limits, stop conditions…).
+        /// @param upper_bound    Cost upper bound; solutions above this are discarded.
+        /// @param preprocess     Whether to run preprocessing before solving.
+        /// @param cost_index     Index of the cost component to use.
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
+                  typename CostResourceType = RealResource,
+                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+            requires is_numerical_resource_v<CostResourceType>
+        SolveResult solve(AlgorithmBaseParams base_params,
+                          double upper_bound = std::numeric_limits<double>::infinity(),
+                          bool preprocess = true, size_t cost_index = 0) {
+            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+                upper_bound,
+                AlgorithmParams<LabelContainerType>(std::move(base_params)),
+                preprocess,
+                cost_index);
+        }
+
         template <typename AlgorithmType, typename CostResourceType = RealResource>
             requires is_numerical_resource_v<CostResourceType>
-        std::vector<Solution> solve(  // NOLINT(readability-function-cognitive-complexity)
+        SolveResult solve(  // NOLINT(readability-function-cognitive-complexity)
             AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
             bool preprocess = true, size_t cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
@@ -370,7 +394,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             this->build_csr();
 
             // solve the rcspp
-            std::vector<Solution> sols = algorithm->solve(this, upper_bound);
+            SolveResult result = algorithm->solve(this, upper_bound);
 
             // restore the removed arcs for the next resolution
             if (preprocess) {
@@ -380,7 +404,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 this->track_modifications();  // mark as unmodified after restoring arcs
             }
 
-            return sols;
+            return result;
         }
 
         void process_feasibility() {

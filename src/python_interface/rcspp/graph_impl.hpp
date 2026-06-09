@@ -97,28 +97,43 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy };
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
 
 template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
         static constexpr SolverAlgorithm value = E;
         template <typename RG, typename CostRC, typename LC>
-        static std::vector<Solution> run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre,
-                                         size_t ci) {
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
             return rg.template solve<Algo, CostRC, LC>(ub, std::move(p), pre, ci);
+        }
+};
+
+// Dispatch entry for A*: injects cost_index into params and binds CostRC.
+template <SolverAlgorithm E>
+struct AStarAlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC, typename LC>
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            p.heuristic_cost_index = ci;
+            return rg.template solve<AStarAlgoBound<CostRC>::template Algo, CostRC, LC>(
+                ub,
+                std::move(p),
+                pre,
+                ci);
         }
 };
 
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>>;
+                                  AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
+                                  AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
+                                  AStarAlgoEntry<SolverAlgorithm::AStar>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
-std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub,
-                                              AlgorithmParams<LC> p, bool pre, size_t ci,
-                                              std::tuple<Entries...>* /*tag*/) {
-    std::vector<Solution> result;
+SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
+                                    bool pre, size_t ci, std::tuple<Entries...>* /*tag*/) {
+    SolveResult result;
     [[maybe_unused]] bool matched =
         ((Entries::value == alg
               ? (result = Entries::template run<RG, CostRC, LC>(rg, ub, p, pre, ci), true)
@@ -128,8 +143,8 @@ std::vector<Solution> dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, doubl
 }
 
 template <typename RG, typename CostRC, typename LC>
-std::vector<Solution> dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub,
-                                         AlgorithmParams<LC> p, bool pre, size_t ci) {
+SolveResult dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
+                               bool pre, size_t ci) {
     p.should_stop = &ActiveCall::is_interrupted;
     return dispatch_algorithm_impl<RG, CostRC, LC>(alg,
                                                    rg,
@@ -198,8 +213,8 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
 // Empty string → use CostRC (default). Non-numerical types are skipped.
 
 template <typename RG, typename RC, typename CostRC, typename... ResourceTypes>
-std::vector<Solution> run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
-                                       const PyBucketAlgorithmParams& py_p, bool pre, size_t ci) {
+SolveResult run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
+                             const PyBucketAlgorithmParams& py_p, bool pre, size_t ci) {
     auto check_index = [&](const char* param, size_t idx, size_t count) {
         if (idx >= count) {
             throw py::value_error(std::string(param) + " " + std::to_string(idx) +
@@ -209,7 +224,7 @@ std::vector<Solution> run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
         }
     };
 
-    std::vector<Solution> result;
+    SolveResult result;
     auto run_func = [&]<typename RT>() {
         const auto& factory = rg.get_resource_factory();
         check_index("bucket_resource_index",
@@ -353,16 +368,42 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
         .def(
             "_add_rows_bulk",
             [](G& g, py::array_t<double, py::array::c_style | py::array::forcecast> rows) {
+                // rows must be sorted by arc_id (column 0) — the Python side
+                // guarantees this via np.argsort in _build_base_graph.
+                //
+                // Process contiguous runs of the same arc_id: look up the arc
+                // once per run, reserve capacity once, then push_back every row
+                // in the run directly into the arc's rows vector.  This avoids:
+                //   • one std::vector<Row> heap allocation per row (old code),
+                //   • repeated bounds checks and pointer dereferences per row.
                 auto r = rows.unchecked<2>();
-                for (py::ssize_t i = 0; i < r.shape(0); ++i) {
-                    g.add_rows_to_arc(static_cast<size_t>(r(i, 0)),
-                                      {Row{.index = static_cast<size_t>(r(i, 1)),
-                                           .coefficient = static_cast<long double>(r(i, 2))}});
+                const auto n = r.shape(0);
+                py::ssize_t i = 0;
+                while (i < n) {
+                    const auto arc_id = static_cast<size_t>(r(i, 0));
+                    auto* arc = g.get_arc(arc_id);
+                    // Find the end of this arc's run.
+                    py::ssize_t j = i + 1;
+                    while (j < n && static_cast<size_t>(r(j, 0)) == arc_id) {
+                        ++j;
+                    }
+                    if (arc != nullptr) {
+                        auto& dr = arc->rows;
+                        dr.reserve(dr.size() + static_cast<size_t>(j - i));
+                        for (py::ssize_t k = i; k < j; ++k) {
+                            dr.push_back(Row{
+                                .index = static_cast<size_t>(r(k, 1)),
+                                .coefficient = static_cast<long double>(r(k, 2)),
+                            });
+                        }
+                    }
+                    i = j;
                 }
             },
             py::arg("rows"),
             py::call_guard<py::gil_scoped_release>(),
-            "Bulk-append rows from a (N, 3) float64 array [arc_id, row_index, coeff].");
+            "Bulk-append rows from a (N, 3) float64 array [arc_id, row_index, coeff]. "
+            "The array must be sorted by arc_id (column 0).");
 }
 
 // ─── Helper: bind common ResourceGraph methods ────────────────────────────────
@@ -388,7 +429,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                double ub,
                const PyBucketAlgorithmParams& py_p,
                bool pre,
-               size_t ci) -> std::vector<Solution> {
+               size_t ci) -> SolveResult {
                 return ActiveCall::run_interruptible([&] {
                     return run_bucket_solve<RG, RC, CostRC, ResourceTypes...>(alg,
                                                                               rg,
@@ -410,7 +451,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                double ub,
                const PyAlgorithmParams& py_p,
                bool pre,
-               size_t ci) -> std::vector<Solution> {
+               size_t ci) -> SolveResult {
                 using LC = LabelList<RC>;
                 auto p = py_p.template to_params<LC>();
                 return ActiveCall::run_interruptible(

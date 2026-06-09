@@ -8,8 +8,10 @@ import os
 import random
 import sys
 
-sys.path.insert(0, os.path.abspath("../python_interface/"))
-sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_interface")
+)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from vrp.instance import Customer, Instance
 

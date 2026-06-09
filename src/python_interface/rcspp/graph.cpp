@@ -79,7 +79,52 @@ void init_graph(py::module_& m) {
         .value("Simple", SolverAlgorithm::Simple)
         .value("Pushing", SolverAlgorithm::Pushing)
         .value("Pulling", SolverAlgorithm::Pulling)
-        .value("Greedy", SolverAlgorithm::Greedy);
+        .value("Greedy", SolverAlgorithm::Greedy)
+        .value("Tabu", SolverAlgorithm::Tabu)
+        .value("AStar", SolverAlgorithm::AStar);
+
+    // ── AlgorithmStatus enum ──────────────────────────────────────────────────
+
+    py::enum_<AlgorithmStatus>(m, "AlgorithmStatus")
+        .value("Complete", AlgorithmStatus::COMPLETE)
+        .value("Timeout", AlgorithmStatus::TIMEOUT)
+        .value("MaxSolutions", AlgorithmStatus::MAX_SOLUTIONS)
+        .value("MaxPhases", AlgorithmStatus::MAX_PHASES)
+        .value("Interrupted", AlgorithmStatus::INTERRUPTED)
+        .value("MemoryLimit", AlgorithmStatus::MEMORY_LIMIT);
+
+    // ── SolveResult ───────────────────────────────────────────────────────────
+
+    py::class_<SolveResult>(m, "SolveResult")
+        .def(py::init<>())
+        .def_readwrite("solutions", &SolveResult::solutions)
+        .def_readwrite("status", &SolveResult::status)
+        .def("status_string", &SolveResult::status_string)
+        // Sequence protocol — lets existing code treat SolveResult like list[Solution].
+        .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
+        .def(
+            "__iter__",
+            [](const SolveResult& r) {
+                return py::make_iterator(r.solutions.begin(), r.solutions.end());
+            },
+            py::keep_alive<0, 1>())
+        .def(
+            "__getitem__",
+            [](const SolveResult& r, py::ssize_t i) -> const Solution& {
+                if (i < 0) {
+                    i += static_cast<py::ssize_t>(r.solutions.size());
+                }
+                if (i < 0 || static_cast<size_t>(i) >= r.solutions.size()) {
+                    throw py::index_error("index out of range");
+                }
+                return r.solutions[static_cast<size_t>(i)];
+            },
+            py::return_value_policy::reference_internal)
+        .def("__bool__", [](const SolveResult& r) { return !r.solutions.empty(); })
+        .def("__repr__", [](const SolveResult& r) {
+            return "SolveResult(status=" + r.status_string() +
+                   ", solutions=" + std::to_string(r.solutions.size()) + ")";
+        });
 
     // ── Shared scalar types ───────────────────────────────────────────────────
 
@@ -104,10 +149,46 @@ void init_graph(py::module_& m) {
                        &PyAlgorithmParams::num_labels_to_extend_by_node)
         .def_readwrite("num_max_phases", &PyAlgorithmParams::num_max_phases)
         .def_readwrite("max_iterations", &PyAlgorithmParams::max_iterations)
+        .def_readwrite("timeout_s",
+                       &PyAlgorithmParams::timeout_s,
+                       "Wall-clock timeout in seconds; solve() returns early when elapsed >= "
+                       "timeout_s (default: inf).")
+        .def_readwrite("tolerance",
+                       &PyAlgorithmParams::tolerance,
+                       "Numerical tolerance for cost comparisons (default 1e-9).")
+        .def_readwrite(
+            "release_after_solve",
+            &PyAlgorithmParams::release_after_solve,
+            "If true (default), release label memory after solve(). Set to false when the "
+            "same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() "
+            "overhead.")
         .def_readwrite("tabu_tenure", &PyAlgorithmParams::tabu_tenure)
         .def_readwrite("forbidden_tabu", &PyAlgorithmParams::forbidden_tabu)
         .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
-        .def_readwrite("seed", &PyAlgorithmParams::seed);
+        .def_readwrite("seed", &PyAlgorithmParams::seed)
+        // ── Memory-limit parameters ──────────────────────────────────────
+        .def_readwrite("max_memory_gb",
+                       &PyAlgorithmParams::max_memory_gb,
+                       "Hard cap on process RSS in GiB (0 = unlimited). "
+                       "The solver stops early and returns whatever solutions have been found.")
+        .def_readwrite("limit_to_available_ram",
+                       &PyAlgorithmParams::limit_to_available_ram,
+                       "Derive limit from currently-available system RAM.")
+        .def_readwrite("limit_to_total_ram",
+                       &PyAlgorithmParams::limit_to_total_ram,
+                       "Derive limit from total physical RAM.")
+        .def_readwrite("memory_limit_fraction",
+                       &PyAlgorithmParams::memory_limit_fraction,
+                       "Fraction of RAM to use as limit (default 0.9).")
+        .def_readwrite("memory_check_interval",
+                       &PyAlgorithmParams::memory_check_interval,
+                       "Main-loop iterations between RSS checks (default 50 000).")
+        .def_readwrite("memory_pressure_fraction",
+                       &PyAlgorithmParams::memory_pressure_fraction,
+                       "RSS/limit fraction that triggers queue pruning (default 0.8).")
+        .def_readwrite("memory_pressure_max_labels_per_node",
+                       &PyAlgorithmParams::memory_pressure_max_labels_per_node,
+                       "Max labels per node when under memory pressure (default 200).");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

@@ -11,7 +11,9 @@
 
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
+#ifdef RCSPP_VRP_HAS_BOOST
 #include "cg/subproblem/boost/boost_subproblem.hpp"
+#endif
 #include "rcspp/rcspp.hpp"
 #include "rcspp/resource/concrete/functions/extension/ng-path_extension_function.hpp"
 
@@ -53,7 +55,7 @@ const std::vector<Path>& VRP::generate_initial_paths() {
 
         paths_.emplace_back(path_id_,
                             path_cost,
-                            std::list<size_t>{depot_customer.id, customer_id, depot_customer.id});
+                            std::vector<size_t>{depot_customer.id, customer_id, depot_customer.id});
 
         ++path_id_;
     }
@@ -163,6 +165,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     double min_reduced_cost = -std::numeric_limits<double>::infinity();
     std::map<size_t, double> final_dual_by_id;
     int nb_iter = 0;
+    bool proven_optimal = true;
     while (min_reduced_cost < -EPSILON) {
         master_solution = master_problem.solve();
 
@@ -178,7 +181,8 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         std::vector<Solution> solutions_rcspp;
         total_subproblem_time_.start();
         AlgorithmParams<LabelList<ResourceType>> params;
-        solutions_rcspp = solve_with_rcspp(dual_by_id, params);
+        AlgorithmStatus pricing_status = AlgorithmStatus::COMPLETE;
+        solutions_rcspp = solve_with_rcspp(dual_by_id, params, &pricing_status);
         // solutions_rcspp = solve_with_rcspp<PushingDominanceAlgorithmIterators>(dual_by_id);
         // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
@@ -196,14 +200,17 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         //     }
         // }
 
+#ifdef RCSPP_VRP_HAS_BOOST
         std::vector<Solution> solutions_boost;
         total_subproblem_time_boost_.start();
         solutions_boost = solve_with_boost(dual_by_id);
         total_subproblem_time_boost_.stop();
+#endif
 
         min_reduced_cost = 0;
         std::vector<Solution> negative_red_cost_solutions;
 
+#ifdef RCSPP_VRP_HAS_BOOST
         // Cross-check both solvers only when both return results
         if (!solutions_boost.empty() && !solutions_rcspp.empty()) {
             LOG_DEBUG("Solution BOOST cost: ", solutions_boost[0].cost, '\n');
@@ -219,11 +226,17 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
                 // break;
             }
         }
+#endif
 
         // Select solutions from the chosen solver; move to avoid unnecessary copy
         std::vector<Solution> solutions;
         if (use_boost) {
+#ifdef RCSPP_VRP_HAS_BOOST
             solutions = std::move(solutions_boost);
+#else
+            LOG_WARN("Boost is not compiled in; ignoring use_boost=true\n");
+            solutions = std::move(solutions_rcspp);
+#endif
         } else {
             solutions = std::move(solutions_rcspp);
         }
@@ -249,6 +262,20 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         if (min_reduced_cost >= -EPSILON) {
             final_dual_by_id = master_solution.dual_by_var_id;
+            // CG is about to stop. If the final pricing solve was cut short, a "no improving
+            // column" result does not prove optimality of the master LP.
+            if (pricing_status != AlgorithmStatus::COMPLETE) {
+                proven_optimal = false;
+                LOG_WARN(
+                    "Column generation stopped without proving optimality: the final pricing "
+                    "subproblem exited with status '",
+                    to_string(pricing_status),
+                    "' (not complete), so an improving column may have been missed. The master "
+                    "objective ",
+                    master_solution.cost,
+                    " is a valid bound but is NOT proven optimal. Increase the subproblem "
+                    "timeout / memory / phase limits to converge.\n");
+            }
         }
 
         LOG_DEBUG(std::string(45, '*'), '\n');
@@ -271,6 +298,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
     // Last solve as a MIP
     master_solution = master_problem.solve(false);
     master_solution.dual_by_var_id = final_dual_by_id;
+    master_solution.proven_optimal = proven_optimal;
 
     return master_solution;
 }
@@ -279,6 +307,7 @@ const std::vector<Path>& VRP::get_paths() const {
     return paths_;
 }
 
+#ifdef RCSPP_VRP_HAS_BOOST
 std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual_by_id) {
     BoostSubproblem subproblem(instance_, &dual_by_id);
 
@@ -294,6 +323,7 @@ std::vector<Solution> VRP::solve_with_boost(const std::map<size_t, double>& dual
 
     return solutions;
 }
+#endif
 
 std::map<size_t, std::pair<double, double>> VRP::initialize_time_windows() {
     LOG_TRACE(__FUNCTION__, '\n');

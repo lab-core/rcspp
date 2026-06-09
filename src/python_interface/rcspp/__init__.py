@@ -48,14 +48,23 @@ if not _os.path.exists(_os.path.join(_pkg_dir, f"_core{_ext_suffix}")):
 del _imputil, _os, _sys, _sysconfig, _pkg_dir, _ext_suffix
 
 from . import graph, logger, resource  # noqa: E402
-from ._core.graph import check_interrupted  # noqa: E402
+from ._core import available_memory_bytes, process_memory_bytes  # noqa: E402
+from ._core.graph import (  # noqa: E402
+    AlgorithmStatus,
+    SolveResult,
+    check_interrupted,
+)
 from .graph import ResourceGraph  # noqa: E402
 from .logger import LogLevel, get_log_level, init_logger, set_log_level  # noqa: E402
 
 __all__ = [
+    "AlgorithmStatus",
     "ResourceGraph",
+    "available_memory_bytes",
+    "SolveResult",
     "check_interrupted",
     "graph",
+    "process_memory_bytes",
     "resource",
     "logger",
     "LogLevel",
