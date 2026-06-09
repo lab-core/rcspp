@@ -134,21 +134,19 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 // The reduced-cost relaxation has a negative-cost cycle, so the shortest
                 // reduced-cost-to-sink is -inf: there is no finite lower bound to use as h.
                 //
-                // We deliberately do NOT fall back to arc.cost here (the previous behaviour).
-                // arc.cost is the ORIGINAL, non-negative arc weight — a different quantity from the
-                // reduced cost carried in g. Per arc, reduced cost <= original cost (the duals are
-                // non-negative) and is frequently negative, so a sum of arc.cost OVER-estimates the
-                // remaining reduced cost. An over-estimating h is NOT admissible: with per-node
-                // truncation or memory-pressure pruning (which retain the lowest-f labels) it can
-                // discard the labels lying on the true optimal path and then return a suboptimal
-                // solution while still reporting AlgorithmStatus::COMPLETE.
+                // Disable the heuristic (h == 0, already set by the assign() above) rather than
+                // seeding it from arc.cost. arc.cost is the ORIGINAL, non-negative arc weight — a
+                // different quantity from the reduced cost carried in g. Per arc, reduced cost <=
+                // original cost (the duals are non-negative) and is frequently negative, so a sum
+                // of arc.cost OVER-estimates the remaining reduced cost. An over-estimating h is
+                // NOT admissible: with per-node truncation or memory-pressure pruning (which retain
+                // the lowest-f labels) it can discard the labels lying on the true optimal path and
+                // then return a suboptimal solution while still reporting AlgorithmStatus::COMPLETE.
                 //
-                // With no valid lower bound available we disable the heuristic (h == 0, already set
-                // by the assign() above). A* then degrades to an ordinary reduced-cost-ordered
-                // label-correcting search — the same ordering the non-A* dominance algorithms use.
-                // A full (untruncated) search is still exact; under truncation it now prunes by
-                // current reduced cost (a sensible criterion) instead of by an unrelated
-                // original-cost metric.
+                // With h == 0, A* is an ordinary reduced-cost-ordered label-correcting search — the
+                // same ordering the non-A* dominance algorithms use. A full (untruncated) search is
+                // still exact; under truncation it prunes by current reduced cost (a sensible
+                // criterion) rather than by an unrelated original-cost metric.
                 LOG_DEBUG(
                     "AStarDominanceAlgorithm: reduced-cost relaxation has a negative-cost cycle; "
                     "disabling the A* heuristic (h = 0) for this solve.\n");

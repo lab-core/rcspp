@@ -45,8 +45,11 @@ class TabuList {
         size_t add(size_t arc_id, size_t base_tenure, bool noise) {
             size_t t = base_tenure + extra_;
             if (noise && t > 0) {
-                std::uniform_int_distribution<int> d(t > 1 ? -1 : 0, 1);
-                t = static_cast<size_t>(static_cast<int>(t) + d(rnd_));
+                // Apply the ±1 jitter on the size_t directly: a tenure exceeding INT_MAX cannot be
+                // round-tripped through int (that cast is undefined behaviour). delta == -1 is only
+                // drawn when t > 1, so t - 1 >= 1 and the subtraction cannot underflow.
+                const int delta = std::uniform_int_distribution<int>(t > 1 ? -1 : 0, 1)(rnd_);
+                t = (delta < 0) ? t - 1 : t + static_cast<size_t>(delta);
             }
             auto& current = tenure_[arc_id];
             current = std::max<size_t>(current, t);
@@ -75,10 +78,13 @@ class TabuList {
             age(noop);
         }
 
-        /// Adaptive tenure: grow when an iteration produced nothing useful (e.g. a
-        /// duplicate solution or a dead-end). Mirrors the heuristic in the original
-        /// DiversificationSearch.
-        void grow_extra() { extra_ = 1 + 2 * extra_; }
+        /// Adaptive tenure: grow when an iteration produced nothing useful (a duplicate
+        /// solution or a dead-end). Grows by 1 — the same step @ref shrink_extra removes — so the
+        /// adaptive component stays bounded by the number of grow calls (i.e. by the iteration
+        /// budget). Keeping it bounded matters: a tenure that exceeds the iteration budget would
+        /// forbid nearly every arc and collapse the tabu search into greedy/aspiration moves, and
+        /// an unbounded @c extra_ would overflow the tenure arithmetic in @ref add.
+        void grow_extra() { ++extra_; }
 
         /// Adaptive tenure: shrink (down to zero) when an iteration produced something
         /// new. Use only if your algorithm wants to relax the list on success; calling

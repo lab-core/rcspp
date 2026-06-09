@@ -231,16 +231,15 @@ DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_MEMORY_LIMIT_TESTS
 
-// ── Ref-count bookkeeping regression (H3) ──────────────────────────────────────
+// ── Label-pool ref-count consistency ───────────────────────────────────────────
 //
-// A previous version released dominated / truncated labels with the raw
-// LabelPool::release_label(), which skipped the predecessor ref_count decrement that
-// release_with_ref_count() performs. That leaked pinned predecessors — defeating the
-// memory-limit reclamation — and, in pulling, could recycle a label a live successor
-// still pointed to. After a full solve the pool's prev_label/ref_count chain must be
+// The dominance algorithms must release dominated / truncated labels through
+// LabelPool::release_with_ref_count() (not the raw release_label()), so the predecessor's
+// ref_count is decremented and a label that a live successor still points to is never
+// recycled. After a full solve the pool's prev_label/ref_count chain must therefore be
 // internally consistent: every in-use label's ref_count equals the number of in-use
 // labels naming it as predecessor, and no in-use label points to a recycled predecessor.
-// (PushingDominance always used release_with_ref_count and serves as a control.)
+// (PushingDominance routes dominated labels through release_with_ref_count; it is a control.)
 template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
 void test_ref_count_consistency_after_solve() {
     const std::string instance_name = "R101";
@@ -278,13 +277,13 @@ DEFINE_REFCOUNT_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_REFCOUNT_TEST
 
-// ── Exit-status accuracy (foundation for H4) ───────────────────────────────────
+// ── Exit-status accuracy ────────────────────────────────────────────────────────
 //
 // The VRP column-generation loop trusts "pricing found no improving column" as a proof of
 // LP-optimality ONLY when the pricing subproblem returns AlgorithmStatus::COMPLETE; any other
 // status means the solve was cut short, so optimality is not proven (VRP::solve then warns and
 // flags proven_optimal = false). These tests verify solve() reports that status accurately —
-// end-to-end through the real pricing solver — which is the signal the H4 fix consumes. (The
+// end-to-end through the real pricing solver — the signal column generation relies on. (The
 // CG-loop branch itself runs only in the Gurobi-backed VRP build, which CI does not compile.)
 
 template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
@@ -365,15 +364,14 @@ DEFINE_STATUS_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_STATUS_TESTS
 
-// ── COMPLETE status precedence (M2) ────────────────────────────────────────────
+// ── COMPLETE status precedence ──────────────────────────────────────────────────
 //
 // A finished run (number_of_labels() == 0) must be reported COMPLETE even if a timeout /
 // interrupt / memory flag is (re-)true at status-determination time — completion takes precedence
 // over the early-stop reasons. We exercise this with a tiny memory limit (so
 // memory_limit_.is_exceeded() is true when the status is computed) combined with an enormous
 // memory_check_interval (so the periodic check never fires during the solve and the search runs
-// to completion). Before the M2 fix the status code checked is_exceeded() before
-// number_of_labels() == 0 and would return MEMORY_LIMIT here.
+// to completion). The status must then be COMPLETE, not MEMORY_LIMIT.
 template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
 void test_status_complete_beats_memory_flag() {
     const std::string instance_name = "R101";
@@ -410,13 +408,12 @@ DEFINE_M2_TEST(PullingDominance, PullingDominanceAlgorithm)
 DEFINE_M2_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 #undef DEFINE_M2_TEST
 
-// ── A* heuristic fallback on a negative-cost cycle (M1) ────────────────────────
+// ── A* heuristic fallback on a negative-cost cycle ──────────────────────────────
 //
 // AStarDominanceAlgorithm seeds f = g + h from a backward Bellman-Ford over the (reduced) cost
 // slot. When that slot contains a negative-cost cycle the Bellman-Ford cannot converge and
-// throws; the algorithm catches it and disables the heuristic (h = 0) rather than falling back to
-// arc.cost (which is on the wrong scale, over-estimates the reduced cost-to-go, and would be
-// inadmissible — see astar_dominance_algorithm.hpp). This builds a graph whose cost slot has a
+// throws; the algorithm catches it and disables the heuristic (h = 0); see
+// astar_dominance_algorithm.hpp. This builds a graph whose cost slot has a
 // negative-cost cycle A<->B (sum -20), made finite by a capacity resource, and checks that A*:
 //   (a) does NOT propagate the Bellman-Ford exception (i.e. the catch fires), and
 //   (b) still returns the exact optimum found by the plain SimpleDominanceAlgorithm.
