@@ -77,10 +77,10 @@ struct MemoryInfo {
             std::ifstream status("/proc/self/status");
             std::string line;
             while (std::getline(status, line)) {
-                if (line.rfind("VmRSS:", 0) == 0) {
+                if (line.starts_with("VmRSS:")) {
                     const auto pos = line.find_first_of("0123456789");
                     if (pos != std::string::npos) {
-                        return std::stoull(line.substr(pos)) * 1024ULL;
+                        return std::stoull(line.substr(pos)) * kKB;
                     }
                 }
             }
@@ -127,10 +127,10 @@ struct MemoryInfo {
             std::ifstream meminfo("/proc/meminfo");
             std::string line;
             while (std::getline(meminfo, line)) {
-                if (line.rfind("MemAvailable:", 0) == 0) {
+                if (line.starts_with("MemAvailable:")) {
                     const auto pos = line.find_first_of("0123456789");
                     if (pos != std::string::npos) {
-                        return std::stoull(line.substr(pos)) * 1024ULL;
+                        return std::stoull(line.substr(pos)) * kKB;
                     }
                 }
             }
@@ -181,10 +181,10 @@ struct MemoryInfo {
             std::ifstream meminfo("/proc/meminfo");
             std::string line;
             while (std::getline(meminfo, line)) {
-                if (line.rfind("MemTotal:", 0) == 0) {
+                if (line.starts_with("MemTotal:")) {
                     const auto pos = line.find_first_of("0123456789");
                     if (pos != std::string::npos) {
-                        return std::stoull(line.substr(pos)) * 1024ULL;
+                        return std::stoull(line.substr(pos)) * kKB;
                     }
                 }
             }
