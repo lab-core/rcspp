@@ -21,9 +21,13 @@
 #endif
 // windows.h must precede psapi.h: <psapi.h> declares PROCESS_MEMORY_COUNTERS /
 // GetProcessMemoryInfo using types (DWORD, HANDLE, ...) that <windows.h> defines,
-// and it does not include <windows.h> itself.
+// and it does not include <windows.h> itself.  The NOLINT comments silence
+// cpplint, but clang-format ignores them and would sort psapi.h first
+// (alphabetical), breaking the build — so disable its include sorting here.
+// clang-format off
 #include <windows.h>  // NOLINT(build/include_order) — platform SDK header, must precede psapi.h
 #include <psapi.h>    // NOLINT(build/include_order) — GetProcessMemoryInfo; needs windows.h first
+// clang-format on
 #else
 // POSIX fallback: peak RSS via getrusage (available on Linux/macOS/BSDs)
 #include <sys/resource.h>  // NOLINT(build/include_order) — POSIX header
