@@ -19,6 +19,12 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+// Exclude the GDI drawing API (<wingdi.h>), which declares a global Arc() function that
+// collides with rcspp::Arc wherever that type is named at namespace scope under
+// `using namespace rcspp` (e.g. the Python bindings). We do not use any GDI here.
+#ifndef NOGDI
+#define NOGDI
+#endif
 // windows.h must precede psapi.h: <psapi.h> declares PROCESS_MEMORY_COUNTERS /
 // GetProcessMemoryInfo using types (DWORD, HANDLE, ...) that <windows.h> defines,
 // and it does not include <windows.h> itself.  The NOLINT comments silence
