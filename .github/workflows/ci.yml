@@ -60,7 +60,45 @@ jobs:
       - name: C++ coverage gate
         run: |
           mkdir -p coverage
-          gcovr --config gcovr.cfg --merge-mode-functions=merge-use-line-min build
+          # generate reports (no built-in fail-under; gate is in the script below)
+          gcovr --config gcovr.cfg build
+          # unique-source-line gate: merge all template instantiations of the same
+          # source line (XML has one <class> per instantiation), then require 100%.
+          python3 - <<'PYEOF'
+          import sys
+          import xml.etree.ElementTree as ET
+          from collections import defaultdict
+
+          root = ET.fromstring(open("coverage/cpp.xml").read())
+          file_lines = defaultdict(lambda: defaultdict(int))
+          for cls in root.iter("class"):
+              fn = cls.get("filename", "")
+              for l in cls.findall(".//line"):
+                  lineno = int(l.get("number"))
+                  hits = int(l.get("hits", "0"))
+                  file_lines[fn][lineno] = max(file_lines[fn][lineno], hits)
+
+          total = sum(len(lines) for lines in file_lines.values())
+          covered = sum(
+              1
+              for lines in file_lines.values()
+              for h in lines.values()
+              if h > 0
+          )
+          pct = covered / total * 100 if total else 0
+
+          print("\n=== C++ unique-source-line coverage ===")
+          for fn, lines in sorted(file_lines.items()):
+              uncov = sorted(ln for ln, h in lines.items() if h == 0)
+              if uncov:
+                  cov_pct = (len(lines) - len(uncov)) / len(lines) * 100
+                  tail = "..." if len(uncov) > 20 else ""
+                  print(f"  {fn}: {cov_pct:.1f}%  missing={uncov[:20]}{tail}")
+
+          print(f"\nTotal: {covered}/{total} = {pct:.1f}%")
+          if pct < 100:
+              sys.exit(1)
+          PYEOF
 
       - name: Upload coverage reports
         if: always()

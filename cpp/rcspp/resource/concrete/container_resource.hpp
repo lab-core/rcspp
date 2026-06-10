@@ -127,7 +127,7 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                            other_set.begin(),
                            other_set.end(),
                            std::inserter(result, result.begin()));
-            return result;
+            return result;  // GCOVR_EXCL_LINE
         }
 
         [[nodiscard]] Container get_intersection(const Container& other_set) const override {
@@ -137,7 +137,7 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                   other_set.begin(),
                                   other_set.end(),
                                   std::inserter(result, result.begin()));
-            return result;
+            return result;  // GCOVR_EXCL_LINE
         }
 
         [[nodiscard]] Container subtract(const Container& other_set) const override {
@@ -147,7 +147,7 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                 other_set.begin(),
                                 other_set.end(),
                                 std::inserter(result, result.begin()));
-            return result;
+            return result;  // GCOVR_EXCL_LINE
         }
 };
 
@@ -330,7 +330,7 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
                     }
                 }
             }
-            return result;
+            return result;  // GCOVR_EXCL_LINE
         }
 
         [[nodiscard]] std::string to_string() const override {

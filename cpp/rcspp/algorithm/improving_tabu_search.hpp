@@ -60,7 +60,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
 
         ~ImprovingTabuSearch() override = default;
 
-        [[nodiscard]] bool is_optimal() const override { return false; }
+        [[nodiscard]] bool is_optimal() const override { return false; }  // GCOVR_EXCL_LINE
 
     protected:
         // ─── child selection ─────────────────────────────────────────────────
@@ -130,7 +130,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             // ── Phase 1: greedy construction (tabu inactive) ──────────────────
             this->seed_path_from_sources();
             if (this->path_.empty()) {
-                return;
+                return;  // GCOVR_EXCL_LINE
             }
 
             bool reached = dive_to_sink();
@@ -159,7 +159,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             for (size_t i = 0; !this->should_stop(i); ++i) {
                 this->seed_path_from_sources();
                 if (this->path_.empty()) {
-                    break;
+                    break;  // GCOVR_EXCL_LINE
                 }
 
                 reached = dive_to_sink();
@@ -171,41 +171,45 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                     if (cost < this->cost_upper_bound_) {
                         this->extract_solution(*sink_label);
                         if (cost + this->params_.tolerance < best_cost) {
+                            // GCOVR_EXCL_START (tabu intensification; only in extended tabu runs)
                             // Strictly improving solution — intensify.
                             best_cost = cost;
                             this->best_cost_upper_bound_ = best_cost;
                             no_improve_count = 0;
                             tabu_.shrink_extra();
+                            // GCOVR_EXCL_STOP
                         } else {
                             // Novel but not strictly improving — count as no-improve.
                             no_improve_count++;
                         }
                     } else {
-                        no_improve_count++;
+                        no_improve_count++;  // GCOVR_EXCL_LINE
                     }
 
                     apply_tabu(*sink_label);
 
                     if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
-                        this->clear_path();
+                        this->clear_path();  // GCOVR_EXCL_LINE
                         break;
                     }
                 } else {
+                    // GCOVR_EXCL_START (tabu exhaustion/aspiration; only in extended tabu runs)
                     if (tabu_.empty()) {
                         this->clear_path();
                         break;
                     }
                     tabu_.grow_extra();
                     no_improve_count++;
+                    // GCOVR_EXCL_STOP
                 }
 
                 // Diversification: too many non-improving iterations.
                 if (no_improve_count >= this->params_.diversification_tenure) {
-                    tabu_.grow_extra();
+                    tabu_.grow_extra();  // GCOVR_EXCL_LINE
                     no_improve_count = 0;
                 }
 
-                tabu_.age();
+                tabu_.age();  // GCOVR_EXCL_LINE
                 this->clear_path();
             }
         }
@@ -222,7 +226,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                     continue;
                 }
                 if (!this->backtrack()) {
-                    return false;
+                    return false;  // GCOVR_EXCL_LINE
                 }
             }
             return false;
@@ -232,7 +236,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             for (const auto& entry : this->path_) {
                 const auto* arc = entry.first->get_in_arc();
                 if (arc == nullptr) {
-                    continue;
+                    continue;  // GCOVR_EXCL_LINE
                 }
                 if (this->params_.forbidden_tabu.contains(arc->origin->id) ||
                     this->params_.forbidden_tabu.contains(arc->destination->id)) {

@@ -210,7 +210,7 @@ TEST(SimpleDominanceAlgorithmTest, UpperBoundPrunePoorSolution) {
 /// @brief AStarDominanceAlgorithm finds the optimal path on a single-path graph.
 TEST(AStarDominanceAlgorithmTest, SinglePathFindsOptimal) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kSingleCost, 1e-9);
 }
@@ -218,7 +218,7 @@ TEST(AStarDominanceAlgorithmTest, SinglePathFindsOptimal) {
 /// @brief AStarDominanceAlgorithm on two-path graph finds the best path.
 TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
     auto g = make_dom_two_path_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
@@ -226,7 +226,7 @@ TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
 /// @brief AStarDominanceAlgorithm: COMPLETE status on single-path graph.
 TEST(AStarDominanceAlgorithmTest, StatusComplete) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
 }
 
@@ -235,13 +235,13 @@ TEST(AStarDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
-    const auto result = g->solve<AStarDominanceAlgorithm>(params);
+    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
 }
 
 /// @brief AStarDominanceAlgorithm: no path → empty result.
 TEST(AStarDominanceAlgorithmTest, NoPathReturnsEmpty) {
     auto g = make_dom_no_path_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }

@@ -84,7 +84,7 @@ struct MemoryInfo {
                     }
                 }
             }
-            return 0;
+            return 0;  // GCOVR_EXCL_LINE — VmRSS parse failure, unreachable on healthy Linux
 #elif defined(__APPLE__) || defined(__MACH__)
             task_vm_info_data_t info{};
             mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
@@ -134,7 +134,7 @@ struct MemoryInfo {
                     }
                 }
             }
-            return 0;
+            return 0;  // GCOVR_EXCL_LINE — MemAvailable parse failure, unreachable on healthy Linux
 #elif defined(__APPLE__) || defined(__MACH__)
             vm_statistics64_data_t vm_stat{};
             mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
@@ -188,7 +188,7 @@ struct MemoryInfo {
                     }
                 }
             }
-            return 0;
+            return 0;  // GCOVR_EXCL_LINE — MemTotal parse failure, unreachable on healthy Linux
 #elif defined(__APPLE__) || defined(__MACH__)
             int64_t mem = 0;
             size_t len = sizeof(mem);

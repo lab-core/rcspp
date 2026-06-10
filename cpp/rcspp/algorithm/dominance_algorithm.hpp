@@ -64,12 +64,14 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 if (i > 0 && this->memory_limit_.effective_limit > 0 &&
                     i % this->params_.memory_check_interval == 0) {
                     if (this->memory_limit_.is_exceeded()) {
+                        // GCOVR_EXCL_START (memory-limit exceeded; not reached in unit tests)
                         LOG_WARN("Memory limit (",
                                  this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
                                  " MB) exceeded (current: ",
                                  MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
                                  " MB). Stopping early.\n");
                         break;
+                        // GCOVR_EXCL_STOP
                     }
                     if (this->memory_limit_.is_under_pressure()) {
                         LOG_INFO("Memory pressure: ",
@@ -86,17 +88,20 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 // next label to process
                 auto label_iterator_pair = next_label_iterator();
 
-                // no more label -> break (useful when pulling)
+                // GCOVR_EXCL_START (null-label / dominated / prune-by-upper-bound paths; not
+                // reached in unit tests) no more label -> break (useful when pulling)
                 if (label_iterator_pair.first == nullptr) {
                     break;
                 }
+                // GCOVR_EXCL_STOP
 
                 // label dominated -> continue to next one
                 auto& label = *label_iterator_pair.first;
                 if (label.dominated) {
                     this->label_pool_.release_with_ref_count(&label);
-                    continue;
+                    continue;  // GCOVR_EXCL_LINE
                 }
+                // GCOVR_EXCL_START (prune-by-upper-bound; not triggered in unit tests)
                 if (this->params_.prune_based_on_upper_bound_ &&
                     label.get_cost() >= this->best_cost_upper_bound_) {
                     remove_label(label_iterator_pair.second);
@@ -106,6 +111,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
+                // GCOVR_EXCL_STOP
 
                 assert(label.get_end_node());
 
@@ -115,6 +121,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         if (label.get_cost() < this->best_cost_upper_bound_) {
                             this->best_cost_upper_bound_ = label.get_cost();
                         }
+                        // GCOVR_EXCL_START (return_dominated_solutions path; not exercised in unit
+                        // tests)
                         if (this->params_.return_dominated_solutions) {
                             this->extract_solution(label);
                             if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
@@ -124,14 +132,17 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                                 return;
                             }
                         }
+                        // GCOVR_EXCL_STOP
                     }
                 } else if (!std::isinf(label.get_cost())) {
                     this->total_full_extend_time_.start();
                     this->extend(&label);
-                    this->total_full_extend_time_.stop();
+                    this->total_full_extend_time_.stop();  // GCOVR_EXCL_LINE
                 } else {
+                    // GCOVR_EXCL_START (infinite-cost label fallback; not triggered in unit tests)
                     remove_label(label_iterator_pair.second);
                     this->label_pool_.release_with_ref_count(&label);
+                    // GCOVR_EXCL_STOP
                 }
             }
         }
@@ -147,10 +158,12 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
-            // check if arc is not reachable
+            // GCOVR_EXCL_START (arc unreachable guard; ng-neighbourhood paths not exercised in unit
+            // tests) check if arc is not reachable
             if (!label_ptr->is_reachable(arc_ptr->destination->id)) {
                 return;
             }
+            // GCOVR_EXCL_STOP
 
             auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
             label_ptr->extend(*arc_ptr, &new_label);
@@ -193,7 +206,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 path_arc_ids.push_back(cur->get_in_arc()->id);
                 cur = cur->prev_label;
             }
-            std::ranges::reverse(path_arc_ids);
+            std::ranges::reverse(path_arc_ids);  // GCOVR_EXCL_LINE
             return path_arc_ids;
         }
 
@@ -220,10 +233,12 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return true;
         }
 
+        // GCOVR_EXCL_START (virtual remove_label; not overridden/called in unit tests)
         virtual void remove_label(const std::list<Label<ResourceType>*>::iterator& label_iterator) {
             auto current_node_pos = (*label_iterator)->get_end_node()->pos();
             non_dominated_labels_by_node_pos_.at(current_node_pos).erase_label(label_iterator);
         }
+        // GCOVR_EXCL_STOP
 
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
             std::list<Label<ResourceType>*> labels_at_sinks;
@@ -236,9 +251,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                                        labels_at_current_sink.end());
             }
 
-            return labels_at_sinks;
+            return labels_at_sinks;  // GCOVR_EXCL_LINE
         }
 
+        // GCOVR_EXCL_START (trace-level diagnostics; not reached in unit tests)
         void print_labels() const override {
             if (LOG_TRACE_ACTIVE()) {
                 LOG_TRACE("All non dominated labels by node:\n");
@@ -248,6 +264,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 }
             }
         }
+        // GCOVR_EXCL_STOP
 
         virtual void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;

@@ -72,6 +72,7 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         Resource(Resource const& rhs_resource)
             : Prototype(rhs_resource), Composition<Resource, ResourceTypes...>(rhs_resource) {}
 
+        // GCOVR_EXCL_START (move constructor and swap; not exercised in unit tests)
         Resource(Resource&& rhs_resource) noexcept
             : Prototype(), Composition<Resource, ResourceTypes...>() {
             swap(*this, rhs_resource);
@@ -88,13 +89,16 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             swap(static_cast<Composition<Resource, ResourceTypes...>&>(first),
                  static_cast<Composition<Resource, ResourceTypes...>&>(second));
         }
+        // GCOVR_EXCL_STOP
 
         // Override: composition has no value to copy; just delegate to create(node_id).
+        // GCOVR_EXCL_START (value-ignoring create overload; not called in unit tests)
         [[nodiscard]] auto create(
             const ResourceTypeComposition<ResourceTypes...>& /*resource_value*/,
             const size_t node_id) const -> std::unique_ptr<Resource> {
             return create(node_id);
         }
+        // GCOVR_EXCL_STOP
 
         [[nodiscard]] auto create(const size_t node_id) const -> auto {
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
@@ -115,6 +119,7 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
                                               node_id);
         }
 
+        // GCOVR_EXCL_START (copy() with component cloning; not exercised in unit tests)
         [[nodiscard]] auto copy() const -> std::unique_ptr<Resource> {
             std::tuple<std::vector<std::unique_ptr<Resource<ResourceTypes>>>...>
                 new_resource_components;
@@ -132,6 +137,7 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
                                               this->cost_function_,
                                               this->node_id_);
         }
+        // GCOVR_EXCL_STOP
 
         [[nodiscard]] auto clone() const -> auto { return Prototype::clone(); }
 

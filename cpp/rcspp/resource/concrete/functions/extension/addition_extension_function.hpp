@@ -25,7 +25,7 @@ class AdditionExtensionFunction
                     ResourceType* extended_resource) override {
             auto sum_value = resource.get_value() + extender_value.get_value();
             if (min_value_.has_value()) {
-                sum_value = std::max(min_value_.value(), sum_value);
+                sum_value = std::max(min_value_.value(), sum_value);  // GCOVR_EXCL_LINE
             }
             extended_resource->set_value(sum_value);
         }

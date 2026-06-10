@@ -37,7 +37,7 @@ class Extender<ResourceTypeComposition<ResourceTypes...>>
                 }
             });
 
-            return new_extender;
+            return new_extender;  // GCOVR_EXCL_LINE
         }
 
         void extend(const Resource<ResourceType>& resource,

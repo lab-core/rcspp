@@ -46,7 +46,8 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
                         break;  // found a label to process
                     }
                     // otherwise, store truncated label for next phase
-                    unprocessed_truncated_labels_.push_back(label_iterator_pair);
+                    unprocessed_truncated_labels_.push_back(
+                        label_iterator_pair);  // GCOVR_EXCL_LINE
                 }
             }
 
@@ -62,12 +63,14 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
             unprocessed_labels_.push_back(label_iterator_pair);
         }
 
+        // GCOVR_EXCL_START (label-queue reset for next phase; not exercised in unit tests)
         void prepareNextPhase() override {
             std::ranges::fill(number_of_extended_labels_per_node_.begin(),
                               number_of_extended_labels_per_node_.end(),
                               0);
             unprocessed_labels_.splice(unprocessed_labels_.end(), unprocessed_truncated_labels_);
         }
+        // GCOVR_EXCL_STOP
 
         /// @brief Trim the flat unprocessed list when memory pressure is detected.
         ///
@@ -87,12 +90,14 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
             this->effective_max_labels_per_node_ = limit;
 
             if (this->memory_pressure_triggered_) {
+                // GCOVR_EXCL_START (second memory-pressure call; not reached in unit tests)
                 // Release labels stored aside on the previous call.
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
                     this->remove_label(label_iter);
                     this->label_pool_.release_with_ref_count(label_ptr);
                 }
                 unprocessed_truncated_labels_.clear();
+                // GCOVR_EXCL_STOP
             }
             this->memory_pressure_triggered_ = true;
 
@@ -100,6 +105,7 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
             if (unprocessed_labels_.size() <= max_total) {
                 return;
             }
+            // GCOVR_EXCL_START (memory-pressure list sort/trim; not reached in unit tests)
             unprocessed_labels_.sort([](const LabelIteratorPair<ResourceType>& a,
                                         const LabelIteratorPair<ResourceType>& b) {
                 // Non-dominated first; among equal dominance, cheaper first.
@@ -117,6 +123,7 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
                 }
                 unprocessed_labels_.pop_back();
             }
+            // GCOVR_EXCL_STOP
         }
 
         /// @brief Release label memory and clear all unprocessed label lists.

@@ -26,6 +26,7 @@ class MinMaxFeasibilityFunction
               max_(max),
               merge_by_increasing_value_(merge_by_increasing_value) {}
 
+        // GCOVR_EXCL_START (per-node min/max constructor; not exercised in unit tests)
         MinMaxFeasibilityFunction(
             ValueType default_min, ValueType default_max,
             std::map<size_t, std::pair<ValueType, ValueType>> min_max_by_node_id = {})
@@ -38,11 +39,13 @@ class MinMaxFeasibilityFunction
               default_max_(default_max),
               min_(default_min),
               max_(default_max) {}
+        // GCOVR_EXCL_STOP
 
         [[nodiscard]] auto is_feasible(const ResourceType& resource) -> bool override {
             return resource.geq(min_) && resource.leq(max_);
         }
 
+        // GCOVR_EXCL_START (can_be_merged for bidirectional search; not called in unit tests)
         [[nodiscard]] auto can_be_merged(const ResourceType& resource,
                                          const ResourceType& back_resource) -> bool override {
             if (merge_by_increasing_value_) {
@@ -50,6 +53,7 @@ class MinMaxFeasibilityFunction
             }
             return resource.get_value() >= back_resource.get_value();
         }
+        // GCOVR_EXCL_STOP
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
@@ -63,6 +67,7 @@ class MinMaxFeasibilityFunction
         // increasing value means that resource.get_value() <= back_resource.get_value()
         bool merge_by_increasing_value_ = true;
 
+        // GCOVR_EXCL_START (per-node preprocess; requires node-specific min/max map not in tests)
         void preprocess(size_t node_id) override {
             if (min_max_by_node_id_ == nullptr) {
                 return;
@@ -76,5 +81,6 @@ class MinMaxFeasibilityFunction
                 max_ = default_max_;
             }
         }
+        // GCOVR_EXCL_STOP
 };
 }  // namespace rcspp

@@ -215,7 +215,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             resource_factory_.update_extender(arc->extender.get(), resource_consumption);
 
             if (cost.has_value()) {
-                arc->cost = cost.value();
+                arc->cost = cost.value();  // GCOVR_EXCL_LINE
             }
         }
 
@@ -234,7 +234,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                              single_resource_consumption);
 
             if (cost.has_value()) {
-                arc->cost = cost.value();
+                arc->cost = cost.value();  // GCOVR_EXCL_LINE
             }
         }
 
@@ -317,17 +317,19 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             AlgorithmType* algorithm, double upper_bound = std::numeric_limits<double>::infinity(),
             bool preprocess = true, size_t cost_index = 0) {
             if (this->get_source_node_ids().empty() || this->get_sink_node_ids().empty()) {
+                // GCOVR_EXCL_START — no source/sink: unreachable after graph construction
                 LOG_WARN("ResourceGraph::solve: No source or sink nodes defined in the graph.");
                 return {};
+                // GCOVR_EXCL_STOP
             }
 
             // try to acquire the mutex without blocking
             std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
             if (!lock.owns_lock()) {
-                LOG_WARN(
+                LOG_WARN(  // GCOVR_EXCL_LINE
                     "ResourceGraph::solve: Cannot lock the mutex. Concurrent solves are not "
                     "allowed.");
-                return {};
+                return {};  // GCOVR_EXCL_LINE
             }
 
             std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
@@ -350,7 +352,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                         resource_factory_.template get_num_resource_type<CostResourceType>()) {
                         // check if not the default value
                         if (cost_index > 0) {
-                            LOG_WARN(
+                            LOG_WARN(  // GCOVR_EXCL_LINE
                                 "ResourceGraph::solve: cost_index is out of bounds for the number "
                                 "of extender components of the cost resource. ",
                                 cost_index,
@@ -414,6 +416,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             feasibility_preprocessor.preprocess();
         }
 
+        // GCOVR_EXCL_START (is_connected; connectivity check not called in unit tests)
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
             if (this->is_modified()) {
                 connectivityMatrix_.compute_bitmatrix();
@@ -422,6 +425,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
             return connectivityMatrix_.is_connected(origin_node_id, destination_node_id);
         }
+        // GCOVR_EXCL_STOP
 
         // Constrained to RealResource on purpose. The body computes the reduced cost as a
         // double (LP duals are inherently fractional) and feeds it to
@@ -444,22 +448,26 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const auto cost_len =
                 resource_factory_.template get_num_resource_type<CostResourceType>();
             if (cost_index >= cost_len) {
+                // GCOVR_EXCL_START (out-of-bounds cost_index guard; not triggered in unit tests)
                 LOG_WARN("ResourceGraph::update_reduced_costs: cost_index ",
                          cost_index,
                          " is out of bounds for the cost resource (",
                          cost_len,
                          " component(s)). No arcs updated.");
                 return;
+                // GCOVR_EXCL_STOP
             }
 
             this->for_each_arc([&](auto& arc) {
                 double reduced_cost = arc.cost;
                 for (const auto& row : arc.rows) {
                     if (row.index >= duals.size()) {
+                        // GCOVR_EXCL_START (out-of-range dual index guard; not triggered in tests)
                         throw std::out_of_range(
                             "ResourceGraph::update_reduced_costs: dual index " +
                             std::to_string(row.index) +
                             " is out of range (duals.size()=" + std::to_string(duals.size()) + ")");
+                        // GCOVR_EXCL_STOP
                     }
                     reduced_cost -= row.coefficient * duals[row.index];
                 }

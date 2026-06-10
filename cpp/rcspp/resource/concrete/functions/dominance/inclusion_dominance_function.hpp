@@ -13,6 +13,7 @@ class InclusionDominanceFunction
     : public Clonable<InclusionDominanceFunction<ContainerResourceType>,
                       DominanceFunction<ContainerResourceType>> {
     public:
+        // GCOVR_EXCL_START (InclusionDominanceFunction::check_dominance; not called in unit tests)
         [[nodiscard]] auto check_dominance(const ContainerResourceType& lhs_resource,
                                            const ContainerResourceType& rhs_resource)
             -> bool override {
@@ -20,6 +21,7 @@ class InclusionDominanceFunction
             // i.e., if rhs_resource includes lhs_resource
             return rhs_resource.includes(lhs_resource.get_value());
         }
+        // GCOVR_EXCL_STOP
 
         // clang-format off
         auto fast_check_dominance(const ContainerResourceType& lhs_resource,

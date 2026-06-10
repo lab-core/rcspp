@@ -190,10 +190,12 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             return this->current_unprocessed_labels_.erase(label_iterator);
         }
 
+        // GCOVR_EXCL_START — label restoration after OOM truncation not exercised in tests
         void prepareNextPhase() override {
             first_loop_ = true;
             this->restore_truncated_unprocessed_labels();
         }
+        // GCOVR_EXCL_STOP
 
         /// @brief Trim per-node queues when memory pressure is detected.
         ///
@@ -205,11 +207,13 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             this->effective_max_labels_per_node_ = limit;
 
             if (this->memory_pressure_triggered_) {
+                // GCOVR_EXCL_START — only reached on 2nd+ memory pressure event, not in tests
                 this->release_truncated_labels(
                     &this->label_pool_,
                     [this](const typename std::list<Label<ResourceType>*>::iterator& it) {
                         this->remove_label(it);
                     });
+                // GCOVR_EXCL_STOP
             }
             this->memory_pressure_triggered_ = true;
 

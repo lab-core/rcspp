@@ -10,6 +10,7 @@
 #include "test_label_buckets.hpp"
 #include "test_preprocessor_coverage.hpp"
 #include "test_rcspp.hpp"
+#include "test_resource_base.hpp"
 #include "test_solution_pool.hpp"
 #include "test_tabu_list.hpp"
 #include "test_timer.hpp"

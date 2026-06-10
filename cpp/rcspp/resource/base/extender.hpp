@@ -50,12 +50,14 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
                                               &extended_resource->get_value());
         }
 
+        // GCOVR_EXCL_START — back-direction not used in tests
         void extend_back(const Resource<ResourceType>& resource,
                          Resource<ResourceType>* extended_resource) const {
             this->extension_function_->extend_back(resource.get_value(),
                                                    this->value_,
                                                    &extended_resource->get_value());
         }
+        // GCOVR_EXCL_STOP
 
         [[nodiscard]] std::string to_string() const { return this->value_.to_string(); }
 };

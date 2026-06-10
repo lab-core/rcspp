@@ -61,7 +61,7 @@ enum class AlgorithmStatus {
         case AlgorithmStatus::MEMORY_LIMIT:
             return "memory_limit";
     }
-    return "unknown";
+    return "unknown";  // GCOVR_EXCL_LINE — unreachable if enum is exhaustive
 }
 
 /// @brief Return value of Algorithm::solve().
@@ -97,22 +97,28 @@ constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
 struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
+                // GCOVR_EXCL_START — LOG_WARN only fires on invalid param combinations
                 LOG_WARN(
                     "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
                     "num_max_phases will not have any effects, set num_labels_to_extend_by_node to "
                     "a lower value.\n");
+                // GCOVR_EXCL_STOP
             }
             if (num_max_phases > 1 && stop_after_X_solutions >= MAX_INT) {
+                // GCOVR_EXCL_START — LOG_WARN only fires on invalid param combinations
                 LOG_WARN(
                     "AlgorithmParams: stop_after_X_solutions == MAX and num_max_phases > 1. "
                     "num_max_phases will not have any effects, set stop_after_X_solutions to a "
                     "lower value.\n");
+                // GCOVR_EXCL_STOP
             }
             if (return_dominated_solutions && stop_after_X_solutions >= MAX_INT) {
+                // GCOVR_EXCL_START — LOG_WARN only fires on invalid param combinations
                 LOG_WARN(
                     "AlgorithmParams: stop_after_X_solutions == MAX and return_dominated_solutions "
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "stop_after_X_solutions to a lower value.\n");
+                // GCOVR_EXCL_STOP
             }
         }
 

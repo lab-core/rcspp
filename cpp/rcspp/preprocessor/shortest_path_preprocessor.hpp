@@ -43,10 +43,12 @@ class ShortestPathPreprocessor final
                             graph->get_sink_node_ids(),
                             cost_index,
                             false);
+                    // GCOVR_EXCL_START — exception path: negative cycle detection not hit in tests
                 } catch (const std::runtime_error&) {
                     Preprocessor<
                         ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ = true;
                 }
+                // GCOVR_EXCL_STOP
             }
         }
 

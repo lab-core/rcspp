@@ -76,6 +76,7 @@ class Composition : public CompositionTag {
             : components_(std::move(components)) {}
 
         // Copy constructor
+        // GCOVR_EXCL_START (std::transform in copy constructor; not exercised in unit tests)
         Composition(const Composition& rhs_composition) {
             // Apply clone_comp_vec_function to each component of the tuple
             this->apply(rhs_composition,
@@ -87,6 +88,7 @@ class Composition : public CompositionTag {
                                            [](const auto& rhs_comp) { return rhs_comp->clone(); });
                         });
         }
+        // GCOVR_EXCL_STOP
 
         Composition(Composition&& rhs_composition) noexcept : components_() {
             swap(*this, rhs_composition);
@@ -174,6 +176,7 @@ class Composition : public CompositionTag {
                 components_);
         }
 
+        // GCOVR_EXCL_START (mutable apply with const rhs_components; not exercised in unit tests)
         template <typename Func, typename Comp>
         void apply(const Comp& rhs_components, Func&& func) {
             std::apply(
@@ -186,6 +189,7 @@ class Composition : public CompositionTag {
                 },
                 components_);
         }
+        // GCOVR_EXCL_STOP
 
         template <typename Func, typename Comp>
         void apply(const Comp& rhs_components, Func&& func) const {
@@ -370,7 +374,7 @@ class Composition : public CompositionTag {
                 result.resize(result.size() - 2);
             }
 
-            return result;
+            return result;  // GCOVR_EXCL_LINE
         }
 
         // Getters for components

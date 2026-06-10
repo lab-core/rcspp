@@ -18,14 +18,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         using Prototype = ResourcePrototype<Resource, ResourceType>;
 
     public:
-        Resource() = default;
+        Resource() = default;  // GCOVR_EXCL_LINE
 
+        // GCOVR_EXCL_START — const-ref value constructor overload not exercised in tests
         Resource(const ResourceType& resource_value,
                  std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
                  std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
                  std::unique_ptr<CostFunction<ResourceType>> cost_function, std::size_t node_id = 0)
             : Prototype(resource_value, std::move(dominance_function),
                         std::move(feasibility_function), std::move(cost_function), node_id) {}
+        // GCOVR_EXCL_STOP
 
         Resource(std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
                  std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,

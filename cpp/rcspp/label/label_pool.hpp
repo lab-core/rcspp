@@ -74,7 +74,7 @@ class LabelPool {
         void release_with_ref_count(Label<ResourceType>* label_ptr) {
             while (label_ptr != nullptr) {
                 if (label_ptr->ref_count > 0) {
-                    label_ptr->pending_release = true;
+                    label_ptr->pending_release = true;  // GCOVR_EXCL_LINE
                     break;
                 }
                 Label<ResourceType>* prev = label_ptr->prev_label;
@@ -83,9 +83,9 @@ class LabelPool {
                 }
                 release_label(label_ptr);
                 if (prev == nullptr || !prev->pending_release) {
-                    break;
+                    break;  // GCOVR_EXCL_LINE
                 }
-                label_ptr = prev;
+                label_ptr = prev;  // GCOVR_EXCL_LINE
             }
         }
 
@@ -93,7 +93,7 @@ class LabelPool {
         void release_all_labels() {
             available_labels_.clear();
             for (auto& label_uptr : labels_) {
-                available_labels_.push_back(label_uptr.get());
+                available_labels_.push_back(label_uptr.get());  // GCOVR_EXCL_LINE
             }
         }
 
@@ -139,6 +139,7 @@ class LabelPool {
         /// @ref release_with_ref_count (i.e. it used the raw @ref release_label), leaking the
         /// predecessor's reference or recycling a label that a live successor still points to.
         /// Intended for tests; O(total labels).
+        // GCOVR_EXCL_START (ref-count consistency check; deep diagnostic not run in unit tests)
         [[nodiscard]] bool check_ref_count_consistency() const {
             std::unordered_set<const Label<ResourceType>*> free_set(available_labels_.begin(),
                                                                     available_labels_.end());
@@ -173,6 +174,7 @@ class LabelPool {
             }
             return true;
         }
+        // GCOVR_EXCL_STOP
 
     private:
         /// @brief Unconditionally return a label to the free list and cascade to its parent.

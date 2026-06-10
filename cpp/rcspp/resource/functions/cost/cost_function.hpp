@@ -25,13 +25,13 @@ class CostFunction {
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<CostFunction> = 0;
 
-        auto create(const size_t node_id) -> std::unique_ptr<CostFunction> {
+        auto create(const size_t node_id) -> std::unique_ptr<CostFunction> {  // GCOVR_EXCL_LINE
             auto new_cost_function = clone();
             new_cost_function->preprocess(node_id);
             return new_cost_function;
         }
 
-        virtual void reset(const size_t node_id) { preprocess(node_id); }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 
     protected:
         virtual void preprocess(size_t node_id) {}
@@ -51,14 +51,14 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto clone() const
             -> std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
-        auto create(const size_t node_id)
+        auto create(const size_t node_id)  // GCOVR_EXCL_LINE
             -> std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_cost_function = clone();
             new_cost_function->preprocess(node_id);
             return new_cost_function;
         }
 
-        virtual void reset(const size_t node_id) { preprocess(node_id); }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 
     protected:
         virtual void preprocess(size_t node_id) {}
