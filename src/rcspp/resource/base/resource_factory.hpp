@@ -96,6 +96,17 @@ class ResourceFactory {
             return new_resource;
         }
 
+        /// @brief Replace the extension function used to build extenders.
+        ///
+        /// Must be called before any extenders are created (i.e. before arcs are
+        /// added to the graph), since extenders are cloned from it per arc.
+        ///
+        /// @param extension_function The new extension function to install.
+        void set_extension_function(
+            std::unique_ptr<ExtensionFunction<ResourceType>> extension_function) {
+            extension_function_ = std::move(extension_function);
+        }
+
         /// @brief Return a deep copy of this factory (prototype + extension function).
         [[nodiscard]] virtual std::unique_ptr<ResourceFactory<ResourceType>> clone() const {
             auto cloned = std::make_unique<ResourceFactory<ResourceType>>();

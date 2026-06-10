@@ -19,19 +19,22 @@
 
 constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
-VRP::VRP(Instance instance)
+VRP::VRP(Instance instance, size_t ng_size, bool enable_ng_augmentation)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(3)),
+      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(ng_size)),
+      enable_ng_augmentation_(enable_ng_augmentation),
       solution_output_(std::nullopt) {
     LOG_TRACE("VRP::VRP\n");
     construct_resource_graph(&graph_);
 }
 
-VRP::VRP(Instance instance, std::string duals_directory)
+VRP::VRP(Instance instance, std::string duals_directory, size_t ng_size,
+         bool enable_ng_augmentation)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(3)),
+      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(ng_size)),
+      enable_ng_augmentation_(enable_ng_augmentation),
       solution_output_(SolutionOutput(duals_directory)) {
     LOG_TRACE("VRP::VRP\n");
     construct_resource_graph(&graph_);
@@ -397,27 +400,65 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
         std::make_unique<ValueCostFunction<DemandResource>>(),
         std::make_unique<ValueDominanceFunction<DemandResource>>());
 
-    // // Node
+    // // Node (full elementary relaxation — intentionally left disabled)
     // using NodeResource = SizeTBitsetResource;
     // resource_graph->add_resource<NodeResource>(
     //     std::make_unique<UnionExtensionFunction<NodeResource>>(),
-    //     std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
+    //     std::make_unique<IntersectionFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
     //     std::make_unique<TrivialCostFunction<NodeResource>>(),
     //     std::make_unique<InclusionDominanceFunction<NodeResource>>());
 
-    // // NG path
-    // using NgResource = SizeTBitsetResource;  // SizeTBitsetResource SizeTSetResource
-    // resource_graph->add_resource<NgResource>(
-    //     std::make_unique<NgPathExtensionFunction<NgResource,
-    //     size_t>>(ng_neighborhood_customer_id_),
-    //     std::make_unique<IntersectFeasibilityFunction<NgResource, std::set<size_t>>>(
-    //         node_set_by_node_id_),
-    //     std::make_unique<TrivialCostFunction<NgResource>>(),
-    //     std::make_unique<InclusionDominanceFunction<NgResource>>());
+    // NG path memory (ng-route relaxation)
+    using NgResource = SizeTBitsetResource;
+    resource_graph->add_resource<NgResource>(
+        std::make_unique<NgPathExtensionFunction<NgResource, size_t>>(ng_neighborhood_customer_id_),
+        std::make_unique<IntersectionFeasibilityFunction<NgResource>>(node_set_by_node_id_),
+        std::make_unique<TrivialCostFunction<NgResource>>(),
+        std::make_unique<InclusionDominanceFunction<NgResource>>());
+
+    // Optional: fold resource-unreachable ng-neighbours into the ng-memory for
+    // stronger dominance (pure acceleration). Installed before arcs are added; the
+    // N_j-arc map it reads is populated once the arcs exist (build_ng_arcs below).
+    if (enable_ng_augmentation_) {
+        resource_graph->set_composition_extension_function(
+            std::make_unique<NgUnreachableCompositionExtensionFunction<NgResource,
+                                                                       RealResource,
+                                                                       IntResource,
+                                                                       SizeTSetResource,
+                                                                       SizeTBitsetResource>>(
+                &ng_arcs_by_node_));
+    }
 
     add_all_nodes_to_graph(resource_graph);
 
     add_all_arcs_to_graph(resource_graph, dual_by_id);
+
+    if (enable_ng_augmentation_) {
+        build_ng_arcs(resource_graph);
+    }
+}
+
+void VRP::build_ng_arcs(RGraph* resource_graph) {
+    LOG_TRACE(__FUNCTION__, '\n');
+    ng_arcs_by_node_.clear();
+    for (const auto& [node_id, neighbors] : ng_neighborhood_customer_id_) {
+        if (neighbors.empty()) {
+            continue;
+        }
+        auto* node = resource_graph->get_node(node_id);
+        if (node == nullptr) {
+            continue;
+        }
+        std::vector<const Arc<ResourceType>*> arcs;
+        for (const auto* arc : node->out_arcs) {
+            if (neighbors.contains(arc->destination->id)) {
+                arcs.push_back(arc);
+            }
+        }
+        if (!arcs.empty()) {
+            ng_arcs_by_node_.emplace(node_id, std::move(arcs));
+        }
+    }
 }
 
 void VRP::update_resource_graph(RGraph* resource_graph,
@@ -494,11 +535,14 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
-                                                                     customer_orig_id,
-                                                                     customer_dest_id,
-                                                                     distance,
-                                                                     {Row(customer_orig_id, 1.0)});
+    // ng extender value: the origin node id (the ng-memory remembers origins:
+    // Π' = (Π ∩ N_origin) ∪ {origin}).
+    resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
+        {reduced_cost, time, demand, {{customer_orig_id}}},
+        customer_orig_id,
+        customer_dest_id,
+        distance,
+        {Row(customer_orig_id, 1.0)});
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

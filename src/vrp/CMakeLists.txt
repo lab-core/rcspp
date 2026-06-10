@@ -41,6 +41,7 @@ endif()
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_main.cpp")
 list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_large_main.cpp")
+list(REMOVE_ITEM SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_ng_main.cpp")
 if(NOT Boost_FOUND)
   file(GLOB BOOST_CPP_FILES "${CMAKE_CURRENT_SOURCE_DIR}/cg/subproblem/boost/*.cpp")
   list(REMOVE_ITEM SOURCE_FILES ${BOOST_CPP_FILES})
@@ -84,6 +85,22 @@ add_custom_command(TARGET ${BENCHMARK_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:rcspp>"
         $<TARGET_FILE_DIR:${BENCHMARK_NAME}>
+)
+
+# build ng benchmark (ng-route unreachable augmentation sweep) ----------------
+set(BENCHMARK_NG_NAME "rcspp-vrp-benchmark-ng")
+add_executable(${BENCHMARK_NG_NAME}
+               "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_ng_main.cpp" ${SOURCE_FILES})
+target_include_directories(${BENCHMARK_NG_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(${BENCHMARK_NG_NAME} PRIVATE ${GUROBI_INCLUDE_DIRS})
+target_link_libraries(${BENCHMARK_NG_NAME} PRIVATE ${LIBS})
+if(Boost_FOUND)
+  target_compile_definitions(${BENCHMARK_NG_NAME} PRIVATE RCSPP_VRP_HAS_BOOST)
+endif()
+add_custom_command(TARGET ${BENCHMARK_NG_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:rcspp>"
+        $<TARGET_FILE_DIR:${BENCHMARK_NG_NAME}>
 )
 
 # build large benchmark (C2/R2/RC2 + Gehring & Homberger) --------------------

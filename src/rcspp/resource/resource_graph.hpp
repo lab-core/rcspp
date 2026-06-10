@@ -58,6 +58,15 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         virtual ~ResourceGraph() = default;
 
+        /// @brief Replace the composition-level extension function (e.g. to install
+        ///        a post-processing hook). Must be called before arcs are added.
+        ///
+        /// @param extension_function The composition extension function to install.
+        void set_composition_extension_function(
+            std::unique_ptr<ExtensionFunction<ResourceCompositionType>> extension_function) {
+            resource_factory_.set_extension_function(std::move(extension_function));
+        }
+
         template <typename ResourceType>
         void add_resource(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,

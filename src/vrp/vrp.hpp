@@ -41,9 +41,14 @@ struct ExtraSolver {
 
 class VRP {
     public:
-        VRP(Instance instance);
+        /// @param instance The VRP instance.
+        /// @param ng_size ng-neighbourhood size (closest customers per node).
+        /// @param enable_ng_augmentation Fold resource-unreachable ng-neighbours into
+        ///        the ng-memory for stronger dominance (pure acceleration; default off).
+        explicit VRP(Instance instance, size_t ng_size = 3, bool enable_ng_augmentation = false);
 
-        VRP(Instance instance, std::string duals_directory);
+        VRP(Instance instance, std::string duals_directory, size_t ng_size = 3,
+            bool enable_ng_augmentation = false);
 
         const std::vector<Path>& generate_initial_paths();
 
@@ -256,6 +261,14 @@ class VRP {
         std::map<size_t, std::pair<double, double>> time_window_by_customer_id_;
         std::map<size_t, std::set<size_t>> ng_neighborhood_customer_id_;
 
+        // When true, install the ng unreachable-set augmentation on the graph.
+        bool enable_ng_augmentation_ = false;
+
+        // For each node j, the outgoing arcs j->x to its ng-neighbours x in N_j.
+        // Populated after the graph's arcs exist; read by the ng augmentation to
+        // build trial extensions. Empty when augmentation is disabled.
+        std::map<size_t, std::vector<const Arc<ResourceType>*>> ng_arcs_by_node_;
+
         // Resource graph. needs to be loaded after time windows and ng neighborhoods are
         // initialized
         RGraph graph_;
@@ -281,6 +294,9 @@ class VRP {
 
         void construct_resource_graph(RGraph* graph,
                                       const std::map<size_t, double>* dual_by_id = nullptr);
+
+        // Populate ng_arcs_by_node_ from the built graph (arcs to ng-neighbours).
+        void build_ng_arcs(RGraph* graph);
 
         void update_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id);

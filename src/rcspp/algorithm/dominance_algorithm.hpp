@@ -22,6 +22,22 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                            AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
+        /// @brief Total number of non-dominated labels currently stored across all
+        ///        nodes (a measure of the labeling effort / dominance strength).
+        [[nodiscard]] size_t total_non_dominated_labels() const {
+            size_t total = 0;
+            for (const auto& labels : non_dominated_labels_by_node_pos_) {
+                total += labels.get_labels().size();
+            }
+            return total;
+        }
+
+        /// @brief Number of labels discarded as dominated during the run.
+        [[nodiscard]] size_t nb_dominated_labels() const { return this->nb_dominated_labels_; }
+
+        /// @brief Number of labels extended during the run.
+        [[nodiscard]] size_t num_extended_labels() const { return this->num_extended_labels_; }
+
     protected:
         /// @brief Release label memory and clear the non-dominated label containers.
         ///
