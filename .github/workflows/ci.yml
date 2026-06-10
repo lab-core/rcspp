@@ -62,11 +62,11 @@ jobs:
 
       - name: Install Python test dependencies
         if: matrix.build-type == 'Release'
-        run: pip install pytest -r src/python/requirements.txt
+        run: pip install pytest -r tests/python/requirements.txt
 
       - name: Python tests
         if: matrix.build-type == 'Release'
-        working-directory: src/python
+        working-directory: tests/python
         run: pytest -v --tb=short
 
   build_wheels:
