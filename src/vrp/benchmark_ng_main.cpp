@@ -16,6 +16,7 @@
 //                        first (expensive) CG iterations (default 100)
 //   --cols K           : columns added to the master per CG iteration (default:
 //                        #demand customers); the labeling stops after 4*K solutions
+//   --family F         : restrict to one instance family C / R / RC (default: all)
 
 #include <iomanip>
 #include <iostream>
@@ -50,8 +51,10 @@ AlgorithmParams<LabelList<ResourceType>> capped_params(size_t max_labels, size_t
     params.num_labels_to_extend_by_node = max_labels;
     params.stop_after_X_solutions = 4 * cols_per_iter;
     // stop_after_X_solutions only takes effect when solutions are collected during
-    // the run (not just at the end), which requires return_dominated_solutions.
+    // the run (not just at the end), which requires return_dominated_solutions and
+    // num_max_phases to be large to ensure optimality.
     params.return_dominated_solutions = true;
+    params.num_max_phases = MAX_INT;
     return params;
 }
 
@@ -99,6 +102,7 @@ int main(int argc, char* argv[]) {
         size_t max_instance_index = 2;
         size_t max_labels = 100;   // per-node label-expansion cap (--max-labels)
         size_t cols_per_iter = 0;  // columns added per CG iteration; 0 => #customers
+        std::string family;        // "C" / "R" / "RC"; empty => all (--family)
         std::vector<size_t> ng_sizes;
         enum class Reading { kNone, kNg } reading = Reading::kNone;
         for (int i = 1; i < argc; ++i) {
@@ -111,6 +115,9 @@ int main(int argc, char* argv[]) {
             } else if (arg == "--cols") {
                 reading = Reading::kNone;
                 cols_per_iter = std::stoull(argv[++i]);
+            } else if (arg == "--family") {
+                reading = Reading::kNone;
+                family = argv[++i];
             } else if (reading == Reading::kNg) {
                 ng_sizes.push_back(std::stoull(arg));
             } else {
@@ -125,6 +132,10 @@ int main(int argc, char* argv[]) {
             LOG_ERROR("max_instance_index must be in 1..9\n");
             return 1;
         }
+        if (!family.empty() && family != "C" && family != "R" && family != "RC") {
+            LOG_ERROR("--family must be one of C, R, RC\n");
+            return 1;
+        }
 
         LOG_INFO("ng benchmark: max_labels=",
                  max_labels,
@@ -134,9 +145,15 @@ int main(int argc, char* argv[]) {
 
         std::vector<std::string> instance_names;
         for (size_t i = 1; i <= max_instance_index; ++i) {
-            instance_names.emplace_back("C10" + std::to_string(i));
-            instance_names.emplace_back("R10" + std::to_string(i));
-            instance_names.emplace_back("RC10" + std::to_string(i));
+            if (family.empty() || family == "C") {
+                instance_names.emplace_back("C10" + std::to_string(i));
+            }
+            if (family.empty() || family == "R") {
+                instance_names.emplace_back("R10" + std::to_string(i));
+            }
+            if (family.empty() || family == "RC") {
+                instance_names.emplace_back("RC10" + std::to_string(i));
+            }
         }
 
         const std::string root_dir = file_parent_dir(__FILE__, 3);
