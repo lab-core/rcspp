@@ -8,8 +8,8 @@ Checks: >
   -modernize-use-trailing-return-type,
   -modernize-raw-string-literal
 
-# Only check headers and sources under src/
-HeaderFilterRegex: 'src/.*'
+# Only check headers and sources under cpp/, python/bindings/ and tests/
+HeaderFilterRegex: '(cpp|python|tests|examples)/.*'
 
 # Use the formatting style defined in .clang-format
 FormatStyle: file

@@ -41,10 +41,11 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update -q && sudo apt-get install -y build-essential cmake
 
-      - name: Configure (Release, no Python, no tests)
+      - name: Configure (Release, VRP examples, no Python, no tests)
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_VRP=ON \
             -DUSE_PYTHON=OFF \
             -DUSE_TESTS=OFF
 

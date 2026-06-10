@@ -48,12 +48,14 @@ set(BUILD_INCLUDE_DIR          "${CMAKE_BINARY_DIR}/include")   # for headers
 file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR})
 
 # Build the core librairy ------------------------------------------------------
-add_subdirectory(src/rcspp)
+add_subdirectory(cpp/rcspp)
 
-# VRP column generation tests --------------------------------------------------
+# VRP column generation example + benchmarks -----------------------------------
+# The VRP application is an example consumer of the rcspp library; it and its
+# benchmark drivers live entirely under examples/cpp/.
 if(USE_VRP)
-  message("Building vrp column generation tests")
-  add_subdirectory(src/vrp)
+  message("Building vrp column generation example")
+  add_subdirectory(examples/cpp)
 endif()
 
 # Python bindings --------------------------------------------------------------
@@ -73,13 +75,13 @@ if(USE_PYTHON)
     message(FATAL_ERROR "pybind11 was not found. Install it in the Python build environment or initialize extern/pybind11.")
   endif()
 
-  add_subdirectory(src/python_interface)
+  add_subdirectory(python)
 endif()
 
 # RCSPP tests --------------------------------------------------
 if(USE_TESTS)
   message("Building tests for RCSPP")
-  add_subdirectory(tests/rcspp)
+  add_subdirectory(tests/cpp)
 endif()
 
 # (Optional) If you are seeing -nostartfiles / -nostdlib unexpectedly, check:

@@ -9,13 +9,13 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        files: ^src/.*
+        files: ^(cpp|python|tests|examples)/.*
       - id: end-of-file-fixer
-        files: ^src/.*
+        files: ^(cpp|python|tests|examples)/.*
       - id: mixed-line-ending
-        files: ^src/.*
+        files: ^(cpp|python|tests|examples)/.*
       - id: check-added-large-files
-        files: ^src/.*
+        files: ^(cpp|python|tests|examples)/.*
 
   # -------------------------
   # Python Formatter: Black
@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: black
         name: Black Python Formatter
-        files: ^src/.*\.pyi?$
+        files: ^(python|tests)/.*\.pyi?$
         additional_dependencies: []
 
   # -------------------------
@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: isort
         name: Python Import Sorter
-        files: ^src/.*\.pyi?$
+        files: ^(python|tests)/.*\.pyi?$
 
   # -------------------------
   # Python Linter: flake8
@@ -46,7 +46,7 @@ repos:
     hooks:
       - id: flake8
         name: Python Linter
-        files: ^src/.*\.pyi?$
+        files: ^(python|tests)/.*\.pyi?$
 
   # -------------------------
   # Bandit
@@ -55,7 +55,7 @@ repos:
     rev: 1.9.3
     hooks:
       - id: bandit
-        files: ^src/.*\.py$
+        files: ^(python|tests)/.*\.py$
         args: ["-ll"]
 
   # -------------------------
@@ -66,14 +66,14 @@ repos:
   #  hooks:
   #    - id: docformatter-conda
   #      args: [--in-place, --black]
-  #      files: ^src/.*\.py$
+  #      files: ^(python|tests)/.*\.py$
 
   - repo: https://github.com/PyCQA/docformatter
     rev: v1.7.7  # Use latest release, check https://github.com/PyCQA/docformatter/releases for updates
     hooks:
     - id: docformatter
       args: ["--in-place", "--black"]
-      files: ^src/.*\.py$
+      files: ^(python|tests)/.*\.py$
 
   # # -------------------------
   # # numpydoc-validation
@@ -82,7 +82,7 @@ repos:
   #   rev: v1.6.0
   #   hooks:
   #     - id: numpydoc-validation
-  #       files: ^src/.*\.py$
+  #       files: ^(python|tests)/.*\.py$
 
   # -------------------------
   # Markdownlint
@@ -121,7 +121,7 @@ repos:
       # Clang Format
       # -------------------------
       - id: clang-format
-        files: ^src/.*\.(cpp|hpp|c|h)$
+        files: ^(cpp|python|tests|examples)/.*\.(cpp|hpp|c|h)$
         args:
           - -i
           - -style=file
@@ -130,20 +130,20 @@ repos:
       # Clang Tidy
       # -------------------------
       - id: clang-tidy
-        files: ^src/rcspp/.*\.(cpp|hpp)$
+        files: ^cpp/rcspp/.*\.(cpp|hpp)$
         pass_filenames: true
         args:
           - -fix
           # - -fix-errors
           - -extra-arg=-I
-          - -extra-arg=src
+          - -extra-arg=cpp
 
       # -------------------------
       # Cppcheck
       # -------------------------
       - id: cppcheck
         entry: cppcheck
-        files: ^src/rcspp/.*\.(cpp|hpp|c|h)$
+        files: ^cpp/rcspp/.*\.(cpp|hpp|c|h)$
         args:
           - --enable=all
           - --inconclusive
@@ -152,13 +152,13 @@ repos:
           - --suppress=unusedFunction
           - --suppress=unusedStructMember
           - -I
-          - src
+          - cpp
 
       # -------------------------
       # Cpplint
       # -------------------------
       - id: cpplint
-        files: ^src/rcspp/.*\.(cpp|hpp|c|h)$
+        files: ^cpp/rcspp/.*\.(cpp|hpp|c|h)$
         args:
           - --linelength=100
           - --filter=-whitespace/indent
