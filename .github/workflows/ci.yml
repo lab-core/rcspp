@@ -60,7 +60,7 @@ jobs:
       - name: C++ coverage gate
         run: |
           mkdir -p coverage
-          gcovr --config gcovr.cfg --merge-mode-functions=merge build
+          gcovr --config gcovr.cfg --merge-mode-functions=merge-use-line-min build
 
       - name: Upload coverage reports
         if: always()
