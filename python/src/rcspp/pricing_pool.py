@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 _scipy_warning_emitted = False
 
 
-def _untrack_shared_memory(shm: SharedMemory) -> None:
+def _untrack_shared_memory(shm: SharedMemory) -> None:  # pragma: no cover
     """Detach a non-owned segment from the ``resource_tracker``.
 
     When a process opens an existing :class:`SharedMemory` with
@@ -75,7 +75,7 @@ def _untrack_shared_memory(shm: SharedMemory) -> None:
         from multiprocessing import resource_tracker
 
         resource_tracker.unregister(shm._name, "shared_memory")
-    except Exception:  # noqa: BLE001  # pragma: no cover - platform dependent
+    except Exception:  # noqa: BLE001
         # No resource_tracker (e.g. Windows) or already unregistered.
         pass
 
@@ -209,7 +209,7 @@ class SharedPricingPool:
         name = handle["shm_name"]
         try:
             obj._shm = SharedMemory(name=name, create=False, track=False)
-        except TypeError:  # Python < 3.13: no ``track`` parameter
+        except TypeError:  # pragma: no cover  # Python < 3.13: no ``track`` parameter
             obj._shm = SharedMemory(name=name, create=False)
             _untrack_shared_memory(obj._shm)
         hdr = np.ndarray((1,), dtype=_HEADER_DTYPE, buffer=obj._shm.buf)
@@ -514,7 +514,7 @@ class SharedPricingPool:
             d = np.zeros(self._n_constraints, dtype=np.float64)
             d[:n_duals] = duals[:n_duals]
             rc = col_costs - A @ d
-        else:
+        else:  # pragma: no cover  # scipy not installed
             if not _scipy_warning_emitted:
                 warnings.warn(
                     "scipy not installed — SharedPricingPool.price() uses a slower numpy "
@@ -602,7 +602,7 @@ class SharedPricingPool:
     def __del__(self) -> None:
         try:
             self._shm.close()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # pragma: no cover
             pass
 
     def __repr__(self) -> str:
@@ -1157,7 +1157,7 @@ class PricingPool:
             # Find this column's lp_index by looking it up in the pool's lp_arrays.
             # Since add_from_lp_arrays adds in order, we push one slot per column.
             sol = self._cpp_fp.get(cid)
-            if sol is None:
+            if sol is None:  # pragma: no cover  # defensive: col removed between get_all/get
                 continue
             shared_idx = self._shared.add(sol)
             self._id_to_shared[cid] = shared_idx

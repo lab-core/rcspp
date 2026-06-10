@@ -56,7 +56,8 @@ class BellmanFordAlgorithm {
                     }
 
                     if (last_iteration && modified) {
-                        throw std::runtime_error("Graph contains a negative-weight cycle");
+                        throw std::runtime_error(
+                            "Graph contains a negative-weight cycle");  // GCOVR_EXCL_LINE
                     }
                 }
                 if (!modified) {

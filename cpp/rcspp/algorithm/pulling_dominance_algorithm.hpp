@@ -114,11 +114,12 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         }
 
         LabelIteratorPair<ResourceType> next_label_iterator() override {
-            throw std::runtime_error("next_label_iterator() not implemented");
+            throw std::runtime_error("next_label_iterator() not implemented");  // GCOVR_EXCL_LINE
         }
 
         void extend(Label<ResourceType>* label_ptr) override {
-            throw std::runtime_error("extend(Label<ResourceType>* label_ptr) not implemented");
+            throw std::runtime_error(
+                "extend(Label<ResourceType>* label_ptr) not implemented");  // GCOVR_EXCL_LINE
         }
 
         void pull_new_unprocessed_labels() {

@@ -148,7 +148,7 @@ struct MemoryInfo {
                                 // — required by Mach C API
                 &count);
             if (kr != KERN_SUCCESS) {
-                return 0;
+                return 0;  // GCOVR_EXCL_LINE
             }
             vm_size_t page_size = 0;
             host_page_size(host, &page_size);
@@ -252,10 +252,12 @@ struct MemoryLimitHelper {
                               ref / kMB,
                               " MB available).\n");
                 } else {
+                    // GCOVR_EXCL_START
                     LOG_WARN(
                         "Cannot determine available system RAM; "
                         "memory limit disabled.\n");
                     effective_limit = 0;
+                    // GCOVR_EXCL_STOP
                 }
             } else if (limit_to_total_ram) {
                 const size_t ref = MemoryInfo::total_system_bytes();
@@ -270,10 +272,12 @@ struct MemoryLimitHelper {
                               ref / kMB,
                               " MB total).\n");
                 } else {
+                    // GCOVR_EXCL_START
                     LOG_WARN(
                         "Cannot determine total system RAM; "
                         "memory limit disabled.\n");
                     effective_limit = 0;
+                    // GCOVR_EXCL_STOP
                 }
             } else {
                 effective_limit = 0;
@@ -293,7 +297,7 @@ struct MemoryLimitHelper {
         /// The threshold is @ref pressure_fraction × @ref effective_limit.
         [[nodiscard]] bool is_under_pressure() const noexcept {
             if (effective_limit == 0) {
-                return false;
+                return false;  // GCOVR_EXCL_LINE
             }
             const auto threshold =
                 static_cast<size_t>(static_cast<double>(effective_limit) * pressure_fraction);

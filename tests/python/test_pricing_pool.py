@@ -5,6 +5,7 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../python/src")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -82,8 +83,6 @@ def test_add_batch():
 def test_add_columns_rejects_nnz_overflow():
     """add_columns must raise RuntimeError (not a raw numpy IndexError) when a batch
     exceeds the non-zero capacity — the documented contract."""
-    import pytest
-
     pool = SharedPricingPool(n_constraints=10, max_cols=100, max_nnz_per_col=2)
     try:
         # Capacity = 100 * 2 = 200 nnz; this batch needs 100 * 3 = 300.
@@ -703,5 +702,464 @@ def test_get_lp_arrays_binding():
         assert isinstance(row_starts, np.ndarray) and row_starts.dtype == np.uint32
         assert len(costs) >= 2
         assert int(col_indices[0]) in {0, 1, 2}  # valid constraint index
+    finally:
+        pool.close()
+
+
+# ── SharedPricingPool: coverage gap tests ────────────────────────────────────
+
+
+def test_filter_in_range_partial():
+    """Out-of-range row indices are filtered (line 242)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        # Row index 7 >= n_constraints=5 → filtered out; only index 0 survives.
+        sol = make_solution(1.0, [(0, 0.5), (7, 2.0)], [0])
+        pool.add(sol)
+        assert pool.nnz == 1
+        assert int(pool.col_indices_view[0]) == 0
+    finally:
+        pool.unlink()
+
+
+def test_add_pool_full_raises():
+    """Pool full → RuntimeError (line 268)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=2)
+    try:
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        pool.add(make_solution(2.0, [(0, 1.0)], [1]))
+        with pytest.raises(RuntimeError, match="full"):
+            pool.add(make_solution(3.0, [(0, 1.0)], [2]))
+    finally:
+        pool.unlink()
+
+
+def test_add_nnz_exceeded_raises():
+    """NNZ capacity exceeded → RuntimeError (line 271)."""
+    # max_nnz = max_cols * max_nnz_per_col = 2 * 1 = 2
+    pool = SharedPricingPool(n_constraints=10, max_cols=2, max_nnz_per_col=1)
+    try:
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        # new_nnz would be 1 + 2 = 3 > max_nnz=2
+        with pytest.raises(RuntimeError, match="non-zero capacity exceeded"):
+            pool.add(make_solution(2.0, [(0, 1.0), (1, 2.0)], [1]))
+    finally:
+        pool.unlink()
+
+
+def test_add_columns_empty_list():
+    """add_columns([]) returns [] immediately (line 300)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        result = pool.add_columns([])
+        assert result == []
+    finally:
+        pool.unlink()
+
+
+def test_add_columns_exceeds_col_capacity():
+    """Batch add exceeding column capacity raises RuntimeError (line 320)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=2)
+    try:
+        solutions = [make_solution(float(i), [(0, 1.0)], [i]) for i in range(3)]
+        with pytest.raises(RuntimeError, match="column capacity"):
+            pool.add_columns(solutions)
+    finally:
+        pool.unlink()
+
+
+def test_add_from_lp_arrays_basic():
+    """add_from_lp_arrays bulk-inserts CSR data (lines 363-401)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        row_starts = np.array([0, 2, 3], dtype=np.uint32)
+        col_indices = np.array([0, 1, 2], dtype=np.uint32)
+        col_values = np.array([1.0, 0.5, 2.0], dtype=np.float64)
+        idxs = pool.add_from_lp_arrays(col_costs, row_starts, col_indices, col_values)
+        assert idxs == [0, 1]
+        assert pool.count == 2
+        assert pool.nnz == 3
+    finally:
+        pool.unlink()
+
+
+def test_add_from_lp_arrays_with_mask():
+    """add_from_lp_arrays respects valid_mask (lines 363-401)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        row_starts = np.array([0, 2, 3], dtype=np.uint32)
+        col_indices = np.array([0, 1, 2], dtype=np.uint32)
+        col_values = np.array([1.0, 0.5, 2.0], dtype=np.float64)
+        idxs = pool.add_from_lp_arrays(
+            col_costs,
+            row_starts,
+            col_indices,
+            col_values,
+            valid_mask=np.array([True, False]),
+        )
+        assert idxs == [0]
+        assert pool.count == 1
+    finally:
+        pool.unlink()
+
+
+def test_add_from_lp_arrays_exceeds_col_capacity():
+    """add_from_lp_arrays raises when bulk add exceeds column capacity (line 384)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=2)
+    try:
+        col_costs = np.array([-1.0, -2.0, -3.0], dtype=np.float64)
+        row_starts = np.array([0, 1, 2, 3], dtype=np.uint32)
+        col_indices = np.array([0, 1, 2], dtype=np.uint32)
+        col_values = np.array([1.0, 1.0, 1.0], dtype=np.float64)
+        with pytest.raises(RuntimeError, match="column capacity"):
+            pool.add_from_lp_arrays(col_costs, row_starts, col_indices, col_values)
+    finally:
+        pool.unlink()
+
+
+def test_add_from_lp_arrays_exceeds_nnz_capacity():
+    """add_from_lp_arrays raises when bulk add exceeds nnz capacity (line 386)."""
+    # max_nnz = 2 * 2 = 4 nnz; batch needs 5 nnz
+    pool = SharedPricingPool(n_constraints=5, max_cols=2, max_nnz_per_col=2)
+    try:
+        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        row_starts = np.array([0, 3, 5], dtype=np.uint32)
+        col_indices = np.array([0, 1, 2, 0, 1], dtype=np.uint32)
+        col_values = np.array([1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float64)
+        with pytest.raises(RuntimeError, match="non-zero capacity"):
+            pool.add_from_lp_arrays(col_costs, row_starts, col_indices, col_values)
+    finally:
+        pool.unlink()
+
+
+def test_add_from_lp_arrays_all_masked_out():
+    """add_from_lp_arrays returns [] when no columns pass mask (line 374)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        row_starts = np.array([0, 2, 3], dtype=np.uint32)
+        col_indices = np.array([0, 1, 2], dtype=np.uint32)
+        col_values = np.array([1.0, 0.5, 2.0], dtype=np.float64)
+        idxs = pool.add_from_lp_arrays(
+            col_costs,
+            row_starts,
+            col_indices,
+            col_values,
+            valid_mask=np.array([False, False]),
+        )
+        assert idxs == []
+        assert pool.count == 0
+    finally:
+        pool.unlink()
+
+
+def test_update_mismatched_row_structure():
+    """Update() with same-length but differing indices hits the dict-merge (line
+    444)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        sol1 = make_solution(1.0, [(0, 1.0), (2, 2.0)], [0])
+        idx = pool.add(sol1)
+        # Same length (2 rows) but different indices: stored=[0,2], new=[0,3].
+        # Index 0 is shared → line 444 (target[k] = new_coef[ix]) is executed.
+        sol2 = make_solution(3.0, [(0, 5.0), (3, 1.0)], [0])
+        pool.update(idx, sol2)
+        assert abs(float(pool.col_costs_view[idx]) - 3.0) < 1e-9
+    finally:
+        pool.unlink()
+
+
+def test_invalidate_empty_list():
+    """Invalidate([]) is a no-op (line 469)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        pool.invalidate([])
+        assert pool.active_count == 1
+    finally:
+        pool.unlink()
+
+
+def test_shared_pool_valid_view():
+    """valid_view property returns the raw uint8 flags (line 575)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        v = pool.valid_view
+        assert v[0] == 1
+    finally:
+        pool.unlink()
+
+
+def test_shared_pool_repr():
+    """__repr__ of SharedPricingPool (line 609)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        s = repr(pool)
+        assert "SharedPricingPool" in s
+        assert "count=1" in s
+    finally:
+        pool.unlink()
+
+
+# ── FilteredSharedPricingPool: coverage gap tests ─────────────────────────────
+
+
+def test_filtered_shared_pool_none_view_indices():
+    """FilteredSharedPricingPool(pool, None) copies valid flags (lines 636-638)."""
+    pool = SharedPricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(1.0, [(0, 1.0)], [0]))
+        fpool = FilteredSharedPricingPool(pool, view_indices=None)
+        assert fpool.view_count == 1
+        assert fpool.mask[0]
+        s = repr(fpool)
+        assert "FilteredSharedPricingPool" in s
+    finally:
+        pool.unlink()
+
+
+# ── FilteredPricingPool: coverage gap tests ───────────────────────────────────
+
+
+def test_filtered_pricing_pool_add_columns():
+    """FilteredPricingPool.add_columns() batch-adds via C++ (lines 748-762)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        solutions = [
+            make_solution(-1.0, [(0, 1.0)], [0]),
+            make_solution(-2.0, [(1, 2.0)], [1]),
+        ]
+        col_ids = sub.add_columns(solutions)
+        assert len(col_ids) == 2
+        assert pool.column_count == 2
+        # Add the same solutions again → dedup hit (line 760)
+        col_ids2 = sub.add_columns(solutions)
+        assert len(col_ids2) == 2
+        assert pool.column_count == 2  # no new columns
+    finally:
+        pool.close()
+
+
+def test_filtered_pricing_pool_global_remove_if_nonempty():
+    """FilteredPricingPool.global_remove_if with actual removals (lines 870-877)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        sub.add(make_solution(-1.0, [(0, 1.0)], [0]))
+        sub.add(make_solution(-2.0, [(1, 2.0)], [1]))
+        removed = sub.global_remove_if(lambda col_id, sol, act: True)
+        assert len(removed) == 2
+        assert pool._shared.active_count == 0
+    finally:
+        pool.close()
+
+
+def test_filtered_pricing_pool_remove_from_view_combined():
+    """remove_from_view with both arc_ids and col_ids (line 907)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        sub.add(make_solution(-1.0, [(0, 1.0)], [10]))
+        cid1 = sub.add(make_solution(-2.0, [(1, 2.0)], [20]))
+        sub.remove_from_view(arc_ids=[10], col_ids=[int(cid1)])
+        assert sub._numpy_fp.view_count == 0
+    finally:
+        pool.close()
+
+
+def test_filtered_pricing_pool_shared_and_handle():
+    """FilteredPricingPool.shared() and handle() (lines 956, 960)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        shared = sub.shared()
+        assert isinstance(shared, SharedPricingPool)
+        h = sub.handle()
+        assert isinstance(h, dict)
+    finally:
+        pool.close()
+
+
+def test_filtered_pricing_pool_repr():
+    """FilteredPricingPool.__repr__ (line 970)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sub = pool.new_filter()
+        sub.add(make_solution(-1.0, [(0, 1.0)], [0]))
+        s = repr(sub)
+        assert "FilteredPricingPool" in s
+    finally:
+        pool.close()
+
+
+# ── PricingPool: coverage gap tests ──────────────────────────────────────────
+
+
+def test_pricing_pool_attach_static():
+    """PricingPool.attach() static method (line 1064)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        handle = pool.handle()
+        shared = PricingPool.attach(handle)
+        try:
+            assert isinstance(shared, SharedPricingPool)
+        finally:
+            shared.close()
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_handle():
+    """PricingPool.handle() returns a picklable dict (line 1068)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        h = pool.handle()
+        assert isinstance(h, dict)
+        assert "shm_name" in h
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_add_columns_batch():
+    """PricingPool.add_columns() batch-adds and deduplicates (lines 1117-1130)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        solutions = [
+            make_solution(-1.0, [(0, 1.0)], [0]),
+            make_solution(-2.0, [(1, 2.0)], [1]),
+        ]
+        col_ids = pool.add_columns(solutions)
+        assert len(col_ids) == 2
+        assert pool.column_count == 2
+        # Add same solutions again → dedup hit (lines 1127-1128)
+        col_ids2 = pool.add_columns(solutions)
+        assert len(col_ids2) == 2
+        assert pool.column_count == 2  # no new columns added
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_populate_from_cpp_pool_empty():
+    """populate_from_cpp_pool with empty C++ pool returns [] (line 1146)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        result = pool.populate_from_cpp_pool()
+        assert result == []
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_populate_from_cpp_pool_nonempty():
+    """populate_from_cpp_pool syncs C++ entries to shared pool (lines 1152-1165)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sol = make_solution(-1.0, [(0, 1.0)], [0])
+        # Add directly to the C++ filter (bypasses shared-pool sync)
+        pool._cpp_fp.add(sol)
+        result = pool.populate_from_cpp_pool()
+        assert len(result) == 1
+        assert pool._shared.count == 1
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_populate_from_cpp_pool_already_registered():
+    """populate_from_cpp_pool skips already-registered columns (lines 1155-1156)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        sol = make_solution(-1.0, [(0, 1.0)], [0])
+        # Register via normal add → _id_to_shared[cid] >= 0
+        cid = int(pool.add(sol))
+        assert pool._id_to_shared[cid] >= 0
+        # populate_from_cpp_pool should see it's already registered and append directly
+        result = pool.populate_from_cpp_pool()
+        assert cid in result
+        assert pool._shared.count == 1  # no duplicate slot
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_price_empty_result():
+    """Price() returns empty arrays when no column has negative rc (line 1194)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(5.0, [(0, 1.0)], [0]))
+        duals = np.zeros(5)
+        col_ids, rcs = pool.price(duals, threshold=-1e-9)
+        assert len(col_ids) == 0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_remove_stale_nonempty():
+    """PricingPool.remove_stale with actual removals (lines 1245-1253)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(-1.0, [(0, 1.0)], [0]))
+        pool.add(make_solution(-2.0, [(1, 2.0)], [1]))
+        # Age the columns: update_activity with empty basis increments age
+        pool._cpp_fp.update_activity([])
+        pool._cpp_fp.update_activity([])
+        # max_age=1 → remove columns with age > 1
+        removed = pool.remove_stale(max_age=1)
+        assert len(removed) == 2
+        assert pool._shared.active_count == 0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_global_remove_if_nonempty():
+    """PricingPool.global_remove_if with actual removals (lines 1271-1279)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        pool.add(make_solution(-1.0, [(0, 1.0)], [0]))
+        pool.add(make_solution(-2.0, [(1, 2.0)], [1]))
+        removed = pool.global_remove_if(lambda col_id, sol, act: True)
+        assert len(removed) == 2
+        assert pool._shared.active_count == 0
+    finally:
+        pool.close()
+
+
+def test_pricing_pool_repr():
+    """PricingPool.__repr__ (line 1312)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        s = repr(pool)
+        assert "PricingPool" in s
+    finally:
+        pool.close()
+
+
+def test_ensure_shared_capacity_growth():
+    """_ensure_shared_capacity grows _shared_to_id when needed (lines 1034-1037)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        # Shrink the map to force growth on the 3rd add
+        pool._shared_to_id = np.full(2, -1, dtype=np.int64)
+        for i in range(4):
+            pool.add(make_solution(float(-i - 1), [(0, 1.0)], [i]))
+        assert len(pool._shared_to_id) > 2
+    finally:
+        pool.close()
+
+
+def test_col_ids_to_shared_out_of_range():
+    """_col_ids_to_shared filters out-of-range ids (lines 1040-1043)."""
+    pool = PricingPool(n_constraints=5, max_cols=20)
+    try:
+        cid = int(pool.add(make_solution(-1.0, [(0, 1.0)], [0])))
+        # Valid id → returns a shared index
+        result = pool._col_ids_to_shared([cid])
+        assert len(result) == 1
+        # Out-of-range id → filtered out
+        big_id = len(pool._id_to_shared) + 999
+        result2 = pool._col_ids_to_shared([big_id])
+        assert len(result2) == 0
     finally:
         pool.close()

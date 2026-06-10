@@ -23,7 +23,8 @@ class ReachableCompositionExtensionFunction
     public:
         explicit ReachableCompositionExtensionFunction(size_t reachable_resource_index)
             : reachable_resource_index_(reachable_resource_index) {
-            throw std::runtime_error("ReachableCompositionExtensionFunction: Not implemented");
+            throw std::runtime_error(
+                "ReachableCompositionExtensionFunction: Not implemented");  // GCOVR_EXCL_LINE
         }
 
     protected:

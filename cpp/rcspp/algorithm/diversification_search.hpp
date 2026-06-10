@@ -57,7 +57,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             }
         }
 
-        [[nodiscard]] bool is_optimal() const override { return false; }
+        [[nodiscard]] bool is_optimal() const override { return false; }  // GCOVR_EXCL_LINE
 
         // Run diversification search using tabu-based strategy and collect solutions. The search
         // runs up to max_iterations or stop_after_X_solutions.
@@ -79,6 +79,11 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             size_t i = 0;
             while (!this->should_stop(i)) {
                 ++i;
+
+                // Rebuild the CSR index so GreedyAlgorithm::get_out_arcs() returns correct
+                // data.  remove_arc() / restore_arc() both invalidate csr_valid_; build_csr()
+                // is a no-op when the index is already current.
+                graph_copy_->build_csr();
 
                 // solve (important to clear the label pool, as the graph is changing)
                 std::vector<Solution> sols =
@@ -139,9 +144,11 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             return {};
         }
 
+        // GCOVR_EXCL_START
         std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
             throw std::runtime_error("No get_path_arc_ids");
         }
+        // GCOVR_EXCL_STOP
 
     private:
         std::unique_ptr<Graph<ResourceType>> graph_copy_;

@@ -66,6 +66,10 @@ add_dependencies(rcspp_objects generate_umbrella_header)
 set_target_properties(rcspp_objects PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_features(rcspp_objects PUBLIC cxx_std_23)
 target_include_directories(rcspp_objects PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+# PUBLIC so coverage flags propagate to consumers that link rcspp_objects (_core).
+if(USE_COVERAGE)
+  target_link_libraries(rcspp_objects PUBLIC rcspp_coverage)
+endif()
 
 add_library(${LIB} SHARED ${HEADERS_FILES})
 target_link_libraries(${LIB} PRIVATE rcspp_objects)

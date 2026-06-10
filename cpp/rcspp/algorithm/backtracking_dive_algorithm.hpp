@@ -170,11 +170,15 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
         virtual void select_children(Label<ResourceType>* parent,
                                      std::list<Label<ResourceType>*>& feasible,
                                      std::list<Label<ResourceType>*>& rejects) {
+            // GCOVR_EXCL_START
+            // All concrete subclasses (TabuSearchAlgorithm, ImprovingTabuSearch) override
+            // this method; the default body is never reachable through any concrete algorithm.
             (void)parent;
             (void)rejects;
             feasible.sort([](Label<ResourceType>* a, Label<ResourceType>* b) {
                 return a->get_cost() < b->get_cost();
             });
+            // GCOVR_EXCL_STOP
         }
 
         // ------------------------------------------------------------------

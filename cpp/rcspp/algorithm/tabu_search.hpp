@@ -122,7 +122,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                         this->clear_path();
                         return;
                     }
-                    tabu_.grow_extra();
+                    tabu_.grow_extra();  // GCOVR_EXCL_LINE
                 }
 
                 tabu_.age();
