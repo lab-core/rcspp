@@ -12,3 +12,10 @@ def pytest_configure(config):
         message=".*SolverGurobi.*",
         category=pytest.PytestUnraisableExceptionWarning,
     )
+    # pytest's internal cache plugin leaves sqlite3 connections open; suppress the
+    # resulting ResourceWarning so it doesn't pollute test output.
+    warnings.filterwarnings(
+        "ignore",
+        message=".*unclosed.*<sqlite3.Connection.*",
+        category=ResourceWarning,
+    )
