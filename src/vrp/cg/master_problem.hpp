@@ -5,6 +5,7 @@
 #include <gurobi_c++.h>
 
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "mp_solution.hpp"

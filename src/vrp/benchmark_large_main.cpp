@@ -181,7 +181,7 @@ int main(int argc, char* argv[]) {  // NOLINT
         for (const auto& name : instance_names) {
             std::string path = inst_dir + name + ".txt";
             LOG_INFO("Instance: ", path, '\n');
-            auto [timers, lp_cost] = run_vrp(path, run_boost, run_astar);
+            auto [timers, lp_cost, total_pricing_labels] = run_vrp(path, run_boost, run_astar);
             if (total_timers.empty()) {
                 total_timers = timers;
             } else {
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]) {  // NOLINT
         for (const auto& path : gh_instance_paths) {
             std::string name = fs::path(path).stem().string();
             LOG_INFO("Instance: ", path, '\n');
-            auto [timers, lp_cost] = run_vrp(path, run_boost, run_astar);
+            auto [timers, lp_cost, total_pricing_labels] = run_vrp(path, run_boost, run_astar);
             if (total_timers.empty()) {
                 total_timers = timers;
             } else {

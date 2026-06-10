@@ -128,13 +128,14 @@ int main(int argc, char* argv[]) {
 
             // ── Single CG solve ────────────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto [timers, lp_cost] = vrp.solve<SimpleDominanceAlgorithm,
-                                               PushingDominanceAlgorithm,
-                                               PullingDominanceAlgorithm>(list_params,
-                                                                          std::nullopt,
-                                                                          list_algorithms,
-                                                                          run_boost,
-                                                                          extra_solvers);  // NOLINT
+            auto [timers, lp_cost, total_pricing_labels] =
+                vrp.solve<SimpleDominanceAlgorithm,
+                          PushingDominanceAlgorithm,
+                          PullingDominanceAlgorithm>(list_params,
+                                                     std::nullopt,
+                                                     list_algorithms,
+                                                     run_boost,
+                                                     extra_solvers);  // NOLINT
 
             if (total_timers.empty()) {
                 total_timers = timers;

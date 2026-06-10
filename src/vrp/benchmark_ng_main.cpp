@@ -17,6 +17,8 @@
 //   --cols K           : columns added to the master per CG iteration (default:
 //                        #demand customers); the labeling stops after 4*K solutions
 //   --family F         : restrict to one instance family C / R / RC (default: all)
+//   --instance NAME    : run a single named instance (e.g. C101); overrides the
+//                        family/index selection above
 
 #include <iomanip>
 #include <iostream>
@@ -100,9 +102,10 @@ int main(int argc, char* argv[]) {
         Logger::init(LogLevel::Info);
 
         size_t max_instance_index = 2;
-        size_t max_labels = 100;   // per-node label-expansion cap (--max-labels)
-        size_t cols_per_iter = 0;  // columns added per CG iteration; 0 => #customers
-        std::string family;        // "C" / "R" / "RC"; empty => all (--family)
+        size_t max_labels = 100;    // per-node label-expansion cap (--max-labels)
+        size_t cols_per_iter = 0;   // columns added per CG iteration; 0 => #customers
+        std::string family;         // "C" / "R" / "RC"; empty => all (--family)
+        std::string instance_name;  // single instance, e.g. "C101" (--instance)
         std::vector<size_t> ng_sizes;
         enum class Reading { kNone, kNg } reading = Reading::kNone;
         for (int i = 1; i < argc; ++i) {
@@ -118,6 +121,9 @@ int main(int argc, char* argv[]) {
             } else if (arg == "--family") {
                 reading = Reading::kNone;
                 family = argv[++i];
+            } else if (arg == "--instance") {
+                reading = Reading::kNone;
+                instance_name = argv[++i];
             } else if (reading == Reading::kNg) {
                 ng_sizes.push_back(std::stoull(arg));
             } else {
@@ -144,15 +150,19 @@ int main(int argc, char* argv[]) {
                  ", stop_after_X_solutions=4*cols_per_iter\n");
 
         std::vector<std::string> instance_names;
-        for (size_t i = 1; i <= max_instance_index; ++i) {
-            if (family.empty() || family == "C") {
-                instance_names.emplace_back("C10" + std::to_string(i));
-            }
-            if (family.empty() || family == "R") {
-                instance_names.emplace_back("R10" + std::to_string(i));
-            }
-            if (family.empty() || family == "RC") {
-                instance_names.emplace_back("RC10" + std::to_string(i));
+        if (!instance_name.empty()) {
+            instance_names.push_back(instance_name);  // single instance overrides family/index
+        } else {
+            for (size_t i = 1; i <= max_instance_index; ++i) {
+                if (family.empty() || family == "C") {
+                    instance_names.emplace_back("C10" + std::to_string(i));
+                }
+                if (family.empty() || family == "R") {
+                    instance_names.emplace_back("R10" + std::to_string(i));
+                }
+                if (family.empty() || family == "RC") {
+                    instance_names.emplace_back("RC10" + std::to_string(i));
+                }
             }
         }
 
