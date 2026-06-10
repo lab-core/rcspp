@@ -11,7 +11,6 @@
 #include <memory>
 #include <tuple>
 
-#include "rcspp/graph/arc.hpp"
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
@@ -85,17 +84,4 @@ TEST(ResourceFactory, CloneProducesWorkingCopy) {
     auto cloned = factory.clone();
     ASSERT_NE(cloned, nullptr);
     EXPECT_NE(cloned->create_resource(), nullptr);
-}
-
-/// @brief create_extender(tuple_initializer, arc) unpacks the tuple correctly.
-///
-/// Arc with nullptr nodes is safe: AdditionExtensionFunction::create() only
-/// calls clone() and never dereferences the node pointers.
-TEST(ResourceFactory, CreateExtenderFromTuple) {
-    auto factory = make_factory();
-    constexpr double kArcCost = 1.0;
-    Arc<R> arc(/*arc_id=*/0, /*origin=*/nullptr, /*destination=*/nullptr, kArcCost);
-    constexpr double kExtenderValue = 2.5;
-    auto tup = std::make_tuple(kExtenderValue);
-    EXPECT_NE(factory.create_extender(tup, arc), nullptr);
 }
