@@ -62,3 +62,7 @@ Testing/
 
 # Clion
 .idea/
+
+# SLURM benchmark artifacts
+scripts/ng_jobs.txt
+logs/
