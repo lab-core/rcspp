@@ -62,7 +62,8 @@ AlgorithmParams<LabelList<ResourceType>> capped_params(size_t max_labels, size_t
 
 struct CgStats {
         double lp_cost = std::numeric_limits<double>::infinity();
-        size_t labels = 0;  // total labels extended across all pricing iterations
+        size_t labels = 0;     // total labels extended across all pricing iterations
+        double seconds = 0.0;  // wall-clock time of the CG run
 };
 
 // One column-generation run: returns the (capped, heuristic) LP bound and the
@@ -92,7 +93,7 @@ CgStats cg_run(const std::string& instance_name, const Instance& instance, size_
              " (",
              timer.elapsed_seconds(),
              "s)\n");
-    return {result.lp_cost, result.total_pricing_labels};
+    return {result.lp_cost, result.total_pricing_labels, timer.elapsed_seconds()};
 }
 
 }  // namespace
@@ -171,8 +172,10 @@ int main(int argc, char* argv[]) {
         std::ostringstream table;
         table << std::left << std::setw(8) << "Instance" << std::right << std::setw(5) << "ng"
               << std::setw(14) << "lp_base" << std::setw(14) << "lp_aug" << std::setw(12)
-              << "nlab_base" << std::setw(12) << "nlab_aug" << std::setw(9) << "drop%" << "\n";
-        table << std::string(74, '-') << "\n";
+              << "nlab_base" << std::setw(12) << "nlab_aug" << std::setw(9) << "drop%"
+              << std::setw(11) << "t_base" << std::setw(11) << "t_aug" << std::setw(9) << "t_drop%"
+              << "\n";
+        table << std::string(105, '-') << "\n";
 
         for (const auto& instance_name : instance_names) {
             const std::string instance_path = root_dir + "/instances/" + instance_name + ".txt";
@@ -219,6 +222,8 @@ int main(int argc, char* argv[]) {
                                         ? 100.0 * static_cast<double>(base.labels - aug.labels) /
                                               static_cast<double>(base.labels)
                                         : 0.0;
+                const double t_drop =
+                    base.seconds > 0 ? 100.0 * (base.seconds - aug.seconds) / base.seconds : 0.0;
                 const bool lp_match = std::abs(base.lp_cost - aug.lp_cost) < 1e-4;  // NOLINT
 
                 std::ostringstream lp_base_s;
@@ -227,12 +232,20 @@ int main(int argc, char* argv[]) {
                 lp_aug_s << std::fixed << std::setprecision(2) << aug.lp_cost
                          << (lp_match ? "" : " !DIFF");
                 std::ostringstream drop_s;
+                std::ostringstream t_base_s;
+                std::ostringstream t_aug_s;
+                std::ostringstream t_drop_s;
                 drop_s << std::fixed << std::setprecision(1) << drop << "%";
+                t_base_s << std::fixed << std::setprecision(2) << base.seconds << "s";
+                t_aug_s << std::fixed << std::setprecision(2) << aug.seconds << "s";
+                t_drop_s << std::fixed << std::setprecision(1) << t_drop << "%";
 
                 table << std::left << std::setw(8) << instance_name << std::right << std::setw(5)
                       << ng_size << std::setw(14) << lp_base_s.str() << std::setw(14)
                       << lp_aug_s.str() << std::setw(12) << base.labels << std::setw(12)
-                      << aug.labels << std::setw(9) << drop_s.str() << "\n";
+                      << aug.labels << std::setw(9) << drop_s.str() << std::setw(11)
+                      << t_base_s.str() << std::setw(11) << t_aug_s.str() << std::setw(9)
+                      << t_drop_s.str() << "\n";
             }
         }
 
