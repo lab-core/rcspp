@@ -9,8 +9,13 @@
 // equal lp_aug while nlab_aug <= nlab_base (strictly less on tight-TW instances).
 //
 // Usage:  rcspp-vrp-benchmark-ng [max_instance_index] [--ng s1 s2 ...]
+//                                [--max-labels N] [--cols K]
 //   max_instance_index : 1..9, expands to C10i / R10i / RC10i (default 2)
 //   --ng s1 s2 ...     : ng-neighbourhood sizes to sweep (default 3 5 8)
+//   --max-labels N     : max labels expanded per node, for early stopping on the
+//                        first (expensive) CG iterations (default 100)
+//   --cols K           : columns added to the master per CG iteration (default:
+//                        #demand customers); the labeling stops after 4*K solutions
 
 #include <iomanip>
 #include <iostream>
@@ -32,67 +37,57 @@ std::string run_tag(const std::string& instance_name, size_t ng_size, bool augme
            (augment ? "augmented" : "baseline") + "]";
 }
 
-// Single pricing solve with zero duals: returns the best reduced cost found and
-// the number of labels extended (a proxy for the labeling effort / dominance
-// strength).  Builds a fresh VRP so the measurement is independent of CG state.
-struct PricingStats {
-        double best_cost = std::numeric_limits<double>::infinity();
-        size_t extended = 0;
-};
-
-PricingStats price_once(const std::string& instance_name, const Instance& instance, size_t ng_size,
-                        bool augment) {
-    const std::string tag = run_tag(instance_name, ng_size, augment);
-    LOG_INFO(tag, " pricing solve start\n");
-    Timer timer;
-    timer.start();
-
-    VRP vrp(instance, ng_size, augment);
-    std::map<size_t, double> zero_dual;
-    for (size_t id : instance.get_demand_customers_id()) {
-        zero_dual[id] = 0.0;
-    }
-    auto algo = vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm, LabelList<ResourceType>>(
-        AlgorithmParams<LabelList<ResourceType>>());
-    auto solutions = vrp.run_algorithm(zero_dual, algo.get());
-
-    PricingStats stats;
-    stats.extended = algo->num_extended_labels();
-    for (const auto& sol : solutions) {
-        stats.best_cost = std::min(stats.best_cost, sol.cost);
-    }
-
-    timer.stop();
-    LOG_INFO(tag,
-             " pricing solve done  labels=",
-             stats.extended,
-             " best_rc=",
-             stats.best_cost,
-             " (",
-             timer.elapsed_seconds(),
-             "s)\n");
-    return stats;
+// Pricing parameters with early-stopping caps.  Exact ng-route pricing is ~O(n^3)
+// in the number of customers, so the first CG iterations (large duals => almost
+// every partial path has negative reduced cost) would otherwise explore millions
+// of labels.  Two caps keep it tractable: expand at most `max_labels` labels per
+// node, and stop the labeling after 4 x cols_per_iter solutions (4x the number of
+// columns added to the master each iteration).  Pricing then becomes heuristic
+// (the LP bound is a valid estimate, not exact), but baseline and augmented runs
+// use identical caps, so the comparison stays fair.
+AlgorithmParams<LabelList<ResourceType>> capped_params(size_t max_labels, size_t cols_per_iter) {
+    AlgorithmParams<LabelList<ResourceType>> params;
+    params.num_labels_to_extend_by_node = max_labels;
+    params.stop_after_X_solutions = 4 * cols_per_iter;
+    // stop_after_X_solutions only takes effect when solutions are collected during
+    // the run (not just at the end), which requires return_dominated_solutions.
+    params.return_dominated_solutions = true;
+    return params;
 }
 
-// Full column generation: returns the final LP relaxation cost.
-double cg_lp_cost(const std::string& instance_name, const Instance& instance, size_t ng_size,
-                  bool augment) {
+struct CgStats {
+        double lp_cost = std::numeric_limits<double>::infinity();
+        size_t labels = 0;  // total labels extended across all pricing iterations
+};
+
+// One column-generation run: returns the (capped, heuristic) LP bound and the
+// total labels extended across all pricing iterations -- the labeling effort the
+// augmentation is meant to reduce.
+CgStats cg_run(const std::string& instance_name, const Instance& instance, size_t ng_size,
+               bool augment, size_t max_labels, size_t cols_per_iter) {
     const std::string tag = run_tag(instance_name, ng_size, augment);
-    LOG_INFO(tag, " CG LP solve   start\n");
+    LOG_INFO(tag, " CG solve start\n");
     Timer timer;
     timer.start();
 
     VRP vrp(instance, ng_size, augment);
-    auto result = vrp.solve<SimpleDominanceAlgorithm>(AlgorithmParams<LabelList<ResourceType>>());
+    auto result = vrp.solve<SimpleDominanceAlgorithm>(capped_params(max_labels, cols_per_iter),
+                                                      std::nullopt,
+                                                      {},
+                                                      /*run_boost=*/false,
+                                                      /*extra_solvers=*/{},
+                                                      /*max_columns_per_iter=*/cols_per_iter);
 
     timer.stop();
     LOG_INFO(tag,
-             " CG LP solve   done  lp=",
+             " CG solve done  lp=",
              result.lp_cost,
+             " labels=",
+             result.total_pricing_labels,
              " (",
              timer.elapsed_seconds(),
              "s)\n");
-    return result.lp_cost;
+    return {result.lp_cost, result.total_pricing_labels};
 }
 
 }  // namespace
@@ -102,13 +97,21 @@ int main(int argc, char* argv[]) {
         Logger::init(LogLevel::Info);
 
         size_t max_instance_index = 2;
+        size_t max_labels = 100;   // per-node label-expansion cap (--max-labels)
+        size_t cols_per_iter = 0;  // columns added per CG iteration; 0 => #customers
         std::vector<size_t> ng_sizes;
-        bool reading_ng = false;
+        enum class Reading { kNone, kNg } reading = Reading::kNone;
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--ng") {
-                reading_ng = true;
-            } else if (reading_ng) {
+                reading = Reading::kNg;
+            } else if (arg == "--max-labels") {
+                reading = Reading::kNone;
+                max_labels = std::stoull(argv[++i]);
+            } else if (arg == "--cols") {
+                reading = Reading::kNone;
+                cols_per_iter = std::stoull(argv[++i]);
+            } else if (reading == Reading::kNg) {
                 ng_sizes.push_back(std::stoull(arg));
             } else {
                 max_instance_index = std::stoull(arg);
@@ -122,6 +125,12 @@ int main(int argc, char* argv[]) {
             LOG_ERROR("max_instance_index must be in 1..9\n");
             return 1;
         }
+
+        LOG_INFO("ng benchmark: max_labels=",
+                 max_labels,
+                 ", cols_per_iter=",
+                 (cols_per_iter == 0 ? std::string("#customers") : std::to_string(cols_per_iter)),
+                 ", stop_after_X_solutions=4*cols_per_iter\n");
 
         std::vector<std::string> instance_names;
         for (size_t i = 1; i <= max_instance_index; ++i) {
@@ -157,44 +166,46 @@ int main(int argc, char* argv[]) {
                 Timer test_timer;
                 test_timer.start();
 
-                const double lp_base = cg_lp_cost(instance_name, instance, ng_size, false);
-                const double lp_aug = cg_lp_cost(instance_name, instance, ng_size, true);
-                const PricingStats base = price_once(instance_name, instance, ng_size, false);
-                const PricingStats aug = price_once(instance_name, instance, ng_size, true);
+                const size_t cols =
+                    cols_per_iter == 0 ? instance.get_demand_customers_id().size() : cols_per_iter;
+                const CgStats base =
+                    cg_run(instance_name, instance, ng_size, false, max_labels, cols);
+                const CgStats aug =
+                    cg_run(instance_name, instance, ng_size, true, max_labels, cols);
 
                 test_timer.stop();
                 LOG_INFO("Test done : ",
                          header,
                          "  lp_base=",
-                         lp_base,
+                         base.lp_cost,
                          " lp_aug=",
-                         lp_aug,
+                         aug.lp_cost,
                          " nlab_base=",
-                         base.extended,
+                         base.labels,
                          " nlab_aug=",
-                         aug.extended,
+                         aug.labels,
                          "  (",
                          test_timer.elapsed_seconds(),
                          "s total)\n");
 
-                const double drop =
-                    base.extended > 0 ? 100.0 * static_cast<double>(base.extended - aug.extended) /
-                                            static_cast<double>(base.extended)
-                                      : 0.0;
-                const bool lp_match = std::abs(lp_base - lp_aug) < 1e-4;  // NOLINT
+                const double drop = base.labels > 0
+                                        ? 100.0 * static_cast<double>(base.labels - aug.labels) /
+                                              static_cast<double>(base.labels)
+                                        : 0.0;
+                const bool lp_match = std::abs(base.lp_cost - aug.lp_cost) < 1e-4;  // NOLINT
 
                 std::ostringstream lp_base_s;
                 std::ostringstream lp_aug_s;
-                lp_base_s << std::fixed << std::setprecision(2) << lp_base;
-                lp_aug_s << std::fixed << std::setprecision(2) << lp_aug
+                lp_base_s << std::fixed << std::setprecision(2) << base.lp_cost;
+                lp_aug_s << std::fixed << std::setprecision(2) << aug.lp_cost
                          << (lp_match ? "" : " !DIFF");
                 std::ostringstream drop_s;
                 drop_s << std::fixed << std::setprecision(1) << drop << "%";
 
                 table << std::left << std::setw(8) << instance_name << std::right << std::setw(5)
                       << ng_size << std::setw(14) << lp_base_s.str() << std::setw(14)
-                      << lp_aug_s.str() << std::setw(12) << base.extended << std::setw(12)
-                      << aug.extended << std::setw(9) << drop_s.str() << "\n";
+                      << lp_aug_s.str() << std::setw(12) << base.labels << std::setw(12)
+                      << aug.labels << std::setw(9) << drop_s.str() << "\n";
             }
         }
 

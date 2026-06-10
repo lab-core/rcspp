@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <functional>
 #include <limits>
 #include <optional>
@@ -26,6 +28,8 @@ struct CGSolveResult {
         std::vector<Timer> timers;
         /// @brief Final LP relaxation cost from the master problem after column generation.
         double lp_cost = std::numeric_limits<double>::infinity();
+        /// @brief Total labels extended across all pricing iterations (labeling effort).
+        size_t total_pricing_labels = 0;
 };
 
 /// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
@@ -63,7 +67,8 @@ class VRP {
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
             std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {},
-            bool run_boost = false, std::vector<ExtraSolver> extra_solvers = {}) {  // NOLINT
+            bool run_boost = false, std::vector<ExtraSolver> extra_solvers = {},  // NOLINT
+            size_t max_columns_per_iter = std::numeric_limits<size_t>::max()) {
             LOG_TRACE(__FUNCTION__, '\n');
 
 #ifndef RCSPP_VRP_HAS_BOOST
@@ -88,6 +93,7 @@ class VRP {
             master_problem.construct_model(paths_);
             MPSolution master_solution;
 
+            total_pricing_labels_ = 0;
             double min_reduced_cost = -std::numeric_limits<double>::infinity();
             std::vector<Timer> timers(num_total_algos);
             int nb_iter = 0;
@@ -207,6 +213,17 @@ class VRP {
                     }
                 }
 
+                // Add at most max_columns_per_iter columns: keep the most negative
+                // reduced cost ones (the most promising) when there are more.
+                if (negative_red_cost_solutions.size() > max_columns_per_iter) {
+                    std::ranges::nth_element(
+                        negative_red_cost_solutions,
+                        negative_red_cost_solutions.begin() +
+                            static_cast<std::ptrdiff_t>(max_columns_per_iter),
+                        [](const Solution& a, const Solution& b) { return a.cost < b.cost; });
+                    negative_red_cost_solutions.resize(max_columns_per_iter);
+                }
+
                 add_paths(&master_problem, negative_red_cost_solutions);
 
                 LOG_DEBUG(std::string(45, '*'), '\n');
@@ -224,7 +241,9 @@ class VRP {
                 LOG_DEBUG(std::string(45, '*'), '\n');
             }
 
-            return CGSolveResult{timers, master_solution.cost};
+            return CGSolveResult{.timers = timers,
+                                 .lp_cost = master_solution.cost,
+                                 .total_pricing_labels = total_pricing_labels_};
         }
 
         RGraph& get_graph() { return graph_; }
@@ -282,6 +301,9 @@ class VRP {
         Timer total_subproblem_time_;
         Timer total_subproblem_solve_time_;
 
+        // Accumulated across pricing iterations of one CG run (reset in solve()).
+        size_t total_pricing_labels_ = 0;
+
 #ifdef RCSPP_VRP_HAS_BOOST
         Timer total_subproblem_time_boost_;
         Timer total_subproblem_solve_time_boost_;
@@ -327,6 +349,7 @@ class VRP {
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
             auto result = graph_.solve<AlgorithmType>(-EPSILON, params);
+            total_pricing_labels_ += result.num_extended_labels;
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",

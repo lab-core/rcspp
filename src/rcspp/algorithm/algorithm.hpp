@@ -45,6 +45,8 @@ enum class AlgorithmStatus {
 struct SolveResult {
         std::vector<Solution> solutions;
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+        /// @brief Number of labels extended during this solve (labeling effort).
+        size_t num_extended_labels = 0;
 
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const {
@@ -404,7 +406,9 @@ class Algorithm {
                 release_label_memory();
             }
 
-            return {.solutions = std::move(solutions), .status = status};
+            return {.solutions = std::move(solutions),
+                    .status = status,
+                    .num_extended_labels = num_extended_labels_};
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }

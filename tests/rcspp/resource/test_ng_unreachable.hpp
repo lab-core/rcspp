@@ -78,7 +78,9 @@ inline std::map<size_t, std::set<size_t>> build_ng_neighborhoods(const NgInstanc
     return ng;
 }
 
-inline NgSolveStats solve_ng_instance(const NgInstance& inst, bool augment) {
+inline NgSolveStats solve_ng_instance(const NgInstance& inst, bool augment,
+                                      size_t max_labels = std::numeric_limits<size_t>::max(),
+                                      size_t stop_after = std::numeric_limits<size_t>::max()) {
     const size_t n = inst.x.size();
     const size_t sink = n - 1;
 
@@ -177,8 +179,13 @@ inline NgSolveStats solve_ng_instance(const NgInstance& inst, bool augment) {
         }
     }
 
+    AlgorithmParams<LabelList<NgComposition>> params;
+    params.num_labels_to_extend_by_node = max_labels;
+    params.stop_after_X_solutions = stop_after;
+    params.return_dominated_solutions =
+        stop_after < std::numeric_limits<size_t>::max();  // needed for stop_after to fire
     auto algo = graph.create_algorithm<SimpleDominanceAlgorithm, LabelList<NgComposition>>(
-        AlgorithmParams<LabelList<NgComposition>>());
+        std::move(params));
     auto result = graph.solve(algo.get());
 
     NgSolveStats stats;
@@ -186,7 +193,8 @@ inline NgSolveStats solve_ng_instance(const NgInstance& inst, bool augment) {
         stats.best_cost = result.solutions[0].cost;
     }
     stats.non_dominated = algo->total_non_dominated_labels();
-    stats.extended = algo->num_extended_labels();
+    stats.extended = result.num_extended_labels;             // SolveResult carries the count
+    EXPECT_EQ(stats.extended, algo->num_extended_labels());  // ... matching the getter
     return stats;
 }
 
@@ -204,9 +212,60 @@ inline NgInstance tight_tw_instance() {
     return inst;
 }
 
+// A clustered instance (customers packed in a small box => tiny travel times)
+// with a tunable time-window width.  Wide windows + loose capacity let ng-route
+// keep cycles longer than the neighbourhood, which makes the label count blow up.
+inline NgInstance clustered_instance(size_t n_customers, double tw_width) {
+    NgInstance inst;
+    inst.x.push_back(0.0);  // depot
+    for (size_t i = 0; i < n_customers; ++i) {
+        inst.x.push_back(1.0 + 0.1 * static_cast<double>(i));  // tightly clustered
+    }
+    inst.x.push_back(0.0);  // sink
+
+    inst.due.assign(inst.x.size(), tw_width);
+    inst.due.front() = 1e6;
+    inst.due.back() = 1e6;
+
+    inst.demand.assign(inst.x.size(), 1);
+    inst.demand.front() = 0;
+    inst.demand.back() = 0;
+
+    inst.capacity = static_cast<int>(n_customers);  // a route may visit everyone
+    inst.ng_size = 3;
+    return inst;
+}
+
 }  // namespace
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+// Diagnostic (disabled by default): shows how the non-dominated label count of
+// ng-route pricing explodes as time windows widen on a clustered instance --
+// the root cause of the benchmark "hang" on wider-TW Solomon instances (C102+).
+// Run with: tests-rcspp --gtest_also_run_disabled_tests
+//                       --gtest_filter='*NgLabelExplosion*'
+TEST(NgUnreachableAugmentation, DISABLED_NgLabelExplosion) {
+    const size_t n = 30;
+    const auto inst = clustered_instance(n, /*tw_width=*/1000.0);  // wide TW
+    const auto uncapped = solve_ng_instance(inst, /*augment=*/false);
+    std::cout << "uncapped: extended=" << uncapped.extended << "\n";
+    // The per-node label cap bounds the work once it drops below the natural
+    // processed-labels-per-node (~n^2 on the real Solomon instances, so a cap of
+    // 100 binds hard at n=100 even though it does not at this toy scale).
+    for (size_t cap : {5, 10, 25, 50}) {
+        const auto capped = solve_ng_instance(inst, /*augment=*/false, /*max_labels=*/cap);
+        std::cout << "max_labels=" << cap << " -> extended=" << capped.extended << "\n";
+    }
+    // stop_after_X_solutions (with return_dominated_solutions) bounds it too.
+    for (size_t stop : {10, 40, 120}) {
+        const auto s = solve_ng_instance(inst,
+                                         /*augment=*/false,
+                                         /*max_labels=*/std::numeric_limits<size_t>::max(),
+                                         /*stop_after=*/stop);
+        std::cout << "stop_after=" << stop << " -> extended=" << s.extended << "\n";
+    }
+}
 
 TEST(NgUnreachableAugmentation, SameOptimumFewerLabels) {
     const auto inst = tight_tw_instance();
