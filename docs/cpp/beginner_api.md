@@ -59,11 +59,6 @@ labels carry a composition of resource types.
 :undoc-members:
 ```
 
-```{doxygenstruct} rcspp::BucketAlgorithmParams
-:members:
-:undoc-members:
-```
-
 ```{doxygenstruct} rcspp::SolveResult
 :members:
 :undoc-members:
@@ -117,7 +112,7 @@ labels carry a composition of resource types.
 :undoc-members:
 ```
 
-```{doxygenclass} rcspp::NGPathExtensionFunction
+```{doxygenclass} rcspp::NgPathExtensionFunction
 :members:
 :undoc-members:
 ```
