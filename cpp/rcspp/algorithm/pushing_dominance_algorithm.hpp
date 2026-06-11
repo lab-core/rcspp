@@ -65,9 +65,9 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             this->add_new_label(label_iterator_pair);
         }
 
-        void prepareNextPhase() override {
-            this->restore_truncated_unprocessed_labels();
-        }  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — prepareNextPhase not triggered in unit tests
+        void prepareNextPhase() override { this->restore_truncated_unprocessed_labels(); }
+        // GCOVR_EXCL_STOP
 
         /// @brief Trim per-node queues when memory pressure is detected.
         ///

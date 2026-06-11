@@ -107,13 +107,14 @@ void init_graph(py::module_& m) {
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
         .def(
             "__iter__",
-            [](const SolveResult& r) {
+            [](const SolveResult& r) {  // GCOVR_EXCL_LINE — lambda decl; body covered
                 return py::make_iterator(r.solutions.begin(), r.solutions.end());
             },
             py::keep_alive<0, 1>())
-        .def(  // GCOVR_EXCL_LINE — pybind11 .def() chain line; not a separate instrumentation point
+        .def(
             "__getitem__",
-            [](const SolveResult& r, py::ssize_t i) -> const Solution& {
+            [](const SolveResult& r,
+               py::ssize_t i) -> const Solution& {  // GCOVR_EXCL_LINE — lambda decl; body covered
                 if (i < 0) {
                     i += static_cast<py::ssize_t>(r.solutions.size());
                 }

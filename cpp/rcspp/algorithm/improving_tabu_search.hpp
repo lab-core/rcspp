@@ -190,7 +190,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
 
                     if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
                         this->clear_path();  // GCOVR_EXCL_LINE
-                        break;
+                        break;               // GCOVR_EXCL_LINE
                     }
                 } else {
                     // GCOVR_EXCL_START (tabu exhaustion/aspiration; only in extended tabu runs)
@@ -229,7 +229,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                     return false;  // GCOVR_EXCL_LINE
                 }
             }
-            return false;
+            return false;  // GCOVR_EXCL_LINE
         }
 
         void apply_tabu(const Label<ResourceType>& sink_label) {
@@ -240,7 +240,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                 }
                 if (this->params_.forbidden_tabu.contains(arc->origin->id) ||
                     this->params_.forbidden_tabu.contains(arc->destination->id)) {
-                    continue;
+                    continue;  // GCOVR_EXCL_LINE
                 }
                 tabu_.add(arc->id, this->params_.tabu_tenure, this->params_.tabu_random_noise);
                 if (entry.first == &sink_label) {

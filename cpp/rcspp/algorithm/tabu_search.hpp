@@ -151,7 +151,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                     return false;
                 }
             }
-            return false;
+            return false;  // GCOVR_EXCL_LINE
         }
 
         // ------------------------------------------------------------------

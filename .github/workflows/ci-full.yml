@@ -1,7 +1,9 @@
 name: CI Full
 
 # Full test matrix (all OS × build types × Python versions) plus wheel/sdist builds.
-# Run on-demand only — the automatic coverage gate lives in ci.yml.
+# One-click via "Run workflow" in GitHub UI — also calls the coverage gate so
+# everything runs together. The coverage gate also runs automatically on
+# push/PR to main (ci.yml).
 on:
   workflow_dispatch:
 
@@ -13,6 +15,11 @@ defaults:
     shell: bash
 
 jobs:
+  # ── Coverage gate (reuses ci.yml definition — no duplication) ─────────────
+  coverage:
+    name: Coverage Gate
+    uses: ./.github/workflows/ci.yml
+
   test:
     name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
@@ -71,7 +78,7 @@ jobs:
 
   build_wheels:
     name: Wheels / ${{ matrix.os }}
-    needs: test
+    needs: [coverage, test]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -97,7 +104,7 @@ jobs:
 
   build_sdist:
     name: Build sdist
-    needs: test
+    needs: [coverage, test]
     runs-on: ubuntu-latest
 
     steps:

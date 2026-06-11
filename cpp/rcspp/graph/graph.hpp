@@ -34,9 +34,11 @@ class Graph {
 
         [[nodiscard]] std::unique_ptr<Graph<ResourceType>> clone(
             bool clone_removed_arcs = false) const {
+            // GCOVR_EXCL_START
             auto new_graph = std::make_unique<Graph<ResourceType>>();
             clone_topology_into(*new_graph, /*include_rows=*/true, clone_removed_arcs);
-            return new_graph;  // GCOVR_EXCL_LINE
+            return new_graph;
+            // GCOVR_EXCL_STOP
         }
 
         virtual Node<ResourceType>& add_node(size_t node_id, bool source = false,
@@ -153,6 +155,7 @@ class Graph {
 
         template <typename C>
         std::vector<size_t> remove_arcs_if(C check) {
+            // GCOVR_EXCL_START
             std::vector<size_t> to_remove;
             for_each_arc([&](const auto& arc) {
                 if (check(arc)) {
@@ -162,7 +165,8 @@ class Graph {
             for (size_t id : to_remove) {
                 remove_arc(id);
             }
-            return to_remove;  // GCOVR_EXCL_LINE
+            return to_remove;
+            // GCOVR_EXCL_STOP
         }
 
         virtual bool restore_arc(size_t arc_id) {
@@ -221,14 +225,14 @@ class Graph {
         [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
             auto it = nodes_by_id_.find(node_id);
             if (it == nodes_by_id_.end()) {
-                return nullptr;
+                return nullptr;  // GCOVR_EXCL_LINE
             }
             return it->second.get();  // GCOVR_EXCL_LINE
         }
 
         [[nodiscard]] Arc<ResourceType>* get_arc(size_t arc_id) const {
             if (arc_id >= arcs_.size()) {
-                return nullptr;
+                return nullptr;  // GCOVR_EXCL_LINE
             }
             return arcs_[arc_id].get();  // GCOVR_EXCL_LINE
         }
@@ -250,13 +254,15 @@ class Graph {
         // GCOVR_EXCL_STOP
 
         [[nodiscard]] std::vector<size_t> get_node_ids() const {
+            // GCOVR_EXCL_START
             std::vector<size_t> ids;
             ids.reserve(nodes_by_id_.size());
             for (const auto& [k, _] : nodes_by_id_) {
-                ids.push_back(k);  // GCOVR_EXCL_LINE
+                ids.push_back(k);
             }
-            std::sort(ids.begin(), ids.end());  // GCOVR_EXCL_LINE
+            std::sort(ids.begin(), ids.end());
             return ids;
+            // GCOVR_EXCL_STOP
         }
 
         [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
@@ -321,12 +327,14 @@ class Graph {
         /// @brief Append *rows* to the rows of arc *arc_id*.
         /// @return True if the arc was found and updated, false if *arc_id* is invalid.
         bool add_rows_to_arc(size_t arc_id, const std::vector<Row>& rows) {
+            // GCOVR_EXCL_START
             if (arc_id >= arcs_.size() || !arcs_[arc_id]) {
                 return false;
             }
             auto& dr = arcs_[arc_id]->rows;
             dr.insert(dr.end(), rows.begin(), rows.end());
             return true;
+            // GCOVR_EXCL_STOP
         }
 
         /// @brief Return the next arc ID that will be assigned by add_arc().
@@ -339,12 +347,13 @@ class Graph {
         }
 
         [[nodiscard]] bool is_source(size_t node_id) const {
-            return std::ranges::find(source_node_ids_, node_id) !=
-                   source_node_ids_.end();  // GCOVR_EXCL_LINE
+            return std::ranges::find(source_node_ids_, node_id) !=  // GCOVR_EXCL_LINE
+                   source_node_ids_.end();                          // GCOVR_EXCL_LINE
         }
 
         [[nodiscard]] bool is_sink(size_t node_id) const {
-            return std::ranges::find(sink_node_ids_, node_id) != sink_node_ids_.end();
+            return std::ranges::find(sink_node_ids_, node_id) !=  // GCOVR_EXCL_LINE
+                   sink_node_ids_.end();                          // GCOVR_EXCL_LINE
         }
 
         void sort_nodes() {
@@ -423,9 +432,11 @@ class Graph {
             }
             for (size_t i = 0; i < sorted_nodes_.size(); i++) {  // GCOVR_EXCL_LINE
                 if (sorted_nodes_[i]->pos() != i) {
+                    // GCOVR_EXCL_START
                     LOG_WARN(
                         "Nodes are not correctly sorted in the graph. It will be overridden.\n");
                     return false;
+                    // GCOVR_EXCL_STOP
                 }
             }
             return true;

@@ -374,8 +374,10 @@ class Composition : public CompositionTag {
                 result.resize(result.size() - 2);
             }
 
-            return result;  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            return result;
         }
+        // GCOVR_EXCL_STOP
 
         // Getters for components
 

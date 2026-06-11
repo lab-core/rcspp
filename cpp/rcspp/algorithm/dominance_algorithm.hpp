@@ -208,7 +208,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
             std::ranges::reverse(path_arc_ids);  // GCOVR_EXCL_LINE
             return path_arc_ids;                 // GCOVR_EXCL_LINE
-        }
+        }  // GCOVR_EXCL_LINE
 
         virtual bool update_non_dominated_labels(const Label<ResourceType>& label) {
             total_update_non_dom_time_.start();
@@ -252,7 +252,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
 
             return labels_at_sinks;  // GCOVR_EXCL_LINE
-        }
+        }  // GCOVR_EXCL_LINE
 
         // GCOVR_EXCL_START (trace-level diagnostics; not reached in unit tests)
         void print_labels() const override {

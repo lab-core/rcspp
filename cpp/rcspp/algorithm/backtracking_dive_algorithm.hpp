@@ -59,7 +59,7 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
                     break;  // GCOVR_EXCL_LINE
                 }
             }
-            return path_arc_ids;
+            return path_arc_ids;  // GCOVR_EXCL_LINE
         }
 
         // ------------------------------------------------------------------

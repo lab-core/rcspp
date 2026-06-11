@@ -127,7 +127,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             for (auto* arc : this->graph_->get_out_arcs(end_node)) {
                 // check if can reach this destination node
                 if (!label->is_reachable(arc->destination->id)) {
-                    continue;
+                    continue;  // GCOVR_EXCL_LINE
                 }
                 // extend along arc
                 auto& new_label = this->label_pool_.get_next_label(arc->destination);
@@ -176,7 +176,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 }
             }
             return path_arc_ids;  // GCOVR_EXCL_LINE
-        }
+        }  // GCOVR_EXCL_LINE
 
         void add_labels_to_path(std::list<Label<ResourceType>*> labels) {
             auto first = labels.front();

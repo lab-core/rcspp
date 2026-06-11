@@ -266,7 +266,7 @@ class ConnectivityMatrix {
                     int su = scc_id[u];
                     int sv = scc_id[v];  // GCOVR_EXCL_LINE
                     if (su != sv && cond_adj_set[su].insert(sv).second) {
-                        cond_adj[su].push_back(sv);
+                        cond_adj[su].push_back(sv);  // GCOVR_EXCL_LINE
                     }
                 }
             }

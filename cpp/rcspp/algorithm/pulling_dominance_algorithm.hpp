@@ -78,9 +78,9 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                     if (label.dominated) {
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
+                        // GCOVR_EXCL_START — prune-by-upper-bound path not triggered in unit tests
                     } else if (this->params_.prune_based_on_upper_bound_ &&
                                label.get_cost() >= this->best_cost_upper_bound_) {
-                        // GCOVR_EXCL_START — prune-by-upper-bound path not triggered in unit tests
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_with_ref_count(&label);
@@ -122,14 +122,15 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             }
         }
 
+        // GCOVR_EXCL_START — next_label_iterator/extend are not-implemented stubs never called
         LabelIteratorPair<ResourceType> next_label_iterator() override {
-            throw std::runtime_error("next_label_iterator() not implemented");  // GCOVR_EXCL_LINE
+            throw std::runtime_error("next_label_iterator() not implemented");
         }
 
         void extend(Label<ResourceType>* label_ptr) override {
-            throw std::runtime_error(
-                "extend(Label<ResourceType>* label_ptr) not implemented");  // GCOVR_EXCL_LINE
+            throw std::runtime_error("extend(Label<ResourceType>* label_ptr) not implemented");
         }
+        // GCOVR_EXCL_STOP
 
         void pull_new_unprocessed_labels() {
             // move to the next node

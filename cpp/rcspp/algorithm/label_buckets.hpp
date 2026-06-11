@@ -296,9 +296,9 @@ class LabelBuckets : public LabelList<ResourceType> {
                                 remove_bucket(idx, begin_before_erase);
                                 break;  // Bucket gone; continue outer loop.
                             }
-                            update_bucket_begin(idx,
-                                                label_it,
-                                                begin_before_erase);  // GCOVR_EXCL_LINE
+                            // GCOVR_EXCL_START — update_bucket_begin after mid-bucket erase
+                            update_bucket_begin(idx, label_it, begin_before_erase);
+                            // GCOVR_EXCL_STOP
                         }
                     } else if (!(lsr <= get_sort_resource(*current))) {
                         // Sort-resource pruning: remaining labels cannot be dominated.

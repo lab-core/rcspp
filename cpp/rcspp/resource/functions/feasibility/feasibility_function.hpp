@@ -30,11 +30,12 @@ class FeasibilityFunction {
         }
         // GCOVR_EXCL_STOP
 
+        // GCOVR_EXCL_START
         [[nodiscard]] virtual auto can_be_merged(const ResourceType& resource,
                                                  const ResourceType& back_resource) -> bool {
-            throw std::runtime_error(
-                "FeasibilityFunction::can_be_merged not implemented");  // GCOVR_EXCL_LINE
+            throw std::runtime_error("FeasibilityFunction::can_be_merged not implemented");
         };
+        // GCOVR_EXCL_STOP
 
         // GCOVR_EXCL_START — is_reachable default never called in tests
         virtual auto is_reachable(const Resource<ResourceType>& resource,
@@ -53,7 +54,7 @@ class FeasibilityFunction {
         }
         // GCOVR_EXCL_STOP
 
-        virtual void reset(const size_t node_id) { preprocess(node_id); }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 
     protected:
         virtual void preprocess(size_t node_id) {}
@@ -76,12 +77,13 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         }
         // GCOVR_EXCL_STOP
 
+        // GCOVR_EXCL_START
         [[nodiscard]] virtual auto can_be_merged(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource) -> bool {
-            throw std::runtime_error(
-                "FeasibilityFunction::can_be_merged not implemented");  // GCOVR_EXCL_LINE
+            throw std::runtime_error("FeasibilityFunction::can_be_merged not implemented");
         };
+        // GCOVR_EXCL_STOP
 
         virtual auto is_reachable(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/,
@@ -101,7 +103,7 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         }
         // GCOVR_EXCL_STOP
 
-        virtual void reset(const size_t node_id) { preprocess(node_id); }
+        virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 
     protected:
         virtual void preprocess(size_t node_id) {}

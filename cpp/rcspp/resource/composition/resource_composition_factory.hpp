@@ -105,8 +105,10 @@ class ResourceCompositionFactory
                                                  resource_consumption,
                                                  create_extender_function);
 
-            return extender_resource_composition;  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            return extender_resource_composition;
         }
+        // GCOVR_EXCL_STOP
 
         // Add (move) the resource factory in argument to the right vector of resource factories
         // (i.e., ResourceTypeIndex).
@@ -174,8 +176,10 @@ class ResourceCompositionFactory
                 static_cast<const Composition<ResourceFactory, ResourceTypes...>&>(*this);
             // Rebuild resource_prototype_ from the newly cloned sub-factories.
             new_factory->update_resource_prototype();
-            return new_factory;  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            return new_factory;
         }
+        // GCOVR_EXCL_STOP
 
     private:
         const ResourceClass& update_resource_prototype() {

@@ -45,9 +45,9 @@ PYBIND11_MODULE(_core, m) {
 
     logger_submodule.def(
         "set_level",
-        [](rcspp::LogLevel level) {
+        [](rcspp::LogLevel level) {  // GCOVR_EXCL_LINE — lambda decl; body covered
             rcspp::Logger::instance().set_level(level);
-        },                 // GCOVR_EXCL_LINE
+        },
         py::arg("level"),  // GCOVR_EXCL_LINE
         "Set the minimum log level.");
 
@@ -58,11 +58,9 @@ PYBIND11_MODULE(_core, m) {
 
     logger_submodule.def(
         "init",
-        [](rcspp::LogLevel level,
+        [](rcspp::LogLevel level,  // GCOVR_EXCL_LINE — lambda decl; body covered
            bool to_console,
-           const std::string& file_path) {  // GCOVR_EXCL_LINE
-            rcspp::Logger::init(level, to_console, file_path);
-        },
+           const std::string& file_path) { rcspp::Logger::init(level, to_console, file_path); },
         py::arg("level") = rcspp::LogLevel::Info,
         py::arg("to_console") = true,
         py::arg("file_path") = std::string{},

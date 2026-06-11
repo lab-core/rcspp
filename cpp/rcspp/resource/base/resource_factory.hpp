@@ -105,8 +105,10 @@ class ResourceFactory {
             if (extension_function_) {
                 cloned->extension_function_ = extension_function_->clone();
             }
-            return cloned;  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            return cloned;
         }
+        // GCOVR_EXCL_STOP
 
         // Make an extender
         template <typename GraphResourceType>

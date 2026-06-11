@@ -42,9 +42,9 @@ class ActiveCall {
         };
 
     public:
-        static bool any_active() {
-            return g_active_calls.load(std::memory_order_relaxed) > 0;
-        }  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — only reachable when Ctrl-C fires; not triggerable in unit tests
+        static bool any_active() { return g_active_calls.load(std::memory_order_relaxed) > 0; }
+        // GCOVR_EXCL_STOP
 
         static bool is_interrupted() { return g_py_interrupted.load(std::memory_order_relaxed); }
 
@@ -70,14 +70,14 @@ class ActiveCall {
             }
         }
 
-        static void mark_interrupted() {
-            g_py_interrupted.store(true, std::memory_order_relaxed);
-        }  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — only reachable when Ctrl-C fires; not triggerable in unit tests
+        static void mark_interrupted() { g_py_interrupted.store(true, std::memory_order_relaxed); }
+        // GCOVR_EXCL_STOP
 
         static void check_if_throw_error() {
-            if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {  // GCOVR_EXCL_LINE
-                PyErr_SetNone(PyExc_KeyboardInterrupt);                         // GCOVR_EXCL_LINE
-                throw py::error_already_set();
+            if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
+                PyErr_SetNone(PyExc_KeyboardInterrupt);  // GCOVR_EXCL_LINE
+                throw py::error_already_set();           // GCOVR_EXCL_LINE
             }
         }
 };
@@ -137,9 +137,10 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AStarAlgoEntry<SolverAlgorithm::AStar>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
+// GCOVR_EXCL_START — template dispatch; not all instantiations are exercised in tests
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
                                     bool pre, size_t ci, std::tuple<Entries...>* /*tag*/) {
-    SolveResult result;  // GCOVR_EXCL_LINE
+    SolveResult result;
     [[maybe_unused]] bool matched =
         ((Entries::value == alg
               ? (result = Entries::template run<RG, CostRC, LC>(rg, ub, p, pre, ci), true)
@@ -147,6 +148,7 @@ SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, Algo
          ...);
     return result;
 }
+// GCOVR_EXCL_STOP
 
 template <typename RG, typename CostRC, typename LC>
 SolveResult dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,

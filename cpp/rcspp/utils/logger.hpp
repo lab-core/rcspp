@@ -147,10 +147,12 @@ class Logger {
 
         static const char* level_name(const LogLevel& l) {
             switch (l) {
+                // GCOVR_EXCL_START
                 case LogLevel::Trace:
-                    return "TRACE";  // GCOVR_EXCL_LINE — Trace level not active in tests
+                    return "TRACE";
                 case LogLevel::Debug:
-                    return "DEBUG";  // GCOVR_EXCL_LINE — Debug level not active in tests
+                    return "DEBUG";
+                // GCOVR_EXCL_STOP
                 case LogLevel::Info:
                     return "INFO ";
                 case LogLevel::Warn:
@@ -165,11 +167,12 @@ class Logger {
 
         static const char* color_for(const LogLevel& l) {
             switch (l) {
+                // GCOVR_EXCL_START
                 case LogLevel::Trace:
-                    return "\033[37m";  // light gray  // GCOVR_EXCL_LINE — Trace not active in
-                                        // tests
+                    return "\033[37m";  // light gray
                 case LogLevel::Debug:
-                    return "\033[36m";  // cyan  // GCOVR_EXCL_LINE — Debug not active in tests
+                    return "\033[36m";  // cyan
+                // GCOVR_EXCL_STOP
                 case LogLevel::Info:
                     return "\033[32m";  // green
                 case LogLevel::Warn:

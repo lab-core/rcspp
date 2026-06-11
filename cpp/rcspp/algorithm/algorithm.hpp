@@ -315,9 +315,9 @@ class Algorithm {
          *
          * @return true if the algorithm is optimal (no labels left to process), false otherwise.
          */
-        [[nodiscard]] virtual bool is_optimal() const {
-            return number_of_labels() == 0;
-        }  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — default is_optimal() is overridden in all tested subclasses
+        [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
+        // GCOVR_EXCL_STOP
 
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {

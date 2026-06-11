@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:  # allows ci-full.yml to call this as a reusable sub-workflow
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

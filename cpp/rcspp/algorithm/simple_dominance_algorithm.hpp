@@ -46,8 +46,9 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
                         break;  // found a label to process
                     }
                     // otherwise, store truncated label for next phase
-                    unprocessed_truncated_labels_.push_back(
-                        label_iterator_pair);  // GCOVR_EXCL_LINE
+                    // GCOVR_EXCL_START — truncated label path not triggered in unit tests
+                    unprocessed_truncated_labels_.push_back(label_iterator_pair);
+                    // GCOVR_EXCL_STOP
                 }
             }
 

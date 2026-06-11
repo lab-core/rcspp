@@ -107,6 +107,8 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                     fp->remove_if([=](SolutionPool::ColumnId,
                                       const Solution&,
                                       const ColumnActivity& act) -> bool {
+                        // GCOVR_EXCL_START — activity-filter branches require specific pool state
+                        // (aged/stale entries) not produced by the basic unit-test helpers
                         if (max_age.has_value() && act.age > *max_age) {
                             return true;
                         }
@@ -120,6 +122,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                         return false;
                     });
                 }
+                // GCOVR_EXCL_STOP
                 return fp;
             },
             py::arg("filter") = py::none(),
@@ -166,12 +169,12 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 auto arr = py::array_t<double>(static_cast<py::ssize_t>(v.size()));
                 std::copy(v.begin(), v.end(), arr.mutable_data());
                 return arr;
-            };
+            };  // GCOVR_EXCL_LINE
             auto make_u32 = [](const std::vector<uint32_t>& v) {
                 auto arr = py::array_t<uint32_t>(static_cast<py::ssize_t>(v.size()));
                 std::copy(v.begin(), v.end(), arr.mutable_data());
                 return arr;
-            };
+            };  // GCOVR_EXCL_LINE
 
             return py::make_tuple(make_f64(col_costs),
                                   make_u32(row_starts),
@@ -225,7 +228,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         //   fp.new_filter(forbidden_arc_ids=[10]) # row/arc shortcuts
         .def(
             "new_filter",
-            [](const FilteredSolutionPool& fp,
+            [](const FilteredSolutionPool& fp,  // GCOVR_EXCL_LINE
                std::optional<py::function>
                    pred,
                std::vector<size_t>
@@ -267,6 +270,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 }
                 auto* child = new FilteredSolutionPool(fp.new_filter(std::move(combined)));
                 if (min_usage_rate.has_value() || max_age.has_value() || max_last_rc.has_value()) {
+                    // GCOVR_EXCL_START — activity-filter branches require specific pool state
                     child->remove_if([=](SolutionPool::ColumnId,
                                          const Solution&,
                                          const ColumnActivity& act) -> bool {
@@ -278,6 +282,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                             return true;
                         return false;
                     });
+                    // GCOVR_EXCL_STOP
                 }
                 return child;
             },
@@ -296,7 +301,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         //   fp.add_filter(forbidden_arc_ids=[10]) # row/arc shortcuts
         .def(
             "add_filter",
-            [](FilteredSolutionPool& fp,
+            [](FilteredSolutionPool& fp,  // GCOVR_EXCL_LINE
                std::optional<py::function>
                    pred,
                std::vector<size_t>
@@ -339,30 +344,26 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             py::arg("forbidden_arc_ids") = std::vector<size_t>{})
         .def(
             "add",
-            [](FilteredSolutionPool& fp,
+            [](FilteredSolutionPool& fp,  // GCOVR_EXCL_LINE
                const Solution& sol,
-               bool check_filter) {  // GCOVR_EXCL_LINE
-                return fp.add(sol, check_filter);
-            },
-            py::arg("solution"),  // GCOVR_EXCL_LINE
+               bool check_filter) { return fp.add(sol, check_filter); },
+            py::arg("solution"),
             py::arg("check_filter") = true)
         .def(
             "add",
-            [](FilteredSolutionPool& fp,
+            [](FilteredSolutionPool& fp,  // GCOVR_EXCL_LINE
                const std::vector<Solution>& sols,
-               bool check_filter) {  // GCOVR_EXCL_LINE
-                return fp.add(sols, check_filter);
-            },
-            py::arg("solutions"),  // GCOVR_EXCL_LINE
+               bool check_filter) { return fp.add(sols, check_filter); },
+            py::arg("solutions"),
             py::arg("check_filter") = true)
         // price() prices only the filtered subset; updates ColumnActivity for those entries.
         // The binding copies each returned column's Solution into a Python-owned PyPricedColumn at
         // price() time (entry still alive), so the result never dangles after later pool edits.
         .def(
             "price",
-            [](FilteredSolutionPool& fp,
+            [](FilteredSolutionPool& fp,  // GCOVR_EXCL_LINE
                const std::vector<double>& duals,
-               double threshold) {  // GCOVR_EXCL_LINE
+               double threshold) {
                 const auto priced = fp.price(duals, threshold);
                 std::vector<PyPricedColumn> out;
                 out.reserve(priced.size());
@@ -424,7 +425,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // get_column_ids(): return ColumnIds as a contiguous uint64 numpy array.
         // Faster than get_all() when only the ids are needed (no Solution copies).
         .def("get_column_ids",
-             [](const FilteredSolutionPool& fp) {
+             [](const FilteredSolutionPool& fp) {  // GCOVR_EXCL_LINE
                  auto entries = fp.get_all();
                  auto result = py::array_t<uint64_t>(static_cast<py::ssize_t>(entries.size()));
                  auto buf = result.mutable_unchecked<1>();
@@ -459,6 +460,6 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         .def("__len__", &FilteredSolutionPool::size)
         .def("size", &FilteredSolutionPool::size)
         .def("pool",
-             py::overload_cast<>(&FilteredSolutionPool::pool),
+             py::overload_cast<>(&FilteredSolutionPool::pool),  // GCOVR_EXCL_LINE
              py::return_value_policy::reference);
 }

@@ -1023,7 +1023,7 @@ class FilteredSolutionPool {
                 on_remove_unlocked(id);
             }
             return to_remove;  // GCOVR_EXCL_LINE
-        }
+        }  // GCOVR_EXCL_LINE
 
         [[nodiscard]] std::vector<PricedColumn> price_subset_locked(
             const std::vector<double>& duals, double threshold) {
@@ -1058,7 +1058,7 @@ class FilteredSolutionPool {
                 }
             }
             return result;  // GCOVR_EXCL_LINE
-        }
+        }  // GCOVR_EXCL_LINE
 };
 
 // ─── SolutionPool out-of-line definitions (require FilteredSolutionPool complete) ──

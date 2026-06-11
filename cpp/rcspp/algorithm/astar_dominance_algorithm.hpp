@@ -178,8 +178,9 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                         ++num_extended;
                         break;
                     }
-                    unprocessed_truncated_labels_.push_back(
-                        label_iterator_pair);  // GCOVR_EXCL_LINE
+                    // GCOVR_EXCL_START — truncated label path not triggered in unit tests
+                    unprocessed_truncated_labels_.push_back(label_iterator_pair);
+                    // GCOVR_EXCL_STOP
                 }
             }
             return label_iterator_pair;

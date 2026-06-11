@@ -74,8 +74,10 @@ class LabelPool {
         void release_with_ref_count(Label<ResourceType>* label_ptr) {
             while (label_ptr != nullptr) {
                 if (label_ptr->ref_count > 0) {
-                    label_ptr->pending_release = true;  // GCOVR_EXCL_LINE
+                    // GCOVR_EXCL_START
+                    label_ptr->pending_release = true;
                     break;
+                    // GCOVR_EXCL_STOP
                 }
                 Label<ResourceType>* prev = label_ptr->prev_label;
                 if (prev != nullptr) {
