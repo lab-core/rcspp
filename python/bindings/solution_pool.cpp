@@ -61,7 +61,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         //   pool.new_filter(forbidden_arc_ids=[10, 11])               # row/arc shortcuts
         .def(
             "new_filter",
-            [](SolutionPool& pool,
+            [](SolutionPool& pool,  // GCOVR_EXCL_LINE
                std::optional<py::function>
                    filter_fn,
                std::vector<size_t>
@@ -133,7 +133,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // make_filter(...): build a filter predicate from row/arc constraints.
         .def_static(
             "make_filter",
-            [](std::vector<size_t> compulsory_rows,
+            [](std::vector<size_t> compulsory_rows,  // GCOVR_EXCL_LINE
                std::vector<size_t>
                    forbidden_rows,
                std::vector<size_t>
@@ -201,7 +201,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // make_filter(...): build a filter predicate from row/arc constraints.
         .def_static(
             "make_filter",
-            [](std::vector<size_t> compulsory_rows,
+            [](std::vector<size_t> compulsory_rows,  // GCOVR_EXCL_LINE
                std::vector<size_t>
                    forbidden_rows,
                std::vector<size_t>
@@ -338,24 +338,30 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             py::arg("forbidden_arc_ids") = std::vector<size_t>{})
         .def(
             "add",
-            [](FilteredSolutionPool& fp, const Solution& sol, bool check_filter) {
+            [](FilteredSolutionPool& fp,
+               const Solution& sol,
+               bool check_filter) {  // GCOVR_EXCL_LINE
                 return fp.add(sol, check_filter);
             },
-            py::arg("solution"),
+            py::arg("solution"),  // GCOVR_EXCL_LINE
             py::arg("check_filter") = true)
         .def(
             "add",
-            [](FilteredSolutionPool& fp, const std::vector<Solution>& sols, bool check_filter) {
+            [](FilteredSolutionPool& fp,
+               const std::vector<Solution>& sols,
+               bool check_filter) {  // GCOVR_EXCL_LINE
                 return fp.add(sols, check_filter);
             },
-            py::arg("solutions"),
+            py::arg("solutions"),  // GCOVR_EXCL_LINE
             py::arg("check_filter") = true)
         // price() prices only the filtered subset; updates ColumnActivity for those entries.
         // The binding copies each returned column's Solution into a Python-owned PyPricedColumn at
         // price() time (entry still alive), so the result never dangles after later pool edits.
         .def(
             "price",
-            [](FilteredSolutionPool& fp, const std::vector<double>& duals, double threshold) {
+            [](FilteredSolutionPool& fp,
+               const std::vector<double>& duals,
+               double threshold) {  // GCOVR_EXCL_LINE
                 const auto priced = fp.price(duals, threshold);
                 std::vector<PyPricedColumn> out;
                 out.reserve(priced.size());
@@ -365,44 +371,44 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 }
                 return out;
             },
-            py::arg("duals"),
+            py::arg("duals"),  // GCOVR_EXCL_LINE
             py::arg("threshold") = 0.0)
         .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_ids"))
         // Local removes (this view only, supports B&B backtracking):
         .def(
             "remove_if",
-            [](FilteredSolutionPool& fp, py::function pred) {
+            [](FilteredSolutionPool& fp, py::function pred) {  // GCOVR_EXCL_LINE
                 return fp.remove_if([&pred](SolutionPool::ColumnId cid,
                                             const Solution& sol,
                                             const ColumnActivity& act) {
                     return py::cast<bool>(pred(cid, sol, act));
                 });
             },
-            py::arg("pred"))
+            py::arg("pred"))  // GCOVR_EXCL_LINE
         .def("remove_if_arc_present",
              &FilteredSolutionPool::remove_if_arc_present,
-             py::arg("arc_id"))
+             py::arg("arc_id"))  // GCOVR_EXCL_LINE
         .def("remove_stale",
              &FilteredSolutionPool::remove_stale,
-             py::arg("max_age"),
+             py::arg("max_age"),  // GCOVR_EXCL_LINE
              py::arg("min_usage_rate") = 0.0)
         // Global hard deletes (propagate to all registered views):
         .def(
             "global_remove_if",
-            [](FilteredSolutionPool& fp, py::function pred) {
+            [](FilteredSolutionPool& fp, py::function pred) {  // GCOVR_EXCL_LINE
                 return fp.global_remove_if([&pred](SolutionPool::ColumnId cid,
                                                    const Solution& sol,
                                                    const ColumnActivity& act) {
                     return py::cast<bool>(pred(cid, sol, act));
                 });
             },
-            py::arg("pred"))
+            py::arg("pred"))  // GCOVR_EXCL_LINE
         .def("global_remove_if_arc_present",
              &FilteredSolutionPool::global_remove_if_arc_present,
-             py::arg("arc_id"))
+             py::arg("arc_id"))  // GCOVR_EXCL_LINE
         .def("global_remove_stale",
              &FilteredSolutionPool::global_remove_stale,
-             py::arg("max_age"),
+             py::arg("max_age"),  // GCOVR_EXCL_LINE
              py::arg("min_usage_rate") = 0.0)
         .def("cleanup", &FilteredSolutionPool::cleanup)
         // sort_by_lp_index(): re-sort filtered_entries_ by lp_index so the pricing

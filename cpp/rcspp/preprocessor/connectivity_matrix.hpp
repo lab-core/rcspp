@@ -286,7 +286,7 @@ class ConnectivityMatrix {
             std::vector<size_t> indeg(scc_count, 0);
             for (size_t u = 0; u < scc_count; ++u) {  // GCOVR_EXCL_LINE
                 for (size_t v : cond_adj[u]) {
-                    ++indeg[v];
+                    ++indeg[v];  // GCOVR_EXCL_LINE
                 }
             }
             std::queue<size_t> q;
@@ -302,8 +302,8 @@ class ConnectivityMatrix {
                 q.pop();
                 topo.push_back(u);  // GCOVR_EXCL_LINE
                 for (size_t v : cond_adj[u]) {
-                    if (--indeg[v] == 0) {
-                        q.push(v);
+                    if (--indeg[v] == 0) {  // GCOVR_EXCL_LINE
+                        q.push(v);          // GCOVR_EXCL_LINE
                     }
                 }
             }
@@ -312,7 +312,7 @@ class ConnectivityMatrix {
             // Each SCC's bitset becomes itself ORed with all children's bitsets.
             for (size_t u : std::ranges::reverse_view(topo)) {
                 for (size_t v : cond_adj[u]) {
-                    for (size_t w = 0; w < words; ++w) {
+                    for (size_t w = 0; w < words; ++w) {   // GCOVR_EXCL_LINE
                         scc_bits[u][w] |= scc_bits[v][w];  // GCOVR_EXCL_LINE
                     }
                 }

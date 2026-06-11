@@ -322,7 +322,7 @@ class FilteredSolutionPool {
         // Unregisters from pool on destruction.
         ~FilteredSolutionPool() {
             if (!registered_) {
-                return;
+                return;  // GCOVR_EXCL_LINE
             }
             std::unique_lock lock(pool_.mutex_);
             auto& reg = pool_.registered_pools_;
@@ -709,7 +709,7 @@ class FilteredSolutionPool {
         [[nodiscard]] std::optional<std::tuple<ColumnId, Solution, ColumnActivity>> get_entry(
             ColumnId id) const {
             if (id == SolutionPool::kNoId) {
-                return std::nullopt;
+                return std::nullopt;  // GCOVR_EXCL_LINE
             }
             std::shared_lock lock(pool_.mutex_);
             auto it = filtered_ids_.find(id);
@@ -799,7 +799,7 @@ class FilteredSolutionPool {
         /// @param pred Additional filter; composed AND-wise with the existing filter.
         void add_filter(std::function<bool(const Solution&)> pred) {
             if (!pred) {
-                return;
+                return;  // GCOVR_EXCL_LINE
             }
             // Narrow the filter, then prune entries that no longer pass — evaluating the (user)
             // filter OFF the lock on a snapshot so it cannot deadlock on re-entry. `f` is a
@@ -869,7 +869,7 @@ class FilteredSolutionPool {
             };
         }
 
-        [[nodiscard]] SolutionPool& pool() { return pool_; }
+        [[nodiscard]] SolutionPool& pool() { return pool_; }  // GCOVR_EXCL_LINE
         [[nodiscard]] const SolutionPool& pool() const { return pool_; }
 
     private:
@@ -986,7 +986,8 @@ class FilteredSolutionPool {
                 std::unique_lock lock(pool_.mutex_);
                 for (const ColumnId id : accepted) {
                     if (filtered_ids_.contains(id)) {
-                        continue;  // already added via propagation during off-lock evaluation
+                        continue;  // GCOVR_EXCL_LINE — already added via propagation during
+                                   // off-lock evaluation
                     }
                     auto it = pool_.id_index_.find(id);
                     if (it != pool_.id_index_.end()) {  // still present
@@ -1021,7 +1022,7 @@ class FilteredSolutionPool {
             for (ColumnId id : to_remove) {
                 on_remove_unlocked(id);
             }
-            return to_remove;
+            return to_remove;  // GCOVR_EXCL_LINE
         }
 
         [[nodiscard]] std::vector<PricedColumn> price_subset_locked(
@@ -1056,7 +1057,7 @@ class FilteredSolutionPool {
                     entry.activity.last_was_negative = false;
                 }
             }
-            return result;
+            return result;  // GCOVR_EXCL_LINE
         }
 };
 

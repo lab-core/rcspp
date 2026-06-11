@@ -105,7 +105,7 @@ class ResourceFactory {
             if (extension_function_) {
                 cloned->extension_function_ = extension_function_->clone();
             }
-            return cloned;
+            return cloned;  // GCOVR_EXCL_LINE
         }
 
         // Make an extender

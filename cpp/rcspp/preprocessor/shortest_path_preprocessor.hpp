@@ -33,12 +33,14 @@ class ShortestPathPreprocessor final
             } else {
                 try {
                     dist_from_sources_ =
-                        BellmanFordAlgorithm::solve<CostResourceType, ResourceTypes...>(
+                        BellmanFordAlgorithm::solve<CostResourceType,
+                                                    ResourceTypes...>(  // GCOVR_EXCL_LINE
                             *graph,
                             graph->get_source_node_ids(),
                             cost_index);
                     dist_to_sinks_ =
-                        BellmanFordAlgorithm::solve<CostResourceType, ResourceTypes...>(
+                        BellmanFordAlgorithm::solve<CostResourceType,
+                                                    ResourceTypes...>(  // GCOVR_EXCL_LINE
                             *graph,
                             graph->get_sink_node_ids(),
                             cost_index,

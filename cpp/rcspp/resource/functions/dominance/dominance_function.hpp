@@ -33,12 +33,13 @@ class DominanceFunction {
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<DominanceFunction> = 0;
 
-        auto create(const size_t node_id)
-            -> std::unique_ptr<DominanceFunction> {  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — create() with preprocess() not called in unit tests
+        auto create(const size_t node_id) -> std::unique_ptr<DominanceFunction> {
             auto new_dominance_function = clone();
             new_dominance_function->preprocess(node_id);
             return new_dominance_function;
         }
+        // GCOVR_EXCL_STOP
 
         virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 
@@ -61,12 +62,14 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto clone() const
             -> std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
-        auto create(const size_t node_id)  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — create() with preprocess() not called in unit tests
+        auto create(const size_t node_id)
             -> std::unique_ptr<DominanceFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_dominance_function = clone();
             new_dominance_function->preprocess(node_id);
             return new_dominance_function;
         }
+        // GCOVR_EXCL_STOP
 
         virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 

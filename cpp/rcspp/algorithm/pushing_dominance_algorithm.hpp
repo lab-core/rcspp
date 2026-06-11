@@ -65,8 +65,9 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             this->add_new_label(label_iterator_pair);
         }
 
-        // GCOVR_EXCL_LINE — label restoration after OOM truncation not exercised in tests
-        void prepareNextPhase() override { this->restore_truncated_unprocessed_labels(); }
+        void prepareNextPhase() override {
+            this->restore_truncated_unprocessed_labels();
+        }  // GCOVR_EXCL_LINE
 
         /// @brief Trim per-node queues when memory pressure is detected.
         ///

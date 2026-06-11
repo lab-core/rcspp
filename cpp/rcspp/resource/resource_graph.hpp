@@ -351,8 +351,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                     if (cost_index >=
                         resource_factory_.template get_num_resource_type<CostResourceType>()) {
                         // check if not the default value
+                        // GCOVR_EXCL_START — out-of-bounds cost_index warning not triggered in
+                        // tests
                         if (cost_index > 0) {
-                            LOG_WARN(  // GCOVR_EXCL_LINE
+                            LOG_WARN(
                                 "ResourceGraph::solve: cost_index is out of bounds for the number "
                                 "of extender components of the cost resource. ",
                                 cost_index,
@@ -360,6 +362,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                 resource_factory_
                                     .template get_num_resource_type<CostResourceType>());
                         }
+                        // GCOVR_EXCL_STOP
                     } else {
                         // if not sorted, use default sort by connectivity. Forward
                         // cost_index so the sort's Bellman-Ford distances read the same

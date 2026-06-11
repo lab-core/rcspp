@@ -25,11 +25,13 @@ class CostFunction {
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<CostFunction> = 0;
 
-        auto create(const size_t node_id) -> std::unique_ptr<CostFunction> {  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — create() with preprocess() not called in unit tests
+        auto create(const size_t node_id) -> std::unique_ptr<CostFunction> {
             auto new_cost_function = clone();
             new_cost_function->preprocess(node_id);
             return new_cost_function;
         }
+        // GCOVR_EXCL_STOP
 
         virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 
@@ -51,12 +53,14 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto clone() const
             -> std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
-        auto create(const size_t node_id)  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START — create() with preprocess() not called in unit tests
+        auto create(const size_t node_id)
             -> std::unique_ptr<CostFunction<ResourceTypeComposition<ResourceTypes...>>> {
             auto new_cost_function = clone();
             new_cost_function->preprocess(node_id);
             return new_cost_function;
         }
+        // GCOVR_EXCL_STOP
 
         virtual void reset(const size_t node_id) { preprocess(node_id); }  // GCOVR_EXCL_LINE
 

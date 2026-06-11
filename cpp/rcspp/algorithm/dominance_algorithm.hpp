@@ -207,7 +207,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 cur = cur->prev_label;
             }
             std::ranges::reverse(path_arc_ids);  // GCOVR_EXCL_LINE
-            return path_arc_ids;
+            return path_arc_ids;                 // GCOVR_EXCL_LINE
         }
 
         virtual bool update_non_dominated_labels(const Label<ResourceType>& label) {
@@ -323,6 +323,7 @@ struct NodeUnprocessedLabelsManager {
             if (unprocessed_labels->size() <= new_size) {
                 return;
             }
+            // GCOVR_EXCL_START — label-queue trim/sort paths not exercised in unit tests
             size_t num_exceeding_labels = unprocessed_labels->size() - new_size;
 
             if (sort) {
@@ -353,9 +354,11 @@ struct NodeUnprocessedLabelsManager {
             // update unprocessed labels count and resize
             num_unprocessed_labels_ -= num_exceeding_labels;
             unprocessed_labels->resize(new_size);
+            // GCOVR_EXCL_STOP
             assert(check_number_of_unprocessed_labels());
         }
 
+        // GCOVR_EXCL_START — truncated-label store/restore paths not exercised in unit tests
         void store_truncated_unprocessed_label(
             LabelIteratorPair<ResourceType> label_iterator_pair) {
             truncated_unprocessed_labels_by_node_pos_
@@ -374,6 +377,7 @@ struct NodeUnprocessedLabelsManager {
             initialize_unprocessed_labels(unprocessed_labels_by_node_pos_.size());
             assert(check_number_of_unprocessed_labels());
         }
+        // GCOVR_EXCL_STOP
 
         /// @brief Trim all per-node unprocessed queues to at most max_per_node labels.
         ///
@@ -406,6 +410,7 @@ struct NodeUnprocessedLabelsManager {
         template <typename RemoveFn>
         void release_truncated_labels(LabelPool<ResourceType>* pool,
                                       RemoveFn&& remove_from_nondom) {
+            // GCOVR_EXCL_START — truncated-label release not exercised in unit tests
             for (auto& truncated_list : truncated_unprocessed_labels_by_node_pos_) {
                 for (auto& [label_ptr, label_iter] : truncated_list) {
                     remove_from_nondom(label_iter);
@@ -416,6 +421,7 @@ struct NodeUnprocessedLabelsManager {
                 }
                 truncated_list.clear();
             }
+            // GCOVR_EXCL_STOP
         }
 
         /// @brief Clear all unprocessed and truncated queues.

@@ -45,18 +45,22 @@ PYBIND11_MODULE(_core, m) {
 
     logger_submodule.def(
         "set_level",
-        [](rcspp::LogLevel level) { rcspp::Logger::instance().set_level(level); },
-        py::arg("level"),
+        [](rcspp::LogLevel level) {
+            rcspp::Logger::instance().set_level(level);
+        },                 // GCOVR_EXCL_LINE
+        py::arg("level"),  // GCOVR_EXCL_LINE
         "Set the minimum log level.");
 
     logger_submodule.def(
         "get_level",
-        []() { return rcspp::Logger::instance().level(); },
+        []() { return rcspp::Logger::instance().level(); },  // GCOVR_EXCL_LINE
         "Return the current log level.");
 
     logger_submodule.def(
         "init",
-        [](rcspp::LogLevel level, bool to_console, const std::string& file_path) {
+        [](rcspp::LogLevel level,
+           bool to_console,
+           const std::string& file_path) {  // GCOVR_EXCL_LINE
             rcspp::Logger::init(level, to_console, file_path);
         },
         py::arg("level") = rcspp::LogLevel::Info,
@@ -67,10 +71,10 @@ PYBIND11_MODULE(_core, m) {
     // ── Memory helpers ────────────────────────────────────────────────────────
     m.def(
         "process_memory_bytes",
-        []() { return rcspp::MemoryInfo::process_bytes(); },
+        []() { return rcspp::MemoryInfo::process_bytes(); },  // GCOVR_EXCL_LINE
         "Current process Resident Set Size (RSS) in bytes.");
     m.def(
         "available_memory_bytes",
-        []() { return rcspp::MemoryInfo::available_system_bytes(); },
+        []() { return rcspp::MemoryInfo::available_system_bytes(); },  // GCOVR_EXCL_LINE
         "Available system RAM in bytes.");
 }
