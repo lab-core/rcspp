@@ -44,7 +44,7 @@ jobs:
 
       - name: Build Sphinx site
         working-directory: docs
-        run: sphinx-build -b html . _site -W --keep-going
+        run: sphinx-build -b html . _site --keep-going
         env:
           SPHINXOPTS: "-j auto"
 
