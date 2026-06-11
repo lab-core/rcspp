@@ -61,7 +61,7 @@ jobs:
       - name: C++ coverage gate
         run: |
           mkdir -p coverage
-          gcovr --config gcovr.cfg build
+          gcovr --config gcovr.cfg --merge-mode-functions=merge-use-line-min build
           python3 scripts/check_cpp_coverage.py
 
       - name: Upload coverage reports

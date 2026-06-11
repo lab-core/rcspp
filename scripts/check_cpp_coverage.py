@@ -10,6 +10,11 @@ Defaults:
     --threshold  85   (minimum overall line-coverage %)
 
 Exits 0 on pass, 1 on failure. Compatible with gcovr 7+ JSON schema (field "file").
+
+When gcovr is run with --merge-mode-functions=separate (the default) it can emit
+multiple entries for the same source file (one per template-instantiation TU).
+This script merges them: a line is "covered" if any instantiation covered it,
+and a function is "uncovered" only if *all* instantiations have execution_count=0.
 """
 
 import argparse
@@ -18,12 +23,22 @@ import sys
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--json", default="coverage/cpp.json", help="gcovr JSON report path")
-    parser.add_argument("--min-lines", type=int, default=10,
-                        help="ignore uncovered functions with fewer instrumented lines than this")
-    parser.add_argument("--threshold", type=float, default=85.0,
-                        help="minimum overall line-coverage percentage required")
+    parser.add_argument(
+        "--min-lines",
+        type=int,
+        default=10,
+        help="ignore uncovered functions with fewer instrumented lines than this",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=85.0,
+        help="minimum overall line-coverage percentage required",
+    )
     args = parser.parse_args()
 
     min_fn_lines: int = args.min_lines
@@ -36,13 +51,36 @@ def main() -> int:
     def _fname(file_data: dict) -> str:
         return file_data.get("file") or file_data.get("filename", "<unknown>")
 
-    # ── Gate 1: overall line coverage ─────────────────────────────────────────
-    total_lines = covered_lines = 0
+    # ── Merge all entries for the same source file ─────────────────────────────
+    # gcovr may emit multiple entries per source file when template functions are
+    # instantiated in different TUs (merge-mode-functions=separate).  We take the
+    # max hit-count per line (covered if ANY instantiation covered it) and the max
+    # execution_count per function (uncovered only if ALL instantiations have 0).
     file_lines: dict[str, dict[int, int]] = {}
+    # fname -> {(name, start_line): fn_dict}
+    file_fns: dict[str, dict[tuple, dict]] = {}
+
     for file_data in data.get("files", []):
         fname = _fname(file_data)
-        lines = {line["line_number"]: line["count"] for line in file_data.get("lines", [])}
-        file_lines[fname] = lines
+
+        if fname not in file_lines:
+            file_lines[fname] = {}
+        for line in file_data.get("lines", []):
+            ln = line["line_number"]
+            cnt = line.get("count", 0)
+            file_lines[fname][ln] = max(file_lines[fname].get(ln, 0), cnt)
+
+        if fname not in file_fns:
+            file_fns[fname] = {}
+        for fn in file_data.get("functions", []):
+            key = (fn.get("name", ""), fn.get("start_line", 0))
+            existing = file_fns[fname].get(key)
+            if existing is None or fn.get("execution_count", 0) > existing.get("execution_count", 0):
+                file_fns[fname][key] = fn
+
+    # ── Gate 1: overall line coverage ─────────────────────────────────────────
+    total_lines = covered_lines = 0
+    for lines in file_lines.values():
         total_lines += len(lines)
         covered_lines += sum(1 for h in lines.values() if h > 0)
 
@@ -59,12 +97,10 @@ def main() -> int:
 
     # ── Gate 2: no large uncovered function ───────────────────────────────────
     large_uncovered: list[str] = []
-    for file_data in data.get("files", []):
-        fname = _fname(file_data)
-        lines = file_lines[fname]
+    for fname, lines in file_lines.items():
         if not lines:
             continue
-        fns = sorted(file_data.get("functions", []), key=lambda f: f.get("start_line", 0))
+        fns = sorted(file_fns.get(fname, {}).values(), key=lambda f: f.get("start_line", 0))
         for i, fn in enumerate(fns):
             if fn.get("execution_count", 0) != 0:
                 continue
