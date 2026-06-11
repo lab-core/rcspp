@@ -16,8 +16,8 @@ def _flush_gcov_on_exit():
     yield
     try:
         ctypes.CDLL(None).__gcov_dump()
-    except AttributeError:
-        pass  # not a coverage build or __gcov_dump not exported
+    except (AttributeError, TypeError, OSError):
+        pass  # not a coverage build, __gcov_dump not exported, or non-Unix platform
 
 
 def pytest_configure(config):
