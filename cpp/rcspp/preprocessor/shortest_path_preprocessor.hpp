@@ -16,11 +16,34 @@
 
 namespace rcspp {
 
+/// @brief Preprocessor that removes arcs whose cost cannot be part of any optimal path.
+///
+/// Uses Bellman-Ford shortest-path distances from sources and to sinks to prune arcs:
+/// an arc `(u, v)` with cost `c` is removed when
+/// `dist_from_source[u] + c + dist_to_sink[v] > upper_bound`.
+///
+/// Preprocessing is automatically disabled when `upper_bound` is infinite or when
+/// Bellman-Ford detects a negative-cost cycle.
+///
+/// @tparam CostResourceType Numerical resource type used to measure arc cost; must
+///         satisfy `is_numerical_resource_v`.  Defaults to `RealResource`.
+/// @tparam ResourceTypes    Remaining resource types that form the composition.
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
     requires is_numerical_resource_v<CostResourceType>
 class ShortestPathPreprocessor final
     : public Preprocessor<ResourceTypeComposition<ResourceTypes...>> {
     public:
+        /// @brief Constructs the preprocessor and runs Bellman-Ford in both directions.
+        ///
+        /// If `upper_bound` is infinite, preprocessing is disabled.  If Bellman-Ford
+        /// detects a negative cycle, preprocessing is also disabled.
+        ///
+        /// @param graph       Non-owning pointer to the graph to preprocess.
+        /// @param upper_bound Known upper bound on the total path cost.  Arcs that
+        ///                    cannot belong to a path with cost at most this value are
+        ///                    removed.
+        /// @param cost_index  Index of the cost component within the resource
+        ///                    composition.  Defaults to `0`.
         ShortestPathPreprocessor(Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
                                  double upper_bound, size_t cost_index = 0)
             : Preprocessor<ResourceTypeComposition<ResourceTypes...>>(graph),

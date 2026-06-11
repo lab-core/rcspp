@@ -16,19 +16,28 @@ def _flush_gcov_on_exit():
     yield
     try:
         ctypes.CDLL(None).__gcov_dump()
-    except AttributeError:
-        pass  # not a coverage build or __gcov_dump not exported
+    except (AttributeError, TypeError, OSError):
+        pass  # not a coverage build, __gcov_dump not exported, or non-Unix platform
 
 
 def pytest_configure(config):
-    # mip's SolverGurobi.__del__ crashes with AttributeError when Gurobi is not
-    # licensed: __init__ raises before setting _ownsModel, then __del__ accesses it.
-    # This is an upstream mip bug; suppress the resulting unraisable-exception warning.
-    warnings.filterwarnings(
-        "ignore",
-        message=".*SolverGurobi.*",
-        category=pytest.PytestUnraisableExceptionWarning,
-    )
+    # mip's Gurobi backend crashes in __del__ when Gurobi is not licensed:
+    # SolverGurobi.__init__ raises before setting _ownsModel, then __del__
+    # accesses it (AttributeError); on Windows, LoadLibrary(None) or a
+    # NoneType-path check raises TypeError.  All of these surface as
+    # PytestUnraisableExceptionWarning — suppress any that mention mip or
+    # Gurobi, and also the LoadLibrary / NoneType variants from the DLL probe.
+    for _pat in (
+        r".*SolverGurobi.*",
+        r".*LoadLibrary.*",
+        r".*NoneType.*iterable.*",
+        r".*gurobipy.*",
+    ):
+        warnings.filterwarnings(
+            "ignore",
+            message=_pat,
+            category=pytest.PytestUnraisableExceptionWarning,
+        )
     # pytest's internal cache plugin leaves sqlite3 connections open; suppress the
     # resulting ResourceWarning so it doesn't pollute test output.
     warnings.filterwarnings(

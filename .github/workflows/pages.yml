@@ -1,0 +1,63 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main, docs]
+    paths:
+      - 'docs/**'
+      - 'cpp/rcspp/**'
+      - 'python/src/rcspp/**'
+      - 'python/bindings/**'
+      - 'AGENT.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: Install Doxygen
+        run: sudo apt-get update -q && sudo apt-get install -y doxygen
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: Generate Doxygen XML
+        working-directory: docs
+        run: doxygen Doxyfile
+
+      - name: Build Sphinx site
+        working-directory: docs
+        run: sphinx-build -b html . _site -W --keep-going
+        env:
+          SPHINXOPTS: "-j auto"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

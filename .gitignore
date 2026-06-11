@@ -62,3 +62,8 @@ Testing/
 
 # Clion
 .idea/
+
+# Sphinx / Doxygen generated
+docs/_doxygen/
+docs/_site/
+docs/cpp/api/

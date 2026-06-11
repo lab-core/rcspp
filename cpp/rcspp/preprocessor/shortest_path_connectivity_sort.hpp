@@ -12,17 +12,54 @@
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 
 namespace rcspp {
+
+/// @brief Sorts graph nodes using shortest-path distances and connectivity heuristics.
+///
+/// Reorders the nodes of a `Graph` in place to improve the efficiency of subsequent
+/// label-setting algorithms.  The ordering criterion is applied in priority order:
+///
+///  1. Source nodes first, sink nodes last.
+///  2. Connectivity asymmetry: if `node1` can reach `node2` but not vice versa,
+///     `node1` is placed earlier.
+///  3. Fewer reachable successors first (more constrained nodes are expanded earlier).
+///  4. Fewer reverse-reachable predecessors first.
+///  5. Closer to sources (ascending distance from sources), then farther from sinks
+///     (descending distance to sinks) when Bellman-Ford distances are available.
+///  6. Fewer direct arcs from `node1` to `node2`.
+///  7. Tie-break by node id.
+///
+/// @tparam CostResourceType Numerical resource type used to compute shortest-path
+///         distances; must satisfy `is_numerical_resource_v`.  Defaults to
+///         `RealResource`.
+/// @tparam ResourceTypes    Remaining resource types that form the composition.
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
     requires is_numerical_resource_v<CostResourceType>
 class ShortestPathConnectivitySort {
     private:
+        /// @brief Hash functor for `std::pair<size_t, size_t>` arc keys.
         struct DirectArcKeyHash {
+                /// @brief Computes a hash value for a directed arc identified by its
+                ///        origin and destination node ids.
+                ///
+                /// @param key Pair of (origin_id, destination_id).
+                /// @return Combined hash value.
                 size_t operator()(const std::pair<size_t, size_t>& key) const noexcept {
                     return std::hash<size_t>{}(key.first) ^ (std::hash<size_t>{}(key.second) << 1);
                 }
         };
 
     public:
+        /// @brief Constructs the sorter and immediately reorders the graph's nodes.
+        ///
+        /// Bellman-Ford is run from sources and to sinks to obtain distance maps.  If a
+        /// negative cycle is detected, distance-based tie-breaking is skipped.  The
+        /// connectivity matrix is used for reachability heuristics.
+        ///
+        /// @param graph      Non-owning pointer to the graph whose nodes will be sorted.
+        /// @param cm         Non-owning pointer to the precomputed connectivity matrix.
+        /// @param cost_index Index of the cost component within the resource composition
+        ///                   to use for shortest-path distances.  Pass `std::nullopt` to
+        ///                   use the default cost component.
         explicit ShortestPathConnectivitySort(  // NOLINT
             Graph<ResourceTypeComposition<ResourceTypes...>>* graph,
             ConnectivityMatrix<ResourceTypeComposition<ResourceTypes...>>* cm,

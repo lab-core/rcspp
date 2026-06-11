@@ -1,5 +1,13 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
+"""Resource-constrained shortest-path graph abstraction.
+
+Provides the Python-side :class:`ResourceGraph` factory and the
+:class:`BucketAlgorithmParams` helper.  The heavy lifting is done by a
+generated C++ extension (``rcspp._core.graph``); this module handles lazy
+construction, resource registration, buffered node/arc insertion, and
+NetworkX integration.
+"""
 
 import math
 from typing import Optional
@@ -85,6 +93,13 @@ class ResourceGraph:
     """
 
     def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
+        """Initialise a ResourceGraph, optionally from a NetworkX DiGraph.
+
+        Args:
+            nx_graph: Optional directed graph whose nodes and arcs are
+                imported immediately via :meth:`from_networkx`.
+            **kwargs: Reserved for future use; currently unused.
+        """
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
         self._refs: list = []  # keep Python wrappers alive against GC
         self._graph = None  # actual C++ object, created lazily
@@ -379,10 +394,26 @@ class ResourceGraph:
     # ── Graph read operations (flush first) ───────────────────────────────────
 
     def get_node(self, node_id):
+        """Return the node with the given ID, flushing pending buffers first.
+
+        Args:
+            node_id: Integer node identifier.
+
+        Returns:
+            The C++ node object for *node_id*.
+        """
         self._flush()
         return self._graph.get_node(node_id)
 
     def get_arc(self, arc_id):
+        """Return the arc with the given ID, flushing pending buffers first.
+
+        Args:
+            arc_id: Integer arc identifier.
+
+        Returns:
+            The C++ arc object for *arc_id*.
+        """
         self._flush()
         return self._graph.get_arc(arc_id)
 
@@ -392,6 +423,22 @@ class ResourceGraph:
         return self._graph.get_arcs(origin_id, destination_id)
 
     def update_arc(self, arc, resource_consumption, *args, **kwargs):
+        """Update an arc's resource consumption in place.
+
+        Flushes all pending buffers before modifying the arc so the C++ object
+        is fully built.  The *resource_consumption* argument follows the same
+        flat-style convention as :meth:`add_arc`.
+
+        Args:
+            arc: Arc object or arc ID to update.
+            resource_consumption: New resource consumption values, in the same
+                order as the original :meth:`add_arc` call.
+            *args: Extra positional arguments forwarded to the C++ ``update_arc``.
+            **kwargs: Extra keyword arguments forwarded to the C++ ``update_arc``.
+
+        Returns:
+            Whatever the C++ ``update_arc`` returns.
+        """
         self._flush()
         norm_res_cons = self._normalize_consumption(resource_consumption)
         return self._graph.update_arc(arc, norm_res_cons, *args, **kwargs)
@@ -581,20 +628,42 @@ class ResourceGraph:
     # ── String representation ─────────────────────────────────────────────────
 
     def to_string(self, print_arcs: bool = True) -> str:
+        """Return a human-readable string representation of the graph.
+
+        Args:
+            print_arcs: Include arc details in the output (default ``True``).
+
+        Returns:
+            Multi-line string describing the graph, or an empty string when the
+            graph has not been initialised yet.
+        """
         if self._graph is None and not self._node_buffer and not self._arc_buffer:
             return ""
         self._flush()
         return self._graph.to_string(print_arcs)
 
     def __str__(self) -> str:
+        """Return a human-readable string representation of the graph."""
         return self.to_string()
 
     def __repr__(self) -> str:
+        """Return a developer-friendly representation of the graph."""
         return self.to_string()
 
     # ── Transparent delegation for everything else ────────────────────────────
 
     def __getattr__(self, name: str):
+        """Delegate unknown attribute lookups to the underlying C++ graph.
+
+        Called only when normal attribute lookup fails.  Flushes pending
+        buffers so the C++ object is up-to-date before the attribute is read.
+
+        Args:
+            name: Attribute name to look up on the C++ graph.
+
+        Returns:
+            The attribute value from the C++ graph object.
+        """
         # Called only when normal lookup fails — flushes the buffer and forwards
         # to the C++ graph.
         self._flush()
@@ -603,6 +672,23 @@ class ResourceGraph:
     # ── NetworkX integration ──────────────────────────────────────────────────
 
     def from_networkx(self, nx_graph: nx.DiGraph):
+        """Populate the graph from a NetworkX DiGraph.
+
+        Nodes and arcs are buffered and flushed to C++ in a single batch.
+        At least one node must be marked ``source=True`` and one ``sink=True``.
+        When resources have already been registered, every edge must carry a
+        ``'resource'`` attribute.
+
+        Args:
+            nx_graph: Directed NetworkX graph.  Each node may have ``source``
+                and ``sink`` boolean attributes.  Each edge must have a
+                ``'resource'`` attribute (tuple of consumption values) and may
+                have a ``'cost'`` float and a ``'rows'`` list.
+
+        Raises:
+            ValueError: If no source or sink node is found, or if a required
+                ``'resource'`` edge attribute is missing.
+        """
         # ── Structural validation ─────────────────────────────────────────────
         source_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("source") is True]
         sink_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("sink") is True]
@@ -742,6 +828,21 @@ class BucketAlgorithmParams:
         sort_resource_pos=None,
         **kwargs,
     ):
+        """Create BucketAlgorithmParams with optional resource-position hints.
+
+        Args:
+            range_buckets: Width of each bucket partition along the bucket
+                resource axis.
+            bucket_resource_pos: Zero-based registration-order index of the
+                resource used to partition labels into buckets.  ``None``
+                keeps the C++ default.
+            sort_resource_pos: Zero-based registration-order index of the
+                numerical resource used to sort labels within each bucket.
+                ``None`` keeps the C++ default.
+            **kwargs: Additional :class:`AlgorithmParams` fields forwarded
+                directly to the C++ object (e.g. ``stop_after_X_solutions``,
+                ``timeout_s``, ``max_memory_gb``).
+        """
         self._bucket_resource_pos = (
             None if bucket_resource_pos is None else int(bucket_resource_pos)
         )
@@ -752,11 +853,31 @@ class BucketAlgorithmParams:
             setattr(self._cpp, k, v)
 
     def __getattr__(self, name: str):
+        """Forward public attribute reads to the underlying C++ params object.
+
+        Args:
+            name: Attribute name.
+
+        Returns:
+            The attribute value from the C++ ``BucketAlgorithmParams``.
+
+        Raises:
+            AttributeError: For private names (starting with ``_``).
+        """
         if name.startswith("_"):
             raise AttributeError(name)
         return getattr(self._cpp, name)
 
     def __setattr__(self, name: str, value):
+        """Forward public attribute writes to the underlying C++ params object.
+
+        Private names (starting with ``_``) are stored on the Python instance
+        via the default ``object.__setattr__`` mechanism.
+
+        Args:
+            name: Attribute name.
+            value: Value to assign.
+        """
         if name.startswith("_"):
             super().__setattr__(name, value)
         else:

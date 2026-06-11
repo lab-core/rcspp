@@ -1,4 +1,18 @@
 // Automatically generated umbrella header clang-format off NOLINT(legal/copyright)
+
+/// @file rcspp.hpp
+/// @brief Umbrella header for the RCSPP library.
+///
+/// Including this single header pulls in every public component of the RCSPP
+/// (Resource-Constrained Shortest Path Problem) library: graph primitives, label
+/// management, resource definitions, preprocessing utilities, search algorithms,
+/// and general helpers.
+///
+/// Typical usage:
+/// @code
+/// #include "rcspp/rcspp.hpp"
+/// @endcode
+
 #pragma once
 
 #include "rcspp/algorithm/algorithm.hpp"

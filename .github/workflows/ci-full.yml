@@ -1,11 +1,12 @@
 name: CI Full
 
 # Full test matrix (all OS × build types × Python versions) plus wheel/sdist builds.
-# One-click via "Run workflow" in GitHub UI — also calls the coverage gate so
-# everything runs together. The coverage gate also runs automatically on
-# push/PR to main (ci.yml).
+# Triggered manually ("Run workflow") or by posting `/run-ci` in any PR comment.
+# The coverage gate also runs automatically on push/PR to main (ci.yml).
 on:
   workflow_dispatch:
+  issue_comment:
+    types: [created]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -18,10 +19,18 @@ jobs:
   # ── Coverage gate (reuses ci.yml definition — no duplication) ─────────────
   coverage:
     name: Coverage Gate
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/run-ci'))
     uses: ./.github/workflows/ci.yml
 
   test:
     name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/run-ci'))
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -43,6 +52,8 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+          # When triggered by a PR comment, check out the PR head branch
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.sha }}
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -52,14 +63,23 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install llvm
-          echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
+          LLVM_PREFIX="$(brew --prefix llvm)"
+          echo "${LLVM_PREFIX}/bin" >> "$GITHUB_PATH"
+          echo "CC=${LLVM_PREFIX}/bin/clang"   >> "$GITHUB_ENV"
+          echo "CXX=${LLVM_PREFIX}/bin/clang++" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DUSE_PYTHON=ON -DUSE_TESTS=ON
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
+            -DUSE_PYTHON=ON \
+            -DUSE_TESTS=ON \
+            "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build-type }} --parallel

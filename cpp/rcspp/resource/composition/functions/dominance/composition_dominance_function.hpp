@@ -11,14 +11,29 @@
 
 namespace rcspp {
 
+/// @brief Dominance function that checks dominance component-wise across a composed resource.
+///
+/// A composed resource @p lhs is considered to dominate @p rhs if and only if every
+/// constituent sub-resource in @p lhs dominates (via `operator<=`) the corresponding
+/// sub-resource in @p rhs.
+///
+/// @tparam ResourceTypes The individual resource types forming the composition.
 template <typename... ResourceTypes>
     requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionDominanceFunction
     : public Clonable<CompositionDominanceFunction<ResourceTypes...>,
                       DominanceFunction<ResourceTypeComposition<ResourceTypes...>>> {
     public:
+        /// @brief Default constructor.
         CompositionDominanceFunction() = default;
 
+        /// @brief Returns `true` if @p lhs_composition dominates @p rhs_composition.
+        ///
+        /// Dominance holds when every paired sub-resource satisfies `lhs_res <= rhs_res`.
+        ///
+        /// @param lhs_composition The candidate dominating resource.
+        /// @param rhs_composition The resource being compared against.
+        /// @return `true` if @p lhs_composition dominates @p rhs_composition.
         [[nodiscard]] bool check_dominance(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& lhs_composition,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& rhs_composition) override {

@@ -5,6 +5,12 @@
 
 namespace rcspp {
 
+/// @brief Concept that constrains types usable as a resource value in the RCSPP framework.
+///
+/// A type satisfies `ResourceTypeConcept` if it exposes the four operations required by the
+/// resource management layer: `reset()`, `get_value()`, `set_value()`, and `to_string()`.
+///
+/// @tparam ResourceType The candidate type to check against this concept.
 template <typename ResourceType>
 concept ResourceTypeConcept = requires(ResourceType t) {
     t.reset();
