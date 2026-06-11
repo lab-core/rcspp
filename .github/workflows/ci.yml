@@ -17,7 +17,7 @@ defaults:
 
 jobs:
   coverage-gate:
-    name: Coverage Gate (ubuntu / Release / py3.14)
+    name: Coverage gate (ubuntu / Release / py3.14)
     runs-on: ubuntu-latest
 
     steps:
@@ -70,3 +70,43 @@ jobs:
         with:
           name: coverage-reports
           path: coverage/
+
+  python-tests:
+    name: Python tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Install system dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y build-essential cmake
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python dependencies
+        run: pip install pytest -r tests/python/requirements.txt
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_PYTHON=ON \
+            -DUSE_TESTS=OFF \
+            -DUSE_COVERAGE=OFF \
+            "-DCMAKE_CXX_CLANG_TIDY="
+
+      - name: Build _core
+        run: cmake --build build --parallel --target _core
+
+      - name: Python tests
+        working-directory: tests/python
+        run: pytest -v --tb=short
