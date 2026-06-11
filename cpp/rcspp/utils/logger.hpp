@@ -159,8 +159,8 @@ class Logger {
                     return "WARN ";
                 case LogLevel::Error:
                     return "ERROR";
-                case LogLevel::Fatal:
-                    return "FATAL";  // GCOVR_EXCL_LINE — Fatal level not triggered in tests
+                case LogLevel::Fatal:  // GCOVR_EXCL_LINE — Fatal level not triggered in tests
+                    return "FATAL";    // GCOVR_EXCL_LINE
             }
             return "UNK  ";  // GCOVR_EXCL_LINE — unreachable if enum is exhaustive
         }
@@ -178,9 +178,9 @@ class Logger {
                 case LogLevel::Warn:
                     return "\033[33m";  // yellow
                 case LogLevel::Error:
-                    return "\033[31m";  // red
-                case LogLevel::Fatal:
-                    return "\033[41;97m";  // white on red  // GCOVR_EXCL_LINE — Fatal not in tests
+                    return "\033[31m";     // red
+                case LogLevel::Fatal:      // GCOVR_EXCL_LINE — Fatal not in tests
+                    return "\033[41;97m";  // white on red  // GCOVR_EXCL_LINE
             }
             return "";  // GCOVR_EXCL_LINE — unreachable if enum is exhaustive
         }

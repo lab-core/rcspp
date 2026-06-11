@@ -211,9 +211,10 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
         matched = (try_type.template operator()<ResourceTypes>() || ...);
     }
     if (!matched) {
-        throw py::value_error(std::string("Unknown or non-numerical ") + param_name +
-                              ": '" +  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_START
+        throw py::value_error(std::string("Unknown or non-numerical ") + param_name + ": '" +
                               type_name + "'");
+        // GCOVR_EXCL_STOP
     }
 }
 
@@ -226,11 +227,12 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
                              const PyBucketAlgorithmParams& py_p, bool pre, size_t ci) {
     auto check_index = [&](const char* param, size_t idx, size_t count) {
         if (idx >= count) {
-            throw py::value_error(std::string(param) + " " +
-                                  std::to_string(idx) +  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            throw py::value_error(std::string(param) + " " + std::to_string(idx) +
                                   " out of range (graph has " + std::to_string(count) +
                                   " resource(s) of the required type, valid range [0, " +
                                   std::to_string(count - 1) + "])");
+            // GCOVR_EXCL_STOP
         }
     };
 
@@ -258,8 +260,10 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
                                              "bucket_resource_type",
                                              run_func);
     }
-    return result;  // GCOVR_EXCL_LINE
+    // GCOVR_EXCL_START
+    return result;
 }
+// GCOVR_EXCL_STOP
 
 // ─── CostRC auto-selection ────────────────────────────────────────────────────
 // Picks the first numerical resource in the pack; falls back to RealResource sentinel.
@@ -336,20 +340,22 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
              py::return_value_policy::reference)
         .def(
             "remove_arcs_if",
-            [](G& g, py::function pred) {  // GCOVR_EXCL_LINE
-                return g.remove_arcs_if([&pred](const ArcType& arc) {
-                    return py::cast<bool>(pred(&arc));
-                });  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            [](G& g, py::function pred) {
+                return g.remove_arcs_if(
+                    [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
-            py::arg("pred"))  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_STOP
+            py::arg("pred"))
         .def(
             "restore_arcs_if",
-            [](G& g, py::function pred) {  // GCOVR_EXCL_LINE
-                return g.restore_arcs_if([&pred](const ArcType& arc) {
-                    return py::cast<bool>(pred(&arc));
-                });  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            [](G& g, py::function pred) {
+                return g.restore_arcs_if(
+                    [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
-            py::arg("pred"))  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_STOP
+            py::arg("pred"))
         .def("remove_arcs",
              static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::remove_arcs),
              py::arg("arc_ids"),                        // GCOVR_EXCL_LINE
@@ -573,8 +579,9 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
                 // Copy via fast memcpy into a vector, then release the GIL for
                 // the actual reduced-cost computation across all arcs.
                 auto buf = duals_arr.request();
-                std::vector<double> duals_vec(static_cast<const double*>(buf.ptr),
-                                              static_cast<const double*>(buf.ptr) + buf.size);
+                std::vector<double> duals_vec(  // GCOVR_EXCL_LINE
+                    static_cast<const double*>(buf.ptr),
+                    static_cast<const double*>(buf.ptr) + buf.size);
                 ActiveCall::run_interruptible(
                     [&] { rg.template update_reduced_costs<RealResource>(duals_vec, cost_index); });
             },

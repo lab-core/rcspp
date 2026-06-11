@@ -113,8 +113,8 @@ void init_graph(py::module_& m) {
             py::keep_alive<0, 1>())
         .def(
             "__getitem__",
-            [](const SolveResult& r,
-               py::ssize_t i) -> const Solution& {  // GCOVR_EXCL_LINE — lambda decl; body covered
+            [](const SolveResult& r,  // GCOVR_EXCL_LINE — lambda decl; body covered
+               py::ssize_t i) -> const Solution& {
                 if (i < 0) {
                     i += static_cast<py::ssize_t>(r.solutions.size());
                 }

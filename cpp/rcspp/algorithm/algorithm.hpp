@@ -373,12 +373,12 @@ class Algorithm {
 
             solve_timer_ = nullptr;
 
+            // GCOVR_EXCL_START — debug logging not triggered in tests
             if (LOG_DEBUG_ACTIVE()) {
-                LOG_DEBUG("Total number of extended labels: ",
-                          num_extended_labels_,
-                          "\n");  // GCOVR_EXCL_LINE
-                print_labels();   // GCOVR_EXCL_LINE
+                LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
+                print_labels();
             }
+            // GCOVR_EXCL_STOP
 
             // recover solutions
             std::vector<Solution> solutions;

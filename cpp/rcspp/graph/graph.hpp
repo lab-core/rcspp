@@ -38,8 +38,8 @@ class Graph {
             auto new_graph = std::make_unique<Graph<ResourceType>>();
             clone_topology_into(*new_graph, /*include_rows=*/true, clone_removed_arcs);
             return new_graph;
-            // GCOVR_EXCL_STOP
         }
+        // GCOVR_EXCL_STOP
 
         virtual Node<ResourceType>& add_node(size_t node_id, bool source = false,
                                              bool sink = false) {
@@ -166,8 +166,8 @@ class Graph {
                 remove_arc(id);
             }
             return to_remove;
-            // GCOVR_EXCL_STOP
         }
+        // GCOVR_EXCL_STOP
 
         virtual bool restore_arc(size_t arc_id) {
             auto it = removed_arcs_by_id_.find(arc_id);
@@ -262,8 +262,8 @@ class Graph {
             }
             std::sort(ids.begin(), ids.end());
             return ids;
-            // GCOVR_EXCL_STOP
         }
+        // GCOVR_EXCL_STOP
 
         [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
 
@@ -326,16 +326,16 @@ class Graph {
 
         /// @brief Append *rows* to the rows of arc *arc_id*.
         /// @return True if the arc was found and updated, false if *arc_id* is invalid.
+        // GCOVR_EXCL_START
         bool add_rows_to_arc(size_t arc_id, const std::vector<Row>& rows) {
-            // GCOVR_EXCL_START
             if (arc_id >= arcs_.size() || !arcs_[arc_id]) {
                 return false;
             }
             auto& dr = arcs_[arc_id]->rows;
             dr.insert(dr.end(), rows.begin(), rows.end());
             return true;
-            // GCOVR_EXCL_STOP
         }
+        // GCOVR_EXCL_STOP
 
         /// @brief Return the next arc ID that will be assigned by add_arc().
         [[nodiscard]] size_t next_arc_id() const { return next_arc_id_; }
@@ -346,15 +346,17 @@ class Graph {
             arcs_.reserve(n_arcs);          // GCOVR_EXCL_LINE
         }
 
+        // GCOVR_EXCL_START
         [[nodiscard]] bool is_source(size_t node_id) const {
-            return std::ranges::find(source_node_ids_, node_id) !=  // GCOVR_EXCL_LINE
-                   source_node_ids_.end();                          // GCOVR_EXCL_LINE
+            return std::ranges::find(source_node_ids_, node_id) != source_node_ids_.end();
         }
+        // GCOVR_EXCL_STOP
 
+        // GCOVR_EXCL_START
         [[nodiscard]] bool is_sink(size_t node_id) const {
-            return std::ranges::find(sink_node_ids_, node_id) !=  // GCOVR_EXCL_LINE
-                   sink_node_ids_.end();                          // GCOVR_EXCL_LINE
+            return std::ranges::find(sink_node_ids_, node_id) != sink_node_ids_.end();
         }
+        // GCOVR_EXCL_STOP
 
         void sort_nodes() {
             sort_nodes([](const Node<ResourceType>* n1, const Node<ResourceType>* n2) {

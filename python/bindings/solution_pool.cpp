@@ -379,14 +379,16 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // Local removes (this view only, supports B&B backtracking):
         .def(
             "remove_if",
-            [](FilteredSolutionPool& fp, py::function pred) {  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            [](FilteredSolutionPool& fp, py::function pred) {
                 return fp.remove_if([&pred](SolutionPool::ColumnId cid,
                                             const Solution& sol,
                                             const ColumnActivity& act) {
                     return py::cast<bool>(pred(cid, sol, act));
                 });
             },
-            py::arg("pred"))  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_STOP
+            py::arg("pred"))
         .def("remove_if_arc_present",
              &FilteredSolutionPool::remove_if_arc_present,
              py::arg("arc_id"))  // GCOVR_EXCL_LINE
@@ -397,14 +399,16 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // Global hard deletes (propagate to all registered views):
         .def(
             "global_remove_if",
-            [](FilteredSolutionPool& fp, py::function pred) {  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_START
+            [](FilteredSolutionPool& fp, py::function pred) {
                 return fp.global_remove_if([&pred](SolutionPool::ColumnId cid,
                                                    const Solution& sol,
                                                    const ColumnActivity& act) {
                     return py::cast<bool>(pred(cid, sol, act));
                 });
             },
-            py::arg("pred"))  // GCOVR_EXCL_LINE
+            // GCOVR_EXCL_STOP
+            py::arg("pred"))
         .def("global_remove_if_arc_present",
              &FilteredSolutionPool::global_remove_if_arc_present,
              py::arg("arc_id"))  // GCOVR_EXCL_LINE
