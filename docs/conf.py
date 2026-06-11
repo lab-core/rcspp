@@ -44,7 +44,7 @@ myst_heading_anchors = 3
 # ---------------------------------------------------------------------------
 # The compiled C extension is not available at doc-build time; mock it so
 # imports of rcspp.graph, rcspp.resource etc. succeed.
-autodoc_mock_imports = ["rcspp._core"]
+autodoc_mock_imports = ["rcspp._core", "networkx"]
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,

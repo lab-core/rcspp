@@ -174,6 +174,6 @@ rg.add_rows_to_arc(arc_id, [(constraint_idx, coeff)])
 rg.add_rows(np.array([
     [arc_id_0, constraint_0, coeff_0],
     [arc_id_1, constraint_1, coeff_1],
-    …
+    # ...
 ]))
 ```
