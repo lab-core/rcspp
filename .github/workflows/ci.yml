@@ -72,12 +72,8 @@ jobs:
           path: coverage/
 
   python-tests:
-    name: Python tests (py${{ matrix.python-version }})
+    name: Python compatibility (py3.11–3.14)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.11', '3.12', '3.13', '3.14']
 
     steps:
       - uses: actions/checkout@v4
@@ -88,25 +84,80 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update -q && sudo apt-get install -y build-essential cmake
 
+      # Install all versions upfront so their executables are available.
       - uses: actions/setup-python@v5
+        id: py311
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
+      - uses: actions/setup-python@v5
+        id: py312
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-python@v5
+        id: py313
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-python@v5
+        id: py314
+        with:
+          python-version: '3.14'
 
-      - name: Install Python dependencies
-        run: pip install pytest -r tests/python/requirements.txt
-
-      - name: Configure
+      # Build rcspp_objects once (no coverage, no C++ tests).
+      # _core is also built for Python 3.14 on this first pass.
+      - name: Configure (py3.14)
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DUSE_PYTHON=ON \
             -DUSE_TESTS=OFF \
             -DUSE_COVERAGE=OFF \
+            -DPython_EXECUTABLE="${{ steps.py314.outputs.python-path }}" \
             "-DCMAKE_CXX_CLANG_TIDY="
 
-      - name: Build _core
-        run: cmake --build build --parallel --target _core
+      - name: Build (py3.14)
+        run: cmake --build build --parallel
 
-      - name: Python tests
+      - name: Install Python 3.14 test dependencies
+        run: ${{ steps.py314.outputs.python-path }} -m pip install pytest -r tests/python/requirements.txt
+
+      - name: Python 3.14 tests
         working-directory: tests/python
-        run: pytest -v --tb=short
+        run: ${{ steps.py314.outputs.python-path }} -m pytest -v --tb=short
+
+      # For each older version: reconfigure Python only (rcspp_objects unchanged),
+      # relink _core against the new interpreter, then run tests.
+      - name: Relink _core for py3.13
+        run: |
+          cmake -B build -DPython_EXECUTABLE="${{ steps.py313.outputs.python-path }}"
+          cmake --build build --parallel --target _core
+
+      - name: Install Python 3.13 test dependencies
+        run: ${{ steps.py313.outputs.python-path }} -m pip install pytest -r tests/python/requirements.txt
+
+      - name: Python 3.13 tests
+        working-directory: tests/python
+        run: ${{ steps.py313.outputs.python-path }} -m pytest -v --tb=short
+
+      - name: Relink _core for py3.12
+        run: |
+          cmake -B build -DPython_EXECUTABLE="${{ steps.py312.outputs.python-path }}"
+          cmake --build build --parallel --target _core
+
+      - name: Install Python 3.12 test dependencies
+        run: ${{ steps.py312.outputs.python-path }} -m pip install pytest -r tests/python/requirements.txt
+
+      - name: Python 3.12 tests
+        working-directory: tests/python
+        run: ${{ steps.py312.outputs.python-path }} -m pytest -v --tb=short
+
+      - name: Relink _core for py3.11
+        run: |
+          cmake -B build -DPython_EXECUTABLE="${{ steps.py311.outputs.python-path }}"
+          cmake --build build --parallel --target _core
+
+      - name: Install Python 3.11 test dependencies
+        run: ${{ steps.py311.outputs.python-path }} -m pip install pytest -r tests/python/requirements.txt
+
+      - name: Python 3.11 tests
+        working-directory: tests/python
+        run: ${{ steps.py311.outputs.python-path }} -m pytest -v --tb=short
