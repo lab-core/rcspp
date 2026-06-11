@@ -105,6 +105,12 @@ def main() -> int:
             if fn.get("execution_count", 0) != 0:
                 continue
             start = fn.get("start_line", 0)
+            # Skip function records with start_line=0: these are GCC/gcovr artifacts
+            # for template lambda instantiations whose debug info has no reliable line
+            # attribution.  Counting their "range" from line 0 to the next function
+            # would span the entire file and produce false large-uncovered reports.
+            if start == 0:
+                continue
             end = (
                 fns[i + 1].get("start_line", max(lines) + 1) - 1
                 if i + 1 < len(fns)
