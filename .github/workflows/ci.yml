@@ -128,7 +128,9 @@ jobs:
       # relink _core against the new interpreter, then run tests.
       - name: Relink _core for py3.13
         run: |
-          cmake -B build -DPython_EXECUTABLE="${{ steps.py313.outputs.python-path }}"
+          PY="${{ steps.py313.outputs.python-path }}"
+          PY_ROOT=$(dirname "$(dirname "$PY")")
+          cmake -B build -DPython_EXECUTABLE="$PY" -DPython_ROOT_DIR="$PY_ROOT"
           cmake --build build --parallel --target _core
 
       - name: Install Python 3.13 test dependencies
@@ -140,7 +142,9 @@ jobs:
 
       - name: Relink _core for py3.12
         run: |
-          cmake -B build -DPython_EXECUTABLE="${{ steps.py312.outputs.python-path }}"
+          PY="${{ steps.py312.outputs.python-path }}"
+          PY_ROOT=$(dirname "$(dirname "$PY")")
+          cmake -B build -DPython_EXECUTABLE="$PY" -DPython_ROOT_DIR="$PY_ROOT"
           cmake --build build --parallel --target _core
 
       - name: Install Python 3.12 test dependencies
@@ -152,7 +156,9 @@ jobs:
 
       - name: Relink _core for py3.11
         run: |
-          cmake -B build -DPython_EXECUTABLE="${{ steps.py311.outputs.python-path }}"
+          PY="${{ steps.py311.outputs.python-path }}"
+          PY_ROOT=$(dirname "$(dirname "$PY")")
+          cmake -B build -DPython_EXECUTABLE="$PY" -DPython_ROOT_DIR="$PY_ROOT"
           cmake --build build --parallel --target _core
 
       - name: Install Python 3.11 test dependencies
