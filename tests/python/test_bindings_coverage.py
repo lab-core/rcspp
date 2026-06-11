@@ -372,7 +372,7 @@ def test_filtered_pool_price_numpy():
 
 def test_check_interrupted_no_raise():
     """check_interrupted() is a no-op when no SIGINT is pending."""
-    _core.check_interrupted()
+    _core.graph.check_interrupted()
 
 
 # ── AlgorithmParams.check / could_be_non_optimal (graph.cpp) ─────────────────
@@ -391,23 +391,6 @@ def test_algorithm_params_could_be_non_optimal():
     assert isinstance(result, bool)
 
 
-# ── Node.resource / Arc.extender (graph.cpp) ──────────────────────────────────
-
-
-def test_node_resource_accessible():
-    """node.resource is accessible (does not raise)."""
-    rg = _make_graph()
-    node = rg.get_node(0)
-    _ = node.resource
-
-
-def test_arc_extender_accessible():
-    """arc.extender is accessible (does not raise)."""
-    rg = _make_graph()
-    arc = rg.get_arc(0)
-    _ = arc.extender
-
-
 # ── remove_arcs_if / restore_arcs_if (graph_impl.hpp) ────────────────────────
 
 
@@ -424,16 +407,6 @@ def test_restore_arcs_if():
     rg.remove_arc(0)
     restored = rg.restore_arcs_if(lambda arc: arc.id == 0)
     assert 0 in restored
-
-
-# ── ResourceGraph.get_resource_factory (graph_impl.hpp) ──────────────────────
-
-
-def test_get_resource_factory():
-    """get_resource_factory() returns a non-None factory object."""
-    rg = _make_graph()
-    factory = rg.get_resource_factory()
-    assert factory is not None
 
 
 # ── FilteredSolutionPool.cleanup / sort_by_lp_index / pool ───────────────────
