@@ -40,7 +40,7 @@ jobs:
 
       - name: Generate Doxygen XML
         working-directory: docs
-        run: doxygen Doxyfile
+        run: mkdir -p _doxygen/xml && doxygen Doxyfile
 
       - name: Build Sphinx site
         working-directory: docs

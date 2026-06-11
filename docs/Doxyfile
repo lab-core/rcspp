@@ -50,7 +50,6 @@ XML_PROGRAMLISTING     = NO
 # Diagrams (disabled — no graphviz required on CI)
 #---------------------------------------------------------------------------
 HAVE_DOT               = NO
-CLASS_DIAGRAMS         = NO
 
 #---------------------------------------------------------------------------
 # Misc
