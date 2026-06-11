@@ -638,19 +638,32 @@ class FilteredSharedPricingPool:
                 self._mask[:n] = shared._valid[:n].view(np.bool_)
 
     def add_to_view(self, shared_indices: list[int] | np.ndarray) -> None:
-        """Include slots (B&B backtrack)."""
+        """Include slots in this view (B&B backtrack).
+
+        Args:
+            shared_indices: Shared slot indices to re-include in the mask.
+        """
         if len(shared_indices) > 0:
             self._mask[np.asarray(shared_indices, dtype=np.intp)] = True
 
     def remove_from_view(self, shared_indices: list[int] | np.ndarray) -> None:
-        """Exclude slots (B&B restriction)."""
+        """Exclude slots from this view (B&B restriction).
+
+        Args:
+            shared_indices: Shared slot indices to hide from pricing.
+        """
         if len(shared_indices) > 0:
             self._mask[np.asarray(shared_indices, dtype=np.intp)] = False
 
     def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
-        """Price only slots in this view.
+        """Price only the slots visible through this mask.
 
-        Returns ``(shared_indices, rcs)``.
+        Args:
+            duals: 1-D float64 LP dual values.
+            threshold: Keep only columns with ``rc < threshold`` (default -1e-9).
+
+        Returns:
+            ``(shared_indices, reduced_costs)`` sorted ascending by rc.
         """
         return self._shared.price(duals, threshold=threshold, view_mask=self._mask)
 
@@ -683,6 +696,12 @@ class FilteredPricingPool:
     """
 
     def __init__(self, parent: "PricingPool", cpp_fp: object) -> None:
+        """Wrap a C++ ``FilteredSolutionPool`` with a numpy mask view.
+
+        Args:
+            parent: Owning :class:`PricingPool` that holds the shared memory.
+            cpp_fp: C++ ``FilteredSolutionPool`` instance to wrap.
+        """
         self._parent = parent
         self._cpp_fp = cpp_fp
         self._numpy_fp = self._build_numpy_filter()
@@ -1138,6 +1157,9 @@ class PricingPool:
             pool = PricingPool(n_constraints=200, max_cols=50_000)
             # ... C++ pool already populated ...
             pool.populate_from_cpp_pool()
+
+        Returns:
+            List of ColumnIds that were populated into the shared pool.
         """
         col_costs, row_starts, col_indices, col_values = self._cpp_pool.get_lp_arrays()
         # Get the ColumnIds for all entries so we can build the maps.

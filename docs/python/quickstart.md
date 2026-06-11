@@ -1,7 +1,5 @@
 ---
 title: Python Quick Start
-parent: Python Package
-nav_order: 1
 ---
 
 # Python Quick Start

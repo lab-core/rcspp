@@ -1,7 +1,5 @@
 ---
 title: Algorithms
-parent: Advanced
-nav_order: 1
 ---
 
 # Algorithms

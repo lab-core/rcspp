@@ -1,7 +1,13 @@
 ---
-title: Advanced
-nav_order: 5
-has_children: true
+title: Advanced Topics
 ---
 
 # Advanced Topics
+
+:::{toctree}
+:maxdepth: 1
+:hidden:
+
+algorithms
+column-generation
+:::

@@ -1,7 +1,5 @@
 ---
 title: C++ Library
-nav_order: 3
-has_children: true
 ---
 
 # C++ Library
@@ -47,3 +45,14 @@ cpp/rcspp/
     ├── feasibility_preprocessor.hpp
     └── connectivity_matrix.hpp
 ```
+
+:::{toctree}
+:maxdepth: 1
+:hidden:
+
+concepts
+quickstart
+beginner_api
+advanced_api
+api/library_root
+:::

@@ -1,7 +1,5 @@
 ---
 title: C++ Quick Start
-parent: C++ Library
-nav_order: 2
 ---
 
 # C++ Quick Start

@@ -1,7 +1,0 @@
-source "https://rubygems.org"
-
-gem "jekyll", "~> 4.3"
-gem "jekyll-remote-theme"
-gem "jekyll-seo-tag", ">= 2.0"
-gem "jekyll-include-cache"
-gem "webrick"

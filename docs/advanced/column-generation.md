@@ -1,7 +1,5 @@
 ---
 title: Column Generation
-parent: Advanced
-nav_order: 2
 ---
 
 # Column Generation

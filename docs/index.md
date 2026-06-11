@@ -1,7 +1,5 @@
 ---
 title: Home
-layout: home
-nav_order: 1
 ---
 
 # RCSPP
@@ -127,3 +125,14 @@ rcspp/
 │   └── python/           # pytest suite
 └── extern/pybind11/      # submodule
 ```
+
+:::{toctree}
+:maxdepth: 2
+:hidden:
+:caption: Contents
+
+installation
+cpp/index
+python/index
+advanced/index
+:::

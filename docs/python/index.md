@@ -1,7 +1,5 @@
 ---
 title: Python Package
-nav_order: 4
-has_children: true
 ---
 
 # Python Package
@@ -43,3 +41,11 @@ from rcspp.pricing_pool import PricingPool
 from rcspp._core.graph        import Solution, Column, Row, Algorithm
 from rcspp._core.solution_pool import SolutionPool
 ```
+
+:::{toctree}
+:maxdepth: 1
+:hidden:
+
+quickstart
+api
+:::

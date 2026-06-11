@@ -9,12 +9,22 @@
 
 namespace rcspp {
 
+/// @brief Cost function that sums the costs of all components in a composed resource.
+///
+/// Iterates over every sub-resource in every type slot of the composition and accumulates
+/// their individual costs via `get_cost()`.
+///
+/// @tparam ResourceTypes The individual resource types forming the composition.
 template <typename... ResourceTypes>
     requires(ResourceTypeConcept<ResourceTypes> && ...)
 class CompositionCostFunction
     : public Clonable<CompositionCostFunction<ResourceTypes...>,
                       CostFunction<ResourceTypeComposition<ResourceTypes...>>> {
     public:
+        /// @brief Returns the total cost as the sum of all component costs.
+        ///
+        /// @param resource_composition The composed resource to evaluate.
+        /// @return Sum of `get_cost()` over every sub-resource in the composition.
         [[nodiscard]] double get_cost(const Resource<ResourceTypeComposition<ResourceTypes...>>&
                                           resource_composition) const override {
             double total_cost = 0;

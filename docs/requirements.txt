@@ -1,0 +1,6 @@
+sphinx>=7.4
+furo>=2024.1
+breathe>=4.35
+exhale>=0.3.7
+myst-parser[linkify]>=3.0
+sphinx-copybutton>=0.5

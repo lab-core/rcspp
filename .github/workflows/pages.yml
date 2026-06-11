@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'cpp/rcspp/**'
+      - 'python/src/rcspp/**'
+      - 'python/bindings/**'
       - 'AGENT.md'
   workflow_dispatch:
 
@@ -25,20 +28,29 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-          working-directory: docs
+      - name: Install Doxygen
+        run: sudo apt-get update -q && sudo apt-get install -y doxygen
 
-      - name: Build with Jekyll
-        run: bundle exec jekyll build --source docs --destination _site
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: Generate Doxygen XML
+        working-directory: docs
+        run: doxygen Doxyfile
+
+      - name: Build Sphinx site
+        working-directory: docs
+        run: sphinx-build -b html . _site -W --keep-going
         env:
-          JEKYLL_ENV: production
+          SPHINXOPTS: "-j auto"
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: docs/_site
 
   deploy:
     environment:

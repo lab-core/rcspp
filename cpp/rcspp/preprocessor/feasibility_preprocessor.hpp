@@ -12,9 +12,24 @@
 
 namespace rcspp {
 
+/// @brief Preprocessor that removes arcs along which no feasible resource extension exists.
+///
+/// For every node, `FeasibilityPreprocessor` computes a set of initial resource states
+/// reachable from any source node.  An arc is then removed if none of those initial states
+/// can be extended through the arc to produce a feasible resource at the destination node.
+///
+/// @tparam ResourceType The resource type used in the graph.
 template <typename ResourceType>
 class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
     public:
+        /// @brief Constructs the preprocessor and pre-computes per-node initial resources.
+        ///
+        /// Source nodes receive the default resource provided by the factory.  For all
+        /// other nodes, feasible initial resources are obtained by extending the default
+        /// resource of each predecessor through its incoming arc.
+        ///
+        /// @param resource_factory Factory used to create and copy resource objects.
+        /// @param graph            Non-owning pointer to the graph to preprocess.
         FeasibilityPreprocessor(ResourceFactory<ResourceType>* resource_factory,
                                 Graph<ResourceType>* graph)
             : Preprocessor<ResourceType>(graph), resource_factory_(resource_factory) {

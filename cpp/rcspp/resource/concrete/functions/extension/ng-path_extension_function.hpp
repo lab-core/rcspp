@@ -14,29 +14,72 @@
 
 namespace rcspp {
 
-// ValueType is the element type stored in the per-origin neighborhood sets and is fed
-// to ResourceType::set_value. The default matches the element type the resource
-// advertises; override it to point NgPath at an alternative set_value overload.
+/// @brief Extension function implementing the ng-path relaxation for set-based resources.
+///
+/// In the ng-path relaxation a label keeps track of the set of nodes that may form
+/// a cycle with the current partial path.  When traversing an arc from `origin` to
+/// `destination`, the new reachable set is computed as:
+///
+///   `(current_set ∩ ng_neighborhood[origin]) ∪ {origin}`
+///
+/// where `ng_neighborhood[origin]` is the pre-defined neighborhood of the origin node.
+/// The forward extension uses the origin's neighborhood; the backward extension uses the
+/// destination's neighborhood.  Both neighborhoods are looked up once per arc in
+/// `preprocess()` and cached for efficiency.
+///
+/// @tparam ResourceType A ContainerResource-compatible type supporting `get_intersection()`,
+///                      `get_union()`, `set_value()`, and `reset()`.
+/// @tparam ValueType    Element type stored in the neighborhood sets.  Defaults to
+///                      `ResourceType::ValueType`; can be overridden to select an
+///                      alternative `set_value()` overload.
 template <typename ResourceType, typename ValueType = typename ResourceType::ValueType>
 class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<ResourceType, ValueType>,
                                                 ExtensionFunction<ResourceType>> {
     public:
+        /// @brief Constructs an NgPathExtensionFunction with the per-node neighborhoods.
+        ///
+        /// @param ng_neighborhood_by_origin_id  Map from node id to its ng-neighborhood set.
+        ///                                      Nodes absent from the map are treated as having
+        ///                                      an empty neighborhood.
         explicit NgPathExtensionFunction(
             std::map<size_t, std::set<ValueType>> ng_neighborhood_by_origin_id)
             : ng_neighborhood_by_origin_id_(
                   std::make_shared<const std::map<size_t, std::set<ValueType>>>(
                       std::move(ng_neighborhood_by_origin_id))) {}
 
+        /// @brief Forward extension: intersects @p resource with the origin's neighborhood,
+        /// then unions with @p extender_value.
+        ///
+        /// @param resource           Current ng-path resource of the label.
+        /// @param extender_value     Arc's extender resource (typically represents the origin
+        /// node).
+        /// @param extended_resource  Output: receives the new ng-path set.
         void extend(const ResourceType& resource, const ResourceType& extender_value,
                     ResourceType* extended_resource) override {
             extend(resource, extender_value, extended_resource, ng_neighborhood_);
         }
 
+        /// @brief Backward extension: intersects @p resource with the destination's
+        /// neighborhood, then unions with @p extender_value.
+        ///
+        /// @param resource           Current ng-path resource of the backward label.
+        /// @param extender_value     Arc's extender resource (typically represents the
+        /// destination node).
+        /// @param extended_resource  Output: receives the new ng-path set.
         void extend_back(const ResourceType& resource, const ResourceType& extender_value,
                          ResourceType* extended_resource) override {
             extend(resource, extender_value, extended_resource, ng_neighborhood_back_);
         }
 
+        /// @brief Core ng-path extension with an explicit @p ng_neighborhood resource.
+        ///
+        /// Computes `(resource ∩ ng_neighborhood) ∪ extender_value` and stores the
+        /// result in @p extended_resource.
+        ///
+        /// @param resource           Current ng-path resource.
+        /// @param extender_value     Arc's extender resource (origin or destination node set).
+        /// @param extended_resource  Output: receives the computed ng-path set.
+        /// @param ng_neighborhood    Neighborhood to intersect with (pre-loaded by preprocess).
         void extend(const ResourceType& resource, const ResourceType& extender_value,
                     ResourceType* extended_resource, const ResourceType& ng_neighborhood) {
             // keep only the nodes in the neighborhood of the origin node of the arc

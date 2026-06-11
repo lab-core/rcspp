@@ -1,7 +1,5 @@
 ---
 title: Concepts
-parent: C++ Library
-nav_order: 1
 ---
 
 # Core Concepts
