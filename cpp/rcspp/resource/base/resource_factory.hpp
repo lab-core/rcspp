@@ -105,10 +105,8 @@ class ResourceFactory {
             if (extension_function_) {
                 cloned->extension_function_ = extension_function_->clone();
             }
-            // GCOVR_EXCL_START
             return cloned;
         }
-        // GCOVR_EXCL_STOP
 
         // Make an extender
         template <typename GraphResourceType>
@@ -129,8 +127,6 @@ class ResourceFactory {
         }
         // clang-format on
 
-        // GCOVR_EXCL_START — tuple-init extender path; requires graph arcs with valid
-        // origin/destination nodes, so not exercised in unit tests
         template <typename... Args, typename GraphResourceType>
         auto create_extender(const std::tuple<Args...>& resource_initializer,
                              const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtenderClass> {
@@ -144,7 +140,6 @@ class ResourceFactory {
                 extension_function_->create(arc),
                 arc.id);
         }
-        // GCOVR_EXCL_STOP
 
     protected:
         // Create a resource prototype with specific functions (but without resource base).

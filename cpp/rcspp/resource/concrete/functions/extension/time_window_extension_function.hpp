@@ -35,14 +35,12 @@ class TimeWindowExtensionFunction
             extended_resource->set_value(sum_value);
         }
 
-        // GCOVR_EXCL_START (extend_back for bidirectional search; not called in unit tests)
         void extend_back(const ResourceType& resource, const ResourceType& extender_value,
                          ResourceType* extended_resource) override {
             auto sum_value = resource.get_value() + extender_value.get_value();
             sum_value = std::min(max_time_window_, sum_value);
             extended_resource->set_value(sum_value);
         }
-        // GCOVR_EXCL_STOP
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>

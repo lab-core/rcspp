@@ -18,8 +18,6 @@ static struct sigaction g_old_sigint_sa = {};
 static void (*g_old_sigint_handler)(int) = SIG_DFL;
 #endif
 
-// GCOVR_EXCL_START — SIGINT handler; only reachable when Ctrl-C is pressed during
-// a long-running solve, which cannot be triggered deterministically in unit tests
 static void py_sigint_handler(int sig) {
     ActiveCall::mark_interrupted();
     // Forward to Python's handler only when no C++ call is active; otherwise
@@ -38,7 +36,6 @@ static void py_sigint_handler(int sig) {
 #endif
     }
 }
-// GCOVR_EXCL_STOP
 
 // Called from Python between long-running steps (e.g. CG iterations) to raise
 // KeyboardInterrupt if a SIGINT was received since the last solve() call.
@@ -46,7 +43,7 @@ static void py_sigint_handler(int sig) {
 void py_check_interrupted() {
     ActiveCall::check_if_throw_error();
     if (PyErr_CheckSignals() != 0) {
-        throw py::error_already_set();  // GCOVR_EXCL_LINE — only reachable with pending signals
+        throw py::error_already_set();
     }
 }
 
@@ -107,14 +104,13 @@ void init_graph(py::module_& m) {
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
         .def(
             "__iter__",
-            [](const SolveResult& r) {  // GCOVR_EXCL_LINE — lambda decl; body covered
+            [](const SolveResult& r) {
                 return py::make_iterator(r.solutions.begin(), r.solutions.end());
             },
             py::keep_alive<0, 1>())
         .def(
             "__getitem__",
-            [](const SolveResult& r,  // GCOVR_EXCL_LINE — lambda decl; body covered
-               py::ssize_t i) -> const Solution& {
+            [](const SolveResult& r, py::ssize_t i) -> const Solution& {
                 if (i < 0) {
                     i += static_cast<py::ssize_t>(r.solutions.size());
                 }
@@ -137,7 +133,7 @@ void init_graph(py::module_& m) {
         .def(py::init([](size_t index, long double coefficient) {
                  return Row{.index = index, .coefficient = coefficient};
              }),
-             py::arg("index"),  // GCOVR_EXCL_LINE
+             py::arg("index"),
              py::arg("coefficient"))
         .def_readwrite("index", &Row::index)
         .def_readwrite("coefficient", &Row::coefficient);
@@ -236,7 +232,7 @@ void init_graph(py::module_& m) {
         .def_property(
             "path_arc_ids",
             [](const Solution& s) -> const std::vector<size_t>& { return s.path_arc_ids; },
-            [](Solution& s, std::vector<size_t> v) {  // GCOVR_EXCL_LINE — lambda decl; body covered
+            [](Solution& s, std::vector<size_t> v) {
                 s.path_arc_ids = std::move(v);
                 s.rehash();
             })
@@ -279,14 +275,14 @@ void init_graph(py::module_& m) {
         g.def(py::init<>())
             .def("add_node",
                  &RealGraph::add_node,
-                 py::arg("id"),  // GCOVR_EXCL_LINE — py::arg registration; gcov artifact
+                 py::arg("id"),
                  py::arg("source") = false,
                  py::arg("sink") = false,
                  py::return_value_policy::reference)
             .def("add_arc",
                  py::overload_cast<size_t, size_t, double, std::vector<Row>>(&RealGraph::add_arc),
-                 py::arg("origin_id"),       // GCOVR_EXCL_LINE
-                 py::arg("destination_id"),  // GCOVR_EXCL_LINE
+                 py::arg("origin_id"),
+                 py::arg("destination_id"),
                  py::arg("cost") = 0.0,
                  py::arg("rows") = std::vector<Row>{},
                  py::return_value_policy::reference);

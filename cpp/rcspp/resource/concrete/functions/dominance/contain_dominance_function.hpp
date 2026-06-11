@@ -12,7 +12,6 @@ template <typename ResourceType>
 class ContainDominanceFunction
     : public Clonable<ContainDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
     public:
-        // GCOVR_EXCL_START (ContainDominanceFunction::check_dominance; not called in unit tests)
         // clang-format off
         auto check_dominance(const ResourceType& lhs_resource, const ResourceType& rhs_resource)
             -> bool override {
@@ -21,7 +20,6 @@ class ContainDominanceFunction
             return lhs_resource.includes(rhs_resource.get_value());
         }
         // clang-format on
-        // GCOVR_EXCL_STOP
 
         // clang-format off
         auto fast_check_dominance(const ResourceType& lhs_resource,

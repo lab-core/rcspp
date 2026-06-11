@@ -22,7 +22,6 @@ template <typename ResourceClass, typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class ResourcePrototype {
     public:
-        // GCOVR_EXCL_START — default constructor not exercised in tests
         ResourcePrototype()
             : value_(),
               unique_dominance_function_(nullptr),
@@ -32,9 +31,7 @@ class ResourcePrototype {
               feasibility_function_(nullptr),
               cost_function_(nullptr),
               node_id_(0) {}
-        // GCOVR_EXCL_STOP
 
-        // GCOVR_EXCL_START — const-ref value + unique_ptr constructor overload not exercised
         ResourcePrototype(const ResourceType& resource_value,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
@@ -48,7 +45,6 @@ class ResourcePrototype {
               feasibility_function_(unique_feasibility_function_.get()),
               cost_function_(unique_cost_function_.get()),
               node_id_(node_id) {}
-        // GCOVR_EXCL_STOP
 
         ResourcePrototype(ResourceType&& resource_value,
                           std::unique_ptr<DominanceFunction<ResourceType>> dominance_function,
@@ -138,7 +134,6 @@ class ResourcePrototype {
         }
 
         // To implement the copy-and-swap idiom
-        // GCOVR_EXCL_START — swap friend not exercised in tests
         friend void swap(ResourcePrototype& first, ResourcePrototype& second) noexcept {
             using std::swap;
 
@@ -155,7 +150,6 @@ class ResourcePrototype {
             swap(first.cost_function_, second.cost_function_);
             swap(first.node_id_, second.node_id_);
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] auto clone() const -> std::unique_ptr<ResourceClass> {
             return std::make_unique<ResourceClass>(downcast());

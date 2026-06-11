@@ -44,7 +44,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                                  " MB). Stopping early.\n");
                         break;
                     }
-                    // GCOVR_EXCL_START — memory-pressure path not reached in unit tests
                     if (this->memory_limit_.is_under_pressure()) {
                         LOG_INFO("Memory pressure: ",
                                  MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
@@ -53,7 +52,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                                  " MB. Trimming label queues.\n");
                         this->on_memory_pressure();
                     }
-                    // GCOVR_EXCL_STOP
                 }
 
                 ++i;
@@ -78,21 +76,17 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                     if (label.dominated) {
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
-                        // GCOVR_EXCL_START — prune-by-upper-bound path not triggered in unit tests
                     } else if (this->params_.prune_based_on_upper_bound_ &&
                                label.get_cost() >= this->best_cost_upper_bound_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
-                        // GCOVR_EXCL_STOP
                     } else if (std::isinf(label.get_cost())) {
-                        // GCOVR_EXCL_START — infinite-cost label path not triggered in unit tests
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
-                        // GCOVR_EXCL_STOP
                     } else {
                         // check if sink and update best solution
                         if (label.get_end_node()->sink) {
@@ -101,8 +95,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                                 if (label.get_cost() < this->best_cost_upper_bound_) {
                                     this->best_cost_upper_bound_ = label.get_cost();
                                 }
-                                // GCOVR_EXCL_START — return_dominated_solutions path not used in
-                                // tests
                                 if (this->params_.return_dominated_solutions) {
                                     this->extract_solution(label);
                                     if (this->solutions_.size() >=
@@ -113,7 +105,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                                         return;
                                     }
                                 }
-                                // GCOVR_EXCL_STOP
                             }
                         }
                         ++it;  // move to next label
@@ -122,7 +113,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             }
         }
 
-        // GCOVR_EXCL_START — next_label_iterator/extend are not-implemented stubs never called
         LabelIteratorPair<ResourceType> next_label_iterator() override {
             throw std::runtime_error("next_label_iterator() not implemented");
         }
@@ -130,7 +120,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void extend(Label<ResourceType>* label_ptr) override {
             throw std::runtime_error("extend(Label<ResourceType>* label_ptr) not implemented");
         }
-        // GCOVR_EXCL_STOP
 
         void pull_new_unprocessed_labels() {
             // move to the next node
@@ -200,18 +189,15 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             return this->current_unprocessed_labels_.erase(label_iterator);
         }
 
-        // GCOVR_EXCL_START — label restoration after OOM truncation not exercised in tests
         void prepareNextPhase() override {
             first_loop_ = true;
             this->restore_truncated_unprocessed_labels();
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Trim per-node queues when memory pressure is detected.
         ///
         /// Same two-phase behaviour as @ref PushingDominanceAlgorithm::on_memory_pressure():
         /// first call trims + stores aside; subsequent calls also release stored-aside labels.
-        // GCOVR_EXCL_START — on_memory_pressure() not triggered in unit tests
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
 
@@ -228,7 +214,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
             this->trim_all_queues(limit, &this->label_pool_);
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Release label memory and clear all unprocessed queues.
         void release_label_memory() override {

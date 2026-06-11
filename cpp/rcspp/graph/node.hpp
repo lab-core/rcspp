@@ -43,15 +43,12 @@ class Node {
         [[nodiscard]] size_t pos() const {
             try {
                 return pos_.value();
-                // GCOVR_EXCL_START — error path: pos_ unset only if graph not sorted (never in
-                // tests)
             } catch (const std::bad_optional_access& e) {
                 LOG_FATAL("Node::pos(): Position is not set for node ",
                           std::to_string(id),
                           ". Sort the graph with Graph::sort_nodes() to set pos.\n");
                 throw e;
             }
-            // GCOVR_EXCL_STOP
         }
 
         [[nodiscard]] std::string to_string() const {

@@ -76,7 +76,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
 
             if (sources.empty()) {
-                return;  // GCOVR_EXCL_LINE
+                return;
             }
 
             // store the sources: take the first element out, then move the remaining list
@@ -127,7 +127,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             for (auto* arc : this->graph_->get_out_arcs(end_node)) {
                 // check if can reach this destination node
                 if (!label->is_reachable(arc->destination->id)) {
-                    continue;  // GCOVR_EXCL_LINE
+                    continue;
                 }
                 // extend along arc
                 auto& new_label = this->label_pool_.get_next_label(arc->destination);
@@ -138,7 +138,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     all_labels.push_back(&new_label);
                 } else {
                     // release label
-                    this->label_pool_.release_label(&new_label);  // GCOVR_EXCL_LINE
+                    this->label_pool_.release_label(&new_label);
                 }
             }
 
@@ -147,11 +147,9 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
 
             // sort the labels by cost
-            // GCOVR_EXCL_START (sort in extend_label; only triggered by specific arc ordering)
             all_labels.sort([](Label<ResourceType>* l1, Label<ResourceType>* l2) {
                 return l1->get_cost() < l2->get_cost();
             });
-            // GCOVR_EXCL_STOP
 
             // keep best label first
             add_labels_to_path(std::move(all_labels));
@@ -175,8 +173,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     break;
                 }
             }
-            return path_arc_ids;  // GCOVR_EXCL_LINE
-        }  // GCOVR_EXCL_LINE
+            return path_arc_ids;
+        }
 
         void add_labels_to_path(std::list<Label<ResourceType>*> labels) {
             auto first = labels.front();

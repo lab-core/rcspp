@@ -84,7 +84,7 @@ struct MemoryInfo {
                     }
                 }
             }
-            return 0;  // GCOVR_EXCL_LINE — VmRSS parse failure, unreachable on healthy Linux
+            return 0;
 #elif defined(__APPLE__) || defined(__MACH__)
             task_vm_info_data_t info{};
             mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
@@ -134,7 +134,7 @@ struct MemoryInfo {
                     }
                 }
             }
-            return 0;  // GCOVR_EXCL_LINE — MemAvailable parse failure, unreachable on healthy Linux
+            return 0;
 #elif defined(__APPLE__) || defined(__MACH__)
             vm_statistics64_data_t vm_stat{};
             mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
@@ -148,7 +148,7 @@ struct MemoryInfo {
                                 // — required by Mach C API
                 &count);
             if (kr != KERN_SUCCESS) {
-                return 0;  // GCOVR_EXCL_LINE
+                return 0;
             }
             vm_size_t page_size = 0;
             host_page_size(host, &page_size);
@@ -188,7 +188,7 @@ struct MemoryInfo {
                     }
                 }
             }
-            return 0;  // GCOVR_EXCL_LINE — MemTotal parse failure, unreachable on healthy Linux
+            return 0;
 #elif defined(__APPLE__) || defined(__MACH__)
             int64_t mem = 0;
             size_t len = sizeof(mem);
@@ -252,12 +252,10 @@ struct MemoryLimitHelper {
                               ref / kMB,
                               " MB available).\n");
                 } else {
-                    // GCOVR_EXCL_START
                     LOG_WARN(
                         "Cannot determine available system RAM; "
                         "memory limit disabled.\n");
                     effective_limit = 0;
-                    // GCOVR_EXCL_STOP
                 }
             } else if (limit_to_total_ram) {
                 const size_t ref = MemoryInfo::total_system_bytes();
@@ -272,12 +270,10 @@ struct MemoryLimitHelper {
                               ref / kMB,
                               " MB total).\n");
                 } else {
-                    // GCOVR_EXCL_START
                     LOG_WARN(
                         "Cannot determine total system RAM; "
                         "memory limit disabled.\n");
                     effective_limit = 0;
-                    // GCOVR_EXCL_STOP
                 }
             } else {
                 effective_limit = 0;
@@ -297,7 +293,7 @@ struct MemoryLimitHelper {
         /// The threshold is @ref pressure_fraction × @ref effective_limit.
         [[nodiscard]] bool is_under_pressure() const noexcept {
             if (effective_limit == 0) {
-                return false;  // GCOVR_EXCL_LINE
+                return false;
             }
             const auto threshold =
                 static_cast<size_t>(static_cast<double>(effective_limit) * pressure_fraction);

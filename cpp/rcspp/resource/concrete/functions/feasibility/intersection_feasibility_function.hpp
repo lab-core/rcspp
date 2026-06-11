@@ -45,7 +45,7 @@ class IntersectionFeasibilityFunction
 
         void preprocess(size_t node_id) override {
             if (values_by_node_id_ == nullptr) {
-                return;  // GCOVR_EXCL_LINE — constructor always initialises with make_shared
+                return;
             }
             auto it = values_by_node_id_->find(node_id);
             if (it != values_by_node_id_->end()) {

@@ -41,13 +41,11 @@ class Logger {
             level_ = std::move(level);
             to_console_ = to_console;
             if (!file_path.empty()) {
-                // GCOVR_EXCL_START — file logging not configured in tests
                 file_stream_.open(file_path, std::ios::app);
                 file_ok_ = file_stream_.good();
-                // GCOVR_EXCL_STOP
             } else {
                 if (file_stream_.is_open()) {
-                    file_stream_.close();  // GCOVR_EXCL_LINE — only if file logging was active
+                    file_stream_.close();
                 }
                 file_ok_ = false;
             }
@@ -80,10 +78,8 @@ class Logger {
                 std::cout.flush();
             }
             if (file_ok_) {
-                // GCOVR_EXCL_START — file logging not configured in tests
                 file_stream_ << header << payload;
                 file_stream_.flush();
-                // GCOVR_EXCL_STOP
             }
         }
 
@@ -108,18 +104,16 @@ class Logger {
         void error(Args&&... a) {
             log(LogLevel::Error, std::forward<Args>(a)...);
         }
-        // GCOVR_EXCL_START — fatal log helper not called in tests
         template <typename... Args>
         void fatal(Args&&... a) {
             log(LogLevel::Fatal, std::forward<Args>(a)...);
         }
-        // GCOVR_EXCL_STOP
 
     private:
         Logger() = default;
         ~Logger() {
             if (file_stream_.is_open()) {
-                file_stream_.close();  // GCOVR_EXCL_LINE — only reached if file logging was active
+                file_stream_.close();
             }
         }
 
@@ -147,42 +141,38 @@ class Logger {
 
         static const char* level_name(const LogLevel& l) {
             switch (l) {
-                // GCOVR_EXCL_START
                 case LogLevel::Trace:
                     return "TRACE";
                 case LogLevel::Debug:
                     return "DEBUG";
-                // GCOVR_EXCL_STOP
                 case LogLevel::Info:
                     return "INFO ";
                 case LogLevel::Warn:
                     return "WARN ";
                 case LogLevel::Error:
                     return "ERROR";
-                case LogLevel::Fatal:  // GCOVR_EXCL_LINE — Fatal level not triggered in tests
-                    return "FATAL";    // GCOVR_EXCL_LINE
+                case LogLevel::Fatal:
+                    return "FATAL";
             }
-            return "UNK  ";  // GCOVR_EXCL_LINE — unreachable if enum is exhaustive
+            return "UNK  ";
         }
 
         static const char* color_for(const LogLevel& l) {
             switch (l) {
-                // GCOVR_EXCL_START
                 case LogLevel::Trace:
                     return "\033[37m";  // light gray
                 case LogLevel::Debug:
                     return "\033[36m";  // cyan
-                // GCOVR_EXCL_STOP
                 case LogLevel::Info:
                     return "\033[32m";  // green
                 case LogLevel::Warn:
                     return "\033[33m";  // yellow
                 case LogLevel::Error:
-                    return "\033[31m";     // red
-                case LogLevel::Fatal:      // GCOVR_EXCL_LINE — Fatal not in tests
-                    return "\033[41;97m";  // white on red  // GCOVR_EXCL_LINE
+                    return "\033[31m";  // red
+                case LogLevel::Fatal:
+                    return "\033[41;97m";  // white on red
             }
-            return "";  // GCOVR_EXCL_LINE — unreachable if enum is exhaustive
+            return "";
         }
 
         static const char* color_reset() { return "\033[0m"; }

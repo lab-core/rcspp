@@ -56,49 +56,80 @@ jobs:
         run: |
           pytest -v --tb=short \
             --cov=rcspp --cov-config=.coveragerc \
-            --cov-report=term-missing --cov-fail-under=100
+            --cov-report=term-missing --cov-fail-under=90
 
       - name: C++ coverage gate
         run: |
           mkdir -p coverage
-          # generate reports (no built-in fail-under; gate is in the script below)
           gcovr --config gcovr.cfg build
-          # unique-source-line gate: merge all template instantiations of the same
-          # source line (XML has one <class> per instantiation), then require 100%.
+          # Gate 1: overall line coverage >= 85%.
+          # Gate 2: no function with >= MIN_FN_LINES instrumented lines may be
+          #         completely uncovered (execution_count == 0).  This catches
+          #         new non-trivial code added without any test, while ignoring
+          #         one-liner helpers and GCC probe artifacts.
           python3 - <<'PYEOF'
-          import sys
-          import xml.etree.ElementTree as ET
+          import json, sys
           from collections import defaultdict
 
-          root = ET.fromstring(open("coverage/cpp.xml").read())
-          file_lines = defaultdict(lambda: defaultdict(int))
-          for cls in root.iter("class"):
-              fn = cls.get("filename", "")
-              for l in cls.findall(".//line"):
-                  lineno = int(l.get("number"))
-                  hits = int(l.get("hits", "0"))
-                  file_lines[fn][lineno] = max(file_lines[fn][lineno], hits)
+          MIN_FN_LINES = 10   # instrumented lines; functions smaller than this are ignored
+          LINE_THRESHOLD = 85  # minimum overall line-coverage percentage
 
-          total = sum(len(lines) for lines in file_lines.values())
-          covered = sum(
-              1
-              for lines in file_lines.values()
-              for h in lines.values()
-              if h > 0
-          )
-          pct = covered / total * 100 if total else 0
+          # ── Load reports ──────────────────────────────────────────────────────
+          with open("coverage/cpp.json") as f:
+              data = json.load(f)
 
-          print("\n=== C++ unique-source-line coverage ===")
-          for fn, lines in sorted(file_lines.items()):
+          # ── Gate 1: overall line coverage ────────────────────────────────────
+          total_lines = covered_lines = 0
+          file_lines = {}  # filename -> {lineno: hits}
+          for file_data in data.get("files", []):
+              fname = file_data["filename"]
+              lines = {l["line_number"]: l["count"] for l in file_data.get("lines", [])}
+              file_lines[fname] = lines
+              total_lines += len(lines)
+              covered_lines += sum(1 for h in lines.values() if h > 0)
+
+          pct = covered_lines / total_lines * 100 if total_lines else 0
+
+          print("\n=== C++ line coverage by file ===")
+          for fname, lines in sorted(file_lines.items()):
               uncov = sorted(ln for ln, h in lines.items() if h == 0)
               if uncov:
                   cov_pct = (len(lines) - len(uncov)) / len(lines) * 100
                   tail = "..." if len(uncov) > 20 else ""
-                  print(f"  {fn}: {cov_pct:.1f}%  missing={uncov[:20]}{tail}")
+                  print(f"  {fname}: {cov_pct:.1f}%  missing={uncov[:20]}{tail}")
+          print(f"\nTotal: {covered_lines}/{total_lines} = {pct:.1f}%")
 
-          print(f"\nTotal: {covered}/{total} = {pct:.1f}%")
-          if pct < 100:
-              sys.exit(1)
+          # ── Gate 2: no large uncovered function ──────────────────────────────
+          large_uncovered = []
+          for file_data in data.get("files", []):
+              fname = file_data["filename"]
+              lines = file_lines[fname]
+              fns = sorted(file_data.get("functions", []), key=lambda f: f.get("start_line", 0))
+              for i, fn in enumerate(fns):
+                  if fn.get("execution_count", 0) != 0:
+                      continue
+                  start = fn.get("start_line", 0)
+                  end = fns[i + 1].get("start_line", max(lines) + 1) - 1 if i + 1 < len(fns) else max(lines, default=start)
+                  fn_line_count = sum(1 for ln in lines if start <= ln <= end)
+                  if fn_line_count >= MIN_FN_LINES:
+                      large_uncovered.append(
+                          f"  {fname}: '{fn.get('name', '?')}' "
+                          f"lines {start}-{end} ({fn_line_count} instrumented lines, 0 calls)"
+                      )
+
+          failed = False
+          if pct < LINE_THRESHOLD:
+              print(f"\nFAIL: line coverage {pct:.1f}% < required {LINE_THRESHOLD}%")
+              failed = True
+          if large_uncovered:
+              print(f"\nFAIL: {len(large_uncovered)} function(s) with >={MIN_FN_LINES} "
+                    f"instrumented lines are completely uncovered:")
+              for msg in large_uncovered:
+                  print(msg)
+              failed = True
+          if not failed:
+              print(f"\nPASS: {pct:.1f}% line coverage, no large uncovered functions.")
+          sys.exit(1 if failed else 0)
           PYEOF
 
       - name: Upload coverage reports

@@ -178,9 +178,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                         ++num_extended;
                         break;
                     }
-                    // GCOVR_EXCL_START — truncated label path not triggered in unit tests
                     unprocessed_truncated_labels_.push_back(label_iterator_pair);
-                    // GCOVR_EXCL_STOP
                 }
             }
             return label_iterator_pair;
@@ -198,7 +196,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         // ─── Multi-phase support ──────────────────────────────────────────────
 
         /// @brief Restore truncated labels into the main heap for the next phase.
-        // GCOVR_EXCL_START (heap rebuild for next phase; not exercised in unit tests)
         void prepareNextPhase() override {
             std::ranges::fill(number_of_extended_labels_per_node_, 0);
             for (const auto& pair : unprocessed_truncated_labels_) {
@@ -206,7 +203,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             }
             unprocessed_truncated_labels_.clear();
         }
-        // GCOVR_EXCL_STOP
 
         // ─── Memory pressure ──────────────────────────────────────────────────
 
@@ -217,7 +213,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node × num_nodes
         /// entries, recycles dominated excess labels, and stores non-dominated
         /// excess in @ref unprocessed_truncated_labels_ for the next phase.
-        // GCOVR_EXCL_START (memory-pressure trimming; never reached in unit tests)
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
             this->effective_max_labels_per_node_ = limit;
@@ -270,12 +265,10 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             unprocessed_labels_ =
                 PriorityQueue(flat.begin(), flat.end(), LabelFValueComparator{&h_to_sink_});
         }
-        // GCOVR_EXCL_STOP
 
         // ─── Cleanup ──────────────────────────────────────────────────────────
 
         /// @brief Release label memory and clear all unprocessed label containers.
-        // GCOVR_EXCL_START (virtual override cleanup; not invoked in unit tests)
         void release_label_memory() override {
             DominanceAlgorithm<ResourceType, LabelContainerType>::release_label_memory();
             // Rebuild empty queues (pool has already freed the label objects).
@@ -283,7 +276,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             unprocessed_truncated_labels_.clear();
             std::ranges::fill(number_of_extended_labels_per_node_, 0);
         }
-        // GCOVR_EXCL_STOP
 
         // ─── Members ──────────────────────────────────────────────────────────
 
@@ -293,8 +285,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// @ref initialize() call via a backward Bellman–Ford pass.
         std::vector<double> h_to_sink_;
 
-        // GCOVR_EXCL_START (member variables; only constructed in heap/truncation paths not hit by
-        // unit tests)
         /// @brief Min-heap of active (non-truncated) labels ordered by f = g + h.
         PriorityQueue unprocessed_labels_;
 
@@ -303,7 +293,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
         /// @brief Count of labels extended per node in the current phase.
         std::vector<size_t> number_of_extended_labels_per_node_;
-        // GCOVR_EXCL_STOP
 };
 
 /// @brief Presents AStarDominanceAlgorithm<RT, LC, CostRC> as a 2-param template.
@@ -313,12 +302,10 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 /// wherever a @c template<typename,typename> class argument is expected.
 template <typename CostRC>
 struct AStarAlgoBound {
-        // GCOVR_EXCL_START (wrapper alias; only instantiated in corner-case topology tests)
         template <typename RT, typename LC>
         class Algo : public AStarDominanceAlgorithm<RT, LC, CostRC> {
                 using AStarDominanceAlgorithm<RT, LC, CostRC>::AStarDominanceAlgorithm;
         };
-        // GCOVR_EXCL_STOP
 };
 
 }  // namespace rcspp

@@ -18,12 +18,10 @@ class ValueDominanceFunction
     public:
         using ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>;
 
-        // GCOVR_EXCL_START (ValueDominanceFunction::check_dominance; not called in unit tests)
         [[nodiscard]] auto check_dominance(const ResourceType& lhs_resource,
                                            const ResourceType& rhs_resource) -> bool override {
             return lhs_resource.leq(rhs_resource);
         }
-        // GCOVR_EXCL_STOP
 
         // clang-format off
         auto fast_check_dominance(const ResourceType& lhs_resource,

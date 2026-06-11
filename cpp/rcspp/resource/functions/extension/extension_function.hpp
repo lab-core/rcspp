@@ -33,26 +33,22 @@ class ExtensionFunction {
         virtual void extend(const ResourceType& resource, const ResourceType& extender_value,
                             ResourceType* extended_resource) = 0;
 
-        // GCOVR_EXCL_START — back-direction not used in tests
         virtual void extend_back(const ResourceType& resource, const ResourceType& extender_value,
                                  ResourceType* extended_resource) {
             extend(resource, extender_value, extended_resource);
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] virtual auto clone() const -> std::unique_ptr<ExtensionFunction> = 0;
 
-        // GCOVR_EXCL_START — clone+preprocess default not called directly in tests
         template <typename GraphResourceType>
         auto create(const Arc<GraphResourceType>& arc) -> std::unique_ptr<ExtensionFunction> {
             auto new_extension_function = clone();
             new_extension_function->preprocess(arc.origin->id, arc.destination->id);
             return new_extension_function;
         }
-        // GCOVR_EXCL_STOP
 
     protected:
-        virtual void preprocess(size_t origin_id, size_t destination_id) {}  // GCOVR_EXCL_LINE
+        virtual void preprocess(size_t origin_id, size_t destination_id) {}
 };
 
 // Specialization for ResourceTypeComposition: extension functions receive the full Resource object.
@@ -67,19 +63,16 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
-        // GCOVR_EXCL_START — back-direction not used in tests
         virtual void extend_back(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
             const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) {
             extend(resource, extender, extended_resource);
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] virtual auto clone() const
             -> std::unique_ptr<ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> = 0;
 
-        // GCOVR_EXCL_START — clone+preprocess default not called directly in tests
         template <typename GraphResourceType>
         auto create(const Arc<GraphResourceType>& arc)
             -> std::unique_ptr<ExtensionFunction<ResourceTypeComposition<ResourceTypes...>>> {
@@ -87,10 +80,9 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             new_extension_function->preprocess(arc.origin->id, arc.destination->id);
             return new_extension_function;
         }
-        // GCOVR_EXCL_STOP
 
     protected:
-        virtual void preprocess(size_t origin_id, size_t destination_id) {}  // GCOVR_EXCL_LINE
+        virtual void preprocess(size_t origin_id, size_t destination_id) {}
 };
 
 }  // namespace rcspp

@@ -127,10 +127,8 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                            other_set.begin(),
                            other_set.end(),
                            std::inserter(result, result.begin()));
-            // GCOVR_EXCL_START
             return result;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] Container get_intersection(const Container& other_set) const override {
             Container result;
@@ -139,10 +137,8 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                   other_set.begin(),
                                   other_set.end(),
                                   std::inserter(result, result.begin()));
-            // GCOVR_EXCL_START
             return result;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] Container subtract(const Container& other_set) const override {
             Container result;
@@ -151,10 +147,8 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                 other_set.begin(),
                                 other_set.end(),
                                 std::inserter(result, result.begin()));
-            // GCOVR_EXCL_START
             return result;
         }
-        // GCOVR_EXCL_STOP
 };
 
 // Proper bitset specialization: implement bitset semantics using word vector
@@ -336,10 +330,8 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
                     }
                 }
             }
-            // GCOVR_EXCL_START
             return result;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] std::string to_string() const override {
             return ContainerResource<Container, Derived, ValueType>::to_string(to_set());

@@ -34,12 +34,10 @@ class Graph {
 
         [[nodiscard]] std::unique_ptr<Graph<ResourceType>> clone(
             bool clone_removed_arcs = false) const {
-            // GCOVR_EXCL_START
             auto new_graph = std::make_unique<Graph<ResourceType>>();
             clone_topology_into(*new_graph, /*include_rows=*/true, clone_removed_arcs);
             return new_graph;
         }
-        // GCOVR_EXCL_STOP
 
         virtual Node<ResourceType>& add_node(size_t node_id, bool source = false,
                                              bool sink = false) {
@@ -100,12 +98,9 @@ class Graph {
             return true;
         }
 
-        // GCOVR_EXCL_START — arc-ref remove_arc overload not called in unit tests
         virtual bool remove_arc(const Arc<ResourceType>& arc) { return remove_arc(arc.id); }
-        // GCOVR_EXCL_STOP
 
         // Remove a batch of arcs by id. Returns the ids that were actually removed.
-        // GCOVR_EXCL_START (batch arc removal; not called in unit tests)
         std::vector<size_t> remove_arcs(const std::vector<size_t>& arc_ids) {
             std::vector<size_t> removed;
             removed.reserve(arc_ids.size());
@@ -116,7 +111,6 @@ class Graph {
             }
             return removed;
         }
-        // GCOVR_EXCL_STOP
 
         // Force an arc: remove all other out-arcs from its origin and all other
         // in-arcs to its destination, keeping only this arc active on both ends.
@@ -149,13 +143,10 @@ class Graph {
             return to_remove;
         }
 
-        std::vector<size_t> force_arc(const Arc<ResourceType>& arc) {
-            return force_arc(arc.id);
-        }  // GCOVR_EXCL_LINE
+        std::vector<size_t> force_arc(const Arc<ResourceType>& arc) { return force_arc(arc.id); }
 
         template <typename C>
         std::vector<size_t> remove_arcs_if(C check) {
-            // GCOVR_EXCL_START
             std::vector<size_t> to_remove;
             for_each_arc([&](const auto& arc) {
                 if (check(arc)) {
@@ -167,7 +158,6 @@ class Graph {
             }
             return to_remove;
         }
-        // GCOVR_EXCL_STOP
 
         virtual bool restore_arc(size_t arc_id) {
             auto it = removed_arcs_by_id_.find(arc_id);
@@ -180,7 +170,7 @@ class Graph {
             arc->origin->out_arcs.push_back(arc);
 
             if (arc_id >= arcs_.size()) {
-                arcs_.resize(arc_id + 1);  // GCOVR_EXCL_LINE
+                arcs_.resize(arc_id + 1);
             }
             arcs_[arc_id] = std::move(it->second);
             removed_arcs_by_id_.erase(it);
@@ -190,11 +180,8 @@ class Graph {
             return true;
         }
 
-        // GCOVR_EXCL_START — arc-ref restore_arc overload not called in unit tests
         virtual bool restore_arc(const Arc<ResourceType>& arc) { return restore_arc(arc.id); }
-        // GCOVR_EXCL_STOP
 
-        // GCOVR_EXCL_START (batch arc restore; optional API not called in unit tests)
         // Restore a batch of arcs by id. Returns the ids that were actually restored.
         std::vector<size_t> restore_arcs(const std::vector<size_t>& arc_ids) {
             std::vector<size_t> restored;
@@ -220,24 +207,22 @@ class Graph {
             }
             return restored_arc_ids;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
             auto it = nodes_by_id_.find(node_id);
             if (it == nodes_by_id_.end()) {
-                return nullptr;  // GCOVR_EXCL_LINE
+                return nullptr;
             }
-            return it->second.get();  // GCOVR_EXCL_LINE
+            return it->second.get();
         }
 
         [[nodiscard]] Arc<ResourceType>* get_arc(size_t arc_id) const {
             if (arc_id >= arcs_.size()) {
-                return nullptr;  // GCOVR_EXCL_LINE
+                return nullptr;
             }
-            return arcs_[arc_id].get();  // GCOVR_EXCL_LINE
+            return arcs_[arc_id].get();
         }
 
-        // GCOVR_EXCL_START (arc-pair query; optional API not called in unit tests)
         [[nodiscard]] std::vector<Arc<ResourceType>*> get_arcs(size_t ori_id,
                                                                size_t dest_id) const {
             std::vector<Arc<ResourceType>*> arcs;
@@ -251,10 +236,8 @@ class Graph {
             }
             return arcs;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] std::vector<size_t> get_node_ids() const {
-            // GCOVR_EXCL_START
             std::vector<size_t> ids;
             ids.reserve(nodes_by_id_.size());
             for (const auto& [k, _] : nodes_by_id_) {
@@ -263,12 +246,10 @@ class Graph {
             std::sort(ids.begin(), ids.end());
             return ids;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
 
         /// @brief Iterates over all active arcs without allocating, passing a mutable Arc&.
-        // GCOVR_EXCL_START (mutable for_each_arc overload; not called in unit tests)
         template <typename F>
         void for_each_arc(F&& fn) {
             for (auto& arc : arcs_) {
@@ -277,7 +258,6 @@ class Graph {
                 }
             }
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Iterates over all active arcs without allocating, passing a const Arc&.
         template <typename F>
@@ -289,9 +269,8 @@ class Graph {
             }
         }
 
-        [[nodiscard]] size_t get_arcs_size() const { return active_arc_count_; }  // GCOVR_EXCL_LINE
+        [[nodiscard]] size_t get_arcs_size() const { return active_arc_count_; }
 
-        // GCOVR_EXCL_START (removed-arc queries; optional connectivity paths not in unit tests)
         [[nodiscard]] std::vector<size_t> get_removed_arc_ids() const {
             std::vector<size_t> ids;
             ids.reserve(removed_arcs_by_id_.size());
@@ -306,14 +285,13 @@ class Graph {
             auto it = removed_arcs_by_id_.find(arc_id);
             return it != removed_arcs_by_id_.end() ? it->second.get() : nullptr;
         }
-        // GCOVR_EXCL_STOP
 
         [[nodiscard]] const std::vector<Node<ResourceType>*>& get_sorted_nodes() const {
             return sorted_nodes_;
         }
 
         [[nodiscard]] const std::vector<size_t>& get_source_node_ids() const {
-            return source_node_ids_;  // GCOVR_EXCL_LINE
+            return source_node_ids_;
         }
 
         [[nodiscard]] const std::vector<size_t>& get_sink_node_ids() const {
@@ -326,7 +304,6 @@ class Graph {
 
         /// @brief Append *rows* to the rows of arc *arc_id*.
         /// @return True if the arc was found and updated, false if *arc_id* is invalid.
-        // GCOVR_EXCL_START
         bool add_rows_to_arc(size_t arc_id, const std::vector<Row>& rows) {
             if (arc_id >= arcs_.size() || !arcs_[arc_id]) {
                 return false;
@@ -335,28 +312,23 @@ class Graph {
             dr.insert(dr.end(), rows.begin(), rows.end());
             return true;
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Return the next arc ID that will be assigned by add_arc().
         [[nodiscard]] size_t next_arc_id() const { return next_arc_id_; }
 
         // Pre-allocate storage to avoid reallocation during bulk inserts.
         void reserve(size_t n_nodes, size_t n_arcs) {
-            nodes_by_id_.reserve(n_nodes);  // GCOVR_EXCL_LINE
-            arcs_.reserve(n_arcs);          // GCOVR_EXCL_LINE
+            nodes_by_id_.reserve(n_nodes);
+            arcs_.reserve(n_arcs);
         }
 
-        // GCOVR_EXCL_START
         [[nodiscard]] bool is_source(size_t node_id) const {
             return std::ranges::find(source_node_ids_, node_id) != source_node_ids_.end();
         }
-        // GCOVR_EXCL_STOP
 
-        // GCOVR_EXCL_START
         [[nodiscard]] bool is_sink(size_t node_id) const {
             return std::ranges::find(sink_node_ids_, node_id) != sink_node_ids_.end();
         }
-        // GCOVR_EXCL_STOP
 
         void sort_nodes() {
             sort_nodes([](const Node<ResourceType>* n1, const Node<ResourceType>* n2) {
@@ -430,15 +402,13 @@ class Graph {
 
         [[nodiscard]] bool are_nodes_sorted() const {
             if (sorted_nodes_.empty()) {
-                return false;  // GCOVR_EXCL_LINE
+                return false;
             }
-            for (size_t i = 0; i < sorted_nodes_.size(); i++) {  // GCOVR_EXCL_LINE
+            for (size_t i = 0; i < sorted_nodes_.size(); i++) {
                 if (sorted_nodes_[i]->pos() != i) {
-                    // GCOVR_EXCL_START
                     LOG_WARN(
                         "Nodes are not correctly sorted in the graph. It will be overridden.\n");
                     return false;
-                    // GCOVR_EXCL_STOP
                 }
             }
             return true;
@@ -561,7 +531,6 @@ class Graph {
         }
 
         // Internal helper: restore one arc while iterating removed_arcs_by_id_.
-        // GCOVR_EXCL_START — restore_arc_from_map only called via restore_arcs_if; not hit in tests
         typename ArcMap::iterator restore_arc_from_map(typename ArcMap::iterator it) {
             Arc<ResourceType>* arc = it->second.get();
             arc->destination->in_arcs.push_back(arc);
@@ -576,7 +545,6 @@ class Graph {
             csr_valid_ = false;
             return removed_arcs_by_id_.erase(it);
         }
-        // GCOVR_EXCL_STOP
 };
 
 template <typename ResourceType>

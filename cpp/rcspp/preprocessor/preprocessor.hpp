@@ -39,6 +39,6 @@ class Preprocessor {
 
     protected:
         bool disable_preprocessing_ = false;
-        virtual bool remove_arc(const Arc<ResourceType>& arc) { return false; }  // GCOVR_EXCL_LINE
+        virtual bool remove_arc(const Arc<ResourceType>& arc) { return false; }
 };
 }  // namespace rcspp

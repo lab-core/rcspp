@@ -42,9 +42,7 @@ class ActiveCall {
         };
 
     public:
-        // GCOVR_EXCL_START — only reachable when Ctrl-C fires; not triggerable in unit tests
         static bool any_active() { return g_active_calls.load(std::memory_order_relaxed) > 0; }
-        // GCOVR_EXCL_STOP
 
         static bool is_interrupted() { return g_py_interrupted.load(std::memory_order_relaxed); }
 
@@ -70,14 +68,12 @@ class ActiveCall {
             }
         }
 
-        // GCOVR_EXCL_START — only reachable when Ctrl-C fires; not triggerable in unit tests
         static void mark_interrupted() { g_py_interrupted.store(true, std::memory_order_relaxed); }
-        // GCOVR_EXCL_STOP
 
         static void check_if_throw_error() {
             if (g_py_interrupted.exchange(false, std::memory_order_relaxed)) {
-                PyErr_SetNone(PyExc_KeyboardInterrupt);  // GCOVR_EXCL_LINE
-                throw py::error_already_set();           // GCOVR_EXCL_LINE
+                PyErr_SetNone(PyExc_KeyboardInterrupt);
+                throw py::error_already_set();
             }
         }
 };
@@ -117,7 +113,6 @@ template <SolverAlgorithm E>
 struct AStarAlgoEntry {
         static constexpr SolverAlgorithm value = E;
         template <typename RG, typename CostRC, typename LC>
-        // GCOVR_EXCL_START
         static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
             p.heuristic_cost_index = ci;
             return rg.template solve<AStarAlgoBound<CostRC>::template Algo, CostRC, LC>(
@@ -126,7 +121,6 @@ struct AStarAlgoEntry {
                 pre,
                 ci);
         }
-        // GCOVR_EXCL_STOP
 };
 
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
@@ -137,7 +131,6 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AStarAlgoEntry<SolverAlgorithm::AStar>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
-// GCOVR_EXCL_START — template dispatch; not all instantiations are exercised in tests
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
                                     bool pre, size_t ci, std::tuple<Entries...>* /*tag*/) {
     SolveResult result;
@@ -148,7 +141,6 @@ SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, Algo
          ...);
     return result;
 }
-// GCOVR_EXCL_STOP
 
 template <typename RG, typename CostRC, typename LC>
 SolveResult dispatch_algorithm(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
@@ -203,7 +195,7 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
                 return false;
             }
             if (type_name != py_type_name<RT>()) {
-                return false;  // GCOVR_EXCL_LINE
+                return false;
             }
             cb.template operator()<RT>();
             return true;
@@ -211,10 +203,8 @@ void with_resource_type(const std::string& type_name, const char* param_name, Ca
         matched = (try_type.template operator()<ResourceTypes>() || ...);
     }
     if (!matched) {
-        // GCOVR_EXCL_START
         throw py::value_error(std::string("Unknown or non-numerical ") + param_name + ": '" +
                               type_name + "'");
-        // GCOVR_EXCL_STOP
     }
 }
 
@@ -227,12 +217,10 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
                              const PyBucketAlgorithmParams& py_p, bool pre, size_t ci) {
     auto check_index = [&](const char* param, size_t idx, size_t count) {
         if (idx >= count) {
-            // GCOVR_EXCL_START
             throw py::value_error(std::string(param) + " " + std::to_string(idx) +
                                   " out of range (graph has " + std::to_string(count) +
                                   " resource(s) of the required type, valid range [0, " +
                                   std::to_string(count - 1) + "])");
-            // GCOVR_EXCL_STOP
         }
     };
 
@@ -260,10 +248,8 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, RG& rg, double ub,
                                              "bucket_resource_type",
                                              run_func);
     }
-    // GCOVR_EXCL_START
     return result;
 }
-// GCOVR_EXCL_STOP
 
 // ─── CostRC auto-selection ────────────────────────────────────────────────────
 // Picks the first numerical resource in the pack; falls back to RealResource sentinel.
@@ -289,17 +275,17 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
         .def("get_arc", &G::get_arc, py::arg("id"), py::return_value_policy::reference)
         .def("get_arcs",
              &G::get_arcs,
-             py::arg("origin_id"),       // GCOVR_EXCL_LINE
-             py::arg("destination_id"),  // GCOVR_EXCL_LINE
+             py::arg("origin_id"),
+             py::arg("destination_id"),
              py::return_value_policy::reference)
         .def("node_ids", &G::get_node_ids)
         .def("arc_ids",
-             [](const G& g) {  // GCOVR_EXCL_LINE
+             [](const G& g) {
                  std::vector<size_t> ids;
                  ids.reserve(g.get_number_of_arcs());
                  g.for_each_arc([&](const auto& arc) { ids.push_back(arc.id); });
                  return ids;
-             })  // GCOVR_EXCL_LINE
+             })
         .def("source_node_ids", &G::get_source_node_ids)
         .def("sink_node_ids", &G::get_sink_node_ids)
         .def("number_of_nodes", &G::get_number_of_nodes)
@@ -312,73 +298,69 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
         .def("sort_nodes", [](G& g) { g.sort_nodes(); })
         .def(
             "sort_nodes",
-            [](G& g, py::function comp) {  // GCOVR_EXCL_LINE
+            [](G& g, py::function comp) {
                 g.sort_nodes([comp](const auto* n1, const auto* n2) -> bool {
                     return py::cast<bool>(comp(n1, n2));
                 });
             },
-            py::arg("comp"))  // GCOVR_EXCL_LINE
+            py::arg("comp"))
         .def("reserve",
              &G::reserve,
-             py::arg("n_nodes"),  // GCOVR_EXCL_LINE
-             py::arg("n_arcs"),   // GCOVR_EXCL_LINE
+             py::arg("n_nodes"),
+             py::arg("n_arcs"),
              "Pre-allocate hash-map buckets to avoid rehashing during bulk inserts.")
         .def("remove_arc", static_cast<bool (G::*)(size_t)>(&G::remove_arc), py::arg("arc_id"))
         .def(
             "remove_arc",
-            [](G& g, ArcType* arc) { return g.remove_arc(*arc); },  // GCOVR_EXCL_LINE
-            py::arg("arc"))                                         // GCOVR_EXCL_LINE
+            [](G& g, ArcType* arc) { return g.remove_arc(*arc); },
+            py::arg("arc"))
         .def("restore_arc", static_cast<bool (G::*)(size_t)>(&G::restore_arc), py::arg("arc_id"))
         .def(
             "restore_arc",
-            [](G& g, ArcType* arc) { return g.restore_arc(*arc); },  // GCOVR_EXCL_LINE
-            py::arg("arc"))                                          // GCOVR_EXCL_LINE
+            [](G& g, ArcType* arc) { return g.restore_arc(*arc); },
+            py::arg("arc"))
         .def("removed_arc_ids", &G::get_removed_arc_ids)
         .def("get_removed_arc",
              &G::get_removed_arc,
-             py::arg("arc_id"),  // GCOVR_EXCL_LINE
+             py::arg("arc_id"),
              py::return_value_policy::reference)
         .def(
             "remove_arcs_if",
-            // GCOVR_EXCL_START
             [](G& g, py::function pred) {
                 return g.remove_arcs_if(
                     [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
-            // GCOVR_EXCL_STOP
             py::arg("pred"))
         .def(
             "restore_arcs_if",
-            // GCOVR_EXCL_START
             [](G& g, py::function pred) {
                 return g.restore_arcs_if(
                     [&pred](const ArcType& arc) { return py::cast<bool>(pred(&arc)); });
             },
-            // GCOVR_EXCL_STOP
             py::arg("pred"))
         .def("remove_arcs",
              static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::remove_arcs),
-             py::arg("arc_ids"),                        // GCOVR_EXCL_LINE
-             py::call_guard<py::gil_scoped_release>())  // GCOVR_EXCL_LINE
+             py::arg("arc_ids"),
+             py::call_guard<py::gil_scoped_release>())
         .def("restore_arcs",
              static_cast<std::vector<size_t> (G::*)(const std::vector<size_t>&)>(&G::restore_arcs),
-             py::arg("arc_ids"),                        // GCOVR_EXCL_LINE
-             py::call_guard<py::gil_scoped_release>())  // GCOVR_EXCL_LINE
+             py::arg("arc_ids"),
+             py::call_guard<py::gil_scoped_release>())
         .def("force_arc",
              static_cast<std::vector<size_t> (G::*)(size_t)>(&G::force_arc),
-             py::arg("arc_id"),  // GCOVR_EXCL_LINE
+             py::arg("arc_id"),
              "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
              "destination. Returns the ids of the removed arcs.")
         .def(
             "force_arc",
-            [](G& g, ArcType* arc) { return g.force_arc(*arc); },  // GCOVR_EXCL_LINE
+            [](G& g, ArcType* arc) { return g.force_arc(*arc); },
             py::arg("arc"),
             "Remove all other out-arcs from the arc's origin and all other in-arcs to its "
             "destination. Returns the ids of the removed arcs.")
         .def("add_rows_to_arc",
              &G::add_rows_to_arc,
-             py::arg("arc_id"),  // GCOVR_EXCL_LINE
-             py::arg("rows"),    // GCOVR_EXCL_LINE
+             py::arg("arc_id"),
+             py::arg("rows"),
              "Append rows to an arc's rows. Returns false if arc_id is invalid.")
         .def("next_arc_id",
              &G::next_arc_id,
@@ -418,7 +400,7 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
                     i = j;
                 }
             },
-            py::arg("rows"),  // GCOVR_EXCL_LINE
+            py::arg("rows"),
             py::call_guard<py::gil_scoped_release>(),
             "Bulk-append rows from a (N, 3) float64 array [arc_id, row_index, coeff]. "
             "The array must be sorted by arc_id (column 0).");
@@ -436,13 +418,13 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
         .def("add_node",
              static_cast<N& (RG::*)(size_t, bool, bool)>(&RG::add_node),
              py::arg("id"),
-             py::arg("source") = false,  // GCOVR_EXCL_LINE
-             py::arg("sink") = false,    // GCOVR_EXCL_LINE
+             py::arg("source") = false,
+             py::arg("sink") = false,
              py::return_value_policy::reference)
         .def("get_resource_factory", &RG::get_resource_factory, py::return_value_policy::reference)
         .def(
             "solve",
-            [](RG& rg,  // GCOVR_EXCL_LINE
+            [](RG& rg,
                SolverAlgorithm alg,
                double ub,
                const PyBucketAlgorithmParams& py_p,
@@ -457,14 +439,14 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                                                                               ci);
                 });
             },
-            py::arg("algorithm") = SolverAlgorithm::Simple,  // GCOVR_EXCL_LINE
-            py::arg("upper_bound") = INF,                    // GCOVR_EXCL_LINE
+            py::arg("algorithm") = SolverAlgorithm::Simple,
+            py::arg("upper_bound") = INF,
             py::arg("params"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def(
             "solve",
-            [](RG& rg,  // GCOVR_EXCL_LINE
+            [](RG& rg,
                SolverAlgorithm alg,
                double ub,
                const PyAlgorithmParams& py_p,
@@ -475,8 +457,8 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
                 return ActiveCall::run_interruptible(
                     [&] { return dispatch_algorithm<RG, CostRC, LC>(alg, rg, ub, p, pre, ci); });
             },
-            py::arg("algorithm") = SolverAlgorithm::Simple,  // GCOVR_EXCL_LINE
-            py::arg("upper_bound") = INF,                    // GCOVR_EXCL_LINE
+            py::arg("algorithm") = SolverAlgorithm::Simple,
+            py::arg("upper_bound") = INF,
             py::arg("params") = PyAlgorithmParams{},
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
@@ -487,13 +469,12 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
              py::arg("destination_node_id"))
         .def(
             "_add_nodes_bulk",
-            [](RG& rg,
-               const std::vector<std::tuple<size_t, bool, bool>>& nodes) {  // GCOVR_EXCL_LINE
+            [](RG& rg, const std::vector<std::tuple<size_t, bool, bool>>& nodes) {
                 for (const auto& [id, source, sink] : nodes) {
                     rg.add_node(id, source, sink);
                 }
             },
-            py::arg("nodes"),  // GCOVR_EXCL_LINE
+            py::arg("nodes"),
             py::call_guard<py::gil_scoped_release>())
         .def(
             "clone",
@@ -517,9 +498,9 @@ void bind_add_resource(py::class_<RG, Graph<RC>>& rg) {
                                     std::unique_ptr<CostFunction<ResourceType>>,
                                     std::unique_ptr<DominanceFunction<ResourceType>>)>(
                &RG::template add_resource<ResourceType>),
-           py::arg("extension_function"),    // GCOVR_EXCL_LINE
-           py::arg("feasibility_function"),  // GCOVR_EXCL_LINE
-           py::arg("cost_function"),         // GCOVR_EXCL_LINE
+           py::arg("extension_function"),
+           py::arg("feasibility_function"),
+           py::arg("cost_function"),
            py::arg("dominance_function"));
 }
 
@@ -535,8 +516,8 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
         "add_arc",
         static_cast<Arc<RC>& (RG::*)(const AddArcTuple&, size_t, size_t, double, std::vector<Row>)>(
             &RG::add_arc),
-        py::arg("resource_consumption"),  // GCOVR_EXCL_LINE
-        py::arg("origin_node_id"),        // GCOVR_EXCL_LINE
+        py::arg("resource_consumption"),
+        py::arg("origin_node_id"),
         py::arg("destination_node_id"),
         py::arg("cost") = 0.0,
         py::arg("rows") = std::vector<Row>{},
@@ -545,17 +526,17 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
     rg.def("update_arc",
            static_cast<void (RG::*)(Arc<RC>*, const AddArcTuple&, std::optional<double>)>(
                &RG::update_arc),
-           py::arg("arc"),  // GCOVR_EXCL_LINE
+           py::arg("arc"),
            py::arg("resource_consumption"),
            py::arg("cost") = std::nullopt);
 
     rg.def(
         "_add_arcs_bulk",
-        [](RG& rg,                                        // GCOVR_EXCL_LINE
-           const std::vector<AddArcTuple>& consumptions,  // GCOVR_EXCL_LINE
-           const std::vector<size_t>& origins,            // GCOVR_EXCL_LINE
-           const std::vector<size_t>& dests,              // GCOVR_EXCL_LINE
-           const std::vector<double>& costs,              // GCOVR_EXCL_LINE
+        [](RG& rg,
+           const std::vector<AddArcTuple>& consumptions,
+           const std::vector<size_t>& origins,
+           const std::vector<size_t>& dests,
+           const std::vector<double>& costs,
            const std::vector<std::vector<Row>>& rows) {
             for (size_t i = 0; i < consumptions.size(); ++i) {
                 rg.add_arc(consumptions[i], origins[i], dests[i], costs[i], rows[i]);
@@ -579,13 +560,12 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
                 // Copy via fast memcpy into a vector, then release the GIL for
                 // the actual reduced-cost computation across all arcs.
                 auto buf = duals_arr.request();
-                std::vector<double> duals_vec(  // GCOVR_EXCL_LINE
-                    static_cast<const double*>(buf.ptr),
-                    static_cast<const double*>(buf.ptr) + buf.size);
+                std::vector<double> duals_vec(static_cast<const double*>(buf.ptr),
+                                              static_cast<const double*>(buf.ptr) + buf.size);
                 ActiveCall::run_interruptible(
                     [&] { rg.template update_reduced_costs<RealResource>(duals_vec, cost_index); });
             },
-            py::arg("duals"),  // GCOVR_EXCL_LINE
+            py::arg("duals"),
             py::arg("cost_index") = 0);
     }
 }
@@ -606,11 +586,11 @@ void bind_resource_graph_block(py::module_& m, const char* rg_name, const char* 
         .def_readonly("id", &Arc<RC>::id)
         .def(
             "origin",
-            [](const Arc<RC>& a) -> Node<RC>* { return a.origin; },  // GCOVR_EXCL_LINE
+            [](const Arc<RC>& a) -> Node<RC>* { return a.origin; },
             py::return_value_policy::reference)
         .def(
             "destination",
-            [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },  // GCOVR_EXCL_LINE
+            [](const Arc<RC>& a) -> Node<RC>* { return a.destination; },
             py::return_value_policy::reference)
         .def_readwrite("cost", &Arc<RC>::cost)
         .def_readwrite("rows", &Arc<RC>::rows)

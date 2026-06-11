@@ -63,7 +63,7 @@ struct AtomicColumnActivity {
               created_at(o.created_at),
               last_was_negative(o.last_was_negative.load()),
               last_reduced_cost(o.last_reduced_cost.load()) {}
-        AtomicColumnActivity(AtomicColumnActivity&& o) noexcept  // GCOVR_EXCL_LINE
+        AtomicColumnActivity(AtomicColumnActivity&& o) noexcept
             : AtomicColumnActivity(static_cast<const AtomicColumnActivity&>(o)) {}
         AtomicColumnActivity& operator=(const AtomicColumnActivity&) = delete;
 
@@ -322,7 +322,7 @@ class FilteredSolutionPool {
         // Unregisters from pool on destruction.
         ~FilteredSolutionPool() {
             if (!registered_) {
-                return;  // GCOVR_EXCL_LINE
+                return;
             }
             std::unique_lock lock(pool_.mutex_);
             auto& reg = pool_.registered_pools_;
@@ -333,8 +333,6 @@ class FilteredSolutionPool {
         FilteredSolutionPool& operator=(const FilteredSolutionPool&) = delete;
 
         // Move: re-registers this in place of other in pool's registration list.
-        // GCOVR_EXCL_START (move constructor; atomic snapshot mechanics; not in single-threaded
-        // tests)
         FilteredSolutionPool(FilteredSolutionPool&& other) noexcept
             : pool_(other.pool_),
               filter_(std::move(other.filter_)),
@@ -353,7 +351,6 @@ class FilteredSolutionPool {
                 }
             }
         }
-        // GCOVR_EXCL_STOP
 
         FilteredSolutionPool& operator=(FilteredSolutionPool&&) = delete;
 
@@ -516,14 +513,12 @@ class FilteredSolutionPool {
         ///
         /// @param arc_id Arc to exclude.
         /// @return ColumnIds of the removed entries.
-        // GCOVR_EXCL_START (local arc-based removal; not exercised by single-threaded unit tests)
         std::vector<ColumnId> remove_if_arc_present(size_t arc_id) {
             std::unique_lock lock(pool_.mutex_);
             return remove_if_local([arc_id](ColumnId, const Solution& sol, const ColumnActivity&) {
                 return std::ranges::find(sol.path_arc_ids, arc_id) != sol.path_arc_ids.end();
             });
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Remove stale columns from this view (local; main pool unaffected).
         ///
@@ -539,7 +534,6 @@ class FilteredSolutionPool {
         /// @param min_usage_rate  Remove if the column's usage fraction falls below this
         ///                        value (ignored for never-priced columns).
         /// @return ColumnIds of the removed entries.
-        // GCOVR_EXCL_START (stale-removal LP plumbing; not exercised by single-threaded unit tests)
         std::vector<ColumnId> remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);  // exclusive: remove_if_local mutates this view
             return remove_if_local(
@@ -548,7 +542,6 @@ class FilteredSolutionPool {
                            (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
                 });
         }
-        // GCOVR_EXCL_STOP
 
         // ── Global hard deletes (from pool, propagates to all views) ───────────
 
@@ -588,7 +581,6 @@ class FilteredSolutionPool {
         ///
         /// @param arc_id Arc to exclude globally.
         /// @return ColumnIds of the deleted entries.
-        // GCOVR_EXCL_START (global arc-based removal; not exercised by single-threaded unit tests)
         std::vector<ColumnId> global_remove_if_arc_present(size_t arc_id) {
             std::unique_lock lock(pool_.mutex_);
             return pool_.remove_if_locked(
@@ -596,7 +588,6 @@ class FilteredSolutionPool {
                     return std::ranges::find(sol.path_arc_ids, arc_id) != sol.path_arc_ids.end();
                 });
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Hard-delete stale columns from the pool (propagates to all views).
         ///
@@ -606,7 +597,6 @@ class FilteredSolutionPool {
         /// @param max_age        Remove if @c age > @p max_age.
         /// @param min_usage_rate Remove if @c usage_rate() < this (when @c priced_count > 0).
         /// @return ColumnIds of the deleted entries.
-        // GCOVR_EXCL_START (global stale-removal; not exercised by single-threaded unit tests)
         std::vector<ColumnId> global_remove_stale(size_t max_age, double min_usage_rate = 0.0) {
             std::unique_lock lock(pool_.mutex_);
             return pool_.remove_if_locked(
@@ -615,7 +605,6 @@ class FilteredSolutionPool {
                            (act.priced_count > 0 && act.usage_rate() < min_usage_rate);
                 });
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Re-sort the filtered view by @c lp_index for cache-friendly pricing.
         ///
@@ -629,12 +618,10 @@ class FilteredSolutionPool {
         /// @c lp_index (monotone), so they preserve the sort order.  Only
         /// swap-and-pop removals may disrupt it; call this method after
         /// @ref remove_stale() or @ref remove_if() when performance matters.
-        // GCOVR_EXCL_START (CSR sort for cache-friendly pricing; not called in unit tests)
         void sort_by_lp_index() {
             std::unique_lock lock(pool_.mutex_);
             sort_by_lp_index_unlocked();
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Purge stale entry pointers left by pool-level removals.
         ///
@@ -643,7 +630,6 @@ class FilteredSolutionPool {
         /// manipulation), this view may hold dangling @c Entry* pointers.
         /// @ref cleanup() scans @c filtered_entries_ and drops any entries whose
         /// @c ColumnId is no longer present in @c id_index_.
-        // GCOVR_EXCL_START (dangling-pointer cleanup; not needed in single-threaded unit tests)
         void cleanup() {
             std::unique_lock lock(pool_.mutex_);  // exclusive: mutates this view's containers
             std::vector<ColumnId> stale;
@@ -656,7 +642,6 @@ class FilteredSolutionPool {
                 on_remove_unlocked(id);
             }
         }
-        // GCOVR_EXCL_STOP
 
         // ── Read operations ───────────────────────────────────────────────────
 
@@ -672,7 +657,7 @@ class FilteredSolutionPool {
             std::shared_lock lock(pool_.mutex_);
             auto it = filtered_ids_.find(id);
             if (it == filtered_ids_.end()) {
-                return std::nullopt;  // GCOVR_EXCL_LINE
+                return std::nullopt;
             }
             return filtered_entries_[it->second]->solution;
         }
@@ -684,7 +669,6 @@ class FilteredSolutionPool {
         ///
         /// @param id ColumnId returned by @ref add() or @ref price().
         /// @return A @ref ColumnActivity snapshot, or @c std::nullopt if not in view.
-        // GCOVR_EXCL_START (per-column activity snapshot; not called in unit tests)
         [[nodiscard]] std::optional<ColumnActivity> get_activity(ColumnId id) const {
             if (id == SolutionPool::kNoId) {
                 return std::nullopt;
@@ -696,7 +680,6 @@ class FilteredSolutionPool {
             }
             return filtered_entries_[it->second]->activity.snapshot();
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Fetch id, solution, and activity in a single lock acquisition.
         ///
@@ -709,15 +692,15 @@ class FilteredSolutionPool {
         [[nodiscard]] std::optional<std::tuple<ColumnId, Solution, ColumnActivity>> get_entry(
             ColumnId id) const {
             if (id == SolutionPool::kNoId) {
-                return std::nullopt;  // GCOVR_EXCL_LINE
+                return std::nullopt;
             }
             std::shared_lock lock(pool_.mutex_);
             auto it = filtered_ids_.find(id);
             if (it == filtered_ids_.end()) {
-                return std::nullopt;  // GCOVR_EXCL_LINE
+                return std::nullopt;
             }
             const auto& e = *filtered_entries_[it->second];
-            return std::make_tuple(e.id, e.solution, e.activity.snapshot());  // GCOVR_EXCL_LINE
+            return std::make_tuple(e.id, e.solution, e.activity.snapshot());
         }
 
         /// @brief Total number of @ref price() calls on the root pool since creation.
@@ -799,7 +782,7 @@ class FilteredSolutionPool {
         /// @param pred Additional filter; composed AND-wise with the existing filter.
         void add_filter(std::function<bool(const Solution&)> pred) {
             if (!pred) {
-                return;  // GCOVR_EXCL_LINE
+                return;
             }
             // Narrow the filter, then prune entries that no longer pass — evaluating the (user)
             // filter OFF the lock on a snapshot so it cannot deadlock on re-entry. `f` is a
@@ -869,7 +852,7 @@ class FilteredSolutionPool {
             };
         }
 
-        [[nodiscard]] SolutionPool& pool() { return pool_; }  // GCOVR_EXCL_LINE
+        [[nodiscard]] SolutionPool& pool() { return pool_; }
         [[nodiscard]] const SolutionPool& pool() const { return pool_; }
 
     private:
@@ -934,11 +917,11 @@ class FilteredSolutionPool {
         // was present. Uses swap-and-pop for O(1) removal without invalidating other indices.
         bool on_remove_unlocked(ColumnId id) {
             if (id == SolutionPool::kNoId) {
-                return false;  // GCOVR_EXCL_LINE
+                return false;
             }
             auto it = filtered_ids_.find(id);
             if (it == filtered_ids_.end()) {
-                return false;  // GCOVR_EXCL_LINE
+                return false;
             }
             const size_t pos = it->second;
             const size_t last = filtered_entries_.size() - 1;
@@ -986,8 +969,7 @@ class FilteredSolutionPool {
                 std::unique_lock lock(pool_.mutex_);
                 for (const ColumnId id : accepted) {
                     if (filtered_ids_.contains(id)) {
-                        continue;  // GCOVR_EXCL_LINE — already added via propagation during
-                                   // off-lock evaluation
+                        continue;  // already added via propagation during off-lock evaluation
                     }
                     auto it = pool_.id_index_.find(id);
                     if (it != pool_.id_index_.end()) {  // still present
@@ -998,7 +980,6 @@ class FilteredSolutionPool {
                 // Sort by lp_index so the pricing loop accesses SoA arrays sequentially.
                 sort_by_lp_index_unlocked();
             } catch (...) {
-                // GCOVR_EXCL_START (exception-safety deregister; user filter never throws in tests)
                 std::unique_lock lock(pool_.mutex_);
                 auto& reg = pool_.registered_pools_;
                 if (auto it = std::ranges::find(reg, this); it != reg.end()) {
@@ -1006,7 +987,6 @@ class FilteredSolutionPool {
                 }
                 registered_ = false;
                 throw;
-                // GCOVR_EXCL_STOP
             }
         }
 
@@ -1022,8 +1002,8 @@ class FilteredSolutionPool {
             for (ColumnId id : to_remove) {
                 on_remove_unlocked(id);
             }
-            return to_remove;  // GCOVR_EXCL_LINE
-        }  // GCOVR_EXCL_LINE
+            return to_remove;
+        }
 
         [[nodiscard]] std::vector<PricedColumn> price_subset_locked(
             const std::vector<double>& duals, double threshold) {
@@ -1057,8 +1037,8 @@ class FilteredSolutionPool {
                     entry.activity.last_was_negative = false;
                 }
             }
-            return result;  // GCOVR_EXCL_LINE
-        }  // GCOVR_EXCL_LINE
+            return result;
+        }
 };
 
 // ─── SolutionPool out-of-line definitions (require FilteredSolutionPool complete) ──
@@ -1082,7 +1062,6 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
                 // coefficient *values* may change (e.g. after update_reduced_costs).
                 const uint32_t li = entry_it->lp_index;
                 lp_.col_costs[li] = sol.column.cost;
-                // GCOVR_EXCL_START (CSR coefficient refresh on re-add; not exercised in unit tests)
                 // Update coefficient values in-place: build a lookup from the new column
                 // and overwrite matching entries in the existing CSR rows.
                 const uint32_t rstart = lp_.row_starts[li];
@@ -1096,7 +1075,6 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
                     }
                 }
                 return entry_it->id;
-                // GCOVR_EXCL_STOP
             }
         }
     }
@@ -1116,7 +1094,6 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
     return new_id;
 }
 
-// GCOVR_EXCL_START (global pool entry removal; not exercised by single-threaded unit tests)
 inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_if_locked(const Predicate& pred) {
     std::vector<ColumnId> removed_ids;
     auto it = entries_.begin();
@@ -1146,9 +1123,7 @@ inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_if_locked(const 
     }
     return removed_ids;
 }
-// GCOVR_EXCL_STOP
 
-// GCOVR_EXCL_START (snapshot-based global removal; not exercised by single-threaded unit tests)
 inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_ids_locked(
     const std::vector<ColumnId>& ids) {
     std::vector<ColumnId> removed;
@@ -1181,7 +1156,6 @@ inline std::vector<SolutionPool::ColumnId> SolutionPool::remove_ids_locked(
     }
     return removed;
 }
-// GCOVR_EXCL_STOP
 
 inline FilteredSolutionPool SolutionPool::new_filter(std::function<bool(const Solution&)> filter) {
     return FilteredSolutionPool(*this, std::move(filter));

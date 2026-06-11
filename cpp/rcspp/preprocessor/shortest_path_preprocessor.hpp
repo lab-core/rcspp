@@ -33,24 +33,20 @@ class ShortestPathPreprocessor final
             } else {
                 try {
                     dist_from_sources_ =
-                        BellmanFordAlgorithm::solve<CostResourceType,
-                                                    ResourceTypes...>(  // GCOVR_EXCL_LINE
+                        BellmanFordAlgorithm::solve<CostResourceType, ResourceTypes...>(
                             *graph,
                             graph->get_source_node_ids(),
                             cost_index);
                     dist_to_sinks_ =
-                        BellmanFordAlgorithm::solve<CostResourceType,
-                                                    ResourceTypes...>(  // GCOVR_EXCL_LINE
+                        BellmanFordAlgorithm::solve<CostResourceType, ResourceTypes...>(
                             *graph,
                             graph->get_sink_node_ids(),
                             cost_index,
                             false);
-                    // GCOVR_EXCL_START — exception path: negative cycle detection not hit in tests
                 } catch (const std::runtime_error&) {
                     Preprocessor<
                         ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ = true;
                 }
-                // GCOVR_EXCL_STOP
             }
         }
 

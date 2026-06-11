@@ -23,7 +23,6 @@ class CompositionFeasibilityFunction
                                    [](const auto& res_comp) { return res_comp.is_feasible(); });
         }
 
-        // GCOVR_EXCL_START — back-direction not used in tests
         [[nodiscard]] bool is_back_feasible(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition)
             override {
@@ -31,9 +30,7 @@ class CompositionFeasibilityFunction
                 return res_comp.is_back_feasible();
             });
         }
-        // GCOVR_EXCL_STOP
 
-        // GCOVR_EXCL_START — bidirectional merge not used in tests
         [[nodiscard]] bool can_be_merged(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource_composition)
@@ -42,7 +39,6 @@ class CompositionFeasibilityFunction
                 back_resource_composition,
                 [](const auto& res, const auto& back_res) { return res.can_be_merged(back_res); });
         }
-        // GCOVR_EXCL_STOP
 
     private:
         template <typename F>

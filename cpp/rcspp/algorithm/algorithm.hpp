@@ -46,7 +46,6 @@ enum class AlgorithmStatus {
 /// Note: only @ref AlgorithmStatus::COMPLETE means the search was exhaustive; every other
 /// status indicates the solve was cut short (so e.g. "no solution found" does not prove that
 /// none exists).
-// GCOVR_EXCL_START — to_string(AlgorithmStatus) not called in unit tests
 [[nodiscard]] inline std::string to_string(AlgorithmStatus status) {
     switch (status) {
         case AlgorithmStatus::COMPLETE:
@@ -64,7 +63,6 @@ enum class AlgorithmStatus {
     }
     return "unknown";
 }
-// GCOVR_EXCL_STOP
 
 /// @brief Return value of Algorithm::solve().
 struct SolveResult {
@@ -72,9 +70,7 @@ struct SolveResult {
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
         /// @brief Human-readable name of the exit status.
-        [[nodiscard]] std::string status_string() const {
-            return to_string(status);
-        }  // GCOVR_EXCL_LINE
+        [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
 
 // Forward declaration so AlgorithmBaseParams::with_container can name the return type.
@@ -101,37 +97,29 @@ constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
 struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
             if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
-                // GCOVR_EXCL_START — LOG_WARN only fires on invalid param combinations
                 LOG_WARN(
                     "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
                     "num_max_phases will not have any effects, set num_labels_to_extend_by_node to "
                     "a lower value.\n");
-                // GCOVR_EXCL_STOP
             }
             if (num_max_phases > 1 && stop_after_X_solutions >= MAX_INT) {
-                // GCOVR_EXCL_START — LOG_WARN only fires on invalid param combinations
                 LOG_WARN(
                     "AlgorithmParams: stop_after_X_solutions == MAX and num_max_phases > 1. "
                     "num_max_phases will not have any effects, set stop_after_X_solutions to a "
                     "lower value.\n");
-                // GCOVR_EXCL_STOP
             }
             if (return_dominated_solutions && stop_after_X_solutions >= MAX_INT) {
-                // GCOVR_EXCL_START — LOG_WARN only fires on invalid param combinations
                 LOG_WARN(
                     "AlgorithmParams: stop_after_X_solutions == MAX and return_dominated_solutions "
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "stop_after_X_solutions to a lower value.\n");
-                // GCOVR_EXCL_STOP
             }
         }
 
-        // GCOVR_EXCL_START — could_be_non_optimal() not called in unit tests
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((stop_after_X_solutions < MAX_INT) ||
                     (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s));
         }
-        // GCOVR_EXCL_STOP
 
         // stop after finding X solutions (not going to optimality)
         size_t stop_after_X_solutions = MAX_INT;
@@ -315,20 +303,16 @@ class Algorithm {
          *
          * @return true if the algorithm is optimal (no labels left to process), false otherwise.
          */
-        // GCOVR_EXCL_START — default is_optimal() is overridden in all tested subclasses
         [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
-        // GCOVR_EXCL_STOP
 
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
-                // GCOVR_EXCL_START — unsorted-nodes fatal error; not triggered in unit tests
                 LOG_FATAL(
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.\n");
                 throw std::runtime_error(
                     "Graph has a sorted nodes structure that is not correctly sorted. Do not "
                     "manipulate the pos index of the nodes.");
-                // GCOVR_EXCL_STOP
             }
 
             graph_ = graph;
@@ -365,7 +349,7 @@ class Algorithm {
 
                 // prepare next phase (if any)
                 if (++num_phases < params_.num_max_phases) {
-                    prepareNextPhase();  // GCOVR_EXCL_LINE
+                    prepareNextPhase();
                 } else {
                     break;
                 }
@@ -373,12 +357,10 @@ class Algorithm {
 
             solve_timer_ = nullptr;
 
-            // GCOVR_EXCL_START — debug logging not triggered in tests
             if (LOG_DEBUG_ACTIVE()) {
                 LOG_DEBUG("Total number of extended labels: ", num_extended_labels_, "\n");
                 print_labels();
             }
-            // GCOVR_EXCL_STOP
 
             // recover solutions
             std::vector<Solution> solutions;
@@ -405,7 +387,7 @@ class Algorithm {
 
             // resize solutions if needed
             if (solutions.size() > params_.stop_after_X_solutions) {
-                solutions.resize(params_.stop_after_X_solutions);  // GCOVR_EXCL_LINE
+                solutions.resize(params_.stop_after_X_solutions);
             }
 
             // Determine the exit status. "All labels processed" (number_of_labels() == 0) means
@@ -422,7 +404,7 @@ class Algorithm {
             } else if (timed_out_) {
                 status = AlgorithmStatus::TIMEOUT;
             } else if (is_interrupted()) {
-                status = AlgorithmStatus::INTERRUPTED;  // GCOVR_EXCL_LINE
+                status = AlgorithmStatus::INTERRUPTED;
             } else if (memory_limit_.is_exceeded()) {
                 status = AlgorithmStatus::MEMORY_LIMIT;
             } else if (solutions.size() >= params_.stop_after_X_solutions) {
@@ -457,7 +439,7 @@ class Algorithm {
         /// unprocessed label queues (e.g. PushingDominanceAlgorithm) override
         /// this to trim those queues, slowing further RSS growth before the
         /// hard limit is hit.
-        virtual void on_memory_pressure() {}  // GCOVR_EXCL_LINE
+        virtual void on_memory_pressure() {}
 
         /// @brief Release all label memory held by the pool and label containers.
         ///
@@ -486,9 +468,8 @@ class Algorithm {
 
         [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
 
-        virtual void print_labels() const {}  // GCOVR_EXCL_LINE
+        virtual void print_labels() const {}
 
-        // GCOVR_EXCL_START — path_to_string() diagnostic helper not called in unit tests
         virtual std::string path_to_string(const Label<ResourceType>& label) {
             auto path = get_path_arc_ids(label);
             std::stringstream ss;
@@ -497,7 +478,6 @@ class Algorithm {
             }
             return ss.str();
         }
-        // GCOVR_EXCL_STOP
 
         virtual std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
@@ -508,7 +488,7 @@ class Algorithm {
 
             auto path_arc_ids = this->get_path_arc_ids(end_label);
             if (path_arc_ids.empty()) {
-                return;  // GCOVR_EXCL_LINE
+                return;
             }
 
             // Build column: sum original arc costs and aggregate constraint coefficients

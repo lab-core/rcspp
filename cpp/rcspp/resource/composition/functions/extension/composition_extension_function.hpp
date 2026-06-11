@@ -26,7 +26,6 @@ class CompositionExtensionFunction
                 [](auto& ext_res, const auto& res, const auto& exp) { exp.extend(res, &ext_res); });
         }
 
-        // GCOVR_EXCL_START — back-direction not used in tests
         void extend_back(const Resource<ResourceType>& resource,
                          const Extender<ResourceType>& extender,
                          Resource<ResourceType>* extended_resource) override {
@@ -37,6 +36,5 @@ class CompositionExtensionFunction
                     exp.extend_back(res, &ext_res);
                 });
         }
-        // GCOVR_EXCL_STOP
 };
 }  // namespace rcspp

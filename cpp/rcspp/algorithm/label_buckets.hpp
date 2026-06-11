@@ -36,12 +36,9 @@ class LabelList {
         }
 
         /// @brief Removes the label at position @p pos.
-        // GCOVR_EXCL_START — erase_label not called via LabelList in unit tests
         virtual void erase_label(const LabelPosition& pos) { labels_.erase(pos); }
-        // GCOVR_EXCL_STOP
 
         /// @brief Logs all stored labels at TRACE level.
-        // GCOVR_EXCL_START (trace-level diagnostics; not reached in unit tests)
         virtual void print_labels() const {
             if (LOG_TRACE_ACTIVE()) {
                 for (auto label_ptr : labels_) {
@@ -49,7 +46,6 @@ class LabelList {
                 }
             }
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Marks and removes all labels dominated by @p label.
         /// @return Number of labels removed.
@@ -72,7 +68,7 @@ class LabelList {
         [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label) const {
             for (const auto non_dominated_label_ptr : labels_) {
                 if (&label == non_dominated_label_ptr) {
-                    continue;  // GCOVR_EXCL_LINE
+                    continue;
                 }
                 if ((*non_dominated_label_ptr) <= label) {
                     return true;
@@ -192,18 +188,15 @@ class LabelBuckets : public LabelList<ResourceType> {
 
             while (idx < buckets_.size()) {
                 if (buckets_[idx].is_before_bucket(lbr)) {
-                    // GCOVR_EXCL_START (bucket boundary insertion; specific node ordering needed)
                     // lbr precedes this bucket's range — open a new bucket before it.
                     auto pos = this->labels_.insert(buckets_[idx].begin, label);
                     insert_bucket(idx, pos, &lbr);
                     return pos;
-                    // GCOVR_EXCL_STOP
                 }
                 // Within range: if the next bucket also claims lbr, prefer the later one.
-                if (idx + 1 < buckets_.size() &&
-                    !buckets_[idx + 1].is_before_bucket(lbr)) {  // GCOVR_EXCL_LINE
-                    ++idx;                                       // GCOVR_EXCL_LINE
-                    continue;                                    // GCOVR_EXCL_LINE
+                if (idx + 1 < buckets_.size() && !buckets_[idx + 1].is_before_bucket(lbr)) {
+                    ++idx;
+                    continue;
                 }
                 // Insert at the sort-resource-ordered position within this bucket.
                 const auto& lsr = get_sort_resource(*label);
@@ -270,7 +263,7 @@ class LabelBuckets : public LabelList<ResourceType> {
             // O(log B): first bucket index potentially containing dominated labels.
             const BucketIdx first_idx = find_first_not_after(lbr);
             if (first_idx >= buckets_.size()) {
-                return 0;  // GCOVR_EXCL_LINE
+                return 0;
             }
 
             BucketIdx idx = buckets_.size();
@@ -292,13 +285,11 @@ class LabelBuckets : public LabelList<ResourceType> {
                         label_it = this->labels_.erase(label_it);
                         ++removed;
                         if (reached_begin) {
-                            if (label_it == buckets_[idx].end) {  // GCOVR_EXCL_LINE
+                            if (label_it == buckets_[idx].end) {
                                 remove_bucket(idx, begin_before_erase);
                                 break;  // Bucket gone; continue outer loop.
                             }
-                            // GCOVR_EXCL_START — update_bucket_begin after mid-bucket erase
                             update_bucket_begin(idx, label_it, begin_before_erase);
-                            // GCOVR_EXCL_STOP
                         }
                     } else if (!(lsr <= get_sort_resource(*current))) {
                         // Sort-resource pruning: remaining labels cannot be dominated.
@@ -327,11 +318,11 @@ class LabelBuckets : public LabelList<ResourceType> {
             const BucketIdx end_idx = find_first_before(lbr);
 
             for (BucketIdx idx = 0; idx < end_idx; ++idx) {
-                const auto& bucket = buckets_[idx];  // GCOVR_EXCL_LINE
+                const auto& bucket = buckets_[idx];
                 for (auto it = bucket.begin; it != bucket.end; ++it) {
                     ++num_dom_visited_;
                     if (&label == *it) {
-                        continue;  // GCOVR_EXCL_LINE
+                        continue;
                     }
                     if (**it <= label) {
                         return true;
@@ -342,11 +333,10 @@ class LabelBuckets : public LabelList<ResourceType> {
                 }
             }
 
-            return false;  // GCOVR_EXCL_LINE
+            return false;
         }
 
         /// @brief Logs label list and bucket-efficiency statistics at TRACE level.
-        // GCOVR_EXCL_START (instrumentation counters; not reached in unit tests)
         void print_labels() const override {
             LabelList<ResourceType>::print_labels();
             const double rm_ratio =
@@ -357,7 +347,6 @@ class LabelBuckets : public LabelList<ResourceType> {
             LOG_TRACE("remove_dominated visit ratio: ", rm_ratio, "\n");
             LOG_TRACE("is_dominated     visit ratio: ", dom_ratio, "\n");
         }
-        // GCOVR_EXCL_STOP
 
         /// @brief Suggests a bucket range for a desired number of buckets.
         ///
@@ -470,12 +459,12 @@ class LabelBuckets : public LabelList<ResourceType> {
                 buckets_[idx - 1].update_end(begin);
             }
             if (begin_bucket_resource == nullptr) {
-                begin_bucket_resource = &get_bucket_resource(**begin);  // GCOVR_EXCL_LINE
+                begin_bucket_resource = &get_bucket_resource(**begin);
             }
             // Shift all map entries at index >= idx upward before the vector insert.
             for (auto& [lbl, bidx] : begin_label_to_bucket_idx_) {
                 if (bidx >= idx) {
-                    ++bidx;  // GCOVR_EXCL_LINE
+                    ++bidx;
                 }
             }
             buckets_.emplace(buckets_.begin() + static_cast<std::ptrdiff_t>(idx),
@@ -505,7 +494,7 @@ class LabelBuckets : public LabelList<ResourceType> {
             buckets_.erase(buckets_.begin() + static_cast<std::ptrdiff_t>(idx));
             for (auto& [lbl, bidx] : begin_label_to_bucket_idx_) {
                 if (bidx > idx) {
-                    --bidx;  // GCOVR_EXCL_LINE
+                    --bidx;
                 }
             }
         }
@@ -524,7 +513,7 @@ class LabelBuckets : public LabelList<ResourceType> {
                 (erased_begin != nullptr) ? erased_begin : *buckets_[idx].begin;
             begin_label_to_bucket_idx_.erase(old_begin);
             if (idx > 0) {
-                buckets_[idx - 1].update_end(new_begin);  // GCOVR_EXCL_LINE
+                buckets_[idx - 1].update_end(new_begin);
             }
             if (begin_bucket_resource == nullptr) {
                 begin_bucket_resource = &get_bucket_resource(**new_begin);

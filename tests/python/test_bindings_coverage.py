@@ -4,7 +4,8 @@
 
 Covers: SolveResult protocol, Solution.to_arrays(), memory helpers, FilteredSolutionPool
 predicate-based filters, numpy methods, activity filters, make_filter statics, add_filter,
-remove_if/global_remove_if, and related API.
+remove_if/global_remove_if, remove_arcs_if/restore_arcs_if, AlgorithmParams helpers,
+check_interrupted, get_resource_factory, Node.resource, Arc.extender, and related API.
 """
 
 import os
@@ -16,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 
 import rcspp._core as _core  # noqa: E402
 from rcspp._core import solution_pool as _sp  # noqa: E402
-from rcspp._core.graph import Column, Row, Solution  # noqa: E402
+from rcspp._core.graph import AlgorithmParams, Column, Row, Solution  # noqa: E402
 from rcspp.graph import ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
@@ -364,3 +365,94 @@ def test_filtered_pool_price_numpy():
     pool, fp = _make_pool_with_two_solutions()
     ids, rcs = fp.price_numpy(np.array([0.0]), threshold=0.0)
     assert len(ids) == len(rcs)
+
+
+# ── check_interrupted (graph.cpp) ─────────────────────────────────────────────
+
+
+def test_check_interrupted_no_raise():
+    """check_interrupted() is a no-op when no SIGINT is pending."""
+    _core.check_interrupted()
+
+
+# ── AlgorithmParams.check / could_be_non_optimal (graph.cpp) ─────────────────
+
+
+def test_algorithm_params_check():
+    """AlgorithmParams.check() runs without error on a default-constructed params."""
+    p = AlgorithmParams()
+    p.check()
+
+
+def test_algorithm_params_could_be_non_optimal():
+    """AlgorithmParams.could_be_non_optimal() returns a bool."""
+    p = AlgorithmParams()
+    result = p.could_be_non_optimal()
+    assert isinstance(result, bool)
+
+
+# ── Node.resource / Arc.extender (graph.cpp) ──────────────────────────────────
+
+
+def test_node_resource_accessible():
+    """node.resource is accessible (does not raise)."""
+    rg = _make_graph()
+    node = rg.get_node(0)
+    _ = node.resource
+
+
+def test_arc_extender_accessible():
+    """arc.extender is accessible (does not raise)."""
+    rg = _make_graph()
+    arc = rg.get_arc(0)
+    _ = arc.extender
+
+
+# ── remove_arcs_if / restore_arcs_if (graph_impl.hpp) ────────────────────────
+
+
+def test_remove_arcs_if():
+    """remove_arcs_if(pred) removes arcs for which pred returns True."""
+    rg = _make_graph()
+    removed = rg.remove_arcs_if(lambda arc: arc.id == 0)
+    assert 0 in removed
+
+
+def test_restore_arcs_if():
+    """restore_arcs_if(pred) restores previously removed arcs matching pred."""
+    rg = _make_graph()
+    rg.remove_arc(0)
+    restored = rg.restore_arcs_if(lambda arc: arc.id == 0)
+    assert 0 in restored
+
+
+# ── ResourceGraph.get_resource_factory (graph_impl.hpp) ──────────────────────
+
+
+def test_get_resource_factory():
+    """get_resource_factory() returns a non-None factory object."""
+    rg = _make_graph()
+    factory = rg.get_resource_factory()
+    assert factory is not None
+
+
+# ── FilteredSolutionPool.cleanup / sort_by_lp_index / pool ───────────────────
+
+
+def test_filtered_pool_cleanup():
+    """Cleanup() runs without error."""
+    _, fp = _make_pool_with_two_solutions()
+    fp.cleanup()
+
+
+def test_filtered_pool_sort_by_lp_index():
+    """sort_by_lp_index() runs without error."""
+    _, fp = _make_pool_with_two_solutions()
+    fp.sort_by_lp_index()
+
+
+def test_filtered_pool_pool_property():
+    """fp.pool() returns the parent SolutionPool (not None)."""
+    pool, fp = _make_pool_with_two_solutions()
+    parent = fp.pool()
+    assert parent is not None

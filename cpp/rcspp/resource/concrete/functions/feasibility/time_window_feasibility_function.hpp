@@ -33,7 +33,6 @@ class TimeWindowFeasibilityFunction
             return resource.get_value() <= max_time_window_;
         }
 
-        // GCOVR_EXCL_START (bidirectional search methods; not called in unit tests)
         [[nodiscard]] auto is_back_feasible(const ResourceType& resource) -> bool override {
             return resource.get_value() >= min_time_window_;
         }
@@ -42,7 +41,6 @@ class TimeWindowFeasibilityFunction
                                          const ResourceType& back_resource) -> bool override {
             return resource.get_value() <= back_resource.get_value();
         }
-        // GCOVR_EXCL_STOP
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>

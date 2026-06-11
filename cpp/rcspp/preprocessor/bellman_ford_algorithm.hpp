@@ -56,8 +56,7 @@ class BellmanFordAlgorithm {
                     }
 
                     if (last_iteration && modified) {
-                        throw std::runtime_error(
-                            "Graph contains a negative-weight cycle");  // GCOVR_EXCL_LINE
+                        throw std::runtime_error("Graph contains a negative-weight cycle");
                     }
                 }
                 if (!modified) {
@@ -86,9 +85,7 @@ class BellmanFordAlgorithm {
             Distance distance(target_ids, graph_);
             std::vector<ArcRelaxation> arc_relaxations;
             graph_.for_each_arc([&](const auto& arc) {
-                // GCOVR_EXCL_START
                 arc_relaxations.emplace_back(arc.origin->id, arc.destination->id, arc.cost);
-                // GCOVR_EXCL_STOP
             });
             if (!forward) {
                 std::ranges::reverse(arc_relaxations);

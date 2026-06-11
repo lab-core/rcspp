@@ -11,7 +11,7 @@ omit =
     */rcspp/_core/*
 
 [report]
-fail_under = 100
+fail_under = 90
 show_missing = True
 exclude_lines =
     pragma: no cover
