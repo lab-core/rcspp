@@ -52,14 +52,23 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install llvm
-          echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
+          LLVM_PREFIX="$(brew --prefix llvm)"
+          echo "${LLVM_PREFIX}/bin" >> "$GITHUB_PATH"
+          echo "CC=${LLVM_PREFIX}/bin/clang"   >> "$GITHUB_ENV"
+          echo "CXX=${LLVM_PREFIX}/bin/clang++" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DUSE_PYTHON=ON -DUSE_TESTS=ON
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
+            -DUSE_PYTHON=ON \
+            -DUSE_TESTS=ON \
+            "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
         run: cmake --build build --config ${{ matrix.build-type }} --parallel
