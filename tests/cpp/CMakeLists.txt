@@ -40,4 +40,4 @@ if(USE_COVERAGE)
 endif()
 
 include(GoogleTest)
-gtest_discover_tests(${PROJECT_NAME})
+gtest_discover_tests(${PROJECT_NAME} DISCOVERY_TIMEOUT 30)
