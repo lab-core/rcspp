@@ -305,14 +305,14 @@ def test_filtered_pool_remove_if_predicate():
     """remove_if(pred) removes entries matching the predicate (local)."""
     pool, fp = _make_pool_with_two_solutions()
     removed = fp.remove_if(lambda cid, sol, act: sol.cost > 6.0)
-    assert removed >= 0
+    assert isinstance(removed, list)
 
 
 def test_filtered_pool_global_remove_if_predicate():
     """global_remove_if(pred) hard-deletes matching entries from the pool."""
     pool, fp = _make_pool_with_two_solutions()
     removed = fp.global_remove_if(lambda cid, sol, act: False)
-    assert removed == 0
+    assert removed == []
 
 
 # ── FilteredSolutionPool.remove_stale / remove_if_arc_present ────────────────

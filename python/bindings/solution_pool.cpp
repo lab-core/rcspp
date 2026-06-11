@@ -4,6 +4,7 @@
 // graph_impl.hpp defines PYBIND11_USE_SMART_HOLDER_AS_DEFAULT before the pybind11 includes.
 
 #define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
+#include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
