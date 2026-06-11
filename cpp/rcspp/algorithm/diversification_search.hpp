@@ -80,6 +80,11 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             while (!this->should_stop(i)) {
                 ++i;
 
+                // Rebuild the CSR index so GreedyAlgorithm::get_out_arcs() returns correct
+                // data.  remove_arc() / restore_arc() both invalidate csr_valid_; build_csr()
+                // is a no-op when the index is already current.
+                graph_copy_->build_csr();
+
                 // solve (important to clear the label pool, as the graph is changing)
                 std::vector<Solution> sols =
                     algo_->solve(graph_copy_.get(), this->cost_upper_bound_).solutions;

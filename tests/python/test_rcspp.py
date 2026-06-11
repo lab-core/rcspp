@@ -578,6 +578,18 @@ def example_sigint_handler():
 # the exact objects that end up stored inside the C++ graph.
 
 
+def test_memory_helpers():
+    """process_memory_bytes and available_memory_bytes return positive integers."""
+    import rcspp
+
+    process_bytes = rcspp.process_memory_bytes()
+    available_bytes = rcspp.available_memory_bytes()
+    assert isinstance(process_bytes, int), "process_memory_bytes must return int"
+    assert isinstance(available_bytes, int), "available_memory_bytes must return int"
+    assert process_bytes >= 0, "process RSS must be non-negative"
+    assert available_bytes >= 0, "available memory must be non-negative"
+
+
 def test_resource_refs_survive_gc():
     """Two-part GC safety test for resource function objects.
 

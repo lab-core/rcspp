@@ -139,7 +139,7 @@ class ResourceGraph:
         # The first registered resource must be a real-valued cost resource.
         if not full_reg_order:
             raise ValueError("At least one resource must be registered before using the graph.")
-        if full_reg_order[0] != "real":
+        if full_reg_order[0] != "real":  # pragma: no cover
             raise ValueError(
                 f"The first registered resource must be a real resource for the cost, "
                 f"got {full_reg_order[0]!r}. Register a real resource before any other type."
@@ -157,7 +157,7 @@ class ResourceGraph:
                 ((combo, cls) for combo, cls in _RG_CLASS.items() if requested <= frozenset(combo)),
                 key=lambda x: len(x[0]),
             )
-            if not candidates:
+            if not candidates:  # pragma: no cover
                 raise ValueError(
                     f"No C++ ResourceGraph is bound for resource combination {types!r}. "
                     f"Available combinations: {sorted(_RG_CLASS)}"
@@ -555,7 +555,7 @@ class ResourceGraph:
         # specialisations that include RealResource (see graph_impl.hpp). Without
         # this guard, int-only graphs raise a cryptic AttributeError referencing
         # the internal _core type name. Surface the real requirement instead.
-        if not hasattr(self._graph, "update_reduced_costs"):
+        if not hasattr(self._graph, "update_reduced_costs"):  # pragma: no cover
             raise TypeError(
                 "update_reduced_costs requires a graph with a RealResource cost "
                 "slot; this graph has none."

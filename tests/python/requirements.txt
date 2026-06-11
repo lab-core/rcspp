@@ -1,5 +1,6 @@
 mip
 networkx
 pytest
+pytest-cov
 numpy
 scipy

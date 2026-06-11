@@ -13,10 +13,16 @@ import pytest  # noqa: E402
 
 np = pytest.importorskip("numpy")
 
-from rcspp.graph import ResourceGraph  # noqa: E402
+import networkx as nx  # noqa: E402
+
+from rcspp.graph import BucketAlgorithmParams, ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
+    InclusionDominanceFunction,
     MinMaxFeasibilityFunction,
+    TrivialCostFunction,
+    TrivialFeasibilityFunction,
+    UnionExtensionFunction,
     ValueCostFunction,
     ValueDominanceFunction,
 )
@@ -416,3 +422,451 @@ def test_arc_rows_are_live_references():
     # copy); re-reading via a fresh get_arc/rows observes the change.
     rows[0].coefficient = 9.0
     assert abs(rg.get_arc(0).rows[0].coefficient - 9.0) < 1e-12
+
+
+# ── _parse_rg_class ───────────────────────────────────────────────────────────
+
+
+def test_parse_rg_class_unknown_cpp_type():
+    """_parse_rg_class returns None when a component is not in the Python registry."""
+    from rcspp.graph import _parse_rg_class
+
+    assert _parse_rg_class("_unknown_cpptype_resource_graph") is None
+
+
+def test_parse_rg_class_non_matching_name():
+    """_parse_rg_class returns None for names that don't fit the pattern."""
+    from rcspp.graph import _parse_rg_class
+
+    assert _parse_rg_class("not_a_resource_graph") is None
+    assert _parse_rg_class("_") is None
+
+
+# ── _ensure_graph error paths ─────────────────────────────────────────────────
+
+
+def test_ensure_graph_no_resources_raises():
+    """Update() on a graph with no resources registered raises ValueError."""
+    rg = ResourceGraph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    with pytest.raises(ValueError, match="At least one resource"):
+        rg.update()
+
+
+def test_ensure_graph_first_resource_not_real_raises():
+    """add_int_resource as the very first call raises ValueError."""
+    rg = ResourceGraph()
+    with pytest.raises(ValueError, match="first registered resource"):
+        rg.add_int_resource(
+            AdditionExtensionFunction(),
+            TrivialFeasibilityFunction(),
+            TrivialCostFunction(),
+            ValueDominanceFunction(),
+        )
+
+
+def test_add_resource_after_graph_initialized_raises():
+    """add_real_resource after the graph has been flushed raises RuntimeError."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.update()
+    with pytest.raises(RuntimeError, match="Cannot call add_real_resource after"):
+        rg.add_real_resource(
+            AdditionExtensionFunction(),
+            MinMaxFeasibilityFunction(0.0, 10.0),
+            ValueCostFunction(),
+            ValueDominanceFunction(),
+        )
+
+
+def test_ensure_graph_superset_lookup():
+    """Registering real+int+bitset triggers the superset C++ class search."""
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        TrivialCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_int_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        TrivialCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_bitset_resource(
+        UnionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        TrivialCostFunction(),
+        InclusionDominanceFunction(),
+    )
+    # No direct class for (real, int, bitset); a superset class is selected.
+    rg.update()
+    assert "bitset" in rg._graph_canonical
+    assert "int_set" in rg._graph_canonical
+
+
+# ── _resolve with concrete C++ object ────────────────────────────────────────
+
+
+def test_resolve_with_concrete_cpp_object():
+    """Passing a typed C++ function directly (not a generic descriptor) is accepted."""
+    from rcspp.resource import (
+        AdditionExtensionFunction_real,
+        ValueCostFunction_real,
+        ValueDominanceFunction_real,
+    )
+
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction_real(),
+        MinMaxFeasibilityFunction(0.0, 100.0),
+        ValueCostFunction_real(),
+        ValueDominanceFunction_real(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    rg.update()
+    assert rg.number_of_arcs() == 1
+
+
+# ── reserve() paths ───────────────────────────────────────────────────────────
+
+
+def test_reserve_before_flush():
+    """Reserve() before any flush stores a hint applied at flush time."""
+    rg = make_resource_graph()
+    rg.reserve(10, 20)
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    rg.update()
+    assert rg.number_of_arcs() == 1
+
+
+def test_reserve_after_flush():
+    """Reserve() after flush forwards directly to the C++ graph."""
+    rg = make_diamond()
+    rg.reserve(10, 20)
+    assert rg.number_of_arcs() == 3
+
+
+# ── get_nodes_size / get_arcs_size ────────────────────────────────────────────
+
+
+def test_get_nodes_size_and_arcs_size():
+    """get_nodes_size and get_arcs_size include buffered items."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    assert rg.get_nodes_size() == 2
+    assert rg.get_arcs_size() == 0
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    assert rg.get_arcs_size() == 1
+    rg.update()
+    assert rg.get_nodes_size() == 2
+    assert rg.get_arcs_size() == 1
+
+
+# ── get_arcs ──────────────────────────────────────────────────────────────────
+
+
+def test_get_arcs_between_nodes():
+    """get_arcs returns all arcs between a pair of nodes."""
+    rg = make_diamond()
+    arcs = rg.get_arcs(0, 2)
+    assert len(arcs) == 1
+    assert arcs[0].id == 1
+
+
+# ── update_arc ────────────────────────────────────────────────────────────────
+
+
+def test_update_arc():
+    """update_arc modifies an arc's resource consumption in place."""
+    rg = make_diamond()
+    arc = rg.get_arc(0)
+    rg.update_arc(arc, 2.0)
+    updated = rg.get_arc(0)
+    assert updated is not None
+
+
+# ── add_rows_to_arc with Row objects ─────────────────────────────────────────
+
+
+def test_add_rows_to_arc_with_row_objects():
+    """add_rows_to_arc accepts Row objects (not just tuples)."""
+    from rcspp.graph import Row
+
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=5.0)
+    arc_id = 0
+    rg.add_rows_to_arc(arc_id, [Row(0, 1.5)])
+    rg.update()
+    arc = rg.get_arc(arc_id)
+    assert len(arc.rows) == 1
+    assert arc.rows[0].index == 0
+    assert abs(arc.rows[0].coefficient - 1.5) < 1e-12
+
+
+def test_add_rows_to_arc_single_tuple():
+    """add_rows_to_arc accepts a single (index, coeff) tuple."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=5.0)
+    rg.add_rows_to_arc(0, (2, 3.0))
+    rg.update()
+    arc = rg.get_arc(0)
+    assert len(arc.rows) == 1
+    assert arc.rows[0].index == 2
+
+
+# ── add_rows with numpy ───────────────────────────────────────────────────────
+
+
+def test_add_rows_with_numpy_array():
+    """add_rows accepts a 2-D numpy array (arc_id, row_index, coeff)."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=5.0)
+    data = np.array([[0, 0, 1.0], [0, 1, 2.0]], dtype=np.float64)
+    rg.add_rows(data)
+    rg.update()
+    arc = rg.get_arc(0)
+    assert len(arc.rows) == 2
+
+
+# ── sort_nodes ────────────────────────────────────────────────────────────────
+
+
+def test_sort_nodes_default():
+    """sort_nodes() without comparator sorts by ascending id."""
+    rg = make_diamond()
+    rg.sort_nodes()
+
+
+def test_sort_nodes_with_comp():
+    """sort_nodes(comp) with a custom comparator runs without error."""
+    rg = make_diamond()
+    rg.sort_nodes(lambda a, b: a.id < b.id)
+
+
+# ── to_string / __str__ / __repr__ ───────────────────────────────────────────
+
+
+def test_to_string_empty_graph():
+    """to_string on an unflushed empty graph returns empty string."""
+    rg = ResourceGraph()
+    assert rg.to_string() == ""
+
+
+def test_str_and_repr():
+    """Str() and repr() both call to_string() and return a non-empty string."""
+    rg = make_diamond()
+    s = str(rg)
+    assert isinstance(s, str)
+    r = repr(rg)
+    assert isinstance(r, str)
+    assert s == r
+
+
+# ── solve() error paths ───────────────────────────────────────────────────────
+
+
+def test_solve_negative_cost_index_raises():
+    """Solve() with cost_index < 0 raises ValueError."""
+    rg = make_diamond()
+    with pytest.raises(ValueError, match="cost_index must be non-negative"):
+        rg.solve(cost_index=-1)
+
+
+def test_solve_unknown_algorithm_raises():
+    """Solve() with an unrecognised algorithm string raises ValueError."""
+    rg = make_diamond()
+    with pytest.raises(ValueError, match="Unknown algorithm"):
+        rg.solve(algorithm="not_an_algo")
+
+
+def test_solve_with_bucket_params():
+    """Solve() accepts BucketAlgorithmParams; selects bucket-based algorithm."""
+    rg = make_diamond()
+    params = BucketAlgorithmParams(range_buckets=10)
+    result = rg.solve(algorithm="pushing", params=params)
+    assert len(result) >= 1
+
+
+# ── update_reduced_costs error / branch paths ─────────────────────────────────
+
+
+def test_update_reduced_costs_negative_cost_index_raises():
+    """update_reduced_costs with cost_index < 0 raises ValueError."""
+    rg = _make_rg_with_rows()
+    with pytest.raises(ValueError, match="cost_index must be non-negative"):
+        rg.update_reduced_costs(np.array([1.0]), cost_index=-1)
+
+
+def test_update_reduced_costs_empty_dict():
+    """update_reduced_costs with an empty dict is a no-op (early return)."""
+    rg = _make_rg_with_rows()
+    rg.update_reduced_costs({})
+    sols = rg.solve(preprocess=False)
+    assert len(sols) >= 1
+
+
+def test_update_reduced_costs_dict_nonempty():
+    """update_reduced_costs accepts a non-empty dict of duals."""
+    rg = _make_rg_with_rows()
+    rg.update_reduced_costs({0: 3.0, 1: 4.0})
+    sols = rg.solve(preprocess=False)
+    assert len(sols) >= 1
+    assert math.isclose(sols[0].cost, 7.0 + 12.0, abs_tol=1e-6)
+
+
+def test_update_reduced_costs_list():
+    """update_reduced_costs accepts a plain Python list as duals."""
+    rg = _make_rg_with_rows()
+    rg.update_reduced_costs([3.0, 4.0])
+    sols = rg.solve(preprocess=False)
+    assert len(sols) >= 1
+    assert math.isclose(sols[0].cost, 7.0 + 12.0, abs_tol=1e-6)
+
+
+# ── from_networkx error paths ─────────────────────────────────────────────────
+
+
+def test_from_networkx_missing_source_raises():
+    """from_networkx raises if no source node is set."""
+    G = nx.DiGraph()
+    G.add_node(0)
+    G.add_node(1, sink=True)
+    rg = make_resource_graph()
+    with pytest.raises(ValueError, match="no source node"):
+        rg.from_networkx(G)
+
+
+def test_from_networkx_missing_sink_raises():
+    """from_networkx raises if no sink node is set."""
+    G = nx.DiGraph()
+    G.add_node(0, source=True)
+    G.add_node(1)
+    rg = make_resource_graph()
+    with pytest.raises(ValueError, match="no sink node"):
+        rg.from_networkx(G)
+
+
+def test_from_networkx_arc_missing_resource_when_registered_raises():
+    """from_networkx with resources registered raises when arc lacks 'resource'."""
+    G = nx.DiGraph()
+    G.add_node(0, source=True)
+    G.add_node(1, sink=True)
+    G.add_edge(0, 1)  # no 'resource' attribute
+    rg = make_resource_graph()
+    with pytest.raises(ValueError, match="missing a 'resource' attribute"):
+        rg.from_networkx(G)
+
+
+def test_from_networkx_many_arcs_missing_resource_truncated_message():
+    """from_networkx error message truncates after 5 missing arcs."""
+    G = nx.DiGraph()
+    G.add_node(0, source=True)
+    for i in range(1, 8):
+        G.add_node(i)
+    G.add_node(8, sink=True)
+    for i in range(1, 8):
+        G.add_edge(0, i)  # no 'resource' on any arc
+    G.add_edge(7, 8)
+    rg = make_resource_graph()
+    with pytest.raises(ValueError, match=r"more\)"):
+        rg.from_networkx(G)
+
+
+def test_from_networkx_arc_missing_resource_no_resources_registered_raises():
+    """from_networkx raises on arc missing 'resource' even with no resources
+    registered."""
+    G = nx.DiGraph()
+    G.add_node(0, source=True)
+    G.add_node(1, sink=True)
+    G.add_edge(0, 1)  # no 'resource' attribute, no resources registered either
+    rg = ResourceGraph()
+    with pytest.raises(ValueError, match="missing 'resource' attribute"):
+        rg.from_networkx(G)
+
+
+# ── BucketAlgorithmParams ─────────────────────────────────────────────────────
+
+
+def test_bucket_params_init_with_positions():
+    """BucketAlgorithmParams stores positions and forwards kwargs to C++."""
+    params = BucketAlgorithmParams(range_buckets=50, bucket_resource_pos=0, sort_resource_pos=0)
+    assert params._bucket_resource_pos == 0
+    assert params._sort_resource_pos == 0
+
+
+def test_bucket_params_getattr():
+    """BucketAlgorithmParams.__getattr__ forwards non-underscore names to C++."""
+    params = BucketAlgorithmParams(range_buckets=50)
+    assert params.range_buckets == 50
+
+
+def test_bucket_params_getattr_private_raises():
+    """BucketAlgorithmParams.__getattr__ raises AttributeError for _ names."""
+    params = BucketAlgorithmParams()
+    with pytest.raises(AttributeError):
+        _ = params._nonexistent_private_attr
+
+
+def test_bucket_params_setattr_public():
+    """BucketAlgorithmParams.__setattr__ forwards public names to C++."""
+    params = BucketAlgorithmParams()
+    params.range_buckets = 200
+    assert params.range_buckets == 200
+
+
+def test_bucket_params_to_cpp_with_positions():
+    """_to_cpp resolves resource positions to C++ type/index."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    params = BucketAlgorithmParams(range_buckets=10, bucket_resource_pos=0, sort_resource_pos=0)
+    result = rg.solve(algorithm="pushing", params=params)
+    assert len(result) >= 1
+
+
+def test_bucket_params_to_cpp_out_of_range_raises():
+    """_to_cpp raises ValueError when position is out of range."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 0, 1, cost=1.0)
+    params = BucketAlgorithmParams(range_buckets=10, bucket_resource_pos=99)
+    with pytest.raises(ValueError, match="out of range"):
+        rg.solve(params=params)
+
+
+def test_bucket_params_kwargs_forwarded():
+    """BucketAlgorithmParams kwargs are forwarded to the underlying C++ object."""
+    params = BucketAlgorithmParams(range_buckets=50, stop_after_X_solutions=3)
+    assert params.stop_after_X_solutions == 3
+
+
+# ── ResourceGraph(nx_graph=...) constructor path ──────────────────────────────
+
+
+def test_resource_graph_constructor_with_nx_graph():
+    """ResourceGraph(nx_graph=G) invokes from_networkx; resources must be pre-added."""
+    G = nx.DiGraph()
+    G.add_node(0, source=True)
+    G.add_node(1, sink=True)
+    G.add_edge(0, 1, resource=(1.0,), cost=2.0)
+    # from_networkx calls update() internally, so no resources → expected ValueError.
+    # Line 107 (self.from_networkx(nx_graph)) is reached before the error bubbles up.
+    with pytest.raises(ValueError, match="At least one resource"):
+        ResourceGraph(nx_graph=G)

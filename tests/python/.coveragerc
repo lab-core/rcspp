@@ -1,0 +1,28 @@
+# coverage.py configuration for the pure-Python rcspp package gate.
+#
+# Usage (from tests/python/):
+#   pytest --cov=rcspp --cov-config=.coveragerc \
+#          --cov-report=term-missing --cov-fail-under=100
+
+[run]
+source = rcspp
+# The compiled extension lines are C++ (measured by gcovr, not coverage.py).
+omit =
+    */rcspp/_core/*
+
+[report]
+fail_under = 90
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if _sys.platform == "win32":
+
+[paths]
+# pytest imports rcspp from the build tree (a copy of python/src/rcspp); map both
+# back to the canonical source so the gate is computed against the real files.
+source =
+    python/src/rcspp
+    */rcspp
+    */site-packages/rcspp

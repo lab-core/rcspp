@@ -35,6 +35,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(${PROJECT_NAME} GTest::gtest_main)
+if(USE_COVERAGE)
+  target_link_libraries(${PROJECT_NAME} rcspp_coverage)
+endif()
 
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME})

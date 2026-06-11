@@ -18,8 +18,14 @@ set(PY_PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${PYTHON_PACKAGE_NAME}")
 # Gather all C++ sources for the Python module
 file(GLOB_RECURSE MODULE_SOURCES "${PY_BINDINGS_DIR}/*.cpp")
 
-# Add pybind11 module
-pybind11_add_module(${PYTHON_EXTENSION_NAME} ${MODULE_SOURCES})
+# Add pybind11 module. Under coverage, pass NO_EXTRAS to disable pybind11's LTO:
+# LTO is very slow to link and its -O3 codegen fuses lines, ruining gcov line
+# attribution for the binding TUs.
+if(USE_COVERAGE)
+  pybind11_add_module(${PYTHON_EXTENSION_NAME} NO_EXTRAS ${MODULE_SOURCES})
+else()
+  pybind11_add_module(${PYTHON_EXTENSION_NAME} ${MODULE_SOURCES})
+endif()
 # Flatten output to the same directory for all configurations.
 # Setting every per-config variant prevents MSVC's multi-config generators
 # from appending a Debug/ or Release/ subdirectory.
@@ -52,6 +58,12 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
+
+# Instrument the binding TUs themselves for coverage (rcspp_objects already
+# propagates the flags for the core, but the bindings/*.cpp are _core's own sources).
+if(USE_COVERAGE)
+  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_coverage)
+endif()
 
 # Find all .py, .pyi, and py.typed files in the pure-Python package (recursively)
 file(GLOB_RECURSE PYTHON_SOURCES

@@ -10,8 +10,25 @@ option(CXX "enable C++ compilation" ON)
 option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
+option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
 
 enable_testing()
+
+# Coverage instrumentation -----------------------------------------------------
+# When enabled, every target that compiles cpp/rcspp or python/bindings code links
+# this INTERFACE target so it emits .gcno/.gcda. The header-only templates are
+# instantiated into BOTH tests-rcspp and _core; gcovr unions the two object trees.
+# Force -O0 (keep NDEBUG from the build type) so line attribution is faithful.
+if(USE_COVERAGE)
+  add_library(rcspp_coverage INTERFACE)
+  target_compile_options(rcspp_coverage INTERFACE --coverage -O0 -g)
+  target_link_options(rcspp_coverage INTERFACE --coverage)
+  # Atomic counter updates avoid races in multi-threaded algorithm code (GCC only;
+  # Clang accepts --coverage but not this flag).
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(rcspp_coverage INTERFACE -fprofile-update=atomic)
+  endif()
+endif()
 
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
@@ -32,7 +49,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/usr/local/include")
 
 # Clang-Tidy & compile_commands ------------------------------------------------
-if(NOT SKBUILD)
+# Skipped under USE_COVERAGE: the coverage gate doesn't need linting (pre-commit
+# handles that) and clang-tidy roughly doubles build time on the template headers.
+if(NOT SKBUILD AND NOT USE_COVERAGE)
   set(CMAKE_CXX_CLANG_TIDY
       "clang-tidy;-config-file=${CMAKE_SOURCE_DIR}/.clang-tidy"
   )

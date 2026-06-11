@@ -4,6 +4,7 @@
 // graph_impl.hpp defines PYBIND11_USE_SMART_HOLDER_AS_DEFAULT before the pybind11 includes.
 
 #define PYBIND11_USE_SMART_HOLDER_AS_DEFAULT
+#include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -106,6 +107,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                     fp->remove_if([=](SolutionPool::ColumnId,
                                       const Solution&,
                                       const ColumnActivity& act) -> bool {
+                        // (aged/stale entries) not produced by the basic unit-test helpers
                         if (max_age.has_value() && act.age > *max_age) {
                             return true;
                         }
