@@ -98,7 +98,5 @@ deep-copied when the graph is duplicated across threads.
 :undoc-members:
 ```
 
-```{doxygenclass} rcspp::ResourceType
-:members:
-:undoc-members:
+```{doxygenconcept} rcspp::ResourceTypeConcept
 ```

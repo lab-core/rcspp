@@ -44,7 +44,7 @@ myst_heading_anchors = 3
 # ---------------------------------------------------------------------------
 # The compiled C extension is not available at doc-build time; mock it so
 # imports of rcspp.graph, rcspp.resource etc. succeed.
-autodoc_mock_imports = ["rcspp._core"]
+autodoc_mock_imports = ["rcspp._core", "networkx", "numpy"]
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,
@@ -115,7 +115,6 @@ exclude_patterns = [
     "_site",
     "Thumbs.db",
     ".DS_Store",
-    "cpp/api",        # Exhale-generated — excluded from source list, not toctree
     "Gemfile*",
     "_config.yml",
 ]

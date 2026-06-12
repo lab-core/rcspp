@@ -12,7 +12,7 @@ OUTPUT_DIRECTORY       = .
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
-INPUT                  = ../cpp/rcspp ../python/bindings
+INPUT                  = ../cpp/rcspp
 RECURSIVE              = YES
 FILE_PATTERNS          = *.hpp *.cpp *.h
 EXCLUDE_PATTERNS       = */test* *_test.* */extern/*
@@ -50,7 +50,6 @@ XML_PROGRAMLISTING     = NO
 # Diagrams (disabled — no graphviz required on CI)
 #---------------------------------------------------------------------------
 HAVE_DOT               = NO
-CLASS_DIAGRAMS         = NO
 
 #---------------------------------------------------------------------------
 # Misc

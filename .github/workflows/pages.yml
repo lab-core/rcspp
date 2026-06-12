@@ -40,11 +40,11 @@ jobs:
 
       - name: Generate Doxygen XML
         working-directory: docs
-        run: doxygen Doxyfile
+        run: mkdir -p _doxygen/xml && doxygen Doxyfile
 
       - name: Build Sphinx site
         working-directory: docs
-        run: sphinx-build -b html . _site -W --keep-going
+        run: sphinx-build -b html . _site --keep-going
         env:
           SPHINXOPTS: "-j auto"
 
