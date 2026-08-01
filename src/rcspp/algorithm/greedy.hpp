@@ -90,7 +90,17 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             // Note: do NOT keep a reference to path_.back() across pop_back() calls
             // (that'd be a dangling reference). Re-query path_.back() each loop.
             // try to extend the label greedily
+            //
+            // The sibling-switching backtrack below can enumerate many partial
+            // paths inside this single call, so poll the wall-clock timeout /
+            // external interrupt every 4096 steps (see dive_to_sink() in the
+            // tabu searches for the pathological case this guards against).
+            size_t steps = 0;
             while (!path_.empty()) {
+                if ((++steps & 0xFFFU) == 0 &&
+                    (this->is_time_out() || this->is_interrupted())) {
+                    return;
+                }
                 bool extended = false;
                 while (extend_label(path_.back().first)) {
                     extended = true;  // successfully extended

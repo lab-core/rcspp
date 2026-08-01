@@ -213,7 +213,17 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
     private:
         // ─── helpers ─────────────────────────────────────────────────────────
         bool dive_to_sink() {
+            // A dive is a DFS with backtracking: on pathological graphs a single
+            // dive can enumerate exponentially many partial paths, wedging the
+            // worker inside ONE call while main_loop()'s per-iteration
+            // should_stop() checks never run (observed: 15+ min on setB-01).
+            // Poll the wall-clock timeout / external interrupt every 4096 steps.
+            size_t steps = 0;
             while (!this->path_.empty()) {
+                if ((++steps & 0xFFFU) == 0 &&
+                    (this->is_time_out() || this->is_interrupted())) {
+                    return false;
+                }
                 auto* current = this->path_.back().first;
                 if (current->get_end_node()->sink) {
                     return true;

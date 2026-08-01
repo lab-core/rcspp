@@ -32,7 +32,13 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (number_of_labels() > 0 && i < this->params_.max_iterations) {
+            // should_stop(i) covers the iteration budget PLUS timeout_s and the
+            // external interrupt — the base DominanceAlgorithm loop checks all of
+            // them per iteration, but this override historically only checked the
+            // iteration budget, so a pathological pulling solve with the default
+            // (unbounded) max_iterations could grind for arbitrarily long inside a
+            // single phase (observed: 15+ min on setB-01, wedging its worker).
+            while (number_of_labels() > 0 && !this->should_stop(i)) {
                 // Periodic memory check (pulling: each iteration processes one node).
                 if (i > 0 && this->memory_limit_.effective_limit > 0 &&
                     i % this->params_.memory_check_interval == 0) {
