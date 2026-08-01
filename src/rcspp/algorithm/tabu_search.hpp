@@ -143,11 +143,17 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
             // dive can enumerate exponentially many partial paths, wedging the
             // worker inside ONE call while main_loop()'s per-iteration
             // should_stop() checks never run (observed: 15+ min on setB-01).
-            // Poll the wall-clock timeout / external interrupt every 4096 steps.
+            // Poll the wall-clock timeout / external interrupt / memory limit
+            // every 4096 steps.  The memory check matters: each extension
+            // allocates a label, so a pathological dive is also an RSS
+            // runaway (observed: a worker growing 4 -> 8 GB in 11 s on
+            // setB-01 while max_memory_gb was 2.67 GB — only the dominance
+            // loops checked the limit).
             size_t steps = 0;
             while (!this->path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
-                    (this->is_time_out() || this->is_interrupted())) {
+                    (this->is_time_out() || this->is_interrupted() ||
+                     this->memory_limit_.is_exceeded())) {
                     return false;
                 }
                 auto* current = this->path_.back().first;

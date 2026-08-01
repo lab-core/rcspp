@@ -98,7 +98,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             size_t steps = 0;
             while (!path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
-                    (this->is_time_out() || this->is_interrupted())) {
+                    (this->is_time_out() || this->is_interrupted() ||
+                     this->memory_limit_.is_exceeded())) {
                     return;
                 }
                 bool extended = false;
