@@ -213,7 +213,14 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
     private:
         // ─── helpers ─────────────────────────────────────────────────────────
         bool dive_to_sink() {
+            // A single dive can enumerate exponentially many partial paths
+            // between main_loop()'s per-iteration checks, so poll
+            // should_stop() every 4096 steps.
+            size_t steps = 0;
             while (!this->path_.empty()) {
+                if ((++steps & 0xFFFU) == 0 && this->should_stop()) {
+                    return false;
+                }
                 auto* current = this->path_.back().first;
                 if (current->get_end_node()->sink) {
                     return true;

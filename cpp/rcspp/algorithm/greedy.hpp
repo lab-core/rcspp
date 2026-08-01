@@ -90,7 +90,15 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             // Note: do NOT keep a reference to path_.back() across pop_back() calls
             // (that'd be a dangling reference). Re-query path_.back() each loop.
             // try to extend the label greedily
+            //
+            // The sibling-switching backtrack below can enumerate many partial
+            // paths inside this single call, so poll should_stop() every 4096
+            // steps.
+            size_t steps = 0;
             while (!path_.empty()) {
+                if ((++steps & 0xFFFU) == 0 && this->should_stop()) {
+                    return;
+                }
                 bool extended = false;
                 while (extend_label(path_.back().first)) {
                     extended = true;  // successfully extended
