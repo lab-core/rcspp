@@ -139,7 +139,16 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
         // ------------------------------------------------------------------
 
         bool dive_to_sink() {
+            // A single dive can enumerate exponentially many partial paths
+            // between main_loop()'s per-iteration checks — and each extension
+            // allocates a label — so poll should_stop() and the memory limit
+            // every 4096 steps.
+            size_t steps = 0;
             while (!this->path_.empty()) {
+                if ((++steps & 0xFFFU) == 0 &&
+                    (this->should_stop() || this->memory_limit_.is_exceeded())) {
+                    return false;
+                }
                 auto* current = this->path_.back().first;
                 if (current->get_end_node()->sink) {
                     return true;
