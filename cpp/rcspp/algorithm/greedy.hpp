@@ -92,11 +92,12 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             // try to extend the label greedily
             //
             // The sibling-switching backtrack below can enumerate many partial
-            // paths inside this single call, so poll should_stop() every 4096
-            // steps.
+            // paths inside this single call, so poll should_stop() and the
+            // memory limit every 4096 steps.
             size_t steps = 0;
             while (!path_.empty()) {
-                if ((++steps & 0xFFFU) == 0 && this->should_stop()) {
+                if ((++steps & 0xFFFU) == 0 &&
+                    (this->should_stop() || this->memory_limit_.is_exceeded())) {
                     return;
                 }
                 bool extended = false;
