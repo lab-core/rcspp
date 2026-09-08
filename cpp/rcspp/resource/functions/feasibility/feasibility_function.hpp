@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -15,6 +16,15 @@ namespace rcspp {
 template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Resource;
+
+/// @brief How two half-paths are tested for compatibility at a join.
+enum class MergeRule {
+    Unspecified,     ///< not declared -- a bidirectional solve will refuse to run
+    AlwaysTrue,      ///< this resource never blocks a join
+    DominanceOrder,  ///< the resource's own forward comparison: check_dominance(f, b)
+    Disjoint,        ///< container resources: !f.intersects(b)
+    Custom,          ///< the function writes its own can_be_merged body
+};
 
 /// @brief Abstract base class defining the feasibility function for a resource type.
 ///
@@ -57,6 +67,22 @@ class FeasibilityFunction {
                                                  const ResourceType& back_resource) -> bool {
             throw std::runtime_error("FeasibilityFunction::can_be_merged not implemented");
         };
+
+        /// @brief Which merge test this resource uses. See @c MergeRule.
+        ///
+        /// @return The merge rule declared by this feasibility function.
+        [[nodiscard]] virtual MergeRule merge_rule() const { return MergeRule::Unspecified; }
+
+        /// @brief The value a backward label starts with at this node, if any.
+        ///
+        /// A backward label at a sink does not start at zero -- it starts at that node's *upper*
+        /// bound (its closing time, its capacity). Return @c std::nullopt to seed at the type
+        /// default, which is correct for cost and for every container resource.
+        ///
+        /// @return The seed value for a backward label at this node, or @c std::nullopt.
+        [[nodiscard]] virtual auto back_seed_value() const -> std::optional<ResourceType> {
+            return std::nullopt;
+        }
 
         /// @brief Returns whether the label can potentially reach a destination node.
         ///
@@ -141,6 +167,11 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource) -> bool {
             throw std::runtime_error("FeasibilityFunction::can_be_merged not implemented");
         };
+
+        /// @brief Which merge test this resource uses. See @c MergeRule.
+        ///
+        /// @return The merge rule declared by this feasibility function.
+        [[nodiscard]] virtual MergeRule merge_rule() const { return MergeRule::Unspecified; }
 
         /// @brief Returns whether the label can potentially reach a destination node.
         ///

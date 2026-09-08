@@ -175,21 +175,6 @@ class LabelPool {
         }
 
     private:
-        /// @brief Unconditionally return a label to the free list and cascade to its parent.
-        ///
-        /// Decrements the parent's @ref child_refcount_ and recurses into the parent when it
-        /// becomes zero and is already dominated — avoiding a separate traversal at solve end.
-        void do_release(Label<ResourceType>* label) {
-            if (label->parent_ != nullptr) {
-                auto* parent = label->parent_;
-                label->parent_ = nullptr;
-                if (--parent->child_refcount_ == 0 && parent->dominated) {
-                    do_release(parent);
-                }
-            }
-            available_labels_.push_back(label);
-        }
-
         std::unique_ptr<LabelFactory<ResourceType>> label_factory_;
         std::vector<std::unique_ptr<Label<ResourceType>>> labels_;
         std::vector<Label<ResourceType>*> available_labels_;

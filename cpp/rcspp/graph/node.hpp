@@ -60,7 +60,13 @@ class Node {
         /// @brief Non-owning pointers to all arcs whose origin is this node.
         std::vector<Arc<ResourceType>*> out_arcs;
 
-        /// @brief Optional resource attached to this node for node-level constraints.
+        /// @brief Per-node carrier for the cloned, node-specialised function objects.
+        ///
+        /// Built by @c ResourceFactory::create_resource(node_id): each of the dominance,
+        /// feasibility and cost functions is cloned and @c preprocess(node_id)'d so it caches
+        /// this node's bounds. It is **not** a label's initial resource values -- a label's own
+        /// resource merely *borrows* pointers to these function objects and defaults its own
+        /// value.
         ///
         /// May be null if no node resource is needed.
         std::unique_ptr<Resource<ResourceType>> resource;

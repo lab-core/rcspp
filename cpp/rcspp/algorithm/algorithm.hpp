@@ -180,6 +180,19 @@ struct AlgorithmBaseParams {
         /// as the labeling algorithm itself.  Ignored by all other algorithm types.
         size_t heuristic_cost_index = 0;
 
+        /// @brief Component index of the monotone bounding resource used as the bidirectional
+        ///        clock.
+        ///
+        /// Injected by the dispatch layer, like @ref heuristic_cost_index. The resource *type*
+        /// is a template parameter of the algorithm; this is the index within that type's slot.
+        size_t critical_resource_index = 0;
+
+        /// @brief Half-way point on the critical resource; 0 means "derive as R/2".
+        double half_way_point = 0.0;
+
+        /// @brief Reserved for a dynamic half-way policy. Static in v1.
+        bool dynamic_half_way = false;
+
         // ── Memory-limit parameters ─────────────────────────────────────────
 
         /// @brief Hard upper bound on process RSS in gibibytes (GiB); 0 means unlimited.
@@ -486,7 +499,21 @@ class Algorithm {
                 return;
             }
 
-            auto path_arc_ids = this->get_path_arc_ids(end_label);
+            extract_solution(end_label.get_cost(),
+                             this->get_path_arc_ids(end_label),
+                             end_label.get_end_node()->id);
+        }
+
+        /// @brief Build and record a Solution from an explicit path.
+        ///
+        /// Used by the bidirectional joiner, where no single label holds the merged cost or end
+        /// node.
+        ///
+        /// @param cost         Total cost of the path.
+        /// @param path_arc_ids Arc ids of the path, in traversal order.
+        /// @param end_node_id  Id of the node the path ends at.
+        virtual void extract_solution(double cost, std::vector<size_t> path_arc_ids,
+                                      size_t end_node_id) {
             if (path_arc_ids.empty()) {
                 return;
             }
@@ -504,7 +531,7 @@ class Algorithm {
                     row_map[row.index] += row.coefficient;
                 }
             }
-            path_node_ids.push_back(end_label.get_end_node()->id);
+            path_node_ids.push_back(end_node_id);
             column.rows.reserve(row_map.size());
             for (auto& [idx, coef] : row_map) {
                 column.rows.push_back({idx, coef});
@@ -513,7 +540,7 @@ class Algorithm {
                 return a.index < b.index;
             });
 
-            auto sol = Solution(end_label.get_cost(),
+            auto sol = Solution(cost,
                                 std::move(path_node_ids),
                                 std::move(path_arc_ids),
                                 std::move(column));

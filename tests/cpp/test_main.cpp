@@ -2,6 +2,7 @@
 
 #include "resource/concrete/functions/extension/test_ng_path_extension_function.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
+#include "test_backward_api.hpp"
 #include "test_container_resources.hpp"
 #include "test_dive_algorithms.hpp"
 #include "test_dominance_algorithms.hpp"

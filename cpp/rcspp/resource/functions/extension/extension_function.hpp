@@ -24,6 +24,17 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Arc;
 
+/// @brief How a resource's backward extension relates to its forward one.
+///
+/// Declared per extension function via @c backward_kind(). A bidirectional solve refuses to start
+/// on any component still reporting @c Unspecified. Forward-only solves never read it.
+enum class BackwardKind {
+    Unspecified,  ///< not declared -- a bidirectional solve will refuse to run
+    Accumulate,   ///< no bound; extend_back == extend (e.g. cost)
+    Threshold,    ///< stores a deadline/ceiling; extend_back inverts extend and clamps
+    Mirror,       ///< stores a set seen on its own half; same formula, origin/destination swapped
+};
+
 /// @brief Abstract base class defining the extension function for a resource type.
 ///
 /// An extension function computes the new resource value after traversing an arc
@@ -44,9 +55,36 @@ class ExtensionFunction {
         virtual void extend(const ResourceType& resource, const ResourceType& extender_value,
                             ResourceType* extended_resource) = 0;
 
+        /// @brief Which of the three backward forms this function implements.
+        ///
+        /// Left @c Unspecified deliberately: a bidirectional solve refuses to run on a component
+        /// whose author has not answered. See the decision procedure on @c extend_back below.
+        ///
+        /// @return The backward form declared by this extension function.
+        [[nodiscard]] virtual BackwardKind backward_kind() const {
+            return BackwardKind::Unspecified;
+        }
+
         /// @brief Extends a resource value along an arc in the backward direction.
         ///
         /// Defaults to calling @c extend(). Override for asymmetric resources.
+        ///
+        /// **Contract.** @p extender_value is the arc's *direction-independent* consumption -- the
+        /// same object the forward call receives. A backward extension must therefore derive any
+        /// direction-dependent quantity itself: negate a magnitude, or substitute the node identity
+        /// cached in @c preprocess(origin_id, destination_id). Going backward the node being *left*
+        /// is the arc's destination, not its origin.
+        ///
+        /// **Which form do I need?**
+        ///  - the resource has no feasibility bound   -> @c BackwardKind::Accumulate, inherit this
+        ///  - a scalar value with a bound             -> @c BackwardKind::Threshold, invert
+        ///                                               @c extend and clamp by this node's
+        ///                                               *upper* bound (never up by its lower one)
+        ///  - a container value with a bound          -> @c BackwardKind::Mirror, same formula with
+        ///                                               origin and destination swapped
+        ///
+        /// For @c Threshold the correctness condition is a definition, not a property:
+        /// @code extend(x, arc) <= b   <==>   x <= extend_back(b, arc) @endcode
         ///
         /// @param resource        The current accumulated resource value.
         /// @param extender_value  The arc's contribution to the resource.
@@ -107,9 +145,36 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
-        /// @brief Extends a composed resource along an arc in the backward direction.
+        /// @brief Which of the three backward forms this function implements.
         ///
-        /// Defaults to calling @c extend(). Override for asymmetric compositions.
+        /// Left @c Unspecified deliberately: a bidirectional solve refuses to run on a component
+        /// whose author has not answered. See the decision procedure on @c extend_back below.
+        ///
+        /// @return The backward form declared by this extension function.
+        [[nodiscard]] virtual BackwardKind backward_kind() const {
+            return BackwardKind::Unspecified;
+        }
+
+        /// @brief Extends a resource value along an arc in the backward direction.
+        ///
+        /// Defaults to calling @c extend(). Override for asymmetric resources.
+        ///
+        /// **Contract.** @p extender_value is the arc's *direction-independent* consumption -- the
+        /// same object the forward call receives. A backward extension must therefore derive any
+        /// direction-dependent quantity itself: negate a magnitude, or substitute the node identity
+        /// cached in @c preprocess(origin_id, destination_id). Going backward the node being *left*
+        /// is the arc's destination, not its origin.
+        ///
+        /// **Which form do I need?**
+        ///  - the resource has no feasibility bound   -> @c BackwardKind::Accumulate, inherit this
+        ///  - a scalar value with a bound             -> @c BackwardKind::Threshold, invert
+        ///                                               @c extend and clamp by this node's
+        ///                                               *upper* bound (never up by its lower one)
+        ///  - a container value with a bound          -> @c BackwardKind::Mirror, same formula with
+        ///                                               origin and destination swapped
+        ///
+        /// For @c Threshold the correctness condition is a definition, not a property:
+        /// @code extend(x, arc) <= b   <==>   x <= extend_back(b, arc) @endcode
         ///
         /// @param resource         The current accumulated composed resource.
         /// @param extender         The arc's extender carrying all component contributions.

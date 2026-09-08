@@ -105,6 +105,18 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                       resource_base_prototype));
         }
 
+        /// @brief Adds a node whose per-node resource is built from explicit initial values.
+        ///
+        /// The values in @p resource_initializer seed the node resource's *value* slots, which
+        /// @c BellmanFordAlgorithm reads as arc weights during preprocessing. They are **not** a
+        /// label's starting state: a label's resource borrows the node's function objects and
+        /// defaults its own value. Currently unused inside the repository and unbound in Python.
+        ///
+        /// @param node_id              Identifier of the node to add.
+        /// @param resource_initializer Per-type vectors of component initialiser tuples.
+        /// @param source               Whether the node is a source.
+        /// @param sink                 Whether the node is a sink.
+        /// @return Reference to the newly added node.
         Node<ResourceCompositionType>& add_node(
             size_t node_id,
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&

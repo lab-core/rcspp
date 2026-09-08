@@ -244,6 +244,15 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->dominance_function_->check_dominance(*this, rhs_resource);
         }
 
+        /// @brief Backward dominance: `true` if this resource dominates @p rhs_resource going
+        ///        backward.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates @p rhs_resource.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(*this, rhs_resource);
+        }
+
         /// @brief Returns the total cost of this composed resource.
         ///
         /// @return The cost value computed by the cost function.

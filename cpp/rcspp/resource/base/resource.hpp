@@ -115,6 +115,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->dominance_function_->check_dominance(this->value_, rhs_resource.value_);
         }
 
+        /// @brief Backward dominance: `true` if this resource dominates `rhs_resource` going
+        ///        backward.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates `rhs_resource`.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(this->value_,
+                                                                   rhs_resource.value_);
+        }
+
         // Check distance from the resource to another
         /// @brief Fast dominance check with a relaxation delta.
         ///

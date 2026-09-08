@@ -41,5 +41,21 @@ class CompositionDominanceFunction
                 rhs_composition,
                 [](const auto& lhs_res, const auto& rhs_res) { return lhs_res <= rhs_res; });
         }
+
+        /// @brief Returns `true` if @p lhs_composition backward-dominates @p rhs_composition.
+        ///
+        /// Placeholder implementation: currently identical to @c check_dominance(). Phase 3
+        /// replaces the body with the per-component backward comparison.
+        ///
+        /// @param lhs_composition The candidate dominating resource.
+        /// @param rhs_composition The resource being compared against.
+        /// @return `true` if @p lhs_composition backward-dominates @p rhs_composition.
+        [[nodiscard]] bool check_back_dominance(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& lhs_composition,
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& rhs_composition) override {
+            return lhs_composition.for_each_component_and(
+                rhs_composition,
+                [](const auto& lhs_res, const auto& rhs_res) { return lhs_res <= rhs_res; });
+        }
 };
 }  // namespace rcspp
