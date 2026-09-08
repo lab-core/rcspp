@@ -367,7 +367,13 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
              "Return the next arc ID that will be assigned by add_arc().")
         .def(
             "_add_rows_bulk",
-            [](G& g, py::array_t<double, py::array::c_style | py::array::forcecast> rows) {
+            // Take the array by const reference, not by value.  A by-value py::array_t
+            // parameter is move-constructed from its type caster *inside* the
+            // py::call_guard scope below, so its destructor would run the ndarray's
+            // dec_ref with the GIL released — which trips pybind11's GIL assertion in
+            // debug builds and is undefined behaviour in release ones.  A const& binds
+            // straight to the caster's value, which is destroyed after the guard.
+            [](G& g, const py::array_t<double, py::array::c_style | py::array::forcecast>& rows) {
                 // rows must be sorted by arc_id (column 0) — the Python side
                 // guarantees this via np.argsort in _build_base_graph.
                 //
