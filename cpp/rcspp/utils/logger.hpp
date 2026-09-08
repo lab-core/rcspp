@@ -204,8 +204,13 @@ class Logger {
             std::ostringstream ss;
             std::tm tm_buf;
             std::tm* tm_ptr = nullptr;
-#if defined(_MSC_VER)
-            // MSVC: use thread-safe localtime_s
+#if defined(_MSC_VER) || defined(MINGW_HAS_SECURE_API)
+            // MSVC and MinGW-w64: use thread-safe localtime_s, which both declare with the
+            // same signature. MinGW does provide localtime_r, but only under
+            // _POSIX_THREAD_SAFE_FUNCTIONS, which needs _POSIX_C_SOURCE -- and the project
+            // builds with CMAKE_CXX_EXTENSIONS OFF (-std=c++23, not -std=gnu++23), so that is
+            // not defined. Without this branch a MinGW build takes the POSIX path below and
+            // fails with "localtime_r was not declared in this scope".
             localtime_s(&tm_buf, &t);
             tm_ptr = &tm_buf;
 #else
