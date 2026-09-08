@@ -48,6 +48,19 @@ class AdditionExtensionFunction
             extended_resource->set_value(sum_value);
         }
 
+        /// @brief Cost-style accumulation: the running total has no bound, so the backward form
+        ///        is the forward one.
+        ///
+        /// This is the cost slot's extension function in every example and binding, so its
+        /// inherited @c extend_back (which adds, exactly like @c extend) is correct. A resource
+        /// that adds forward but is bounded -- a capacity or a duration -- is a *threshold* and
+        /// wants @c BudgetExtensionFunction instead.
+        ///
+        /// @return @c BackwardKind::Accumulate.
+        [[nodiscard]] BackwardKind backward_kind() const override {
+            return BackwardKind::Accumulate;
+        }
+
     private:
         std::optional<ValueType> min_value_;
 };
