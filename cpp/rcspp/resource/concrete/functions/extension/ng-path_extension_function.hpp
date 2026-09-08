@@ -23,9 +23,11 @@ namespace rcspp {
 ///   `(current_set ∩ ng_neighborhood[origin]) ∪ {origin}`
 ///
 /// where `ng_neighborhood[origin]` is the pre-defined neighborhood of the origin node.
-/// The forward extension uses the origin's neighborhood; the backward extension uses the
-/// destination's neighborhood.  Both neighborhoods are looked up once per arc in
-/// `preprocess()` and cached for efficiency.
+/// The forward extension uses the origin's neighborhood and unions the arc's own extender
+/// value (the origin singleton); the backward extension uses the destination's neighborhood
+/// and unions the *destination* singleton, because going backward the node being left is the
+/// arc's destination.  Both neighborhoods and the destination singleton are computed once per
+/// arc in `preprocess()` and cached for efficiency.
 ///
 /// @tparam ResourceType A ContainerResource-compatible type supporting `get_intersection()`,
 ///                      `get_union()`, `set_value()`, and `reset()`.
@@ -60,16 +62,27 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
         }
 
         /// @brief Backward extension: intersects @p resource with the destination's
-        /// neighborhood, then unions with @p extender_value.
+        /// neighborhood, then unions with the destination singleton.
+        ///
+        /// The node being *left* going backward is the arc's destination, so the arc's own
+        /// extender value -- the origin singleton, which is what the real @c Extender forwards
+        /// in both directions -- is deliberately ignored in favour of @c back_self_. Using it
+        /// would put the node the label is *arriving at* into the set, and the forward
+        /// @c IntersectionFeasibilityFunction check at that node would then reject every
+        /// backward label. See the contract on @c ExtensionFunction::extend_back.
         ///
         /// @param resource           Current ng-path resource of the backward label.
-        /// @param extender_value     Arc's extender resource (typically represents the
-        /// destination node).
+        /// @param extender_value     Arc's extender resource (unused; see above).
         /// @param extended_resource  Output: receives the new ng-path set.
-        void extend_back(const ResourceType& resource, const ResourceType& extender_value,
+        void extend_back(const ResourceType& resource, const ResourceType& /*extender_value*/,
                          ResourceType* extended_resource) override {
-            extend(resource, extender_value, extended_resource, ng_neighborhood_back_);
+            extend(resource, back_self_, extended_resource, ng_neighborhood_back_);
         }
+
+        /// @brief An ng-set is a container whose node identity swaps between directions.
+        ///
+        /// @return @c BackwardKind::Mirror.
+        [[nodiscard]] BackwardKind backward_kind() const override { return BackwardKind::Mirror; }
 
         /// @brief Core ng-path extension with an explicit @p ng_neighborhood resource.
         ///
@@ -94,6 +107,8 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
         std::shared_ptr<const std::map<size_t, std::set<ValueType>>> ng_neighborhood_by_origin_id_;
         ResourceType ng_neighborhood_;
         ResourceType ng_neighborhood_back_;
+        // Singleton {destination}: the node a backward label leaves when traversing this arc.
+        ResourceType back_self_;
 
         void preprocess(size_t origin_id, size_t destination_id) override {
             // If the id is in the map, load its neighborhood; otherwise reset to empty so
@@ -111,6 +126,8 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
             } else {
                 ng_neighborhood_back_.reset();
             }
+
+            back_self_.set_value(std::set<ValueType>{static_cast<ValueType>(destination_id)});
         }
 };
 

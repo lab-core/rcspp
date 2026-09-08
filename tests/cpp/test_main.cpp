@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
+#include "resource/concrete/functions/extension/test_backward_kind_declared.hpp"
+#include "resource/concrete/functions/extension/test_budget_extension_function.hpp"
 #include "resource/concrete/functions/extension/test_ng_path_extension_function.hpp"
+#include "resource/concrete/functions/extension/test_time_window_extension_function.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
 #include "test_backward_api.hpp"
 #include "test_container_resources.hpp"

@@ -68,6 +68,7 @@
 #include "rcspp/resource/concrete/functions/dominance/inclusion_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
+#include "rcspp/resource/concrete/functions/extension/budget_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/intersection_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/ng-path_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/subtract_extension_function.hpp"

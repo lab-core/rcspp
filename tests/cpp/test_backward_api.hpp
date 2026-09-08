@@ -77,9 +77,19 @@ class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, Lab
 // ============================================================================
 
 /// @brief backward_kind() and merge_rule() both default to Unspecified.
+///
+/// Asserted on a function that declares neither, not on a concrete one: the concrete extension
+/// functions all declare a real kind (see BackwardKindDeclared), so this pins the *base-class
+/// default* -- the thing phase 1 added, and what phase 11 keys off to refuse an undeclared
+/// component.
 TEST(BackwardApi, EnumsDefaultToUnspecified) {
-    AdditionExtensionFunction<RealResource> extension;
-    EXPECT_EQ(extension.backward_kind(), BackwardKind::Unspecified);
+    class UndeclaredExtensionFunction
+        : public Clonable<UndeclaredExtensionFunction, ExtensionFunction<RealResource>> {
+        public:
+            void extend(const RealResource& /*resource*/, const RealResource& /*extender_value*/,
+                        RealResource* /*extended_resource*/) override {}
+    };
+    EXPECT_EQ(UndeclaredExtensionFunction{}.backward_kind(), BackwardKind::Unspecified);
 
     TrivialFeasibilityFunction<RealResource> feasibility;
     EXPECT_EQ(feasibility.merge_rule(), MergeRule::Unspecified);

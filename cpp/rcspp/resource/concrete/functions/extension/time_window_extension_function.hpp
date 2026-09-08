@@ -7,6 +7,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
@@ -21,8 +22,9 @@ namespace rcspp {
 ///
 /// - **Forward extension**: `max(earliest[destination], current + arc_time)` — a vehicle
 ///   arriving before the earliest service time waits until that time.
-/// - **Backward extension**: `min(latest[origin], current + arc_time)` — used in
-///   bidirectional labelling to propagate the latest permissible departure time.
+/// - **Backward extension**: `min(latest[origin], current - arc_time)` — used in
+///   bidirectional labelling to propagate the latest permissible departure time. A backward
+///   label stores a *deadline*, so the arc time is subtracted, not added.
 ///
 /// The relevant time-window bounds are cached per arc via `preprocess()`.
 ///
@@ -64,16 +66,65 @@ class TimeWindowExtensionFunction
             extended_resource->set_value(sum_value);
         }
 
-        /// @brief Backward extension: adds arc time and clamps to the origin's latest time.
+        /// @brief Backward extension: subtracts arc time and clamps to the origin's latest time.
+        ///
+        /// `b(u) = min(latest_u, b(v) - t_uv)`: the latest departure from `u` that still leaves
+        /// time for the rest of the path, as summarised by `b(v)`.
+        ///
+        /// The forward `max(earliest_v, ...)` does **not** invert into a `max` here — clamping
+        /// *up* to an opening time only makes you later, which never helps meet a deadline, so it
+        /// drops out of the inequality. The `min` is `u`'s *own* closing time entering the
+        /// picture, which is what propagates a mid-path limit backwards. There is deliberately no
+        /// clamp from below: `TimeWindowFeasibilityFunction::is_back_feasible` tests
+        /// `value >= earliest`, and clamping up to that bound would make every infeasible
+        /// backward label look feasible.
         ///
         /// @param resource           Current time resource of the backward label.
         /// @param extender_value     Arc's travel time.
-        /// @param extended_resource  Output: receives `min(latest[origin], current + arc_time)`.
+        /// @param extended_resource  Output: receives `min(latest[origin], current - arc_time)`.
         void extend_back(const ResourceType& resource, const ResourceType& extender_value,
                          ResourceType* extended_resource) override {
-            auto sum_value = resource.get_value() + extender_value.get_value();
-            sum_value = std::min(max_time_window_, sum_value);
-            extended_resource->set_value(sum_value);
+            ValueType value{};
+            if constexpr (std::is_signed_v<ValueType>) {
+                value = resource.get_value() - extender_value.get_value();
+            } else {
+                // Unreachable in a valid bidirectional solve: backward_kind() reports
+                // Unspecified for unsigned value types, so such a component is refused at
+                // setup. Saturate rather than wrap so a direct call cannot manufacture a huge
+                // positive value that reads as a very loose deadline.
+                value = resource.get_value() < extender_value.get_value()
+                            ? ValueType{0}
+                            : resource.get_value() - extender_value.get_value();
+            }
+            value = std::min(max_time_window_, value);
+            extended_resource->set_value(value);
+        }
+
+        /// @brief A time window is a deadline-style bound, so the backward form inverts and
+        ///        clamps -- but only when the value type can represent the inversion.
+        ///
+        /// Backward extension subtracts the arc time, so the value type must be able to go
+        /// negative. The default @c max_time_window_ of `max()/2` guards the forward addition
+        /// against overflow; with an *unsigned* type the subtraction has the opposite hazard and
+        /// would wrap to a huge positive value that silently reads as a very loose deadline.
+        ///
+        /// Saturating at zero does not rescue it either: a backward value of 0 is accepted by
+        /// @c TimeWindowFeasibilityFunction::is_back_feasible whenever the node's earliest time
+        /// is 0, so a genuinely impossible half-path would look feasible. An unsigned value type
+        /// simply cannot represent "this deadline cannot be met".
+        ///
+        /// So rather than assert at compile time -- @c TimeWindowExtensionFunction<UIntResource>
+        /// is a live instantiation, exported to Python as @c TimeWindowExtensionFunction_uint --
+        /// an unsigned instantiation reports @c Unspecified and a bidirectional solve refuses to
+        /// start on it. Forward-only use is unaffected.
+        ///
+        /// @return @c BackwardKind::Threshold for signed value types, @c Unspecified otherwise.
+        [[nodiscard]] BackwardKind backward_kind() const override {
+            if constexpr (std::is_signed_v<ValueType>) {
+                return BackwardKind::Threshold;
+            } else {
+                return BackwardKind::Unspecified;
+            }
         }
 
     private:
