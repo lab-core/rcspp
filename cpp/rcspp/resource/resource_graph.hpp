@@ -67,6 +67,19 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
+            // Derive the backward dominance direction from the extension function's declared
+            // shape, so the two can never disagree. A Threshold resource stores a deadline, where
+            // a LARGER value is more permissive, so its dominance reverses; Accumulate and Mirror
+            // keep the forward comparison. Anything else -- including Unspecified -- stays
+            // unreversed, which is inert only because a bidirectional solve refuses to start on an
+            // undeclared component.
+            //
+            // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
+            // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
+            // at model-build time rather than one per node.
+            dominance_function->set_backward_reversed(extension_function->backward_kind() ==
+                                                      BackwardKind::Threshold);
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -97,6 +110,20 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             };  // NOLINT
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
+
+            // Derive the backward dominance direction from the extension function's declared
+            // shape, so the two can never disagree. A Threshold resource stores a deadline, where
+            // a LARGER value is more permissive, so its dominance reverses; Accumulate and Mirror
+            // keep the forward comparison. Anything else -- including Unspecified -- stays
+            // unreversed, which is inert only because a bidirectional solve refuses to start on an
+            // undeclared component.
+            //
+            // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
+            // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
+            // at model-build time rather than one per node.
+            dominance_function->set_backward_reversed(extension_function->backward_kind() ==
+                                                      BackwardKind::Threshold);
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
