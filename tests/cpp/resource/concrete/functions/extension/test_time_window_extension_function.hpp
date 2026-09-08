@@ -150,4 +150,10 @@ TEST(TimeWindowExtensionFunction, UnsignedValueTypeRefusesBackwardUse) {
     UIntResource back_extended;
     fn->extend_back(UIntResource(10U), UIntResource(30U), &back_extended);
     EXPECT_EQ(back_extended.get_value(), 0U);
+
+    // Where the subtraction does not underflow, it is the ordinary one -- saturation is
+    // reached only by the branch above.
+    UIntResource back_ok;
+    fn->extend_back(UIntResource(90U), UIntResource(30U), &back_ok);
+    EXPECT_EQ(back_ok.get_value(), 60U);
 }

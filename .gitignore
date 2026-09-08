@@ -68,3 +68,6 @@ Testing/
 docs/_doxygen/
 docs/_site/
 docs/cpp/api/
+
+# gcovr reports (CI recreates this each run and uploads it as an artifact)
+coverage/

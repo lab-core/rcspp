@@ -18,10 +18,14 @@ enable_testing()
 # When enabled, every target that compiles cpp/rcspp or python/bindings code links
 # this INTERFACE target so it emits .gcno/.gcda. The header-only templates are
 # instantiated into BOTH tests-rcspp and _core; gcovr unions the two object trees.
-# Force -O0 (keep NDEBUG from the build type) so line attribution is faithful.
+# Force -O0 (keep NDEBUG from the build type) so line attribution is faithful, and -g0 because
+# gcov reads .gcno emitted by --coverage and never touches DWARF. Dropping debug info also keeps
+# the single-TU test binary within the COFF limits: with -g, a MinGW build of tests/cpp/test_main.cpp
+# dies in the assembler with "string table overflow", because every gtest/template instantiation
+# gets its own .debug_frame$<mangled-name> section. That makes the gate runnable on Windows.
 if(USE_COVERAGE)
   add_library(rcspp_coverage INTERFACE)
-  target_compile_options(rcspp_coverage INTERFACE --coverage -O0 -g)
+  target_compile_options(rcspp_coverage INTERFACE --coverage -O0 -g0)
   target_link_options(rcspp_coverage INTERFACE --coverage)
   # Atomic counter updates avoid races in multi-threaded algorithm code (GCC only;
   # Clang accepts --coverage but not this flag).

@@ -66,6 +66,16 @@ TEST(BackwardKindDeclared, NoneAreUnspecified) {
               BackwardKind::Unspecified);
 }
 
+// The composition wrapper is deliberately left Unspecified.
+//
+// CompositionExtensionFunction fans every operation out across components, and validation walks
+// the *components* rather than the wrapper -- so the wrapper has no kind of its own to declare,
+// and its inherited default is the correct answer rather than an omission.
+TEST(BackwardKindDeclared, CompositionWrapperStaysUnspecified) {
+    CompositionExtensionFunction<RealResource> composition;
+    EXPECT_EQ(composition.backward_kind(), BackwardKind::Unspecified);
+}
+
 // The base-class default stays Unspecified: that is what phase 11 keys off, and what makes an
 // undeclared component fail loudly at setup rather than return a plausible number.
 TEST(BackwardKindDeclared, BaseDefaultRemainsUnspecified) {
