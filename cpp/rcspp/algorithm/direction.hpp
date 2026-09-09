@@ -24,6 +24,10 @@ namespace rcspp {
 ///
 /// Members are static, so there is no per-call indirection: the policy is a type, not an object.
 struct ForwardDirection {
+        /// @brief Tag readable in an `if constexpr`, for the few places where a policy member
+        ///        cannot express the difference -- see `LabelBuckets`.
+        static constexpr bool backward = false;
+
         /// @brief The arcs to walk from @p node: outgoing, going forward.
         template <typename ResourceType>
         static auto arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
@@ -97,6 +101,9 @@ struct ForwardDirection {
 /// -- rather than the earliest you can arrive, which is why it extends, tests feasibility and
 /// compares with the backward forms rather than the forward ones.
 struct BackwardDirection {
+        /// @brief Tag readable in an `if constexpr`. See @ref ForwardDirection::backward.
+        static constexpr bool backward = true;
+
         /// @brief The arcs to walk from @p node: incoming, going backward.
         template <typename ResourceType>
         static auto arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
@@ -197,6 +204,7 @@ concept DirectionPolicy =
         {
             Dir::template terminals<ResourceType>(graph)
         } -> std::same_as<const std::vector<size_t>&>;
+        { Dir::backward } -> std::convertible_to<bool>;
     };
 
 }  // namespace rcspp
