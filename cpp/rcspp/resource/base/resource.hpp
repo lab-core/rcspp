@@ -143,6 +143,26 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                                                                    delta);
         }
 
+        /// @brief Fast (approximate) backward dominance check with a relaxation delta.
+        ///
+        /// The backward twin of `is_lower`. Like `check_back_dominance`, the reversal is exactly
+        /// an argument swap, tolerance included, so this needs no new comparison of its own.
+        ///
+        /// Scalar only: the composition specialisation of `DominanceFunction` has no
+        /// `fast_check_dominance` to delegate to, and the bucket resource is always a *component*
+        /// rather than the composition, so there is nothing to add on that side.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @param delta        Relaxation tolerance (default 0).
+        /// @return `true` if this resource is backward-dominated by `rhs_resource` within the
+        ///         tolerance.
+        [[nodiscard]] auto is_back_lower(const Resource& rhs_resource, double delta = 0) const
+            -> bool {
+            return this->dominance_function_->fast_check_back_dominance(this->value_,
+                                                                        rhs_resource.value_,
+                                                                        delta);
+        }
+
         // Return resource cost
         /// @brief Returns the scalar cost associated with this resource's current value.
         ///

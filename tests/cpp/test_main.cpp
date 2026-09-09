@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 
+#include "test_directional_containers.hpp"
 #include "test_graph.hpp"
 #include "test_label.hpp"
 #include "test_preprocessor_coverage.hpp"
