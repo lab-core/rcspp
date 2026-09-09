@@ -110,15 +110,39 @@ rg.add_real_resource(
 and `"int"`) only — extending backwards subtracts, and on an unsigned type that
 wraps to a huge positive value that reads as a very loose bound.
 
-### When it does not pay
+### When it pays, and when it does not
 
-- **Short routes.**  With few labels per node there is nothing for the halving to
-  save, and the join pass is pure overhead.
-- **Loose time windows.**  A clock that barely constrains anything means both
-  directions explore nearly everything before reaching `H`.
-- **No usable clock**, in which case the bound turns itself off and the search is a
-  forward search plus a backward search plus a join — strictly more work than
-  `Simple`.
+What decides this is **how many labels dominance has to sift at each node**, not how
+long the horizon is and not how tight the windows are.  Dominance compares a new
+label against every label held at its node, so halving the set at each node makes
+each comparison cheaper as well as making fewer of them — which is why the
+wall-clock gain, where there is one, is larger than the reduction in label
+extensions.
+
+Measured across all six Solomon families (see `analysis/bidirectional-results.md`
+for the full tables).  On the largest instances the difference stops being a
+speed-up and becomes a question of whether an answer arrives at all: on R202_50
+and on the full C201, the forward search exhausts its time budget while
+bidirectional finishes with the proven optimum.
+
+| Situation | Effect |
+|---|---|
+| Small label sets | 0.8–1.1× — break-even, sometimes a small loss |
+| Moderate label pressure | 1.4–2.9× |
+| Heavy label pressure | 4–7×, widening as instances grow |
+| Forward search cannot finish at all | Bidirectional finishes, with the optimum |
+
+So it is **not a default**.  It does not pay when:
+
+- **Few labels survive per node**, whatever the horizon.  A clustered instance with
+  tight windows can have a horizon five times longer than another and still hold
+  smaller label sets — and there the second set of containers, plus a join pass that
+  walks every arc, costs more than the halving saves.
+- **Short routes**, which is the same thing seen from the other side: nothing to halve.
+- **No usable clock**, in which case the bound turns itself off and the search becomes
+  a forward search plus a backward search plus a join — strictly more work than
+  `Simple`.  `bounded_by_half_way()` reports this; it is worth checking rather than
+  assuming.
 
 ## `Greedy`
 
