@@ -26,7 +26,8 @@ python/
   bindings/           ← pybind11 C++ source (wraps the C++ engine)
   src/rcspp/          ← pure-Python package (the public Python API)
 tests/
-  cpp/                ← GoogleTest suite (tests/cpp/test_main.cpp + test_*.hpp)
+  cpp/                ← GoogleTest suite (test_*.hpp headers, split across
+                        test_main.cpp / test_resources.cpp / test_algorithms.cpp)
   python/             ← pytest suite
 examples/
   cpp/                ← VRP C++ benchmark
