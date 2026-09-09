@@ -21,6 +21,7 @@
 
 #include "test_directional_containers.hpp"
 #include "test_graph.hpp"
+#include "test_half_way_policy.hpp"
 #include "test_label.hpp"
 #include "test_preprocessor_coverage.hpp"
 #include "test_solution_pool.hpp"
