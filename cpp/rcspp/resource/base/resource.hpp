@@ -243,6 +243,25 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             }
         }
 
+        /// @brief The merge rule this resource's feasibility function declares.
+        ///
+        /// Exposes the value cached at bind time, so a setup-time check can report an undeclared
+        /// component by name rather than letting the join throw mid-solve.
+        ///
+        /// @return The declared @ref MergeRule.
+        [[nodiscard]] auto merge_rule() const -> MergeRule { return this->merge_rule_; }
+
+        /// @brief Whether this resource's feasibility function supplies a backward starting value.
+        ///
+        /// Pairing a back seed with an *accumulating* extension is incoherent -- the seed says
+        /// "start at the bound and count down" while the extension adds -- and both halves declare
+        /// legal values individually, so only a check that sees both catches it.
+        ///
+        /// @return `true` when `back_seed_value()` returns a value.
+        [[nodiscard]] auto has_back_seed() const -> bool {
+            return this->feasibility_function_->back_seed_value().has_value();
+        }
+
         /// @brief Returns `true` if the destination node is reachable from this resource's state.
         ///
         /// Delegates to the feasibility function's reachability check, which may use ng-route
