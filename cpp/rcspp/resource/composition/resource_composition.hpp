@@ -274,6 +274,16 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->feasibility_function_->is_back_feasible(*this);
         }
 
+        /// @brief Applies the backward starting value to every component that has one.
+        ///
+        /// Deliberately does *not* route through `CompositionFeasibilityFunction`: seeding is a
+        /// mutation rather than a predicate, and the composition's own `ResourceType` is a tag
+        /// carrying no values, which is why `back_seed_value()` exists only on the scalar
+        /// specialisation.
+        void apply_back_seed() {
+            this->for_each_component([](auto&& component) { component.apply_back_seed(); });
+        }
+
         /// @brief Returns `true` if this (forward) resource can be merged with @p back_resource.
         ///
         /// @param back_resource The backward resource to merge with.

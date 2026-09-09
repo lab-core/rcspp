@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
@@ -78,6 +79,19 @@ class TimeWindowFeasibilityFunction
         ///
         /// @return @c MergeRule::DominanceOrder.
         [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::DominanceOrder; }
+
+        /// @brief A backward label at this node starts at the node's closing time.
+        ///
+        /// `max_time_window_` is already cached by `preprocess(node_id)`, so this is *that node's*
+        /// bound rather than the prototype's default -- which is what lets two sinks with
+        /// different closing times seed differently.
+        ///
+        /// @return The node's upper time bound, as the seed for a backward label here.
+        [[nodiscard]] auto back_seed_value() const -> std::optional<ResourceType> override {
+            ResourceType seed;
+            seed.set_value(max_time_window_);
+            return seed;
+        }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>

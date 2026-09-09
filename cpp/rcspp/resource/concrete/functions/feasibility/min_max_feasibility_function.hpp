@@ -5,6 +5,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -89,6 +90,19 @@ class MinMaxFeasibilityFunction
         ///
         /// @return @c MergeRule::DominanceOrder.
         [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::DominanceOrder; }
+
+        /// @brief A backward label starts at the loosest end of this node's window.
+        ///
+        /// Which end is "loosest" follows the same flag that used to set the merge direction: for
+        /// a resource where smaller is better (a load), the loosest permitted state is the
+        /// maximum; for one where larger is better (remaining fuel), it is the minimum.
+        ///
+        /// @return The loosest end of this node's window, as the seed for a backward label here.
+        [[nodiscard]] auto back_seed_value() const -> std::optional<ResourceType> override {
+            ResourceType seed;
+            seed.set_value(merge_by_increasing_value_ ? max_ : min_);
+            return seed;
+        }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>

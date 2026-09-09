@@ -13,6 +13,7 @@
 #include "resource/concrete/functions/extension/test_ng_path_extension_function.hpp"
 #include "resource/concrete/functions/extension/test_time_window_extension_function.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
+#include "resource/test_back_seed.hpp"
 #include "resource/test_backward_dominance.hpp"
 #include "resource/test_merge_rules.hpp"
 #include "test_backward_api.hpp"
