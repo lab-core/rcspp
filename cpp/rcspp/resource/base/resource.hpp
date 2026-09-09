@@ -168,6 +168,21 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->feasibility_function_->is_back_feasible(this->value_);
         }
 
+        /// @brief Applies this resource's backward starting value, if it has one.
+        ///
+        /// A forward label starts at "nothing consumed"; a backward label at a sink starts at that
+        /// sink's upper bound, and the number differs per sink. Resources with no such bound --
+        /// cost, and every container -- return `std::nullopt` and keep the type default.
+        ///
+        /// Called once per initial backward label from the algorithm's `initialize_labels()`, and
+        /// never on the label-recycling path: only initial labels keep their starting values,
+        /// because every other label has all of its values overwritten by extension.
+        void apply_back_seed() {
+            if (auto seed = this->feasibility_function_->back_seed_value()) {
+                this->value_ = *seed;
+            }
+        }
+
         /// @brief Returns `true` if this (forward) resource can be merged with a backward label.
         ///
         /// Used in bidirectional labelling to determine whether a forward and a backward label can
