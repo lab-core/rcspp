@@ -443,6 +443,16 @@ class Algorithm {
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
+        /// @brief How many labels the last solve extended.
+        ///
+        /// The measurement that says whether a search strategy is paying off. Label *extensions*
+        /// are what the work actually is, and they are comparable across algorithms in a way that
+        /// wall-clock time is not: the same instance on a busier machine takes longer without any
+        /// algorithm having changed. Read-only, and already counted -- only the accessor is new.
+        ///
+        /// @return The number of label extensions performed.
+        [[nodiscard]] size_t get_number_of_extended_labels() const { return num_extended_labels_; }
+
     protected:
         bool print_{false};
 

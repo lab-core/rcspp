@@ -59,6 +59,56 @@ class VRPSubproblem {
             return algorithm->get_label_pool().check_ref_count_consistency();
         }
 
+        // Test helper (phase 13): solve through an externally-owned algorithm and report what the
+        // solve cost in work, not just what it found. num_extended_labels lives on the algorithm
+        // rather than on SolveResult, and the label pool's size is the closest thing to a peak
+        // label count, so both need the algorithm object to still be alive afterwards.
+        struct RunMeasurement {
+                double cost = 0.0;
+                size_t solutions = 0;
+                size_t extended_labels = 0;
+                size_t pooled_labels = 0;
+                bool ref_counts_consistent = false;
+                // Bidirectional only; left at their defaults by every other algorithm. Without
+                // these a run whose half-way bound quietly switched itself off would be reported
+                // as a measurement OF the bound.
+                bool bounded_by_half_way = false;
+                size_t joined_paths = 0;
+        };
+
+        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        RunMeasurement solve_and_measure(const std::map<size_t, double>& dual_by_id,
+                                         AlgorithmBaseParams params = AlgorithmBaseParams()) {
+            using RC = ResourceTypeComposition<RealResource, IntResource>;
+            if (graph_.get_number_of_nodes() == 0) {
+                construct_resource_graph(&graph_, &dual_by_id);
+            } else {
+                update_resource_graph(&graph_, &dual_by_id);
+            }
+            // Kept alive so the pool size means "labels allocated at the peak" rather than
+            // "zero, because release_label_memory() already ran". The measurement is of search
+            // work, not of the release path, which the rest of the suite covers.
+            params.release_after_solve = false;
+            auto algorithm =
+                graph_.create_algorithm<AlgorithmType>(params.with_container(LabelList<RC>()));
+            const auto result = graph_.solve(algorithm.get());
+
+            RunMeasurement measurement;
+            measurement.solutions = result.solutions.size();
+            if (!result.solutions.empty()) {
+                measurement.cost = result.solutions.front().cost;
+            }
+            measurement.extended_labels = algorithm->get_number_of_extended_labels();
+            measurement.pooled_labels = algorithm->get_label_pool().get_nb_total_labels();
+            measurement.ref_counts_consistent =
+                algorithm->get_label_pool().check_ref_count_consistency();
+            if constexpr (requires { algorithm->bounded_by_half_way(); }) {
+                measurement.bounded_by_half_way = algorithm->bounded_by_half_way();
+                measurement.joined_paths = algorithm->number_of_joined_paths();
+            }
+            return measurement;
+        }
+
         // Test helper (H4): expose the full SolveResult — solutions + exit status — so tests can
         // verify solve() reports the status the VRP column-generation loop relies on: COMPLETE when
         // the pricing search was exhaustive vs MEMORY_LIMIT / TIMEOUT / ... when it was cut short.

@@ -58,6 +58,11 @@ class Joiner {
         /// When the half-way bound is disabled the crossing test is skipped and every pair is
         /// joined. That is still correct, just slower; `Solution`'s hash absorbs the duplicates.
         ///
+        /// **On pruning.** `best_cost_upper_bound` cuts pairs off, never halves. A half's own cost
+        /// says nothing about what the completed path costs once reduced costs go negative, which
+        /// is the ordinary case in pricing. The one admissible half-level test is a half plus the
+        /// cheapest completion available across the arc, and that is what the code does.
+        ///
         /// @tparam FwdContainer Per-node forward label container.
         /// @tparam BwdContainer Per-node backward label container.
         /// @tparam OnSolution   Callable `(double cost, std::vector<size_t> arc_ids,
@@ -100,11 +105,11 @@ class Joiner {
                 const auto forward_sorted = sorted_by_cost(forward_labels);
                 const auto backward_sorted = sorted_by_cost(backward_labels);
 
+                // The cheapest completion available through this arc. Sorted by cost, so it is
+                // the first entry.
+                const double cheapest_backward = backward_sorted.front()->get_cost();
+
                 for (auto* forward : forward_sorted) {
-                    // Sorted by cost, so once one label is too expensive every later one is too.
-                    if (forward->get_cost() >= best_cost_upper_bound) {
-                        break;
-                    }
                     const double critical_at_origin =
                         critical_value(forward->get_resource(), critical_resource_index);
                     if (half_way.enabled() && critical_at_origin > half_way.h()) {
@@ -129,6 +134,23 @@ class Joiner {
                     }
 
                     if (!extended.is_feasible()) {
+                        pool.release_label(&extended);
+                        continue;
+                    }
+
+                    // A HALF is never compared against the incumbent on its own. This half plus
+                    // the cheapest completion available through this arc is the best any pair
+                    // starting here can do, so rejecting on that is admissible; rejecting on the
+                    // half's own cost is not. Under reduced costs a half costing 30 completes to
+                    // -20, and the version of this test that read `forward->get_cost()` alone lost
+                    // the optimum of the repository's own VRPTW pricing instance -- returning
+                    // -190.46 against the true -319.88, faster, and reporting COMPLETE.
+                    //
+                    // It is a `continue` rather than a `break` even though the list is cost-sorted:
+                    // the quantity compared is the cost AFTER crossing the arc, and the arc's own
+                    // contribution is not guaranteed to be the same constant for every label -- an
+                    // extension function may clamp. Cheap to be wrong about, expensive to assume.
+                    if (extended.get_cost() + cheapest_backward >= best_cost_upper_bound) {
                         pool.release_label(&extended);
                         continue;
                     }

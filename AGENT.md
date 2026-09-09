@@ -132,7 +132,10 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
 result.solutions            # list[Solution], best-first
 result.status               # AlgorithmStatus enum
 result.status_string()      # "complete" | "timeout" | "max_solutions" | …
-result.num_extended_labels  # int
+# How many labels the search extended is on the algorithm, not on SolveResult:
+#   auto algo = graph.create_algorithm<Algo>(params);
+#   graph.solve(algo.get());
+#   algo->get_number_of_extended_labels();
 
 sol = result.solutions[0]
 sol.cost            # float
