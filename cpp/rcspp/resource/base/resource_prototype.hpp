@@ -48,7 +48,9 @@ class ResourcePrototype {
               dominance_function_(nullptr),
               feasibility_function_(nullptr),
               cost_function_(nullptr),
-              node_id_(0) {}
+              node_id_(0) {
+            cache_merge_rule();
+        }
 
         /// @brief Constructs a resource with a copied value and exclusively-owned function objects.
         ///
@@ -69,7 +71,9 @@ class ResourcePrototype {
               dominance_function_(unique_dominance_function_.get()),
               feasibility_function_(unique_feasibility_function_.get()),
               cost_function_(unique_cost_function_.get()),
-              node_id_(node_id) {}
+              node_id_(node_id) {
+            cache_merge_rule();
+        }
 
         /// @brief Constructs a resource with a moved value and exclusively-owned function objects.
         ///
@@ -90,7 +94,9 @@ class ResourcePrototype {
               dominance_function_(unique_dominance_function_.get()),
               feasibility_function_(unique_feasibility_function_.get()),
               cost_function_(unique_cost_function_.get()),
-              node_id_(node_id) {}
+              node_id_(node_id) {
+            cache_merge_rule();
+        }
 
         /// @brief Constructs a default-value resource with exclusively-owned function objects.
         ///
@@ -109,7 +115,9 @@ class ResourcePrototype {
               dominance_function_(unique_dominance_function_.get()),
               feasibility_function_(unique_feasibility_function_.get()),
               cost_function_(unique_cost_function_.get()),
-              node_id_(node_id) {}
+              node_id_(node_id) {
+            cache_merge_rule();
+        }
 
         /// @brief Constructs a resource with a copied value and borrowed (non-owning) function
         ///        objects.
@@ -130,7 +138,9 @@ class ResourcePrototype {
               dominance_function_(dominance_function),
               feasibility_function_(feasibility_function),
               cost_function_(cost_function),
-              node_id_(node_id) {}
+              node_id_(node_id) {
+            cache_merge_rule();
+        }
 
         /// @brief Constructs a resource with a moved value and borrowed (non-owning) function
         ///        objects.
@@ -148,7 +158,9 @@ class ResourcePrototype {
               dominance_function_(dominance_function),
               feasibility_function_(feasibility_function),
               cost_function_(cost_function),
-              node_id_(node_id) {}
+              node_id_(node_id) {
+            cache_merge_rule();
+        }
 
         /// @brief Constructs a default-value resource with borrowed (non-owning) function objects.
         ///
@@ -163,7 +175,9 @@ class ResourcePrototype {
               dominance_function_(dominance_function),
               feasibility_function_(feasibility_function),
               cost_function_(cost_function),
-              node_id_(node_id) {}
+              node_id_(node_id) {
+            cache_merge_rule();
+        }
 
         /// @brief Copy constructor — deep-copies the value and clones owned function objects.
         ///
@@ -189,7 +203,9 @@ class ResourcePrototype {
                                         : rhs_resource.feasibility_function_),
               cost_function_(unique_cost_function_ ? unique_cost_function_.get()
                                                    : rhs_resource.cost_function_),
-              node_id_(rhs_resource.get_node_id()) {}
+              node_id_(rhs_resource.get_node_id()) {
+            cache_merge_rule();
+        }
 
         /// @brief Move constructor — transfers ownership via copy-and-swap.
         ///
@@ -231,6 +247,8 @@ class ResourcePrototype {
             swap(first.feasibility_function_, second.feasibility_function_);
             swap(first.cost_function_, second.cost_function_);
             swap(first.node_id_, second.node_id_);
+            // The cached rule belongs to the feasibility function, so it moves with it.
+            swap(first.merge_rule_, second.merge_rule_);
         }
 
         /// @brief Creates a deep copy of this resource, including cloned function objects.
@@ -349,6 +367,7 @@ class ResourcePrototype {
             dominance_function_ = resource.dominance_function_;
             feasibility_function_ = resource.feasibility_function_;
             cost_function_ = resource.cost_function_;
+            cache_merge_rule();
         }
 
     protected:
@@ -364,7 +383,21 @@ class ResourcePrototype {
 
         size_t node_id_;
 
+        /// @brief The merge rule declared by @c feasibility_function_, cached at bind time.
+        ///
+        /// The join consults this once per component per candidate pair, inside a quadratic loop,
+        /// so a member read beats a virtual call. It cannot change while a feasibility function is
+        /// bound, so it is refreshed wherever that pointer is set: every constructor, @c swap and
+        /// @c reset(const ResourceClass&).
+        MergeRule merge_rule_ = MergeRule::Unspecified;
+
     private:
+        /// @brief Refreshes @ref merge_rule_ from the currently bound feasibility function.
+        void cache_merge_rule() {
+            merge_rule_ = feasibility_function_ != nullptr ? feasibility_function_->merge_rule()
+                                                           : MergeRule::Unspecified;
+        }
+
         [[nodiscard]] ResourceClass& downcast() { return static_cast<ResourceClass&>(*this); }
 
         [[nodiscard]] const ResourceClass& downcast() const {

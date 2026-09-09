@@ -65,6 +65,22 @@ class IntersectionFeasibilityFunction
             return resource.intersects(values_.get_value()) ^ forbidden_;
         }
 
+        /// @brief The merge test depends on which way the constraint points.
+        ///
+        /// **Forbidden** values: the two halves must not both contain a forbidden node, or the
+        /// merged path visits it twice -> @c Disjoint.
+        ///
+        /// **Required** values: "did the path collect everything" is a property of the *whole*
+        /// path, already enforced at the endpoints, and two halves cannot violate it by being
+        /// combined -> @c AlwaysTrue.
+        ///
+        /// The asymmetry is not obvious from the class name, which is why it is spelled out here.
+        ///
+        /// @return @c MergeRule::Disjoint when values are forbidden, @c AlwaysTrue otherwise.
+        [[nodiscard]] MergeRule merge_rule() const override {
+            return forbidden_ ? MergeRule::Disjoint : MergeRule::AlwaysTrue;
+        }
+
     private:
         std::shared_ptr<const std::map<size_t, std::set<ValueType>>> values_by_node_id_;
         ContainerResourceType values_;

@@ -4,10 +4,12 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/base/resource_type.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -168,13 +170,42 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
 
         /// @brief Returns `true` if this (forward) resource can be merged with a backward label.
         ///
-        /// Used in bidirectional labelling to determine whether a forward and a backward label
-        /// can be joined into a complete path.
+        /// Used in bidirectional labelling to determine whether a forward and a backward label can
+        /// be joined into a complete path. Dispatches on the rule the feasibility function
+        /// declares, cached at bind time because the join consults it once per component per
+        /// candidate pair.
         ///
         /// @param back_resource The backward resource to attempt merging with.
         /// @return `true` when the two labels are compatible for merging.
+        /// @throws std::logic_error If `Disjoint` is declared on a resource with no `intersects()`.
+        /// @throws std::runtime_error If the feasibility function declares no rule.
         [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
-            return this->feasibility_function_->can_be_merged(this->value_, back_resource.value_);
+            switch (this->merge_rule_) {
+                case MergeRule::AlwaysTrue:
+                    return true;
+                case MergeRule::DominanceOrder:
+                    // check_dominance, NOT check_back_dominance. The phase-3 reversal is for
+                    // comparing two *backward* labels with each other; this compares a forward
+                    // value against a threshold, in the forward order. For a higher-is-better
+                    // resource the dominance function is already flipped, so this flips with it.
+                    return this->dominance_function_->check_dominance(this->value_,
+                                                                      back_resource.value_);
+                case MergeRule::Disjoint:
+                    // The backward label stores the threshold *complemented* -- the nodes seen
+                    // rather than the nodes still allowed -- so "f is within the threshold" is
+                    // f subset of complement(V_b), which is exactly f intersect V_b == empty.
+                    if constexpr (HasIntersects<ResourceType>) {
+                        return !this->value_.intersects(back_resource.value_.get_value());
+                    } else {
+                        throw std::logic_error(
+                            "MergeRule::Disjoint declared on a resource without intersects()");
+                    }
+                case MergeRule::Custom:
+                    return this->feasibility_function_->can_be_merged(this->value_,
+                                                                      back_resource.value_);
+                default:
+                    throw std::runtime_error("FeasibilityFunction::merge_rule() not declared");
+            }
         }
 
         /// @brief Returns `true` if the destination node is reachable from this resource's state.

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <set>
 #include <tuple>
@@ -41,6 +42,16 @@ struct ComponentInitializerTypeTuple<BitsetResource<T>> {
 
 using UIntBitsetResource = BitsetResource<unsigned int>;
 using SizeTBitsetResource = BitsetResource<size_t>;
+
+/// @brief True when a resource value exposes container-style intersection.
+///
+/// `intersects` is declared on ContainerResource only, not on NumericalResource, so
+/// `Resource::can_be_merged` needs this to guard the MergeRule::Disjoint arm: every branch of that
+/// runtime switch must compile for every instantiation, including the scalar cost resource.
+template <typename T>
+concept HasIntersects = requires(const T& lhs, const T& rhs) {
+    { lhs.intersects(rhs.get_value()) } -> std::convertible_to<bool>;
+};
 
 // Type trait: true iff T is NumericalResource<U> for some U
 template <typename T>

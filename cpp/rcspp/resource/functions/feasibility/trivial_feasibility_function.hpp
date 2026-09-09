@@ -29,6 +29,10 @@ class TrivialFeasibilityFunction
 
         /// @brief Always returns @c true, indicating any pair of labels can be merged.
         ///
+        /// Kept alongside @c merge_rule(): the AlwaysTrue arm of @c Resource::can_be_merged short
+        /// -circuits before consulting the feasibility function, so this is not on the dispatch
+        /// path, but it remains part of the public surface and is directly tested.
+        ///
         /// @param resource      The forward label's resource value (unused).
         /// @param back_resource The backward label's resource value (unused).
         /// @return @c true unconditionally.
@@ -36,5 +40,10 @@ class TrivialFeasibilityFunction
                                          const ResourceType& back_resource) -> bool override {
             return true;
         }
+
+        /// @brief No constraint at all, so nothing two halves can violate by being combined.
+        ///
+        /// @return @c MergeRule::AlwaysTrue.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::AlwaysTrue; }
 };
 }  // namespace rcspp

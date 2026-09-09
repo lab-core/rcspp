@@ -69,18 +69,15 @@ class TimeWindowFeasibilityFunction
             return resource.get_value() >= min_time_window_;
         }
 
-        /// @brief Checks whether a forward and a backward label can be merged.
+        /// @brief A backward label holds the deadline directly, so the merge test *is* forward
+        ///        dominance.
         ///
-        /// Merging is valid when the forward value does not exceed the backward value,
-        /// ensuring the combined path respects non-decreasing time ordering.
+        /// This used to be a hand-written `resource <= back_resource`, which is exactly what
+        /// `ValueDominanceFunction::check_dominance` computes on the same values. Declaring the
+        /// rule gives the same answer with one fewer place for the two to disagree.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if `resource.value <= back_resource.value`.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            return resource.get_value() <= back_resource.get_value();
-        }
+        /// @return @c MergeRule::DominanceOrder.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::DominanceOrder; }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>

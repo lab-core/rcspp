@@ -78,21 +78,17 @@ class MinMaxFeasibilityFunction
             return resource.geq(min_) && resource.leq(max_);
         }
 
-        /// @brief Checks whether a forward resource and a backward resource can be merged in
-        ///        bidirectional search.
+        /// @brief A backward label holds the bound directly, so the merge test *is* forward
+        ///        dominance.
         ///
-        /// The direction of comparison (increasing vs. decreasing) is set at construction.
+        /// This used to be a hand-written comparison switched by @c merge_by_increasing_value_.
+        /// The dominance function already encodes that direction -- a higher-is-better resource
+        /// carries a flipped `check_dominance` -- so the rule follows it automatically, and the
+        /// two can no longer disagree. The constructor flag is kept because callers building a
+        /// resource by hand still pass it, but it no longer drives the merge test.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if the two labels can be combined.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            if (merge_by_increasing_value_) {
-                return resource.get_value() <= back_resource.get_value();
-            }
-            return resource.get_value() >= back_resource.get_value();
-        }
+        /// @return @c MergeRule::DominanceOrder.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::DominanceOrder; }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
