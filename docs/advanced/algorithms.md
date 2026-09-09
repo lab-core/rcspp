@@ -10,7 +10,8 @@ title: Algorithms
 |---|---|---|---|
 | `Simple` | ✓ | medium | Default; correct answer needed |
 | `Pushing` | ✓ | medium–fast | Dense graphs; pushing dominance forward |
-| `Pulling` | ✓ | medium–fast | Bi-directional; long paths |
+| `Pulling` | ✓ | medium–fast | Dense graphs; pulling dominance from in-arcs |
+| `Bidirectional` | ✓ | fast–slow | Long routes with a tight, monotone clock |
 | `AStar` | ✓ | fast–slow | Good heuristic available |
 | `Greedy` | ✗ | fast | Quick feasible solution; large graphs |
 | `Tabu` | ✗ | medium | Metaheuristic diversity |
@@ -25,6 +26,99 @@ propagates labels; dominated labels are discarded immediately.
 result = rg.solve()                        # algorithm="simple" by default
 result = rg.solve(algorithm="simple")
 ```
+
+## `Pulling`
+
+Forward label-setting like `Simple`, but each node *gathers* labels through its
+in-arcs instead of each label being *pushed* through out-arcs.  The labels still
+travel source → sink; this is not a bidirectional search.
+
+## `Bidirectional`
+
+Searches forward from the sources and backward from the sinks, stopping each
+direction half-way along one designated resource, and joins the surviving halves
+across the arc where that resource crosses the middle.  Because dominance is
+checked within each half rather than over whole paths, the number of labels grows
+with half the path length instead of all of it.
+
+```python
+from rcspp.graph import AlgorithmParams
+
+p = AlgorithmParams()
+p.critical_resource_index = 1     # slot 1 is the clock (time), not the cost
+p.half_way_point          = 500.0 # H; the resource range is taken as [0, 2H]
+
+result = rg.solve(algorithm="bidirectional", params=p)
+```
+
+### The critical resource
+
+One resource acts as the **clock** that says where "half-way" is.  It must be:
+
+- **monotone** — never decreasing along an arc, so its value crosses `H` exactly
+  once along any path;
+- **bounded**, with a known finite range;
+- **a threshold backwards** — its backward form must carry a *ceiling* on the
+  forward scale (the latest arrival still admissible here), not the consumption
+  from here to the sink.  `TimeWindowExtensionFunction` and
+  `BudgetExtensionFunction` are thresholds; `AdditionExtensionFunction` is not.
+
+Cost is never a valid clock: reduced costs go negative during column generation,
+which breaks monotonicity.
+
+If the chosen resource fails any of these, **the half-way bound is switched off**
+and a `LOG_DEBUG` line says why.  The solve stays correct — both directions simply
+run to completion and every pair is considered — it is only slower.  A *wrong*
+bound would be far worse: it can discard a valid path in both directions and then
+report `complete`.
+
+`critical_resource_index` is an index within the **cost resource type's** slot, so
+the clock must share that type (a real-valued time alongside a real-valued cost is
+the usual case).  A model whose clock is an `int` resource while its cost is
+`real` needs the C++ API.
+
+### What the model must declare
+
+Every resource in the model must declare how it behaves backwards.  A solve whose
+model does not raises **before the first label is created**, naming each offending
+component:
+
+```text
+BidirectionalDominanceAlgorithm cannot run on this model:
+  - component 1: its extension accumulates but its feasibility function supplies a
+    backward seed; use a Threshold extension (e.g. BudgetExtensionFunction) instead
+```
+
+The usual cause is a **capacity written as an addition**: `AdditionExtensionFunction`
+with `MinMaxFeasibilityFunction(0, capacity)` counts *up* from zero while the
+backward seed says "start at the bound and count *down*".  That is fine
+forward-only and incoherent backwards, so it is refused rather than solved wrongly.
+Use `BudgetExtensionFunction`, which subtracts:
+
+```python
+from rcspp.resource import BudgetExtensionFunction, MinMaxFeasibilityFunction
+
+rg.add_real_resource(
+    BudgetExtensionFunction(),                 # additive forward, threshold backward
+    MinMaxFeasibilityFunction(0.0, capacity),
+    TrivialCostFunction(),
+    ValueDominanceFunction(),
+)
+```
+
+`BudgetExtensionFunction` is available for the signed numerical types (`"real"`
+and `"int"`) only — extending backwards subtracts, and on an unsigned type that
+wraps to a huge positive value that reads as a very loose bound.
+
+### When it does not pay
+
+- **Short routes.**  With few labels per node there is nothing for the halving to
+  save, and the join pass is pure overhead.
+- **Loose time windows.**  A clock that barely constrains anything means both
+  directions explore nearly everything before reaching `H`.
+- **No usable clock**, in which case the bound turns itself off and the search is a
+  forward search plus a backward search plus a join — strictly more work than
+  `Simple`.
 
 ## `Greedy`
 

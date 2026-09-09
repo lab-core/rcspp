@@ -11,6 +11,8 @@ class Algorithm(Enum):
     Pulling: Algorithm
     Greedy: Algorithm
     Tabu: Algorithm
+    AStar: Algorithm
+    Bidirectional: Algorithm
 
 class AlgorithmStatus(Enum):
     Complete: AlgorithmStatus
@@ -83,6 +85,9 @@ class AlgorithmParams:
     memory_check_interval: int
     memory_pressure_fraction: float
     memory_pressure_max_labels_per_node: int
+    critical_resource_index: int
+    half_way_point: float
+    dynamic_half_way: bool
     def __init__(self) -> None: ...
     def check(self) -> None: ...
     def could_be_non_optimal(self) -> bool: ...
