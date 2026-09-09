@@ -69,6 +69,9 @@ class VRPSubproblem {
                 size_t extended_labels = 0;
                 size_t pooled_labels = 0;
                 bool ref_counts_consistent = false;
+                // A truncated solve extends fewer labels and so reads as a win. Carrying the
+                // status is what stops a timeout being reported as a speedup.
+                AlgorithmStatus status = AlgorithmStatus::COMPLETE;
                 // Bidirectional only; left at their defaults by every other algorithm. Without
                 // these a run whose half-way bound quietly switched itself off would be reported
                 // as a measurement OF the bound.
@@ -94,6 +97,7 @@ class VRPSubproblem {
             const auto result = graph_.solve(algorithm.get());
 
             RunMeasurement measurement;
+            measurement.status = result.status;
             measurement.solutions = result.solutions.size();
             if (!result.solutions.empty()) {
                 measurement.cost = result.solutions.front().cost;

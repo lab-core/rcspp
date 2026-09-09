@@ -24,9 +24,11 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 #include "vrp/instance_reader.hpp"
@@ -38,6 +40,12 @@ namespace bidirectional_benchmark {
 
 constexpr double kTolerance = 1e-9;
 constexpr double kOptimal = -319.87786809696524415;
+
+/// @brief A guard, not a measurement: these solves are not elementary and can run away.
+constexpr double kTimeoutSeconds = 180.0;
+
+/// @brief How attractive a customer is under the synthetic duals; see `synthetic_duals`.
+constexpr double kDualAlpha = 1.0;
 
 /// @brief One run's outcome and what it cost to get there.
 struct Timed {
@@ -63,9 +71,79 @@ inline void report(const std::string& name, const Timed& timed) {
               << " solutions=" << timed.measurement.solutions
               << " extended_labels=" << timed.measurement.extended_labels
               << " pooled_labels=" << timed.measurement.pooled_labels
+              << " status=" << to_string(timed.measurement.status)
               << " bounded=" << timed.measurement.bounded_by_half_way
               << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
               << std::endl;
+}
+
+/// @brief Prints the extended-label ratio, or says why there is not one.
+inline void report_ratio(const Timed& forward, const Timed& bidirectional) {
+    if (bidirectional.measurement.extended_labels == 0) {
+        std::cout << "    ratio: n/a (bidirectional extended no labels)" << std::endl;
+        return;
+    }
+    std::cout << "    ratio (forward / bidirectional extended labels): "
+              << static_cast<double>(forward.measurement.extended_labels) /
+                     static_cast<double>(bidirectional.measurement.extended_labels)
+              << std::endl;
+}
+
+/// @brief Synthetic duals for the instances that have no dual files.
+///
+/// Zero duals are useless here: reduced cost is then the distance, every arc is positive, and the
+/// cheapest column is the empty route. Measured that way all four long-horizon instances finish in
+/// a few hundred extensions and the comparison is between two searches that had nothing to do.
+///
+/// So the duals are synthesised from geometry: a customer's dual is @p alpha times the round trip
+/// from the depot to it. An arc into `j` then has reduced cost `d(i, j) - alpha * 2 * d(0, j)`,
+/// which is strongly negative for distant customers -- the pricing problem wants long routes, which
+/// is precisely the regime a bidirectional split is supposed to help with.
+///
+/// **These are not LP duals.** They are not dual-feasible and do not come from a restricted master
+/// problem, so the resulting costs mean nothing on their own. What they buy is a search of a
+/// realistic *shape* on instances the repository has no recorded duals for, and the only claim made
+/// from them is a comparison between two algorithms on the identical input.
+///
+/// @param instance The instance whose customers to price.
+/// @param alpha    Scales how attractive visiting a customer is; 1.0 makes a direct out-and-back
+///                 trip exactly break even.
+inline std::map<size_t, double> synthetic_duals(const Instance& instance, double alpha) {
+    const auto& depot = instance.get_depot_customer();
+    std::map<size_t, double> duals;
+    for (const auto& [customer_id, customer] : instance.get_customers_by_id()) {
+        if (customer_id == depot.id) {
+            duals[customer_id] = 0.0;
+            continue;
+        }
+        const double dx = customer.pos_x - depot.pos_x;
+        const double dy = customer.pos_y - depot.pos_y;
+        duals[customer_id] = alpha * 2.0 * std::sqrt((dx * dx) + (dy * dy));
+    }
+    return duals;
+}
+
+/// @brief Reads one Solomon instance by name.
+inline Instance load(const std::string& name) {
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    InstanceReader reader(root_dir + "/instances/" + name + ".txt");
+    return reader.read();
+}
+
+/// @brief Params for a bidirectional run whose clock is the time slot.
+inline AlgorithmBaseParams bidirectional_params(double horizon, double timeout_s) {
+    AlgorithmBaseParams params;
+    params.critical_resource_index = 1;  // time
+    params.half_way_point = horizon / 2.0;
+    params.timeout_s = timeout_s;
+    return params;
+}
+
+/// @brief Params for a forward reference run.
+inline AlgorithmBaseParams forward_params(double timeout_s) {
+    AlgorithmBaseParams params;
+    params.timeout_s = timeout_s;
+    return params;
 }
 
 }  // namespace bidirectional_benchmark
@@ -136,4 +214,98 @@ TEST(BidirectionalBenchmark, ForwardVersusBidirectionalOnVrptw) {
     EXPECT_FALSE(unbounded.measurement.bounded_by_half_way);
     EXPECT_NEAR(unbounded.measurement.cost, bb::kOptimal, bb::kTolerance)
         << "with the bound off the search is exhaustive, so a miss here is not the bound's fault";
+}
+
+/// @brief The same instance across column-generation iterations, as the duals grow.
+///
+/// One R101 solve at iteration 0 is the easiest pricing problem this repository contains: the
+/// duals are near zero, so reduced costs are barely negative and few labels survive. Later
+/// iterations are the realistic case, and the ratio is expected to move with them.
+///
+/// The subproblems are reused across iterations rather than rebuilt, because that is what a
+/// column-generation loop does -- `update_resource_graph` rewrites the arc costs in place -- and
+/// because rebuilding would measure graph construction rather than search.
+TEST(BidirectionalBenchmark, PricingIterationSweep) {
+    namespace bb = bidirectional_benchmark;
+
+    const std::string root_dir = file_parent_dir(__FILE__, 3);
+    const auto instance = bb::load("R101");
+    const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
+
+    VRPSubproblem forward_subproblem(instance);
+    VRPSubproblem bidirectional_subproblem(instance);
+
+    std::cout << "[ BENCHMARK ] R101 across CG iterations, H = " << horizon / 2.0 << std::endl;
+    for (const size_t iteration : {0U, 25U, 50U, 75U, 100U, 129U}) {
+        SCOPED_TRACE("iteration " + std::to_string(iteration));
+        const auto duals = InstanceReader::read_duals(root_dir + "/instances/duals/R101/iter_" +
+                                                      std::to_string(iteration) + ".txt");
+
+        const auto forward =
+            bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                  duals,
+                                                  bb::forward_params(bb::kTimeoutSeconds));
+        const auto bidirectional = bb::measure<BidirectionalAlgoBound<RealResource>::Algo>(
+            &bidirectional_subproblem,
+            duals,
+            bb::bidirectional_params(horizon, bb::kTimeoutSeconds));
+
+        std::cout << "  iter " << iteration << std::endl;
+        bb::report("    forward      ", forward);
+        bb::report("    bidirectional", bidirectional);
+        bb::report_ratio(forward, bidirectional);
+
+        EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance)
+            << "the two searches disagree, which makes the comparison meaningless";
+        EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way);
+    }
+}
+
+/// @brief The long-horizon families, where the halving has something to halve.
+///
+/// R101's horizon is 230, the shortest in the instance set: routes hold few customers and each
+/// node accumulates few labels, so there is little for a bidirectional split to save. The C- and
+/// 2-series run to 1236 and beyond. Truncated variants are used because these solves are not
+/// elementary here -- the model has no node-visit resource -- so the full 100-customer versions
+/// do not finish in a test's worth of time.
+///
+/// Run on synthetic geometric duals -- see `synthetic_duals` for what that does and does not mean
+/// -- because these instances ship no dual files and zero duals leave nothing to search.
+TEST(BidirectionalBenchmark, LongHorizonInstances) {
+    namespace bb = bidirectional_benchmark;
+
+    const std::vector<std::string> names{"R101_25", "RC201_12", "R201_25", "C101_25"};
+
+    std::cout << "[ BENCHMARK ] long-horizon Solomon instances, synthetic duals (alpha = "
+              << bb::kDualAlpha << ")" << std::endl;
+    for (const auto& name : names) {
+        SCOPED_TRACE(name);
+        const auto instance = bb::load(name);
+        const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
+        const auto duals = bb::synthetic_duals(instance, bb::kDualAlpha);
+
+        VRPSubproblem forward_subproblem(instance);
+        VRPSubproblem bidirectional_subproblem(instance);
+
+        const auto forward =
+            bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                  duals,
+                                                  bb::forward_params(bb::kTimeoutSeconds));
+        const auto bidirectional = bb::measure<BidirectionalAlgoBound<RealResource>::Algo>(
+            &bidirectional_subproblem,
+            duals,
+            bb::bidirectional_params(horizon, bb::kTimeoutSeconds));
+
+        std::cout << "  " << name << " (horizon " << horizon << ")" << std::endl;
+        bb::report("    forward      ", forward);
+        bb::report("    bidirectional", bidirectional);
+        bb::report_ratio(forward, bidirectional);
+
+        // Compare answers only when both searches finished. A truncated run extends fewer labels
+        // and would otherwise read as a win -- the exact trap this phase exists to avoid.
+        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
+            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+            EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
+        }
+    }
 }
