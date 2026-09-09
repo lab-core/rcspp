@@ -68,6 +68,18 @@ class BidirectionalDominanceAlgorithm
         /// `could_be_non_optimal()`.
         [[nodiscard]] bool bounded_by_half_way() const { return half_way_.enabled(); }
 
+        /// @brief How many complete paths the join pass produced during the last solve.
+        ///
+        /// A diagnostic, and the one number that tells the two payoff failures apart. Zero on an
+        /// instance that still returns the optimum means the answer came from a search reaching a
+        /// terminal, not from the join -- which is exactly what happens to a route whose clock
+        /// never reaches `H` and has therefore no crossing arc. A number that dwarfs the label
+        /// count means the opposite: the crossing test is not filtering, and every surviving pair
+        /// is being joined.
+        ///
+        /// @return The number of joins accepted, reset at the start of each solve.
+        [[nodiscard]] size_t number_of_joined_paths() const { return joined_paths_; }
+
         /// @brief Read-only access to the backward label sets, for diagnostics and tests.
         [[nodiscard]] const std::vector<BackwardContainer>& get_backward_labels_by_node_pos()
             const {
@@ -95,6 +107,8 @@ class BidirectionalDominanceAlgorithm
             // join costs a solve. Throwing is right, unlike the half-way bound below: a model that
             // cannot express backward semantics cannot produce a correct answer at all, whereas a
             // missing bound is only slow.
+            joined_paths_ = 0;
+
             validate_backward_semantics(*graph);
 
             configure_half_way(*graph);
@@ -307,6 +321,7 @@ class BidirectionalDominanceAlgorithm
                          this->params_.critical_resource_index,
                          this->best_cost_upper_bound_,
                          [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
+                             ++joined_paths_;
                              this->extract_solution(cost, std::move(arc_ids), end_node_id);
                          });
         }
@@ -538,18 +553,46 @@ class BidirectionalDominanceAlgorithm
                 problems->push_back(
                     label + ": declares MergeRule::Disjoint but its resource has no intersects()");
             }
-            // An Accumulate extension paired with a feasibility function that supplies a back seed
-            // is incoherent: the seed says "start at the bound and count down" while the extension
-            // says "start at zero and add up". Both halves declare a legal value, so the checks
-            // above miss it -- yet a backward label seeds at the maximum, adds, exceeds it
-            // immediately, and the search silently finds nothing while reporting COMPLETE. The
-            // coherent pairing for a capacity is BudgetExtensionFunction, which subtracts.
-            if (kind == BackwardKind::Accumulate && component.has_back_seed()) {
+            if (kind == BackwardKind::Accumulate && seeds_itself_out_of_range(component)) {
                 problems->push_back(
                     label +
-                    ": its extension accumulates but its feasibility function supplies a backward "
-                    "seed; use a Threshold extension (e.g. BudgetExtensionFunction) instead");
+                    ": its extension accumulates but its feasibility function seeds a backward "
+                    "label at the far end of its range, so the first backward extension leaves "
+                    "that range; use a Threshold extension (e.g. BudgetExtensionFunction) instead");
             }
+        }
+
+        /// @brief Whether an accumulating component starts its backward labels somewhere hopeless.
+        ///
+        /// The incoherent pairing this catches is a *capacity written as an addition*:
+        /// `MinMaxFeasibilityFunction` seeds a backward label at the bound -- "start at the
+        /// capacity" -- while the extension adds to it, so the label leaves the range on its first
+        /// arc and the backward search silently finds nothing while the solver reports COMPLETE.
+        /// Both halves declare legal values individually, so only a check that sees both catches
+        /// it. Verified against this repository's own VRP subproblem, which used exactly that
+        /// pairing.
+        ///
+        /// **Merely having a back seed is not the defect**, which an earlier form of this check got
+        /// wrong: `MinMaxFeasibilityFunction` built with `merge_by_increasing_value = false` seeds
+        /// at the *minimum*, which is precisely where an accumulating backward label should start,
+        /// and the reverse-graph oracle's load resource is built that way on purpose.
+        ///
+        /// So the question is not "is there a seed" but "does the seed start out worse than where
+        /// a forward label starts". Under an accumulation there is nowhere to go but further from
+        /// the origin, so a seed the default state strictly dominates has no route back into
+        /// feasibility. Asked through the component's own dominance function, which is the only
+        /// thing that knows which direction "worse" runs in for this resource.
+        ///
+        /// @param component The node's resource component.
+        /// @return `true` when the backward seed is strictly dominated by the unseeded state.
+        template <typename ComponentResource>
+        [[nodiscard]] static bool seeds_itself_out_of_range(const ComponentResource& component) {
+            if (!component.has_back_seed()) {
+                return false;
+            }
+            ComponentResource seeded(component);
+            seeded.apply_back_seed();
+            return component.back_dominates(seeded) && !seeded.back_dominates(component);
         }
 
         /// @brief Trims a frontier under memory pressure, keeping the cheapest labels.
@@ -584,6 +627,8 @@ class BidirectionalDominanceAlgorithm
         std::vector<double> h_from_source_;
 
         HalfWayPolicy half_way_{0.0, std::numeric_limits<double>::infinity()};
+
+        size_t joined_paths_ = 0;
         Joiner<ResourceType, CriticalRC> joiner_;
 };
 
