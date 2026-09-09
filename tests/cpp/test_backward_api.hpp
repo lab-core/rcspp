@@ -91,8 +91,14 @@ TEST(BackwardApi, EnumsDefaultToUnspecified) {
     };
     EXPECT_EQ(UndeclaredExtensionFunction{}.backward_kind(), BackwardKind::Unspecified);
 
-    TrivialFeasibilityFunction<RealResource> feasibility;
-    EXPECT_EQ(feasibility.merge_rule(), MergeRule::Unspecified);
+    class UndeclaredFeasibilityFunction
+        : public Clonable<UndeclaredFeasibilityFunction, FeasibilityFunction<RealResource>> {
+        public:
+            [[nodiscard]] auto is_feasible(const RealResource& /*resource*/) -> bool override {
+                return true;
+            }
+    };
+    EXPECT_EQ(UndeclaredFeasibilityFunction{}.merge_rule(), MergeRule::Unspecified);
 
     CompositionFeasibilityFunction<RealResource> composition_feasibility;
     EXPECT_EQ(composition_feasibility.merge_rule(), MergeRule::Unspecified);

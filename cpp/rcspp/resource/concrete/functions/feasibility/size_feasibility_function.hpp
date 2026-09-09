@@ -81,6 +81,31 @@ class SizeFeasibilityFunction
             return size >= min_size_ && size <= max_size_;
         }
 
+        /// @brief Whether the merged path's element count can stay within the cap.
+        ///
+        /// Only the UPPER bound: the lower one cannot be checked mid-join, because the merged
+        /// path only grows from here. The sum OVERCOUNTS when the two halves share elements,
+        /// which errs toward rejecting feasible merges (safe), and is exact whenever the
+        /// container's own @c Disjoint rule is also configured on the model. This is the one
+        /// merge test that is only as sharp as another component's.
+        ///
+        /// @param resource      The forward label's resource at the merge node.
+        /// @param back_resource The backward label's resource at the merge node.
+        /// @return `true` if the combined element count fits under the upper bound.
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
+            return resource.size() + back_resource.size() <= max_size_;
+        }
+
+        /// @brief A container's *cardinality* cannot be stored as a threshold on the backward
+        ///        label, so this is the only rule that needs its own body.
+        ///
+        /// The backward label holds the complemented set, and there is no way to complement a
+        /// count -- hence a sum against a per-node bound.
+        ///
+        /// @return @c MergeRule::Custom.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Custom; }
+
     private:
         std::shared_ptr<const std::map<size_t, std::pair<size_t, size_t>>> min_max_size_by_node_id_;
 
