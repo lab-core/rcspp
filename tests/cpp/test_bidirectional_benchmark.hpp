@@ -41,11 +41,28 @@ namespace bidirectional_benchmark {
 constexpr double kTolerance = 1e-9;
 constexpr double kOptimal = -319.87786809696524415;
 
-/// @brief A guard, not a measurement: these solves are not elementary and can run away.
-constexpr double kTimeoutSeconds = 180.0;
+/// @brief A guard, not a measurement.
+///
+/// Deliberately far above what any instance in the exact-comparison table needs -- R201_50, the
+/// slowest, finishes its forward reference in 78 s -- so that this only fires when something has
+/// genuinely run away, and never truncates a row that would otherwise have completed. A
+/// coverage-instrumented build is several times slower than a plain one, and a limit tight enough
+/// to bind there would silently turn an exact comparison into a truncated one.
+constexpr double kTimeoutSeconds = 1800.0;
 
 /// @brief How attractive a customer is under the synthetic duals; see `synthetic_duals`.
 constexpr double kDualAlpha = 1.0;
+
+/// @brief A hard cap on process RSS, so a runaway solve stops rather than taking the machine down.
+constexpr double kMemoryCapGiB = 8.0;
+
+/// @brief The budget each algorithm gets on the full-size instances.
+///
+/// Those solves do not finish -- see `LargeInstancesUnderATimeBudget` -- so the measurement is what
+/// each search reaches within an equal budget rather than what it costs to finish. Fixing the
+/// budget also fixes what this test costs, on any build: instrumentation changes how far each
+/// search gets, not how long the test takes.
+constexpr double kBudgetSeconds = 15.0;
 
 /// @brief One run's outcome and what it cost to get there.
 struct Timed {
@@ -136,6 +153,7 @@ inline AlgorithmBaseParams bidirectional_params(double horizon, double timeout_s
     params.critical_resource_index = 1;  // time
     params.half_way_point = horizon / 2.0;
     params.timeout_s = timeout_s;
+    params.max_memory_gb = kMemoryCapGiB;
     return params;
 }
 
@@ -143,6 +161,7 @@ inline AlgorithmBaseParams bidirectional_params(double horizon, double timeout_s
 inline AlgorithmBaseParams forward_params(double timeout_s) {
     AlgorithmBaseParams params;
     params.timeout_s = timeout_s;
+    params.max_memory_gb = kMemoryCapGiB;
     return params;
 }
 
@@ -261,7 +280,18 @@ TEST(BidirectionalBenchmark, PricingIterationSweep) {
     }
 }
 
-/// @brief The long-horizon families, where the halving has something to halve.
+/// @brief Every Solomon family, run to completion, forward against bidirectional.
+///
+/// **Disabled by default.** Run it with:
+///
+/// @code tests-rcspp --gtest_also_run_disabled_tests --gtest_filter="*ExactComparison*" @endcode
+///
+/// It takes minutes rather than seconds -- the forward reference on R201_50 alone is over a minute
+/// -- and it is a measurement rather than a regression check. What it would catch, a disagreement
+/// between the two algorithms, `test_equivalence.hpp` already catches in under a second across a
+/// 13-instance sweep. The numbers it produces are recorded in
+/// `analysis/bidirectional-results.md`; re-run it when something changes that could plausibly move
+/// them.
 ///
 /// R101's horizon is 230, the shortest in the instance set: routes hold few customers and each
 /// node accumulates few labels, so there is little for a bidirectional split to save. The C- and
@@ -271,12 +301,37 @@ TEST(BidirectionalBenchmark, PricingIterationSweep) {
 ///
 /// Run on synthetic geometric duals -- see `synthetic_duals` for what that does and does not mean
 /// -- because these instances ship no dual files and zero duals leave nothing to search.
-TEST(BidirectionalBenchmark, LongHorizonInstances) {
+TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAcrossFamilies) {
     namespace bb = bidirectional_benchmark;
 
-    const std::vector<std::string> names{"R101_25", "RC201_12", "R201_25", "C101_25"};
+    // All six Solomon families, plus the smaller variants of three of them so the scaling is
+    // visible within a family and not only across families.
+    //
+    // Two of these file names lie about their contents, which predates this benchmark and is left
+    // alone rather than renamed: C102_50 holds 100 customers and RC201_12 holds 20. The tables in
+    // analysis/bidirectional-results.md report the counts read from the files, not from the names.
+    const std::vector<std::string> names{
+        // R1: short horizon, narrow windows.
+        "R101_25",
+        "R101_50",
+        "R102_50",
+        "R105_50",
+        // C1: clustered, long horizon, narrow windows.
+        "C101_25",
+        "C101_50",
+        "C102_50",
+        // C2: clustered, the longest horizons in the set.
+        "C201_50",
+        // RC1 and RC2: mixed geography.
+        "RC101_50",
+        "RC201_12",
+        "RC201_50",
+        // R2: long horizon, wide windows -- the family that gains most.
+        "R201_25",
+        "R201_50",
+        "R202_50"};
 
-    std::cout << "[ BENCHMARK ] long-horizon Solomon instances, synthetic duals (alpha = "
+    std::cout << "[ BENCHMARK ] Solomon families at 50 customers, synthetic duals (alpha = "
               << bb::kDualAlpha << ")" << std::endl;
     for (const auto& name : names) {
         SCOPED_TRACE(name);
@@ -303,6 +358,70 @@ TEST(BidirectionalBenchmark, LongHorizonInstances) {
 
         // Compare answers only when both searches finished. A truncated run extends fewer labels
         // and would otherwise read as a win -- the exact trap this phase exists to avoid.
+        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
+            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+            EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
+        }
+    }
+}
+
+/// @brief The full-size instances: what does each search reach in equal time?
+///
+/// **Disabled by default**, for the same reason as the test above; run it with
+/// `--gtest_also_run_disabled_tests`.
+///
+/// R201 at 100 customers extends over three million labels without terminating -- this model is not
+/// elementary, so with a 1000-unit horizon and attractive duals the label sets grow without a
+/// visit constraint to stop them. Truncating the instance (`LongHorizonInstances`) keeps the
+/// comparison exact but caps how much label pressure it can show; giving both searches the same
+/// wall-clock budget keeps the full instance and changes the question instead.
+///
+/// **Nothing here is an optimum.** Every run is cut short, so the costs are incumbents, and which
+/// incumbent is better after a fixed time is a property of this machine and this build. The
+/// numbers are printed and discussed in `analysis/bidirectional-results.md`; the assertions are
+/// limited to what is actually invariant -- both searches were genuinely truncated, and both had
+/// found something by the time they were.
+///
+/// This is also the shape a pricing loop actually runs in: column generation gives its subproblem
+/// a budget and takes the best column found, rather than waiting for a proof of optimality.
+TEST(BidirectionalBenchmark, DISABLED_LargeInstancesUnderATimeBudget) {
+    namespace bb = bidirectional_benchmark;
+
+    // The 100-customer originals, one per family. C201 has the longest horizon in the whole set.
+    const std::vector<std::string> names{"R101", "C101", "C201", "RC101", "RC201", "R201"};
+
+    std::cout << "[ BENCHMARK ] full-size Solomon instances, synthetic duals (alpha = "
+              << bb::kDualAlpha << "), " << bb::kBudgetSeconds << "s budget each" << std::endl;
+    for (const auto& name : names) {
+        SCOPED_TRACE(name);
+        const auto instance = bb::load(name);
+        const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
+        const auto duals = bb::synthetic_duals(instance, bb::kDualAlpha);
+
+        VRPSubproblem forward_subproblem(instance);
+        VRPSubproblem bidirectional_subproblem(instance);
+
+        const auto forward =
+            bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                  duals,
+                                                  bb::forward_params(bb::kBudgetSeconds));
+        const auto bidirectional = bb::measure<BidirectionalAlgoBound<RealResource>::Algo>(
+            &bidirectional_subproblem,
+            duals,
+            bb::bidirectional_params(horizon, bb::kBudgetSeconds));
+
+        std::cout << "  " << name << " (horizon " << horizon << ", "
+                  << instance.get_customers_by_id().size() << " nodes)" << std::endl;
+        bb::report("    forward      ", forward);
+        bb::report("    bidirectional", bidirectional);
+        bb::report_ratio(forward, bidirectional);
+
+        EXPECT_GT(forward.measurement.solutions, 0U) << "no incumbent to compare";
+        EXPECT_GT(bidirectional.measurement.solutions, 0U) << "no incumbent to compare";
+        EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way);
+
+        // If either search finished, the budget was not the binding constraint and the two must
+        // agree exactly -- the same assertion the truncated instances get.
         if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
             bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
             EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
