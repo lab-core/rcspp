@@ -221,6 +221,51 @@ class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
         return fn(self.tw_by_node, self.default_max_value)
 
 
+class BudgetExtensionFunction(_GenericFunctionDescriptor):
+    """Extension function for a bounded resource: additive forward, threshold backward.
+
+    Forward this is the same accumulation as :class:`AdditionExtensionFunction`. Backward it
+    inverts, so a backward label carries the largest forward value still admissible at the node
+    rather than the consumption from there to the sink -- which is what a bidirectional solve needs
+    from a capacity or a duration, and what :class:`AdditionExtensionFunction` cannot express.
+
+    Available for the signed numerical resource types (``"real"`` and ``"int"``) only: extending
+    backwards subtracts, and on an unsigned type that wraps to a huge positive value which reads as
+    a very loose bound.
+    """
+
+    def __init__(self, max_by_node: dict | None = None, default_max=None):
+        """Initialize the budget extension function.
+
+        Args:
+            max_by_node: Mapping from node identifier to that node's upper bound. May be omitted:
+                with a uniform capacity the per-node clamp never binds, because a backward value
+                at or below the bound stays at or below it after subtracting a non-negative
+                consumption.
+            default_max: Bound used at nodes absent from *max_by_node*. When ``None`` the C++
+                default is applied.
+        """
+        self.max_by_node = max_by_node or {}
+        self.default_max = default_max
+
+    def create(self, resource_type: str):
+        """Instantiate a BudgetExtensionFunction for *resource_type*.
+
+        Args:
+            resource_type: Signed numerical resource type string (``"real"`` or ``"int"``).
+
+        Returns:
+            A typed C++ BudgetExtensionFunction instance.
+
+        Raises:
+            TypeError: If *resource_type* is not one of the signed numerical types.
+        """
+        fn = _get_fn("BudgetExtensionFunction", resource_type)
+        if self.default_max is None:
+            return fn(self.max_by_node)
+        return fn(self.max_by_node, self.default_max)
+
+
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
     """Feasibility function that checks whether a resource value lies within a time
     window.
@@ -400,6 +445,7 @@ _overridden = {
     "MinMaxFeasibilityFunction",
     "TimeWindowExtensionFunction",
     "TimeWindowFeasibilityFunction",
+    "BudgetExtensionFunction",
     "UnionExtensionFunction",
     "IntersectionExtensionFunction",
     "SubtractExtensionFunction",

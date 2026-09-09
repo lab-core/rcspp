@@ -81,7 +81,8 @@ void init_graph(py::module_& m) {
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu)
-        .value("AStar", SolverAlgorithm::AStar);
+        .value("AStar", SolverAlgorithm::AStar)
+        .value("Bidirectional", SolverAlgorithm::Bidirectional);
 
     // ── AlgorithmStatus enum ──────────────────────────────────────────────────
 
@@ -188,7 +189,26 @@ void init_graph(py::module_& m) {
                        "RSS/limit fraction that triggers queue pruning (default 0.8).")
         .def_readwrite("memory_pressure_max_labels_per_node",
                        &PyAlgorithmParams::memory_pressure_max_labels_per_node,
-                       "Max labels per node when under memory pressure (default 200).");
+                       "Max labels per node when under memory pressure (default 200).")
+        // -- Bidirectional parameters ------------------------------------
+        .def_readwrite("critical_resource_index",
+                       &PyAlgorithmParams::critical_resource_index,
+                       "Index, within the cost resource type's slot, of the resource used as the "
+                       "bidirectional clock. It must be monotone (never decreasing along an arc) "
+                       "and extend backwards as a threshold -- a time window or a budget, not a "
+                       "plain additive resource and never the cost. When it is neither, the "
+                       "half-way bound switches itself off: the solve stays correct, just slower. "
+                       "Ignored by every other algorithm (default 0).")
+        .def_readwrite("half_way_point",
+                       &PyAlgorithmParams::half_way_point,
+                       "Value H at which each direction's search stops on the critical resource. "
+                       "0 (the default) means derive it, and there is nothing to derive it from "
+                       "unless the resource's finite maximum is known, so a bidirectional solve "
+                       "normally sets this explicitly. The resource's range is taken as [0, 2H].")
+        .def_readwrite("dynamic_half_way",
+                       &PyAlgorithmParams::dynamic_half_way,
+                       "Reserved for a half-way point that moves as the search runs. The policy "
+                       "is static in this version and this flag is not yet read.");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

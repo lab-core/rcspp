@@ -15,6 +15,12 @@
     X(int,           int,           IntResource)  \
     X(uint,          unsigned int,  UIntResource)
 
+// The signed subset. BudgetExtensionFunction subtracts when it extends backwards, so it carries a
+// static_assert(std::is_signed_v<ValueType>) and cannot be instantiated for uint at all -- an
+// unsigned budget would wrap to a huge positive value and read as a very loose bound. `if constexpr`
+// is no help here: the bindings are a plain function, where a discarded branch is still compiled.
+#define RCSPP_SIGNED_NUMERICAL_RESOURCES(X)          X(real,          double,        RealResource)     X(int,           int,           IntResource)
+
 #define RCSPP_SET_RESOURCES(X)                    \
     X(real_set,   double,        RealSetResource)  \
     X(int_set,    int,           IntSetResource)   \

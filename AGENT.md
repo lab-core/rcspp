@@ -118,7 +118,8 @@ rg.add_arc((5.0,  2), 1, 2, cost=5.0)
 
 # 4. Solve
 result = rg.solve()                          # returns SolveResult
-result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar", …
+result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
+                                             # "bidirectional", …
                   upper_bound=-1e-9,         # prune cost ≥ this
                   params=AlgorithmParams(),
                   preprocess=True,
@@ -174,7 +175,28 @@ p.tabu_tenure             = 5
 p.seed                    = 42
 p.limit_to_available_ram  = True
 p.memory_limit_fraction   = 0.8
+
+# Bidirectional only
+p.critical_resource_index = 1      # the clock's slot within the cost resource type
+p.half_way_point          = 500.0  # H; the clock's range is taken as [0, 2H]
 ```
+
+### `algorithm="bidirectional"`
+
+Searches forward from the sources and backward from the sinks, stops each
+direction at a half-way point `H` on one designated resource, and joins the halves
+on the arc where that resource crosses `H`. Two requirements:
+
+- **The critical resource must be a clock**: monotone, bounded, and a *threshold*
+  backwards (`TimeWindowExtensionFunction` or `BudgetExtensionFunction`, never
+  `AdditionExtensionFunction` and never the cost). If it is not, the half-way bound
+  switches itself off — the answer stays correct, the solve is just slower.
+- **Every resource must declare its backward semantics**, or the solve raises before
+  the first label and names the offending component. The usual cause is a capacity
+  written as `AdditionExtensionFunction` + `MinMaxFeasibilityFunction(0, cap)`;
+  use `BudgetExtensionFunction` instead (signed numerical types only).
+
+See `docs/advanced/algorithms.md` for the full description.
 
 ---
 

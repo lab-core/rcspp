@@ -83,6 +83,16 @@ void init_resource(py::module_& m) {
     RCSPP_NUMERICAL_RESOURCES(BIND_NUMERICAL_FUNCTIONS)
 #undef BIND_NUMERICAL_FUNCTIONS
 
+    // -- Concrete functions for SIGNED numerical resources only ---------------
+    // BudgetExtensionFunction counts down when it extends backwards, so its value type must be
+    // able to go negative. See RCSPP_SIGNED_NUMERICAL_RESOURCES.
+
+    // clang-format off
+#define BIND_SIGNED_NUMERICAL_FUNCTIONS(name, scalar, RT)                                           py::class_<BudgetExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(                   m, "BudgetExtensionFunction_" #name)                                                            .def(py::init([](const py::dict& d, scalar default_max) {                                                std::map<size_t, scalar> map;                                                                   for (const auto& [k, v] : d) {                                                                      map.emplace(k.cast<size_t>(), v.cast<scalar>());                                            }                                                                                               return BudgetExtensionFunction<RT>(std::move(map), default_max);                            }),                                                                                             py::arg("max_by_node") = py::dict(),                                                            py::arg("default_max") = std::numeric_limits<scalar>::max() / 2);
+    // clang-format on
+    RCSPP_SIGNED_NUMERICAL_RESOURCES(BIND_SIGNED_NUMERICAL_FUNCTIONS)
+#undef BIND_SIGNED_NUMERICAL_FUNCTIONS
+
     // ── Concrete functions for container resources ────────────────────────────
 
 #define BIND_CONTAINER_FUNCTIONS(name, scalar, RT)                                          \

@@ -97,7 +97,9 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
+// New values go at the END: the enum is exposed to Python, where an integer value may have been
+// persisted or pickled, and inserting alphabetically would silently renumber the rest.
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, Bidirectional };
 
 template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
@@ -123,12 +125,38 @@ struct AStarAlgoEntry {
         }
 };
 
+// Dispatch entry for bidirectional labeling: binds CostRC as the critical resource TYPE.
+//
+// Unlike AStarAlgoEntry it injects nothing. The A* entry has to overwrite heuristic_cost_index
+// because its heuristic must read the same cost slot the labeling algorithm does, but the
+// bidirectional algorithm's completion bounds come from Bellman-Ford over arc.cost and read no
+// index at all, and critical_resource_index is a modelling choice that arrives through params --
+// overwriting it with the cost slot would silently point the clock at the cost.
+//
+// Binding CostRC as the critical type means the clock must live in the cost resource's type slot.
+// That covers the usual case, a real-valued time or duration alongside a real-valued cost; a model
+// whose clock is an IntResource while its cost is real is not expressible through this entry and
+// needs the C++ API.
+template <SolverAlgorithm E>
+struct BidirectionalAlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC, typename LC>
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            return rg.template solve<BidirectionalAlgoBound<CostRC>::template Algo, CostRC, LC>(
+                ub,
+                std::move(p),
+                pre,
+                ci);
+        }
+};
+
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AStarAlgoEntry<SolverAlgorithm::AStar>>;
+                                  AStarAlgoEntry<SolverAlgorithm::AStar>,
+                                  BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
