@@ -472,7 +472,11 @@ class Algorithm {
 
         virtual void main_loop() = 0;
 
-        void extract_remaining_solutions() {
+        /// @brief Records the solutions still sitting at terminal nodes when the loop ends.
+        ///
+        /// Virtual because a bidirectional search has more than one source of complete paths:
+        /// forward labels at sinks, backward labels at sources, and joined pairs.
+        virtual void extract_remaining_solutions() {
             auto labels_at_sinks = this->get_labels_at_sinks();
             for (const auto* sink_label : labels_at_sinks) {
                 this->extract_solution(*sink_label);
