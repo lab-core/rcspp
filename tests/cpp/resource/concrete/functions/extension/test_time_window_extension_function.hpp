@@ -157,3 +157,38 @@ TEST(TimeWindowExtensionFunction, UnsignedValueTypeRefusesBackwardUse) {
     fn->extend_back(UIntResource(90U), UIntResource(30U), &back_ok);
     EXPECT_EQ(back_ok.get_value(), 60U);
 }
+
+// Only the ORIGIN is in the map, so preprocess leaves min_time_window_ at its initialised 0 and
+// the forward clamp is max(0, .). Pinned before the step-2 migration: a form whose
+// lower_bound_at returned nullopt for an absent node would silently drop this clamp, and no
+// other test in the suite would notice -- every other window map here lists both endpoints.
+TEST(TimeWindowExtensionFunction, ForwardClampsToZeroWhenDestinationHasNoWindow) {
+    std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 1000.0}}};
+    TimeWindowExtensionFunction<RealResource> proto(windows);
+    test_util::TestArc<RealResource> fixture(0, 1);
+    auto fn = proto.create(fixture.arc);
+
+    RealResource extended;
+    fn->extend(RealResource(-50.0), RealResource(tw_ext_test::kArcTime), &extended);
+    EXPECT_NEAR(extended.get_value(), 0.0, tw_ext_test::kTolerance);  // max(0, -20): it binds
+
+    fn->extend(RealResource(10.0), RealResource(tw_ext_test::kArcTime), &extended);
+    EXPECT_NEAR(extended.get_value(), 40.0, tw_ext_test::kTolerance);  // max(0, 40): it does not
+}
+
+// Only the DESTINATION is in the map, so max_time_window_ keeps the constructor's default and
+// that is what the backward clamp uses. The mirror of the test above, for the same reason.
+TEST(TimeWindowExtensionFunction, BackwardClampsToTheDefaultWhenOriginHasNoWindow) {
+    std::map<size_t, std::pair<double, double>> windows{{1, {0.0, 1000.0}}};
+    TimeWindowExtensionFunction<RealResource> proto(windows,
+                                                    /*default_max_time_window=*/500.0);
+    test_util::TestArc<RealResource> fixture(0, 1);
+    auto fn = proto.create(fixture.arc);
+
+    RealResource back;
+    fn->extend_back(RealResource(600.0), RealResource(tw_ext_test::kArcTime), &back);
+    EXPECT_NEAR(back.get_value(), 500.0, tw_ext_test::kTolerance);  // min(500, 570): the default
+
+    fn->extend_back(RealResource(400.0), RealResource(tw_ext_test::kArcTime), &back);
+    EXPECT_NEAR(back.get_value(), 370.0, tw_ext_test::kTolerance);  // min(500, 370): the subtraction
+}
