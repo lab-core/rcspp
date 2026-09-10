@@ -88,3 +88,54 @@ TEST(BackwardKindDeclared, BaseDefaultRemainsUnspecified) {
 
     EXPECT_EQ(UndeclaredExtensionFunction{}.backward_kind(), BackwardKind::Unspecified);
 }
+
+// The constant and the virtual must never diverge. A form supplies both from one place, but a
+// hand-written class can still get them out of step, and only this catches it.
+TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
+    std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
+    std::map<size_t, std::pair<unsigned int, unsigned int>> uwindows{{0, {0U, 100U}}};
+    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
+
+    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(),
+              AdditionExtensionFunction<RealResource>::kind);
+    EXPECT_EQ(TrivialExtensionFunction<RealResource>{}.backward_kind(),
+              TrivialExtensionFunction<RealResource>::kind);
+    EXPECT_EQ(TimeWindowExtensionFunction<RealResource>{windows}.backward_kind(),
+              TimeWindowExtensionFunction<RealResource>::kind);
+    EXPECT_EQ(TimeWindowExtensionFunction<UIntResource>{uwindows}.backward_kind(),
+              TimeWindowExtensionFunction<UIntResource>::kind);
+    EXPECT_EQ(BudgetExtensionFunction<RealResource>{}.backward_kind(),
+              BudgetExtensionFunction<RealResource>::kind);
+    EXPECT_EQ(UnionExtensionFunction<SetResource<int>>{}.backward_kind(),
+              UnionExtensionFunction<SetResource<int>>::kind);
+    EXPECT_EQ(IntersectionExtensionFunction<SetResource<int>>{}.backward_kind(),
+              IntersectionExtensionFunction<SetResource<int>>::kind);
+    EXPECT_EQ(SubtractExtensionFunction<SetResource<int>>{}.backward_kind(),
+              SubtractExtensionFunction<SetResource<int>>::kind);
+    EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
+              NgPathExtensionFunction<SetResource<int>>::kind);
+}
+
+// The unsigned time window is the row that earns its place: it is the only class whose kind
+// differs between instantiations, so a mistake in the ternary would be invisible to the
+// `real` row above.
+TEST(BackwardKindDeclared, UnsignedTimeWindowDeclaresNothing) {
+    static_assert(backward_kind_of_v<TimeWindowExtensionFunction<RealResource>> ==
+                  BackwardKind::Threshold);
+    static_assert(backward_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
+                  BackwardKind::Unspecified);
+}
+
+// The trait tolerates a class that publishes nothing -- which the base and the composition
+// wrapper legitimately do, forever.
+TEST(BackwardKindDeclared, TraitFallsBackToUnspecified) {
+    class NoConstant : public Clonable<NoConstant, ExtensionFunction<RealResource>> {
+        public:
+            void extend(const RealResource& /*resource*/, const RealResource& /*extender_value*/,
+                        RealResource* /*extended_resource*/) override {}
+    };
+
+    static_assert(!DeclaresBackwardKind<NoConstant>);
+    static_assert(backward_kind_of_v<NoConstant> == BackwardKind::Unspecified);
+    EXPECT_EQ(NoConstant{}.backward_kind(), BackwardKind::Unspecified);
+}

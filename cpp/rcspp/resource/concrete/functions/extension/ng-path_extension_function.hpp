@@ -80,9 +80,10 @@ class NgPathExtensionFunction : public Clonable<NgPathExtensionFunction<Resource
         }
 
         /// @brief An ng-set is a container whose node identity swaps between directions.
-        ///
+        static constexpr BackwardKind kind = BackwardKind::Mirror;
+
         /// @return @c BackwardKind::Mirror.
-        [[nodiscard]] BackwardKind backward_kind() const override { return BackwardKind::Mirror; }
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
         /// @brief Core ng-path extension with an explicit @p ng_neighborhood resource.
         ///

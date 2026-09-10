@@ -3,8 +3,10 @@
 
 #pragma once
 
+#include <concepts>
 #include <iostream>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/resource/base/resource_type.hpp"
@@ -34,6 +36,40 @@ enum class BackwardKind {
     Threshold,    ///< stores a deadline/ceiling; extend_back inverts extend and clamps
     Mirror,       ///< stores a set seen on its own half; same formula, origin/destination swapped
 };
+
+/// @brief True when a concrete extension function publishes its shape as a constant.
+///
+/// The constant and the virtual are two representations of one fact: a form supplies both, and
+/// @c test_backward_kind_declared.hpp asserts they agree. A function object that predates the
+/// forms -- or that deliberately declares nothing, like the base itself -- simply has no
+/// @c kind.
+template <typename T>
+concept DeclaresBackwardKind = requires {
+    { T::kind } -> std::convertible_to<BackwardKind>;
+};
+
+/// @brief The shape a concrete extension function publishes, or @c Unspecified if it publishes
+///        none.
+///
+/// A partial specialisation rather than a ternary: in `Cond ? T::kind : fallback` both arms are
+/// instantiated, so the primary form would be ill-formed for exactly the classes the fallback
+/// exists to serve.
+template <typename T>
+struct BackwardKindOf {
+        static constexpr BackwardKind value = BackwardKind::Unspecified;
+};
+
+template <DeclaresBackwardKind T>
+struct BackwardKindOf<T> {
+        static constexpr BackwardKind value = T::kind;
+};
+
+/// @brief The shape @p T publishes, or @c Unspecified if it publishes none.
+///
+/// Usable in a constant expression, which @c backward_kind() is not. Read by the compile-time
+/// audit and by the type-aware @c add_resource overload.
+template <typename T>
+inline constexpr BackwardKind backward_kind_of_v = BackwardKindOf<T>::value;
 
 /// @brief Abstract base class defining the extension function for a resource type.
 ///

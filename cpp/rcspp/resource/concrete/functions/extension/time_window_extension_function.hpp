@@ -118,14 +118,14 @@ class TimeWindowExtensionFunction
         /// an unsigned instantiation reports @c Unspecified and a bidirectional solve refuses to
         /// start on it. Forward-only use is unaffected.
         ///
+        /// Stating it as a constant rather than an @c if @c constexpr inside the virtual makes
+        /// the declaration readable without instantiating the class, and leaves the virtual a
+        /// single line.
+        static constexpr BackwardKind kind =
+            std::is_signed_v<ValueType> ? BackwardKind::Threshold : BackwardKind::Unspecified;
+
         /// @return @c BackwardKind::Threshold for signed value types, @c Unspecified otherwise.
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            if constexpr (std::is_signed_v<ValueType>) {
-                return BackwardKind::Threshold;
-            } else {
-                return BackwardKind::Unspecified;
-            }
-        }
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>

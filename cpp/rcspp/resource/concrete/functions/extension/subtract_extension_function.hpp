@@ -40,8 +40,9 @@ class SubtractExtensionFunction
         /// directions: each half accumulates over its own arcs with the same formula and the two
         /// halves are reconciled at the join. The inherited @c extend_back is therefore already
         /// correct.
-        ///
+        static constexpr BackwardKind kind = BackwardKind::Mirror;
+
         /// @return @c BackwardKind::Mirror.
-        [[nodiscard]] BackwardKind backward_kind() const override { return BackwardKind::Mirror; }
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp
