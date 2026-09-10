@@ -549,10 +549,14 @@ class BidirectionalDominanceAlgorithm
             if (rule == MergeRule::Unspecified) {
                 problems->push_back(label + ": its feasibility function declares no merge_rule()");
             }
-            if (rule == MergeRule::Disjoint && !HasIntersects<ComponentValue>) {
-                problems->push_back(
-                    label + ": declares MergeRule::Disjoint but its resource has no intersects()");
-            }
+            // The complaint that used to sit here -- "declares MergeRule::Disjoint but its
+            // resource has no intersects()" -- retired in step 6. It is the one runtime check in
+            // the shape-genericity work that was *replaced* rather than supplemented, and that is
+            // legitimate here and only here: a scalar resource can no longer declare disjointness
+            // at all, because the body lives on DisjointMergeForm and that does not compile
+            // without intersects(). The mistake became unrepresentable rather than merely
+            // detected, so nothing is lost for Python callers either -- they cannot construct the
+            // bad pairing.
             if (kind == BackwardKind::Accumulate && seeds_itself_out_of_range(component)) {
                 problems->push_back(
                     label +

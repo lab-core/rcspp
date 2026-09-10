@@ -212,7 +212,6 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         ///
         /// @param back_resource The backward resource to attempt merging with.
         /// @return `true` when the two labels are compatible for merging.
-        /// @throws std::logic_error If `Disjoint` is declared on a resource with no `intersects()`.
         /// @throws std::runtime_error If the feasibility function declares no rule.
         [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
             switch (this->merge_rule_) {
@@ -225,16 +224,6 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                     // resource the dominance function is already flipped, so this flips with it.
                     return this->dominance_function_->check_dominance(this->value_,
                                                                       back_resource.value_);
-                case MergeRule::Disjoint:
-                    // The backward label stores the threshold *complemented* -- the nodes seen
-                    // rather than the nodes still allowed -- so "f is within the threshold" is
-                    // f subset of complement(V_b), which is exactly f intersect V_b == empty.
-                    if constexpr (HasIntersects<ResourceType>) {
-                        return !this->value_.intersects(back_resource.value_.get_value());
-                    } else {
-                        throw std::logic_error(
-                            "MergeRule::Disjoint declared on a resource without intersects()");
-                    }
                 case MergeRule::Custom:
                     return this->feasibility_function_->can_be_merged(this->value_,
                                                                       back_resource.value_);

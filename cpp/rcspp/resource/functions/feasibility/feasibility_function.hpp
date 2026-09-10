@@ -22,8 +22,9 @@ enum class MergeRule {
     Unspecified,     ///< not declared -- a bidirectional solve will refuse to run
     AlwaysTrue,      ///< this resource never blocks a join
     DominanceOrder,  ///< the resource's own forward comparison: check_dominance(f, b)
-    Disjoint,        ///< container resources: !f.intersects(b)
-    Custom,          ///< the function writes its own can_be_merged body
+    // `Disjoint` retired in step 6: a container resource declares `Custom` and inherits the body
+    // from DisjointMergeForm, so the rule no longer has to be interpreted by `Resource`.
+    Custom,  ///< the function writes its own can_be_merged body
 };
 
 /// @brief Where a feasibility function's backward seed sits, as far as the *type* can tell.

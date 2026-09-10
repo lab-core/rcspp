@@ -10,6 +10,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/resource/functions/feasibility/merge_form.hpp"
 
 namespace rcspp {
 
@@ -32,8 +33,10 @@ namespace rcspp {
 template <typename ContainerResourceType,
           typename ValueType = typename ContainerResourceType::ValueType>
 class IntersectionFeasibilityFunction
-    : public Clonable<IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
-                      FeasibilityFunction<ContainerResourceType>> {
+    : public Clonable<
+          IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
+          DisjointMergeForm<ContainerResourceType, FeasibilityFunction<ContainerResourceType>>,
+          FeasibilityFunction<ContainerResourceType>> {
     public:
         /// @brief Constructs the function with a per-node map of value sets.
         ///
@@ -68,17 +71,24 @@ class IntersectionFeasibilityFunction
         /// @brief The merge test depends on which way the constraint points.
         ///
         /// **Forbidden** values: the two halves must not both contain a forbidden node, or the
-        /// merged path visits it twice -> @c Disjoint.
+        /// merged path visits it twice -- so the disjointness body inherited from
+        /// @c DisjointMergeForm applies, and the rule is @c Custom.
         ///
         /// **Required** values: "did the path collect everything" is a property of the *whole*
         /// path, already enforced at the endpoints, and two halves cannot violate it by being
-        /// combined -> @c AlwaysTrue.
+        /// combined -> @c AlwaysTrue, a free short-circuit rather than a call that returns true.
         ///
         /// The asymmetry is not obvious from the class name, which is why it is spelled out here.
         ///
-        /// @return @c MergeRule::Disjoint when values are forbidden, @c AlwaysTrue otherwise.
+        /// @note The runtime branch survives and stops costing anything. It now selects between
+        ///       *call my own body* and *free short circuit*, rather than between two rules a
+        ///       third party (@c Resource) has to interpret. Keeping the @c AlwaysTrue arm
+        ///       matters: without it a required-values model would pay a virtual call per
+        ///       component per candidate pair just to return true.
+        ///
+        /// @return @c MergeRule::Custom when values are forbidden, @c AlwaysTrue otherwise.
         [[nodiscard]] MergeRule merge_rule() const override {
-            return forbidden_ ? MergeRule::Disjoint : MergeRule::AlwaysTrue;
+            return forbidden_ ? MergeRule::Custom : MergeRule::AlwaysTrue;
         }
 
     private:
