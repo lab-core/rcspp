@@ -336,7 +336,12 @@ TEST(BackwardDominance, UnspecifiedDerivesUnreversed) {
 
     auto dominance = std::make_unique<ValueDominanceFunction<UIntResource>>();
     auto* borrowed = dominance.get();
-    auto extension = std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
+    // Base-typed on purpose: an unsigned time window reports Unspecified, so the typed
+    // add_resource overload rejects it at compile time. This test is about what the *runtime*
+    // derivation does with an Unspecified component, so it takes the erased overload -- the same
+    // path the Python bindings take.
+    std::unique_ptr<ExtensionFunction<UIntResource>> extension =
+        std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
     ASSERT_EQ(extension->backward_kind(), BackwardKind::Unspecified);
 
     graph.add_resource<UIntResource>(std::move(extension),

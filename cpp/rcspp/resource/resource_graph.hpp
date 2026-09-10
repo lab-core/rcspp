@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <concepts>
 #include <limits>
 #include <memory>
 #include <mutex>  // NOLINT
@@ -58,6 +59,69 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         virtual ~ResourceGraph() = default;
 
+        /// @brief Adds a resource whose four function objects arrive with their concrete types
+        ///        intact.
+        ///
+        /// Selected automatically wherever a caller writes `std::make_unique<Concrete>()` inline,
+        /// which is every call site in this repository and in the examples. It does exactly what
+        /// the erased overload does, and additionally checks at *compile time* what that one can
+        /// only check at setup.
+        ///
+        /// The erased overload remains, and remains reachable: declare a
+        /// `std::unique_ptr<ExtensionFunction<R>>` local and move it in. The Python bindings take
+        /// that path unconditionally (they cast to the erased member-function pointer), so every
+        /// check here has a runtime counterpart in
+        /// @c BidirectionalDominanceAlgorithm::validate_backward_semantics. **Adding a check here
+        /// is never a licence to remove one there.**
+        ///
+        /// @tparam ResourceType The component's resource type.
+        /// @tparam Ext          Concrete extension function type.
+        /// @tparam Feas         Concrete feasibility function type.
+        /// @tparam Cost         Concrete cost function type.
+        /// @tparam Dom          Concrete dominance function type.
+        /// @param extension_function   How an arc modifies the resource.
+        /// @param feasibility_function Whether a value is within bounds.
+        /// @param cost_function        The resource's contribution to the objective.
+        /// @param dominance_function   Whether one value makes another redundant.
+        template <typename ResourceType, typename Ext, typename Feas, typename Cost, typename Dom>
+            requires std::derived_from<Ext, ExtensionFunction<ResourceType>> &&
+                     std::derived_from<Feas, FeasibilityFunction<ResourceType>> &&
+                     std::derived_from<Cost, CostFunction<ResourceType>> &&
+                     std::derived_from<Dom, DominanceFunction<ResourceType>> &&
+                     // Without these the two overloads are both exact matches for a base-typed
+                     // unique_ptr and the call is ambiguous. This is what keeps the erased
+                     // overload reachable at all.
+                     (!std::same_as<Ext, ExtensionFunction<ResourceType>>) &&
+                     (!std::same_as<Feas, FeasibilityFunction<ResourceType>>) &&
+                     (!std::same_as<Cost, CostFunction<ResourceType>>) &&
+                     (!std::same_as<Dom, DominanceFunction<ResourceType>>)
+        void add_resource(std::unique_ptr<Ext> extension_function,
+                          std::unique_ptr<Feas> feasibility_function,
+                          std::unique_ptr<Cost> cost_function,
+                          std::unique_ptr<Dom> dominance_function) {
+            static_assert(backward_kind_of_v<Ext> != BackwardKind::Unspecified,
+                          "this extension function declares no backward kind, so a bidirectional "
+                          "solve will refuse to run on the model. Derive it from a form in "
+                          "resource/functions/extension/backward_form.hpp, or declare "
+                          "`static constexpr BackwardKind kind` explicitly.");
+
+            static_assert(
+                !(backward_kind_of_v<Ext> == BackwardKind::Accumulate &&
+                  back_seed_end_v<Feas> == BackSeedEnd::Ceiling),
+                "an accumulating extension paired with a feasibility function that "
+                "always seeds its backward label at a ceiling: the label leaves its "
+                "range on the first arc and the backward search silently finds nothing. "
+                "A bounded accumulation is a *threshold* -- use BudgetExtensionFunction.");
+
+            // Delegates, so the reversal derivation and the factory registration stay in exactly
+            // one place. The body of this overload is two assertions and this call.
+            add_resource<ResourceType>(
+                std::unique_ptr<ExtensionFunction<ResourceType>>(std::move(extension_function)),
+                std::unique_ptr<FeasibilityFunction<ResourceType>>(std::move(feasibility_function)),
+                std::unique_ptr<CostFunction<ResourceType>>(std::move(cost_function)),
+                std::unique_ptr<DominanceFunction<ResourceType>>(std::move(dominance_function)));
+        }
+
         template <typename ResourceType>
         void add_resource(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
@@ -102,6 +166,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return node;
         }
 
+        /// @note This five-argument overload has **no typed counterpart**, deliberately. A
+        ///       five-argument call cannot be ambiguous with the four-argument typed overload, so
+        ///       nothing here changes; and duplicating twenty lines of constraints and assertions
+        ///       for a path with one call site in the whole tree
+        ///       (`tests/cpp/resource/test_backward_dominance.hpp`) is not worth it. The runtime
+        ///       validation covers it, as it covers the erased four-argument overload.
         template <typename ResourceType>
         void add_resource(
             std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
