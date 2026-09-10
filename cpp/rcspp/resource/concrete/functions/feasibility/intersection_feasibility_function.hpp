@@ -100,4 +100,11 @@ class IntersectionFeasibilityFunction
             }
         }
 };
+
+/// A container feasibility function has no scalar bound, so it never seeds a backward label.
+template <typename R, typename V>
+struct BackSeedEndOf<IntersectionFeasibilityFunction<R, V>> {
+        static constexpr BackSeedEnd value = BackSeedEnd::Never;
+};
+
 }  // namespace rcspp

@@ -343,8 +343,19 @@ TEST(Bidirectional, UndeclaredComponentIsNamedAtSetup) {
     };
 
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
-    graph->add_resource<RealResource>(std::make_unique<UndeclaredExtensionFunction>(),
-                                      std::make_unique<UndeclaredFeasibilityFunction>(),
+
+    // Routed through the ERASED overload on purpose. This test is about the setup refusal, which
+    // is the only path the Python bindings have; the typed overload rejects an undeclared
+    // component at *compile* time, which test_typed_add_resource.hpp documents instead. Two
+    // base-typed locals are more than the overload resolution needs -- one is enough to
+    // disqualify the typed overload -- but both declarations are the subject of this test, so
+    // both are spelled out.
+    std::unique_ptr<ExtensionFunction<RealResource>> extension =
+        std::make_unique<UndeclaredExtensionFunction>();
+    std::unique_ptr<FeasibilityFunction<RealResource>> feasibility =
+        std::make_unique<UndeclaredFeasibilityFunction>();
+    graph->add_resource<RealResource>(std::move(extension),
+                                      std::move(feasibility),
                                       std::make_unique<ValueCostFunction<RealResource>>(),
                                       std::make_unique<ValueDominanceFunction<RealResource>>());
     graph->add_node(0, /*source=*/true, /*sink=*/false);
@@ -383,7 +394,16 @@ TEST(Bidirectional, AccumulateWithBackSeedIsRefused) {
                                       std::make_unique<ValueCostFunction<RealResource>>(),
                                       std::make_unique<ValueDominanceFunction<RealResource>>());
     // Addition accumulates; MinMax with the default merge direction supplies a back seed.
-    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+    //
+    // The typed add_resource overload would NOT reject this pairing either --
+    // MinMaxFeasibilityFunction chooses its seed end from a constructor argument, so its
+    // BackSeedEnd is Unknown and the static_assert stays silent. The runtime probe
+    // seeds_itself_out_of_range is the only thing that catches it, which is why it stays and why
+    // this test is about the runtime refusal. Routed through the erased overload so the test
+    // keeps testing that refusal even if the trait's answer for MinMax ever changes.
+    std::unique_ptr<ExtensionFunction<RealResource>> accumulating =
+        std::make_unique<AdditionExtensionFunction<RealResource>>();
+    graph->add_resource<RealResource>(std::move(accumulating),
                                       std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
                                           0.0,
                                           5.0,

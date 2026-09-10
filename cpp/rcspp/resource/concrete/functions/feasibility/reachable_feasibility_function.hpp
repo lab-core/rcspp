@@ -81,4 +81,11 @@ class ReachableFeasibilityFunction
     private:
         std::shared_ptr<const ContainerResourceType> checked_nodes_;
 };
+
+/// A container feasibility function has no scalar bound, so it never seeds a backward label.
+template <typename R>
+struct BackSeedEndOf<ReachableFeasibilityFunction<R>> {
+        static constexpr BackSeedEnd value = BackSeedEnd::Never;
+};
+
 }  // namespace rcspp

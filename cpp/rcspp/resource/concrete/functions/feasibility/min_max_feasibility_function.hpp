@@ -130,4 +130,17 @@ class MinMaxFeasibilityFunction
             }
         }
 };
+
+// NO BackSeedEndOf SPECIALISATION FOR MinMaxFeasibilityFunction -- deliberately.
+//
+// back_seed_value() returns `merge_by_increasing_value_ ? max_ : min_`, chosen from a constructor
+// argument, so the *type* cannot say where the seed sits. It therefore keeps the primary
+// template's `Unknown`, and the coherence check in ResourceGraph's typed add_resource stays
+// silent for it, deferring to BidirectionalDominanceAlgorithm::seeds_itself_out_of_range.
+//
+// Do not "complete" this by declaring Ceiling: that would falsely reject
+// MinMaxFeasibilityFunction(min, max, /*merge_by_increasing_value=*/false), which seeds at the
+// minimum and is exactly right for an accumulation -- the reverse-graph oracle's load resource is
+// built that way. See the BackSeedEnd doc block in feasibility_function.hpp.
+
 }  // namespace rcspp

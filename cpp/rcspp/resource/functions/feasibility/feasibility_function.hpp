@@ -26,6 +26,44 @@ enum class MergeRule {
     Custom,          ///< the function writes its own can_be_merged body
 };
 
+/// @brief Where a feasibility function's backward seed sits, as far as the *type* can tell.
+///
+/// Three-valued on purpose. @c MinMaxFeasibilityFunction chooses its end from a constructor
+/// argument, so no type-level answer exists for it -- and guessing either way is wrong:
+///  - guessing @c Ceiling rejects `MinMaxFeasibilityFunction(min, max, /*increasing=*/false)`,
+///    which seeds at the *minimum* and is exactly right for an accumulation. The reverse-graph
+///    oracle's load resource is built that way on purpose.
+///  - guessing @c Never makes the check silent for the one class that produced the defect.
+///
+/// So @c Unknown is a first-class answer, and it falls through to
+/// @c BidirectionalDominanceAlgorithm::seeds_itself_out_of_range -- which asks the sharper
+/// question anyway: *is the seed strictly dominated by the unseeded state, per this component's
+/// own dominance function*. The runtime probe is the better check; the @c static_assert in
+/// @c ResourceGraph's typed @c add_resource is a cheap subset of it, not a replacement.
+enum class BackSeedEnd {
+    Never,    ///< back_seed_value() is always nullopt
+    Ceiling,  ///< always seeds at an upper bound -- incoherent with an accumulating extension
+    Unknown,  ///< depends on runtime state; defer to the setup validation
+};
+
+/// @brief What a feasibility function's type says about its backward seed.
+///
+/// Opt-in, like @c ExtensionFunction::kind: an unmigrated or user-written function is
+/// @c Unknown and is therefore never falsely rejected.
+///
+/// A struct with partial specialisations, mirroring @c BackwardKindOf in
+/// @c extension_function.hpp -- same shape, same reason, so there is one idiom in the tree
+/// rather than two. Each concrete function specialises this at namespace scope in its own
+/// header, so the answer sits with the class it describes.
+template <typename T>
+struct BackSeedEndOf {
+        static constexpr BackSeedEnd value = BackSeedEnd::Unknown;
+};
+
+/// @brief The backward-seed end @p T publishes, or @c Unknown if its type cannot say.
+template <typename T>
+inline constexpr BackSeedEnd back_seed_end_v = BackSeedEndOf<T>::value;
+
 /// @brief Abstract base class defining the feasibility function for a resource type.
 ///
 /// A feasibility function determines whether a label's accumulated resource
