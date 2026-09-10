@@ -57,7 +57,10 @@ All C++ symbols live in namespace `rcspp`.
 
 ### Resources
 
-Each resource slot is defined by four functions:
+Each resource slot is defined by four functions.  For the four common shapes
+(cost, window, budget, ng-path) use **`rcspp/resource/presets.hpp`** — one call
+per resource, constructing a quadruple that cannot disagree — and drop to the
+four-object form below for anything else:
 
 | Function | Interface | Responsibility |
 |---|---|---|

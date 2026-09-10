@@ -391,46 +391,45 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
+    // Each resource is one call. A preset constructs the four function objects that have to
+    // agree with each other, so the quadruple cannot be mismatched -- see
+    // `rcspp/resource/presets.hpp`, and use the four-object `add_resource` form directly for
+    // anything a preset does not cover.
+
     // Distance (cost)
-    resource_graph->add_resource<RealResource>(
-        std::make_unique<AdditionExtensionFunction<RealResource>>(),
-        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
+    presets::add_cost_resource<RealResource>(*resource_graph);
 
     // Time
     using TimeResource = RealResource;
-    resource_graph->add_resource<TimeResource>(
-        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(time_window_by_customer_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(time_window_by_customer_id_),
-        std::make_unique<ValueCostFunction<TimeResource>>(),
-        std::make_unique<ValueDominanceFunction<TimeResource>>());
+    presets::add_window_resource<TimeResource>(*resource_graph, time_window_by_customer_id_);
 
-    // Demand
+    // Demand.
+    //
+    // A *budget*, not an addition. Forward the two are the same accumulation, so every forward
+    // result is unchanged; backward they diverge and only the budget is coherent.
+    // MinMaxFeasibilityFunction seeds a backward label at the capacity, so the extension has to
+    // count *down* from it -- paired with an addition the label exceeds the capacity on its first
+    // arc and the backward search finds nothing. This example paired it with an addition until
+    // the presets landed, which is exactly why `add_budget_resource` exists.
     using DemandResource = IntResource;
-    resource_graph->add_resource<DemandResource>(
-        std::make_unique<AdditionExtensionFunction<DemandResource>>(),
-        std::make_unique<MinMaxFeasibilityFunction<DemandResource>>(0, instance_.get_capacity()),
-        std::make_unique<ValueCostFunction<DemandResource>>(),
-        std::make_unique<ValueDominanceFunction<DemandResource>>());
+    presets::add_budget_resource<DemandResource>(*resource_graph, instance_.get_capacity());
 
-    // // Node
+    // // Node: an elementary path. Not a preset -- a union over per-node singletons is its own
+    // // shape, so it stays in the four-object form.
     // using NodeResource = SizeTBitsetResource;
     // resource_graph->add_resource<NodeResource>(
     //     std::make_unique<UnionExtensionFunction<NodeResource>>(),
-    //     std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
+    //     std::make_unique<IntersectionFeasibilityFunction<NodeResource, size_t>>(
+    //         node_set_by_node_id_, /*forbidden=*/true),
     //     std::make_unique<TrivialCostFunction<NodeResource>>(),
     //     std::make_unique<InclusionDominanceFunction<NodeResource>>());
 
-    // // NG path
-    // using NgResource = SizeTBitsetResource;  // SizeTBitsetResource SizeTSetResource
-    // resource_graph->add_resource<NgResource>(
-    //     std::make_unique<NgPathExtensionFunction<NgResource,
-    //     size_t>>(ng_neighborhood_customer_id_),
-    //     std::make_unique<IntersectFeasibilityFunction<NgResource, std::set<size_t>>>(
-    //         node_set_by_node_id_),
-    //     std::make_unique<TrivialCostFunction<NgResource>>(),
-    //     std::make_unique<InclusionDominanceFunction<NgResource>>());
+    // // NG path. Correct when uncommented, which the four-object spelling above it was not:
+    // // the class is IntersectionFeasibilityFunction, and its second template argument is the
+    // // set's ELEMENT type, not the set type.
+    // using NgResource = SizeTBitsetResource;  // SizeTBitsetResource or SizeTSetResource
+    // presets::add_ng_path_resource<NgResource>(
+    //     *resource_graph, ng_neighborhood_customer_id_, node_set_by_node_id_);
 
     add_all_nodes_to_graph(resource_graph);
 

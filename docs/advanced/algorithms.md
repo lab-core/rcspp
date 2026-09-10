@@ -265,6 +265,49 @@ quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memo
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
+### Presets: declaring a resource in one call
+
+Most resources are one of four shapes, and for those the four function objects can be
+constructed for you, so they cannot disagree:
+
+| Preset | What it is | C++ | Python |
+|---|---|---|---|
+| cost | unbounded accumulation; the objective | `presets::add_cost_resource<R>` | `presets.add_cost_resource` |
+| window | per-node `[earliest, latest]`; a threshold | `presets::add_window_resource<R>` | `presets.add_window_resource` |
+| budget | bounded accumulation — capacity, duration | `presets::add_budget_resource<R>` | `presets.add_budget_resource` |
+| ng-path | node-identity mirror + forbidden sets | `presets::add_ng_path_resource<R>` | *not available* |
+
+```cpp
+#include "rcspp/rcspp.hpp"
+
+rcspp::presets::add_cost_resource<RealResource>(*graph);
+rcspp::presets::add_window_resource<TimeResource>(*graph, windows);   // the map, once
+rcspp::presets::add_budget_resource<DemandResource>(*graph, capacity);
+```
+
+```python
+from rcspp import presets
+
+presets.add_cost_resource(rg)                      # must come first, and be "real"
+presets.add_window_resource(rg, "real", windows)
+presets.add_budget_resource(rg, "int", capacity)
+```
+
+`add_budget_resource` is the one that earns the feature: it is the correct spelling of a bounded
+accumulation, and writing it by hand is where the capacity-as-an-addition mistake above comes
+from.
+
+**The four-object `add_resource` form remains normative.** Presets are sugar over it: each one's
+doc comment names exactly what it expands to, and a model that needs a flipped dominance, a
+non-trivial cost on a budget, or per-node min/max overrides uses the general form. Presets
+deliberately do not chase constructor parity.
+
+Two asymmetries worth knowing. Python presets take the resource type as an argument
+(`"real"`, `"int"`) because there is no template parameter to carry it, and Python has **no**
+ng-path preset — neither `NgPathExtensionFunction` nor `IntersectionFeasibilityFunction` is
+exposed to Python, so an ng-path model cannot be assembled from Python at all today, with or
+without a preset.
+
 ### When it pays, and when it does not
 
 What decides this is **how many labels dominance has to sift at each node**, not how
