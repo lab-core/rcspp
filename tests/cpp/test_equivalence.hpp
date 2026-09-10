@@ -51,19 +51,39 @@ namespace equivalence_test {
 using Composed = ResourceTypeComposition<RealResource>;
 using Graph = ResourceGraph<RealResource>;
 
+// The ng variant's pack: a container component alongside the scalar clock. Declared here so the
+// replay helpers below can serve both, which is the whole reason they are templates.
+using NgComposed = ResourceTypeComposition<RealResource, SizeTBitsetResource>;
+using NgGraph = ResourceGraph<RealResource, SizeTBitsetResource>;
+
 constexpr double kTolerance = 1e-9;
 
 /// @brief A solve and the graph it ran on, kept together so the paths can be replayed afterwards.
-struct Run {
-        std::unique_ptr<Graph> graph;
+///
+/// Templated on both the graph and its composition because @c ResourceGraph keeps its
+/// composition alias private, so it cannot be recovered from @p GraphType.
+///
+/// @tparam GraphType   The concrete @c ResourceGraph instantiation.
+/// @tparam ComposedType The matching @c ResourceTypeComposition.
+template <typename GraphType, typename ComposedType>
+struct RunT {
+        std::unique_ptr<GraphType> graph;
         SolveResult result;
         bool bounded = false;
+
+        using Composition = ComposedType;
 
         [[nodiscard]] double best_cost() const {
             return result.solutions.empty() ? std::numeric_limits<double>::infinity()
                                             : result.solutions.front().cost;
         }
 };
+
+/// @brief The single-type run, which every existing test uses. Unchanged in behaviour.
+using Run = RunT<Graph, Composed>;
+
+/// @brief The two-slot run carrying an ng-path component.
+using NgRun = RunT<NgGraph, NgComposed>;
 
 /// @brief The reference: an ordinary forward search.
 inline Run solve_forward(const test_util::InstanceConfig& config) {
@@ -99,12 +119,49 @@ inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool wit
     return run;
 }
 
+/// @brief The reference, on the ng model.
+///
+/// A twin rather than a template: it calls `build_ng_instance` by name, and keeping the two
+/// visible separately keeps the critical-resource binding visible at each site. The clock is
+/// still a `RealResource`, so `BidirectionalAlgoBound<RealResource>::Algo` is unchanged.
+inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
+    NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+    run.result = run.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    return run;
+}
+
+/// @brief The candidate, on the ng model.
+///
+/// @param config     The instance to build.
+/// @param with_bound As in @c solve_bidirectional: false leaves the half-way point at 0, so the
+///                   policy starts disabled.
+inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound) {
+    NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+
+    AlgorithmParams<LabelList<NgComposed>> params;
+    params.critical_resource_index = built.clock_index;
+    params.half_way_point = with_bound ? built.clock_upper_bound / 2.0 : 0.0;
+
+    auto algorithm =
+        run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    run.result = run.graph->solve(algorithm.get());
+    run.bounded = algorithm->bounded_by_half_way();
+    EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
+        << "reference counts must survive two searches and a join";
+    return run;
+}
+
 /// @brief Replays one path through the model, returning what is wrong with it, or "".
 ///
 /// Extends a fresh source resource arc by arc exactly as the search would, and requires every
 /// intermediate node to be feasible. Mirrors what `FeasibilityPreprocessor` does with an arc's
 /// extender, which is the only route to an arc's stored consumption.
-inline std::string path_problem(const Graph& graph, const Solution& solution) {
+template <typename ComposedType>
+inline std::string path_problem(const rcspp::Graph<ComposedType>& graph, const Solution& solution) {
     if (solution.path_arc_ids.empty()) {
         return "empty path";
     }
@@ -117,8 +174,8 @@ inline std::string path_problem(const Graph& graph, const Solution& solution) {
         return "path does not start at a source";
     }
 
-    auto current = std::make_unique<Resource<Composed>>(*first->origin->resource);
-    const Arc<Composed>* previous = nullptr;
+    auto current = std::make_unique<Resource<ComposedType>>(*first->origin->resource);
+    const Arc<ComposedType>* previous = nullptr;
 
     for (size_t arc_id : solution.path_arc_ids) {
         const auto* arc = graph.get_arc(arc_id);
@@ -132,7 +189,7 @@ inline std::string path_problem(const Graph& graph, const Solution& solution) {
             return "arc has no extender";
         }
 
-        auto extended = std::make_unique<Resource<Composed>>(*arc->destination->resource);
+        auto extended = std::make_unique<Resource<ComposedType>>(*arc->destination->resource);
         arc->extender->extend(*current, extended.get());
         if (!extended->is_feasible()) {
             return "path is infeasible at node " + std::to_string(arc->destination->id);
@@ -148,9 +205,10 @@ inline std::string path_problem(const Graph& graph, const Solution& solution) {
 }
 
 /// @brief Replays every returned path and reports the first problem found.
-inline std::string any_path_problem(const Run& run) {
+template <typename GraphType, typename ComposedType>
+inline std::string any_path_problem(const RunT<GraphType, ComposedType>& run) {
     for (const auto& solution : run.result.solutions) {
-        const std::string problem = path_problem(*run.graph, solution);
+        const std::string problem = path_problem<ComposedType>(*run.graph, solution);
         if (!problem.empty()) {
             return problem;
         }
@@ -392,4 +450,242 @@ TEST(Equivalence, SolutionSetsAgreeOnTheOptimumNotOnEveryPath) {
             return std::abs(s.cost - candidate.best_cost()) < eq::kTolerance;
         }));
     EXPECT_GT(optimal_paths, 0U) << where;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The ng-path component. Two tiers, with different claims -- see 09-ng-path-benchmark.md §2.5.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+// Tier 1. The ng component runs in both directions across the acyclic sweep.
+//
+// It cannot *reject* here: no path revisits a node on a DAG, and the two halves of a join are
+// node-disjoint by construction. So the claim is coverage and non-interference -- extend and
+// extend_back run, the merge test is dispatched, apply/make_side are covered by a real search
+// rather than by a unit test, and the answer is unchanged -- not semantics. Tier 2 is where the
+// semantics are checked.
+TEST(Equivalence, NgPathComponentDoesNotChangeTheAnswerOnADag) {
+    namespace eq = equivalence_test;
+
+    for (auto config : eq::sweep()) {
+        config.with_ng_path = true;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const auto forward = eq::solve_forward_ng(config);
+        for (bool with_bound : {false, true}) {
+            const auto bidi = eq::solve_bidirectional_ng(config, with_bound);
+            EXPECT_NEAR(bidi.best_cost(), forward.best_cost(), eq::kTolerance) << where;
+            EXPECT_EQ(eq::any_path_problem(bidi), "") << where;
+        }
+        EXPECT_EQ(eq::any_path_problem(forward), "") << where;
+    }
+}
+
+// The ng component must not change the answer it cannot constrain: on a DAG, the same instance
+// with ng on and off must give the same optimum. This is what "non-interference" means, and it
+// would catch an ng component that rejected something it should not.
+TEST(Equivalence, NgPathIsInertOnADag) {
+    namespace eq = equivalence_test;
+
+    for (auto config : eq::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        config.with_ng_path = false;
+        const auto without = eq::solve_forward_ng(config);
+        config.with_ng_path = true;
+        const auto with = eq::solve_forward_ng(config);
+
+        EXPECT_NEAR(with.best_cost(), without.best_cost(), eq::kTolerance)
+            << "ng changed the optimum on an acyclic instance, where it cannot bind: " << where;
+    }
+}
+
+// Tier 2. THE test: cyclic instances, where ng-feasibility actually forbids something.
+//
+// ┌─ Why this compares against an ENUMERATOR and not against the forward search ──────────────┐
+// │ The forward search is **not a valid reference on a cyclic instance** -- it loses solutions │
+// │ there. See DISABLED_CyclicOptimalityAtLargerSizes below for the measurements and the       │
+// │ scope of the problem. `ng_cyclic_optimum` shares no code with either algorithm and is the  │
+// │ honest reference. The acyclic sweep keeps comparing the two searches, where the forward    │
+// │ one IS valid.                                                                              │
+// └────────────────────────────────────────────────────────────────────────────────────────────┘
+//
+// Sized so the oracle *completes*: at these dimensions `ng_cyclic_optimum` enumerates every
+// feasible walk rather than hitting its state budget, so the comparison is against the truth and
+// not against a partial search. It throws rather than truncating, so growing this is loud.
+//
+// This is also the regression test for step 6: the join's disjointness check is what stops the
+// joiner gluing two halves that both remember the same node. Break it and either the cost stops
+// matching the oracle, or `path_problem` replays the result and reports "path is infeasible at
+// node N".
+TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) {
+    namespace eq = equivalence_test;
+
+    for (unsigned seed = 0; seed < 6; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 7;
+        config.density = 0.6;
+        config.back_arc_density = 0.3;   // cycles, so ng is load-bearing
+        config.mixed_sign_costs = true;  // or a shortest path never revisits a node and ng
+                                         // cannot bind -- see back_arc_density's doc comment
+        config.with_time_window = true;  // the horizon is what keeps a cyclic instance finite
+        config.with_ng_path = true;
+        config.seed = seed;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const double oracle = test_util::ng_cyclic_optimum(config);
+
+        // The forward search agrees at this size too, so it is checked rather than assumed --
+        // that is what makes DISABLED_CyclicOptimalityAtLargerSizes a statement about *size*.
+        const auto forward = eq::solve_forward_ng(config);
+        EXPECT_NEAR(forward.best_cost(), oracle, eq::kTolerance) << where;
+        EXPECT_EQ(eq::any_path_problem(forward), "") << where;
+
+        for (bool with_bound : {false, true}) {
+            const auto bidi = eq::solve_bidirectional_ng(config, with_bound);
+            EXPECT_NEAR(bidi.best_cost(), oracle, eq::kTolerance)
+                << "bound=" << with_bound << " " << where;
+            EXPECT_EQ(eq::any_path_problem(bidi), "")
+                << "a joined path violated ng-feasibility: " << where;
+        }
+    }
+}
+
+// A pre-existing defect, found by this plan and recorded rather than fixed: on a **cyclic**
+// instance past a certain size, the forward search and the half-way-**bounded** bidirectional
+// search both return a suboptimal cost, while the **unbounded** bidirectional search matches the
+// oracle exactly.
+//
+// Measured against a complete `ng_cyclic_optimum` (num_nodes = 8, density = 0.5,
+// back_arc_density = 0.35, mixed_sign_costs, ng on):
+//
+//   seed   oracle       forward      bidi unbounded   bidi bounded
+//      0    -2.424084    -2.424084     -2.424084       -2.424084
+//      1    -3.406447    -2.839186     -3.406447       -2.839186   <-- forward & bounded miss
+//      2    -9.716948    -9.716948     -9.716948       -9.716948
+//      3   -20.475812   -18.018406    -20.475812      -18.018406   <-- forward & bounded miss
+//      4    -5.427869    -5.427869     -5.427869       -5.427869
+//      5   -20.934885   -20.934885    -20.934885      -20.934885
+//
+// The same shape appears at num_nodes = 9 on three of six seeds, with larger gaps (-34.65 vs
+// -15.60 on seed 4). Both wrong answers replay as *feasible* paths, so this is lost solutions,
+// not bad ones. That the forward search and the bounded bidirectional search agree to the last
+// bit on every miss is the clue worth chasing first.
+//
+// Why this is DISABLED_ rather than deleted or asserted-as-correct: it states what *should*
+// hold, so it is the regression test for a fix, and it must not be weakened to make it pass.
+// It is out of scope for the shape-genericity plan -- nothing in steps 1-7 touches search or
+// dominance -- and the generator has always been a DAG, so no shipped test covered this regime.
+// The acyclic sweep is unaffected and still asserts full equality.
+TEST(Equivalence, DISABLED_CyclicOptimalityAtLargerSizes) {
+    namespace eq = equivalence_test;
+
+    for (unsigned seed = 0; seed < 6; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 8;
+        config.density = 0.5;
+        config.back_arc_density = 0.35;
+        config.mixed_sign_costs = true;
+        config.with_time_window = true;
+        config.with_ng_path = true;
+        config.seed = seed;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const double oracle = test_util::ng_cyclic_optimum(config);
+
+        const auto forward = eq::solve_forward_ng(config);
+        EXPECT_NEAR(forward.best_cost(), oracle, eq::kTolerance)
+            << "the forward search lost solutions on a cyclic instance: " << where;
+
+        for (bool with_bound : {false, true}) {
+            const auto bidi = eq::solve_bidirectional_ng(config, with_bound);
+            EXPECT_NEAR(bidi.best_cost(), oracle, eq::kTolerance)
+                << "bound=" << with_bound << " " << where;
+        }
+    }
+}
+
+// The claim tier 2 rests on: ng must actually REJECT something on at least one of these seeds, or
+// the test above is a second copy of tier 1 and nobody would notice.
+//
+// Without this, a later generator change that quietly widened the neighborhoods -- or lowered
+// back_arc_density, or turned mixed_sign_costs off -- would hollow tier 2 out silently. It
+// already earned its keep once: the first draft of the cyclic tier used non-negative costs, and
+// this test is what showed that ng could not bind there at all, because a shortest path over
+// non-negative arcs never revisits a node. Measured today: ng cuts the optimum on 5 of the 8
+// seeds.
+TEST(Equivalence, NgPathActuallyBindsOnAtLeastOneCyclicInstance) {
+    namespace eq = equivalence_test;
+
+    // One helper so the two configs cannot drift apart: everything is identical except the flag.
+    const auto make_config = [](unsigned seed, bool with_ng) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 9;
+        config.density = 0.5;
+        config.back_arc_density = 0.35;
+        config.mixed_sign_costs = true;
+        config.with_time_window = true;
+        config.with_ng_path = with_ng;
+        config.seed = seed;
+        return config;
+    };
+
+    // Both sides go through the same search, so the forward search's cyclic defect cancels: the
+    // question here is only whether ng changes the answer, not what the answer is.
+    bool bound_somewhere = false;
+    for (unsigned seed = 0; seed < 8; ++seed) {
+        // Both solved through solve_forward_ng, i.e. the SAME two-slot graph type.
+        // `with_ng_path = false` leaves the ng component present but inert -- empty forbidden
+        // sets -- rather than absent, so the two runs differ in ng and not in label width.
+        const auto restricted = eq::solve_forward_ng(make_config(seed, true));
+        const auto unrestricted = eq::solve_forward_ng(make_config(seed, false));
+
+        // A restriction can only make the optimum worse or leave it alone. If it is ever BETTER,
+        // the ng component is not behaving as a restriction and something is wrong.
+        if (!restricted.result.solutions.empty() && !unrestricted.result.solutions.empty()) {
+            EXPECT_GE(restricted.best_cost(), unrestricted.best_cost() - eq::kTolerance)
+                << "ng made the optimum BETTER, which a restriction cannot do, at seed " << seed;
+        }
+
+        const bool ng_cut_the_optimum =
+            unrestricted.result.solutions.empty() != restricted.result.solutions.empty() ||
+            (!restricted.result.solutions.empty() &&
+             restricted.best_cost() > unrestricted.best_cost() + eq::kTolerance);
+        if (ng_cut_the_optimum) {
+            bound_somewhere = true;
+        }
+    }
+
+    EXPECT_TRUE(bound_somewhere)
+        << "ng never bound across 8 cyclic seeds: the neighborhoods are too loose, so the cyclic "
+           "tier is testing nothing the acyclic tier does not already cover. Tighten the "
+           "neighborhood window in test_util::ng_neighborhoods, or raise back_arc_density.";
+}
+
+// The generator's guard. The illegal combination must be refused at the draw, not documented --
+// the tests are where someone will get this wrong.
+//
+// Only ONE combination is illegal. Cyclic + mixed-sign is legal and is what tier 2 uses: the
+// window horizon bounds path length, so a negative cycle still has a finite optimum.
+TEST(Equivalence, TheGeneratorRefusesTheIllegalCyclicCombinations) {
+    test_util::InstanceConfig unbounded;
+    unbounded.back_arc_density = 0.3;
+    unbounded.with_time_window = false;
+    EXPECT_THROW(test_util::draw_instance(unbounded), std::logic_error);
+
+    // Cyclic + mixed-sign is explicitly allowed, and is what makes tier 2 non-vacuous.
+    test_util::InstanceConfig pricing_shaped;
+    pricing_shaped.back_arc_density = 0.3;
+    pricing_shaped.mixed_sign_costs = true;
+    pricing_shaped.with_time_window = true;
+    EXPECT_NO_THROW(test_util::draw_instance(pricing_shaped));
+
+    // And brute force stays acyclic: it walks forwards in node order with no visited set.
+    test_util::InstanceConfig cyclic;
+    cyclic.back_arc_density = 0.3;
+    cyclic.with_time_window = true;
+    EXPECT_THROW(test_util::brute_force_optimum(cyclic), std::logic_error);
 }
