@@ -30,10 +30,9 @@ namespace rcspp {
 ///                      returns an arithmetic value and which supports `set_value()`.
 template <typename ResourceType>
 class AdditionExtensionFunction
-    : public Clonable<
-          AdditionExtensionFunction<ResourceType>,
-          DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Accumulate>,
-          ExtensionFunction<ResourceType>> {
+    : public Clonable<AdditionExtensionFunction<ResourceType>,
+                      DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Accumulate>,
+                      ExtensionFunction<ResourceType>> {
         using ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>;
 
     public:

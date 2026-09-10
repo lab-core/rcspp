@@ -3,8 +3,7 @@
 
 #pragma once
 
-// Every concrete extension function must declare a backward_kind() other than Unspecified --
-// with the deliberate exceptions listed below, which are asserted rather than omitted.
+// Every concrete extension function must declare a backward_kind() other than Unspecified.
 //
 // Phase 11 refuses to start a bidirectional solve on any component still reporting Unspecified,
 // so an accidental omission here would surface much later as a confusing setup failure. The
@@ -42,29 +41,18 @@ static_assert(backward_kind_of_v<IntersectionExtensionFunction<SetResource<int>>
               BackwardKind::Mirror);
 static_assert(backward_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
               BackwardKind::Mirror);
+static_assert(backward_kind_of_v<NgPathExtensionFunction<SetResource<int>>> ==
+              BackwardKind::Mirror);
 
-// The three deliberate Unspecified rows, asserted so that "removing" any of them reads as a
-// decision rather than as an oversight.
+// The two deliberate Unspecified rows, asserted so that "removing" either reads as a decision.
 //
 // An unsigned time window cannot represent "this deadline cannot be met", so it declines to
 // declare and a bidirectional solve refuses to start on it. This assertion is what makes an
 // attempt to quietly promote it to Threshold fail at compile time. The base class publishes no
 // constant at all, so the second row also exercises the trait fallback.
-//
-// Ng-path is the third, and it is the one that would be easiest to "fix" wrongly. Its extender
-// value IS a node identity, so a Mirror form is writable -- but the set it stores is the memory
-// BEFORE the arrival node's neighbourhood narrows it, and the disjointness test a join performs
-// is exact only against the memory the label carries OUT of the node it sits on. Promoting this
-// row without also changing what the resource stores would let the joiner compare a stale set
-// against a current one and refuse concatenations the forward search accepts -- making the answer
-// depend on half_way_point rather than on the model. That representation change belongs in its
-// own commit; until it lands, ng-path is forward-only and this assertion says so.
 static_assert(backward_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
               BackwardKind::Unspecified);
 static_assert(backward_kind_of_v<ExtensionFunction<RealResource>> == BackwardKind::Unspecified);
-static_assert(backward_kind_of_v<NgPathExtensionFunction<SetResource<int>>> ==
-              BackwardKind::Unspecified);
-static_assert(!DeclaresBackwardKind<NgPathExtensionFunction<SetResource<int>>>);
 
 // The threshold biconditional, over a sample grid, evaluated at compile time.
 //
@@ -130,6 +118,7 @@ TEST(BackwardKindDeclared, BaseDefaultRemainsUnspecified) {
 TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
     std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
     std::map<size_t, std::pair<unsigned int, unsigned int>> uwindows{{0, {0U, 100U}}};
+    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
 
     EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(),
               AdditionExtensionFunction<RealResource>::kind);
@@ -147,14 +136,8 @@ TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
               IntersectionExtensionFunction<SetResource<int>>::kind);
     EXPECT_EQ(SubtractExtensionFunction<SetResource<int>>{}.backward_kind(),
               SubtractExtensionFunction<SetResource<int>>::kind);
-}
-
-// Ng-path has no constant for the virtual to agree with, so what has to be pinned is the other
-// half: the virtual returns the base-class default, which is what phase 11 keys off.
-TEST(BackwardKindDeclared, NgPathVirtualReportsUnspecified) {
-    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
     EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
-              BackwardKind::Unspecified);
+              NgPathExtensionFunction<SetResource<int>>::kind);
 }
 
 // The trait tolerates a class that publishes nothing -- which the base and the composition

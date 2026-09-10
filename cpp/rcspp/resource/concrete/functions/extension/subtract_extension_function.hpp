@@ -26,10 +26,9 @@ namespace rcspp {
 ///                      and `set_value()`.
 template <typename ResourceType>
 class SubtractExtensionFunction
-    : public Clonable<
-          SubtractExtensionFunction<ResourceType>,
-          DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Mirror>,
-          ExtensionFunction<ResourceType>> {
+    : public Clonable<SubtractExtensionFunction<ResourceType>,
+                      DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Mirror>,
+                      ExtensionFunction<ResourceType>> {
     public:
         /// @brief Extends @p resource by subtracting @p extender_value, storing the result in
         /// @p extended_resource.

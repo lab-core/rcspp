@@ -16,6 +16,7 @@
 #include "resource/test_back_seed.hpp"
 #include "resource/test_backward_dominance.hpp"
 #include "resource/test_merge_rules.hpp"
+#include "resource/test_mirror_form.hpp"
 #include "resource/test_threshold_form.hpp"
 #include "test_backward_api.hpp"
 #include "test_container_resources.hpp"
