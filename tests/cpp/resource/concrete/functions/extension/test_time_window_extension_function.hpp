@@ -190,5 +190,7 @@ TEST(TimeWindowExtensionFunction, BackwardClampsToTheDefaultWhenOriginHasNoWindo
     EXPECT_NEAR(back.get_value(), 500.0, tw_ext_test::kTolerance);  // min(500, 570): the default
 
     fn->extend_back(RealResource(400.0), RealResource(tw_ext_test::kArcTime), &back);
-    EXPECT_NEAR(back.get_value(), 370.0, tw_ext_test::kTolerance);  // min(500, 370): the subtraction
+    EXPECT_NEAR(back.get_value(),
+                370.0,
+                tw_ext_test::kTolerance);  // min(500, 370): the subtraction
 }

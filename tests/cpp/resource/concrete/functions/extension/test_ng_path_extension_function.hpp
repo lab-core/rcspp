@@ -177,3 +177,20 @@ TEST(NgPathExtensionFunction, DeclaresMirrorBackwardKind) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
     EXPECT_EQ(proto.backward_kind(), BackwardKind::Mirror);
 }
+
+// The arc's extender value is ignored: the node added is the one the label LEAVES, derived from
+// the arc's endpoints. This is the ng-path defect made inexpressible -- and it is a narrowing of
+// what the forward direction used to accept, so it is asserted rather than left implicit.
+TEST(NgPathExtensionFunction, ForwardIgnoresTheArcValueAndUsesTheOrigin) {
+    NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
+    test_util::TestArc<SetResource<int>> fixture(1, 2);
+    auto fn = proto.create(fixture.arc);
+
+    auto old_ng = ng_path_test::make_set_resource({0});
+    auto misleading = ng_path_test::make_set_resource({42});  // NOT the origin singleton
+    auto extended = ng_path_test::make_set_resource({});
+    fn->extend(old_ng, misleading, &extended);
+
+    // ({0} n N_1={0,2,3}) u {1} = {0,1}; the 42 does not appear.
+    EXPECT_EQ(extended.get_value(), (std::set<int>{0, 1}));
+}

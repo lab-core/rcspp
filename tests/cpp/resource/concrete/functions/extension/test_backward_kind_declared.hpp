@@ -30,16 +30,13 @@ static_assert(backward_kind_of_v<AdditionExtensionFunction<RealResource>> ==
               BackwardKind::Accumulate);
 static_assert(backward_kind_of_v<TrivialExtensionFunction<RealResource>> ==
               BackwardKind::Accumulate);
-static_assert(backward_kind_of_v<BudgetExtensionFunction<RealResource>> ==
-              BackwardKind::Threshold);
-static_assert(backward_kind_of_v<BudgetExtensionFunction<IntResource>> ==
-              BackwardKind::Threshold);
+static_assert(backward_kind_of_v<BudgetExtensionFunction<RealResource>> == BackwardKind::Threshold);
+static_assert(backward_kind_of_v<BudgetExtensionFunction<IntResource>> == BackwardKind::Threshold);
 static_assert(backward_kind_of_v<TimeWindowExtensionFunction<RealResource>> ==
               BackwardKind::Threshold);
 static_assert(backward_kind_of_v<TimeWindowExtensionFunction<IntResource>> ==
               BackwardKind::Threshold);
-static_assert(backward_kind_of_v<UnionExtensionFunction<SetResource<int>>> ==
-              BackwardKind::Mirror);
+static_assert(backward_kind_of_v<UnionExtensionFunction<SetResource<int>>> == BackwardKind::Mirror);
 static_assert(backward_kind_of_v<IntersectionExtensionFunction<SetResource<int>>> ==
               BackwardKind::Mirror);
 static_assert(backward_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
