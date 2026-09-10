@@ -92,6 +92,7 @@
 #include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/dominance/trivial_dominance_function.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/extension/trivial_extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
