@@ -3,14 +3,15 @@
 
 #pragma once
 
-#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -18,10 +19,9 @@ namespace rcspp {
 /// @brief Additive forward, threshold backward: for capacity- and duration-like resources.
 ///
 /// Forward this is the same accumulation as `AdditionExtensionFunction`. Backward it inverts:
-/// `b(u) = min(max_at_node, b(v) - q)`. The clamp is by *this node's upper bound* and is what
-/// makes a limit in the middle of the path propagate backwards; there is deliberately no clamp
-/// from below, because `MinMaxFeasibilityFunction::is_back_feasible` is what must reject an
-/// infeasible result.
+/// `b(u) = min(capacity_u, b(v) - q)`. Both formulas and the clamp discipline come from
+/// `TranslationThresholdForm`; this class only answers *what the bounds are*, which for a budget
+/// is a ceiling at every node and no floor anywhere.
 ///
 /// This is a separate class from `AdditionExtensionFunction` because the two agree forward and
 /// diverge backward: cost *accumulates* and so must keep adding in both directions, while a
@@ -40,11 +40,16 @@ namespace rcspp {
 ///                      return type after decay).
 template <typename ResourceType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
-class BudgetExtensionFunction : public Clonable<BudgetExtensionFunction<ResourceType, ValueType>,
-                                                ExtensionFunction<ResourceType>> {
-        // Backward extension subtracts the arc consumption, so the value type must be able to go
-        // negative; an unsigned type would wrap to a huge positive value that reads as a very
-        // loose budget. Same hazard, and same guard, as TimeWindowExtensionFunction.
+class BudgetExtensionFunction
+    : public Clonable<
+          BudgetExtensionFunction<ResourceType, ValueType>,
+          TranslationThresholdForm<ResourceType, ExtensionFunction<ResourceType>, ValueType>,
+          ExtensionFunction<ResourceType>> {
+        // Kept, and stricter than the form's conditional `kind`: a budget cannot be instantiated
+        // for an unsigned type at all, whereas TimeWindowExtensionFunction can and declines to
+        // declare. Backward extension subtracts the arc consumption, so the value type must be
+        // able to go negative; an unsigned type would wrap to a huge positive value that reads
+        // as a very loose budget.
         static_assert(std::is_signed_v<ValueType>,
                       "BudgetExtensionFunction requires a signed value type");
 
@@ -63,56 +68,31 @@ class BudgetExtensionFunction : public Clonable<BudgetExtensionFunction<Resource
                                   ? nullptr
                                   : std::make_shared<const std::map<size_t, ValueType>>(
                                         std::move(max_by_node_id))),
-              default_max_(default_max),
-              max_at_node_(default_max) {}
+              default_max_(default_max) {}
 
-        /// @brief Forward extension: accumulates the arc's consumption.
+    protected:
+        /// @brief A budget has no forward clamp: consumption accumulates without waiting.
         ///
-        /// @param resource           Current budget resource of the forward label.
-        /// @param extender_value     Arc's consumption.
-        /// @param extended_resource  Output: receives `current + arc_consumption`.
-        void extend(const ResourceType& resource, const ResourceType& extender_value,
-                    ResourceType* extended_resource) override {
-            extended_resource->set_value(resource.get_value() + extender_value.get_value());
+        /// @param node_id Index of the node the forward extension arrives at (unused).
+        /// @return @c std::nullopt.
+        [[nodiscard]] std::optional<ValueType> lower_bound_at(size_t /*node_id*/) const final {
+            return std::nullopt;
         }
 
-        /// @brief Backward extension: inverts the accumulation and clamps by this node's bound.
+        /// @brief This node's capacity, defaulting to the constructor's bound.
         ///
-        /// @param resource           Current budget resource of the backward label.
-        /// @param extender_value     Arc's consumption.
-        /// @param extended_resource  Output: receives `min(max_at_node, current - consumption)`.
-        void extend_back(const ResourceType& resource, const ResourceType& extender_value,
-                         ResourceType* extended_resource) override {
-            extended_resource->set_value(
-                std::min(max_at_node_, resource.get_value() - extender_value.get_value()));
+        /// @param node_id Index of the node the backward extension arrives at.
+        /// @return The node's upper bound, or @c default_max_ if it has none.
+        [[nodiscard]] std::optional<ValueType> upper_bound_at(size_t node_id) const final {
+            if (max_by_node_id_ == nullptr) {
+                return default_max_;
+            }
+            auto it = max_by_node_id_->find(node_id);
+            return it != max_by_node_id_->end() ? it->second : default_max_;
         }
-
-        /// @brief A budget is a ceiling-style bound, so the backward form inverts and clamps.
-        static constexpr BackwardKind kind = BackwardKind::Threshold;
-
-        /// @return @c BackwardKind::Threshold.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
     private:
         std::shared_ptr<const std::map<size_t, ValueType>> max_by_node_id_;
         ValueType default_max_;
-        ValueType max_at_node_;
-
-        /// @brief Caches the upper bound of the node a backward extension lands on.
-        ///
-        /// Backward extension lands on the arc's **origin**, so that is the node whose bound
-        /// clamps.
-        ///
-        /// @param origin_id      Index of the arc's origin node.
-        /// @param destination_id Index of the arc's destination node (unused).
-        void preprocess(size_t origin_id, size_t /*destination_id*/) override {
-            max_at_node_ = default_max_;
-            if (max_by_node_id_ == nullptr) {
-                return;
-            }
-            if (auto it = max_by_node_id_->find(origin_id); it != max_by_node_id_->end()) {
-                max_at_node_ = it->second;
-            }
-        }
 };
 }  // namespace rcspp
