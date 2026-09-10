@@ -171,4 +171,109 @@ class TranslationThresholdForm : public ThresholdForm<R, Base, V> {
         }
 };
 
+/// @brief Declares a shape and nothing else: for functions whose backward form genuinely *is*
+///        their forward one.
+///
+/// It exists so that "I considered the backward direction and the default is right" is
+/// distinguishable from "I never considered it", which is the whole reason @c Unspecified is the
+/// base class default. It deliberately does **not** finalise @c extend or @c extend_back: an
+/// @c Accumulate resource, or a @c Mirror one whose arc value is genuine per-arc data, writes its
+/// own @c extend and inherits @c extend_back.
+///
+/// @tparam Base The base to insert above -- @c ExtensionFunction<R> in every current use.
+/// @tparam Kind The shape this function declares.
+template <typename Base, BackwardKind Kind>
+class DeclaredKindForm : public Base {
+        // A class that means "no shape" must say so by NOT using a form: derive straight from
+        // ExtensionFunction and let the base default stand. That is the documented escape hatch,
+        // and this assertion is what keeps it honest.
+        static_assert(Kind != BackwardKind::Unspecified,
+                      "DeclaredKindForm is for declaring a shape; to declare none, derive from "
+                      "ExtensionFunction directly and let the default stand");
+
+    public:
+        static constexpr BackwardKind kind = Kind;
+
+        [[nodiscard]] BackwardKind backward_kind() const final { return kind; }
+};
+
+/// @brief The shape base for a container resource whose backward form swaps a *node identity*.
+///
+/// The ng-path defect this removes: the author is handed @c origin and @c destination and has to
+/// remember which one is "the node being left" in each direction. So this form does not show
+/// them. It builds one @c Side per direction from a node id, and the derived class writes a
+/// single formula that consumes a @c Side without knowing which it is.
+///
+/// It also drops the arc's extender value from @c apply's inputs entirely. For a node-identity
+/// mirror the arc value *is* the wrong thing to use -- that is the finding, made structural.
+///
+/// @note A container resource whose arc value is genuine per-arc data is **not** this shape. It
+///       is a `DeclaredKindForm<ExtensionFunction<R>, BackwardKind::Mirror>` that writes its own
+///       @c extend, which is what the three container markers in this library are.
+///
+/// @tparam R    The container resource type.
+/// @tparam Base The base to insert above -- @c ExtensionFunction<R> in every current use.
+template <typename R, typename Base>
+class NodeMirrorForm : public Base {
+    public:
+        static constexpr BackwardKind kind = BackwardKind::Mirror;
+
+        [[nodiscard]] BackwardKind backward_kind() const final { return kind; }
+
+        /// @brief Forward extension: applies the formula to the side of the arc's origin.
+        ///
+        /// @param resource          Current container resource of the forward label.
+        /// @param extender_value    Arc's extender resource (unused; see the class note).
+        /// @param extended_resource Output: receives the new container value.
+        void extend(const R& resource, const R& /*extender_value*/, R* extended_resource) final {
+            apply(resource, extended_resource, forward_side_);
+        }
+
+        /// @brief Backward extension: the same formula, on the side of the arc's destination.
+        ///
+        /// @param resource          Current container resource of the backward label.
+        /// @param extender_value    Arc's extender resource (unused; see the class note).
+        /// @param extended_resource Output: receives the new container value.
+        void extend_back(const R& resource, const R& /*extender_value*/,
+                         R* extended_resource) final {
+            apply(resource, extended_resource, backward_side_);
+        }
+
+    protected:
+        /// @brief Everything about the node a label *leaves* when it traverses this arc.
+        struct Side {
+                R node_left;     ///< the singleton {node}
+                R neighborhood;  ///< whatever per-node set the resource narrows against
+        };
+
+        /// @brief The formula, written once, direction-blind.
+        ///
+        /// @param resource          The label's current value.
+        /// @param extended_resource Output: receives the new value.
+        /// @param side              The side of the arc the label is leaving.
+        virtual void apply(const R& resource, R* extended_resource, const Side& side) const = 0;
+
+        /// @brief Builds the side for one node id.
+        ///
+        /// @param node_left_id Index of the node the label leaves.
+        /// @return That node's singleton and neighborhood.
+        [[nodiscard]] virtual Side make_side(size_t node_left_id) const = 0;
+
+    private:
+        Side forward_side_;
+        Side backward_side_;
+
+        /// @brief Caches both of this arc's sides.
+        ///
+        /// Going forward you leave the arc's origin; going backward, its destination. This is the
+        /// line the ng-path defect got wrong, and it is now written once.
+        ///
+        /// @param origin_id      Index of the arc's origin node.
+        /// @param destination_id Index of the arc's destination node.
+        void preprocess(size_t origin_id, size_t destination_id) final {
+            forward_side_ = make_side(origin_id);
+            backward_side_ = make_side(destination_id);
+        }
+};
+
 }  // namespace rcspp

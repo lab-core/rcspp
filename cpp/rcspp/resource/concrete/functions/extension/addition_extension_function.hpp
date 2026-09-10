@@ -8,6 +8,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -19,11 +20,20 @@ namespace rcspp {
 /// `max(min_value, sum)`.  Typical use: accumulating arc costs, travel times,
 /// or distances along a path in the RCSPP labelling algorithm.
 ///
+/// **Backward form: @c Accumulate.** Cost-style accumulation: the running total has no bound, so
+/// the backward form is the forward one. This is the cost slot's extension function in every
+/// example and binding, so its inherited @c extend_back (which adds, exactly like @c extend) is
+/// correct. A resource that adds forward but is *bounded* -- a capacity or a duration -- is a
+/// threshold and wants @c BudgetExtensionFunction instead.
+///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.
 template <typename ResourceType>
 class AdditionExtensionFunction
-    : public Clonable<AdditionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    : public Clonable<
+          AdditionExtensionFunction<ResourceType>,
+          DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Accumulate>,
+          ExtensionFunction<ResourceType>> {
         using ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>;
 
     public:
@@ -47,18 +57,6 @@ class AdditionExtensionFunction
             }
             extended_resource->set_value(sum_value);
         }
-
-        /// @brief Cost-style accumulation: the running total has no bound, so the backward form
-        ///        is the forward one.
-        ///
-        /// This is the cost slot's extension function in every example and binding, so its
-        /// inherited @c extend_back (which adds, exactly like @c extend) is correct. A resource
-        /// that adds forward but is bounded -- a capacity or a duration -- is a *threshold* and
-        /// wants @c BudgetExtensionFunction instead.
-        static constexpr BackwardKind kind = BackwardKind::Accumulate;
-
-        /// @return @c BackwardKind::Accumulate.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
     private:
         std::optional<ValueType> min_value_;
