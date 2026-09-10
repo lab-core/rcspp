@@ -6,12 +6,13 @@
 // Every concrete extension function must declare a backward_kind() other than Unspecified.
 //
 // Phase 11 refuses to start a bidirectional solve on any component still reporting Unspecified,
-// so an accidental omission here would surface much later as a confusing setup failure. This
-// single test guards the whole table: adding a new extension function without declaring its kind
-// should fail right here.
+// so an accidental omission here would surface much later as a confusing setup failure. The
+// static_assert block below guards the whole table at compile time; the one runtime test that
+// remains does the job a static_assert cannot -- see it for what that is.
 
 #include <gtest/gtest.h>
 
+#include <initializer_list>
 #include <map>
 #include <set>
 #include <utility>
@@ -20,51 +21,74 @@
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
-// Accumulate: no feasibility bound, so extend_back is inherited from extend.
-TEST(BackwardKindDeclared, AccumulateFunctions) {
-    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Accumulate);
-    EXPECT_EQ(TrivialExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Accumulate);
-}
-
-// Threshold: stores a deadline/ceiling, so extend_back inverts extend and clamps.
-TEST(BackwardKindDeclared, ThresholdFunctions) {
-    std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
-    EXPECT_EQ(TimeWindowExtensionFunction<RealResource>{windows}.backward_kind(),
+// The whole table, as a compile-time guarantee. A new extension function that forgets to declare
+// its shape fails HERE, naming the class -- rather than at a solve, naming a component index.
+//
+// These are `backward_kind_of_v`, not `T::kind`, so that a class which publishes no constant at
+// all fails with the same message as one that publishes `Unspecified`.
+static_assert(backward_kind_of_v<AdditionExtensionFunction<RealResource>> ==
+              BackwardKind::Accumulate);
+static_assert(backward_kind_of_v<TrivialExtensionFunction<RealResource>> ==
+              BackwardKind::Accumulate);
+static_assert(backward_kind_of_v<BudgetExtensionFunction<RealResource>> ==
               BackwardKind::Threshold);
-    EXPECT_EQ(BudgetExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Threshold);
-}
-
-// Mirror: a container holding the set seen on its own half.
-TEST(BackwardKindDeclared, MirrorFunctions) {
-    EXPECT_EQ(UnionExtensionFunction<SetResource<int>>{}.backward_kind(), BackwardKind::Mirror);
-    EXPECT_EQ(IntersectionExtensionFunction<SetResource<int>>{}.backward_kind(),
+static_assert(backward_kind_of_v<BudgetExtensionFunction<IntResource>> ==
+              BackwardKind::Threshold);
+static_assert(backward_kind_of_v<TimeWindowExtensionFunction<RealResource>> ==
+              BackwardKind::Threshold);
+static_assert(backward_kind_of_v<TimeWindowExtensionFunction<IntResource>> ==
+              BackwardKind::Threshold);
+static_assert(backward_kind_of_v<UnionExtensionFunction<SetResource<int>>> ==
               BackwardKind::Mirror);
-    EXPECT_EQ(SubtractExtensionFunction<SetResource<int>>{}.backward_kind(), BackwardKind::Mirror);
-
-    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
-    EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
+static_assert(backward_kind_of_v<IntersectionExtensionFunction<SetResource<int>>> ==
               BackwardKind::Mirror);
+static_assert(backward_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
+              BackwardKind::Mirror);
+static_assert(backward_kind_of_v<NgPathExtensionFunction<SetResource<int>>> ==
+              BackwardKind::Mirror);
+
+// The two deliberate Unspecified rows, asserted so that "removing" either reads as a decision.
+//
+// An unsigned time window cannot represent "this deadline cannot be met", so it declines to
+// declare and a bidirectional solve refuses to start on it. This assertion is what makes an
+// attempt to quietly promote it to Threshold fail at compile time. The base class publishes no
+// constant at all, so the second row also exercises the trait fallback.
+static_assert(backward_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
+              BackwardKind::Unspecified);
+static_assert(backward_kind_of_v<ExtensionFunction<RealResource>> == BackwardKind::Unspecified);
+
+// The threshold biconditional, over a sample grid, evaluated at compile time.
+//
+// This covers only the *unclamped* relation, which is the part that is a definition: both clamps
+// encode a node bound and deliberately sit outside the inverse relation, so they are covered by
+// the worked cases in test_threshold_form.hpp instead. It is a proof about the translation pair
+// itself -- that (+, -) is a genuine inverse -- so any resource built on
+// TranslationThresholdForm inherits a correct backward step. It does not replace
+// test_util::check_backward_contract, which drives a real object through a real Extender and so
+// also exercises preprocess, the clamps and the value type own arithmetic.
+template <typename V>
+consteval bool translation_biconditional_holds(std::initializer_list<V> samples,
+                                               std::initializer_list<V> thetas, V arc) {
+    for (const V theta : thetas) {
+        for (const V x : samples) {
+            const bool forward_fits = (x + arc) <= theta;
+            const bool backward_fits = x <= (theta - arc);
+            if (forward_fits != backward_fits) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
-// The point of the table: nothing is left Unspecified.
-TEST(BackwardKindDeclared, NoneAreUnspecified) {
-    std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
-    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
+static_assert(translation_biconditional_holds<int>({0, 1, 17, 100}, {0, 20, 60, 200}, 7));
+static_assert(translation_biconditional_holds<double>({0.0, 1.0, 17.0, 100.0},
+                                                      {0.0, 20.0, 60.0, 200.0}, 7.0));
 
-    EXPECT_NE(AdditionExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Unspecified);
-    EXPECT_NE(TrivialExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Unspecified);
-    EXPECT_NE(TimeWindowExtensionFunction<RealResource>{windows}.backward_kind(),
-              BackwardKind::Unspecified);
-    EXPECT_NE(BudgetExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Unspecified);
-    EXPECT_NE(UnionExtensionFunction<SetResource<int>>{}.backward_kind(),
-              BackwardKind::Unspecified);
-    EXPECT_NE(IntersectionExtensionFunction<SetResource<int>>{}.backward_kind(),
-              BackwardKind::Unspecified);
-    EXPECT_NE(SubtractExtensionFunction<SetResource<int>>{}.backward_kind(),
-              BackwardKind::Unspecified);
-    EXPECT_NE(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
-              BackwardKind::Unspecified);
-}
+// The three per-shape tests and the NoneAreUnspecified table that used to live here are now the
+// static_assert block above -- which is strictly stronger, since it also covers the `int`
+// instantiations no runtime test ever constructed. Do not restore them; the one runtime test
+// worth having is ConstantAgreesWithTheVirtual, below.
 
 // The composition wrapper is deliberately left Unspecified.
 //
@@ -89,8 +113,11 @@ TEST(BackwardKindDeclared, BaseDefaultRemainsUnspecified) {
     EXPECT_EQ(UndeclaredExtensionFunction{}.backward_kind(), BackwardKind::Unspecified);
 }
 
-// The constant and the virtual must never diverge. A form supplies both from one place, but a
-// hand-written class can still get them out of step, and only this catches it.
+// The one thing a static_assert cannot check: that the *virtual* returns what the constant says.
+//
+// A form supplies both from one place, so for a migrated class this is belt-and-braces. It is
+// not belt-and-braces for a class written by hand against ExtensionFunction directly -- the
+// documented escape hatch -- where the two are independent statements.
 TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
     std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
     std::map<size_t, std::pair<unsigned int, unsigned int>> uwindows{{0, {0U, 100U}}};
@@ -114,16 +141,6 @@ TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
               SubtractExtensionFunction<SetResource<int>>::kind);
     EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
               NgPathExtensionFunction<SetResource<int>>::kind);
-}
-
-// The unsigned time window is the row that earns its place: it is the only class whose kind
-// differs between instantiations, so a mistake in the ternary would be invisible to the
-// `real` row above.
-TEST(BackwardKindDeclared, UnsignedTimeWindowDeclaresNothing) {
-    static_assert(backward_kind_of_v<TimeWindowExtensionFunction<RealResource>> ==
-                  BackwardKind::Threshold);
-    static_assert(backward_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
-                  BackwardKind::Unspecified);
 }
 
 // The trait tolerates a class that publishes nothing -- which the base and the composition
