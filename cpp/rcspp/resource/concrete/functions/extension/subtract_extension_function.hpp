@@ -5,6 +5,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -15,11 +16,20 @@ namespace rcspp {
 /// are NOT in the extender's container.  Typical use: removing visited or consumed
 /// elements from an eligibility set as a path is extended.
 ///
+/// **Backward form: @c Mirror.** Unlike @c NgPathExtensionFunction, the arc's extender value here
+/// is user-supplied set data attached to the arc, not a node identity, so there is nothing to
+/// swap between directions: each half accumulates over its own arcs with the same formula and the
+/// two halves are reconciled at the join. The inherited @c extend_back is therefore already
+/// correct, which is why this class uses a marker form rather than @c NodeMirrorForm.
+///
 /// @tparam ResourceType A ContainerResource-compatible type supporting `subtract()`
 ///                      and `set_value()`.
 template <typename ResourceType>
 class SubtractExtensionFunction
-    : public Clonable<SubtractExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    : public Clonable<
+          SubtractExtensionFunction<ResourceType>,
+          DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Mirror>,
+          ExtensionFunction<ResourceType>> {
     public:
         /// @brief Extends @p resource by subtracting @p extender_value, storing the result in
         /// @p extended_resource.
@@ -32,17 +42,5 @@ class SubtractExtensionFunction
             auto difference = resource.subtract(extender_value.get_value());
             extended_resource->set_value(difference);
         }
-
-        /// @brief A container resource whose arc value is direction-independent data.
-        ///
-        /// Unlike @c NgPathExtensionFunction, the arc's extender value here is user-supplied set
-        /// data attached to the arc, not a node identity, so there is nothing to swap between
-        /// directions: each half accumulates over its own arcs with the same formula and the two
-        /// halves are reconciled at the join. The inherited @c extend_back is therefore already
-        /// correct.
-        static constexpr BackwardKind kind = BackwardKind::Mirror;
-
-        /// @return @c BackwardKind::Mirror.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

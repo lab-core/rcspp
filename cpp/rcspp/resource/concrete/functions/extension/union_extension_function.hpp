@@ -5,6 +5,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -15,11 +16,20 @@ namespace rcspp {
 /// extender's container.  Typical use: accumulating visited nodes or collected
 /// items along a path where the resource grows monotonically.
 ///
+/// **Backward form: @c Mirror.** Unlike @c NgPathExtensionFunction, the arc's extender value here
+/// is user-supplied set data attached to the arc, not a node identity, so there is nothing to
+/// swap between directions: each half accumulates over its own arcs with the same formula and the
+/// two halves are reconciled at the join. The inherited @c extend_back is therefore already
+/// correct, which is why this class uses a marker form rather than @c NodeMirrorForm.
+///
 /// @tparam ContainerResourceType A ContainerResource-compatible type supporting
 ///                               `get_union()` and `set_value()`.
 template <typename ContainerResourceType>
-class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerResourceType>,
-                                               ExtensionFunction<ContainerResourceType>> {
+class UnionExtensionFunction
+    : public Clonable<
+          UnionExtensionFunction<ContainerResourceType>,
+          DeclaredKindForm<ExtensionFunction<ContainerResourceType>, BackwardKind::Mirror>,
+          ExtensionFunction<ContainerResourceType>> {
     public:
         /// @brief Extends @p resource by taking its union with @p extender_value, storing the
         /// result in @p extended_resource.
@@ -33,17 +43,5 @@ class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerR
             auto union_value = resource.get_union(extender_value.get_value());
             extended_resource->set_value(union_value);
         }
-
-        /// @brief A container resource whose arc value is direction-independent data.
-        ///
-        /// Unlike @c NgPathExtensionFunction, the arc's extender value here is user-supplied set
-        /// data attached to the arc, not a node identity, so there is nothing to swap between
-        /// directions: each half accumulates over its own arcs with the same formula and the two
-        /// halves are reconciled at the join. The inherited @c extend_back is therefore already
-        /// correct.
-        static constexpr BackwardKind kind = BackwardKind::Mirror;
-
-        /// @return @c BackwardKind::Mirror.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp
