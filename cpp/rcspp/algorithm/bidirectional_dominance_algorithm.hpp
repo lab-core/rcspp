@@ -461,19 +461,16 @@ class BidirectionalDominanceAlgorithm
         /// @return The critical component's declared backward kind, or `Unspecified` when the
         ///         graph has no arc carrying an extender.
         [[nodiscard]] BackwardKind critical_backward_kind(const Graph<ResourceType>& graph) const {
-            BackwardKind kind = BackwardKind::Unspecified;
-            bool found = false;
-            graph.for_each_arc([&](const auto& arc) {
-                if (found || arc.extender == nullptr) {
-                    return;
-                }
-                kind =
-                    arc.extender
-                        ->template get_component<CriticalRC>(this->params_.critical_resource_index)
-                        .backward_kind();
-                found = true;
-            });
-            return kind;
+            // Read off ONE arc: every extender in a graph comes from the same
+            // ResourceCompositionFactory, so they all carry the same component layout and the same
+            // declared shapes. Stated here because nothing enforces it.
+            const auto* arc = graph.first_arc();
+            if (arc == nullptr || arc->extender == nullptr) {
+                return BackwardKind::Unspecified;
+            }
+            return arc->extender
+                ->template get_component<CriticalRC>(this->params_.critical_resource_index)
+                .backward_kind();
         }
 
         /// @brief Dispatches the monotonicity probe, which needs the graph's resource pack.
@@ -538,7 +535,17 @@ class BidirectionalDominanceAlgorithm
             h_to_sink_.assign(num_nodes, 0.0);
             h_from_source_.assign(num_nodes, 0.0);
 
+            // The only consumer is step<Dir>'s completion-bound prune, which is gated on the same
+            // flag. Two O(V*E) relaxations per solve is a real cost in a pricing loop that calls
+            // solve() thousands of times, and zeros are exactly what "prune nothing" needs anyway.
+            // The `assign` calls above stay before this return: `completion_bound<Dir>` indexes
+            // with `.at()` and the vectors must remain correctly sized.
+            if (!this->params_.prune_based_on_upper_bound_) {
+                return;
+            }
+
             if constexpr (is_numerical_resource_v<CostRC> &&
+                         
                           is_cost_in_composition_v<CostRC, ResourceType>) {
                 fill_bound(graph, graph.get_sink_node_ids(), /*forward=*/false, &h_to_sink_);
                 fill_bound(graph, graph.get_source_node_ids(), /*forward=*/true, &h_from_source_);
@@ -585,14 +592,15 @@ class BidirectionalDominanceAlgorithm
         ///
         /// @throws std::runtime_error naming every offending component, before any label exists.
         void validate_backward_semantics(const Graph<ResourceType>& graph) const {
+            // One arc, not a full sweep: every extender in a graph comes from the same
+            // ResourceCompositionFactory, so they all declare the same component shapes. Stated
+            // here because nothing enforces it.
             std::vector<BackwardKind> kinds;
-            graph.for_each_arc([&](const auto& arc) {
-                if (!kinds.empty() || arc.extender == nullptr) {
-                    return;
-                }
-                arc.extender->for_each_component(
+            const auto* first = graph.first_arc();
+            if (first != nullptr && first->extender != nullptr) {
+                first->extender->for_each_component(
                     [&](const auto& component) { kinds.push_back(component.backward_kind()); });
-            });
+            }
 
             // No arc carries an extender, so there is nothing to extend in either direction and
             // nothing to validate. This is NOT a degenerate case worth complaining about: it is
