@@ -637,3 +637,40 @@ TEST(Bidirectional, PreprocessingAwayEveryArcIsNotAModellingError) {
         { result = graph->solve(algorithm.get(), kBindingUpperBound, /*preprocess=*/true); });
     EXPECT_TRUE(result.solutions.empty());
 }
+
+// ============================================================================
+// The caller's upper bound
+// ============================================================================
+
+/// @brief No solution above the caller's upper bound, from any of the three sources.
+///
+/// A bidirectional solve records complete paths from three places: a forward label at a sink, a
+/// backward label at a source, and a joined pair. Only the first went through the `Label` overload
+/// of `extract_solution`, which is where the `cost >= cost_upper_bound_` filter lives, so a
+/// backward half that ran all the way to the source was returned whatever it cost. In column
+/// generation that is a non-improving column presented as a priced one.
+TEST(Bidirectional, NoSolutionExceedsTheCallerUpperBound) {
+    namespace bt = bidirectional_test;
+    constexpr double kUpperBound = 0.0;  // "only strictly negative reduced costs, please"
+
+    // The forward search is the reference: every path here costs +5, so it returns nothing.
+    auto forward_graph = bt::line_graph({2.0, 3.0});
+    const auto forward =
+        forward_graph->solve<SimpleDominanceAlgorithm>(kUpperBound,
+                                                       AlgorithmParams<LabelList<bt::Composed>>{},
+                                                       /*preprocess=*/false);
+    ASSERT_TRUE(forward.solutions.empty());
+
+    auto graph = bt::line_graph({2.0, 3.0});
+    auto algorithm =
+        graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(1.0));
+    // Preprocessing off on purpose: with it on the preprocessor removes every arc first and the
+    // backward search never reaches the source, so the case under test never arises.
+    const auto result = graph->solve(algorithm.get(), kUpperBound, /*preprocess=*/false);
+
+    EXPECT_TRUE(result.solutions.empty())
+        << "a backward label reaching the source was recorded without the upper-bound filter";
+    for (const auto& solution : result.solutions) {
+        EXPECT_LT(solution.cost, kUpperBound);
+    }
+}
