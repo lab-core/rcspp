@@ -400,6 +400,16 @@ class BidirectionalDominanceAlgorithm
                               this->params_.critical_resource_index,
                               " is not monotone; disabling the half-way bound for this solve.\n");
                     half_way_.disable();
+                    return;
+                }
+                if (!critical_dominance_is_increasing(graph)) {
+                    LOG_DEBUG(
+                        "BidirectionalDominanceAlgorithm: critical resource ",
+                        this->params_.critical_resource_index,
+                        " does not take part in the dominance order as an increasing one, so a "
+                        "dominator may sit above H while the label it evicted sat below it; "
+                        "disabling the half-way bound for this solve.\n");
+                    half_way_.disable();
                 }
             }
         }
@@ -449,6 +459,19 @@ class BidirectionalDominanceAlgorithm
         [[nodiscard]] bool critical_is_monotone(const Graph<ResourceType>& graph,
                                                 const std::vector<double>& probes) const {
             return monotone_impl(graph, this->params_.critical_resource_index, probes);
+        }
+
+        /// @brief Dispatches the dominance probe, which needs the graph's resource pack.
+        template <typename... Ts>
+        [[nodiscard]] static bool dominance_increasing_impl(
+            const Graph<ResourceTypeComposition<Ts...>>& graph, size_t index) {
+            return critical_resource_dominance_is_increasing<CriticalRC, Ts...>(graph, index);
+        }
+
+        /// @brief Whether the clock's dominance order is the increasing one.
+        [[nodiscard]] bool critical_dominance_is_increasing(
+            const Graph<ResourceType>& graph) const {
+            return dominance_increasing_impl(graph, this->params_.critical_resource_index);
         }
 
         /// @brief `R`, the critical resource's finite maximum, taken from an explicit param.
