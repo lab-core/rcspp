@@ -947,11 +947,15 @@ TEST(Bidirectional, ReturnDominatedSolutionsIsHonoured) {
         << "recording more solutions must not change which one is best";
 }
 
-/// @brief With pruning off, a join that merely ties the incumbent is still returned.
+/// @brief Under a finite upper bound with pruning off, a join that ties the incumbent survives.
 ///
 /// The joiner used to consult and tighten `best_cost_upper_bound` whatever the caller asked for, so
-/// a pricing pool that wanted every negative-reduced-cost column got only the improving ones. The
-/// caller's own `upper_bound` is a different filter and stays unconditional.
+/// a pricing pool that wanted every negative-reduced-cost column got only the improving ones.
+///
+/// The bound has to be **finite** for the flag to mean anything. A solve that supplies none has
+/// expressed no filter, and answering that with every admissible pair cost 12 s and 3 M solutions
+/// on the full C201 instance and 9.3 GB on RC201 -- so the incumbent cutoff stays on there whatever
+/// the flag says. Both halves of that rule are asserted below.
 ///
 /// The two routes join on *different* arcs on purpose: routed through a shared node they would meet
 /// as two labels with identical resources, one would dominate the other, and the second solution
@@ -987,25 +991,36 @@ TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
         return graph;
     };
 
-    const auto run = [&build](bool prune) {
+    const auto run = [&build](bool prune, double upper_bound) {
         auto graph = build();
         auto p = bt::params(8.0, bt::kClockIndex);
         p.prune_based_on_upper_bound_ = prune;
         auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(p);
-        const auto result = graph->solve(algorithm.get());
+        const auto result = graph->solve(algorithm.get(), upper_bound);
         return std::make_pair(result.solutions.size(), algorithm->number_of_joined_paths());
     };
 
-    const auto [open_count, open_joins] = run(/*prune=*/false);  // the default, stated
+    constexpr double kFiniteBound = 10.0;  // above both routes, so it admits them and filters none
+    constexpr double kNoBound = std::numeric_limits<double>::infinity();
+
+    // The pricing case: a finite bound, pruning off. Both equal-cost routes come back.
+    const auto [open_count, open_joins] = run(/*prune=*/false, kFiniteBound);
     EXPECT_GT(open_joins, 0U)
         << "the two routes must meet at the join, or this test does not exercise the cutoff";
     EXPECT_GE(open_count, 2U)
-        << "both equal-cost routes should be returned when pruning is off";
+        << "both equal-cost routes should be returned under a finite bound with pruning off";
 
-    // And with pruning on the incumbent cutoff bites, which is what the flag is for.
-    const auto [pruned_count, pruned_joins] = run(/*prune=*/true);
-    EXPECT_LE(pruned_count, open_count);
+    // The same bound with pruning on: the incumbent cutoff bites, which is what the flag is for.
+    const auto [pruned_count, pruned_joins] = run(/*prune=*/true, kFiniteBound);
+    EXPECT_LT(pruned_count, open_count);
     EXPECT_LE(pruned_joins, open_joins);
+
+    // And with NO bound the cutoff applies whatever the flag says: an unfiltered solve is not a
+    // request for every admissible pair.
+    const auto [unbounded_count, unbounded_joins] = run(/*prune=*/false, kNoBound);
+    EXPECT_EQ(unbounded_count, pruned_count)
+        << "an infinite upper bound must behave as though pruning had been requested";
+    EXPECT_EQ(unbounded_joins, pruned_joins);
 }
 
 // ============================================================================

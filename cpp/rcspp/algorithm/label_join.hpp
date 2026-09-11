@@ -59,20 +59,23 @@ class Joiner {
         /// joined. That is still correct, just slower; `Solution`'s hash absorbs the duplicates.
         ///
         /// **On pruning.** Two different filters, deliberately separated. The caller's fixed
-        /// `cost_upper_bound` is unconditional -- it drops exactly what the caller said to drop --
-        /// while `best_cost_upper_bound`, "no better than something we already have", follows
-        /// `prune_based_on_upper_bound_`, which is off by default. A pricing pool wants every
+        /// `cost_upper_bound` is unconditional -- it drops exactly what the caller said to drop.
+        /// The incumbent cutoff, "no better than something we already have", follows
+        /// `prune_based_on_upper_bound_` *when a finite `cost_upper_bound` says the caller is
+        /// really filtering*, and otherwise stays on. A pricing pool wants every
         /// negative-reduced-cost column rather than only the best one, and no other algorithm here
-        /// drops a solution for being merely not-the-best.
+        /// drops a solution for being merely not-the-best -- but a solve with no bound at all has
+        /// asked for nothing in particular, and answering it with every admissible pair is how a
+        /// 12 s join and a 9.3 GB solution set happen. See the note in @ref join's body.
         ///
         /// `stop_after_X_solutions` deliberately does NOT truncate the join: the join runs to
         /// completion and `Algorithm::solve` resizes the result afterwards, so a `COMPLETE` status
         /// still means the search was exhaustive.
         ///
-        /// Either bound cuts pairs off, never halves. A half's own cost
-        /// says nothing about what the completed path costs once reduced costs go negative, which
-        /// is the ordinary case in pricing. The one admissible half-level test is a half plus the
-        /// cheapest completion available across the arc, and that is what the code does.
+        /// Either bound cuts pairs off, never halves. A half's own cost says nothing about what
+        /// the completed path costs once reduced costs go negative, which is the ordinary case in
+        /// pricing. The one admissible half-level test is a half plus the cheapest completion
+        /// available across the arc, and that is what the code does.
         ///
         /// @tparam FwdContainer Per-node forward label container.
         /// @tparam BwdContainer Per-node backward label container.
@@ -85,13 +88,19 @@ class Joiner {
         /// @param half_way                The half-way policy; consulted only when enabled.
         /// @param critical_resource_index Index of the critical resource within its type slot.
         /// @param best_cost_upper_bound   Tightened in place as solutions are found. Consulted as a
-        ///                                cutoff only when @p prune_against_incumbent is set.
-        /// @param prune_against_incumbent Whether a pair that is no better than the incumbent may
-        ///                                be dropped. This is `params_.prune_based_on_upper_bound_`,
-        ///                                and it is off by default: a pricing pool wants every
-        ///                                negative-reduced-cost column, not only the best one, and
-        ///                                no other algorithm in this library drops a solution for
-        ///                                being merely not-the-best.
+        ///                                cutoff only when the incumbent cutoff is in force -- see
+        ///                                @p prune_requested and the note in the body.
+        /// @param prune_requested         `params_.prune_based_on_upper_bound_`, the caller's
+        ///                                explicit request to drop a pair that is no better than
+        ///                                the incumbent. It is off by default: a pricing pool wants
+        ///                                every negative-reduced-cost column, not only the best
+        ///                                one, and no other algorithm in this library drops a
+        ///                                solution for being merely not-the-best.
+        ///
+        ///                                It is not the whole answer, though. A solve that supplies
+        ///                                no @p cost_upper_bound at all has expressed no filter,
+        ///                                and there "every admissible pair" is nobody's question --
+        ///                                see the body for what that cost when it was tried.
         ///
         ///                                The *caller's* bound, @p cost_upper_bound, is a different
         ///                                filter and stays unconditional -- it drops exactly what
@@ -104,8 +113,26 @@ class Joiner {
         void join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
                   std::vector<BwdContainer>& backward_by_pos, LabelPool<ResourceType>& pool,
                   const HalfWayPolicy& half_way, size_t critical_resource_index,
-                  double& best_cost_upper_bound, bool prune_against_incumbent,
-                  double cost_upper_bound, OnSolution&& on_solution) {
+                  double& best_cost_upper_bound, bool prune_requested, double cost_upper_bound,
+                  OnSolution&& on_solution) {
+            // The incumbent cutoff applies when the caller asked for it, and ALSO whenever they
+            // supplied no fixed bound at all.
+            //
+            // The second clause is not a convenience. Gating this cutoff on the request alone --
+            // which is what B2 first did -- makes a default solve return every admissible pair
+            // rather than the improving ones, and on a large instance that is not a few extra
+            // columns. Measured on the full C201: 3 064 862 joins and 3 065 288 solutions, 12.23 s
+            // against the forward search's 0.68 s, while the bidirectional SEARCH extended 1.46x
+            // FEWER labels than forward. On RC201 the same run reached 9.3 GB resident and had to
+            // be killed. None of that cost is search; it is recording and de-duplicating the set.
+            //
+            // An infinite `cost_upper_bound` means the caller expressed no filter -- a benchmark,
+            // an equivalence check, an exploratory solve -- and there "every path" is not the
+            // question anybody asked. A FINITE bound is the case B2 exists for: a pricing pool
+            // saying "every column below this", which wants all of them and not only the best. So
+            // the flag is honoured exactly where it means something.
+            const bool prune_against_incumbent =
+                prune_requested || !std::isfinite(cost_upper_bound);
             // No container provides a cost order: LabelList appends, and LabelBuckets orders by its
             // bucket resource across buckets and its sort resource within one -- which is not a
             // global cost order, and not cost at all unless the sort resource happens to be cost.
