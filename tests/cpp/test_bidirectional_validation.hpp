@@ -149,6 +149,41 @@ inline std::unique_ptr<Label<Composed>> threshold_label(size_t label_id, double 
     return std::make_unique<Label<Composed>>(label_id, std::move(resource));
 }
 
+/// @brief A two-component label: a *reversing* deadline in slot 0 and a plain cost in slot 1.
+///
+/// Two components so a bucket container can bucket on one and sort on the other, which is the
+/// configuration `LabelBuckets` is for and the only one in which its sort-resource comparisons are
+/// reachable. `threshold_label`'s single component made bucket and sort the same slot, so the
+/// comparison could never disagree with itself.
+///
+/// @param label_id The label's id, used to compare survivor sets.
+/// @param deadline Slot 0: a threshold, so its backward dominance is reversed.
+/// @param cost     Slot 1: an accumulation, so its dominance is not reversed in either direction.
+inline std::unique_ptr<Label<Composed>> deadline_and_cost_label(size_t label_id, double deadline,
+                                                                double cost) {
+    const auto make_component = [](double value, bool reversed) {
+        auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
+        dominance->set_backward_reversed(reversed);
+        return std::make_unique<Resource<RealResource>>(
+            RealResource(value),
+            std::move(dominance),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<TrivialCostFunction<RealResource>>());
+    };
+
+    std::tuple<std::vector<std::unique_ptr<Resource<RealResource>>>> components;
+    std::get<0>(components).push_back(make_component(deadline, /*reversed=*/true));
+    std::get<0>(components).push_back(make_component(cost, /*reversed=*/false));
+
+    auto resource = std::make_unique<Resource<Composed>>(
+        std::move(components),
+        std::make_unique<CompositionDominanceFunction<RealResource>>(),
+        std::make_unique<CompositionFeasibilityFunction<RealResource>>(),
+        std::make_unique<CompositionCostFunction<RealResource>>(),
+        0);
+    return std::make_unique<Label<Composed>>(label_id, std::move(resource));
+}
+
 /// @brief Inserts @p label the way the search does: skip if dominated, else evict and add.
 ///
 /// `add_label` only appends -- dominance lives in `is_dominated` / `remove_dominated_labels`, and
@@ -334,51 +369,60 @@ TEST(BidirectionalValidation, ReverseGraphOracleAgreesOnAdditiveInstances) {
 // Backward LabelBuckets
 // ============================================================================
 
-/// @brief A bucketed backward container keeps exactly the labels the list keeps.
+/// @brief A bucketed backward container keeps exactly the labels a list keeps -- in both
+///        bucket/sort configurations, and on a set where several labels survive.
 ///
-/// Phase 7 gave `LabelBuckets` a direction parameter and left the backward search on `LabelList`,
-/// pending this comparison. The comparison passes: the bucket predicates route through
-/// `is_lower_dir`, which already reverses, and the surviving sets are identical.
+/// The earlier form of this test could not fail. It used one component, so the bucket resource and
+/// the sort resource were the same slot, and a set in which one label dominated all the others, so
+/// exactly one survived. `LabelBuckets` has five direction-sensitive comparisons: two bucket
+/// boundary predicates and three on the sort resource. Only the first two were reachable, and only
+/// they were routed.
 ///
-/// **The algorithm is nonetheless not switched over.** Making the backward container configurable
-/// means a fourth template parameter on `BidirectionalDominanceAlgorithm`, which phase 11 ruled
-/// out by design -- the backward container is deliberately internal so the class still fits the
-/// two-parameter template-template slot `ResourceGraph::solve` takes. So the restriction stays for
-/// a structural reason rather than a correctness one, and this test records that the correctness
-/// question was asked and answered.
+/// The set below is a genuine Pareto front under backward dominance -- a later deadline is more
+/// permissive, a lower cost is better, so a label survives unless something beats it on both --
+/// which is what makes the early exits in `is_dominated` and `remove_dominated_labels` run.
 ///
-/// Note what is compared: the surviving label *sets*, not merely a pair of optima. A bucket
-/// structure that silently drops a non-dominated label can still agree on the optimum.
+/// **The algorithm is still not switched over.** Making the backward container configurable needs a
+/// fourth template parameter on `BidirectionalDominanceAlgorithm`, which would take it outside the
+/// two-parameter template-template slot `ResourceGraph::solve` accepts. The correctness question is
+/// what this test answers; the plumbing is a separate decision.
 TEST(BidirectionalValidation, BucketedBackwardContainerMatchesTheList) {
     namespace bv = bidirectional_validation_test;
 
-    using Buckets = LabelBuckets<RealResource, RealResource, bv::Composed, BackwardDirection>;
+    // {deadline, cost}. The first three are mutually non-dominated backwards (a later deadline
+    // costs more); the fourth is beaten on both by {70, 3} and must be removed by both containers.
+    const std::vector<std::pair<double, double>> values{
+        {90.0, 5.0}, {70.0, 3.0}, {50.0, 1.0}, {60.0, 4.0}};
 
-    // Deadlines: backward, the later one dominates. Mixed order on purpose, so the containers are
-    // not fed a conveniently sorted sequence.
-    const std::vector<double> values{40.0, 10.0, 70.0, 25.0, 55.0, 10.0, 90.0};
+    const auto compare = [&](size_t bucket_index, size_t sort_index, const char* what) {
+        using Buckets = LabelBuckets<RealResource, RealResource, bv::Composed, BackwardDirection>;
 
-    std::vector<std::unique_ptr<Label<bv::Composed>>> for_list;
-    std::vector<std::unique_ptr<Label<bv::Composed>>> for_buckets;
-    for (size_t i = 0; i < values.size(); ++i) {
-        for_list.push_back(bv::threshold_label(i, values[i]));
-        for_buckets.push_back(bv::threshold_label(i, values[i]));
-    }
+        std::vector<std::unique_ptr<Label<bv::Composed>>> for_list;
+        std::vector<std::unique_ptr<Label<bv::Composed>>> for_buckets;
+        for (size_t i = 0; i < values.size(); ++i) {
+            for_list.push_back(bv::deadline_and_cost_label(i, values[i].first, values[i].second));
+            for_buckets.push_back(
+                bv::deadline_and_cost_label(i, values[i].first, values[i].second));
+        }
 
-    LabelList<bv::Composed, BackwardDirection> list;
-    Buckets buckets(/*range_buckets=*/4, /*bucket_resource_index=*/0, /*sort_resource_index=*/0);
-    for (size_t i = 0; i < values.size(); ++i) {
-        bv::insert_non_dominated(&list, for_list[i].get());
-        bv::insert_non_dominated(&buckets, for_buckets[i].get());
-    }
+        LabelList<bv::Composed, BackwardDirection> list;
+        Buckets buckets(/*range_buckets=*/20, bucket_index, sort_index);
+        for (size_t i = 0; i < values.size(); ++i) {
+            bv::insert_non_dominated(&list, for_list[i].get());
+            bv::insert_non_dominated(&buckets, for_buckets[i].get());
+        }
 
-    EXPECT_EQ(bv::surviving_ids(buckets), bv::surviving_ids(list))
-        << "a bucketed backward container must keep exactly the labels the list keeps";
+        const auto from_list = bv::surviving_ids(list);
+        EXPECT_EQ(bv::surviving_ids(buckets), from_list)
+            << "bucketed and list backward containers disagree with " << what;
 
-    // And the survivors are the permissive deadlines, not the tight ones -- otherwise both
-    // containers could be wrong in the same way and this test would still pass.
-    const auto survivors = bv::surviving_ids(list);
-    ASSERT_FALSE(survivors.empty());
-    EXPECT_EQ(survivors.size(), 1U);
-    EXPECT_EQ(survivors.front(), 6U) << "the latest deadline, 90, dominates every other";
+        // And the list itself keeps the right labels, so the two cannot be wrong together.
+        EXPECT_EQ(from_list, (std::vector<size_t>{0, 1, 2}))
+            << "the Pareto front is {90,5}, {70,3}, {50,1}; {60,4} is beaten on both: " << what;
+    };
+
+    // The realistic configuration: bucket on the clock, sort on the cost.
+    compare(/*bucket_index=*/0, /*sort_index=*/1, "bucket = deadline, sort = cost");
+    // The one that reaches the sort-resource comparisons with a REVERSED resource.
+    compare(/*bucket_index=*/1, /*sort_index=*/0, "bucket = cost, sort = deadline");
 }
