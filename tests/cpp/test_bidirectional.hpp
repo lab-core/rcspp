@@ -455,6 +455,47 @@ TEST(Bidirectional, NonMonotoneClockDisablesTheBoundAndStillSolves) {
     EXPECT_NEAR(result.solutions.front().cost, 6.0, bt::kTolerance);  // 1 + 2 + 3
 }
 
+/// @brief A clock that does not take part in dominance disables the bound, and the answer survives.
+///
+/// The half-way bound assumes a dominated label's dominator is a valid substitute at the join too,
+/// which needs the clock inside the dominance order. With a trivial dominance it is not: a
+/// dominator above H evicts a label below it, and the path is lost while the solve reports
+/// COMPLETE. Disabling is the right response -- correct but slow, the same treatment a non-monotone
+/// clock gets.
+TEST(Bidirectional, ATrivialDominanceOnTheClockDisablesTheBound) {
+    namespace bt = bidirectional_test;
+
+    // Same shape as clock_line_graph, but the clock slot carries a TrivialDominanceFunction.
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
+                                      std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                                          0.0,
+                                          20.0,
+                                          /*merge_by_increasing_value=*/true),
+                                      std::make_unique<TrivialCostFunction<RealResource>>(),
+                                      std::make_unique<TrivialDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < 4; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == 3);
+    }
+    graph->add_arc<RealResource, RealResource>({1.0, 5.0}, 0, 1, 1.0);
+    graph->add_arc<RealResource, RealResource>({2.0, 2.0}, 1, 2, 2.0);
+    graph->add_arc<RealResource, RealResource>({3.0, 3.0}, 2, 3, 3.0);
+
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bt::params(3.0, bt::kClockIndex));
+    SolveResult result;
+    EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
+
+    EXPECT_FALSE(algorithm->bounded_by_half_way())
+        << "a clock outside the dominance order must not be trusted";
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, 6.0, bt::kTolerance);  // 1 + 2 + 3
+}
+
 // ============================================================================
 // The pruning trap
 // ============================================================================

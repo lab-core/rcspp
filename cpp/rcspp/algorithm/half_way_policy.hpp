@@ -6,6 +6,7 @@
 #include <cmath>
 #include <span>
 #include <type_traits>
+#include <vector>
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"
@@ -151,6 +152,59 @@ template <typename CriticalRC, typename... ResourceTypes>
             }
         });
         return monotone;
+    }
+}
+
+/// @brief Checks that the chosen critical resource takes part in the dominance order, increasing.
+///
+/// The half-way bound rests on an implication: when a label is dominated, its dominator is a valid
+/// substitute *at the join too*. That needs `X dominates Y  =>  X.clock <= Y.clock`, because a
+/// dominator whose clock is above `H` is filtered out of the join while the label it evicted is
+/// gone from the container. The path is then lost, and the solve reports COMPLETE.
+///
+/// `ValueDominanceFunction` satisfies it. `TrivialDominanceFunction` does not -- it returns `true`
+/// unconditionally, so the first label at a node evicts every later one whatever its clock. A
+/// higher-is-better order does not either: `should_stop_forward` discards labels ABOVE `H`, which
+/// is the increasing reading.
+///
+/// Probed on a copy of a node's own resource, so the component's real dominance function answers.
+///
+/// @tparam CriticalRC    The critical resource's *type*; the index alone does not identify a slot.
+/// @tparam ResourceTypes The graph's resource pack.
+/// @param graph                   The graph whose nodes carry the function objects.
+/// @param critical_resource_index Position of the critical resource within its type slot.
+/// @return `true` when the clock's dominance is the increasing order, `false` otherwise -- which
+///         includes "the type is not in the pack" and "the graph has no usable node", both of
+///         which mean the caller should disable the bound.
+template <typename CriticalRC, typename... ResourceTypes>
+[[nodiscard]] bool critical_resource_dominance_is_increasing(
+    const Graph<ResourceTypeComposition<ResourceTypes...>>& graph,
+    size_t critical_resource_index) {
+    if constexpr (ComponentTypeIndex<CriticalRC, ResourceTypes...>::value == -1) {
+        return false;
+    } else {
+        const std::vector<size_t> node_ids = graph.get_node_ids();
+        if (node_ids.empty()) {
+            return false;
+        }
+        const auto* node = graph.get_node(node_ids.front());
+        if (node == nullptr || node->resource == nullptr) {
+            return false;
+        }
+
+        // Copies, because the copy constructor clones the function objects -- the same thing
+        // BellmanFordAlgorithm and the monotonicity probe do, and for the same reason.
+        Resource<ResourceTypeComposition<ResourceTypes...>> low(*node->resource);
+        Resource<ResourceTypeComposition<ResourceTypes...>> high(*node->resource);
+
+        auto& low_component = low.template get_component<CriticalRC>(critical_resource_index);
+        auto& high_component = high.template get_component<CriticalRC>(critical_resource_index);
+        using CriticalValueType = std::decay_t<decltype(low_component.get_value().get_value())>;
+        low_component.set_value(static_cast<CriticalValueType>(0));
+        high_component.set_value(static_cast<CriticalValueType>(1));
+
+        // Two probe values one apart, which is far outside any tolerance a fast check applies.
+        return (low_component <= high_component) && !(high_component <= low_component);
     }
 }
 

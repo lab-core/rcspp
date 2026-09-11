@@ -62,6 +62,10 @@ One resource acts as the **clock** that says where "half-way" is.  It must be:
   forward scale (the latest arrival still admissible here), not the consumption
   from here to the sink.  `TimeWindowExtensionFunction` and
   `BudgetExtensionFunction` are thresholds; `AdditionExtensionFunction` is not.
+- **inside the dominance order, increasing** — the resource's `DominanceFunction` must say that a
+  smaller value dominates a larger one. `ValueDominanceFunction` does; `TrivialDominanceFunction`
+  does not. Without it a dominating label can sit *above* the half-way point while the label it
+  evicted sat below, and the path through the evicted label is lost.
 
 Cost is never a valid clock: reduced costs go negative during column generation,
 which breaks monotonicity.

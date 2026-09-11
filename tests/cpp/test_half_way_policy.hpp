@@ -204,6 +204,59 @@ TEST(HalfWayPolicy, AbsentCriticalTypeIsNotMonotone) {
 }
 
 // ============================================================================
+// Dominance-order validation
+// ============================================================================
+
+/// @brief A clock compared by value is accepted.
+///
+/// `ValueDominanceFunction` says a smaller value dominates a larger one, which is exactly the
+/// implication the half-way bound rests on: a dominator's clock is never above the clock of the
+/// label it evicted, so it is still a valid join candidate.
+TEST(HalfWayPolicy, ValueDominanceOnTheClockIsAccepted) {
+    auto graph =
+        half_way_test::two_node_graph(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      /*arc_value=*/15.0);
+
+    EXPECT_TRUE((critical_resource_dominance_is_increasing<RealResource, RealResource>(
+        *graph,
+        /*critical_resource_index=*/0)));
+}
+
+/// @brief A clock with a trivial dominance is rejected.
+///
+/// TrivialDominanceFunction returns true unconditionally, so the first label at a node evicts every
+/// later one whatever its clock -- and a dominator sitting above H is filtered out of the join
+/// while the label it evicted is gone from the container.
+TEST(HalfWayPolicy, TrivialDominanceOnTheClockIsRejected) {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<TrivialDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>(std::make_tuple(15.0), 0, 1);
+
+    EXPECT_FALSE((critical_resource_dominance_is_increasing<RealResource, RealResource>(
+        *graph,
+        /*critical_resource_index=*/0)));
+}
+
+/// @brief An absent critical type has no dominance order, like the monotonicity probe.
+TEST(HalfWayPolicy, AbsentCriticalTypeHasNoDominanceOrder) {
+    auto graph =
+        half_way_test::two_node_graph(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      /*arc_value=*/15.0);
+
+    // IntResource is not part of this graph's pack.
+    EXPECT_FALSE((critical_resource_dominance_is_increasing<IntResource, RealResource>(
+        *graph,
+        /*critical_resource_index=*/0)));
+}
+
+// ============================================================================
 // The failure response
 // ============================================================================
 
