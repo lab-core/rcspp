@@ -107,6 +107,20 @@ struct InstanceConfig {
         /// optimum on 5 of 8 seeds.
         double back_arc_density = 0.0;
 
+        /// @brief Adds a constant to each arc's `arc.cost`, leaving the cost *component* alone.
+        ///
+        /// `arc.cost` is the ORIGINAL arc weight and the cost component is what the labels
+        /// accumulate; `ResourceGraph::update_reduced_costs` rewrites the second and leaves the
+        /// first, so in a real pricing model they are different numbers. With this at its default
+        /// of 0 the generator makes them equal, which is convenient and which hid a bound that
+        /// relaxed on the wrong one (review finding D1).
+        ///
+        /// A *positive* offset is the dangerous direction: it makes any bound summed from
+        /// `arc.cost` over-estimate the remaining labeling cost by `offset x path length`, which is
+        /// precisely the inadmissibility that loses the optimum. Nothing in the model's semantics
+        /// changes -- `arc.cost` is read only when building a column's original cost.
+        double arc_cost_offset = 0.0;
+
         /// @brief The generator's seed. Printed on every failure.
         std::uint32_t seed = 0;
 };
@@ -143,6 +157,10 @@ inline std::string describe(const InstanceConfig& config) {
     text += config.with_ng_path ? " ng=yes" : " ng=no";
     if (config.back_arc_density > 0.0) {
         text += " back_arcs=" + std::to_string(config.back_arc_density);
+    }
+    // Only when set, so every existing failure message stays byte-identical.
+    if (config.arc_cost_offset != 0.0) {
+        text += " arc_cost_offset=" + std::to_string(config.arc_cost_offset);
     }
     return text;
 }
@@ -323,27 +341,31 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
     }
 
     for (const auto& arc : draw.arcs) {
+        // The tuple carries the cost COMPONENT, which the labels accumulate; the last argument is
+        // `arc.cost`, the ORIGINAL weight, which only column construction reads. Equal by default;
+        // `arc_cost_offset` separates them, which is the shape update_reduced_costs produces.
+        const double original_weight = arc.cost + config.arc_cost_offset;
         if (config.with_time_window && config.with_capacity) {
             built.graph->add_arc<RealResource, RealResource, RealResource>(
                 {arc.cost, arc.time, arc.load},
                 arc.origin,
                 arc.destination,
-                arc.cost);
+                original_weight);
         } else if (config.with_time_window) {
             built.graph->add_arc<RealResource, RealResource>({arc.cost, arc.time},
                                                              arc.origin,
                                                              arc.destination,
-                                                             arc.cost);
+                                                             original_weight);
         } else if (config.with_capacity) {
             built.graph->add_arc<RealResource, RealResource>({arc.cost, arc.load},
                                                              arc.origin,
                                                              arc.destination,
-                                                             arc.cost);
+                                                             original_weight);
         } else {
             built.graph->add_arc<RealResource>(std::make_tuple(arc.cost),
                                                arc.origin,
                                                arc.destination,
-                                               arc.cost);
+                                               original_weight);
         }
     }
 
@@ -478,6 +500,9 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
     }
 
     for (const auto& arc : draw.arcs) {
+        // See build_instance: the tuple carries the cost COMPONENT, the last argument the
+        // ORIGINAL weight. `arc_cost_offset` separates them.
+        const double original_weight = arc.cost + config.arc_cost_offset;
         const std::set<size_t> no_arc_set;  // see the class comment: the arc value is ignored
         if (config.with_time_window && config.with_capacity) {
             built.graph->add_arc<RealResource, RealResource, RealResource, SizeTBitsetResource>(
@@ -487,7 +512,7 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
                                 std::make_tuple(no_arc_set)),
                 arc.origin,
                 arc.destination,
-                arc.cost);
+                original_weight);
         } else if (config.with_time_window) {
             built.graph->add_arc<RealResource, RealResource, SizeTBitsetResource>(
                 std::make_tuple(std::make_tuple(arc.cost),
@@ -495,7 +520,7 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
                                 std::make_tuple(no_arc_set)),
                 arc.origin,
                 arc.destination,
-                arc.cost);
+                original_weight);
         } else if (config.with_capacity) {
             built.graph->add_arc<RealResource, RealResource, SizeTBitsetResource>(
                 std::make_tuple(std::make_tuple(arc.cost),
@@ -503,13 +528,13 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
                                 std::make_tuple(no_arc_set)),
                 arc.origin,
                 arc.destination,
-                arc.cost);
+                original_weight);
         } else {
             built.graph->add_arc<RealResource, SizeTBitsetResource>(
                 std::make_tuple(std::make_tuple(arc.cost), std::make_tuple(no_arc_set)),
                 arc.origin,
                 arc.destination,
-                arc.cost);
+                original_weight);
         }
     }
 
