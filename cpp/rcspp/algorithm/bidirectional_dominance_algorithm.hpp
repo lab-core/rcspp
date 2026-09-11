@@ -38,8 +38,13 @@ namespace rcspp {
 /// @tparam CriticalRC         The critical resource's *type*: reading a component needs a type, not
 ///                            just an index. Wrapped by @ref BidirectionalAlgoBound so the class
 ///                            still fits the two-parameter shape the entry points require.
+/// @tparam CostRC             The cost resource's *type*, which the completion bounds relax on.
+///                            Defaults to @p CriticalRC because the Python dispatch binds the two
+///                            together, but they are different questions: a model may have a
+///                            real-valued cost and an integer clock. The index within the slot is
+///                            @c params_.heuristic_cost_index.
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
-          typename CriticalRC = RealResource>
+          typename CriticalRC = RealResource, typename CostRC = CriticalRC>
     requires ResourceTypeConcept<ResourceType>
 class BidirectionalDominanceAlgorithm
     : public DirectionalDominanceAlgorithm<ResourceType, LabelContainerType, ForwardDirection> {
@@ -457,21 +462,43 @@ class BidirectionalDominanceAlgorithm
         }
 
         /// @brief Computes both completion bounds, inheriting A*'s negative-cycle discipline.
+        ///
+        /// Guarded on the COST type, not the critical one. The two coincide whenever the Python
+        /// dispatch built the algorithm, because `BidirectionalAlgoEntry` binds them together --
+        /// but they answer different questions, and a C++ caller can separate them.
+        ///
+        /// With no cost component in the pack the bounds stay at zero, i.e. prune nothing. A*
+        /// falls back to `arc.cost` in the same situation; this deliberately does not. A* uses its
+        /// `h` for frontier ordering as well as pruning, so a rough one still earns its keep;
+        /// here `h` does nothing but prune, and an over-estimating prune loses the optimum while
+        /// reporting COMPLETE.
         void compute_completion_bounds(const Graph<ResourceType>& graph) {
             const size_t num_nodes = graph.get_number_of_nodes();
             h_to_sink_.assign(num_nodes, 0.0);
             h_from_source_.assign(num_nodes, 0.0);
 
-            if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
+            if constexpr (is_numerical_resource_v<CostRC> &&
+                          is_cost_in_composition_v<CostRC, ResourceType>) {
                 fill_bound(graph, graph.get_sink_node_ids(), /*forward=*/false, &h_to_sink_);
                 fill_bound(graph, graph.get_source_node_ids(), /*forward=*/true, &h_from_source_);
             }
         }
 
+        /// @brief Runs one Bellman-Ford pass over the LABELING cost slot.
+        ///
+        /// Not the three-argument `solve(graph, targets, forward)` overload, which relaxes on
+        /// `arc.cost`. `arc.cost` is the ORIGINAL arc weight -- `update_reduced_costs` rewrites the
+        /// cost *component* and leaves `arc.cost` alone, because `extract_solution` sums it to
+        /// build the column's original cost. So under reduced costs the two are different
+        /// quantities, a sum of `arc.cost` over-estimates the remaining reduced cost, and an
+        /// over-estimating bound is not admissible: it discards labels on the true optimal path
+        /// and then reports COMPLETE. This is the same call, on the same slot, that
+        /// `AStarDominanceAlgorithm::initialize()` makes.
         void fill_bound(const Graph<ResourceType>& graph, const std::vector<size_t>& targets,
                         bool forward, std::vector<double>* out) {
             try {
-                auto distance = BellmanFordAlgorithm::solve(graph, targets, forward);
+                auto distance = BellmanFordAlgorithm::solve<CostRC>(
+                    graph, targets, this->params_.heuristic_cost_index, forward);
                 for (size_t node_id : graph.get_node_ids()) {
                     const auto* node = graph.get_node(node_id);
                     auto it = distance.find(node_id);
@@ -480,12 +507,10 @@ class BidirectionalDominanceAlgorithm
                                                : std::numeric_limits<double>::infinity();
                 }
             } catch (const std::runtime_error&) {
-                // A negative-cost cycle: the shortest cost-to-terminal is -inf, so there is no
-                // finite lower bound. Prune nothing rather than substituting arc.cost -- that is
-                // the ORIGINAL weight, so summing it OVER-estimates the remaining reduced cost, and
-                // an over-estimating bound is not admissible: combined with truncation it discards
-                // labels on the true optimal path and then reports COMPLETE. Same reasoning as
-                // AStarDominanceAlgorithm's catch block.
+                // A negative-cost cycle in the reduced-cost relaxation: the shortest cost-to-go is
+                // -inf, so there is no finite lower bound. Prune nothing rather than falling back
+                // to arc.cost -- see fill_bound's own note on why that substitution is
+                // inadmissible. Same reasoning as AStarDominanceAlgorithm's catch block.
                 std::ranges::fill(*out, 0.0);
             }
         }
@@ -656,14 +681,17 @@ class BidirectionalDominanceAlgorithm
 /// The same wrapper trick `AStarAlgoBound` uses, and for the same reason: `ResourceGraph::solve`
 /// and the Python dispatch table accept only `template <typename, typename> class`.
 ///
-/// @tparam CriticalRC The critical resource's type.
-template <typename CriticalRC>
+/// @tparam CriticalRC The critical resource's type -- the clock.
+/// @tparam CostRC     The cost resource's type, which the completion bounds relax on. Defaults to
+///                    @p CriticalRC, which is what the Python dispatch wants; a C++ caller whose
+///                    clock and cost live in different type slots names both.
+template <typename CriticalRC, typename CostRC = CriticalRC>
 struct BidirectionalAlgoBound {
         template <typename RT, typename LC>
-        class Algo : public BidirectionalDominanceAlgorithm<RT, LC, CriticalRC> {
+        class Algo : public BidirectionalDominanceAlgorithm<RT, LC, CriticalRC, CostRC> {
             public:
-                using BidirectionalDominanceAlgorithm<RT, LC,
-                                                      CriticalRC>::BidirectionalDominanceAlgorithm;
+                using BidirectionalDominanceAlgorithm<RT, LC, CriticalRC,
+                                                      CostRC>::BidirectionalDominanceAlgorithm;
         };
 };
 

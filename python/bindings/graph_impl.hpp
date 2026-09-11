@@ -125,23 +125,27 @@ struct AStarAlgoEntry {
         }
 };
 
-// Dispatch entry for bidirectional labeling: binds CostRC as the critical resource TYPE.
+// Dispatch entry for bidirectional labeling: binds CostRC as both the critical resource TYPE and
+// the cost type, and injects the cost INDEX.
 //
-// Unlike AStarAlgoEntry it injects nothing. The A* entry has to overwrite heuristic_cost_index
-// because its heuristic must read the same cost slot the labeling algorithm does, but the
-// bidirectional algorithm's completion bounds come from Bellman-Ford over arc.cost and read no
-// index at all, and critical_resource_index is a modelling choice that arrives through params --
-// overwriting it with the cost slot would silently point the clock at the cost.
+// It injects `heuristic_cost_index` for the same reason AStarAlgoEntry does: a cost-to-go bound
+// that relaxes on a different slot from the one the labels accumulate is not a lower bound at all.
+// The bidirectional algorithm's completion bounds are exactly such a bound.
+//
+// It deliberately does NOT touch `critical_resource_index`: that is a modelling choice arriving
+// through params, and overwriting it with the cost slot would silently point the clock at the
+// cost -- which is the one resource that can never be a clock, because reduced costs go negative.
 //
 // Binding CostRC as the critical type means the clock must live in the cost resource's type slot.
 // That covers the usual case, a real-valued time or duration alongside a real-valued cost; a model
 // whose clock is an IntResource while its cost is real is not expressible through this entry and
-// needs the C++ API.
+// needs the C++ API, where BidirectionalAlgoBound takes the two types separately.
 template <SolverAlgorithm E>
 struct BidirectionalAlgoEntry {
         static constexpr SolverAlgorithm value = E;
         template <typename RG, typename CostRC, typename LC>
         static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            p.heuristic_cost_index = ci;
             return rg.template solve<BidirectionalAlgoBound<CostRC>::template Algo, CostRC, LC>(
                 ub,
                 std::move(p),

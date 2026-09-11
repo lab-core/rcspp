@@ -501,6 +501,60 @@ TEST(Bidirectional, HalfPathPruningKeepsNegativeReducedCosts) {
         << "a half costing 30 completes to -20; pruning on the half's own cost loses it";
 }
 
+/// @brief The completion bound is admissible under reduced costs.
+///
+/// `arc.cost` is the ORIGINAL arc weight; `update_reduced_costs` rewrites the cost *component* and
+/// leaves `arc.cost` alone. A completion bound relaxed on `arc.cost` therefore over-estimates the
+/// remaining reduced cost, and an over-estimating bound discards labels on the true optimal path
+/// while reporting COMPLETE.
+///
+/// The instance: a chain whose original weights are 1000 / 1 / 1000 and whose reduced costs are
+/// -1 / -1000 / -1, plus a direct arc (weight 1, reduced cost -2) that sets a cheap incumbent.
+/// The optimum is -1002. Relaxed on `arc.cost`, `h_to_sink(2)` reads 1000 instead of -1, so the
+/// label at node 2 -- cost -1001, one arc from a -1002 completion -- is pruned against an
+/// incumbent of -2, and the solve returns -2.
+TEST(Bidirectional, CompletionBoundIsAdmissibleUnderReducedCosts) {
+    namespace bt = bidirectional_test;
+
+    // {reduced cost carried by the labels, original arc.cost}
+    const auto build = [] {
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        graph->add_node(1);
+        graph->add_node(2);
+        graph->add_node(3, /*source=*/false, /*sink=*/true);
+        graph->add_arc<RealResource>(std::make_tuple(-1.0), 0, 1, /*arc.cost=*/1000.0);
+        graph->add_arc<RealResource>(std::make_tuple(-1000.0), 1, 2, /*arc.cost=*/1.0);
+        graph->add_arc<RealResource>(std::make_tuple(-1.0), 2, 3, /*arc.cost=*/1000.0);
+        graph->add_arc<RealResource>(std::make_tuple(-2.0), 0, 3, /*arc.cost=*/1.0);
+        return graph;
+    };
+
+    auto reference_graph = build();
+    const double expected = bt::forward_optimum(reference_graph.get());
+    ASSERT_NEAR(expected, -1002.0, bt::kTolerance);
+
+    auto graph = build();
+    auto p = bt::params(/*half_way_point=*/0.0);
+    p.prune_based_on_upper_bound_ = true;
+    p.heuristic_cost_index = 0;  // the slot the labels accumulate; the bound must use the same one
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(p);
+
+    // Preprocessing off: it would remove arcs on original weights and change what is measured.
+    const auto result = graph->solve(algorithm.get(),
+                                     std::numeric_limits<double>::infinity(),
+                                     /*preprocess=*/false);
+
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, expected, bt::kTolerance)
+        << "the completion bound over-estimated the remaining reduced cost and pruned the optimum";
+}
+
 // ============================================================================
 // Pool hygiene
 // ============================================================================

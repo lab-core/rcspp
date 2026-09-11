@@ -173,11 +173,17 @@ struct AlgorithmBaseParams {
 
         int seed = 0;
 
-        /// @brief Index of the cost resource component used to compute the A* heuristic.
+        /// @brief Index of the cost resource component that cost-to-go bounds relax on.
         ///
-        /// Injected by the dispatch layer (see AStarAlgoEntry in graph_impl.hpp) so that
-        /// AStarDominanceAlgorithm::initialize() runs Bellman–Ford on the same cost slot
-        /// as the labeling algorithm itself.  Ignored by all other algorithm types.
+        /// Injected by the dispatch layer (see AStarAlgoEntry and BidirectionalAlgoEntry in
+        /// graph_impl.hpp) so that a cost-to-go bound runs Bellman–Ford on the same cost slot as
+        /// the labeling algorithm itself. Read by @c AStarDominanceAlgorithm (its heuristic) and
+        /// by @c BidirectionalDominanceAlgorithm (its completion bounds); ignored by every other
+        /// algorithm.
+        ///
+        /// The name is historical -- this was an A*-only field. It is not renamed because it is
+        /// public C++ API, and a second field meaning the same thing is exactly the
+        /// two-sources-of-truth hazard the rest of this design refuses.
         size_t heuristic_cost_index = 0;
 
         /// @brief Component index of the monotone bounding resource used as the bidirectional
