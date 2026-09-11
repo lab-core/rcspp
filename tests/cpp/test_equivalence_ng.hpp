@@ -88,6 +88,13 @@ TEST(Equivalence, NgPathIsInertOnADag) {
 // feasible walk rather than hitting its state budget, so the comparison is against the truth and
 // not against a partial search. It throws rather than truncating, so growing this is loud.
 //
+// **What bounds the size, measured.** num_nodes was 7 while the interior-sink defect was open,
+// which sized the tier by where a bug appeared rather than by what the oracle can do. It is now 8.
+// The limit at 8 is *runtime*, not the state budget: in Debug this test costs 0.35 s at 8 and
+// 9.85 s at 9, against the suite's informal ~2 s ceiling for an always-on test, and the oracle's
+// 20 M state budget is not exhausted at either size. Do not raise the budget to go further -- it
+// exists so the oracle throws rather than silently under-enumerating.
+//
 // This is also the regression test for step 6: the join's disjointness check is what stops the
 // joiner gluing two halves that both remember the same node. Break it and either the cost stops
 // matching the oracle, or `path_problem` replays the result and reports "path is infeasible at
@@ -97,7 +104,7 @@ TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) 
 
     for (unsigned seed = 0; seed < 6; ++seed) {
         test_util::InstanceConfig config;
-        config.num_nodes = 7;
+        config.num_nodes = 8;
         config.density = 0.6;
         config.back_arc_density = 0.3;   // cycles, so ng is load-bearing
         config.mixed_sign_costs = true;  // or a shortest path never revisits a node and ng
