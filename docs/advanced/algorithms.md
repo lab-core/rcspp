@@ -141,6 +141,19 @@ asks the sharper question anyway, so it stays.  A C++ caller who wants the runti
 path (to test it, say) gets it by declaring one argument as a base-typed
 `std::unique_ptr<ExtensionFunction<R>>` local.
 
+### Parameters that behave differently here
+
+| Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |
+|---|---|---|
+| `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found |
+| `stop_after_X_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never truncates the join: the join runs to completion and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
+| `prune_based_on_upper_bound_` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. With it off (the default) every join the caller's `upper_bound` admits is returned |
+
+Note the last row: the bidirectional search's solution *set* is still generally smaller than the
+forward search's, because the half-way bound stops forward labels before they reach a sink and the
+join only produces paths whose clock crosses `H`.  The optimum is unaffected.  If you need every
+column rather than the best one, measure both before choosing.
+
 ### Presets: declaring a resource in one call
 
 Most resources are one of four shapes, and for those the four function objects can be

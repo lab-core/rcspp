@@ -58,7 +58,18 @@ class Joiner {
         /// When the half-way bound is disabled the crossing test is skipped and every pair is
         /// joined. That is still correct, just slower; `Solution`'s hash absorbs the duplicates.
         ///
-        /// **On pruning.** `best_cost_upper_bound` cuts pairs off, never halves. A half's own cost
+        /// **On pruning.** Two different filters, deliberately separated. The caller's fixed
+        /// `cost_upper_bound` is unconditional -- it drops exactly what the caller said to drop --
+        /// while `best_cost_upper_bound`, "no better than something we already have", follows
+        /// `prune_based_on_upper_bound_`, which is off by default. A pricing pool wants every
+        /// negative-reduced-cost column rather than only the best one, and no other algorithm here
+        /// drops a solution for being merely not-the-best.
+        ///
+        /// `stop_after_X_solutions` deliberately does NOT truncate the join: the join runs to
+        /// completion and `Algorithm::solve` resizes the result afterwards, so a `COMPLETE` status
+        /// still means the search was exhaustive.
+        ///
+        /// Either bound cuts pairs off, never halves. A half's own cost
         /// says nothing about what the completed path costs once reduced costs go negative, which
         /// is the ordinary case in pricing. The one admissible half-level test is a half plus the
         /// cheapest completion available across the arc, and that is what the code does.
@@ -73,14 +84,28 @@ class Joiner {
         /// @param pool                    Pool the extended label `f'` is drawn from.
         /// @param half_way                The half-way policy; consulted only when enabled.
         /// @param critical_resource_index Index of the critical resource within its type slot.
-        /// @param best_cost_upper_bound   Tightened in place as solutions are found, which is what
-        ///                                makes the early exits bite.
+        /// @param best_cost_upper_bound   Tightened in place as solutions are found. Consulted as a
+        ///                                cutoff only when @p prune_against_incumbent is set.
+        /// @param prune_against_incumbent Whether a pair that is no better than the incumbent may
+        ///                                be dropped. This is `params_.prune_based_on_upper_bound_`,
+        ///                                and it is off by default: a pricing pool wants every
+        ///                                negative-reduced-cost column, not only the best one, and
+        ///                                no other algorithm in this library drops a solution for
+        ///                                being merely not-the-best.
+        ///
+        ///                                The *caller's* bound, @p cost_upper_bound, is a different
+        ///                                filter and stays unconditional -- it drops exactly what
+        ///                                the caller said to drop, and because both label lists are
+        ///                                cost-sorted it still gives an early exit whenever that
+        ///                                bound is finite.
+        /// @param cost_upper_bound        The caller's fixed bound. Always applied.
         /// @param on_solution             Invoked once per accepted join.
         template <typename FwdContainer, typename BwdContainer, typename OnSolution>
         void join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
                   std::vector<BwdContainer>& backward_by_pos, LabelPool<ResourceType>& pool,
                   const HalfWayPolicy& half_way, size_t critical_resource_index,
-                  double& best_cost_upper_bound, OnSolution&& on_solution) {
+                  double& best_cost_upper_bound, bool prune_against_incumbent,
+                  double cost_upper_bound, OnSolution&& on_solution) {
             // No container provides a cost order: LabelList appends, and LabelBuckets orders by its
             // bucket resource across buckets and its sort resource within one -- which is not a
             // global cost order, and not cost at all unless the sort resource happens to be cost.
@@ -179,7 +204,9 @@ class Joiner {
                     // the quantity compared is the cost AFTER crossing the arc, and the arc's own
                     // contribution is not guaranteed to be the same constant for every label -- an
                     // extension function may clamp. Cheap to be wrong about, expensive to assume.
-                    if (extended.get_cost() + cheapest_backward >= best_cost_upper_bound) {
+                    const double cheapest_completion = extended.get_cost() + cheapest_backward;
+                    if (cheapest_completion >= cost_upper_bound ||
+                        (prune_against_incumbent && cheapest_completion >= best_cost_upper_bound)) {
                         pool.release_label(&extended);
                         continue;
                     }
@@ -191,7 +218,9 @@ class Joiner {
                         if (std::isinf(cost)) {
                             continue;
                         }
-                        if (cost >= best_cost_upper_bound) {
+                        // Cost-sorted, so once one pair is out of range every later one is too.
+                        if (cost >= cost_upper_bound ||
+                            (prune_against_incumbent && cost >= best_cost_upper_bound)) {
                             break;
                         }
                         if (!extended.get_resource().can_be_merged(backward->get_resource())) {

@@ -111,6 +111,10 @@ class JoinHarness {
         }
 
         /// @brief Runs the joiner, recording every solution offered.
+        ///
+        /// @p upper_bound stands in for BOTH of the joiner's bounds here, with pruning against the
+        /// incumbent ON, which is what these cases were written against: every one of them asserts
+        /// on the cutoff behaviour rather than on the caller's fixed filter.
         std::vector<Recorded> run(const HalfWayPolicy& policy, double upper_bound = kInfinity) {
             std::vector<Recorded> recorded;
             Joiner<Composed, RealResource> joiner;
@@ -122,6 +126,8 @@ class JoinHarness {
                         policy,
                         /*critical_resource_index=*/0,
                         best,
+                        /*prune_against_incumbent=*/true,
+                        upper_bound,
                         [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                             recorded.push_back({cost, std::move(arc_ids), end_node_id});
                         });
