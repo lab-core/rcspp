@@ -149,8 +149,19 @@ So it is **not a default**.  It does not pay when:
 - **Short routes**, which is the same thing seen from the other side: nothing to halve.
 - **No usable clock**, in which case the bound turns itself off and the search becomes
   a forward search plus a backward search plus a join — strictly more work than
-  `Simple`.  `bounded_by_half_way()` reports this; it is worth checking rather than
-  assuming.
+  `Simple`.  The result reports it:
+
+  ```python
+  result = rg.solve(algorithm="bidirectional", params=p)
+  if not result.bounded_by_half_way:
+      print("the clock was rejected; this solve was slower than a forward one")
+  print(result.number_of_joined_paths, "paths came from the join")
+  ```
+
+  `bounded_by_half_way` is worth checking rather than assuming. `number_of_joined_paths`
+  tells the two payoff failures apart: zero with a correct answer means the answer came
+  from a search reaching a terminal rather than from the join, so `H` is placed such that
+  nothing crosses it.
 
 ## `Greedy`
 

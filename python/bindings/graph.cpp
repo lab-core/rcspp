@@ -100,6 +100,17 @@ void init_graph(py::module_& m) {
         .def(py::init<>())
         .def_readwrite("solutions", &SolveResult::solutions)
         .def_readwrite("status", &SolveResult::status)
+        .def_readonly("bounded_by_half_way",
+                      &SolveResult::bounded_by_half_way,
+                      "Whether the bidirectional half-way bound was in force. False from every "
+                      "other algorithm. A bidirectional solve whose clock fails validation is "
+                      "slower than a forward one, not merely un-accelerated, so this is worth "
+                      "checking rather than assuming.")
+        .def_readonly("number_of_joined_paths",
+                      &SolveResult::number_of_joined_paths,
+                      "How many complete paths the bidirectional join pass produced. 0 from every "
+                      "other algorithm. Zero with a correct answer means the answer came from a "
+                      "search reaching a terminal, not from the join.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -123,8 +134,14 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference_internal)
         .def("__bool__", [](const SolveResult& r) { return !r.solutions.empty(); })
         .def("__repr__", [](const SolveResult& r) {
-            return "SolveResult(status=" + r.status_string() +
-                   ", solutions=" + std::to_string(r.solutions.size()) + ")";
+            std::string text = "SolveResult(status=" + r.status_string() +
+                               ", solutions=" + std::to_string(r.solutions.size());
+            if (r.bounded_by_half_way || r.number_of_joined_paths > 0) {
+                text += ", bounded_by_half_way=" +
+                        std::string(r.bounded_by_half_way ? "True" : "False") +
+                        ", joined=" + std::to_string(r.number_of_joined_paths);
+            }
+            return text + ")";
         });
 
     // ── Shared scalar types ───────────────────────────────────────────────────
@@ -204,11 +221,10 @@ void init_graph(py::module_& m) {
                        "Value H at which each direction's search stops on the critical resource. "
                        "0 (the default) means derive it, and there is nothing to derive it from "
                        "unless the resource's finite maximum is known, so a bidirectional solve "
-                       "normally sets this explicitly. The resource's range is taken as [0, 2H].")
-        .def_readwrite("dynamic_half_way",
-                       &PyAlgorithmParams::dynamic_half_way,
-                       "Reserved for a half-way point that moves as the search runs. The policy "
-                       "is static in this version and this flag is not yet read.");
+                       "normally sets this explicitly. The resource's range is taken as [0, 2H].");
+    // dynamic_half_way is deliberately NOT bound: it is a reserved C++ placeholder that nothing
+    // reads, and a C++ caller can read the comment saying so while a Python caller cannot -- so
+    // here it would do nothing but invite someone to set it and conclude the policy is broken.
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

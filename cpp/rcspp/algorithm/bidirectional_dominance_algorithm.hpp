@@ -401,6 +401,12 @@ class BidirectionalDominanceAlgorithm
         /// @brief Builds the half-way policy and validates the clock, disabling rather than
         ///        throwing.
         void configure_half_way(const Graph<ResourceType>& graph) {
+            if (this->params_.dynamic_half_way) {
+                LOG_WARN(
+                    "BidirectionalDominanceAlgorithm: dynamic_half_way is reserved and not yet "
+                    "implemented; the half-way point is static for this solve.\n");
+            }
+
             half_way_ = HalfWayPolicy(this->params_.half_way_point, resource_upper_bound(graph));
 
             if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
@@ -545,7 +551,6 @@ class BidirectionalDominanceAlgorithm
             }
 
             if constexpr (is_numerical_resource_v<CostRC> &&
-                         
                           is_cost_in_composition_v<CostRC, ResourceType>) {
                 fill_bound(graph, graph.get_sink_node_ids(), /*forward=*/false, &h_to_sink_);
                 fill_bound(graph, graph.get_source_node_ids(), /*forward=*/true, &h_from_source_);
