@@ -230,26 +230,28 @@ each comparison cheaper as well as making fewer of them — which is why the
 wall-clock gain, where there is one, is larger than the reduction in label
 extensions.
 
-Measured across all six Solomon families (see `analysis/bidirectional-results.md`
-for the full tables).  On the largest instances the difference stops being a
-speed-up and becomes a question of whether an answer arrives at all: on R202_50
-the forward search exhausts its time budget while bidirectional finishes with the
-proven optimum.
+Measured in a Release build across all six Solomon families, nineteen instances,
+every one run to completion and every one agreeing on the optimum (see
+`analysis/bidirectional-results.md` §3.3 for the full table).  What predicts the
+gain is **label pressure** — how many labels the forward search extends — and not
+the horizon, the window tightness, or the customer count on their own:
 
-| Situation | Effect |
+| Forward extensions | Effect |
 |---|---|
-| Small label sets | 0.8–1.1× — break-even, sometimes a small loss |
-| Moderate label pressure | 1.4–2.9× |
-| Heavy label pressure | 4–21×, widening as instances grow |
-| Forward search cannot finish at all | Bidirectional finishes, with the optimum |
+| under ~13 000 | 0.8× — a consistent small loss; the overhead exceeds the saving |
+| ~13 000 – 100 000 | 1.0–4.2× |
+| ~100 000 – 1 M | 1.3–6.2×, widening as instances grow |
+| over 3 M | **35–41×**, on the two hardest instances in the set |
 
-> **These ratios were measured in a Debug build, and a Debug build is about 20×
-> slower than a Release one — unevenly, favouring bidirectional.  Treat them as an
-> ordering, not as numbers.**  Re-measured in Release, the full C201 instance moved
-> from "forward times out, bidirectional finishes" to forward finishing in 0.68 s,
-> so that example has been dropped from the sentence above.  The label *counts* are
-> reproducible across builds; the wall-clock ratios are not.  `analysis/bidirectional-results.md`
-> §3 carries the re-measured tables and says which ones still await a re-run.
+The last row is the one worth designing for.  Dominance is quadratic in the labels
+held per node, so halving the path length pays off super-linearly, and only the
+largest instances are big enough to show it: R202_50 goes from 1 820 s to 44 s and
+C202_50 from 107 s to 3.0 s, both proving the same optimum as the forward search.
+
+> Label *counts* reproduce across machines and across build configurations; the
+> wall-clock ratios do not.  A Debug build is roughly 20× slower than a Release
+> one and unevenly so — it flatters bidirectional — so figures measured there read
+> higher than these.
 
 So it is **not a default**.  It does not pay when:
 
