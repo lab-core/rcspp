@@ -69,6 +69,25 @@ struct SolveResult {
         std::vector<Solution> solutions;
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
+        /// @brief Whether a directional bound was in force for this solve.
+        ///
+        /// Bidirectional only; `false` from every other algorithm, which have no such bound. A
+        /// bidirectional solve whose clock fails validation runs *both* searches to completion and
+        /// then joins every pair, which is strictly more work than a forward search alone -- so a
+        /// disabled bound is not merely an un-accelerated solve, it is a pessimisation. It is
+        /// reported here rather than only logged because the caller who needs to know is usually a
+        /// Python caller, who never holds the algorithm object.
+        bool bounded_by_half_way = false;
+
+        /// @brief How many complete paths the join pass produced.
+        ///
+        /// Bidirectional only; `0` from every other algorithm. The one number that tells the two
+        /// payoff failures apart. Zero on an instance that still returns the optimum means the
+        /// answer came from a search reaching a terminal rather than from the join -- which is what
+        /// happens to a route whose clock never reaches `H`. A number that dwarfs the label count
+        /// means the opposite: the crossing test is not filtering.
+        size_t number_of_joined_paths = 0;
+
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
@@ -196,7 +215,16 @@ struct AlgorithmBaseParams {
         /// @brief Half-way point on the critical resource; 0 means "derive as R/2".
         double half_way_point = 0.0;
 
-        /// @brief Reserved for a dynamic half-way policy. Static in v1.
+        /// @brief Reserved for a half-way policy that moves as the search runs. Not yet read.
+        ///
+        /// `HalfWayPolicy` is an object rather than a pair of numbers precisely so a dynamic
+        /// variant can replace the static one without re-plumbing the algorithm, and this is the
+        /// switch that variant will use. Setting it today changes nothing, and
+        /// `BidirectionalDominanceAlgorithm::configure_half_way` says so at WARN level rather than
+        /// letting a caller conclude the policy is broken.
+        ///
+        /// Deliberately **not** exposed to Python: a C++ caller can read this comment and a Python
+        /// caller cannot, so there the flag would only mislead.
         bool dynamic_half_way = false;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
@@ -437,7 +465,9 @@ class Algorithm {
                 release_label_memory();
             }
 
-            return {.solutions = std::move(solutions), .status = status};
+            SolveResult result{.solutions = std::move(solutions), .status = status};
+            annotate(&result);
+            return result;
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
@@ -474,6 +504,14 @@ class Algorithm {
 
     protected:
         bool print_{false};
+
+        /// @brief Adds algorithm-specific diagnostics to the result, just before it is returned.
+        ///
+        /// `SolveResult` is what crosses the Python boundary; the algorithm object does not. So a
+        /// diagnostic a user is told to check has to arrive here. Default: nothing to add.
+        ///
+        /// @param result The result about to be returned; never null.
+        virtual void annotate(SolveResult* /*result*/) const {}
 
         /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
         ///

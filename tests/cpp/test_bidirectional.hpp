@@ -840,6 +840,40 @@ TEST(Bidirectional, PreprocessingAwayEveryArcIsNotAModellingError) {
 }
 
 // ============================================================================
+// Diagnostics on the result
+// ============================================================================
+
+/// @brief The result carries the diagnostics, not just the algorithm object.
+///
+/// A Python caller never holds the algorithm, so anything the documentation tells them to check has
+/// to be on `SolveResult`. The accessors stay, and read the same members, so the two cannot drift.
+TEST(Bidirectional, SolveResultCarriesTheDiagnostics) {
+    namespace bt = bidirectional_test;
+
+    // A clock the bound can use: the budget slot of clock_line_graph.
+    auto clocked = bt::clock_line_graph({{1.0, 5.0}, {2.0, 2.0}, {3.0, 3.0}}, /*capacity=*/20.0);
+    auto with_clock = clocked->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bt::params(3.0, bt::kClockIndex));
+    const auto bounded = clocked->solve(with_clock.get());
+    EXPECT_TRUE(bounded.bounded_by_half_way);
+    EXPECT_EQ(bounded.bounded_by_half_way, with_clock->bounded_by_half_way());
+    EXPECT_EQ(bounded.number_of_joined_paths, with_clock->number_of_joined_paths());
+
+    // A cost-only model has no clock, so the bound refuses to engage.
+    auto cost_only = bt::line_graph({1.0, 2.0, 3.0});
+    auto without_clock =
+        cost_only->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(3.0));
+    const auto unbounded = cost_only->solve(without_clock.get());
+    EXPECT_FALSE(unbounded.bounded_by_half_way);
+
+    // Every other algorithm leaves the fields at their defaults.
+    auto forward_graph = bt::line_graph({1.0, 2.0, 3.0});
+    const auto forward = forward_graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    EXPECT_FALSE(forward.bounded_by_half_way);
+    EXPECT_EQ(forward.number_of_joined_paths, 0U);
+}
+
+// ============================================================================
 // The caller's upper bound
 // ============================================================================
 

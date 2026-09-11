@@ -165,18 +165,58 @@ def test_short_route_is_found():
 
 
 def test_params_are_settable():
-    """The three params round-trip through AlgorithmParams."""
+    """The two params round-trip through AlgorithmParams."""
     p = AlgorithmParams()
     assert p.critical_resource_index == 0
     assert p.half_way_point == 0.0
-    assert p.dynamic_half_way is False
 
     p.critical_resource_index = 2
     p.half_way_point = 12.5
-    p.dynamic_half_way = True
     assert p.critical_resource_index == 2
     assert p.half_way_point == 12.5
-    assert p.dynamic_half_way is True
+
+
+def test_dynamic_half_way_is_not_exposed():
+    """An inert flag in a public API invites a user to set it and conclude the policy is broken.
+
+    It stays a C++-side placeholder until the dynamic policy exists.
+    """
+    p = AlgorithmParams()
+    assert not hasattr(p, "dynamic_half_way")
+
+
+# -- Diagnostics on the result ------------------------------------------------
+
+
+def test_result_reports_whether_the_bound_was_in_force():
+    """The documentation tells Python users to check this, so Python must be able to."""
+    windows = {node_id: (0.0, 1000.0) for node_id in range(5)}
+    arcs = [(1.0, 10.0, i, i + 1) for i in range(4)]
+
+    result = _time_window_graph(windows, arcs).solve(
+        algorithm="bidirectional",
+        params=_bidirectional_params(20.0, critical_resource_index=1),
+    )
+    assert result.bounded_by_half_way is True
+    assert result.number_of_joined_paths >= 0
+
+
+def test_a_cost_only_model_reports_the_bound_off():
+    """Cost is never a clock -- reduced costs go negative -- so the bound must switch itself off,
+    and the result must say so rather than only logging it.
+    """
+    result = _cost_only_graph([1.0, 2.0, 3.0]).solve(
+        algorithm="bidirectional",
+        params=_bidirectional_params(3.0),
+    )
+    assert result.bounded_by_half_way is False
+
+
+def test_a_forward_solve_leaves_the_diagnostics_at_their_defaults():
+    """The fields are bidirectional-only; every other algorithm must leave them alone."""
+    result = _cost_only_graph([1.0, 2.0, 3.0]).solve(algorithm="simple")
+    assert result.bounded_by_half_way is False
+    assert result.number_of_joined_paths == 0
 
 
 def test_half_way_point_reaches_the_algorithm():
