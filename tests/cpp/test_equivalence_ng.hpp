@@ -78,7 +78,7 @@ TEST(Equivalence, NgPathIsInertOnADag) {
 //
 // ┌─ Why this compares against an ENUMERATOR and not against the forward search ──────────────┐
 // │ The forward search is **not a valid reference on a cyclic instance** -- it loses solutions │
-// │ there. See DISABLED_CyclicOptimalityAtLargerSizes below for the measurements and the       │
+// │ there. See CyclicOptimalityAtLargerSizes below for the measurements and the                │
 // │ scope of the problem. `ng_cyclic_optimum` shares no code with either algorithm and is the  │
 // │ honest reference. The acyclic sweep keeps comparing the two searches, where the forward    │
 // │ one IS valid.                                                                              │
@@ -111,7 +111,7 @@ TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) 
         const double oracle = test_util::ng_cyclic_optimum(config);
 
         // The forward search agrees at this size too, so it is checked rather than assumed --
-        // that is what makes DISABLED_CyclicOptimalityAtLargerSizes a statement about *size*.
+        // that is what makes CyclicOptimalityAtLargerSizes a statement about *size*.
         const auto forward = eq::solve_forward_ng(config);
         EXPECT_NEAR(forward.best_cost(), oracle, eq::kTolerance) << where;
         EXPECT_EQ(eq::any_path_problem(forward), "") << where;
@@ -126,33 +126,18 @@ TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) 
     }
 }
 
-// A pre-existing defect, found by this plan and recorded rather than fixed: on a **cyclic**
-// instance past a certain size, the forward search and the half-way-**bounded** bidirectional
-// search both return a suboptimal cost, while the **unbounded** bidirectional search matches the
-// oracle exactly.
+// Cyclic instances past the size where tier 2 sits. This was DISABLED_ and failing: the forward
+// search and the half-way-bounded bidirectional search returned one cost while the unbounded
+// bidirectional search returned a better one, matching an oracle that enumerated walks passing
+// THROUGH a sink. The cause was not dominance and not ordering: the backward search treated a sink
+// as an ordinary interior node while the forward search stopped there, so the two admitted
+// different paths and the answer depended on where H sat.
 //
-// Measured against a complete `ng_cyclic_optimum` (num_nodes = 8, density = 0.5,
-// back_arc_density = 0.35, mixed_sign_costs, ng on):
-//
-//   seed   oracle       forward      bidi unbounded   bidi bounded
-//      0    -2.424084    -2.424084     -2.424084       -2.424084
-//      1    -3.406447    -2.839186     -3.406447       -2.839186   <-- forward & bounded miss
-//      2    -9.716948    -9.716948     -9.716948       -9.716948
-//      3   -20.475812   -18.018406    -20.475812      -18.018406   <-- forward & bounded miss
-//      4    -5.427869    -5.427869     -5.427869       -5.427869
-//      5   -20.934885   -20.934885    -20.934885      -20.934885
-//
-// The same shape appears at num_nodes = 9 on three of six seeds, with larger gaps (-34.65 vs
-// -15.60 on seed 4). Both wrong answers replay as *feasible* paths, so this is lost solutions,
-// not bad ones. That the forward search and the bounded bidirectional search agree to the last
-// bit on every miss is the clue worth chasing first.
-//
-// Why this is DISABLED_ rather than deleted or asserted-as-correct: it states what *should*
-// hold, so it is the regression test for a fix, and it must not be weakened to make it pass.
-// It is out of scope for the shape-genericity plan -- nothing in steps 1-7 touches search or
-// dominance -- and the generator has always been a DAG, so no shipped test covered this regime.
-// The acyclic sweep is unaffected and still asserts full equality.
-TEST(Equivalence, DISABLED_CyclicOptimalityAtLargerSizes) {
+// Both halves now state the same rule -- a terminal node may not be strictly inside a path -- and
+// the oracle states it too. Measured before the fix, on the same six seeds: seeds 1 and 3 returned
+// -3.406447 / -20.475812 from the unbounded search against -2.839186 / -18.018406 from the other
+// two, and the winning paths visited the sink two and three times.
+TEST(Equivalence, CyclicOptimalityAtLargerSizes) {
     namespace eq = equivalence_test;
 
     for (unsigned seed = 0; seed < 6; ++seed) {
@@ -179,6 +164,37 @@ TEST(Equivalence, DISABLED_CyclicOptimalityAtLargerSizes) {
                 << "bound=" << with_bound << " " << where;
         }
     }
+}
+
+/// @brief The oracle's two models are genuinely different on at least one cyclic seed.
+///
+/// `ng_cyclic_optimum` can end a walk at the first sink (the model the library solves) or let it
+/// pass through (the older, more permissive one). If those two ever agree everywhere, the flag is
+/// dead and the test above has stopped checking the thing it was written for.
+TEST(Equivalence, TheOracleTwoSinkModelsDisagreeSomewhere) {
+    bool differ_somewhere = false;
+    for (unsigned seed = 0; seed < 6; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 8;
+        config.density = 0.5;
+        config.back_arc_density = 0.35;
+        config.mixed_sign_costs = true;
+        config.with_time_window = true;
+        config.with_ng_path = true;
+        config.seed = seed;
+
+        const double stopping = test_util::ng_cyclic_optimum(config);
+        const double walking_through =
+            test_util::ng_cyclic_optimum(config, 20000000LL, /*allow_interior_sinks=*/true);
+
+        // The permissive model enumerates a superset of walks, so it can only be better or equal.
+        EXPECT_LE(walking_through, stopping + 1e-9) << "seed " << seed;
+        if (walking_through < stopping - 1e-9) {
+            differ_somewhere = true;
+        }
+    }
+    EXPECT_TRUE(differ_somewhere)
+        << "the two sink models agree on every seed, so the distinction is untested";
 }
 
 // The claim tier 2 rests on: ng must actually REJECT something on at least one of these seeds, or

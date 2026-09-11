@@ -596,11 +596,19 @@ inline double brute_force_optimum(const InstanceConfig& config) {
 /// configuration where "finite" is still far too large -- it **throws** rather than returning a
 /// truncated answer, because a silently under-enumerated oracle is worse than none.
 ///
-/// @param config       The instance. Must set @c with_time_window; @c with_capacity is honoured.
-/// @param state_budget Maximum walk states to expand before giving up.
+/// @param config              The instance. Must set @c with_time_window; @c with_capacity is
+///                            honoured.
+/// @param state_budget        Maximum walk states to expand before giving up.
+/// @param allow_interior_sinks Whether a walk may pass THROUGH a sink and continue.
+///                            @c false -- the default, and the model the library solves -- ends a
+///                            path at the first sink it reaches, which is what `Node::sink` means
+///                            and what every search in the library does. @c true keeps the older,
+///                            more permissive enumeration, retained so the two can be compared and
+///                            so the difference cannot be quietly designed away.
 /// @return The optimal cost, or infinity when no feasible walk reaches a sink.
 /// @throws std::logic_error If the budget is exhausted, or the config has no time window.
-inline double ng_cyclic_optimum(const InstanceConfig& config, long long state_budget = 20000000LL) {
+inline double ng_cyclic_optimum(const InstanceConfig& config, long long state_budget = 20000000LL,
+                                bool allow_interior_sinks = false) {
     if (!config.with_time_window) {
         throw std::logic_error(
             "ng_cyclic_optimum needs with_time_window: the horizon is what makes the walk "
@@ -641,7 +649,10 @@ inline double ng_cyclic_optimum(const InstanceConfig& config, long long state_bu
 
         if (sinks.contains(state.node)) {
             best = std::min(best, state.cost);
-            // Not `continue`: a sink may still have outgoing arcs to a further sink.
+            if (!allow_interior_sinks) {
+                continue;  // a path ends at the first sink it reaches
+            }
+            // else: fall through -- a sink may still have outgoing arcs to a further sink
         }
 
         // The memory a label carries when it LEAVES state.node -- the node being left is the

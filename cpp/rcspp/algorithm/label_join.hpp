@@ -140,6 +140,13 @@ class Joiner {
             std::vector<char> backward_sorted_done(backward_by_pos.size(), 0);
 
             graph.for_each_arc([&](const auto& arc) {
+                // A forward label sitting at a sink is already a complete path; splicing anything
+                // onto it would put that sink strictly inside the result. The forward search never
+                // traverses an arc out of a sink -- it records the label and stops -- so the join
+                // must not do it either, or the two disagree about what a path is.
+                if (arc.origin->sink) {
+                    return;
+                }
                 const auto& forward_labels = forward_by_pos.at(arc.origin->pos());
                 const auto& backward_labels = backward_by_pos.at(arc.destination->pos());
                 if (forward_labels.get_labels().empty() || backward_labels.get_labels().empty()) {

@@ -192,6 +192,26 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
             }
 
             auto* head_node = Dir2::head(*arc_ptr);
+
+            // A path may not have a terminal node strictly inside it. A search never extends OUT
+            // of its own terminal (`main_loop` / `step<Dir>` record and stop there), and this is
+            // the other half of the same rule: it must not extend INTO a node it could have
+            // started from. Without it the backward search walks through sinks that the forward
+            // search cannot, the two directions admit different paths, and on a cyclic graph the
+            // answer depends on which direction found it and on where H sits.
+            //
+            // In this commit the rule applies backward only. The forward half is a separate
+            // commit: it changes forward-only behaviour on any graph whose source has in-arcs,
+            // and that is worth isolating.
+            //
+            // Before the pool draw, deliberately: a label drawn and then abandoned without
+            // `release_label` is a leak, and `check_ref_count_consistency()` would say so.
+            if constexpr (Dir2::backward) {
+                if (Dir2::is_seed(head_node)) {
+                    return;
+                }
+            }
+
             auto& new_label = this->label_pool_.get_next_label(head_node);
             Dir2::extend(*label_ptr, *arc_ptr, &new_label);
 
