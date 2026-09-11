@@ -520,14 +520,24 @@ class Algorithm {
 
         /// @brief Build and record a Solution from an explicit path.
         ///
-        /// Used by the bidirectional joiner, where no single label holds the merged cost or end
-        /// node.
+        /// Used by the bidirectional algorithm, where a complete path can come from a joined pair
+        /// or from a backward label reaching a source, and no single label holds the merged cost
+        /// or the end node.
+        ///
+        /// Applies the caller's `cost_upper_bound_` here rather than at each call site: the
+        /// `Label` overload above already filters, and the joiner's own cutoff already implies
+        /// this test, but `extract_backward_solution` had no filter of its own and returned
+        /// columns above the bound. One guard on the one function every solution passes through is
+        /// the version that cannot be forgotten by the next caller.
         ///
         /// @param cost         Total cost of the path.
         /// @param path_arc_ids Arc ids of the path, in traversal order.
         /// @param end_node_id  Id of the node the path ends at.
         virtual void extract_solution(double cost, std::vector<size_t> path_arc_ids,
                                       size_t end_node_id) {
+            if (cost >= cost_upper_bound_) {
+                return;
+            }
             if (path_arc_ids.empty()) {
                 return;
             }
