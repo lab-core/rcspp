@@ -18,6 +18,5 @@
 #include "test_equivalence.hpp"
 #include "test_label_buckets.hpp"
 #include "test_label_join.hpp"
-#include "test_presets.hpp"
 #include "test_rcspp.hpp"
 #include "test_typed_add_resource.hpp"
