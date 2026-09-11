@@ -601,3 +601,59 @@ TEST(Bidirectional, ReleasingAfterSolveClearsTheBackwardContainers) {
     EXPECT_TRUE(algorithm->get_backward_labels_by_node_pos().empty());
     EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
 }
+
+// ============================================================================
+// Setup validation
+// ============================================================================
+
+/// @brief A graph with no arcs returns an empty result rather than raising.
+///
+/// The setup validation reads each component's declared backward kind off the first arc it finds.
+/// With no arcs it finds nothing, and an earlier form of the check reported every component as
+/// undeclared -- naming a modelling problem on a model that declares everything correctly.
+TEST(Bidirectional, AGraphWithNoArcsReturnsAnEmptyResult) {
+    namespace bt = bidirectional_test;
+
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1, /*source=*/false, /*sink=*/true);
+
+    auto algorithm =
+        graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(1.0));
+
+    SolveResult result;
+    EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
+    EXPECT_TRUE(result.solutions.empty());
+}
+
+/// @brief Preprocessing away every arc is not a modelling error.
+///
+/// `solve(preprocess = true)` with a binding `upper_bound` removes every arc that cannot lie on a
+/// cheap enough path; at column-generation convergence that is all of them, and the solve that
+/// terminates the loop is exactly this one. The forward search returns an empty result, and so
+/// must this one.
+TEST(Bidirectional, PreprocessingAwayEveryArcIsNotAModellingError) {
+    namespace bt = bidirectional_test;
+    constexpr double kBindingUpperBound = 0.0;  // every arc cost below is positive
+
+    // The forward search is the reference: it returns nothing, without complaint.
+    auto forward_graph = bt::line_graph({2.0, 3.0});
+    const auto forward =
+        forward_graph->solve<SimpleDominanceAlgorithm>(kBindingUpperBound,
+                                                       AlgorithmParams<LabelList<bt::Composed>>{},
+                                                       /*preprocess=*/true);
+    ASSERT_TRUE(forward.solutions.empty());
+
+    auto graph = bt::line_graph({2.0, 3.0});
+    auto algorithm =
+        graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(1.0));
+
+    SolveResult result;
+    EXPECT_NO_THROW(
+        { result = graph->solve(algorithm.get(), kBindingUpperBound, /*preprocess=*/true); });
+    EXPECT_TRUE(result.solutions.empty());
+}
