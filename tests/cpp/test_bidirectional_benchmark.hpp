@@ -286,22 +286,31 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAcrossFamilies) {
     // alone rather than renamed: C102_50 holds 100 customers and RC201_12 holds 20. The tables in
     // analysis/bidirectional-results.md report the counts read from the files, not from the names.
     const std::vector<std::string> names{
+        // Ordered cheapest-family-first, so a long tail on the hardest rows does not delay the
+        // rest of the table. R202_50 is last because it is the one instance whose forward
+        // reference does not finish even in four hours.
+        //
         // R1: short horizon, narrow windows.
         "R101_25",
         "R101_50",
         "R102_50",
+        "R103_50",
         "R105_50",
+        "R107_50",
         // C1: clustered, long horizon, narrow windows.
         "C101_25",
         "C101_50",
         "C102_50",
+        "C103_50",
         // C2: clustered, the longest horizons in the set.
         "C201_50",
+        "C202_50",
         // RC1 and RC2: mixed geography.
         "RC101_50",
+        "RC102_50",
         "RC201_12",
         "RC201_50",
-        // R2: long horizon, wide windows -- the family that gains most.
+        // R2: long horizon, wide windows -- the family that gains most, and the slowest.
         "R201_25",
         "R201_50",
         "R202_50"};
