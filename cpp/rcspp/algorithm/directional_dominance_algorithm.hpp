@@ -200,16 +200,14 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
             // search cannot, the two directions admit different paths, and on a cyclic graph the
             // answer depends on which direction found it and on where H sits.
             //
-            // In this commit the rule applies backward only. The forward half is a separate
-            // commit: it changes forward-only behaviour on any graph whose source has in-arcs,
-            // and that is worth isolating.
+            // Forward: no path re-enters a source. Backward: none re-enters a sink. A walk that
+            // returns to the depot and leaves again is two routes; priced as one column, with the
+            // vehicle-count row counted once, a set-partitioning master buys it and is wrong.
             //
             // Before the pool draw, deliberately: a label drawn and then abandoned without
             // `release_label` is a leak, and `check_ref_count_consistency()` would say so.
-            if constexpr (Dir2::backward) {
-                if (Dir2::is_seed(head_node)) {
-                    return;
-                }
+            if (Dir2::is_seed(head_node)) {
+                return;
             }
 
             auto& new_label = this->label_pool_.get_next_label(head_node);
