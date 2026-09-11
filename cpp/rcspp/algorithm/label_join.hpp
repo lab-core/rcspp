@@ -84,8 +84,8 @@ class Joiner {
             // No container provides a cost order: LabelList appends, and LabelBuckets orders by its
             // bucket resource across buckets and its sort resource within one -- which is not a
             // global cost order, and not cost at all unless the sort resource happens to be cost.
-            // Sorting once per node is O(n log n) against an O(n^2) pairing, and without it the
-            // early exits below silently discard valid joins.
+            // Without it the early exits below silently discard valid joins. Memoised per node
+            // below, because the pairing walks arcs and a node is the origin of many of them.
             auto sorted_by_cost = [](const auto& container) {
                 std::vector<Label<ResourceType>*> labels(container.get_labels().begin(),
                                                          container.get_labels().end());
@@ -95,6 +95,25 @@ class Joiner {
                 return labels;
             };
 
+            // Sorted ONCE PER NODE, not once per arc. A node with out-degree d was previously
+            // copied into a fresh vector and sorted d times; on a dense graph that is tens of
+            // thousands of redundant sorts and allocations per solve, and it is a fixed cost the
+            // join pays whether or not it produces anything.
+            //
+            // Caching pointers is safe because nothing in this pass mutates a container: the pool
+            // is pointer-stable, `release_label` only touches a free list, and no label's cost
+            // changes.
+            //
+            // `std::vector<char>` rather than `std::vector<bool>`, and a separate "done" flag
+            // rather than testing `.empty()`: a node can legitimately hold zero labels, which is
+            // not the same as an uncomputed entry.
+            std::vector<std::vector<Label<ResourceType>*>> forward_sorted_by_pos(
+                forward_by_pos.size());
+            std::vector<std::vector<Label<ResourceType>*>> backward_sorted_by_pos(
+                backward_by_pos.size());
+            std::vector<char> forward_sorted_done(forward_by_pos.size(), 0);
+            std::vector<char> backward_sorted_done(backward_by_pos.size(), 0);
+
             graph.for_each_arc([&](const auto& arc) {
                 const auto& forward_labels = forward_by_pos.at(arc.origin->pos());
                 const auto& backward_labels = backward_by_pos.at(arc.destination->pos());
@@ -102,8 +121,18 @@ class Joiner {
                     return;
                 }
 
-                const auto forward_sorted = sorted_by_cost(forward_labels);
-                const auto backward_sorted = sorted_by_cost(backward_labels);
+                const size_t origin_pos = arc.origin->pos();
+                const size_t destination_pos = arc.destination->pos();
+                if (forward_sorted_done[origin_pos] == 0) {
+                    forward_sorted_by_pos[origin_pos] = sorted_by_cost(forward_labels);
+                    forward_sorted_done[origin_pos] = 1;
+                }
+                if (backward_sorted_done[destination_pos] == 0) {
+                    backward_sorted_by_pos[destination_pos] = sorted_by_cost(backward_labels);
+                    backward_sorted_done[destination_pos] = 1;
+                }
+                const auto& forward_sorted = forward_sorted_by_pos[origin_pos];
+                const auto& backward_sorted = backward_sorted_by_pos[destination_pos];
 
                 // The cheapest completion available through this arc. Sorted by cost, so it is
                 // the first entry.
