@@ -40,6 +40,9 @@ class HalfWayPolicy {
         /// @param resource_upper_bound `R`, the critical resource's finite maximum. When this is
         ///                             not finite and positive and no explicit `H` is supplied,
         ///                             there is no middle to aim at and the bound starts disabled.
+        ///                             @note `BidirectionalDominanceAlgorithm` always passes `2H`
+        ///                                   or infinity, so from there this branch is a no-op;
+        ///                                   it is real for a direct construction.
         HalfWayPolicy(double half_way_point, double resource_upper_bound) {
             if (half_way_point > 0.0) {
                 h_ = half_way_point;

@@ -501,11 +501,22 @@ class BidirectionalDominanceAlgorithm
             return dominance_increasing_impl(graph, this->params_.critical_resource_index);
         }
 
-        /// @brief `R`, the critical resource's finite maximum, taken from an explicit param.
+        /// @brief `R`, the critical resource's finite maximum -- which this algorithm always
+        ///        derives from `H` rather than from the model.
         ///
-        /// There is no general accessor for a feasibility function's upper bound, so a model that
-        /// wants the bound derived must say so with `half_way_point`. Without either, the policy
-        /// starts disabled -- correct, just slower.
+        /// There is no general accessor for a feasibility function's upper bound, so the number
+        /// here is `2H` when the caller supplied `H` and infinity otherwise. Two consequences worth
+        /// knowing:
+        ///
+        ///  - `HalfWayPolicy`'s "derive H as R/2" branch is unreachable from this algorithm. It is
+        ///    reachable, and tested, from a direct construction; the constructor keeps both
+        ///    arguments because that is where the distinction is real.
+        ///  - `half_way_point = 0` therefore means **bound off**, and that sentinel is relied on:
+        ///    the equivalence suite gets its unbounded runs that way.
+        ///
+        /// Deriving a real `R` is possible -- a threshold clock's `back_seed_value()` at a sink IS
+        /// its upper bound -- but it would change what `half_way_point = 0` means, so it needs its
+        /// own way to say "bound off" and its own change.
         [[nodiscard]] double resource_upper_bound(const Graph<ResourceType>& /*graph*/) const {
             return this->params_.half_way_point > 0.0 ? this->params_.half_way_point * 2.0
                                                       : std::numeric_limits<double>::infinity();

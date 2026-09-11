@@ -516,6 +516,28 @@ TEST(Bidirectional, ATrivialDominanceOnTheClockDisablesTheBound) {
     EXPECT_NEAR(result.solutions.front().cost, 6.0, bt::kTolerance);  // 1 + 2 + 3
 }
 
+/// @brief A critical resource type outside the model's pack disables the bound instead of failing
+///        to compile.
+///
+/// The algorithm has three `if constexpr` branches for this case. They were unreachable: the joiner
+/// read the critical component unguarded, and `get_component<T>` resolves a constrained trait that
+/// does not exist for an absent `T`, so the instantiation was a hard error. This test exists mostly
+/// to be compiled.
+TEST(Bidirectional, AnAbsentCriticalResourceTypeDisablesTheBound) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::line_graph({1.0, 2.0, 3.0});  // the pack is <RealResource> only
+
+    // IntResource is NOT in this graph's pack.
+    auto algorithm =
+        graph->create_algorithm<BidirectionalAlgoBound<IntResource>::Algo>(bt::params(2.0));
+    SolveResult result;
+    EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
+
+    EXPECT_FALSE(algorithm->bounded_by_half_way());
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, 6.0, bt::kTolerance);  // 1 + 2 + 3
+}
+
 // ============================================================================
 // The pruning trap
 // ============================================================================
