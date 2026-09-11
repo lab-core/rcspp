@@ -195,7 +195,7 @@ bidirectional finishes with the proven optimum.
 |---|---|
 | Small label sets | 0.8–1.1× — break-even, sometimes a small loss |
 | Moderate label pressure | 1.4–2.9× |
-| Heavy label pressure | 4–7×, widening as instances grow |
+| Heavy label pressure | 4–21×, widening as instances grow |
 | Forward search cannot finish at all | Bidirectional finishes, with the optimum |
 
 So it is **not a default**.  It does not pay when:

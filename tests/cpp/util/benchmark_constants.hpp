@@ -19,14 +19,19 @@ namespace bidirectional_benchmark {
 constexpr double kTolerance = 1e-9;
 constexpr double kOptimal = -319.87786809696524415;
 
-/// @brief A guard, not a measurement.
+/// @brief A guard, not a measurement: four hours per solve.
 ///
-/// Deliberately far above what any instance in the exact-comparison table needs -- R201_50, the
-/// slowest, finishes its forward reference in 78 s -- so that this only fires when something has
-/// genuinely run away, and never truncates a row that would otherwise have completed. A
-/// coverage-instrumented build is several times slower than a plain one, and a limit tight enough
-/// to bind there would silently turn an exact comparison into a truncated one.
-constexpr double kTimeoutSeconds = 1800.0;
+/// The point of this table is a completion-to-completion comparison, so the limit has to be high
+/// enough for the *forward* reference to finish -- it is the slower of the two, by definition of
+/// what is being measured, and a limit that only bidirectional clears turns every hard row into an
+/// incumbent-versus-optimum comparison instead. R202_50 is the instance that set this: its forward
+/// search was still running after 30 minutes, so a limit chosen from the instances that already
+/// finished would have hidden exactly the rows worth looking at.
+///
+/// It still fires on a genuine runaway, and it is deliberately far above what a
+/// coverage-instrumented build needs, since a limit tight enough to bind there would silently turn
+/// an exact comparison into a truncated one.
+constexpr double kTimeoutSeconds = 14400.0;
 
 /// @brief How attractive a customer is under the synthetic duals; see `synthetic_duals`.
 constexpr double kDualAlpha = 1.0;
