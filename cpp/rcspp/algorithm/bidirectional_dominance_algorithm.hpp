@@ -508,6 +508,21 @@ class BidirectionalDominanceAlgorithm
                     [&](const auto& component) { kinds.push_back(component.backward_kind()); });
             });
 
+            // No arc carries an extender, so there is nothing to extend in either direction and
+            // nothing to validate. This is NOT a degenerate case worth complaining about: it is
+            // what `solve(preprocess = true)` produces whenever `upper_bound` binds hard enough,
+            // and at column-generation convergence -- no improving column left -- the preprocessor
+            // removes every arc. The forward algorithms return an empty result there; throwing
+            // "component 0 declares no backward_kind()" would name a modelling problem that does
+            // not exist and would break a CG loop on its terminating iteration.
+            //
+            // Reading the kinds from the resource factory's prototypes instead of from an arc
+            // would remove the dependency on the arc set altogether. That is a larger change; this
+            // early return is the fix for the symptom.
+            if (kinds.empty()) {
+                return;
+            }
+
             const auto& node_ids = graph.get_node_ids();
             if (node_ids.empty()) {
                 return;
