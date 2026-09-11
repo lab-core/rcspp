@@ -166,6 +166,41 @@ TEST(Equivalence, CyclicOptimalityAtLargerSizes) {
     }
 }
 
+/// @brief An inert ng component does not change the answer, in either direction.
+///
+/// `with_ng_path = false` leaves the component registered with empty forbidden sets, so it is
+/// documented as "present, extended in both directions, constraining nothing". That was true of
+/// `is_feasible` and false of the join: `merge_rule()` returned `Custom` whatever the sets
+/// contained, so `DisjointMergeForm` still demanded the two halves' memories be disjoint -- a
+/// restriction the extension does not impose. Measured before the fix on seed 5: the bounded
+/// bidirectional search returned -51.95 where the forward and unbounded searches both returned
+/// -80.02.
+TEST(Equivalence, AnInertNgComponentDoesNotNarrowTheJoin) {
+    namespace eq = equivalence_test;
+
+    for (unsigned seed = 0; seed < 6; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 8;
+        config.density = 0.5;
+        config.back_arc_density = 0.35;
+        config.mixed_sign_costs = true;
+        config.with_time_window = true;
+        config.with_ng_path = false;  // present, and meant to constrain nothing
+        config.seed = seed;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const auto forward = eq::solve_forward_ng(config);
+        const auto unbounded = eq::solve_bidirectional_ng(config, /*with_bound=*/false);
+        const auto bounded = eq::solve_bidirectional_ng(config, /*with_bound=*/true);
+
+        EXPECT_NEAR(unbounded.best_cost(), forward.best_cost(), eq::kTolerance) << where;
+        EXPECT_NEAR(bounded.best_cost(), forward.best_cost(), eq::kTolerance)
+            << "an inert ng component narrowed the join: " << where;
+        EXPECT_EQ(eq::any_path_problem(bounded), "") << where;
+    }
+}
+
 /// @brief The oracle's two models are genuinely different on at least one cyclic seed.
 ///
 /// `ng_cyclic_optimum` can end a walk at the first sink (the model the library solves) or let it

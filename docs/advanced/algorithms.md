@@ -141,6 +141,22 @@ asks the sharper question anyway, so it stays.  A C++ caller who wants the runti
 path (to test it, say) gets it by declaring one argument as a base-typed
 `std::unique_ptr<ExtensionFunction<R>>` local.
 
+### One rule the join imposes that extension does not
+
+A container resource can declare that two halves may only be merged when their remembered sets are
+**disjoint** — which is what the ng-path relaxation means, and what
+`IntersectionFeasibilityFunction` with forbidden values declares.
+
+Disjointness never rejects a path the model would have accepted **provided the model already
+forbids revisiting those nodes**.  On a model that permits revisits it is a restriction the forward
+search does not apply, so the bidirectional answer can be worse than the forward one — and worse
+with the half-way bound on than with it off, because with the bound off most paths are found
+end-to-end and never reach the join at all.
+
+If you attach a container resource to a model that permits revisits, give it
+`MinMaxFeasibilityFunction`-style bounds or a `merge_rule()` of `AlwaysTrue`; do not give it
+forbidden sets it does not mean.
+
 ### Parameters that behave differently here
 
 | Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |

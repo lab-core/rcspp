@@ -14,9 +14,17 @@ namespace rcspp {
 /// so "f is within the threshold" is `f subset of complement(V_b)`, which is exactly
 /// `f intersect V_b == empty`.
 ///
-/// It is not too strict: a label's remembered set is always a subset of the nodes on its own
-/// half, and an elementary path's two halves are node-disjoint, so disjointness never rejects an
-/// elementary path.
+/// **Precondition, and it is load-bearing.** A label's remembered set is always a subset of the
+/// nodes on its own half, and an *elementary* path's two halves are node-disjoint, so disjointness
+/// never rejects an elementary path. On a model that permits revisits it rejects plenty: two halves
+/// that legally share a node are refused at the join while the same walk is perfectly reachable by
+/// extension, so the join becomes strictly more restrictive than the search around it and a bounded
+/// run returns a worse answer than an unbounded one.
+///
+/// So: **declare this rule only on a model that already forbids revisiting the nodes it remembers.**
+/// The ng-path relaxation is such a model, which is why `IntersectionFeasibilityFunction(forbidden)`
+/// is the one class that uses this form -- and why it declares @c AlwaysTrue instead when its
+/// forbidden sets are empty, i.e. when it is not that model after all.
 ///
 /// **Why this is a template rather than an arm of `Resource::can_be_merged`.** As an arm it had
 /// to compile for every `Resource<R>` instantiation, including the scalar cost resource, which
