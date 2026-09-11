@@ -861,6 +861,38 @@ TEST(Bidirectional, NoReturnedPathHasATerminalInItsInterior) {
 }
 
 
+/// @brief A forward path does not re-enter a source either.
+///
+/// The mirror of `NoReturnedPathHasATerminalInItsInterior`. A walk that returns to the depot and
+/// leaves again is two routes; priced as one column, with the vehicle-count row counted once, a
+/// set-partitioning master buys it and is wrong.
+TEST(Bidirectional, NoReturnedPathReEntersASource) {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, 1.0);
+    graph->add_arc<RealResource>(std::make_tuple(-10.0), 1, 0, -10.0);  // back into the source
+    graph->add_arc<RealResource>(std::make_tuple(1.0), 1, 2, 1.0);
+
+    // The forward search is checked too: this rule is not bidirectional-only.
+    const auto forward =
+        graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{},
+                                               std::numeric_limits<double>::infinity(),
+                                               /*preprocess=*/false);
+    for (const auto& solution : forward.solutions) {
+        const auto& nodes = solution.path_node_ids;
+        for (size_t i = 1; i + 1 < nodes.size(); ++i) {
+            EXPECT_FALSE(graph->get_node(nodes[i])->source)
+                << "source " << nodes[i] << " appears inside a returned path";
+        }
+    }
+}
+
 // ============================================================================
 // Parameters that are shared with the forward algorithms
 // ============================================================================
