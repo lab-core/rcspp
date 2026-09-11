@@ -181,11 +181,22 @@ class Joiner {
 
     private:
         /// @brief Reads the critical resource's scalar value out of a composed resource.
+        ///
+        /// Guarded, because `get_component<T>` resolves a *constrained* index trait that does not
+        /// exist when `T` is absent from the pack -- and this function is instantiated
+        /// unconditionally, so without the guard a critical type outside the pack is a compile
+        /// error and the algorithm's three "type not in the model, disabling the bound" branches
+        /// can never run. With it they can, and 0.0 is the right answer on that path anyway: the
+        /// bound is disabled, so no crossing test consults this.
         [[nodiscard]] static double critical_value(const Resource<ResourceType>& resource,
                                                    size_t critical_resource_index) {
-            const auto& component =
-                resource.template get_component<CriticalRC>(critical_resource_index);
-            return static_cast<double>(component.get_value().get_value());
+            if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
+                const auto& component =
+                    resource.template get_component<CriticalRC>(critical_resource_index);
+                return static_cast<double>(component.get_value().get_value());
+            } else {
+                return 0.0;
+            }
         }
 
         /// @brief The node a merged path ends at: where the backward chain runs out, i.e. a sink.
