@@ -820,6 +820,101 @@ TEST(Bidirectional, PreprocessingAwayEveryArcIsNotAModellingError) {
 }
 
 // ============================================================================
+// Parameters that are shared with the forward algorithms
+// ============================================================================
+
+/// @brief `return_dominated_solutions` records terminal paths as they are found, in both
+///        directions.
+///
+/// Without it a path that reaches a terminal and is later dominated is gone from its container by
+/// the time the end-of-solve sweep runs, so the caller never sees it -- while the forward
+/// algorithms, which record at the terminal, do return it.
+TEST(Bidirectional, ReturnDominatedSolutionsIsHonoured) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::diamond_graph(4.0, 4.0, 1.0, 2.0);
+
+    auto p = bt::params(2.0);
+    p.return_dominated_solutions = true;
+    p.stop_after_X_solutions = 100;  // check() warns when this is left at MAX with the flag on
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(p);
+    const auto with_dominated = graph->solve(algorithm.get());
+
+    auto plain_graph = bt::diamond_graph(4.0, 4.0, 1.0, 2.0);
+    auto plain =
+        plain_graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(2.0));
+    const auto without = plain_graph->solve(plain.get());
+
+    EXPECT_GE(with_dominated.solutions.size(), without.solutions.size());
+    ASSERT_FALSE(with_dominated.solutions.empty());
+    ASSERT_FALSE(without.solutions.empty());
+    EXPECT_NEAR(with_dominated.solutions.front().cost,
+                without.solutions.front().cost,
+                bt::kTolerance)
+        << "recording more solutions must not change which one is best";
+}
+
+/// @brief With pruning off, a join that merely ties the incumbent is still returned.
+///
+/// The joiner used to consult and tighten `best_cost_upper_bound` whatever the caller asked for, so
+/// a pricing pool that wanted every negative-reduced-cost column got only the improving ones. The
+/// caller's own `upper_bound` is a different filter and stays unconditional.
+///
+/// The two routes join on *different* arcs on purpose: routed through a shared node they would meet
+/// as two labels with identical resources, one would dominate the other, and the second solution
+/// would be gone before the join ever saw it -- for a reason that has nothing to do with the cutoff
+/// under test.
+TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
+    namespace bt = bidirectional_test;
+
+    // 0 -> 1 -> 3 and 0 -> 2 -> 3, both costing 5, so the second exactly ties the incumbent.
+    // The clock crosses H = 8 on the arcs into the sink, so both complete paths reach the join.
+    const auto build = [] {
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
+                                          std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                                              0.0,
+                                              40.0,
+                                              /*merge_by_increasing_value=*/true),
+                                          std::make_unique<TrivialCostFunction<RealResource>>(),
+                                          std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        graph->add_node(1);
+        graph->add_node(2);
+        graph->add_node(3, /*source=*/false, /*sink=*/true);
+        graph->add_arc<RealResource, RealResource>({2.0, 6.0}, 0, 1, 2.0);
+        graph->add_arc<RealResource, RealResource>({3.0, 6.0}, 0, 2, 3.0);
+        graph->add_arc<RealResource, RealResource>({3.0, 6.0}, 1, 3, 3.0);
+        graph->add_arc<RealResource, RealResource>({2.0, 6.0}, 2, 3, 2.0);
+        return graph;
+    };
+
+    const auto run = [&build](bool prune) {
+        auto graph = build();
+        auto p = bt::params(8.0, bt::kClockIndex);
+        p.prune_based_on_upper_bound_ = prune;
+        auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(p);
+        const auto result = graph->solve(algorithm.get());
+        return std::make_pair(result.solutions.size(), algorithm->number_of_joined_paths());
+    };
+
+    const auto [open_count, open_joins] = run(/*prune=*/false);  // the default, stated
+    EXPECT_GT(open_joins, 0U)
+        << "the two routes must meet at the join, or this test does not exercise the cutoff";
+    EXPECT_GE(open_count, 2U)
+        << "both equal-cost routes should be returned when pruning is off";
+
+    // And with pruning on the incumbent cutoff bites, which is what the flag is for.
+    const auto [pruned_count, pruned_joins] = run(/*prune=*/true);
+    EXPECT_LE(pruned_count, open_count);
+    EXPECT_LE(pruned_joins, open_joins);
+}
+
+// ============================================================================
 // Diagnostics on the result
 // ============================================================================
 

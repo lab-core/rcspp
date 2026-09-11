@@ -118,6 +118,19 @@ rg.add_real_resource(
 and `"int"`) only — extending backwards subtracts, and on an unsigned type that
 wraps to a huge positive value that reads as a very loose bound.
 
+### Parameters that behave differently here
+
+| Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |
+|---|---|---|
+| `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found |
+| `stop_after_X_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never truncates the join: the join runs to completion and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
+| `prune_based_on_upper_bound_` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. With it off (the default) every join the caller's `upper_bound` admits is returned |
+
+Note the last row: the bidirectional search's solution *set* is still generally smaller than the
+forward search's, because the half-way bound stops forward labels before they reach a sink and the
+join only produces paths whose clock crosses `H`.  The optimum is unaffected.  If you need every
+column rather than the best one, measure both before choosing.
+
 ### When it pays, and when it does not
 
 What decides this is **how many labels dominance has to sift at each node**, not how

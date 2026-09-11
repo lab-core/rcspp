@@ -307,6 +307,22 @@ class BidirectionalDominanceAlgorithm
                 if (label_ptr->get_cost() < this->best_cost_upper_bound_) {
                     this->best_cost_upper_bound_ = label_ptr->get_cost();
                 }
+                // Record it now, not only in the end-of-solve sweep, when the caller asked for
+                // dominated solutions too: a label that reaches a terminal and is later dominated
+                // is gone from its container by then. This is what the one-directional loop does,
+                // and it is also what makes `stop_after_X_solutions` able to stop the search --
+                // `should_stop()` reads `solutions_.size()`, which otherwise stays at zero until
+                // after `main_loop` has already run to completion.
+                //
+                // A backward chain walks `get_out_arc()`, so it cannot go through the `Label`
+                // overload of `extract_solution`, which walks `get_in_arc()`.
+                if (this->params_.return_dominated_solutions) {
+                    if constexpr (Dir::backward) {
+                        extract_backward_solution(*label_ptr);
+                    } else {
+                        this->extract_solution(*label_ptr);
+                    }
+                }
                 return;
             }
 
@@ -352,6 +368,8 @@ class BidirectionalDominanceAlgorithm
                          half_way_,
                          this->params_.critical_resource_index,
                          this->best_cost_upper_bound_,
+                         this->params_.prune_based_on_upper_bound_,
+                         this->cost_upper_bound_,
                          [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                              ++joined_paths_;
                              this->extract_solution(cost, std::move(arc_ids), end_node_id);
