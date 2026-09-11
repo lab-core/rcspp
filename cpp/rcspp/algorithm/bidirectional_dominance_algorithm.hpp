@@ -194,8 +194,35 @@ class BidirectionalDominanceAlgorithm
             run_join_pass();
         }
 
+        /// @brief Trims both frontiers and tightens the per-node quota, as every other algorithm
+        ///        does.
+        ///
+        /// Trimming alone is a one-off dip: the frontiers refill from continued extension on the
+        /// next few iterations, because `step<Dir>`'s per-node quota is still whatever the caller
+        /// set (`MAX_INT` by default). Lowering `effective_max_labels_per_node_` is what turns a
+        /// pressure event into a change of regime, and it is why every other algorithm's
+        /// `on_memory_pressure` does both.
+        ///
+        /// There is deliberately no "second pressure event releases what the first set aside" arm
+        /// here, which `Simple`, `Pushing`, `Pulling` and `AStar` all have: `trim_frontier` sets
+        /// nothing aside. A frontier entry it drops stays in its node's container -- so nothing
+        /// dangles -- and is simply never extended again. `memory_pressure_triggered_` is
+        /// therefore informational in this algorithm, and is set so that
+        /// `memory_pressure_was_triggered()` can report it.
+        /// @brief Puts the two bidirectional diagnostics on the result the caller receives.
+        ///
+        /// The accessors above stay and read the same members, so the two cannot disagree; this is
+        /// the copy that crosses the Python boundary, where the algorithm object does not.
+        void annotate(SolveResult* result) const override {
+            result->bounded_by_half_way = half_way_.enabled();
+            result->number_of_joined_paths = joined_paths_;
+        }
+
         void on_memory_pressure() override {
             Base::on_memory_pressure();
+            this->effective_max_labels_per_node_ =
+                this->params_.memory_pressure_max_labels_per_node;
+            this->memory_pressure_triggered_ = true;
             trim_frontier(&forward_frontier_);
             trim_frontier(&backward_frontier_);
         }
@@ -663,6 +690,11 @@ class BidirectionalDominanceAlgorithm
         }
 
         /// @brief Trims a frontier under memory pressure, keeping the cheapest labels.
+        ///
+        /// A dropped entry that is not already `dominated` is abandoned rather than released: it
+        /// stays in its node's container, so nothing dangles, but it is never extended and the
+        /// result may no longer be optimal. `could_be_non_optimal()` reads params only and cannot
+        /// see this, which is what `memory_pressure_was_triggered()` is for.
         void trim_frontier(std::list<LabelIteratorPair<ResourceType>>* frontier) {
             const size_t max_total = this->params_.memory_pressure_max_labels_per_node *
                                      this->graph_->get_number_of_nodes();

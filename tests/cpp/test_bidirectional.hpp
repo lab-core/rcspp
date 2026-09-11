@@ -674,6 +674,70 @@ TEST(Bidirectional, MemoryPressureTrimsBothFrontiers) {
         << "trimming a frontier must not leak or double-release a label";
 }
 
+/// @brief Memory pressure tightens the per-node extension quota, not just the frontier.
+///
+/// Trimming alone is a one-off dip -- the frontiers refill from continued extension -- so the
+/// observable consequence of the quota is that far fewer labels are extended in total. Measured
+/// through `get_number_of_extended_labels()`, which is the number the whole benchmark is built on.
+TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
+    namespace bt = bidirectional_test;
+
+    // A line graph will not do: with one label per node a quota of 1 never bites. This one gives
+    // node 3 two non-dominated labels -- cheap-but-slow through 1, dear-but-quick through 2 -- so
+    // the quota has something to refuse.
+    const auto build = [] {
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
+                                          std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                                              0.0,
+                                              40.0,
+                                              /*merge_by_increasing_value=*/true),
+                                          std::make_unique<TrivialCostFunction<RealResource>>(),
+                                          std::make_unique<ValueDominanceFunction<RealResource>>());
+        for (size_t node_id = 0; node_id < 5; ++node_id) {
+            graph->add_node(node_id, node_id == 0, node_id == 4);
+        }
+        graph->add_arc<RealResource, RealResource>({1.0, 10.0}, 0, 1, 1.0);   // cheap, slow
+        graph->add_arc<RealResource, RealResource>({10.0, 1.0}, 0, 2, 10.0);  // dear, quick
+        graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 1, 3, 1.0);
+        graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 2, 3, 1.0);
+        graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 3, 4, 1.0);
+        return graph;
+    };
+
+    const auto run = [&build](bool under_pressure) {
+        auto graph = build();
+        // H = 20, above the slow route's clock of 11: both labels at node 3 have to survive the
+        // half-way bound, or there is only one of them and the quota has nothing to refuse.
+        auto p = bt::params(20.0, bt::kClockIndex);
+        if (under_pressure) {
+            constexpr double kHugeLimitGiB = 1e9;  // pressure on every check, never a hard stop
+            p.max_memory_gb = kHugeLimitGiB;
+            p.memory_pressure_fraction = 0.0;
+            p.memory_check_interval = 1;
+            p.memory_pressure_max_labels_per_node = 1;
+        }
+        auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(p);
+        graph->solve(algorithm.get());
+        return std::make_pair(algorithm->get_number_of_extended_labels(),
+                              algorithm->memory_pressure_was_triggered());
+    };
+
+    const auto [relaxed_labels, relaxed_flag] = run(/*under_pressure=*/false);
+    const auto [pressed_labels, pressed_flag] = run(/*under_pressure=*/true);
+
+    EXPECT_FALSE(relaxed_flag);
+    EXPECT_TRUE(pressed_flag) << "the pressure recipe did not fire";
+    EXPECT_LT(pressed_labels, relaxed_labels)
+        << "memory pressure trimmed the frontiers but left the per-node quota at its original "
+           "value, so they refilled immediately";
+}
+
 /// @brief The default `release_after_solve` frees the backward containers too.
 ///
 /// Every other test here turns that off so it can look at the label sets afterwards, which means
