@@ -81,6 +81,63 @@ inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool wit
     return run;
 }
 
+/// @brief What a bounded run varies. Defaults reproduce an unbounded run exactly.
+struct BoundedOptions {
+        /// @brief The caller's `upper_bound`: solutions costing at least this are not returned.
+        double upper_bound = std::numeric_limits<double>::infinity();
+
+        /// @brief Whether the search prunes against the incumbent.
+        ///
+        /// For the forward algorithms that is `label.get_cost() >= best`, which is invalid on a
+        /// frontier; for the bidirectional one it is a *completion* bound, which is valid only if
+        /// it relaxes on the slot the labels accumulate.
+        bool prune_based_on_upper_bound = false;
+
+        /// @brief Whether the half-way bound is in force (bidirectional only).
+        bool with_half_way_bound = true;
+
+        /// @brief Whether `solve()` preprocesses. A binding upper bound plus preprocessing is what
+        ///        strips every arc from the graph, which is its own failure mode.
+        bool preprocess = true;
+};
+
+/// @brief The reference, under a caller-supplied upper bound.
+inline Run solve_forward_bounded(const test_util::InstanceConfig& config,
+                                 const BoundedOptions& options) {
+    Run run;
+    auto built = test_util::build_instance(config);
+    run.graph = std::move(built.graph);
+
+    AlgorithmParams<LabelList<Composed>> params;
+    params.prune_based_on_upper_bound_ = options.prune_based_on_upper_bound;
+    run.result =
+        run.graph->solve<SimpleDominanceAlgorithm>(options.upper_bound, params, options.preprocess);
+    return run;
+}
+
+/// @brief The candidate, under a caller-supplied upper bound.
+inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
+                                       const BoundedOptions& options) {
+    Run run;
+    auto built = test_util::build_instance(config);
+    run.graph = std::move(built.graph);
+
+    AlgorithmParams<LabelList<Composed>> params;
+    params.critical_resource_index = built.clock_index;
+    params.half_way_point = options.with_half_way_bound ? built.clock_upper_bound / 2.0 : 0.0;
+    params.prune_based_on_upper_bound_ = options.prune_based_on_upper_bound;
+    // The completion bounds relax on this slot; the labels accumulate slot 0. See finding D1.
+    params.heuristic_cost_index = 0;
+
+    auto algorithm =
+        run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    run.result = run.graph->solve(algorithm.get(), options.upper_bound, options.preprocess);
+    run.bounded = algorithm->bounded_by_half_way();
+    EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
+        << "reference counts must survive two searches and a join";
+    return run;
+}
+
 /// @brief Replays one path through the model, returning what is wrong with it, or "".
 ///
 /// Extends a fresh source resource arc by arc exactly as the search would, and requires every

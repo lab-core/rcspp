@@ -30,6 +30,12 @@
 // but the sets differ, and asserting equality would be a test that fails for a reason that is not a
 // defect. `SolutionSetsAgreeOnTheOptimumNotOnEveryPath` pins the weaker property that does hold.
 
+// The sweep runs TWICE: once at `upper_bound = +infinity`, and once with a finite bound. Everything
+// bidirectional in this repository used to run only the first way, and `prune_based_on_upper_bound_`
+// appeared in none of it -- which is where all three of the review's upper-bound findings lived. The
+// library's headline use is column generation, which always passes a finite and usually negative
+// bound, so the bounded half is the one that matches how it is actually called.
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -119,6 +125,125 @@ TEST(Equivalence, ACostOnlyInstanceRunsWithTheBoundOff) {
     const eq::Run bounded = eq::solve_bidirectional(config, /*with_bound=*/true);
     EXPECT_FALSE(bounded.bounded) << "an accumulating cost slot is not a clock";
     EXPECT_NEAR(bounded.best_cost(), eq::solve_forward(config).best_cost(), eq::kTolerance);
+}
+
+// ============================================================================
+// The sweep again, with a finite upper bound
+// ============================================================================
+
+/// @brief Under a bound that still admits the optimum, both searches find it and nothing above it.
+///
+/// Column generation always passes a finite, usually negative bound, and until this test the whole
+/// bidirectional suite ran at +infinity. Two things are asserted: the two algorithms agree, and
+/// **no returned solution costs at or above the bound** -- a bidirectional solve records complete
+/// paths from three places and only two of them used to be filtered.
+TEST(Equivalence, MatchesTheForwardSearchUnderAnAdmittingUpperBound) {
+    namespace eq = equivalence_test;
+
+    size_t instances_compared = 0;
+    for (const auto& config : eq::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const eq::Run unbounded = eq::solve_forward(config);
+        if (unbounded.result.solutions.empty()) {
+            continue;  // nothing to bound
+        }
+        const double optimum = unbounded.best_cost();
+
+        eq::BoundedOptions options;
+        options.upper_bound = optimum + 1.0;  // strictly above, so the optimum still qualifies
+
+        const eq::Run forward = eq::solve_forward_bounded(config, options);
+        const eq::Run bidirectional = eq::solve_bidirectional_bounded(config, options);
+
+        ASSERT_FALSE(forward.result.solutions.empty()) << where;
+        ASSERT_FALSE(bidirectional.result.solutions.empty()) << where;
+        EXPECT_NEAR(forward.best_cost(), optimum, eq::kTolerance) << where;
+        EXPECT_NEAR(bidirectional.best_cost(), optimum, eq::kTolerance) << where;
+        EXPECT_EQ(eq::any_path_problem(bidirectional), "") << where;
+
+        for (const auto& solution : bidirectional.result.solutions) {
+            EXPECT_LT(solution.cost, options.upper_bound)
+                << "a solution at or above the caller's bound was returned: " << where;
+        }
+        ++instances_compared;
+    }
+
+    EXPECT_GT(instances_compared, 0U) << "every instance in the sweep was infeasible";
+}
+
+/// @brief A bound below the optimum returns nothing from both searches, and raises from neither.
+///
+/// With `preprocess = true` a bound nothing can meet makes `ShortestPathPreprocessor` remove every
+/// arc, which is what a pricing loop's *terminating* iteration looks like. The setup validation
+/// used to read each component's declared backward kind off the first arc and, finding none,
+/// report every component as undeclared -- so the solve that ends a CG loop was the one that threw.
+TEST(Equivalence, ABoundBelowTheOptimumReturnsNothingFromBothSearches) {
+    namespace eq = equivalence_test;
+
+    for (const auto& config : eq::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const eq::Run unbounded = eq::solve_forward(config);
+        if (unbounded.result.solutions.empty()) {
+            continue;
+        }
+
+        eq::BoundedOptions options;
+        options.upper_bound = unbounded.best_cost() - 1.0;  // nothing can meet it
+        options.preprocess = true;
+
+        const eq::Run forward = eq::solve_forward_bounded(config, options);
+        EXPECT_TRUE(forward.result.solutions.empty()) << where;
+
+        eq::Run bidirectional;
+        EXPECT_NO_THROW({ bidirectional = eq::solve_bidirectional_bounded(config, options); })
+            << "an unsatisfiable bound is not a modelling error: " << where;
+        EXPECT_TRUE(bidirectional.result.solutions.empty()) << where;
+    }
+}
+
+/// @brief With `prune_based_on_upper_bound_` on, the completion bound still keeps the optimum.
+///
+/// The bidirectional algorithm replaces the forward search's `label.get_cost() >= incumbent` test
+/// -- valid for a complete path, invalid on a frontier -- with a completion bound. A completion
+/// bound is admissible only if it relaxes on the slot the labels accumulate, so this runs with
+/// `arc_cost_offset` set: the generator then makes `arc.cost` differ from the cost component by a
+/// constant per arc, and a bound summed from `arc.cost` over-estimates by `offset x path length`.
+///
+/// The reference is a forward search with pruning OFF, because the forward prune is itself the
+/// invalid half-versus-whole-path test and cannot serve as an oracle here.
+TEST(Equivalence, PruningOnTheCompletionBoundKeepsTheOptimum) {
+    namespace eq = equivalence_test;
+
+    size_t instances_compared = 0;
+    for (auto config : eq::sweep()) {
+        // Positive, so a bound summed from arc.cost over-estimates: the dangerous direction.
+        config.arc_cost_offset = 50.0;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const eq::Run reference = eq::solve_forward(config);
+        if (reference.result.solutions.empty()) {
+            continue;
+        }
+
+        eq::BoundedOptions options;
+        options.prune_based_on_upper_bound = true;  // upper_bound stays +infinity
+
+        const eq::Run bidirectional = eq::solve_bidirectional_bounded(config, options);
+
+        ASSERT_FALSE(bidirectional.result.solutions.empty())
+            << "the completion bound pruned every path: " << where;
+        EXPECT_NEAR(bidirectional.best_cost(), reference.best_cost(), eq::kTolerance)
+            << "the completion bound was not admissible: " << where;
+        EXPECT_EQ(eq::any_path_problem(bidirectional), "") << where;
+        ++instances_compared;
+    }
+
+    EXPECT_GT(instances_compared, 0U);
 }
 
 // ============================================================================
