@@ -459,6 +459,19 @@ class Algorithm {
         /// @return The number of label extensions performed.
         [[nodiscard]] size_t get_number_of_extended_labels() const { return num_extended_labels_; }
 
+        /// @brief Whether memory pressure fired at least once during the last solve.
+        ///
+        /// A pressure event trims queues and tightens the per-node extension quota, so the result
+        /// may no longer be optimal. `could_be_non_optimal()` cannot report it: that predicate
+        /// reads `params_` only, and memory pressure is a property of the run rather than of the
+        /// request. This is the accessor that closes the gap -- the same role
+        /// `bounded_by_half_way()` plays for the half-way bound.
+        ///
+        /// @return `true` when `on_memory_pressure()` was called during the last solve.
+        [[nodiscard]] bool memory_pressure_was_triggered() const {
+            return memory_pressure_triggered_;
+        }
+
     protected:
         bool print_{false};
 
