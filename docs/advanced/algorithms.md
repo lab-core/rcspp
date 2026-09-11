@@ -159,8 +159,8 @@ extensions.
 Measured across all six Solomon families (see `analysis/bidirectional-results.md`
 for the full tables).  On the largest instances the difference stops being a
 speed-up and becomes a question of whether an answer arrives at all: on R202_50
-and on the full C201, the forward search exhausts its time budget while
-bidirectional finishes with the proven optimum.
+the forward search exhausts its time budget while bidirectional finishes with the
+proven optimum.
 
 | Situation | Effect |
 |---|---|
@@ -168,6 +168,14 @@ bidirectional finishes with the proven optimum.
 | Moderate label pressure | 1.4–2.9× |
 | Heavy label pressure | 4–21×, widening as instances grow |
 | Forward search cannot finish at all | Bidirectional finishes, with the optimum |
+
+> **These ratios were measured in a Debug build, and a Debug build is about 20×
+> slower than a Release one — unevenly, favouring bidirectional.  Treat them as an
+> ordering, not as numbers.**  Re-measured in Release, the full C201 instance moved
+> from "forward times out, bidirectional finishes" to forward finishing in 0.68 s,
+> so that example has been dropped from the sentence above.  The label *counts* are
+> reproducible across builds; the wall-clock ratios are not.  `analysis/bidirectional-results.md`
+> §3 carries the re-measured tables and says which ones still await a re-run.
 
 So it is **not a default**.  It does not pay when:
 
