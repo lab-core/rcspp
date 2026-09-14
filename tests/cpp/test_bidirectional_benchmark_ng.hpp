@@ -17,7 +17,8 @@
 //     observed.
 //  2. `bidirectional-results.md` §3 records the hypothesis that the modest payoff is limited by
 //     the model not being elementary, and could not test it. An ng-path relaxation is the
-//     standard way to approach elementarity, so this table is that test.
+//     standard way to approach elementarity, so this table is that test. It **did** support the
+//     hypothesis, and then stopped: see the measurement note on the first test below.
 //
 // **On the reference optimum.** The plan predicted a *different* constant would be needed here,
 // because ng-feasibility is a restriction and a restriction can only make the optimum worse. It
@@ -92,26 +93,38 @@ inline void report_ng(const std::string& name, const TimedNg& timed) {
 
 /// @brief The ng model on R101, iteration-0 duals: forward against bidirectional.
 ///
-/// `DISABLED_` like the other heavy benchmarks, and it earns that: **141 s** on this machine,
-/// because the ng model extends 8.7x the labels the non-ng one does. R101 at iteration 0 is the
-/// easiest pricing problem in the repository and it is still two minutes with a set memory
-/// attached. Run it with:
+/// `DISABLED_` like the other heavy benchmarks, though it no longer earns that: **0.3 s** in
+/// Release. Run it with:
 /// @code tests-rcspp --gtest_also_run_disabled_tests --gtest_filter="*NgForwardVersus*" @endcode
 ///
-/// Measured (R101, iteration-0 duals, ng size 8, H = 115):
+/// Measured (R101, iteration-0 duals, ng size 8, H = 115), Release:
 ///
 /// | run | cost | extended labels | joined paths | seconds |
 /// |---|---|---|---|---|
-/// | ng forward       | -319.87786809696524 | 434 398 | -- | 112.4 |
-/// | ng bidirectional | -319.87786809696524 | 119 956 | 10 | 28.7 |
+/// | ng forward       | -319.87786809696524 | 34 475 | -- | 0.10 |
+/// | ng bidirectional | -319.87786809696524 | 35 564 | 9  | 0.12 |
 ///
-/// **3.62x fewer extensions and 3.9x less wall clock** -- against roughly 2x on the non-ng model
-/// at this instance, which is the first data on `bidirectional-results.md` §3's hypothesis that
-/// non-elementarity was limiting the payoff. It supports it.
+/// **The headline this table used to carry has been overtaken twice, and both are worth keeping.**
+///
+/// It first read 434 398 / 119 956 labels and 112.4 s / 28.7 s -- a 3.62x extension ratio, offered
+/// as the first evidence for `bidirectional-results.md` §3's hypothesis that non-elementarity was
+/// limiting the payoff. Those were Debug numbers and predate the review remediation.
+///
+/// Then the ng memory changed representation. `NgPathExtensionFunction` now stores the memory
+/// already narrowed by the node arrived at, which is a *sufficient statistic* where the
+/// pre-narrowing set was not, so `InclusionDominanceFunction` dominates strictly more: the forward
+/// search fell from 190 339 extensions to 34 475 on this row, and from 340 s to 0.5 s on C201_50 at
+/// ng(8). The optimum is unchanged -- the relaxation is the same one, only the label is smaller.
+///
+/// The consequence for *this* table is that the ratio inverts: **0.97x**, bidirectional now
+/// extending marginally more than forward. That does not refute §3's hypothesis, it removes this
+/// instance's ability to test it -- the baseline got cheap enough that there is little left to
+/// halve on a 230-horizon instance. A model where the split still pays has to be found somewhere
+/// with longer routes.
 ///
 /// What is *asserted* rather than printed: that the ng model still finds the known optimum, and
-/// that the join dispatches its set test at all (`joined_paths > 0`), which is what makes step
-/// 6's arm reachable.
+/// that the join dispatches its set test at all (`joined_paths > 0`), which is what makes the
+/// container merge arm reachable.
 TEST(BidirectionalBenchmarkNg, DISABLED_NgForwardVersusBidirectionalOnVrptw) {
     namespace bb = bidirectional_benchmark;
     namespace ng = bidirectional_benchmark_ng;

@@ -14,17 +14,30 @@ namespace rcspp {
 /// so "f is within the threshold" is `f subset of complement(V_b)`, which is exactly
 /// `f intersect V_b == empty`.
 ///
-/// **Precondition, and it is load-bearing.** A label's remembered set is always a subset of the
-/// nodes on its own half, and an *elementary* path's two halves are node-disjoint, so disjointness
-/// never rejects an elementary path. On a model that permits revisits it rejects plenty: two halves
-/// that legally share a node are refused at the join while the same walk is perfectly reachable by
-/// extension, so the join becomes strictly more restrictive than the search around it and a bounded
-/// run returns a worse answer than an unbounded one.
+/// **Precondition, and it is load-bearing.** Disjointness is exact exactly when **the stored set
+/// is the memory the label will carry out of this node** -- i.e. when nothing further will be
+/// filtered out of it before the suffix sees it. Two ways to satisfy that:
 ///
-/// So: **declare this rule only on a model that already forbids revisiting the nodes it remembers.**
-/// The ng-path relaxation is such a model, which is why `IntersectionFeasibilityFunction(forbidden)`
-/// is the one class that uses this form -- and why it declares @c AlwaysTrue instead when its
-/// forbidden sets are empty, i.e. when it is not that model after all.
+///  - the memory never forgets (a plain visited set, `UnionExtensionFunction`); or
+///  - the memory forgets, but the narrowing has *already been applied* by the time the label
+///    arrives. That is what @c NgPathExtensionFunction now does: it stores
+///    `(memory ∪ {node left}) ∩ ng(node arrived)` rather than the pre-narrowing set.
+///
+/// Get that wrong and the join compares a one-step-stale set against a current one, so two halves
+/// that share a node the merge node was about to forget are refused -- while the same walk is
+/// perfectly reachable by extension. The forward search then accepts a path the join will not, and
+/// `bidirectional` and `simple` return different optima on one model, with `half_way_point`
+/// deciding how different. That is not a tighter relaxation: the strictness applies only to paths
+/// that cross `H`, so it cannot be stated as a model at all.
+///
+/// Note what is *not* wrong with it, because the intuition here matters: a rejected pair always
+/// contains a cycle, and disjointness never rejects an *elementary* path, so a column-generation
+/// bound built on such a pricer stays valid. What is lost is that the answer stops being a property
+/// of the model and becomes a property of the algorithm and its tuning.
+///
+/// So: **declare this rule only where one of the two conditions above holds**, and prefer the
+/// second -- storing the already-narrowed memory costs nothing at the join, makes the stored set a
+/// sufficient statistic, and therefore strengthens dominance as well.
 ///
 /// **Why this is a template rather than an arm of `Resource::can_be_merged`.** As an arm it had
 /// to compile for every `Resource<R>` instantiation, including the scalar cost resource, which

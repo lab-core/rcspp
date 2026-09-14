@@ -232,6 +232,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             }
         }
 
+        /// @brief Whether this resource's merge test may refuse a pair the model would accept.
+        ///
+        /// See @c FeasibilityFunction::merge_refusal_may_be_conservative. Read once per solve by
+        /// the joiner, which verifies such a refusal by replay rather than trusting it.
+        ///
+        /// @return @c true when a refusal is worth verifying.
+        [[nodiscard]] auto merge_refusal_may_be_conservative() const -> bool {
+            return this->feasibility_function_->merge_refusal_may_be_conservative();
+        }
+
         /// @brief The merge rule this resource's feasibility function declares.
         ///
         /// Exposes the value cached at bind time, so a setup-time check can report an undeclared

@@ -201,11 +201,18 @@ class DeclaredKindForm : public Base {
 ///
 /// The ng-path defect this removes: the author is handed @c origin and @c destination and has to
 /// remember which one is "the node being left" in each direction. So this form does not show
-/// them. It builds one @c Side per direction from a node id, and the derived class writes a
-/// single formula that consumes a @c Side without knowing which it is.
+/// them. It builds one @c Side per direction and the derived class writes a single formula that
+/// consumes a @c Side without knowing which it is.
 ///
 /// It also drops the arc's extender value from @c apply's inputs entirely. For a node-identity
 /// mirror the arc value *is* the wrong thing to use -- that is the finding, made structural.
+///
+/// **A @c Side names two nodes, not one.** A traversal has a node it *leaves* and a node it
+/// *arrives at*, and a narrowing container needs both: the node left is what joins the memory, and
+/// the arrival node's neighborhood is what the memory is filtered by. Carrying only the node left
+/// -- which this form did until the join was found to over-reject -- means the stored memory has
+/// not yet been filtered by the node it sits at, so two halves meeting there compare
+/// one-step-stale sets. See @c merge_form.hpp.
 ///
 /// @note A container resource whose arc value is genuine per-arc data is **not** this shape. It
 ///       is a `DeclaredKindForm<ExtensionFunction<R>, BackwardKind::Mirror>` that writes its own
@@ -220,7 +227,7 @@ class NodeMirrorForm : public Base {
 
         [[nodiscard]] BackwardKind backward_kind() const final { return kind; }
 
-        /// @brief Forward extension: applies the formula to the side of the arc's origin.
+        /// @brief Forward extension: leaves the arc's origin, arrives at its destination.
         ///
         /// @param resource          Current container resource of the forward label.
         /// @param extender_value    Arc's extender resource (unused; see the class note).
@@ -229,7 +236,8 @@ class NodeMirrorForm : public Base {
             apply(resource, extended_resource, forward_side_);
         }
 
-        /// @brief Backward extension: the same formula, on the side of the arc's destination.
+        /// @brief Backward extension: the same formula, leaving the destination and arriving at
+        ///        the origin.
         ///
         /// @param resource          Current container resource of the backward label.
         /// @param extender_value    Arc's extender resource (unused; see the class note).
@@ -240,24 +248,30 @@ class NodeMirrorForm : public Base {
         }
 
     protected:
-        /// @brief Everything about the node a label *leaves* when it traverses this arc.
+        /// @brief One traversal of this arc, oriented: what is left, and what is arrived at.
         struct Side {
-                R node_left;     ///< the singleton {node}
-                R neighborhood;  ///< whatever per-node set the resource narrows against
+                R node_left;              ///< the singleton {node being left}
+                R arrival_neighborhood;   ///< the per-node set of the node being ARRIVED at
         };
 
         /// @brief The formula, written once, direction-blind.
         ///
         /// @param resource          The label's current value.
         /// @param extended_resource Output: receives the new value.
-        /// @param side              The side of the arc the label is leaving.
+        /// @param side              This traversal's node left and arrival neighborhood.
         virtual void apply(const R& resource, R* extended_resource, const Side& side) const = 0;
 
-        /// @brief Builds the side for one node id.
+        /// @brief Builds the side for one traversal.
         ///
-        /// @param node_left_id Index of the node the label leaves.
-        /// @return That node's singleton and neighborhood.
-        [[nodiscard]] virtual Side make_side(size_t node_left_id) const = 0;
+        /// Both ids are supplied because the two halves of a @c Side come from *different* nodes;
+        /// a derived class that reads only @p node_left_id is the defect this signature exists to
+        /// prevent.
+        ///
+        /// @param node_left_id    Index of the node the label leaves.
+        /// @param node_arrived_id Index of the node the label arrives at.
+        /// @return The singleton of the node left, and the neighborhood of the node arrived at.
+        [[nodiscard]] virtual Side make_side(size_t node_left_id,
+                                             size_t node_arrived_id) const = 0;
 
     private:
         Side forward_side_;
@@ -265,14 +279,16 @@ class NodeMirrorForm : public Base {
 
         /// @brief Caches both of this arc's sides.
         ///
-        /// Going forward you leave the arc's origin; going backward, its destination. This is the
-        /// line the ng-path defect got wrong, and it is now written once.
+        /// Going forward you leave the arc's origin and arrive at its destination; going backward,
+        /// the other way round. This is the line the ng-path defect got wrong, and it is written
+        /// once. Note that the two arguments are simply swapped between the directions -- if that
+        /// ever stops being true, the mirror is not a mirror.
         ///
         /// @param origin_id      Index of the arc's origin node.
         /// @param destination_id Index of the arc's destination node.
         void preprocess(size_t origin_id, size_t destination_id) final {
-            forward_side_ = make_side(origin_id);
-            backward_side_ = make_side(destination_id);
+            forward_side_ = make_side(origin_id, destination_id);
+            backward_side_ = make_side(destination_id, origin_id);
         }
 };
 

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <memory>
 #include <vector>
 
 #include "rcspp/algorithm/half_way_policy.hpp"
@@ -133,6 +134,10 @@ class Joiner {
             // the flag is honoured exactly where it means something.
             const bool prune_against_incumbent =
                 prune_requested || !std::isfinite(cost_upper_bound);
+            // Whether any component's merge rule says a refusal is worth verifying. Read once from
+            // one node: the flag is a property of the function objects, which every node clones
+            // from the same prototype, not of the node.
+            const bool verify_refusals = any_merge_refusal_may_be_conservative(graph);
             // No container provides a cost order: LabelList appends, and LabelBuckets orders by its
             // bucket resource across buckets and its sort resource within one -- which is not a
             // global cost order, and not cost at all unless the sort resource happens to be cost.
@@ -258,7 +263,23 @@ class Joiner {
                             break;
                         }
                         if (!extended.get_resource().can_be_merged(backward->get_resource())) {
-                            continue;
+                            // A merge rule may never accept an infeasible splice, but one that
+                            // cannot decide exactly from two values may REFUSE a feasible one --
+                            // and an over-strict join makes this algorithm answer a stricter
+                            // question than the forward search on the same model. Where a rule
+                            // says its refusals may be conservative, verify before dropping.
+                            //
+                            // Only there. Refusal is the common outcome and this is O(path
+                            // length), so on every model whose rules are exact -- all of them but
+                            // a size cap with per-node bounds -- `verify_refusals` is false and
+                            // this costs one bool test. The path is rebuilt below on the rare
+                            // occasion a refusal survives, rather than built eagerly for every
+                            // pair that is about to be dropped.
+                            if (!verify_refusals ||
+                                !replays_feasibly(graph,
+                                                  merged_path(graph, *forward, arc, *backward))) {
+                                continue;
+                            }
                         }
 
                         auto arc_ids = merged_path(graph, *forward, arc, *backward);
@@ -272,6 +293,52 @@ class Joiner {
         }
 
     private:
+        /// @brief Whether any component asked for its merge refusals to be verified.
+        ///
+        /// @param graph The model.
+        /// @return @c true when at least one component declares a conservative refusal.
+        template <typename GraphType>
+        [[nodiscard]] static bool any_merge_refusal_may_be_conservative(const GraphType& graph) {
+            const auto node_ids = graph.get_node_ids();
+            if (node_ids.empty()) {
+                return false;
+            }
+            const auto* node = graph.get_node(node_ids.front());
+            return node != nullptr && node->resource != nullptr &&
+                   node->resource->merge_refusal_may_be_conservative();
+        }
+
+        /// @brief Whether an arc sequence replays feasibly through the arcs' own extenders.
+        ///
+        /// The ground truth a conservative merge rule is checked against: extend a fresh source
+        /// resource arc by arc exactly as the forward search would, and require every node to be
+        /// feasible. Costs one resource copy and one extension per arc, which is why only a rule
+        /// that asks for it gets it.
+        ///
+        /// @param graph   The graph the arc ids belong to.
+        /// @param arc_ids The merged path, in traversal order.
+        /// @return @c true when every node of the path is feasible.
+        template <typename GraphType>
+        [[nodiscard]] static bool replays_feasibly(const GraphType& graph,
+                                                   const std::vector<size_t>& arc_ids) {
+            if (arc_ids.empty()) {
+                return false;
+            }
+            const auto* first = graph.get_arc(arc_ids.front());
+            auto current = std::make_unique<Resource<ResourceType>>(*first->origin->resource);
+            for (const size_t arc_id : arc_ids) {
+                const auto* arc = graph.get_arc(arc_id);
+                auto extended =
+                    std::make_unique<Resource<ResourceType>>(*arc->destination->resource);
+                arc->extender->extend(*current, extended.get());
+                if (!extended->is_feasible()) {
+                    return false;
+                }
+                current = std::move(extended);
+            }
+            return true;
+        }
+
         /// @brief Reads the critical resource's scalar value out of a composed resource.
         ///
         /// Guarded, because `get_component<T>` resolves a *constrained* index trait that does not

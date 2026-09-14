@@ -19,10 +19,16 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <map>
+#include <memory>
+#include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 #include "util/equivalence_helpers.hpp"
+#include "util/merge_contract.hpp"
 #include "util/random_instance.hpp"
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -76,12 +82,12 @@ TEST(Equivalence, NgPathIsInertOnADag) {
 
 // Tier 2. THE test: cyclic instances, where ng-feasibility actually forbids something.
 //
-// ┌─ Why this compares against an ENUMERATOR and not against the forward search ──────────────┐
-// │ The forward search is **not a valid reference on a cyclic instance** -- it loses solutions │
-// │ there. See CyclicOptimalityAtLargerSizes below for the measurements and the                │
-// │ scope of the problem. `ng_cyclic_optimum` shares no code with either algorithm and is the  │
-// │ honest reference. The acyclic sweep keeps comparing the two searches, where the forward    │
-// │ one IS valid.                                                                              │
+// ┌─ Why this compares against an ENUMERATOR as well as against the forward search ───────────┐
+// │ `ng_cyclic_optimum` shares no code with either algorithm, so it catches a rule that is     │
+// │ wrong the same way in both -- which comparing two label-setting searches cannot. The       │
+// │ forward search is checked against it here too, and agrees; that is a claim worth making    │
+// │ rather than assuming, because it did not hold before the interior-terminal rule was        │
+// │ settled (see CyclicOptimalityAtLargerSizes below).                                         │
 // └────────────────────────────────────────────────────────────────────────────────────────────┘
 //
 // Sized so the oracle *completes*: at these dimensions `ng_cyclic_optimum` enumerates every
@@ -294,6 +300,298 @@ TEST(Equivalence, NgPathActuallyBindsOnAtLeastOneCyclicInstance) {
         << "ng never bound across 8 cyclic seeds: the neighborhoods are too loose, so the cyclic "
            "tier is testing nothing the acyclic tier does not already cover. Tighten the "
            "neighborhood window in test_util::ng_neighborhoods, or raise back_arc_density.";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The join must not be stricter than the model. (Review finding F1.)
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+// A hand-built instance whose optimum revisits a node the join used to refuse.
+//
+// Six nodes, every arc 10 time units, windows [0,55], H = 25 so the clock crosses on arc 2->3.
+// The optimum `0 1 2 3 1 5` costs -14 and revisits node 1 -- legally, because leaving node 3
+// narrows the memory by ng(3)={3}, which forgets 1.
+//
+// The forward half arriving at 3 remembers {1,2} under the OLD representation, the backward half
+// remembers {1}, they overlap, and disjointness refused the splice: the bounded search returned
+// -2 and reported COMPLETE while the forward search returned -14. Storing the memory already
+// narrowed by the node arrived at makes the forward half {2} there, and the splice goes through.
+//
+// Deterministic, six nodes, microseconds -- and it fails the moment the narrowing moves back to
+// the node being left.
+TEST(Equivalence, TheJoinAcceptsARevisitTheModelPermits) {
+    auto build = []() {
+        auto graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
+        std::map<size_t, std::pair<double, double>> windows;
+        std::map<size_t, std::set<size_t>> forbidden;
+        for (size_t node : {0U, 1U, 2U, 3U, 5U}) {
+            windows[node] = {0.0, 55.0};
+            forbidden[node] = {node};
+        }
+        const std::map<size_t, std::set<size_t>> ng{
+            {0, {0}}, {1, {1}}, {2, {1, 2}}, {3, {3}}, {5, {5}}};
+
+        presets::add_cost_resource<RealResource>(*graph);
+        presets::add_window_resource<RealResource>(*graph, windows);
+        presets::add_ng_path_resource<SizeTBitsetResource>(*graph, ng, forbidden);
+
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        graph->add_node(1);
+        graph->add_node(2);
+        graph->add_node(3);
+        graph->add_node(5, /*source=*/false, /*sink=*/true);
+
+        const std::set<size_t> no_arc_set;
+        auto arc = [&](size_t origin, size_t destination, double cost) {
+            graph->add_arc<RealResource, RealResource, SizeTBitsetResource>(
+                std::make_tuple(std::make_tuple(cost),
+                                std::make_tuple(10.0),
+                                std::make_tuple(no_arc_set)),
+                origin,
+                destination,
+                cost);
+        };
+        arc(0, 1, -1.0);
+        arc(1, 2, -1.0);
+        arc(2, 3, -1.0);
+        arc(3, 1, -10.0);
+        arc(1, 5, -1.0);
+        arc(0, 5, 0.0);  // an escape arc, so "no solution" cannot pass for success
+        return graph;
+    };
+
+    constexpr double kExpected = -14.0;
+
+    auto forward = build();
+    const auto forward_result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    ASSERT_FALSE(forward_result.solutions.empty());
+    EXPECT_NEAR(forward_result.solutions.front().cost, kExpected, 1e-9);
+
+    for (const double half_way : {0.0, 25.0}) {
+        auto graph = build();
+        AlgorithmParams<LabelList<equivalence_test::NgComposed>> params;
+        params.critical_resource_index = 1;  // the time slot
+        params.half_way_point = half_way;
+        auto algorithm =
+            graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+        const auto result = graph->solve(algorithm.get());
+
+        ASSERT_FALSE(result.solutions.empty()) << "half_way_point = " << half_way;
+        EXPECT_NEAR(result.solutions.front().cost, kExpected, 1e-9)
+            << "the join refused a revisit the model permits, at half_way_point = " << half_way;
+    }
+}
+
+// The same property across the generator, at the sizes where it actually bites.
+//
+// The tier above sits at num_nodes = 8, where ng_neighborhoods(width = 3) spans 7 of the 8 nodes:
+// almost nothing is ever forgotten, so the relaxation is effectively elementarity and an
+// over-strict join cannot show. It first shows at num_nodes = 11. These seeds are the ones that
+// exposed it -- measured before the fix, `bidirectional` with the bound on returned an optimum up
+// to 11.8 % worse than `simple` on them.
+//
+// No oracle here on purpose: the claim is that the two algorithms agree, which is the property the
+// join broke and the one a caller relies on.
+TEST(Equivalence, BoundedBidirectionalMatchesForwardWhereNgActuallyForgets) {
+    namespace eq = equivalence_test;
+
+    struct Case {
+            size_t num_nodes;
+            unsigned seed;
+    };
+    // Chosen, not swept: one per size, from the set that disagreed before the fix.
+    const std::vector<Case> cases{{11, 11}, {11, 17}, {12, 20}, {13, 10}, {14, 6}, {14, 18}};
+
+    for (const auto& instance : cases) {
+        test_util::InstanceConfig config;
+        config.num_nodes = instance.num_nodes;
+        config.density = 0.5;
+        config.back_arc_density = 0.35;
+        config.mixed_sign_costs = true;
+        config.with_time_window = true;
+        config.with_ng_path = true;
+        config.seed = instance.seed;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const auto forward = eq::solve_forward_ng(config);
+        ASSERT_FALSE(forward.result.solutions.empty()) << where;
+
+        for (bool with_bound : {false, true}) {
+            const auto bidi = eq::solve_bidirectional_ng(config, with_bound);
+            EXPECT_NEAR(bidi.best_cost(), forward.best_cost(), eq::kTolerance)
+                << "bound=" << with_bound << " " << where;
+            EXPECT_EQ(eq::any_path_problem(bidi), "") << where;
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The merge-rule contract, checked directly rather than through an optimum.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+// Every pair the joiner could be handed, on the ng model: the join's verdict must equal whether
+// the concatenation replays feasibly. See util/merge_contract.hpp for why COMPLETENESS is the half
+// that needed a test -- an over-strict rule loses no elementary route, so it cannot corrupt a
+// bound, and it surfaces only as `bidirectional` and `simple` disagreeing on an instance where the
+// difference happens to move the optimum. That is how F1 survived.
+//
+// This would have failed on the pre-fix ng representation at any of these seeds, without needing
+// an instance where the defect reached the optimum.
+TEST(MergeContract, HoldsOnTheNgModel) {
+    size_t total_pairs = 0;
+    size_t total_rejected = 0;
+
+    for (unsigned seed = 0; seed < 4; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 9;
+        config.density = 0.5;
+        config.back_arc_density = 0.35;
+        config.mixed_sign_costs = true;
+        config.with_time_window = true;
+        config.with_ng_path = true;
+        config.seed = seed;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const auto built = test_util::build_ng_instance(config);
+        const auto report = test_util::merge_contract_violation(*built.graph,
+                                                                /*max_depth=*/4,
+                                                                /*max_per_node=*/12);
+
+        EXPECT_EQ(report.violation, "") << where;
+        total_pairs += report.pairs;
+        total_rejected += report.rejected;
+    }
+
+    // Without these the test can pass by checking nothing: a model whose merge rule accepts
+    // everything, or an enumeration that produced no pairs, is not evidence.
+    EXPECT_GT(total_pairs, 0U) << "no candidate pairs were enumerated";
+    EXPECT_GT(total_rejected, 0U)
+        << "the merge rule accepted every pair, so its rejection path was never exercised";
+}
+
+// The same contract on the acyclic sweep, where ng cannot reject anything and the rule must
+// therefore accept every pair whose replay is feasible. Cheap, and it covers the capacity and
+// time-window merge rules (MergeRule::DominanceOrder) rather than only the container one.
+TEST(MergeContract, HoldsAcrossTheAcyclicSweep) {
+    namespace eq = equivalence_test;
+
+    size_t total_pairs = 0;
+    for (auto config : eq::sweep()) {
+        if (config.num_nodes > 16) {
+            continue;  // enumeration is exponential; the small rows carry the same rules
+        }
+        config.with_ng_path = true;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const auto built = test_util::build_ng_instance(config);
+        const auto report = test_util::merge_contract_violation(*built.graph,
+                                                                /*max_depth=*/3,
+                                                                /*max_per_node=*/8);
+        EXPECT_EQ(report.violation, "") << where;
+        total_pairs += report.pairs;
+    }
+    EXPECT_GT(total_pairs, 0U);
+}
+
+namespace size_cap_test {
+
+/// @brief A visited set with a cardinality cap: each arc carries the singleton of the node it
+///        arrives at, so the set is "nodes visited so far".
+///
+/// The cycle `1 -> 2 -> 3 -> 1` is what lets a forward half and a backward half share a node, which
+/// is what the sum-of-counts merge rule used to over-count.
+inline std::unique_ptr<ResourceGraph<RealResource, SizeTBitsetResource>> build(
+    std::map<size_t, std::pair<size_t, size_t>> caps, size_t default_max) {
+    auto graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
+    presets::add_cost_resource<RealResource>(*graph);
+    graph->add_resource<SizeTBitsetResource>(
+        std::make_unique<UnionExtensionFunction<SizeTBitsetResource>>(),
+        // The `(min, max, overrides)` overload, deliberately: it is the one that keeps a *null*
+        // override map when the caller passes none, which is what tells the rule its refusals are
+        // exact. The `(overrides, min, max)` overload stores an empty map instead.
+        std::make_unique<SizeFeasibilityFunction<SizeTBitsetResource>>(0U,
+                                                                       default_max,
+                                                                       std::move(caps)),
+        std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
+        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3);
+    graph->add_node(4, /*source=*/false, /*sink=*/true);
+
+    auto arc = [&](size_t origin, size_t destination) {
+        graph->add_arc<RealResource, SizeTBitsetResource>(
+            std::make_tuple(std::make_tuple(1.0),
+                            std::make_tuple(std::set<size_t>{destination})),
+            origin,
+            destination,
+            1.0);
+    };
+    arc(0, 1);
+    arc(1, 2);
+    arc(2, 3);
+    arc(3, 1);
+    arc(2, 4);
+    return graph;
+}
+
+}  // namespace size_cap_test
+
+// A cardinality cap, uniform. The rule decides this exactly, so no replay is needed.
+//
+// This test was `DISABLED_` and failing: `can_be_merged` summed the two halves' counts, which
+// over-counts what they share. Measured then:
+//
+//   the join REFUSED a splice that replays as feasible (incomplete):
+//     join arc 1 (1 -> 2), prefix [0], suffix [2 3 1 4], merged [0 1 2 3 1 4]
+//
+//   forward {1,2} (2) + backward {1,2,3,4} (4) = 6 > 4, so the rule refused; the merged path's
+//   visited set is {1,2,3,4} -- 4 elements, inside the cap.
+//
+// It now takes the union instead of the sum. For a cumulative container the count is largest at the
+// end of the path, so |forward u backward| IS the count at the sink and bounds it everywhere
+// earlier: exact, and `verified` stays at zero because no refusal needs rescuing.
+TEST(MergeContract, HoldsOnAModelWithAUniformCardinalityCap) {
+    const auto graph = size_cap_test::build({}, /*default_max=*/4U);
+
+    const auto report = test_util::merge_contract_violation(*graph,
+                                                            /*max_depth=*/4,
+                                                            /*max_per_node=*/20);
+    EXPECT_GT(report.pairs, 0U);
+    EXPECT_EQ(report.violation, "");
+    EXPECT_EQ(report.verified, 0U)
+        << "with a uniform cap the rule is exact, so no refusal should need a replay to rescue it";
+}
+
+// The same cap, but per node -- where the rule cannot be exact, and the joiner's replay is what
+// makes up the difference.
+//
+// With per-node caps `can_be_merged` compares the union against the *tightest* cap in the model,
+// because it sees two values and not the nodes the suffix passes through. That is sound and
+// conservative: a cap on a node the merged path never visits still gates the join. Node 3 here is
+// capped at 1 while everything else allows 10, so a route avoiding node 3 is refused by the rule
+// and rescued by the replay.
+//
+// `verified > 0` is the assertion that matters: it is what says the replay path did real work
+// rather than sitting dormant.
+TEST(MergeContract, ConservativeRefusalsAreRescuedByReplay) {
+    std::map<size_t, std::pair<size_t, size_t>> caps;
+    caps[3] = {0U, 1U};
+    const auto graph = size_cap_test::build(caps, /*default_max=*/10U);
+
+    const auto report = test_util::merge_contract_violation(*graph,
+                                                            /*max_depth=*/4,
+                                                            /*max_per_node=*/20);
+    EXPECT_GT(report.pairs, 0U);
+    EXPECT_EQ(report.violation, "")
+        << "a refusal the replay should have overturned was left standing";
+    EXPECT_GT(report.verified, 0U)
+        << "no refusal was rescued, so this instance does not exercise the replay at all";
 }
 
 // The generator's guard. The illegal combination must be refused at the draw, not documented --
