@@ -31,38 +31,13 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/benchmark_constants.hpp"
 #include "vrp/instance_reader.hpp"
 #include "vrp_subproblem/vrp_subproblem.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
 namespace bidirectional_benchmark {
-
-constexpr double kTolerance = 1e-9;
-constexpr double kOptimal = -319.87786809696524415;
-
-/// @brief A guard, not a measurement.
-///
-/// Deliberately far above what any instance in the exact-comparison table needs -- R201_50, the
-/// slowest, finishes its forward reference in 78 s -- so that this only fires when something has
-/// genuinely run away, and never truncates a row that would otherwise have completed. A
-/// coverage-instrumented build is several times slower than a plain one, and a limit tight enough
-/// to bind there would silently turn an exact comparison into a truncated one.
-constexpr double kTimeoutSeconds = 1800.0;
-
-/// @brief How attractive a customer is under the synthetic duals; see `synthetic_duals`.
-constexpr double kDualAlpha = 1.0;
-
-/// @brief A hard cap on process RSS, so a runaway solve stops rather than taking the machine down.
-constexpr double kMemoryCapGiB = 8.0;
-
-/// @brief The budget each algorithm gets on the full-size instances.
-///
-/// Those solves do not finish -- see `LargeInstancesUnderATimeBudget` -- so the measurement is what
-/// each search reaches within an equal budget rather than what it costs to finish. Fixing the
-/// budget also fixes what this test costs, on any build: instrumentation changes how far each
-/// search gets, not how long the test takes.
-constexpr double kBudgetSeconds = 15.0;
 
 /// @brief One run's outcome and what it cost to get there.
 struct Timed {

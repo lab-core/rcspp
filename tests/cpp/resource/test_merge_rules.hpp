@@ -419,3 +419,41 @@ TEST(MergeRules, ResetRebindsTheCachedRule) {
     always_true->set_value(RealResource(99.0));
     EXPECT_FALSE(always_true->can_be_merged(*late));  // 99 <= 70 is false
 }
+
+// DisjointMergeForm used STANDALONE -- no merge_rule() override.
+//
+// IntersectionFeasibilityFunction is the form's only production user and it narrows merge_rule()
+// to short-circuit the required-values case, so the form's own `return Custom` is never reached
+// through it. A future container resource with no such distinction is the case this covers, and
+// without it the form's declaration is uncovered code that reads as dead.
+TEST(MergeRules, DisjointFormStandaloneDeclaresCustomAndRejectsOverlap) {
+    class PlainDisjoint
+        : public Clonable<
+              PlainDisjoint,
+              DisjointMergeForm<SetResource<int>, FeasibilityFunction<SetResource<int>>>,
+              FeasibilityFunction<SetResource<int>>> {
+        public:
+            [[nodiscard]] auto is_feasible(const SetResource<int>& /*resource*/) -> bool override {
+                return true;
+            }
+    };
+
+    // The form supplies the declaration as well as the body: Custom, because the body is here.
+    EXPECT_EQ(PlainDisjoint{}.merge_rule(), MergeRule::Custom);
+
+    auto forward = merge_rules_test::make_resource<SetResource<int>>(
+        merge_rules_test::make_set({1, 2}),
+        std::make_unique<PlainDisjoint>(),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto overlapping = merge_rules_test::make_resource<SetResource<int>>(
+        merge_rules_test::make_set({2, 5}),
+        std::make_unique<PlainDisjoint>(),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto disjoint = merge_rules_test::make_resource<SetResource<int>>(
+        merge_rules_test::make_set({7, 8}),
+        std::make_unique<PlainDisjoint>(),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+
+    EXPECT_FALSE(forward->can_be_merged(*overlapping));  // share element 2
+    EXPECT_TRUE(forward->can_be_merged(*disjoint));
+}
