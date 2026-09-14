@@ -82,6 +82,18 @@ struct ForwardDirection {
             return graph.get_source_node_ids();
         }
 
+        /// @brief Whether @p node is a node this direction *starts* from.
+        ///
+        /// Used to keep a terminal node out of a path's interior: a walk that lands on its own
+        /// direction's seed type would have a source (forward) or a sink (backward) strictly
+        /// inside it, and a path in this library starts at a source and ends at a sink with
+        /// neither in between. Forward and backward disagreed about this until it was stated once,
+        /// here, for both.
+        template <typename ResourceType>
+        static auto is_seed(const Node<ResourceType>* node) -> bool {
+            return node->source;
+        }
+
         /// @brief Whether @p node ends a complete path for this direction.
         template <typename ResourceType>
         static auto is_terminal(const Node<ResourceType>* node) -> bool {
@@ -164,6 +176,13 @@ struct BackwardDirection {
             return graph.get_sink_node_ids();
         }
 
+        /// @brief Whether @p node is a node this direction *starts* from. See
+        ///        @ref ForwardDirection::is_seed.
+        template <typename ResourceType>
+        static auto is_seed(const Node<ResourceType>* node) -> bool {
+            return node->sink;
+        }
+
         /// @brief Whether @p node ends a complete path for a backward search: a source.
         template <typename ResourceType>
         static auto is_terminal(const Node<ResourceType>* node) -> bool {
@@ -201,6 +220,7 @@ concept DirectionPolicy =
         Dir::template seed<ResourceType>(mutable_label);
         { Dir::template seeds<ResourceType>(graph) } -> std::same_as<const std::vector<size_t>&>;
         { Dir::template is_terminal<ResourceType>(node) } -> std::same_as<bool>;
+        { Dir::template is_seed<ResourceType>(node) } -> std::same_as<bool>;
         {
             Dir::template terminals<ResourceType>(graph)
         } -> std::same_as<const std::vector<size_t>&>;

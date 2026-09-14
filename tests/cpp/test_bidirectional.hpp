@@ -820,6 +820,48 @@ TEST(Bidirectional, PreprocessingAwayEveryArcIsNotAModellingError) {
 }
 
 // ============================================================================
+// What counts as a path
+// ============================================================================
+
+/// @brief No returned path has a terminal node strictly inside it.
+///
+/// A backward label used to be allowed to land on a sink and keep going, so the unbounded
+/// bidirectional search returned paths visiting the sink two and three times while the forward
+/// search, which stops at a sink, could not produce them at all.
+TEST(Bidirectional, NoReturnedPathHasATerminalInItsInterior) {
+    namespace bt = bidirectional_test;
+
+    // A three-node line plus a back arc out of the sink, so a walk COULD pass through it.
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, 1.0);
+    graph->add_arc<RealResource>(std::make_tuple(1.0), 1, 2, 1.0);
+    graph->add_arc<RealResource>(std::make_tuple(-10.0), 2, 1, -10.0);  // out of the sink
+
+    auto algorithm =
+        graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(0.0));
+    const auto result = graph->solve(algorithm.get(),
+                                     std::numeric_limits<double>::infinity(),
+                                     /*preprocess=*/false);
+
+    for (const auto& solution : result.solutions) {
+        const auto& nodes = solution.path_node_ids;
+        ASSERT_GE(nodes.size(), 2U);
+        for (size_t i = 1; i + 1 < nodes.size(); ++i) {
+            EXPECT_FALSE(graph->get_node(nodes[i])->sink)
+                << "sink " << nodes[i] << " appears inside a returned path";
+        }
+    }
+}
+
+
+// ============================================================================
 // Parameters that are shared with the forward algorithms
 // ============================================================================
 
