@@ -16,6 +16,8 @@
 //   test_algorithms.cpp   the labelling algorithms and the VRP subproblem
 //   test_merge_contract.cpp  the merge-rule contract -- its own TU because the cardinality-cap
 //                            model it asserts on is a second resource pack (see that file)
+//   test_presets.cpp          the preset tests -- its own TU, for the same reason: one resource
+//                             pack per preset checked
 //
 // A new test header goes in whichever TU matches its subject, alphabetically within that TU.
 
