@@ -19,17 +19,31 @@ namespace rcspp {
 ///
 /// In the ng-path relaxation a label keeps track of the set of nodes that may form
 /// a cycle with the current partial path.  When traversing an arc from `origin` to
-/// `destination`, the new reachable set is computed as:
+/// `destination`, the new set is computed as:
 ///
-///   `(current_set ∩ ng_neighborhood[origin]) ∪ {origin}`
+///   `(current_set ∪ {origin}) ∩ ng_neighborhood[destination]`
 ///
-/// where `ng_neighborhood[origin]` is the pre-defined neighborhood of the origin node.
+/// — join the node being left, then narrow by the neighborhood of the node being *arrived at*.
+///
+/// **The stored set is the memory as it will be on LEAVING this node**, not as it was on
+/// arriving. The two differ by one narrowing, and that narrowing is what the bidirectional join
+/// needs: a forward half and a backward half meeting at `v` compare their memories there, and the
+/// forward half's has to have been filtered by `ng(v)` already or the comparison is one step
+/// stale. Storing the pre-narrowing set made `DisjointMergeForm` reject concatenations the
+/// forward search accepts. See @c merge_form.hpp.
+///
+/// This changes what the label *stores*, not which paths are feasible. Feasibility on extending
+/// `a -> b` is `b ∉ memory_on_leaving(a)` either way: with the pre-narrowing set that reads
+/// `b ∉ (Π(a) ∩ ng(a)) ∪ {a}`, and with this one it reads `b ∉ (Σ(a) ∪ {a}) ∩ ng(b)`, which is
+/// the same test because `b ∈ ng(b)` -- see @c make_side. The stored set is also *smaller*, and
+/// it is a sufficient statistic where the other was not, so @c InclusionDominanceFunction
+/// dominates strictly more and the label sets shrink.
 ///
 /// **Backward form: @c Mirror**, supplied by @c NodeMirrorForm. The formula is written once and
-/// is direction-blind: it narrows against the neighborhood of the node the label is *leaving*,
-/// then adds that node. Going forward that node is the arc's origin; going backward it is the
-/// arc's destination. The form owns that swap, so this class never sees a direction -- which is
-/// what makes the historical defect of using the wrong node inexpressible here.
+/// is direction-blind. Going forward the node left is the arc's origin and the node arrived at is
+/// its destination; going backward, the other way round. The form owns that swap, so this class
+/// never sees a direction -- which is what makes the historical defect of using the wrong node
+/// inexpressible here.
 ///
 /// **Behaviour note (changed in step 4).** The arc's extender value is ignored; the node added to
 /// the memory is derived from the arc's own endpoints. Previously the forward direction used the
@@ -50,14 +64,14 @@ class NgPathExtensionFunction
     public:
         /// @brief Constructs an NgPathExtensionFunction with the per-node neighborhoods.
         ///
-        /// @param ng_neighborhood_by_origin_id  Map from node id to its ng-neighborhood set.
-        ///                                      Nodes absent from the map are treated as having
-        ///                                      an empty neighborhood.
+        /// @param ng_neighborhood_by_node_id Map from node id to its ng-neighborhood set. A node
+        ///                                   absent from the map narrows to `{itself}`, i.e. it
+        ///                                   forgets everything -- see @c make_side.
         explicit NgPathExtensionFunction(
-            std::map<size_t, std::set<ValueType>> ng_neighborhood_by_origin_id)
-            : ng_neighborhood_by_origin_id_(
+            std::map<size_t, std::set<ValueType>> ng_neighborhood_by_node_id)
+            : ng_neighborhood_by_node_id_(
                   std::make_shared<const std::map<size_t, std::set<ValueType>>>(
-                      std::move(ng_neighborhood_by_origin_id))) {}
+                      std::move(ng_neighborhood_by_node_id))) {}
 
     protected:
         // NodeMirrorForm is a DEPENDENT base -- it depends on ResourceType -- so unqualified
@@ -68,34 +82,60 @@ class NgPathExtensionFunction
 
         /// @brief The ng-path formula, in whichever direction the form is asking about.
         ///
+        /// **Union first, then intersect.** The other order leaves the node just left unfiltered
+        /// by the node just arrived at, which is precisely the one-step-stale memory the join
+        /// cannot compare. It also matters for the node itself: a label arriving at `b` while
+        /// still remembering `b` must keep `b` in the result, because that is what
+        /// @c IntersectionFeasibilityFunction tests at `b`.
+        ///
         /// @param resource          Current ng-path resource of the label.
-        /// @param extended_resource Output: receives `(resource n neighborhood) u {node_left}`.
-        /// @param side              The node the label is leaving, and its neighborhood.
+        /// @param extended_resource Output: receives
+        ///                          `(resource u {node_left}) n arrival_neighborhood`.
+        /// @param side              The node the label leaves, and the neighborhood of the node it
+        ///                          arrives at.
         void apply(const ResourceType& resource, ResourceType* extended_resource,
                    const Side& side) const final {
-            // Keep only the nodes in the neighborhood of the node being left, then add that node.
-            auto narrowed = resource.get_intersection(side.neighborhood.get_value());
-            narrowed = side.node_left.get_union(narrowed);
-            extended_resource->set_value(narrowed);
+            // Two set_value calls rather than a temporary resource: this runs once per label
+            // extension, which is the hottest path in the solver.
+            extended_resource->set_value(side.node_left.get_union(resource.get_value()));
+            extended_resource->set_value(
+                extended_resource->get_intersection(side.arrival_neighborhood.get_value()));
         }
 
-        /// @brief Loads one node's singleton and ng-neighborhood.
+        /// @brief Loads the singleton of the node left and the neighborhood of the node arrived at.
         ///
-        /// @param node_left_id Index of the node the label leaves.
-        /// @return That node's side. A node absent from the map gets an empty neighborhood,
-        ///         i.e. no narrowing.
-        [[nodiscard]] Side make_side(size_t node_left_id) const final {
+        /// **The arrival node is unioned into its own neighborhood**, and that is load-bearing
+        /// rather than tidying: the feasibility test at a node asks whether the node is in the
+        /// memory it arrives with, and a node filtered out of its own neighborhood could never be.
+        /// It is otherwise inert. Whether `p ∈ ng(p)` is consulted only when a walk returns to `p`,
+        /// and there are only two cases: `p` was still remembered, in which case the walk is
+        /// ng-infeasible and this is exactly the rejection wanted; or `p` had been forgotten, in
+        /// which case it is absent from the memory and the membership question does not arise. No
+        /// surviving label's contents change.
+        ///
+        /// A node absent from the map therefore narrows to `{itself}`: it forgets everything,
+        /// which is what an empty neighborhood has always meant here, while still supporting its
+        /// own feasibility test.
+        ///
+        /// @param node_left_id    Index of the node the label leaves.
+        /// @param node_arrived_id Index of the node the label arrives at.
+        /// @return That traversal's side.
+        [[nodiscard]] Side make_side(size_t node_left_id, size_t node_arrived_id) const final {
             Side side;
             side.node_left.set_value(std::set<ValueType>{static_cast<ValueType>(node_left_id)});
-            if (auto it = ng_neighborhood_by_origin_id_->find(node_left_id);
-                it != ng_neighborhood_by_origin_id_->end()) {
-                side.neighborhood.set_value(it->second);
-            }  // else: default-constructed, i.e. empty -- absent means no narrowing
+
+            std::set<ValueType> arrival;
+            if (auto it = ng_neighborhood_by_node_id_->find(node_arrived_id);
+                it != ng_neighborhood_by_node_id_->end()) {
+                arrival = it->second;
+            }
+            arrival.insert(static_cast<ValueType>(node_arrived_id));
+            side.arrival_neighborhood.set_value(arrival);
             return side;
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, std::set<ValueType>>> ng_neighborhood_by_origin_id_;
+        std::shared_ptr<const std::map<size_t, std::set<ValueType>>> ng_neighborhood_by_node_id_;
 };
 
 }  // namespace rcspp

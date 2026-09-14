@@ -22,8 +22,6 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <stdexcept>
-#include <string>
 #include <tuple>
 #include <utility>
 
@@ -134,68 +132,4 @@ TEST(MergeContract, ConservativeRefusalsAreRescuedByReplay) {
         << "a refusal the replay should have overturned was left standing";
     EXPECT_GT(report.verified, 0U)
         << "no refusal was rescued, so this instance does not exercise the replay at all";
-}
-
-// The other side of the same question: a rule this file cannot assert, because the model that
-// would need it refuses to run.
-//
-// `NgPathExtensionFunction` declares no backward kind, so a bidirectional solve on an ng model is
-// refused at setup rather than joining halves under a disjointness rule the stored set does not
-// satisfy -- see the precondition list on `DisjointMergeForm` and the note at the top of
-// test_backward_kind_declared.hpp. This test is where that boundary is stated end to end, and it
-// lives here because this is the translation unit that already carries the container pack an ng
-// model needs.
-//
-// When ng-path gains a backward form, this test is the one to delete, and the merge contract
-// above is the shape to assert on the ng model in its place.
-TEST(MergeContract, AnNgModelIsRefusedRatherThanJoinedUnderADisjointnessRule) {
-    auto graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
-    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
-                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-                                      std::make_unique<ValueCostFunction<RealResource>>(),
-                                      std::make_unique<ValueDominanceFunction<RealResource>>());
-
-    std::map<size_t, std::set<size_t>> neighborhoods{{0, {0, 1}}, {1, {0, 1, 2}}, {2, {1, 2}}};
-    std::map<size_t, std::set<size_t>> forbidden{{0, {0}}, {1, {1}}, {2, {2}}};
-    graph->add_resource<SizeTBitsetResource>(
-        std::make_unique<NgPathExtensionFunction<SizeTBitsetResource, size_t>>(
-            std::move(neighborhoods)),
-        std::make_unique<IntersectionFeasibilityFunction<SizeTBitsetResource, size_t>>(
-            std::move(forbidden),
-            /*forbidden=*/true),
-        std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
-
-    graph->add_node(0, /*source=*/true, /*sink=*/false);
-    graph->add_node(1);
-    graph->add_node(2, /*source=*/false, /*sink=*/true);
-    graph->add_arc<RealResource, SizeTBitsetResource>(
-        std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{})),
-        0,
-        1,
-        1.0);
-    graph->add_arc<RealResource, SizeTBitsetResource>(
-        std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{})),
-        1,
-        2,
-        1.0);
-
-    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource, SizeTBitsetResource>>> params;
-    params.critical_resource_index = 0;
-    params.half_way_point = 1.0;
-    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
-
-    try {
-        graph->solve(algorithm.get());
-        FAIL() << "an ng component declares no backward kind, so the solve must be refused";
-    } catch (const std::runtime_error& error) {
-        const std::string message = error.what();
-        EXPECT_NE(message.find("component 1"), std::string::npos) << message;
-        EXPECT_NE(message.find("backward_kind"), std::string::npos) << message;
-    }
-
-    // A forward solve on the same model is unaffected -- this is a restriction on `bidirectional`,
-    // not a change to what an ng model means.
-    const auto forward = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
-    EXPECT_FALSE(forward.solutions.empty());
 }

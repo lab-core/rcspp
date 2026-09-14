@@ -170,21 +170,17 @@ path (to test it, say) gets it by declaring one argument as a base-typed
 ### One rule the join imposes, and what it requires of a container resource
 
 A container resource can declare that two halves may only be merged when their remembered sets are
-**disjoint** — which is what `IntersectionFeasibilityFunction` with forbidden values declares.
+**disjoint** — which is what `IntersectionFeasibilityFunction` with forbidden values declares, and
+what the ng-path relaxation means.
 
 That test is exact only when **the set a label stores is the memory it will carry out of the node it
 sits on** — because at the join a forward half and a backward half compare their memories at the
 node where they meet, and the forward half's must already have been filtered by that node. Two ways
 to satisfy it:
 
-- the memory never forgets — a plain visited set built with `UnionExtensionFunction`, which is
-  what every resource declaring the rule today does; or
-- the memory forgets, but the narrowing has already been applied on arrival, so what is stored is
-  already the post-narrowing set.
-
-A **forgetting** memory that stores the set *before* the arrival node narrows it satisfies neither.
-`NgPathExtensionFunction` is exactly that, which is why it declares no backward kind at all and a
-bidirectional solve refuses on an ng model rather than joining its halves under this rule.
+- the memory never forgets — a plain visited set built with `UnionExtensionFunction`; or
+- the memory forgets, but the narrowing has already been applied on arrival. That is what
+  `NgPathExtensionFunction` does: it stores `(memory ∪ {node left}) ∩ ng(node arrived)`.
 
 If neither holds, the join compares a one-step-stale set against a current one and refuses splices
 the model permits. The symptom is specific and worth recognising: **`bidirectional` returns a worse

@@ -14,40 +14,39 @@ namespace rcspp {
 /// so "f is within the threshold" is `f subset of complement(V_b)`, which is exactly
 /// `f intersect V_b == empty`.
 ///
-/// It is not too strict *for a memory that never forgets on a model that already forbids
-/// revisits*: a label's remembered set is then always a subset of the nodes on its own half, and
-/// an *elementary* path's two halves are node-disjoint, so disjointness never rejects an
-/// elementary path. On a model that permits revisits it rejects plenty -- two halves that legally
-/// share a node are refused at the join while the same walk is perfectly reachable by extension,
-/// so the join becomes strictly more restrictive than the search around it and a bounded run
-/// returns a worse answer than an unbounded one. That is the first of the two preconditions, and
-/// it is why `IntersectionFeasibilityFunction` declares @c AlwaysTrue instead when its forbidden
-/// sets are empty, i.e. when it is not that model after all.
+/// **The first precondition** is that the model already forbids revisiting the nodes it
+/// remembers. A label's remembered set is then a subset of the nodes on its own half, and an
+/// *elementary* path's two halves are node-disjoint, so disjointness never rejects an elementary
+/// path. On a model that permits revisits it rejects plenty -- two halves that legally share a node
+/// are refused at the join while the same walk is perfectly reachable by extension -- which is why
+/// @c IntersectionFeasibilityFunction declares @c AlwaysTrue when its forbidden sets are empty,
+/// i.e. when it is not that model after all.
 ///
 /// **The second precondition is load-bearing in the same way.** Disjointness is exact exactly
-/// when **the stored set is the memory the label will carry OUT of the node it sits on** -- i.e.
-/// when nothing further will be filtered out of it before the suffix sees it. Two ways to satisfy
-/// that: the memory never forgets (a plain visited set, `UnionExtensionFunction`), which is the
-/// case every current declarer is in; or the memory forgets, but the narrowing has *already been
-/// applied* by the time the label arrives, so what is stored is already the post-narrowing set.
+/// when **the stored set is the memory the label will carry out of this node** -- i.e. when
+/// nothing further will be filtered out of it before the suffix sees it. Two ways to satisfy
+/// that:
 ///
-/// Get that wrong -- declare this rule on a resource that stores the set as it was *before* the
-/// arrival node narrows it -- and the join compares a one-step-stale set against a current one, so
-/// two halves that share a node the merge node was about to forget are refused, while the same
-/// walk is perfectly reachable by extension. The forward search then accepts a path the join will
-/// not, and `bidirectional` and `simple` return different optima on one model, with
-/// `half_way_point` deciding how different. That is not a tighter relaxation: the strictness
-/// applies only to paths that cross `H`, so it cannot be stated as a model at all.
+///  - the memory never forgets (a plain visited set, `UnionExtensionFunction`); or
+///  - the memory forgets, but the narrowing has *already been applied* by the time the label
+///    arrives. That is what @c NgPathExtensionFunction now does: it stores
+///    `(memory ∪ {node left}) ∩ ng(node arrived)` rather than the pre-narrowing set.
 ///
-/// Note what is *not* wrong with it, because the intuition matters: a rejected pair always
-/// contains a cycle, and disjointness never rejects an elementary path, so a column-generation
-/// bound built on such a pricer stays valid. What is lost is that the answer stops being a
-/// property of the model and becomes a property of the algorithm and its tuning.
+/// Get that wrong and the join compares a one-step-stale set against a current one, so two halves
+/// that share a node the merge node was about to forget are refused -- while the same walk is
+/// perfectly reachable by extension. The forward search then accepts a path the join will not, and
+/// `bidirectional` and `simple` return different optima on one model, with `half_way_point`
+/// deciding how different. That is not a tighter relaxation: the strictness applies only to paths
+/// that cross `H`, so it cannot be stated as a model at all.
 ///
-/// So: **declare this rule only where one of the two conditions above holds.** A forgetful memory
-/// -- an ng-path set, which narrows by the arrival node's neighbourhood -- does not satisfy it as
-/// stored today, which is why `NgPathExtensionFunction` declares no backward kind and a
-/// bidirectional solve refuses on an ng model rather than joining halves under this rule.
+/// Note what is *not* wrong with it, because the intuition here matters: a rejected pair always
+/// contains a cycle, and disjointness never rejects an *elementary* path, so a column-generation
+/// bound built on such a pricer stays valid. What is lost is that the answer stops being a property
+/// of the model and becomes a property of the algorithm and its tuning.
+///
+/// So: **declare this rule only where one of the two conditions above holds**, and prefer the
+/// second -- storing the already-narrowed memory costs nothing at the join, makes the stored set a
+/// sufficient statistic, and therefore strengthens dominance as well.
 ///
 /// **Why this is a template rather than an arm of `Resource::can_be_merged`.** As an arm it had
 /// to compile for every `Resource<R>` instantiation, including the scalar cost resource, which
