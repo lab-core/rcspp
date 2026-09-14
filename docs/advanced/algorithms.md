@@ -118,21 +118,52 @@ rg.add_real_resource(
 and `"int"`) only — extending backwards subtracts, and on an unsigned type that
 wraps to a huge positive value that reads as a very loose bound.
 
-### One rule the join imposes that extension does not
+### One rule the join imposes, and what it requires of a container resource
 
 A container resource can declare that two halves may only be merged when their remembered sets are
-**disjoint** — which is what the ng-path relaxation means, and what
-`IntersectionFeasibilityFunction` with forbidden values declares.
+**disjoint** — which is what `IntersectionFeasibilityFunction` with forbidden values declares.
 
-Disjointness never rejects a path the model would have accepted **provided the model already
-forbids revisiting those nodes**.  On a model that permits revisits it is a restriction the forward
-search does not apply, so the bidirectional answer can be worse than the forward one — and worse
-with the half-way bound on than with it off, because with the bound off most paths are found
-end-to-end and never reach the join at all.
+That test is exact only when **the set a label stores is the memory it will carry out of the node it
+sits on** — because at the join a forward half and a backward half compare their memories at the
+node where they meet, and the forward half's must already have been filtered by that node. Two ways
+to satisfy it:
 
-If you attach a container resource to a model that permits revisits, give it
-`MinMaxFeasibilityFunction`-style bounds or a `merge_rule()` of `AlwaysTrue`; do not give it
+- the memory never forgets — a plain visited set built with `UnionExtensionFunction`, which is
+  what every resource declaring the rule today does; or
+- the memory forgets, but the narrowing has already been applied on arrival, so what is stored is
+  already the post-narrowing set.
+
+A **forgetting** memory that stores the set *before* the arrival node narrows it satisfies neither.
+`NgPathExtensionFunction` is exactly that, which is why it declares no backward kind at all and a
+bidirectional solve refuses on an ng model rather than joining its halves under this rule.
+
+If neither holds, the join compares a one-step-stale set against a current one and refuses splices
+the model permits. The symptom is specific and worth recognising: **`bidirectional` returns a worse
+optimum than `simple` on the same graph, and a worse one with the half-way bound on than with it
+off** — because with the bound off most paths are found end-to-end and never reach the join. Every
+path refused that way contains a cycle and no *elementary* route is ever lost, so a
+column-generation bound stays valid; what is lost is that the answer stops depending only on the
+model.
+
+So if you attach a container resource of your own to a model that permits revisits, either make its
+extension narrow on arrival as above, or give it a `merge_rule()` of `AlwaysTrue`; do not give it
 forbidden sets it does not mean.
+
+`SizeFeasibilityFunction` shows the other half of the same question. Its merge test counts
+`|forward ∪ backward|` — the union, because two halves that meet have both collected whatever they
+share and the merged path holds it once — against the **tightest** cap in the model rather than the
+join node's, because the merged path has to fit under the cap at every node it reaches after the
+join and nothing else checks those. For a container that only grows, that count is the one at the
+sink and bounds it everywhere earlier, so with a single global cap the test is exact.
+
+With **per-node** caps it is sound but strict: a cap on a node the merged path never visits still
+gates the join, and `can_be_merged` sees two values, not the suffix's nodes. So the rule declares
+itself inexact — `merge_refusal_may_be_conservative()` — and the join replays those refused splices
+through the real extension functions before dropping them. You pay for that only on refusals, only
+under per-node caps; every other rule declares itself exact and the join takes it at its word.
+
+That declaration is the hook to reach for if you write a merge rule that cannot decide its own
+question exactly: say so, and be verified, rather than over-rejecting quietly.
 
 ### Parameters that behave differently here
 

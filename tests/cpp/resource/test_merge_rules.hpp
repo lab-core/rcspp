@@ -226,8 +226,13 @@ TEST(MergeRules, RequiredIntersectionIsAlwaysTrue) {
     EXPECT_TRUE(forward->can_be_merged(*backward));
 }
 
-/// @brief Custom: SizeFeasibilityFunction accepts |f| + |b| <= max and rejects above it.
-TEST(MergeRules, CustomSizeRuleSumsAgainstTheCap) {
+/// @brief Custom: SizeFeasibilityFunction counts |f u b| against the cap, not |f| + |b|.
+///
+/// The union is the whole point. Two halves meeting at a node have both collected whatever they
+/// share, and the merged path holds it once; summing counts it twice and refuses splices the model
+/// permits. This test used to assert the sum, under the name `CustomSizeRuleSumsAgainstTheCap` --
+/// the last two cases below are the ones that changed answer.
+TEST(MergeRules, CustomSizeRuleUnionsAgainstTheCap) {
     constexpr size_t kMaxSize = 4;
 
     auto make_sized = [kMaxSize](const std::set<int>& values) {
@@ -240,10 +245,18 @@ TEST(MergeRules, CustomSizeRuleSumsAgainstTheCap) {
     auto two = make_sized({1, 2});
     auto also_two = make_sized({3, 4});
     auto three = make_sized({5, 6, 7});
+    auto overlapping_three = make_sized({5, 8, 9});
 
-    EXPECT_TRUE(two->can_be_merged(*also_two));  // 2 + 2 = 4 <= 4
-    EXPECT_FALSE(two->can_be_merged(*three));    // 2 + 3 = 5 >  4
-    EXPECT_FALSE(three->can_be_merged(*three));  // 3 + 3 = 6 >  4
+    // Disjoint: the union is the sum, so these are the cases the two readings agree on.
+    EXPECT_TRUE(two->can_be_merged(*also_two));  // |{1,2,3,4}| = 4 <= 4
+    EXPECT_FALSE(two->can_be_merged(*three));    // |{1,2,5,6,7}| = 5 > 4
+
+    // Overlapping: where they part. The sum said 6 and refused; the union is 3.
+    EXPECT_TRUE(three->can_be_merged(*three));  // |{5,6,7}| = 3 <= 4
+
+    // Overlapping and still over the cap: sharing an element is not a free pass, so the bound is
+    // doing work rather than being vacuous once the double-counting is gone.
+    EXPECT_FALSE(three->can_be_merged(*overlapping_three));  // |{5,6,7,8,9}| = 5 > 4
 }
 
 // ============================================================================

@@ -14,6 +14,8 @@
 //   test_main.cpp         graph, label, and utility tests
 //   test_resources.cpp    resource types and their four function objects
 //   test_algorithms.cpp   the labelling algorithms and the VRP subproblem
+//   test_merge_contract.cpp  the merge-rule contract -- its own TU because the cardinality-cap
+//                            model it asserts on is a second resource pack (see that file)
 //
 // A new test header goes in whichever TU matches its subject, alphabetically within that TU.
 

@@ -74,6 +74,23 @@ class FeasibilityFunction {
         /// @return The merge rule declared by this feasibility function.
         [[nodiscard]] virtual MergeRule merge_rule() const { return MergeRule::Unspecified; }
 
+        /// @brief Whether @c can_be_merged may refuse a pair the model would actually accept.
+        ///
+        /// A merge rule must never *accept* an infeasible splice -- that is not negotiable, and no
+        /// rule here does. But a rule that cannot decide exactly from two values may refuse a
+        /// feasible one, and an over-strict join is not the harmless direction it appears to be: it
+        /// does not corrupt a bound, it makes `bidirectional` answer a stricter question than
+        /// `simple` on the same model, with `half_way_point` deciding how much stricter.
+        ///
+        /// Declaring @c true asks the joiner to verify a refusal -- by replaying the merged path
+        /// through the real extenders -- before dropping the pair. That costs `O(path length)` per
+        /// refusal, so it is opt-in and should be declared only for the configurations that
+        /// actually need it: @c SizeFeasibilityFunction, the one rule that answers @c true, does so
+        /// only when per-node caps are configured, because with a uniform cap its test is exact.
+        ///
+        /// @return @c true when a refusal is worth verifying rather than trusting.
+        [[nodiscard]] virtual bool merge_refusal_may_be_conservative() const { return false; }
+
         /// @brief The value a backward label starts with at this node, if any.
         ///
         /// A backward label at a sink does not start at zero -- it starts at that node's *upper*
@@ -173,6 +190,14 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         ///
         /// @return The merge rule declared by this feasibility function.
         [[nodiscard]] virtual MergeRule merge_rule() const { return MergeRule::Unspecified; }
+
+        /// @brief Whether any component's @c can_be_merged may refuse a feasible pair.
+        ///
+        /// See the scalar specialisation. Fanned out with OR: one conservative component is enough
+        /// to make the composed refusal worth verifying.
+        ///
+        /// @return @c true when a refusal is worth verifying rather than trusting.
+        [[nodiscard]] virtual bool merge_refusal_may_be_conservative() const { return false; }
 
         /// @brief Returns whether the label can potentially reach a destination node.
         ///

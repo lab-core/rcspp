@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
@@ -47,7 +48,9 @@ class SizeFeasibilityFunction
               default_min_size_(default_min_size),
               default_max_size_(default_max_size),
               min_size_(default_min_size),
-              max_size_(default_max_size) {}
+              max_size_(default_max_size) {
+            cache_tightest_max_size();
+        }
 
         /// @brief Constructs the function from a per-node size map with optional global
         ///        fallback bounds.
@@ -69,7 +72,9 @@ class SizeFeasibilityFunction
               default_min_size_(default_min_size),
               default_max_size_(default_max_size),
               min_size_(default_min_size),
-              max_size_(default_max_size) {}
+              max_size_(default_max_size) {
+            cache_tightest_max_size();
+        }
 
         /// @brief Checks that the resource's size lies within the active [min_size_, max_size_]
         ///        window.
@@ -83,28 +88,65 @@ class SizeFeasibilityFunction
 
         /// @brief Whether the merged path's element count can stay within the cap.
         ///
-        /// Only the UPPER bound: the lower one cannot be checked mid-join, because the merged
-        /// path only grows from here. The sum OVERCOUNTS when the two halves share elements,
-        /// which errs toward rejecting feasible merges (safe), and is exact whenever the
-        /// container's own @c Disjoint rule is also configured on the model. This is the one
-        /// merge test that is only as sharp as another component's.
+        /// **The union, not the sum.** The two halves can have collected the same element, and
+        /// counts do not add when the sets overlap: a forward half holding `{1,2}` and a backward
+        /// half holding `{1,2,3,4}` sum to 6 while the merged path holds `{1,2,3,4}` -- four
+        /// elements. Summing refused splices the model permits, which is not the safe direction
+        /// it looks like: it does not corrupt a bound, it makes `bidirectional` answer a stricter
+        /// question than `simple` on the same model. `MergeContract` in
+        /// `tests/cpp/test_equivalence_ng.hpp` pins both directions.
+        ///
+        /// **The tightest cap in the model, not this node's.** The merged path has to fit under
+        /// the cap at every node it passes through *after* the join, and nothing else checks
+        /// those: the forward half never got there, and the backward half only ever counted its
+        /// own contribution, which is a different quantity from the merged count. Comparing
+        /// against the join node's cap alone therefore accepted splices that are infeasible
+        /// downstream -- measured on a four-node graph capped at 2 only at the sink, where the
+        /// rule passed a route arriving there with 3.
+        ///
+        /// For a **cumulative** container -- one whose extension only adds, which is what a size
+        /// cap is for -- the count is largest at the end of the path, so `|forward u backward|` is
+        /// the count at the sink and bounds it everywhere in between. With a **uniform** cap this
+        /// test is therefore exact. With per-node caps the tightest one is sound but conservative:
+        /// a cap on a node the merged path never visits still gates the join. There is no sharper
+        /// choice available here, because `can_be_merged` sees two values and not the suffix's
+        /// nodes.
+        ///
+        /// Only the UPPER bound: the lower one cannot be checked mid-join, because the merged path
+        /// only grows from here.
         ///
         /// @param resource      The forward label's resource at the merge node.
         /// @param back_resource The backward label's resource at the merge node.
         /// @return `true` if the combined element count fits under the upper bound.
         [[nodiscard]] auto can_be_merged(const ResourceType& resource,
                                          const ResourceType& back_resource) -> bool override {
-            return resource.size() + back_resource.size() <= max_size_;
+            ResourceType merged;
+            merged.set_value(resource.get_union(back_resource.get_value()));
+            return merged.size() <= tightest_max_size_;
         }
 
         /// @brief A container's *cardinality* cannot be stored as a threshold on the backward
         ///        label, so this is the only rule that needs its own body.
         ///
-        /// The backward label holds the complemented set, and there is no way to complement a
-        /// count -- hence a sum against a per-node bound.
+        /// The backward label holds its own half's elements rather than a complemented count, so
+        /// there is nothing for @c DominanceOrder to compare -- hence a body of its own.
         ///
         /// @return @c MergeRule::Custom.
         [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Custom; }
+
+        /// @brief Only with per-node caps, and then only because the tightest one is used.
+        ///
+        /// With a uniform cap `|forward u backward|` is the merged path's count at its last node
+        /// and bounds it everywhere earlier, so the test in @ref can_be_merged is exact and a
+        /// refusal can be trusted. With per-node caps it is compared against the smallest cap in
+        /// the model -- sound, but a cap on a node the merged path never visits still gates the
+        /// join. Asking the joiner to replay those refusals recovers what the conservatism costs;
+        /// see @c FeasibilityFunction::merge_refusal_may_be_conservative.
+        ///
+        /// @return @c true when per-node caps were supplied.
+        [[nodiscard]] bool merge_refusal_may_be_conservative() const override {
+            return min_max_size_by_node_id_ != nullptr;
+        }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<size_t, size_t>>> min_max_size_by_node_id_;
@@ -113,6 +155,24 @@ class SizeFeasibilityFunction
         size_t default_max_size_;
         size_t min_size_;
         size_t max_size_;
+
+        /// @brief The smallest upper bound anywhere in the model, cached at construction.
+        ///
+        /// Read by @ref can_be_merged, which has to hold for every node the merged path visits
+        /// after the join and cannot see which those are. Equal to @ref max_size_ at every node
+        /// when no per-node overrides are given, which is the case the test is exact for.
+        size_t tightest_max_size_ = 0;
+
+        /// @brief Computes @ref tightest_max_size_ from the defaults and any per-node overrides.
+        void cache_tightest_max_size() {
+            tightest_max_size_ = default_max_size_;
+            if (min_max_size_by_node_id_ == nullptr) {
+                return;
+            }
+            for (const auto& [node_id, bounds] : *min_max_size_by_node_id_) {
+                tightest_max_size_ = std::min(tightest_max_size_, bounds.second);
+            }
+        }
 
         void preprocess(size_t node_id) override {
             if (min_max_size_by_node_id_ == nullptr) {
