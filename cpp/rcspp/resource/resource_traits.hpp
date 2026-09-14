@@ -43,15 +43,11 @@ struct ComponentInitializerTypeTuple<BitsetResource<T>> {
 using UIntBitsetResource = BitsetResource<unsigned int>;
 using SizeTBitsetResource = BitsetResource<size_t>;
 
-/// @brief True when a resource value exposes container-style intersection.
-///
-/// `intersects` is declared on ContainerResource only, not on NumericalResource, so
-/// `Resource::can_be_merged` needs this to guard the MergeRule::Disjoint arm: every branch of that
-/// runtime switch must compile for every instantiation, including the scalar cost resource.
-template <typename T>
-concept HasIntersects = requires(const T& lhs, const T& rhs) {
-    { lhs.intersects(rhs.get_value()) } -> std::convertible_to<bool>;
-};
+// HasIntersects retired in step 6. It existed only to guard the MergeRule::Disjoint arm of
+// Resource::can_be_merged, which had to compile for every instantiation including the scalar cost
+// resource. That arm is gone: the disjointness body now lives on DisjointMergeForm, which is
+// instantiated only where an author asks for it, so `intersects()` is required only where it
+// exists.
 
 // Type trait: true iff T is NumericalResource<U> for some U
 template <typename T>

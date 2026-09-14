@@ -240,20 +240,19 @@ TEST(MergeRules, UnspecifiedThrows) {
     EXPECT_THROW((void)forward->can_be_merged(*backward), std::runtime_error);
 }
 
-/// @brief Declaring Disjoint on a scalar resource throws: it has no intersects().
-///
-/// This is the `if constexpr` else branch. It is unreachable from any resource the library ships,
-/// so it has to be constructed deliberately.
-TEST(MergeRules, DisjointOnScalarResourceThrows) {
-    auto forward = merge_rules_test::make_real_resource(
-        (1.0),
-        std::make_unique<merge_rules_test::DeclaredRuleFeasibilityFunction<MergeRule::Disjoint>>());
-    auto backward = merge_rules_test::make_real_resource(
-        (2.0),
-        std::make_unique<merge_rules_test::DeclaredRuleFeasibilityFunction<MergeRule::Disjoint>>());
-
-    EXPECT_THROW((void)forward->can_be_merged(*backward), std::logic_error);
-}
+// DisjointOnScalarResourceThrows was deleted in step 6, and what replaces it is not another
+// test but an *impossibility*: a scalar resource can no longer declare disjointness, because the
+// body lives on DisjointMergeForm and `DisjointMergeForm<RealResource, ...>` does not compile --
+// RealResource has no intersects(). There is no throw left to exercise.
+//
+// Asserting that non-compilation from inside the suite is not worth it: naming the template in a
+// `requires` clause does not instantiate its members, so the missing intersects() would not be
+// detected there, and a try_compile fixture is new build machinery whose own failure modes are
+// harder to reason about than the thing it checks. This comment is the honest record.
+//
+// `DisjointRejectsSharedElements` below still covers the disjointness body, now reached through
+// `Custom`, and `RequiredIntersectionIsAlwaysTrue` is what proves the free short-circuit for
+// required values survived.
 
 // ============================================================================
 // Composition
@@ -310,8 +309,10 @@ TEST(MergeRules, EveryConcreteFunctionDeclaresARule) {
               MergeRule::DominanceOrder);
     EXPECT_EQ((MinMaxFeasibilityFunction<RealResource>{0.0, 100.0, true}.merge_rule()),
               MergeRule::DominanceOrder);
+    // Custom, not Disjoint: the body is inherited from DisjointMergeForm, so the rule only has
+    // to say "call my own body" rather than naming a test a third party must interpret.
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.merge_rule()),
-              MergeRule::Disjoint);
+              MergeRule::Custom);
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, false}.merge_rule()),
               MergeRule::AlwaysTrue);
     EXPECT_EQ((ReachableFeasibilityFunction<SetResource<int>>{merge_rules_test::make_set({1, 2})}

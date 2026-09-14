@@ -96,6 +96,7 @@
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/extension/trivial_extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/resource/functions/feasibility/merge_form.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 #include "rcspp/resource/resource_graph.hpp"
 #include "rcspp/resource/resource_traits.hpp"

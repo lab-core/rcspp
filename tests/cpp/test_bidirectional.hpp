@@ -408,46 +408,16 @@ TEST(Bidirectional, AccumulateWithBackSeedIsRefused) {
     }
 }
 
-/// @brief `MergeRule::Disjoint` on a resource with no `intersects()` is refused at setup.
-///
-/// Phase 4 made this a `logic_error` thrown from `can_be_merged`. Catching it here instead turns a
-/// failure that surfaces mid-join, after a full search, into one that surfaces before the first
-/// label -- and names the component instead of the call stack.
-TEST(Bidirectional, DisjointOnAResourceWithoutIntersectsIsRefused) {
-    namespace bt = bidirectional_test;
-
-    // RealResource is a scalar: there is nothing for "disjoint" to mean on it.
-    class DisjointFeasibilityFunction
-        : public Clonable<DisjointFeasibilityFunction, FeasibilityFunction<RealResource>> {
-        public:
-            [[nodiscard]] auto is_feasible(const RealResource& /*resource*/) -> bool override {
-                return true;
-            }
-
-            [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Disjoint; }
-    };
-
-    auto graph = std::make_unique<ResourceGraph<RealResource>>();
-    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
-                                      std::make_unique<DisjointFeasibilityFunction>(),
-                                      std::make_unique<ValueCostFunction<RealResource>>(),
-                                      std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph->add_node(0, /*source=*/true, /*sink=*/false);
-    graph->add_node(1, /*source=*/false, /*sink=*/true);
-    graph->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, 1.0);
-
-    auto algorithm =
-        graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(bt::params(1.0));
-
-    try {
-        graph->solve(algorithm.get());
-        FAIL() << "Disjoint without intersects() must be refused at setup";
-    } catch (const std::runtime_error& error) {
-        const std::string message = error.what();
-        EXPECT_NE(message.find("component 0"), std::string::npos) << message;
-        EXPECT_NE(message.find("intersects"), std::string::npos) << message;
-    }
-}
+// DisjointOnAResourceWithoutIntersectsIsRefused was deleted in step 6.
+//
+// Its subject -- a scalar resource declaring disjointness -- became unrepresentable: the merge
+// body moved onto DisjointMergeForm, which does not compile for a resource without intersects(),
+// so there is nothing left for the validator to refuse. That is why `describe_problem` lost its
+// third complaint at the same time, and why deleting a test that asserted a safety property is
+// the right move here rather than a regression: the property is now enforced by the type system
+// instead of by the validator.
+//
+// UndeclaredComponentIsRefused above asserts on complaints #1 and #2 and is unaffected.
 
 // ============================================================================
 // The half-way bound's failure mode
