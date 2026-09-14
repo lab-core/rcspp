@@ -181,6 +181,32 @@ TEST(MergeRules, DisjointRejectsSharedElements) {
     EXPECT_TRUE(forward->can_be_merged(*disjoint));      // no shared element
 }
 
+/// @brief A forbidding intersection function that forbids nothing declares AlwaysTrue.
+///
+/// Disjointness is a restriction the extension does not impose -- it rejects two halves that share
+/// a node even when revisiting is legal -- so a function with empty forbidden sets must not carry
+/// it into the join. An "inert" ng component that still narrowed the join made a bounded solve
+/// return -51.95 where the unbounded one returned -80.02 (review finding D6).
+TEST(MergeRules, AnIntersectionFunctionThatForbidsNothingIsAlwaysTrue) {
+    using R = SetResource<int>;
+
+    // Nothing forbidden anywhere: the map is empty.
+    IntersectionFeasibilityFunction<R> inert({}, /*forbidden=*/true);
+    EXPECT_EQ(inert.merge_rule(), MergeRule::AlwaysTrue);
+
+    // A map whose every entry is an empty set is the same thing said differently.
+    IntersectionFeasibilityFunction<R> all_empty({{0, {}}, {1, {}}}, /*forbidden=*/true);
+    EXPECT_EQ(all_empty.merge_rule(), MergeRule::AlwaysTrue);
+
+    // One non-empty entry is enough to make the rule bite.
+    IntersectionFeasibilityFunction<R> forbidding({{0, {}}, {1, {1}}}, /*forbidden=*/true);
+    EXPECT_EQ(forbidding.merge_rule(), MergeRule::Custom);
+
+    // Required values were already AlwaysTrue and stay so.
+    IntersectionFeasibilityFunction<R> required({{1, {1}}}, /*forbidden=*/false);
+    EXPECT_EQ(required.merge_rule(), MergeRule::AlwaysTrue);
+}
+
 /// @brief Required (not forbidden) values merge freely: it is a whole-path property.
 TEST(MergeRules, RequiredIntersectionIsAlwaysTrue) {
     std::map<size_t, std::set<int>> required{{0, {1, 2, 3}}};

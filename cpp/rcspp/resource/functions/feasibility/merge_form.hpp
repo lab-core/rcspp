@@ -14,11 +14,17 @@ namespace rcspp {
 /// so "f is within the threshold" is `f subset of complement(V_b)`, which is exactly
 /// `f intersect V_b == empty`.
 ///
-/// It is not too strict *for a memory that never forgets*: a label's remembered set is then
-/// always a subset of the nodes on its own half, and an elementary path's two halves are
-/// node-disjoint, so disjointness never rejects an elementary path.
+/// It is not too strict *for a memory that never forgets on a model that already forbids
+/// revisits*: a label's remembered set is then always a subset of the nodes on its own half, and
+/// an *elementary* path's two halves are node-disjoint, so disjointness never rejects an
+/// elementary path. On a model that permits revisits it rejects plenty -- two halves that legally
+/// share a node are refused at the join while the same walk is perfectly reachable by extension,
+/// so the join becomes strictly more restrictive than the search around it and a bounded run
+/// returns a worse answer than an unbounded one. That is the first of the two preconditions, and
+/// it is why `IntersectionFeasibilityFunction` declares @c AlwaysTrue instead when its forbidden
+/// sets are empty, i.e. when it is not that model after all.
 ///
-/// **That qualifier is the precondition, and it is load-bearing.** Disjointness is exact exactly
+/// **The second precondition is load-bearing in the same way.** Disjointness is exact exactly
 /// when **the stored set is the memory the label will carry OUT of the node it sits on** -- i.e.
 /// when nothing further will be filtered out of it before the suffix sees it. Two ways to satisfy
 /// that: the memory never forgets (a plain visited set, `UnionExtensionFunction`), which is the
