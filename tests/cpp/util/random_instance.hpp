@@ -16,12 +16,14 @@
 // every assertion in the suite attaches it. A property test whose failures cannot be reproduced is
 // a property test that gets disabled.
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <map>
 #include <memory>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -66,6 +68,44 @@ struct InstanceConfig {
 
         /// @brief One sink, or two with different windows -- the latter exercises per-node seeding.
         size_t num_sinks = 1;
+
+        /// @brief Adds an ng-path component: `NgPathExtensionFunction` +
+        ///        `IntersectionFeasibilityFunction(forbidden)`, i.e. the shape that makes
+        ///        `MergeRule::Disjoint` dispatch at the join.
+        ///
+        /// Only `build_ng_instance` reads this; the single-type `build_instance` ignores it,
+        /// because an ng component needs a container type slot the one-type pack does not have.
+        ///
+        /// On an **acyclic** instance this can never *reject* anything -- no path revisits a node,
+        /// and the two halves of a join are node-disjoint by construction. It is still worth
+        /// setting there, to exercise the component in both directions; but a test that means to
+        /// check ng *semantics* must also set @c back_arc_density.
+        ///
+        /// When false, `build_ng_instance` still registers the component, with empty forbidden
+        /// sets. That keeps the label width identical between the two settings, so a cost
+        /// difference is attributable to ng and not to the shape of the label.
+        bool with_ng_path = false;
+
+        /// @brief Probability of an arc `j -> i` with `j > i`, which introduces cycles.
+        ///
+        /// 0 keeps the generator's DAG guarantee -- which `brute_force_optimum` depends on.
+        /// Above 0 the graph is cyclic and the ng component becomes load-bearing.
+        ///
+        /// **Requires @c with_time_window**, and `draw_instance` refuses without it: on a cyclic
+        /// graph the window horizon is the *only* thing bounding path length, so the forward
+        /// search would not terminate. Every arc consumes at least one time unit, so a finite
+        /// horizon caps the number of arcs on a path and the search is finite.
+        ///
+        /// **Pair it with @c mixed_sign_costs**, which is not merely allowed but necessary for
+        /// the cyclic tier to mean anything. With non-negative costs a shortest path never
+        /// revisits a node, so ng-feasibility cannot change the optimum and a cyclic instance
+        /// tests nothing an acyclic one does not. Negative reduced costs are also the situation
+        /// the ng-path relaxation exists for.
+        ///
+        /// A negative *cycle* is therefore possible and is fine: the window bounds path length,
+        /// so the optimum stays finite. Measured on the tier-2 configuration, ng cuts the
+        /// optimum on 5 of 8 seeds.
+        double back_arc_density = 0.0;
 
         /// @brief Adds a constant to each arc's `arc.cost`, leaving the cost *component* alone.
         ///
@@ -114,6 +154,10 @@ inline std::string describe(const InstanceConfig& config) {
     text += config.with_capacity ? (config.capacity_binds ? " capacity=binding" : " capacity=loose")
                                  : " capacity=no";
     text += config.mixed_sign_costs ? " costs=mixed" : " costs=positive";
+    text += config.with_ng_path ? " ng=yes" : " ng=no";
+    if (config.back_arc_density > 0.0) {
+        text += " back_arcs=" + std::to_string(config.back_arc_density);
+    }
     // Only when set, so every existing failure message stays byte-identical.
     if (config.arc_cost_offset != 0.0) {
         text += " arc_cost_offset=" + std::to_string(config.arc_cost_offset);
@@ -147,6 +191,23 @@ struct InstanceDraw {
 /// source-to-sink path and "no solutions" always means the resource constraints cut it, never that
 /// the graph fell apart. Every other arc is drawn independently.
 inline InstanceDraw draw_instance(const InstanceConfig& config) {
+    // Both guards live here rather than in the tests, because the tests are where someone will
+    // get this wrong and the generator is the one place that can stop them.
+    // The one illegal combination, refused here rather than documented, because the tests are
+    // where someone will get this wrong and the generator is the one place that can stop them.
+    //
+    // Note what is NOT guarded: mixed_sign_costs with back arcs. An earlier draft forbade it on
+    // the grounds that a negative cycle leaves the forward reference with no finite answer. That
+    // is false once a window is present -- the horizon caps the number of arcs on a path, so the
+    // optimum is finite whatever the arc signs -- and forbidding it would have made the cyclic
+    // tier vacuous, since with non-negative costs a shortest path never revisits a node.
+    if (config.back_arc_density > 0.0 && !config.with_time_window) {
+        throw std::logic_error(
+            "back_arc_density > 0 without with_time_window: on a cyclic graph nothing bounds path "
+            "length, so the forward search does not terminate. The window horizon is what makes a "
+            "cyclic instance finite");
+    }
+
     std::mt19937 rng(config.seed);
     std::uniform_real_distribution<double> unit(0.0, 1.0);
     std::uniform_real_distribution<double> positive_cost(1.0, 10.0);
@@ -171,6 +232,18 @@ inline InstanceDraw draw_instance(const InstanceConfig& config) {
         }
     }
 
+    // Back arcs, drawn last so that adding them does not shift the forward arcs' random draw:
+    // for a given seed, `back_arc_density = 0` and `> 0` produce the same forward arcs.
+    if (config.back_arc_density > 0.0) {
+        for (size_t j = 0; j < config.num_nodes; ++j) {
+            for (size_t i = 0; i < j; ++i) {
+                if (unit(rng) < config.back_arc_density) {
+                    draw.arcs.push_back({j, i, next_cost(), time_draw(rng), load_draw(rng)});
+                }
+            }
+        }
+    }
+
     draw.sinks.push_back(config.num_nodes - 1);
     if (config.num_sinks > 1 && config.num_nodes > 2) {
         draw.sinks.push_back(config.num_nodes - 2);
@@ -184,9 +257,16 @@ inline InstanceDraw draw_instance(const InstanceConfig& config) {
             earliest[arc.destination] = earliest[arc.origin] + arc.time;
         }
     }
-    draw.horizon = earliest.back() * (1.0 + config.window_slack) + 1.0;
+    // `earliest` is the spine walk, so back arcs do not enter it -- which is what keeps the
+    // windows identical between the acyclic and cyclic settings of one seed.
+    //
+    // On a cyclic instance the window is also the only thing bounding path length, and it has to
+    // leave room for at least one detour or no path can ever revisit a node and ng cannot bind.
+    // `cyclic_slack` widens every window by a constant factor for exactly that reason.
+    const double cyclic_slack = config.back_arc_density > 0.0 ? 2.5 : 1.0;
+    draw.horizon = earliest.back() * (1.0 + config.window_slack) * cyclic_slack + 1.0;
     for (size_t i = 0; i < config.num_nodes; ++i) {
-        draw.windows[i] = {0.0, earliest[i] * (1.0 + config.window_slack) + 1.0};
+        draw.windows[i] = {0.0, earliest[i] * (1.0 + config.window_slack) * cyclic_slack + 1.0};
     }
 
     double spine_load = 0.0;
@@ -292,6 +372,175 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
     return built;
 }
 
+/// @brief The ng variant of @c GeneratedInstance: a two-slot pack with a container component.
+struct NgGeneratedInstance {
+        std::unique_ptr<rcspp::ResourceGraph<rcspp::RealResource, rcspp::SizeTBitsetResource>>
+            graph;
+
+        /// @brief Component index of the clock, *within the RealResource slot*.
+        ///
+        /// The ng component lives in the other type slot, so it does not shift this index and the
+        /// numbering matches @c GeneratedInstance's exactly.
+        size_t clock_index = 0;
+
+        /// @brief `R`, the clock's finite maximum; `H` is derived from it as `R / 2`.
+        double clock_upper_bound = 0.0;
+
+        /// @brief Whether the clock is a resource the half-way bound can legitimately read.
+        bool clock_is_usable = false;
+};
+
+/// @brief The ng neighborhood of each node: a window of node ids centred on it.
+///
+/// A *window* rather than the whole node set, because that is what makes the relaxation an ng-path
+/// relaxation rather than plain elementarity -- a cycle wider than the window is still allowed.
+/// The width is what decides whether ng actually binds, so
+/// `NgPathActuallyBindsOnAtLeastOneCyclicInstance` exists to fail if it is ever widened past the
+/// point of usefulness.
+inline std::map<size_t, std::set<size_t>> ng_neighborhoods(size_t num_nodes, size_t width = 3) {
+    std::map<size_t, std::set<size_t>> neighborhoods;
+    for (size_t node = 0; node < num_nodes; ++node) {
+        std::set<size_t> neighborhood;
+        const size_t low = node > width ? node - width : 0;
+        const size_t high = std::min(num_nodes - 1, node + width);
+        for (size_t other = low; other <= high; ++other) {
+            neighborhood.insert(other);
+        }
+        neighborhoods[node] = std::move(neighborhood);
+    }
+    return neighborhoods;
+}
+
+/// @brief Builds the ng model from the SAME draw the single-type builder uses.
+///
+/// Sharing @c draw_instance is what makes the comparison honest: for a given seed the two
+/// builders see identical arcs, windows and capacities, so the only difference is the presence of
+/// the ng component.
+///
+/// The ng arcs carry **no per-arc set data**. Step 4's accepted narrowing means
+/// @c NgPathExtensionFunction derives the node it adds from the arc's own endpoints, so supplying
+/// an origin singleton here would be ignored -- and supplying anything else would be silently
+/// ignored too. An empty set is the honest initializer.
+///
+/// @param config The instance to build. @c with_ng_path decides whether the ng component
+///               *constrains* anything; the component is registered either way, so the label
+///               width does not depend on the flag.
+/// @return The graph and the clock configuration.
+inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
+    using namespace rcspp;  // NOLINT(google-build-using-namespace)
+
+    const InstanceDraw draw = draw_instance(config);
+
+    NgGeneratedInstance built;
+    built.graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
+
+    built.graph->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+
+    size_t next_slot = 1;
+    if (config.with_time_window) {
+        built.graph->add_resource<RealResource>(
+            std::make_unique<TimeWindowExtensionFunction<RealResource>>(draw.windows),
+            std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(draw.windows),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        built.clock_index = next_slot;
+        built.clock_upper_bound = draw.horizon;
+        built.clock_is_usable = true;
+        ++next_slot;
+    }
+    if (config.with_capacity) {
+        built.graph->add_resource<RealResource>(
+            std::make_unique<BudgetExtensionFunction<RealResource>>(),
+            std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                0.0,
+                draw.capacity,
+                /*merge_by_increasing_value=*/true),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        if (!built.clock_is_usable) {
+            built.clock_index = next_slot;
+            built.clock_upper_bound = draw.capacity;
+            built.clock_is_usable = true;
+        }
+        ++next_slot;
+    }
+    if (!built.clock_is_usable) {
+        built.clock_index = 0;
+        built.clock_upper_bound = 0.0;
+    }
+
+    // The ng component, always registered so the label width does not depend on the flag.
+    //
+    // `forbidden_by_node[v] = {v}` is the ng-route condition: a label arriving at v is infeasible
+    // if v is already in the memory its own half accumulated. With the flag off the forbidden sets
+    // are empty, so IntersectionFeasibilityFunction short-circuits and the component is inert --
+    // present, extended in both directions, constraining nothing.
+    std::map<size_t, std::set<size_t>> forbidden_by_node;
+    if (config.with_ng_path) {
+        for (size_t node = 0; node < config.num_nodes; ++node) {
+            forbidden_by_node[node] = {node};
+        }
+    }
+    built.graph->add_resource<SizeTBitsetResource>(
+        std::make_unique<NgPathExtensionFunction<SizeTBitsetResource, size_t>>(
+            ng_neighborhoods(config.num_nodes)),
+        std::make_unique<IntersectionFeasibilityFunction<SizeTBitsetResource, size_t>>(
+            std::move(forbidden_by_node),
+            /*forbidden=*/true),
+        std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
+        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+
+    const std::set<size_t> sinks(draw.sinks.begin(), draw.sinks.end());
+    for (size_t node_id = 0; node_id < config.num_nodes; ++node_id) {
+        built.graph->add_node(node_id, node_id == 0, sinks.contains(node_id));
+    }
+
+    for (const auto& arc : draw.arcs) {
+        // See build_instance: the tuple carries the cost COMPONENT, the last argument the
+        // ORIGINAL weight. `arc_cost_offset` separates them.
+        const double original_weight = arc.cost + config.arc_cost_offset;
+        const std::set<size_t> no_arc_set;  // see the class comment: the arc value is ignored
+        if (config.with_time_window && config.with_capacity) {
+            built.graph->add_arc<RealResource, RealResource, RealResource, SizeTBitsetResource>(
+                std::make_tuple(std::make_tuple(arc.cost),
+                                std::make_tuple(arc.time),
+                                std::make_tuple(arc.load),
+                                std::make_tuple(no_arc_set)),
+                arc.origin,
+                arc.destination,
+                original_weight);
+        } else if (config.with_time_window) {
+            built.graph->add_arc<RealResource, RealResource, SizeTBitsetResource>(
+                std::make_tuple(std::make_tuple(arc.cost),
+                                std::make_tuple(arc.time),
+                                std::make_tuple(no_arc_set)),
+                arc.origin,
+                arc.destination,
+                original_weight);
+        } else if (config.with_capacity) {
+            built.graph->add_arc<RealResource, RealResource, SizeTBitsetResource>(
+                std::make_tuple(std::make_tuple(arc.cost),
+                                std::make_tuple(arc.load),
+                                std::make_tuple(no_arc_set)),
+                arc.origin,
+                arc.destination,
+                original_weight);
+        } else {
+            built.graph->add_arc<RealResource, SizeTBitsetResource>(
+                std::make_tuple(std::make_tuple(arc.cost), std::make_tuple(no_arc_set)),
+                arc.origin,
+                arc.destination,
+                original_weight);
+        }
+    }
+
+    return built;
+}
+
 /// @brief The true optimum, by enumerating every simple path from the source to a sink.
 ///
 /// An independent oracle: it shares no code with either algorithm, so an error common to both --
@@ -314,6 +563,15 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
 ///                             difference cannot be quietly designed away.
 /// @return The optimal cost, or infinity when no feasible path exists.
 inline double brute_force_optimum(const InstanceConfig& config, bool allow_interior_sinks = false) {
+    // The walk below has no visited set: it relies on arcs going forwards in node order. On a
+    // cyclic instance it would not terminate, so refuse rather than hang or silently
+    // under-enumerate.
+    if (config.back_arc_density > 0.0) {
+        throw std::logic_error(
+            "brute_force_optimum enumerates simple paths by walking forwards in node order and so "
+            "requires an acyclic instance; back_arc_density must be 0");
+    }
+
     const InstanceDraw draw = draw_instance(config);
     const std::set<size_t> sinks(draw.sinks.begin(), draw.sinks.end());
 
@@ -356,6 +614,114 @@ inline double brute_force_optimum(const InstanceConfig& config, bool allow_inter
                 continue;
             }
             stack.push_back({arc->destination, state.cost + arc->cost, time, load});
+        }
+    }
+
+    return best;
+}
+
+/// @brief The true optimum of the **cyclic ng** model, by enumerating walks.
+///
+/// A second oracle, needed because @c brute_force_optimum cannot serve here: it enumerates simple
+/// paths by walking forwards in node order, which a cyclic instance breaks. This one allows
+/// revisits and carries the ng memory explicitly, exactly as @c NgPathExtensionFunction computes
+/// it -- `(memory & neighborhood[node_left]) | {node_left}` -- so it is an independent statement
+/// of what the model means rather than a second copy of the search.
+///
+/// It shares no code with either algorithm, which is the point: on the cyclic ng model the
+/// forward search is **not** a valid reference (see the note in `test_equivalence.hpp`), so a
+/// bidirectional-versus-forward comparison cannot settle correctness there. This can.
+///
+/// Termination rests on the window: every arc consumes at least one time unit and the horizon is
+/// finite, so the number of feasible walks is finite. @p state_budget guards against a
+/// configuration where "finite" is still far too large -- it **throws** rather than returning a
+/// truncated answer, because a silently under-enumerated oracle is worse than none.
+///
+/// @param config              The instance. Must set @c with_time_window; @c with_capacity is
+///                            honoured.
+/// @param state_budget        Maximum walk states to expand before giving up.
+/// @param allow_interior_sinks Whether a walk may pass THROUGH a sink and continue.
+///                            @c false -- the default, and the model the library solves -- ends a
+///                            path at the first sink it reaches, which is what `Node::sink` means
+///                            and what every search in the library does. @c true keeps the older,
+///                            more permissive enumeration, retained so the two can be compared and
+///                            so the difference cannot be quietly designed away.
+/// @return The optimal cost, or infinity when no feasible walk reaches a sink.
+/// @throws std::logic_error If the budget is exhausted, or the config has no time window.
+inline double ng_cyclic_optimum(const InstanceConfig& config, long long state_budget = 20000000LL,
+                                bool allow_interior_sinks = false) {
+    if (!config.with_time_window) {
+        throw std::logic_error(
+            "ng_cyclic_optimum needs with_time_window: the horizon is what makes the walk "
+            "enumeration finite");
+    }
+
+    const InstanceDraw draw = draw_instance(config);
+    const std::map<size_t, std::set<size_t>> neighborhoods = ng_neighborhoods(config.num_nodes);
+    const std::set<size_t> sinks(draw.sinks.begin(), draw.sinks.end());
+
+    std::vector<std::vector<const InstanceDraw::Arc*>> out_arcs(config.num_nodes);
+    for (const auto& arc : draw.arcs) {
+        out_arcs[arc.origin].push_back(&arc);
+    }
+
+    double best = std::numeric_limits<double>::infinity();
+
+    struct State {
+            size_t node;
+            double cost;
+            double time;
+            double load;
+            std::set<size_t> memory;
+    };
+    std::vector<State> stack;
+    stack.push_back({0, 0.0, 0.0, 0.0, {}});
+
+    long long expanded = 0;
+    while (!stack.empty()) {
+        State state = std::move(stack.back());
+        stack.pop_back();
+
+        if (++expanded > state_budget) {
+            throw std::logic_error(
+                "ng_cyclic_optimum exhausted its state budget; the instance is too large to serve "
+                "as an oracle. Shrink num_nodes, density or back_arc_density");
+        }
+
+        if (sinks.contains(state.node)) {
+            best = std::min(best, state.cost);
+            if (!allow_interior_sinks) {
+                continue;  // a path ends at the first sink it reaches
+            }
+            // else: fall through -- a sink may still have outgoing arcs to a further sink
+        }
+
+        // The memory a label carries when it LEAVES state.node -- the node being left is the
+        // arc's origin going forwards, which is what the extension function uses.
+        std::set<size_t> memory_on_leaving;
+        if (auto it = neighborhoods.find(state.node); it != neighborhoods.end()) {
+            for (const size_t remembered : state.memory) {
+                if (it->second.contains(remembered)) {
+                    memory_on_leaving.insert(remembered);
+                }
+            }
+        }
+        memory_on_leaving.insert(state.node);
+
+        for (const auto* arc : out_arcs[state.node]) {
+            if (config.with_ng_path && memory_on_leaving.contains(arc->destination)) {
+                continue;  // ng-infeasible: this half already remembers the destination
+            }
+            const double time = state.time + arc->time;
+            if (time > draw.windows.at(arc->destination).second) {
+                continue;
+            }
+            const double load = state.load + arc->load;
+            if (config.with_capacity && load > draw.capacity) {
+                continue;
+            }
+            stack.push_back(
+                {arc->destination, state.cost + arc->cost, time, load, memory_on_leaving});
         }
     }
 

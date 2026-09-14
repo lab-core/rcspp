@@ -18,6 +18,9 @@
 //                            model it asserts on is a second resource pack (see that file)
 //   test_presets.cpp          the preset tests -- its own TU, for the same reason: one resource
 //                             pack per preset checked
+//   test_equivalence_ng.cpp   the ng-path equivalence tests -- its own TU because the two-slot
+//                             resource pack doubles the instantiations (see that file)
+//   test_bidirectional_benchmark_ng.cpp   the ng benchmark -- its own TU, three-slot pack
 //
 // A new test header goes in whichever TU matches its subject, alphabetically within that TU.
 

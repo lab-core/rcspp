@@ -5,12 +5,14 @@
 
 // The benchmark's shared constants.
 //
-// Under util/ rather than in the benchmark header itself because `kOptimal` is a reference
-// optimum, and a reference optimum wants exactly one definition: any second benchmark that
-// measures the same instance has to assert the same number, and two copies of it is precisely the
-// drift a single definition avoids. A test_*.hpp may be included by exactly one translation unit,
-// by the rule at the top of test_main.cpp, so it could not be shared even if it wanted to be; a
-// util/ header carries no TEST macros and may.
+// Under util/ rather than in a test header because TWO translation units need them --
+// test_algorithms.cpp (via test_bidirectional_benchmark.hpp) and
+// test_bidirectional_benchmark_ng.cpp. A test_*.hpp is included by exactly one TU, by the rule at
+// the top of test_main.cpp; a util/ header carries no TEST macros, so it may be shared.
+//
+// `kOptimal` in particular must live in one place: the ng model asserts the *same* number (the
+// restriction does not bind at the optimum on R101 -- see test_bidirectional_benchmark_ng.hpp),
+// and two copies of a reference optimum is exactly the drift this split avoids.
 
 namespace bidirectional_benchmark {
 
