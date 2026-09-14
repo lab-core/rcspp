@@ -28,10 +28,9 @@ class TrivialExtensionFunction
                     ResourceType* reused_resource) override {}
 
         /// @brief A no-op is trivially symmetric: it does nothing in either direction.
-        ///
+        static constexpr BackwardKind kind = BackwardKind::Accumulate;
+
         /// @return @c BackwardKind::Accumulate.
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Accumulate;
-        }
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

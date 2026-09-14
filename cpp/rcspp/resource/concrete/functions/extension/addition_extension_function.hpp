@@ -55,11 +55,10 @@ class AdditionExtensionFunction
         /// inherited @c extend_back (which adds, exactly like @c extend) is correct. A resource
         /// that adds forward but is bounded -- a capacity or a duration -- is a *threshold* and
         /// wants @c BudgetExtensionFunction instead.
-        ///
+        static constexpr BackwardKind kind = BackwardKind::Accumulate;
+
         /// @return @c BackwardKind::Accumulate.
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Accumulate;
-        }
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
     private:
         std::optional<ValueType> min_value_;

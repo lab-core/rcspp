@@ -88,11 +88,10 @@ class BudgetExtensionFunction : public Clonable<BudgetExtensionFunction<Resource
         }
 
         /// @brief A budget is a ceiling-style bound, so the backward form inverts and clamps.
-        ///
+        static constexpr BackwardKind kind = BackwardKind::Threshold;
+
         /// @return @c BackwardKind::Threshold.
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Threshold;
-        }
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
     private:
         std::shared_ptr<const std::map<size_t, ValueType>> max_by_node_id_;
