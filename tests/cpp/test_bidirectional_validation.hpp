@@ -24,13 +24,15 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
-#include <set>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/equivalence_helpers.hpp"
 #include "util/random_instance.hpp"
 #include "util/reverse_graph_oracle.hpp"
 

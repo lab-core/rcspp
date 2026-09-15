@@ -188,7 +188,7 @@ p.half_way_point          = 500.0  # H; the clock's range is taken as [0, 2H]
 
 Searches forward from the sources and backward from the sinks, stops each
 direction at a half-way point `H` on one designated resource, and joins the halves
-on the arc where that resource crosses `H`. Two requirements:
+at the node where that resource crosses `H`. Two requirements:
 
 - **The critical resource must be a clock**: monotone, bounded, and a *threshold*
   backwards (`TimeWindowExtensionFunction` or `BudgetExtensionFunction`, never

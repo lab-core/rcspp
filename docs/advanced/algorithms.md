@@ -37,7 +37,7 @@ travel source → sink; this is not a bidirectional search.
 
 Searches forward from the sources and backward from the sinks, stopping each
 direction half-way along one designated resource, and joins the surviving halves
-across the arc where that resource crosses the middle.  Because dominance is
+at the node where that resource crosses the middle.  Because dominance is
 checked within each half rather than over whole paths, the number of labels grows
 with half the path length instead of all of it.
 
@@ -185,6 +185,39 @@ Note the last row: the bidirectional search's solution *set* is still generally 
 forward search's, because the half-way bound stops forward labels before they reach a sink and the
 join only produces paths whose clock crosses `H`.  The optimum is unaffected.  If you need every
 column rather than the best one, measure both before choosing.
+
+### Where the two halves are paired
+
+How the join forms a pair belongs to the same discussion, because it is the other thing that decides
+how many columns come back.
+
+The forward search has already built the label that crosses `H`.  It extends a half whose clock is
+at or below `H`, the result lands past it, and that result is then stored and dropped without being
+extended again.  Those **boundary labels** are paired with the backward labels sitting at the same
+node.  Nothing is rebuilt: the boundary label *is* the crossing, it is feasible because an
+infeasible label is never stored, and the join arc is already inside its cost.
+
+The alternative — rebuilding, for each arc `(u, v)`, a forward half at `u` across the arc and
+comparing it with a backward half at `v` — was implemented, measured against this one, and removed.
+Both always returned the same optimum.  What differed is which forward halves are eligible: a
+boundary label had to survive dominance at the meeting node, while a rebuilt one never faced that
+filter, so the arc-based form also paired halves whose prefix was dominated there.  The optimum
+cannot be among those — a dominated prefix completes no better than the prefix that beat it — and
+the *forward* algorithms would not have returned them either, which is why the surviving join is the
+one that agrees with `simple` about which prefixes count.  It also walks 31–47× fewer candidate
+pairs.
+
+**Measured against a forward-only solve**, which is the comparison that matters if you are switching
+from `simple`: on 96 generated configurations the forward search returned 1 608 columns and both
+joins reproduced the same 1 601 of them; on five Solomon instances forward returned 2 770 and both
+reproduced the same 1 767.  The join loses no column a forward-only solve would have produced.  What
+it misses relative to forward is the **half-way bound**, not the join — the bound stops forward
+labels before they reach a sink.
+
+One caveat, and it only applies in modes that are already inexact.  When the per-node extension
+quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memory_pressure` tightening
+it automatically — a forward label can be stored and never grown, so it never produces the boundary
+label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
 ### When it pays, and when it does not
 

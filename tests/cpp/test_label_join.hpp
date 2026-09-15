@@ -7,18 +7,21 @@
 //
 // The label sets here are built BY HAND rather than by running a search. That is what makes the
 // joiner testable independently of the two frontiers, and what makes a failure here unambiguous.
+// It also means the fixtures can build label sets the search would never produce -- a seed past
+// `H`, a forward half at every node at once -- which is how the predicate's clauses get pinned
+// individually.
 //
-// CrossingRuleJoinsEachPathExactlyOnce is the acceptance test for the arc rule. A four-arc path
-// with labels at every node must produce ONE solution, not four. If it produces four, the crossing
-// rule was written with b.critical(v) on the right instead of f'.critical(v) -- a form that filters
-// nothing, because the backward search already keeps only labels at or above H and a surviving
-// forward label is already at or below it.
+// The joiner pairs a forward **boundary label** -- one sitting at a node, past `H`, that got there
+// by being extended -- with a backward label at that same node. `CrossingRuleJoinsEachPathExactlyOnce`
+// is the acceptance test: forward halves at four nodes, a backward half at each, and only the one
+// node where the clock actually crosses `H` may produce a solution. It runs with the incumbent
+// cutoff OFF, because every split of one path costs the same and the cutoff would otherwise hide a
+// predicate that accepts all four.
 
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <limits>
-#include <map>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -78,6 +81,9 @@ class JoinHarness {
         }
 
         /// @brief Adds a forward label at @p node_id, chained onto @p previous when given.
+        ///
+        /// A label with an @p in_arc and a @p previous is what the search stores after extending;
+        /// one with neither is a seed, which the joiner must never treat as a crossing.
         Label<Composed>* add_forward(size_t node_id, const Arc<Composed>* in_arc,
                                      Label<Composed>* previous) {
             auto* node = graph_->get_node(node_id);
@@ -87,6 +93,29 @@ class JoinHarness {
             }
             forward_.at(node->pos()).add_label(&label);
             return &label;
+        }
+
+        /// @brief Adds a forward chain from the source along the first @p num_arcs arcs.
+        ///
+        /// The clock and the cost are the same component here, so each label's value is the sum of
+        /// the arc values behind it -- which is what the search would have produced, and what makes
+        /// the label at the far end a boundary label once that sum passes `H`.
+        ///
+        /// @param graph     The line graph the chain runs along.
+        /// @param num_arcs  How many arcs to walk from the source.
+        /// @param values    The arc values, as passed to @ref line_graph.
+        /// @return The label at the end of the chain.
+        Label<Composed>* add_forward_chain(const ResourceGraph<RealResource>& graph,
+                                           size_t num_arcs, const std::vector<double>& values) {
+            Label<Composed>* previous = add_forward(0, nullptr, nullptr);
+            set_value(previous, 0.0);
+            double total = 0.0;
+            for (size_t i = 0; i < num_arcs; ++i) {
+                total += values[i];
+                previous = add_forward(i + 1, graph.get_arc(i), previous);
+                set_value(previous, total);
+            }
+            return previous;
         }
 
         /// @brief Adds a backward label at @p node_id, chained onto @p previous when given.
@@ -112,23 +141,23 @@ class JoinHarness {
 
         /// @brief Runs the joiner, recording every solution offered.
         ///
-        /// @p upper_bound stands in for BOTH of the joiner's bounds here, with pruning against the
-        /// incumbent requested explicitly, which is what these cases were written against: every
-        /// one of them asserts on the cutoff behaviour rather than on the caller's fixed filter.
-        /// (The joiner would turn the cutoff on anyway when @p upper_bound is infinite; asking for
-        /// it keeps these cases independent of that rule.)
-        std::vector<Recorded> run(const HalfWayPolicy& policy, double upper_bound = kInfinity) {
+        /// @p upper_bound stands in for BOTH of the joiner's bounds here. Most cases ask for the
+        /// incumbent cutoff explicitly, because that is what they assert on; the ones that count
+        /// *candidates* rather than improvements switch it off with @p prune_requested and a finite
+        /// bound, since every split of one path costs the same and the cutoff would absorb the
+        /// duplicates before the count could see them.
+        std::vector<Recorded> run(const HalfWayPolicy& policy, double upper_bound = kInfinity,
+                                  bool prune_requested = true) {
             std::vector<Recorded> recorded;
             Joiner<Composed, RealResource> joiner;
             double best = upper_bound;
             joiner.join(*graph_,
                         forward_,
                         backward_,
-                        pool_,
                         policy,
                         /*critical_resource_index=*/0,
                         best,
-                        /*prune_requested=*/true,
+                        prune_requested,
                         upper_bound,
                         [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                             recorded.push_back({cost, std::move(arc_ids), end_node_id});
@@ -188,26 +217,6 @@ class UnmergeableFeasibilityFunction
         [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Custom; }
 };
 
-/// @brief A four-node line whose single component is a time window.
-inline std::unique_ptr<ResourceGraph<RealResource>> time_window_line(
-    const std::map<size_t, std::pair<double, double>>& windows, double arc_time) {
-    auto graph = std::make_unique<ResourceGraph<RealResource>>();
-    graph->add_resource<RealResource>(
-        std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
-        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
-    for (size_t node_id = 0; node_id < 4; ++node_id) {
-        graph->add_node(node_id, node_id == 0, node_id == 3);
-    }
-    for (size_t i = 0; i < 3; ++i) {
-        graph->add_arc<RealResource>(std::make_tuple(arc_time), i, i + 1, arc_time);
-    }
-    graph->sort_nodes();
-    graph->build_csr();
-    return graph;
-}
-
 }  // namespace label_join_test
 
 // ============================================================================
@@ -217,15 +226,14 @@ inline std::unique_ptr<ResourceGraph<RealResource>> time_window_line(
 /// @brief A forward half and a backward half splice into the expected arc sequence and cost.
 TEST(LabelJoin, SimpleJoinProducesExpectedPath) {
     namespace ljt = label_join_test;
-    // s(0) -1-> 1 -2-> 2 -3-> 3, clock crosses H = 2 on arc 1->2.
-    auto graph = ljt::line_graph({1.0, 2.0, 3.0});
+    // s(0) -1-> 1 -2-> 2 -3-> 3, clock 0, 1, 3, 6 along the way. With H = 2 the forward half
+    // crosses at node 2, so that is where the halves meet.
+    const std::vector<double> values{1.0, 2.0, 3.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    // Forward chain s -> 1, sitting at node 1 with clock 1.
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
+    // Forward chain s -> 1 -> 2, sitting at node 2 with clock 3: the boundary label.
+    harness.add_forward_chain(*graph, /*num_arcs=*/2, values);
 
     // Backward chain t <- 2, sitting at node 2. prev_label is the label nearer the SINK.
     auto* at_sink = harness.add_backward(3, nullptr, nullptr);
@@ -244,16 +252,15 @@ TEST(LabelJoin, SimpleJoinProducesExpectedPath) {
 
 /// @brief The join arc is counted exactly once.
 ///
-/// f' has consumed it; a backward label sitting *at* v has consumed no arc into v.
+/// The boundary label has already consumed it; a backward label sitting *at* the meeting node has
+/// consumed no arc into it.
 TEST(LabelJoin, JoinArcCountedExactlyOnce) {
     namespace ljt = label_join_test;
-    auto graph = ljt::line_graph({1.0, 2.0, 3.0});
+    const std::vector<double> values{1.0, 2.0, 3.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
+    harness.add_forward_chain(*graph, /*num_arcs=*/2, values);
 
     auto* at_sink = harness.add_backward(3, nullptr, nullptr);
     ljt::JoinHarness::set_value(at_sink, 0.0);
@@ -264,34 +271,36 @@ TEST(LabelJoin, JoinArcCountedExactlyOnce) {
     const auto recorded = harness.run(policy);
 
     ASSERT_EQ(recorded.size(), 1U);
-    // f' = 1 (forward) + 2 (join arc) = 3; b = 3. Total 6 = 1 + 2 + 3, each arc once.
+    // The boundary label is at 1 + 2 = 3; b = 3. Total 6 = 1 + 2 + 3, each arc once.
     EXPECT_NEAR(recorded[0].cost, 6.0, ljt::kTolerance);
 }
 
 // ============================================================================
-// THE acceptance test for the arc rule
+// THE acceptance test for the crossing rule
 // ============================================================================
 
 /// @brief A four-arc path whose clock crosses H once yields exactly ONE solution.
 ///
-/// Labels sit at every node in both directions, so every arc is a candidate join arc. Only the arc
-/// on which the clock actually straddles H may produce a solution. Four solutions here would mean
-/// the crossing rule was written with the backward value on the right.
+/// Forward halves sit at four nodes and a backward half at every node, so every node is a candidate
+/// meeting point. Only the node where the clock actually crosses `H` may produce a solution; three
+/// here would mean the boundary predicate had lost its comparison against `H` and degenerated to
+/// "has a predecessor".
+///
+/// **The incumbent cutoff is off** -- a finite bound, pruning not requested. Every split of the same
+/// path costs the same, so with the cutoff on the first accepted join would reject the other two on
+/// cost and the count would be 1 whatever the predicate did. That is a real property of the joiner,
+/// asserted in `DisabledBoundStillFindsThePath`; here it would make the test vacuous.
 TEST(LabelJoin, CrossingRuleJoinsEachPathExactlyOnce) {
     namespace ljt = label_join_test;
-    // Clock: 0, 1, 2, 3, 4 at nodes 0..4. With H = 2.5 the crossing arc is 2->3.
-    auto graph = ljt::line_graph({1.0, 1.0, 1.0, 1.0});
+    // Clock: 0, 1, 2, 3, 4 at nodes 0..4. With H = 2.5 the crossing node is 3.
+    const std::vector<double> values{1.0, 1.0, 1.0, 1.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    // A forward label at every node, chained, clock = node index.
-    std::vector<Label<ljt::Composed>*> forward_chain;
-    Label<ljt::Composed>* previous = nullptr;
-    for (size_t node_id = 0; node_id <= 4; ++node_id) {
-        const Arc<ljt::Composed>* in_arc = node_id == 0 ? nullptr : graph->get_arc(node_id - 1);
-        previous = harness.add_forward(node_id, in_arc, previous);
-        ljt::JoinHarness::set_value(previous, static_cast<double>(node_id));
-        forward_chain.push_back(previous);
-    }
+    // A forward label at nodes 0..3, chained, clock = node index. Nothing at the sink: a forward
+    // label there is already a complete path, and terminal collection rather than the join is what
+    // reports it.
+    harness.add_forward_chain(*graph, /*num_arcs=*/3, values);
 
     // A backward label at every node, chained from the sink, clock = 4 - node index.
     Label<ljt::Composed>* backward_previous = nullptr;
@@ -303,10 +312,10 @@ TEST(LabelJoin, CrossingRuleJoinsEachPathExactlyOnce) {
     }
 
     const HalfWayPolicy policy(/*half_way_point=*/2.5, /*resource_upper_bound=*/8.0);
-    const auto recorded = harness.run(policy);
+    const auto recorded = harness.run(policy, /*upper_bound=*/100.0, /*prune_requested=*/false);
 
-    // Exactly one -- not four.
-    ASSERT_EQ(recorded.size(), 1U) << "the crossing rule must admit exactly one join per path";
+    // Exactly one -- not three.
+    ASSERT_EQ(recorded.size(), 1U) << "only the node where the clock crosses H may join";
     EXPECT_EQ(recorded[0].arc_ids, (std::vector<size_t>{0, 1, 2, 3}));
     EXPECT_EQ(recorded[0].end_node_id, 4U);
 }
@@ -315,59 +324,59 @@ TEST(LabelJoin, CrossingRuleJoinsEachPathExactlyOnce) {
 // Each rejection step, for its own reason
 // ============================================================================
 
-/// @brief Step 2: the clock does not straddle H, so there is no join on this arc.
-TEST(LabelJoin, CrossingRuleRejectsWhenClockDoesNotStraddleH) {
+/// @brief The clock has not crossed H at this node, so there is no join here.
+TEST(LabelJoin, CrossingRuleRejectsWhenTheClockHasNotPassedH) {
     namespace ljt = label_join_test;
-    auto graph = ljt::line_graph({1.0, 2.0, 3.0});
+    const std::vector<double> values{1.0, 2.0, 3.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
+    harness.add_forward_chain(*graph, /*num_arcs=*/2, values);
 
     auto* at_sink = harness.add_backward(3, nullptr, nullptr);
     ljt::JoinHarness::set_value(at_sink, 0.0);
     auto* backward = harness.add_backward(2, graph->get_arc(2), at_sink);
     ljt::JoinHarness::set_value(backward, 3.0);
 
-    // H = 20: f'(v) = 3 never exceeds it, so the clock does not cross here.
+    // H = 20: the forward half's clock is 3 and never passes it, so it is not a boundary label.
     const HalfWayPolicy policy(/*half_way_point=*/20.0, /*resource_upper_bound=*/100.0);
     EXPECT_TRUE(harness.run(policy).empty());
 }
 
-/// @brief Step 3: f' is locally infeasible at v, so there is no join.
+/// @brief A seed is not a crossing, whatever its clock says.
 ///
-/// This is the step that catches "v is already in the forward half's visited set", with no
-/// special-casing -- it is just the ordinary feasibility check applied at v after the extension.
-/// Here the same mechanism is driven with a time window instead, which is easier to state exactly.
-TEST(LabelJoin, FeasibilityRejectsWhenExtendedLabelViolatesTheNodeWindow) {
+/// Nothing was extended to produce a seed, so there is no arc for it to have crossed `H` on. This
+/// is also what keeps a source out of a merged path's interior: the forward search never extends
+/// into a seed, so a forward label at a source is always one, and pairing it with a backward label
+/// that reached that source would re-report a path `extract_backward_solution` already has.
+///
+/// The value is set by hand to put the seed past `H`, which a real search never would -- that is
+/// the point: the predicate must reject it on the seed clause alone.
+TEST(LabelJoin, ASeedIsNotABoundaryLabel) {
     namespace ljt = label_join_test;
-    // Node 2 closes at 5, but reaching it costs 10 from a forward label at time 0.
-    std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 1000.0}},
-                                                        {1, {0.0, 1000.0}},
-                                                        {2, {0.0, 5.0}},
-                                                        {3, {0.0, 1000.0}}};
-    auto graph = ljt::time_window_line(windows, /*arc_time=*/10.0);
+    const std::vector<double> values{1.0, 2.0, 3.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 0.0);
+    // A forward seed at the source, past H and with a backward half sitting on it.
+    auto* seed = harness.add_forward(0, nullptr, nullptr);
+    ljt::JoinHarness::set_value(seed, 5.0);
 
-    auto* at_sink = harness.add_backward(3, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_sink, 0.0);
-    auto* backward = harness.add_backward(2, graph->get_arc(2), at_sink);
-    ljt::JoinHarness::set_value(backward, 0.0);
+    Label<ljt::Composed>* backward_previous = harness.add_backward(3, nullptr, nullptr);
+    ljt::JoinHarness::set_value(backward_previous, 0.0);
+    for (size_t step = 0; step < 3; ++step) {
+        const size_t node_id = 2 - step;
+        backward_previous =
+            harness.add_backward(node_id, graph->get_arc(node_id), backward_previous);
+        ljt::JoinHarness::set_value(backward_previous, static_cast<double>(6 - node_id));
+    }
 
-    // H = 5: the clock does straddle it (0 <= 5 < 10), so the crossing test passes and the
-    // rejection under test really is the feasibility one.
-    const HalfWayPolicy policy(/*half_way_point=*/5.0, /*resource_upper_bound=*/1000.0);
-    EXPECT_TRUE(harness.run(policy).empty());
+    const HalfWayPolicy policy(/*half_way_point=*/2.0, /*resource_upper_bound=*/12.0);
+    EXPECT_TRUE(harness.run(policy).empty())
+        << "a seed was treated as a label that crossed H on its way in";
 }
 
-/// @brief Step 4: the two halves cannot be merged, so there is no join.
+/// @brief The two halves cannot be merged, so there is no join.
 TEST(LabelJoin, MergeTestRejectsIncompatibleHalves) {
     namespace ljt = label_join_test;
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
@@ -385,49 +394,39 @@ TEST(LabelJoin, MergeTestRejectsIncompatibleHalves) {
     graph->build_csr();
 
     ljt::JoinHarness harness(graph.get());
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
+    harness.add_forward_chain(*graph, /*num_arcs=*/2, {1.0, 2.0, 3.0});
     auto* at_sink = harness.add_backward(3, nullptr, nullptr);
     ljt::JoinHarness::set_value(at_sink, 0.0);
     auto* backward = harness.add_backward(2, graph->get_arc(2), at_sink);
     ljt::JoinHarness::set_value(backward, 3.0);
 
-    // Crossing and feasibility both pass; only the merge test refuses.
+    // The crossing rule passes; only the merge test refuses.
     const HalfWayPolicy policy(2.0, 6.0);
     EXPECT_TRUE(harness.run(policy).empty());
 }
 
-/// @brief Step 5: a cost at or above the incumbent is rejected.
+/// @brief A cost at or above the incumbent is rejected.
 TEST(LabelJoin, UpperBoundRejectsExpensiveJoins) {
     namespace ljt = label_join_test;
-    auto graph = ljt::line_graph({1.0, 2.0, 3.0});
-    ljt::JoinHarness harness(graph.get());
+    const std::vector<double> values{1.0, 2.0, 3.0};
+    auto graph = ljt::line_graph(values);
 
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
-
-    auto* at_sink = harness.add_backward(3, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_sink, 0.0);
-    auto* backward = harness.add_backward(2, graph->get_arc(2), at_sink);
-    ljt::JoinHarness::set_value(backward, 3.0);
+    auto build = [&](ljt::JoinHarness* harness) {
+        harness->add_forward_chain(*graph, /*num_arcs=*/2, values);
+        auto* at_sink = harness->add_backward(3, nullptr, nullptr);
+        ljt::JoinHarness::set_value(at_sink, 0.0);
+        auto* backward = harness->add_backward(2, graph->get_arc(2), at_sink);
+        ljt::JoinHarness::set_value(backward, 3.0);
+    };
 
     const HalfWayPolicy policy(2.0, 6.0);
     // The join costs 6; an incumbent of 6 must reject it, and one of 7 must accept.
-    EXPECT_TRUE(harness.run(policy, /*upper_bound=*/6.0).empty());
+    ljt::JoinHarness rejecting(graph.get());
+    build(&rejecting);
+    EXPECT_TRUE(rejecting.run(policy, /*upper_bound=*/6.0).empty());
 
     ljt::JoinHarness accepting(graph.get());
-    auto* s2 = accepting.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(s2, 0.0);
-    auto* f2 = accepting.add_forward(1, graph->get_arc(0), s2);
-    ljt::JoinHarness::set_value(f2, 1.0);
-    auto* t2 = accepting.add_backward(3, nullptr, nullptr);
-    ljt::JoinHarness::set_value(t2, 0.0);
-    auto* b2 = accepting.add_backward(2, graph->get_arc(2), t2);
-    ljt::JoinHarness::set_value(b2, 3.0);
+    build(&accepting);
     EXPECT_EQ(accepting.run(policy, /*upper_bound=*/7.0).size(), 1U);
 }
 
@@ -436,13 +435,11 @@ TEST(LabelJoin, UpperBoundRejectsExpensiveJoins) {
 /// Forbidden arcs carry an infinite cost -- the VRP example marks depot-to-depot that way.
 TEST(LabelJoin, InfiniteCostsAreDropped) {
     namespace ljt = label_join_test;
-    auto graph = ljt::line_graph({1.0, 2.0, 3.0});
+    const std::vector<double> values{1.0, 2.0, 3.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
+    harness.add_forward_chain(*graph, /*num_arcs=*/2, values);
 
     auto* at_sink = harness.add_backward(3, nullptr, nullptr);
     ljt::JoinHarness::set_value(at_sink, 0.0);
@@ -460,18 +457,18 @@ TEST(LabelJoin, InfiniteCostsAreDropped) {
 /// @brief The backward chain comes out in forward order, unreversed.
 ///
 /// Verified by test rather than by reading: each backward label's prev_label is the label nearer
-/// the sink and the arc it remembers is its out-arc, so the walk is already forward. Getting this
-/// backwards silently drops or mis-orders the path.
+/// the sink and the arc it remembers is its out-arc, so the walk is already forward, where the
+/// forward chain has to be collected and reversed. Getting this backwards silently drops or
+/// mis-orders the path.
 TEST(LabelJoin, BackwardChainIsEmittedInForwardOrder) {
     namespace ljt = label_join_test;
-    // Five nodes, so the backward half spans three arcs: 2->3, 3->4, 4->5.
-    auto graph = ljt::line_graph({1.0, 1.0, 1.0, 1.0, 1.0});
+    // Six nodes, so the backward half spans three arcs: 2->3, 3->4, 4->5.
+    const std::vector<double> values{1.0, 1.0, 1.0, 1.0, 1.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
-    ljt::JoinHarness::set_value(forward, 1.0);
+    // Forward half s -> 1 -> 2, clock 2 at the meeting node.
+    harness.add_forward_chain(*graph, /*num_arcs=*/2, values);
 
     // Backward chain from the sink: 5, then 4, 3, 2.
     Label<ljt::Composed>* previous = harness.add_backward(5, nullptr, nullptr);
@@ -485,7 +482,7 @@ TEST(LabelJoin, BackwardChainIsEmittedInForwardOrder) {
     const auto recorded = harness.run(policy);
 
     ASSERT_EQ(recorded.size(), 1U);
-    // s->1, join 1->2, then 2->3, 3->4, 4->5 in that order -- not reversed.
+    // s->1 and the join arc 1->2 from the forward chain, then 2->3, 3->4, 4->5 in that order.
     EXPECT_EQ(recorded[0].arc_ids, (std::vector<size_t>{0, 1, 2, 3, 4}));
     EXPECT_EQ(recorded[0].end_node_id, 5U);
 }
@@ -545,15 +542,16 @@ TEST(LabelJoin, CostSortingEnablesTheEarlyExit) {
     auto* at_sink = harness.add_backward(3, nullptr, nullptr);
     ljt::JoinHarness::set_value(at_sink, 0.0);
 
-    // Deliberately inserted worst-first, so only sorting can produce a usable order.
+    // Both sides meet at node 2. Deliberately inserted worst-first, so only sorting can produce a
+    // usable order.
     for (size_t i = 0; i < kLabelsPerSide; ++i) {
-        auto* forward = harness.add_forward(1, graph->get_arc(0), at_source);
+        auto* forward = harness.add_forward(2, graph->get_arc(1), at_source);
         ljt::JoinHarness::set_value(forward, static_cast<double>(kLabelsPerSide - i));
         auto* backward = harness.add_backward(2, graph->get_arc(2), at_sink);
         ljt::JoinHarness::set_value(backward, static_cast<double>(kLabelsPerSide - i));
     }
 
-    // Bound disabled so every pair is a candidate and only cost prunes.
+    // Bound disabled so every stored label is a boundary label and only cost prunes.
     HalfWayPolicy policy(0.0, 0.0);
     ASSERT_FALSE(policy.enabled());
     harness.run(policy, /*upper_bound=*/5.0);
@@ -565,19 +563,15 @@ TEST(LabelJoin, CostSortingEnablesTheEarlyExit) {
 
 /// @brief Reference counts stay consistent across a join pass.
 ///
-/// The joiner reads labels from both chains without releasing them and takes one pooled f' per
-/// forward label -- a prime spot for a release_label / release_with_ref_count mix-up.
+/// The joiner reads labels from both chains and allocates nothing of its own -- a prime spot for a
+/// release_label / release_with_ref_count mix-up if that ever changes.
 TEST(LabelJoin, RefCountsStayConsistent) {
     namespace ljt = label_join_test;
-    auto graph = ljt::line_graph({1.0, 1.0, 1.0, 1.0});
+    const std::vector<double> values{1.0, 1.0, 1.0, 1.0};
+    auto graph = ljt::line_graph(values);
     ljt::JoinHarness harness(graph.get());
 
-    Label<ljt::Composed>* previous = nullptr;
-    for (size_t node_id = 0; node_id <= 4; ++node_id) {
-        const Arc<ljt::Composed>* in_arc = node_id == 0 ? nullptr : graph->get_arc(node_id - 1);
-        previous = harness.add_forward(node_id, in_arc, previous);
-        ljt::JoinHarness::set_value(previous, static_cast<double>(node_id));
-    }
+    harness.add_forward_chain(*graph, /*num_arcs=*/4, values);
     Label<ljt::Composed>* backward_previous = nullptr;
     for (size_t step = 0; step <= 4; ++step) {
         const size_t node_id = 4 - step;
@@ -600,54 +594,42 @@ TEST(LabelJoin, RefCountsStayConsistent) {
 /// "Correct but slow" is the claim the disable path rests on, so it is the claim tested here: the
 /// disabled run must agree with the enabled one on both the arc sequence and the cost.
 ///
-/// Note what it does *not* produce: four duplicate solutions, one per candidate join arc. The
-/// crossing test is indeed skipped, but the first accepted join tightens best_cost_upper_bound to
-/// that path's cost, and every later join of the same path costs exactly the same and is rejected
-/// by `cost >= best`. So for equal-cost duplicates the bound already absorbs them before
-/// `Solution`'s hash ever sees them -- the crossing rule's value is avoiding the *work*, and it
-/// bites hardest when candidate paths differ in cost.
+/// Note what it does *not* produce: four duplicate solutions, one per candidate meeting node. The
+/// boundary predicate does degenerate to "has a predecessor", but the first accepted join tightens
+/// best_cost_upper_bound to that path's cost, and every later join of the same path costs exactly
+/// the same and is rejected by `cost >= best`. So for equal-cost duplicates the bound already
+/// absorbs them before `Solution`'s hash ever sees them -- the crossing rule's value is avoiding
+/// the *work*, and it bites hardest when candidate paths differ in cost.
 TEST(LabelJoin, DisabledBoundStillFindsThePath) {
     namespace ljt = label_join_test;
-    auto graph = ljt::line_graph({1.0, 1.0, 1.0, 1.0});
+    const std::vector<double> values{1.0, 1.0, 1.0, 1.0};
+    auto graph = ljt::line_graph(values);
+
+    auto build = [&](ljt::JoinHarness* harness) {
+        harness->add_forward_chain(*graph, /*num_arcs=*/4, values);
+        Label<ljt::Composed>* backward_previous = nullptr;
+        for (size_t step = 0; step <= 4; ++step) {
+            const size_t node_id = 4 - step;
+            const Arc<ljt::Composed>* out_arc = node_id == 4 ? nullptr : graph->get_arc(node_id);
+            backward_previous = harness->add_backward(node_id, out_arc, backward_previous);
+            ljt::JoinHarness::set_value(backward_previous, static_cast<double>(4 - node_id));
+        }
+    };
+
     ljt::JoinHarness harness(graph.get());
-
-    Label<ljt::Composed>* previous = nullptr;
-    for (size_t node_id = 0; node_id <= 4; ++node_id) {
-        const Arc<ljt::Composed>* in_arc = node_id == 0 ? nullptr : graph->get_arc(node_id - 1);
-        previous = harness.add_forward(node_id, in_arc, previous);
-        ljt::JoinHarness::set_value(previous, static_cast<double>(node_id));
-    }
-    Label<ljt::Composed>* backward_previous = nullptr;
-    for (size_t step = 0; step <= 4; ++step) {
-        const size_t node_id = 4 - step;
-        const Arc<ljt::Composed>* out_arc = node_id == 4 ? nullptr : graph->get_arc(node_id);
-        backward_previous = harness.add_backward(node_id, out_arc, backward_previous);
-        ljt::JoinHarness::set_value(backward_previous, static_cast<double>(4 - node_id));
-    }
-
+    build(&harness);
     HalfWayPolicy disabled(0.0, 0.0);
     ASSERT_FALSE(disabled.enabled());
     const auto recorded = harness.run(disabled);
 
     ASSERT_FALSE(recorded.empty()) << "disabling the bound must not lose the path";
+    EXPECT_EQ(recorded.size(), 1U) << "the incumbent cutoff must absorb the equal-cost duplicates";
     EXPECT_EQ(recorded.front().arc_ids, (std::vector<size_t>{0, 1, 2, 3}));
     EXPECT_EQ(recorded.front().end_node_id, 4U);
 
     // The same path, at the same cost, as the enabled run finds.
     ljt::JoinHarness enabled_harness(graph.get());
-    Label<ljt::Composed>* enabled_previous = nullptr;
-    for (size_t node_id = 0; node_id <= 4; ++node_id) {
-        const Arc<ljt::Composed>* in_arc = node_id == 0 ? nullptr : graph->get_arc(node_id - 1);
-        enabled_previous = enabled_harness.add_forward(node_id, in_arc, enabled_previous);
-        ljt::JoinHarness::set_value(enabled_previous, static_cast<double>(node_id));
-    }
-    Label<ljt::Composed>* enabled_backward = nullptr;
-    for (size_t step = 0; step <= 4; ++step) {
-        const size_t node_id = 4 - step;
-        const Arc<ljt::Composed>* out_arc = node_id == 4 ? nullptr : graph->get_arc(node_id);
-        enabled_backward = enabled_harness.add_backward(node_id, out_arc, enabled_backward);
-        ljt::JoinHarness::set_value(enabled_backward, static_cast<double>(4 - node_id));
-    }
+    build(&enabled_harness);
     const HalfWayPolicy enabled(2.5, 8.0);
     const auto enabled_recorded = enabled_harness.run(enabled);
 

@@ -937,15 +937,31 @@ TEST(Bidirectional, ReturnDominatedSolutionsIsHonoured) {
 /// on the full C201 instance and 9.3 GB on RC201 -- so the incumbent cutoff stays on there whatever
 /// the flag says. Both halves of that rule are asserted below.
 ///
-/// The two routes join on *different* arcs on purpose: routed through a shared node they would meet
-/// as two labels with identical resources, one would dominate the other, and the second solution
-/// would be gone before the join ever saw it -- for a reason that has nothing to do with the cutoff
-/// under test.
+/// Two things about the fixture are load-bearing, and both took a failing test to pin down.
+///
+/// **The routes meet the backward halves at different nodes.** Two tying halves have identical
+/// resources by construction, so if they met at one node the later one would be dominated there and
+/// the second solution would be gone before the join ever saw it -- for a reason that has nothing
+/// to do with the cutoff under test. The fixture used to route both through a shared sink, which
+/// only worked because the join of the day rebuilt the forward half across the arc and so never
+/// consulted the dominance filter at the meeting node.
+///
+/// **Neither search reaches the other's terminal.** The clock crosses `H` two arcs short of the
+/// sink and the capacity is tight enough that the backward search stops one arc short of the
+/// source, so every complete path here comes from the join. Without that, terminal collection
+/// supplies the solutions and the join's cutoff stops deciding the counts -- which is exactly how
+/// the two-sink version of this fixture passed the first two assertions and failed the third.
 TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
     namespace bt = bidirectional_test;
 
-    // 0 -> 1 -> 3 and 0 -> 2 -> 3, both costing 5, so the second exactly ties the incumbent.
-    // The clock crosses H = 8 on the arcs into the sink, so both complete paths reach the join.
+    // 0 -> 1 -> 3 -> 5 and 0 -> 2 -> 4 -> 5, both costing 5, so the second exactly ties the
+    // incumbent. Every arc consumes 6 of a clock capped at 18, with H = 8:
+    //
+    //   forward   0 (0)  1 (6)  2 (6)  extend;  3 (12)  4 (12) do not -- so 5 is never reached
+    //   backward  5 (18) 3 (12) 4 (12) extend;  1 (6)   2 (6)  do not -- so 0 is never reached
+    //
+    // The halves therefore meet at 3 and at 4, one route each, and nothing else can produce a
+    // complete path.
     const auto build = [] {
         auto graph = std::make_unique<ResourceGraph<RealResource>>();
         graph->add_resource<RealResource>(
@@ -956,18 +972,22 @@ TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
         graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
                                           std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
                                               0.0,
-                                              40.0,
+                                              18.0,
                                               /*merge_by_increasing_value=*/true),
                                           std::make_unique<TrivialCostFunction<RealResource>>(),
                                           std::make_unique<ValueDominanceFunction<RealResource>>());
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1);
         graph->add_node(2);
-        graph->add_node(3, /*source=*/false, /*sink=*/true);
+        graph->add_node(3);
+        graph->add_node(4);
+        graph->add_node(5, /*source=*/false, /*sink=*/true);
         graph->add_arc<RealResource, RealResource>({2.0, 6.0}, 0, 1, 2.0);
         graph->add_arc<RealResource, RealResource>({3.0, 6.0}, 0, 2, 3.0);
-        graph->add_arc<RealResource, RealResource>({3.0, 6.0}, 1, 3, 3.0);
-        graph->add_arc<RealResource, RealResource>({2.0, 6.0}, 2, 3, 2.0);
+        graph->add_arc<RealResource, RealResource>({2.0, 6.0}, 1, 3, 2.0);
+        graph->add_arc<RealResource, RealResource>({1.0, 6.0}, 2, 4, 1.0);
+        graph->add_arc<RealResource, RealResource>({1.0, 6.0}, 3, 5, 1.0);
+        graph->add_arc<RealResource, RealResource>({1.0, 6.0}, 4, 5, 1.0);
         return graph;
     };
 

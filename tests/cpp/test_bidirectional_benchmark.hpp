@@ -349,6 +349,91 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAcrossFamilies) {
     }
 }
 
+/// @brief The same comparison at 75 customers, halfway between the `_50` table and full size.
+///
+/// **Disabled by default**, like the table above, and run the same way. It exists because the
+/// `_50` rows nearly all finish in well under a second, which is too small for the label sets to
+/// reach the sizes where a bidirectional split earns anything; 75 customers is where the question
+/// gets interesting, and it is still small enough that both searches complete rather than being
+/// compared as two truncated runs.
+///
+/// **Nineteen instances across all six Solomon families**, ordered cheapest-first within that.
+/// `R101_75` was already in `instances/`; the rest were cut by the same prefix truncation that
+/// produced the `_25` and `_50` variants -- header, depot, customers 1 to 75 -- and all have
+/// identical shape, which is what makes that truncation checkable rather than asserted.
+///
+/// **Three instances were tried and dropped, for two different reasons, and both are worth
+/// recording.** `R202_75` does not finish: 6.8 million extended labels at 180 s, 16.4 million at
+/// 600 s, with the marginal rate falling from 38 000 to 23 000 labels a second as the per-node
+/// label sets grow -- and an hour per solve was not enough either. Its `_50` cousin needs 3.6
+/// million and 40 s, and the other families grow 2.8x to 4.9x from 50 to 75 customers, so R2 grows
+/// faster than that. `RC202_75` (986 s per solve) and `RC205_75` (330 s) fail the opposite test --
+/// they complete and they agree -- but between them they were 45 of a 48-minute table, buying two
+/// rows that say what the other nineteen already say. All three are one truncation away if they
+/// are ever wanted.
+///
+/// The budget is a runaway guard rather than a limit: nothing left needs more than about 30 s
+/// bidirectionally. A forward reference at this size can be much slower, and a row where it times
+/// out still reports both numbers -- the cost comparison is simply skipped, as above.
+TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAt75Customers) {
+    namespace bb = bidirectional_benchmark;
+
+    constexpr double kBudget = 300.0;
+    // Cheapest-first, so a long tail does not delay the rest of the table.
+    const std::vector<std::string> names{
+        // R1 -- short horizon, narrow windows.
+        "R101_75", "R102_75", "R105_75", "R103_75", "R107_75",
+        // C1 -- clustered, long horizon, narrow windows.
+        "C101_75", "C102_75", "C105_75", "C103_75",
+        // RC1 -- mixed geography, short horizon.
+        "RC101_75", "RC103_75", "RC105_75", "RC102_75",
+        // C2 -- the longest horizons in the set.
+        "C201_75", "C203_75", "C205_75", "C202_75",
+        // RC2.
+        "RC201_75",
+        // R2 -- long horizon, wide windows: the family that gains most, and the slowest.
+        "R201_75"};
+
+    std::cout << "[ BENCHMARK ] Solomon families at 75 customers, synthetic duals (alpha = "
+              << bb::kDualAlpha << "), " << kBudget << " s per solve" << std::endl;
+
+    size_t compared = 0;
+    for (const auto& name : names) {
+        SCOPED_TRACE(name);
+        const auto instance = bb::load(name);
+        const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
+        const auto duals = bb::synthetic_duals(instance, bb::kDualAlpha);
+
+        VRPSubproblem forward_subproblem(instance);
+        VRPSubproblem bidirectional_subproblem(instance);
+
+        const auto forward = bb::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                                   duals,
+                                                                   bb::forward_params(kBudget));
+        const auto bidirectional = bb::measure<BidirectionalAlgoBound<RealResource>::Algo>(
+            &bidirectional_subproblem,
+            duals,
+            bb::bidirectional_params(horizon, kBudget));
+
+        std::cout << "  " << name << " (horizon " << horizon << ")" << std::endl;
+        bb::report("    forward      ", forward);
+        bb::report("    bidirectional", bidirectional);
+        bb::report_ratio(forward, bidirectional);
+
+        // Compare answers only when both searches finished; a truncated run extends fewer labels
+        // and would otherwise read as a win.
+        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
+            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+            EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
+            ++compared;
+        }
+        EXPECT_TRUE(bidirectional.measurement.ref_counts_consistent) << name;
+    }
+
+    std::cout << "[ SUMMARY ] " << compared << " of " << names.size()
+              << " instances completed under both searches and agreed on the optimum" << std::endl;
+}
+
 /// @brief The full-size instances: what does each search reach in equal time?
 ///
 /// **Disabled by default**, for the same reason as the test above; run it with

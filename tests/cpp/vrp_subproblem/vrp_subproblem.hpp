@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <optional>
 
 #include "rcspp/rcspp.hpp"
@@ -117,15 +118,21 @@ class VRPSubproblem {
         // verify solve() reports the status the VRP column-generation loop relies on: COMPLETE when
         // the pricing search was exhaustive vs MEMORY_LIMIT / TIMEOUT / ... when it was cut short.
         // A wrong status would let CG mistake a cut-short solve for a proof of optimality.
+        // @param upper_bound Passed through to solve(). Defaults to infinity, which is what every
+        //        existing caller wants -- but an infinite bound also turns the joiner's incumbent
+        //        cutoff ON, and that makes the returned SET depend on the order pairs are visited.
+        //        A test comparing two algorithms' solution sets should pass a finite non-binding
+        //        bound instead, or it will be comparing visit order.
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
         SolveResult solve_result(const std::map<size_t, double>& dual_by_id,
-                                 AlgorithmBaseParams params = AlgorithmBaseParams()) {
+                                 AlgorithmBaseParams params = AlgorithmBaseParams(),
+                                 double upper_bound = std::numeric_limits<double>::infinity()) {
             if (graph_.get_number_of_nodes() == 0) {
                 construct_resource_graph(&graph_, &dual_by_id);
             } else {
                 update_resource_graph(&graph_, &dual_by_id);
             }
-            return graph_.solve<AlgorithmType>(std::move(params));
+            return graph_.solve<AlgorithmType>(std::move(params), upper_bound);
         }
 
     private:

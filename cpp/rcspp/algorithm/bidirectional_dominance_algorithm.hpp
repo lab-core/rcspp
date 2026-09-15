@@ -287,6 +287,29 @@ class BidirectionalDominanceAlgorithm
             const size_t node_pos = label_ptr->get_end_node()->pos();
             size_t& extended_count = extended_per_node->at(node_pos);
             if (extended_count >= this->effective_max_labels_per_node_) {
+                // KNOWN GAP, deliberately left open. A label abandoned here is still in its node's
+                // container but is never grown, so it never produces the past-`H` boundary label
+                // the join reads. The join therefore sees fewer forward halves than it would at an
+                // unbounded quota -- fewer columns, and possibly a worse incumbent.
+                //
+                // Only reachable in two already-inexact modes: `num_labels_to_extend_by_node` set
+                // by the caller (truncated labeling), and `on_memory_pressure` tightening the quota
+                // to `memory_pressure_max_labels_per_node`. At the default of `MAX_INT` this never
+                // fires. `could_be_non_optimal()` already reports the first; the second is a
+                // deliberate trade of answers for memory, and a smaller join is consistent with it.
+                //
+                // It also sits on top of a larger pre-existing gap rather than beside one: this
+                // algorithm's `number_of_labels()` is the two frontier sizes, and `main_loop` runs
+                // until both are empty, so the phase loop in `Algorithm::solve` always exits after
+                // one pass. Truncated labeling's second phase never runs here, and the labels
+                // skipped above are never revisited by any mechanism.
+                //
+                // The fix, if a measured case ever wants it: extend the label anyway when its clock
+                // is at or below `H`, keep only the results past `H`, and queue none of them. That
+                // restores exactly the join's input at the cost of one extension per out-arc, and
+                // it cannot regrow the frontier because nothing past `H` is ever extended. It is
+                // NOT applied today because nothing in the suite exercises truncated bidirectional,
+                // and because under memory pressure it spends the memory the quota exists to save.
                 return;
             }
             ++extended_count;
@@ -360,20 +383,23 @@ class BidirectionalDominanceAlgorithm
         }
 
         /// @brief Runs the join pass, feeding every accepted pair to `extract_solution`.
+        ///
+        /// The halves are paired at the node they meet on; see @c Joiner::join for what that
+        /// pairing does and does not consider.
         void run_join_pass() {
+            auto record = [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
+                ++joined_paths_;
+                this->extract_solution(cost, std::move(arc_ids), end_node_id);
+            };
             joiner_.join(*this->graph_,
                          this->non_dominated_labels_by_node_pos_,
                          backward_labels_by_node_pos_,
-                         this->label_pool_,
                          half_way_,
                          this->params_.critical_resource_index,
                          this->best_cost_upper_bound_,
                          this->params_.prune_based_on_upper_bound_,
                          this->cost_upper_bound_,
-                         [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
-                             ++joined_paths_;
-                             this->extract_solution(cost, std::move(arc_ids), end_node_id);
-                         });
+                         record);
         }
 
         /// @brief Records a complete path found by the backward search reaching a source.

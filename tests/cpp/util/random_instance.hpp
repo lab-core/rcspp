@@ -298,9 +298,23 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
 /// a dominance rule that discards something it should not -- still shows up here. Exponential, so
 /// the suite only calls it on the small, sparse end of the sweep.
 ///
-/// @param config The instance's config; the same draw is replayed.
+/// **A path ends at the first sink it reaches**, which is what `Node::sink` means and what every
+/// search in the library does since D5. This oracle used to walk *through* a sink and keep going,
+/// on the reasoning that a sink may have outgoing arcs to a further sink -- which was the older,
+/// more permissive model, and stopped being the one the algorithms solve. With one sink the two
+/// enumerations cannot differ (the sink is the highest-numbered node and has no out-arcs), which is
+/// why the discrepancy survived: it needs `num_sinks >= 2` *and* a reason to prefer the longer walk,
+/// i.e. `mixed_sign_costs`. `JoinOptimality.TheOracleEndsAPathAtItsFirstSink` is the case that
+/// shows the two apart.
+///
+/// @param config               The instance's config; the same draw is replayed.
+/// @param allow_interior_sinks Whether a walk may pass THROUGH a sink and continue. @c false --
+///                             the default, and the model the library solves. @c true keeps the
+///                             older enumeration, retained so the two can be compared and so the
+///                             difference cannot be quietly designed away.
 /// @return The optimal cost, or infinity when no feasible path exists.
-inline double brute_force_optimum(const InstanceConfig& config) {
+inline double brute_force_optimum(const InstanceConfig& config,
+                                  bool allow_interior_sinks = false) {
     const InstanceDraw draw = draw_instance(config);
     const std::set<size_t> sinks(draw.sinks.begin(), draw.sinks.end());
 
@@ -326,7 +340,10 @@ inline double brute_force_optimum(const InstanceConfig& config) {
 
         if (sinks.contains(state.node)) {
             best = std::min(best, state.cost);
-            // Not `continue`: a sink may still have outgoing arcs to a further sink.
+            if (!allow_interior_sinks) {
+                continue;  // a path ends at the first sink it reaches
+            }
+            // else: fall through -- a sink may still have outgoing arcs to a further sink
         }
         for (const auto* arc : out_arcs[state.node]) {
             // The time window extension waits for the opening time; every window here opens at 0,

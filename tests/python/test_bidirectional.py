@@ -165,7 +165,7 @@ def test_short_route_is_found():
 
 
 def test_params_are_settable():
-    """The two params round-trip through AlgorithmParams."""
+    """The two bidirectional params round-trip through AlgorithmParams."""
     p = AlgorithmParams()
     assert p.critical_resource_index == 0
     assert p.half_way_point == 0.0
