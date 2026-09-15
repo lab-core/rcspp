@@ -614,8 +614,11 @@ class BidirectionalDominanceAlgorithm
         void fill_bound(const Graph<ResourceType>& graph, const std::vector<size_t>& targets,
                         bool forward, std::vector<double>* out) {
             try {
-                auto distance = BellmanFordAlgorithm::solve<CostRC>(
-                    graph, targets, this->params_.heuristic_cost_index, forward);
+                auto distance =
+                    BellmanFordAlgorithm::solve<CostRC>(graph,
+                                                        targets,
+                                                        this->params_.heuristic_cost_index,
+                                                        forward);
                 for (size_t node_id : graph.get_node_ids()) {
                     const auto* node = graph.get_node(node_id);
                     auto it = distance.find(node_id);

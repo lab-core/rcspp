@@ -12,11 +12,11 @@
 // individually.
 //
 // The joiner pairs a forward **boundary label** -- one sitting at a node, past `H`, that got there
-// by being extended -- with a backward label at that same node. `CrossingRuleJoinsEachPathExactlyOnce`
-// is the acceptance test: forward halves at four nodes, a backward half at each, and only the one
-// node where the clock actually crosses `H` may produce a solution. It runs with the incumbent
-// cutoff OFF, because every split of one path costs the same and the cutoff would otherwise hide a
-// predicate that accepts all four.
+// by being extended -- with a backward label at that same node.
+// `CrossingRuleJoinsEachPathExactlyOnce` is the acceptance test: forward halves at four nodes, a
+// backward half at each, and only the one node where the clock actually crosses `H` may produce a
+// solution. It runs with the incumbent cutoff OFF, because every split of one path costs the same
+// and the cutoff would otherwise hide a predicate that accepts all four.
 
 #include <gtest/gtest.h>
 
@@ -286,10 +286,10 @@ TEST(LabelJoin, JoinArcCountedExactlyOnce) {
 /// here would mean the boundary predicate had lost its comparison against `H` and degenerated to
 /// "has a predecessor".
 ///
-/// **The incumbent cutoff is off** -- a finite bound, pruning not requested. Every split of the same
-/// path costs the same, so with the cutoff on the first accepted join would reject the other two on
-/// cost and the count would be 1 whatever the predicate did. That is a real property of the joiner,
-/// asserted in `DisabledBoundStillFindsThePath`; here it would make the test vacuous.
+/// **The incumbent cutoff is off** -- a finite bound, pruning not requested. Every split of the
+/// same path costs the same, so with the cutoff on the first accepted join would reject the other
+/// two on cost and the count would be 1 whatever the predicate did. That is a real property of the
+/// joiner, asserted in `DisabledBoundStillFindsThePath`; here it would make the test vacuous.
 TEST(LabelJoin, CrossingRuleJoinsEachPathExactlyOnce) {
     namespace ljt = label_join_test;
     // Clock: 0, 1, 2, 3, 4 at nodes 0..4. With H = 2.5 the crossing node is 3.

@@ -393,8 +393,10 @@ TEST(BidirectionalValidation, BucketedBackwardContainerMatchesTheList) {
 
     // {deadline, cost}. The first three are mutually non-dominated backwards (a later deadline
     // costs more); the fourth is beaten on both by {70, 3} and must be removed by both containers.
-    const std::vector<std::pair<double, double>> values{
-        {90.0, 5.0}, {70.0, 3.0}, {50.0, 1.0}, {60.0, 4.0}};
+    const std::vector<std::pair<double, double>> values{{90.0, 5.0},
+                                                        {70.0, 3.0},
+                                                        {50.0, 1.0},
+                                                        {60.0, 4.0}};
 
     const auto compare = [&](size_t bucket_index, size_t sort_index, const char* what) {
         using Buckets = LabelBuckets<RealResource, RealResource, bv::Composed, BackwardDirection>;

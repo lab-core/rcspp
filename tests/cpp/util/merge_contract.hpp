@@ -48,10 +48,10 @@ namespace test_util {
 /// @tparam Composed The graph's resource composition.
 template <typename Composed>
 struct MergeHalf {
-        size_t node = 0;                                        ///< where the half ends (forward)
-                                                                ///< or starts (backward)
-        std::vector<size_t> arc_ids;                            ///< in path order, both directions
-        std::unique_ptr<rcspp::Resource<Composed>> resource;    ///< the state at @ref node
+        size_t node = 0;                                      ///< where the half ends (forward)
+                                                              ///< or starts (backward)
+        std::vector<size_t> arc_ids;                          ///< in path order, both directions
+        std::unique_ptr<rcspp::Resource<Composed>> resource;  ///< the state at @ref node
 };
 
 /// @brief What @ref merge_contract_violation found.
@@ -96,8 +96,7 @@ namespace detail {
 
 /// @brief Depth-first enumeration of forward-feasible prefixes.
 template <typename Composed>
-inline void collect_forward(const rcspp::Graph<Composed>& graph,
-                            const rcspp::Node<Composed>* node,
+inline void collect_forward(const rcspp::Graph<Composed>& graph, const rcspp::Node<Composed>* node,
                             const rcspp::Resource<Composed>& here, size_t remaining_depth,
                             size_t max_per_node, std::vector<size_t>* arcs,
                             std::map<size_t, size_t>* per_node,
@@ -108,9 +107,7 @@ inline void collect_forward(const rcspp::Graph<Composed>& graph,
         size_t& taken = (*per_node)[node->id];
         if (taken < max_per_node) {
             ++taken;
-            out->push_back({node->id,
-                            *arcs,
-                            std::make_unique<rcspp::Resource<Composed>>(here)});
+            out->push_back({node->id, *arcs, std::make_unique<rcspp::Resource<Composed>>(here)});
         }
     }
     if (remaining_depth == 0 || node->sink) {
@@ -127,8 +124,14 @@ inline void collect_forward(const rcspp::Graph<Composed>& graph,
             continue;
         }
         arcs->push_back(arc->id);
-        collect_forward(graph, arc->destination, next, remaining_depth - 1, max_per_node, arcs,
-                        per_node, out);
+        collect_forward(graph,
+                        arc->destination,
+                        next,
+                        remaining_depth - 1,
+                        max_per_node,
+                        arcs,
+                        per_node,
+                        out);
         arcs->pop_back();
     }
 }
@@ -138,8 +141,7 @@ inline void collect_forward(const rcspp::Graph<Composed>& graph,
 /// The arc list is built by prepending, so it comes out in forward order -- the same asymmetry
 /// `Joiner::merged_path` relies on.
 template <typename Composed>
-inline void collect_backward(const rcspp::Graph<Composed>& graph,
-                             const rcspp::Node<Composed>* node,
+inline void collect_backward(const rcspp::Graph<Composed>& graph, const rcspp::Node<Composed>* node,
                              const rcspp::Resource<Composed>& here, size_t remaining_depth,
                              size_t max_per_node, std::vector<size_t>* arcs,
                              std::map<size_t, size_t>* per_node,
@@ -149,9 +151,7 @@ inline void collect_backward(const rcspp::Graph<Composed>& graph,
         size_t& taken = (*per_node)[node->id];
         if (taken < max_per_node) {
             ++taken;
-            out->push_back({node->id,
-                            *arcs,
-                            std::make_unique<rcspp::Resource<Composed>>(here)});
+            out->push_back({node->id, *arcs, std::make_unique<rcspp::Resource<Composed>>(here)});
         }
     }
     if (remaining_depth == 0 || node->source) {
@@ -168,8 +168,14 @@ inline void collect_backward(const rcspp::Graph<Composed>& graph,
             continue;
         }
         arcs->insert(arcs->begin(), arc->id);
-        collect_backward(graph, arc->origin, next, remaining_depth - 1, max_per_node, arcs,
-                         per_node, out);
+        collect_backward(graph,
+                         arc->origin,
+                         next,
+                         remaining_depth - 1,
+                         max_per_node,
+                         arcs,
+                         per_node,
+                         out);
         arcs->erase(arcs->begin());
     }
 }
@@ -197,7 +203,13 @@ template <typename Composed>
         // A forward label starts at the type default -- nothing consumed -- which is what a copy
         // of the node's resource carries.
         const rcspp::Resource<Composed> seed(*source->resource);
-        detail::collect_forward(graph, source, seed, max_depth, max_per_node, &arcs, &per_node,
+        detail::collect_forward(graph,
+                                source,
+                                seed,
+                                max_depth,
+                                max_per_node,
+                                &arcs,
+                                &per_node,
                                 &halves);
     }
     return halves;
@@ -216,7 +228,13 @@ template <typename Composed>
         // A backward label at a sink starts at that sink's own upper bound, not at zero.
         rcspp::Resource<Composed> seed(*sink->resource);
         seed.apply_back_seed();
-        detail::collect_backward(graph, sink, seed, max_depth, max_per_node, &arcs, &per_node,
+        detail::collect_backward(graph,
+                                 sink,
+                                 seed,
+                                 max_depth,
+                                 max_per_node,
+                                 &arcs,
+                                 &per_node,
                                  &halves);
     }
     return halves;
@@ -241,8 +259,9 @@ template <typename Composed>
 /// @param max_per_node How many halves to keep per node, so a dense graph stays finite.
 /// @return The first violation found, plus how much was actually checked.
 template <typename Composed>
-[[nodiscard]] inline MergeContractReport merge_contract_violation(
-    rcspp::Graph<Composed>& graph, size_t max_depth = 4, size_t max_per_node = 20) {
+[[nodiscard]] inline MergeContractReport merge_contract_violation(rcspp::Graph<Composed>& graph,
+                                                                  size_t max_depth = 4,
+                                                                  size_t max_per_node = 20) {
     MergeContractReport report;
     // The arc spans below come from the CSR, which is built by solve(); this checker never solves.
     graph.build_csr();

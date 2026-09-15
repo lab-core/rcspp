@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/half_way_policy.hpp"
@@ -231,9 +232,8 @@ class Joiner {
                 }
                 assert(!label->get_in_arc()->origin->sink &&
                        "the forward search must never extend out of a sink");
-                if (half_way.enabled() &&
-                    critical_value(label->get_resource(), critical_resource_index) <=
-                        half_way.h()) {
+                if (half_way.enabled() && critical_value(label->get_resource(),
+                                                         critical_resource_index) <= half_way.h()) {
                     continue;
                 }
                 labels.push_back(label);
@@ -258,7 +258,7 @@ class Joiner {
         [[nodiscard]] static std::vector<Label<ResourceType>*> sorted_by_cost(
             const Container& container) {
             std::vector<Label<ResourceType>*> labels(container.get_labels().begin(),
-                                                      container.get_labels().end());
+                                                     container.get_labels().end());
             std::ranges::sort(labels, [](const auto* lhs, const auto* rhs) {
                 return lhs->get_cost() < rhs->get_cost();
             });

@@ -382,13 +382,26 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAt75Customers) {
     // Cheapest-first, so a long tail does not delay the rest of the table.
     const std::vector<std::string> names{
         // R1 -- short horizon, narrow windows.
-        "R101_75", "R102_75", "R105_75", "R103_75", "R107_75",
+        "R101_75",
+        "R102_75",
+        "R105_75",
+        "R103_75",
+        "R107_75",
         // C1 -- clustered, long horizon, narrow windows.
-        "C101_75", "C102_75", "C105_75", "C103_75",
+        "C101_75",
+        "C102_75",
+        "C105_75",
+        "C103_75",
         // RC1 -- mixed geography, short horizon.
-        "RC101_75", "RC103_75", "RC105_75", "RC102_75",
+        "RC101_75",
+        "RC103_75",
+        "RC105_75",
+        "RC102_75",
         // C2 -- the longest horizons in the set.
-        "C201_75", "C203_75", "C205_75", "C202_75",
+        "C201_75",
+        "C203_75",
+        "C205_75",
+        "C202_75",
         // RC2.
         "RC201_75",
         // R2 -- long horizon, wide windows: the family that gains most, and the slowest.

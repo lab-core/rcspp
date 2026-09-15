@@ -170,9 +170,15 @@ TEST(MergeContract, AnNgModelIsRefusedRatherThanJoinedUnderADisjointnessRule) {
     graph->add_node(1);
     graph->add_node(2, /*source=*/false, /*sink=*/true);
     graph->add_arc<RealResource, SizeTBitsetResource>(
-        std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{})), 0, 1, 1.0);
+        std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{})),
+        0,
+        1,
+        1.0);
     graph->add_arc<RealResource, SizeTBitsetResource>(
-        std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{})), 1, 2, 1.0);
+        std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{})),
+        1,
+        2,
+        1.0);
 
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource, SizeTBitsetResource>>> params;
     params.critical_resource_index = 0;

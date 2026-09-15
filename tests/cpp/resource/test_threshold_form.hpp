@@ -99,7 +99,8 @@ TEST(ThresholdForm, SatisfiesTheBiconditionalGenerically) {
     auto fn = proto.create(fixture.arc);
 
     test_util::check_backward_contract<ExtensionFunction<RealResource>, RealResource, double>(
-        *fn, RealResource(7.0),
+        *fn,
+        RealResource(7.0),
         /*samples=*/{0.0, 1.0, 17.0, 100.0},
         /*thetas=*/{0.0, 20.0, 60.0, 200.0});
 }

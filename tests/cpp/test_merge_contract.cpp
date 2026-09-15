@@ -8,6 +8,6 @@
 // two-slot `<RealResource, SizeTBitsetResource>` pack that nothing else in the suite needs, which
 // instantiates the header-only engine a second time.
 
-#include <gtest/gtest.h>
-
 #include "test_merge_contract.hpp"
+
+#include <gtest/gtest.h>

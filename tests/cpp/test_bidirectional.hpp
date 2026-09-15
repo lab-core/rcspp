@@ -860,7 +860,6 @@ TEST(Bidirectional, NoReturnedPathHasATerminalInItsInterior) {
     }
 }
 
-
 /// @brief A forward path does not re-enter a source either.
 ///
 /// The mirror of `NoReturnedPathHasATerminalInItsInterior`. A walk that returns to the depot and

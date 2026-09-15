@@ -303,9 +303,9 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
 /// on the reasoning that a sink may have outgoing arcs to a further sink -- which was the older,
 /// more permissive model, and stopped being the one the algorithms solve. With one sink the two
 /// enumerations cannot differ (the sink is the highest-numbered node and has no out-arcs), which is
-/// why the discrepancy survived: it needs `num_sinks >= 2` *and* a reason to prefer the longer walk,
-/// i.e. `mixed_sign_costs`. `JoinOptimality.TheOracleEndsAPathAtItsFirstSink` is the case that
-/// shows the two apart.
+/// why the discrepancy survived: it needs `num_sinks >= 2` *and* a reason to prefer the longer
+/// walk, i.e. `mixed_sign_costs`. `JoinOptimality.TheOracleEndsAPathAtItsFirstSink` is the case
+/// that shows the two apart.
 ///
 /// @param config               The instance's config; the same draw is replayed.
 /// @param allow_interior_sinks Whether a walk may pass THROUGH a sink and continue. @c false --
@@ -313,8 +313,7 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
 ///                             older enumeration, retained so the two can be compared and so the
 ///                             difference cannot be quietly designed away.
 /// @return The optimal cost, or infinity when no feasible path exists.
-inline double brute_force_optimum(const InstanceConfig& config,
-                                  bool allow_interior_sinks = false) {
+inline double brute_force_optimum(const InstanceConfig& config, bool allow_interior_sinks = false) {
     const InstanceDraw draw = draw_instance(config);
     const std::set<size_t> sinks(draw.sinks.begin(), draw.sinks.end());
 

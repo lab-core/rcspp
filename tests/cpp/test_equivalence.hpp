@@ -31,10 +31,11 @@
 // defect. `SolutionSetsAgreeOnTheOptimumNotOnEveryPath` pins the weaker property that does hold.
 
 // The sweep runs TWICE: once at `upper_bound = +infinity`, and once with a finite bound. Everything
-// bidirectional in this repository used to run only the first way, and `prune_based_on_upper_bound_`
-// appeared in none of it -- which is where all three of the review's upper-bound findings lived. The
-// library's headline use is column generation, which always passes a finite and usually negative
-// bound, so the bounded half is the one that matches how it is actually called.
+// bidirectional in this repository used to run only the first way, and
+// `prune_based_on_upper_bound_` appeared in none of it -- which is where all three of the review's
+// upper-bound findings lived. The library's headline use is column generation, which always passes
+// a finite and usually negative bound, so the bounded half is the one that matches how it is
+// actually called.
 
 #include <gtest/gtest.h>
 

@@ -54,9 +54,9 @@ class IntersectionFeasibilityFunction
             // disjointness merge test asks whether the two halves share any node at all, so a
             // per-node answer at the merge node would miss an overlap on a node that is forbidden
             // somewhere else. See merge_rule().
-            constrains_something_ =
-                std::ranges::any_of(*values_by_node_id_,
-                                    [](const auto& entry) { return !entry.second.empty(); });
+            constrains_something_ = std::ranges::any_of(*values_by_node_id_, [](const auto& entry) {
+                return !entry.second.empty();
+            });
         }
 
         /// @brief Checks whether the resource satisfies the intersection constraint at the

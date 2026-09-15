@@ -297,10 +297,9 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         ///
         /// @return @c true when at least one component declares it.
         [[nodiscard]] auto merge_refusal_may_be_conservative() const -> bool {
-            return !this->for_each_component_and(
-                [](const auto& component) {
-                    return !component.merge_refusal_may_be_conservative();
-                });
+            return !this->for_each_component_and([](const auto& component) {
+                return !component.merge_refusal_may_be_conservative();
+            });
         }
 
         /// @brief Returns `true` if this (forward) resource can be merged with @p back_resource.

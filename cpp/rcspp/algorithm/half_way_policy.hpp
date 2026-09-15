@@ -181,8 +181,7 @@ template <typename CriticalRC, typename... ResourceTypes>
 ///         which mean the caller should disable the bound.
 template <typename CriticalRC, typename... ResourceTypes>
 [[nodiscard]] bool critical_resource_dominance_is_increasing(
-    const Graph<ResourceTypeComposition<ResourceTypes...>>& graph,
-    size_t critical_resource_index) {
+    const Graph<ResourceTypeComposition<ResourceTypes...>>& graph, size_t critical_resource_index) {
     if constexpr (ComponentTypeIndex<CriticalRC, ResourceTypes...>::value == -1) {
         return false;
     } else {
