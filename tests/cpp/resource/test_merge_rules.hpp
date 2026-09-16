@@ -224,13 +224,30 @@ TEST(MergeRules, AnIntersectionFunctionThatForbidsNothingIsAlwaysTrue) {
     IntersectionFeasibilityFunction<R> forbidding({{0, {}}, {1, {1}}}, /*forbidden=*/true);
     EXPECT_EQ(forbidding.merge_rule(), MergeRule::Custom);
 
-    // Required values were already AlwaysTrue and stay so.
+    // Required values that require something refuse instead -- see
+    // RequiredIntersectionIsRefusedRatherThanMerged. Inertness is checked in BOTH directions, so
+    // a required-values function that requires nothing anywhere is still AlwaysTrue.
     IntersectionFeasibilityFunction<R> required({{1, {1}}}, /*forbidden=*/false);
-    EXPECT_EQ(required.merge_rule(), MergeRule::AlwaysTrue);
+    EXPECT_EQ(required.merge_rule(), MergeRule::Unspecified);
+
+    IntersectionFeasibilityFunction<R> inert_required({{0, {}}}, /*forbidden=*/false);
+    EXPECT_EQ(inert_required.merge_rule(), MergeRule::AlwaysTrue);
 }
 
-/// @brief Required (not forbidden) values merge freely: it is a whole-path property.
-TEST(MergeRules, RequiredIntersectionIsAlwaysTrue) {
+/// @brief Required (not forbidden) values refuse the join rather than merging freely.
+///
+/// This test used to be `RequiredIntersectionIsAlwaysTrue` and asserted the opposite: that two
+/// overlapping halves merge, "the asymmetry with the forbidden case". The merge half of that is
+/// still true -- nothing two halves do by being combined can break a requirement -- but it was
+/// the wrong question. `is_feasible` here asks whether the set collected SO FAR contains a
+/// required value, which is a predicate on a prefix, and `is_back_feasible` applies it unchanged
+/// to a backward label's suffix. The backward half is discarded before the join, so the pair the
+/// old test built never reaches the merge rule in a real solve.
+///
+/// So the rule declares Unspecified and `Resource::can_be_merged` throws, which is what a
+/// bidirectional solve turns into a setup refusal naming the component. See
+/// `IntersectionFeasibilityFunction::merge_rule`.
+TEST(MergeRules, RequiredIntersectionIsRefusedRatherThanMerged) {
     std::map<size_t, std::set<int>> required{{0, {1, 2, 3}}};
 
     auto forward = merge_rules_test::make_resource<SetResource<int>>(
@@ -244,8 +261,11 @@ TEST(MergeRules, RequiredIntersectionIsAlwaysTrue) {
                                                                             /*forbidden=*/false),
         std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
 
-    // Overlapping, and accepted anyway -- the asymmetry with the forbidden case.
-    EXPECT_TRUE(forward->can_be_merged(*backward));
+    // The rule is undeclared, so the dispatch throws rather than guessing.
+    EXPECT_EQ(forward->merge_rule(), MergeRule::Unspecified);
+    EXPECT_THROW(
+        { [[maybe_unused]] const bool merged = forward->can_be_merged(*backward); },
+        std::runtime_error);
 }
 
 /// @brief Custom: SizeFeasibilityFunction counts |f u b| against the cap, not |f| + |b|.
@@ -312,8 +332,8 @@ TEST(MergeRules, UnspecifiedThrows) {
 // harder to reason about than the thing it checks. This comment is the honest record.
 //
 // `DisjointRejectsSharedElements` below still covers the disjointness body, now reached through
-// `Custom`, and `RequiredIntersectionIsAlwaysTrue` is what proves the free short-circuit for
-// required values survived.
+// `Custom`, and `RequiredIntersectionIsRefusedRatherThanMerged` covers the required-values arm --
+// which no longer short-circuits to true, for the reason that test now gives.
 
 // ============================================================================
 // Composition
@@ -380,12 +400,21 @@ TEST(MergeRules, EveryConcreteFunctionDeclaresARule) {
     // to say "call my own body" rather than naming a test a third party must interpret.
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.merge_rule()),
               MergeRule::Custom);
+    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U}.merge_rule()), MergeRule::Custom);
+
+    // Two functions deliberately declare Unspecified, which is a refusal rather than an omission
+    // -- the test name's "other than Unspecified" does not extend to them, and each says why in
+    // its own merge_rule() doc. Both are about is_feasible / is_reachable asking a PREFIX question
+    // that a backward label's suffix cannot answer, not about the merge.
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, false}.merge_rule()),
-              MergeRule::AlwaysTrue);
+              MergeRule::Unspecified);
     EXPECT_EQ((ReachableFeasibilityFunction<SetResource<int>>{merge_rules_test::make_set({1, 2})}
                    .merge_rule()),
-              MergeRule::AlwaysTrue);
-    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U}.merge_rule()), MergeRule::Custom);
+              MergeRule::Unspecified);
+
+    // A non-zero size floor is the third: the cap is suffix-safe, the floor is not.
+    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{2U, 4U}.merge_rule()),
+              MergeRule::Unspecified);
 }
 
 // ============================================================================

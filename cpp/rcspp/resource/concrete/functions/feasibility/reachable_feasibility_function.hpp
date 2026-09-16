@@ -48,15 +48,32 @@ class ReachableFeasibilityFunction
             return true;
         }
 
-        /// @brief Merging is genuinely unconstrained here.
+        /// @brief @c Unspecified: this class has no backward semantics, so a bidirectional solve
+        ///        refuses to start on it.
         ///
-        /// @c is_feasible() is unconditionally true; all the real work is in @c is_reachable(),
-        /// which is a look-ahead test on a *single* label. There is no pairwise condition two
-        /// halves can violate by being combined, so this is @c AlwaysTrue rather than an
-        /// oversight.
+        /// **Merging really is unconstrained here** -- `is_feasible()` is unconditionally true and
+        /// there is no pairwise condition two halves can violate by being combined -- so on the
+        /// merge question alone the answer would be @c AlwaysTrue, as it used to be. The refusal is
+        /// not about the merge. It is about @ref is_reachable, and @c merge_rule() is the only
+        /// declaration @c BidirectionalDominanceAlgorithm::validate_backward_semantics reads from a
+        /// feasibility function, so it is where "this resource has no backward form" has to be
+        /// said.
         ///
-        /// @return @c MergeRule::AlwaysTrue.
-        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::AlwaysTrue; }
+        /// What is wrong: @ref is_reachable asks whether the label's set **already contains** the
+        /// node in question, i.e. whether the path SO FAR has visited it. That is a predicate on a
+        /// prefix. The labelling loop applies it in both directions --
+        /// `ForwardDirection::guard_node_id` hands it the arc's destination, `BackwardDirection`
+        /// the arc's origin -- so going backward a suffix is asked a prefix question, and a
+        /// required node supplied by the forward half rejects the backward label before the join
+        /// ever sees it.
+        ///
+        /// Fixing it needs a backward form of the predicate, not a different merge rule: the
+        /// backward label would have to carry "which required nodes are still outstanding" rather
+        /// than "which have been seen". Until it does, refusing at setup beats losing paths and
+        /// reporting COMPLETE. Forward-only use is unaffected and unchanged.
+        ///
+        /// @return @c MergeRule::Unspecified.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Unspecified; }
 
         /// @brief Checks that a required destination node is reachable from the current label.
         ///

@@ -43,9 +43,18 @@ struct ForwardDirection {
 
         /// @brief The node id the reachability look-ahead is asked about.
         ///
-        /// @c is_reachable is direction-neutral -- a predicate on an id, with no directional
-        /// assumption -- so the whole difference between the two directions is which endpoint's id
-        /// is passed. There is deliberately no @c is_back_reachable.
+        /// The whole difference between the two directions is which endpoint's id is passed:
+        /// forward asks about the arc's destination, backward about its origin. There is
+        /// deliberately no @c is_back_reachable.
+        ///
+        /// **That is a constraint on implementers, not a property of the hook.** It holds only for
+        /// an @c is_reachable that is genuinely a predicate on an id -- "could a path through this
+        /// node still work out". An implementation that instead asks *what this label has already
+        /// collected* is a predicate on a **prefix**, and handing it a backward label's suffix asks
+        /// the wrong question. @c ReachableFeasibilityFunction is exactly that, which is why it
+        /// declares @c MergeRule::Unspecified and a bidirectional solve refuses on it; see the note
+        /// there. A new @c is_reachable that reads the label's own set has to do the same until it
+        /// grows a backward form.
         template <typename ResourceType>
         static auto guard_node_id(const Arc<ResourceType>& arc) -> size_t {
             return arc.destination->id;

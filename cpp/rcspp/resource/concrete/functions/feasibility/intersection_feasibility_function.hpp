@@ -83,9 +83,35 @@ class IntersectionFeasibilityFunction
         /// merged path visits it twice -- so the disjointness body inherited from
         /// @c DisjointMergeForm applies, and the rule is @c Custom.
         ///
-        /// **Required** values: "did the path collect everything" is a property of the *whole*
-        /// path, already enforced at the endpoints, and two halves cannot violate it by being
-        /// combined -> @c AlwaysTrue, a free short-circuit rather than a call that returns true.
+        /// **Required** values: @c Unspecified, so a bidirectional solve refuses to start.
+        ///
+        /// This used to answer @c AlwaysTrue on the reasoning that "did the path collect
+        /// everything" is a property of the *whole* path, already enforced at the endpoints, and
+        /// that two halves cannot violate it by being combined. The second half of that is true.
+        /// The first is not, and the merge rule is the wrong place to look:
+        ///
+        /// `is_feasible` here is `resource.intersects(values_)`, i.e. **the set collected SO FAR
+        /// must already contain one of this node's required values**. That is a predicate on a
+        /// *prefix*. A backward label's set is a *suffix*, and `is_back_feasible` is inherited
+        /// from @c FeasibilityFunction, so it applies the prefix predicate to it. A required value
+        /// that the forward half collects before the meeting node therefore rejects the backward
+        /// half outright -- the pair never reaches the join, and the merge rule, whatever it says,
+        /// is never consulted about it. The path is lost and the solve reports COMPLETE.
+        ///
+        /// Relaxing @c is_back_feasible to @c true instead would be worse, not better: the
+        /// backward half would become legal and nothing would then check the requirement on the
+        /// joined path at all, because @c AlwaysTrue means the joiner never asks. That trades a
+        /// lost path for a wrong one.
+        ///
+        /// There is a real backward form for this constraint -- a backward label would have to
+        /// carry "which required values are still outstanding", counting down the way a threshold
+        /// resource does -- but that is a different representation, not a different rule, and it
+        /// is not what this class stores. Until it does, refusing at setup is the honest answer.
+        ///
+        /// **Nothing required anywhere** is still @c AlwaysTrue: a function that constrains
+        /// nothing must constrain the join no more than it constrains an extension. The check is
+        /// @ref constrains_something_ in both directions, so an inert function is inert whichever
+        /// way it points.
         ///
         /// The asymmetry is not obvious from the class name, which is why it is spelled out here.
         ///
@@ -103,11 +129,13 @@ class IntersectionFeasibilityFunction
         /// a worse answer than the unbounded one, which is exactly what it did (review finding D6:
         /// -51.95 against -80.02 on a cyclic instance, reported `complete`).
         ///
-        /// @return @c MergeRule::Custom when values are forbidden somewhere, @c AlwaysTrue
-        ///         otherwise.
+        /// @return @c AlwaysTrue when nothing is constrained anywhere, @c Custom when values are
+        ///         forbidden, and @c Unspecified when they are required.
         [[nodiscard]] MergeRule merge_rule() const override {
-            return (forbidden_ && constrains_something_) ? MergeRule::Custom
-                                                         : MergeRule::AlwaysTrue;
+            if (!constrains_something_) {
+                return MergeRule::AlwaysTrue;
+            }
+            return forbidden_ ? MergeRule::Custom : MergeRule::Unspecified;
         }
 
     private:

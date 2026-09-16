@@ -49,7 +49,7 @@ class SizeFeasibilityFunction
               default_max_size_(default_max_size),
               min_size_(default_min_size),
               max_size_(default_max_size) {
-            cache_tightest_max_size();
+            cache_merge_bounds();
         }
 
         /// @brief Constructs the function from a per-node size map with optional global
@@ -73,7 +73,7 @@ class SizeFeasibilityFunction
               default_max_size_(default_max_size),
               min_size_(default_min_size),
               max_size_(default_max_size) {
-            cache_tightest_max_size();
+            cache_merge_bounds();
         }
 
         /// @brief Checks that the resource's size lies within the active [min_size_, max_size_]
@@ -126,13 +126,31 @@ class SizeFeasibilityFunction
         }
 
         /// @brief A container's *cardinality* cannot be stored as a threshold on the backward
-        ///        label, so this is the only rule that needs its own body.
+        ///        label, so this is the only rule that needs its own body -- and only the UPPER
+        ///        bound has one.
         ///
         /// The backward label holds its own half's elements rather than a complemented count, so
         /// there is nothing for @c DominanceOrder to compare -- hence a body of its own.
         ///
-        /// @return @c MergeRule::Custom.
-        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Custom; }
+        /// **@c Unspecified when a lower bound is configured anywhere**, so a bidirectional solve
+        /// refuses to start rather than losing paths. @ref can_be_merged already says it cannot
+        /// check the lower bound, because the merged path only grows from the join. What that note
+        /// does not say is that the lower bound is not merely *unchecked* at the join -- it is
+        /// actively checked in the wrong place. `is_feasible` tests `size >= min_size_`, and
+        /// `is_back_feasible` is inherited from @c FeasibilityFunction, so a backward label is
+        /// asked whether the *suffix alone* already has enough elements. A prefix that satisfies
+        /// the minimum cannot rescue it: the backward half is discarded before the join, and the
+        /// route is gone while the solve reports COMPLETE.
+        ///
+        /// The two halves need opposite treatment -- the cap is suffix-safe, the floor is a
+        /// whole-path property -- and a single `is_back_feasible` cannot give them that while the
+        /// backward label stores a plain element set. So the pairing is refused instead. With the
+        /// default `min_size` of 0, which is every use in this repository, nothing changes.
+        ///
+        /// @return @c MergeRule::Unspecified when any lower bound is non-zero, @c Custom otherwise.
+        [[nodiscard]] MergeRule merge_rule() const override {
+            return has_lower_bound_ ? MergeRule::Unspecified : MergeRule::Custom;
+        }
 
         /// @brief Only with per-node caps, and then only because the tightest one is used.
         ///
@@ -163,14 +181,25 @@ class SizeFeasibilityFunction
         /// when no per-node overrides are given, which is the case the test is exact for.
         size_t tightest_max_size_ = 0;
 
-        /// @brief Computes @ref tightest_max_size_ from the defaults and any per-node overrides.
-        void cache_tightest_max_size() {
+        /// @brief Whether any node's window has a non-zero floor. See @ref merge_rule.
+        ///
+        /// Whole-function rather than per node, for the same reason @ref tightest_max_size_ is: the
+        /// question the merge rule answers is about the model, and `merge_rule()` is cached per
+        /// node resource at bind time, so a per-node answer would make one model's components
+        /// disagree about their own rule.
+        bool has_lower_bound_ = false;
+
+        /// @brief Computes @ref tightest_max_size_ and @ref has_lower_bound_ from the defaults and
+        ///        any per-node overrides.
+        void cache_merge_bounds() {
             tightest_max_size_ = default_max_size_;
+            has_lower_bound_ = default_min_size_ > 0;
             if (min_max_size_by_node_id_ == nullptr) {
                 return;
             }
             for (const auto& [node_id, bounds] : *min_max_size_by_node_id_) {
                 tightest_max_size_ = std::min(tightest_max_size_, bounds.second);
+                has_lower_bound_ = has_lower_bound_ || bounds.first > 0;
             }
         }
 

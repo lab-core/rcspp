@@ -20,6 +20,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -426,6 +427,81 @@ TEST(Bidirectional, AccumulateWithBackSeedIsRefused) {
         EXPECT_NE(message.find("BudgetExtensionFunction"), std::string::npos)
             << "the error should name the coherent alternative: " << message;
     }
+}
+
+/// @brief A container whose feasibility test is a PREFIX question is refused, not solved.
+///
+/// Three feasibility functions ask "what has this label collected so far", which a backward
+/// label's suffix cannot answer, and `is_back_feasible` is inherited so it applies the prefix
+/// question to it unchanged. The backward half is then discarded before the join and the route is
+/// lost while the solve reports COMPLETE -- the failure mode the setup refusal exists to prevent.
+///
+/// Each declares `MergeRule::Unspecified` for that reason, and this asserts the consequence end to
+/// end on a real model rather than only the declared value, which `MergeRules` covers. The
+/// forbidden-values sibling of the first case still solves, which is what makes the refusal
+/// specific rather than "containers are refused".
+TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
+    namespace bt = bidirectional_test;
+
+    // Built fresh per case: a graph cannot have a component replaced. The value set is a
+    // parameter because the two cases need opposite ones to stay non-degenerate -- the arc
+    // carries {0}, so a REQUIRED {0} is satisfied by the path while a FORBIDDEN {0} would make
+    // node 1 infeasible, the preprocessor would delete the only arc, and
+    // validate_backward_semantics would early-return on a graph with no extender to read. That is
+    // what the first version of this test did, and it failed for that reason rather than the one
+    // it is about.
+    const auto build = [](bool forbidden, const std::set<int>& values) {
+        auto graph = std::make_unique<ResourceGraph<RealResource, SetResource<int>>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<SetResource<int>>(
+            std::make_unique<UnionExtensionFunction<SetResource<int>>>(),
+            std::make_unique<IntersectionFeasibilityFunction<SetResource<int>, int>>(
+                std::map<size_t, std::set<int>>{{1, values}},
+                forbidden),
+            std::make_unique<TrivialCostFunction<SetResource<int>>>(),
+            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        graph->add_node(1, /*source=*/false, /*sink=*/true);
+        graph->add_arc<RealResource, SetResource<int>>(
+            std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<int>{0})),
+            0,
+            1,
+            1.0);
+        return graph;
+    };
+
+    using Composed = ResourceTypeComposition<RealResource, SetResource<int>>;
+    AlgorithmParams<LabelList<Composed>> params;
+    params.critical_resource_index = 0;
+    params.half_way_point = 1.0;
+
+    // Required values: a prefix question, so the model is refused and the component is named.
+    auto required = build(/*forbidden=*/false, /*values=*/{0});
+    auto refused = required->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    try {
+        required->solve(refused.get());
+        FAIL() << "a required-values component asks a prefix question and must be refused";
+    } catch (const std::runtime_error& error) {
+        const std::string message = error.what();
+        EXPECT_NE(message.find("component 1"), std::string::npos) << message;
+        EXPECT_NE(message.find("merge_rule"), std::string::npos) << message;
+    }
+
+    // Forbidden values on the same shape still solve: the refusal is about the prefix question,
+    // not about carrying a container.
+    auto forbidding = build(/*forbidden=*/true, /*values=*/{9});
+    auto solving = forbidding->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    EXPECT_NO_THROW({ forbidding->solve(solving.get()); });
+
+    // And the forward search is unaffected in both cases -- the refusal is bidirectional-only.
+    EXPECT_NO_THROW({
+        auto forward_only = build(/*forbidden=*/false, /*values=*/{0});
+        forward_only->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    });
 }
 
 // DisjointOnAResourceWithoutIntersectsIsRefused was deleted in step 6.
