@@ -281,6 +281,89 @@ TEST(BidirectionalValidation, ALongRouteIsJoinedOnItsCrossingArc) {
         << "a route whose clock straddles H must be produced by the join";
 }
 
+// ============================================================================
+// The join is not owed after a run-level stop
+// ============================================================================
+
+namespace bidirectional_validation_test {
+
+/// @brief The 5-node chain from `ALongRouteIsJoinedOnItsCrossingArc`, whose optimum exists only
+///        as a join: forward stops at node 3, backward at node 2, neither reaches a terminal.
+inline std::unique_ptr<ResourceGraph<RealResource>> join_only_graph() {
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 0.0}},
+                                                              {1, {0.0, 10.0}},
+                                                              {2, {0.0, 20.0}},
+                                                              {3, {0.0, 30.0}},
+                                                              {4, {0.0, 40.0}}};
+    return clocked_graph(
+        windows,
+        {{1.0, 10.0, 0, 1}, {1.0, 10.0, 1, 2}, {1.0, 10.0, 2, 3}, {1.0, 10.0, 3, 4}});
+}
+
+}  // namespace bidirectional_validation_test
+
+/// @brief An interrupted solve does not then run the join.
+///
+/// `Algorithm::solve` calls `extract_remaining_solutions()` -- and therefore the join --
+/// unconditionally after `main_loop()` returns, including when `main_loop` broke on the timeout,
+/// the stop callback, or the hard memory limit. The join is the most expensive pass in the
+/// algorithm: `Joiner::join` records 3 064 862 pairs and 12.23 s on a full C201. Spending that
+/// after a stop has fired is the opposite of what the stop was asked for.
+///
+/// The stop callback is the testable one of the three -- a timeout needs a wall clock and the
+/// memory limit needs a real allocation -- and it reaches the identical guard.
+TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
+    namespace bv = bidirectional_validation_test;
+
+    // Control: uninterrupted, the optimum comes from the join.
+    {
+        auto graph = bv::join_only_graph();
+        auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+            bv::clocked_params(20.0));
+        const SolveResult result = graph->solve(algorithm.get());
+        ASSERT_EQ(result.status, AlgorithmStatus::COMPLETE);
+        ASSERT_GT(result.number_of_joined_paths, 0U)
+            << "the control must join, or the interrupted run below proves nothing";
+    }
+
+    // Interrupted after a couple of iterations, with labels still on both frontiers.
+    auto graph = bv::join_only_graph();
+    size_t calls = 0;
+    auto params = bv::clocked_params(20.0);
+    params.should_stop = [&calls]() { return ++calls > 2; };
+
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    const SolveResult result = graph->solve(algorithm.get());
+
+    ASSERT_EQ(result.status, AlgorithmStatus::INTERRUPTED)
+        << "the callback did not stop the search, so the guard was never reached";
+    EXPECT_EQ(result.number_of_joined_paths, 0U) << "the join ran after the solve was interrupted";
+    EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
+        << "skipping the join must not change what the pool owns";
+}
+
+/// @brief `stop_after_X_solutions` deliberately does NOT skip the join.
+///
+/// The other half of the guard, and the reason it tests the frontiers rather than
+/// `should_stop()`. A solution budget caps what is *returned*: `Joiner::join` runs to completion
+/// and `Algorithm::solve` resizes afterwards, so a `COMPLETE` status still means the search was
+/// exhaustive. Skipping the join for it would change the answer rather than the cost.
+TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
+    namespace bv = bidirectional_validation_test;
+
+    auto graph = bv::join_only_graph();
+    auto params = bv::clocked_params(20.0);
+    params.stop_after_X_solutions = 1;
+
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    const SolveResult result = graph->solve(algorithm.get());
+
+    EXPECT_GT(result.number_of_joined_paths, 0U)
+        << "a solution budget caps the returned set, not the search";
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, 4.0, bv::kTolerance);
+}
+
 /// @brief The joiner never rejects a half on the half's own cost.
 ///
 /// The regression test for the defect this phase's benchmark exposed. `Joiner::join` used to open

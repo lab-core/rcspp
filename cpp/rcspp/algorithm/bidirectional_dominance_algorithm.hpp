@@ -381,11 +381,52 @@ class BidirectionalDominanceAlgorithm
             pending_frontier_ = nullptr;
         }
 
+        /// @brief Whether the search was cut short by a *run-level* stop, so the join is not owed.
+        ///
+        /// `Algorithm::solve` calls `extract_remaining_solutions()` -- and therefore the join --
+        /// unconditionally after `main_loop()` returns, including when `main_loop` broke on the
+        /// timeout, the external stop callback, or the hard memory limit. The join is the single
+        /// most expensive pass in this algorithm: `Joiner::join`'s own note records 3 064 862
+        /// pairs and 12.23 s on a full C201, and 9.3 GB resident on RC201. Spending that *after*
+        /// `timeout_s` has fired, or allocating it after the memory limit was hit, is the
+        /// opposite of what those limits were set for.
+        ///
+        /// **`stop_after_X_solutions` is deliberately not one of the reasons.** The join runs to
+        /// completion and `Algorithm::solve` resizes the result afterwards, so a `COMPLETE`
+        /// status still means the search was exhaustive -- see `Joiner::join`. Its budget caps
+        /// what is returned, not what is searched, and skipping the join for it would change the
+        /// answer rather than the cost.
+        ///
+        /// **The frontier test comes first, and not merely to short-circuit.** It is the same
+        /// discipline `Algorithm::solve`'s status block uses: an exhausted search is `COMPLETE`
+        /// even if the wall clock has since passed `timeout_s`, because the flag may have flipped
+        /// during the final sweep rather than during the search. Testing the clock first would
+        /// drop the join on a run that actually finished. It also keeps `is_time_out()` -- which
+        /// *sets* `timed_out_` -- from being called at all on that path, where it would turn a
+        /// finished solve's status into a timeout.
+        ///
+        /// @return @c true when labels remain AND a run-level stop reason is in force.
+        [[nodiscard]] bool search_stopped_early() {
+            if (number_of_labels() == 0) {
+                return false;
+            }
+            return this->is_time_out() || this->is_interrupted() ||
+                   (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded());
+        }
+
         /// @brief Runs the join pass, feeding every accepted pair to `extract_solution`.
         ///
         /// The halves are paired at the node they meet on; see @c Joiner::join for what that
-        /// pairing does and does not consider.
+        /// pairing does and does not consider. Skipped entirely when the search was cut short --
+        /// see @ref search_stopped_early.
         void run_join_pass() {
+            if (search_stopped_early()) {
+                LOG_DEBUG(
+                    "BidirectionalDominanceAlgorithm: the search stopped early, so the join pass "
+                    "is skipped.\n");
+                return;
+            }
+
             auto record = [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                 ++joined_paths_;
                 this->extract_solution(cost, std::move(arc_ids), end_node_id);
