@@ -20,6 +20,8 @@
 //                             pack per preset checked
 //   test_equivalence_ng.cpp   the ng-path equivalence tests -- its own TU because the two-slot
 //                             resource pack doubles the instantiations (see that file)
+//   test_join_optimality_ng.cpp   the ng tier of the join-optimality sweep -- its own TU for the
+//                                 same reason; the single-slot tier is in test_algorithms.cpp
 //   test_bidirectional_benchmark_ng.cpp   the ng benchmark -- its own TU, three-slot pack
 //
 // A new test header goes in whichever TU matches its subject, alphabetically within that TU.

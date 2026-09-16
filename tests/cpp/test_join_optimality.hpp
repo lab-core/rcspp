@@ -21,6 +21,12 @@
 //     names a dimension. Here it is a cross product over every knob the generator has, times
 //     several seeds, times several positions of `H` -- because `H` is what decides which labels
 //     become boundary labels, and it is therefore the dimension the join is most sensitive to.
+//
+// This file covers the **single-slot** pack. The same question on the ng model is
+// `test_join_optimality_ng.hpp`, which lives in its own translation unit because a two-slot pack
+// instantiates the engine again and this one already shares `test_algorithms.cpp` with two packs.
+// It is the harder tier: ng's memory forgets, so `H` decides not only which labels are paired but
+// how much of that forgetting the join has to be right about.
 
 #include <gtest/gtest.h>
 
