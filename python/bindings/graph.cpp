@@ -231,10 +231,14 @@ void init_graph(py::module_& m) {
                        "Ignored by every other algorithm (default 0).")
         .def_readwrite("half_way_point",
                        &PyAlgorithmParams::half_way_point,
-                       "Value H at which each direction's search stops on the critical resource. "
-                       "0 (the default) means derive it, and there is nothing to derive it from "
-                       "unless the resource's finite maximum is known, so a bidirectional solve "
-                       "normally sets this explicitly. The resource's range is taken as [0, 2H].");
+                       "Value H at which each direction's search stops on the critical resource: "
+                       "forward discards labels above H, backward discards labels below it, and "
+                       "the join pairs what is left. The resource's range is taken as [0, 2H], so "
+                       "set H to about half the clock's range. 0 (the default) TURNS THE BOUND "
+                       "OFF -- it does not derive one: both searches then run to completion and "
+                       "the join considers every pair, which is correct but slower than a forward "
+                       "solve rather than faster. Check result.bounded_by_half_way to see which "
+                       "you got.");
     // dynamic_half_way is deliberately NOT bound: it is a reserved C++ placeholder that nothing
     // reads, and a C++ caller can read the comment saying so while a Python caller cannot -- so
     // here it would do nothing but invite someone to set it and conclude the policy is broken.

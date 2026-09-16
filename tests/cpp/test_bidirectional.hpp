@@ -423,6 +423,56 @@ TEST(Bidirectional, AccumulateWithBackSeedIsRefused) {
 // The half-way bound's failure mode
 // ============================================================================
 
+/// @brief `half_way_point = 0` turns the bound OFF -- it does not derive one.
+///
+/// Every other test in this section disables the bound by failing the clock's *validation*: a
+/// non-monotone clock, one outside the dominance order, a type absent from the pack. This one
+/// disables it with a clock that passes every check, which is the case the public documentation
+/// used to get wrong -- `AlgorithmParams::half_way_point` claimed 0 meant "derive as R/2".
+///
+/// It does not. `HalfWayPolicy` has that branch, but it needs a finite `R`, and
+/// `resource_upper_bound()` reports `2H` when `H` is given and infinity when it is not -- there
+/// being no general accessor for a feasibility function's upper bound. So 0 arrives as "no H and
+/// no finite R" and the bound starts disabled. The equivalence suite depends on that: it is how
+/// it asks for unbounded runs.
+///
+/// The control matters as much as the assertion. Without it, a graph whose clock happened to fail
+/// validation would pass this test for entirely the wrong reason.
+TEST(Bidirectional, AZeroHalfWayPointTurnsTheBoundOff) {
+    namespace bt = bidirectional_test;
+
+    const auto arcs = std::vector<std::pair<double, double>>{{1.0, 5.0}, {2.0, 2.0}, {3.0, 3.0}};
+
+    // Control: the same clock, a real H. The budget slot is monotone, bounded and a threshold
+    // backwards, so the bound engages.
+    auto bounded_graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
+    auto bounded = bounded_graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bt::params(5.0, bt::kClockIndex));
+    const auto bounded_result = bounded_graph->solve(bounded.get());
+    ASSERT_TRUE(bounded->bounded_by_half_way())
+        << "this clock must be usable, or the zero below proves nothing";
+
+    // The same model and the same clock, with H = 0.
+    auto graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bt::params(0.0, bt::kClockIndex));
+    const auto result = graph->solve(algorithm.get());
+
+    EXPECT_FALSE(algorithm->bounded_by_half_way())
+        << "half_way_point = 0 must disable the bound, not derive one";
+    EXPECT_FALSE(result.bounded_by_half_way) << "and the result the caller receives must say so";
+
+    // Correct but slow, not wrong: an unbounded run is still exact.
+    auto reference_graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost,
+                bt::forward_optimum(reference_graph.get()),
+                bt::kTolerance);
+    EXPECT_NEAR(result.solutions.front().cost,
+                bounded_result.solutions.front().cost,
+                bt::kTolerance);
+}
+
 /// @brief A non-monotone clock disables the bound, does not throw, and still finds the optimum.
 TEST(Bidirectional, NonMonotoneClockDisablesTheBoundAndStillSolves) {
     namespace bt = bidirectional_test;

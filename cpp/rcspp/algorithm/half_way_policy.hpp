@@ -36,13 +36,19 @@ class HalfWayPolicy {
     public:
         /// @brief Constructs the policy, deriving `H` when it is not given explicitly.
         ///
-        /// @param half_way_point       The value `H`. When 0, derived as `R / 2`.
+        /// @param half_way_point       The value `H`. When 0, derived as `R / 2` -- but only when
+        ///                             @p resource_upper_bound is finite, which is the whole of
+        ///                             the difference between this constructor and
+        ///                             @c AlgorithmParams::half_way_point, where 0 means "bound
+        ///                             off". See that field before repeating "0 derives R/2" as
+        ///                             though it described a solve.
         /// @param resource_upper_bound `R`, the critical resource's finite maximum. When this is
         ///                             not finite and positive and no explicit `H` is supplied,
         ///                             there is no middle to aim at and the bound starts disabled.
         ///                             @note `BidirectionalDominanceAlgorithm` always passes `2H`
-        ///                                   or infinity, so from there this branch is a no-op;
-        ///                                   it is real for a direct construction.
+        ///                                   or infinity, so from there the derive branch is
+        ///                                   unreachable and 0 always disables; it is real for a
+        ///                                   direct construction.
         HalfWayPolicy(double half_way_point, double resource_upper_bound) {
             if (half_way_point > 0.0) {
                 h_ = half_way_point;

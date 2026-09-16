@@ -230,7 +230,29 @@ struct AlgorithmBaseParams {
         /// is a template parameter of the algorithm; this is the index within that type's slot.
         size_t critical_resource_index = 0;
 
-        /// @brief Half-way point on the critical resource; 0 means "derive as R/2".
+        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**.
+        ///
+        /// Each direction stops at `H`: the forward search discards labels whose clock exceeds
+        /// it, the backward search discards labels whose clock falls below it, and the join pairs
+        /// what is left. Set it to roughly half the clock's range -- the algorithm takes that
+        /// range to be `[0, 2H]`, so `H` is the only number it has to go on.
+        ///
+        /// **Zero does not derive anything.** `HalfWayPolicy` does have a "derive `H` as `R / 2`"
+        /// branch, but it needs a finite `R`, and there is no general accessor for a feasibility
+        /// function's upper bound -- so `BidirectionalDominanceAlgorithm::resource_upper_bound()`
+        /// reports `2H` when `H` is given and infinity when it is not. Zero therefore reaches
+        /// `HalfWayPolicy` as "no `H` and no finite `R`", which starts the bound disabled. The
+        /// derive branch is reachable, and tested, only from a direct construction with a known
+        /// `R`.
+        ///
+        /// That makes zero the supported way to ask for **two unbounded searches plus a join**,
+        /// and the equivalence suite relies on it for exactly that. A disabled bound costs speed,
+        /// not optimality: both searches run to completion, the join considers every pair, and
+        /// the answer is the same one a forward search would give -- for strictly more work than
+        /// a forward search would do. @c SolveResult::bounded_by_half_way reports which of the
+        /// two happened, so it is worth checking rather than assuming.
+        ///
+        /// So: a bidirectional solve that wants the speed-up sets this explicitly.
         double half_way_point = 0.0;
 
         /// @brief Reserved for a half-way policy that moves as the search runs. Not yet read.

@@ -51,6 +51,15 @@ p.half_way_point          = 500.0 # H; the resource range is taken as [0, 2H]
 result = rg.solve(algorithm="bidirectional", params=p)
 ```
 
+`half_way_point` has no useful default: **0 turns the bound off**, it does not derive one.  The
+algorithm has no way to read a feasibility function's upper bound, so `H` is the only number it
+has to go on — it takes the range to be `[0, 2H]` rather than the other way round.  With the bound
+off both searches run to completion and the join considers every pair, which is correct but
+*slower* than a forward solve rather than faster, since it is a forward search plus a backward
+search plus a join.  That is the supported way to ask for an unbounded run, and
+`result.bounded_by_half_way` tells you which of the two you got.  A solve that wants the speed-up
+sets `H` explicitly, to roughly half the clock's range.
+
 ### The critical resource
 
 One resource acts as the **clock** that says where "half-way" is.  It must be:
