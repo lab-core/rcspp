@@ -19,6 +19,8 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <stdexcept>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -54,6 +56,26 @@ std::unique_ptr<Resource<RealResource>> make_real_resource(
     return make_resource<RealResource>(RealResource(value),
                                        std::move(feasibility),
                                        std::make_unique<ValueDominanceFunction<RealResource>>());
+}
+
+/// @brief A MinMaxFeasibilityFunction already paired with an extension function's backward kind.
+///
+/// `ResourceGraph::add_resource` is what supplies the kind in a real model; these tests build
+/// functions by hand, so they have to supply it themselves or the function correctly declares
+/// MergeRule::Unspecified and every merge through it throws.
+///
+/// @param kind The kind the paired extension function would declare.
+/// @param min  Window lower bound; also the value a backward label is seeded at.
+/// @param max  Window upper bound.
+inline std::unique_ptr<MinMaxFeasibilityFunction<RealResource>> paired_min_max(BackwardKind kind,
+                                                                               double min = 0.0,
+                                                                               double max = 100.0) {
+    auto function = std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+        min,
+        max,
+        /*merge_by_increasing_value=*/kind == BackwardKind::Threshold);
+    function->set_backward_kind(kind);
+    return function;
 }
 
 inline SetResource<int> make_set(const std::set<int>& values) {
@@ -346,8 +368,14 @@ TEST(MergeRules, EveryConcreteFunctionDeclaresARule) {
     EXPECT_EQ(TrivialFeasibilityFunction<RealResource>{}.merge_rule(), MergeRule::AlwaysTrue);
     EXPECT_EQ(TimeWindowFeasibilityFunction<RealResource>{windows}.merge_rule(),
               MergeRule::DominanceOrder);
-    EXPECT_EQ((MinMaxFeasibilityFunction<RealResource>{0.0, 100.0, true}.merge_rule()),
-              MergeRule::DominanceOrder);
+    // MinMaxFeasibilityFunction is the one function whose rule depends on what it is paired with,
+    // because a backward label's value is a ceiling under a threshold extension and the suffix's
+    // own consumption under an accumulating one. Unpaired it answers Unspecified on purpose --
+    // a refusal rather than an omission -- so the pairing is supplied here and the three arms are
+    // pinned separately by MinMaxRuleFollowsTheBackwardKind.
+    MinMaxFeasibilityFunction<RealResource> min_max{0.0, 100.0, true};
+    min_max.set_backward_kind(BackwardKind::Threshold);
+    EXPECT_EQ(min_max.merge_rule(), MergeRule::DominanceOrder);
     // Custom, not Disjoint: the body is inherited from DisjointMergeForm, so the rule only has
     // to say "call my own body" rather than naming a test a third party must interpret.
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.merge_rule()),
@@ -358,6 +386,133 @@ TEST(MergeRules, EveryConcreteFunctionDeclaresARule) {
                    .merge_rule()),
               MergeRule::AlwaysTrue);
     EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U}.merge_rule()), MergeRule::Custom);
+}
+
+// ============================================================================
+// MinMaxFeasibilityFunction: the rule follows the pairing
+// ============================================================================
+//
+// The defect these cover: MinMaxFeasibilityFunction used to declare DominanceOrder for every
+// pairing. DominanceOrder means `check_dominance(forward, backward)`, which reads the backward
+// value as a BOUND -- the largest forward value still admissible here. That is exactly right
+// under a threshold extension, where a backward label counts a capacity down from the cap, and
+// meaningless under an accumulating one, where a backward label counts the suffix's own load up
+// from zero. Comparing a prefix load against a suffix load tests nothing the model contains, and
+// it fails in the direction a merge rule is never allowed to fail: it ACCEPTS. A prefix of 3 and
+// a suffix of 3 pass `3 <= 3` under a capacity of 4 while the merged path carries 6, and the
+// joiner replays refusals but never acceptances, so the infeasible path is returned as the
+// optimum with a COMPLETE status.
+//
+// `BidirectionalValidation.AccumulatingCapacityJoinsOnlyWithinTheCap` is the end-to-end half.
+
+/// @brief The rule is DominanceOrder under a threshold pairing, Custom under an accumulating one,
+///        and Unspecified when the function has not been paired at all.
+TEST(MergeRules, MinMaxRuleFollowsTheBackwardKind) {
+    // Unpaired: a directly constructed function has no kind yet. Guessing one here is what the
+    // defect was, so it declares Unspecified and a bidirectional solve refuses at setup.
+    EXPECT_EQ((MinMaxFeasibilityFunction<RealResource>{0.0, 100.0, true}.merge_rule()),
+              MergeRule::Unspecified);
+
+    EXPECT_EQ(merge_rules_test::paired_min_max(BackwardKind::Threshold)->merge_rule(),
+              MergeRule::DominanceOrder);
+    EXPECT_EQ(merge_rules_test::paired_min_max(BackwardKind::Accumulate)->merge_rule(),
+              MergeRule::Custom);
+
+    // Mirror is a container's shape; a scalar window paired with one is incoherent, so it is a
+    // refusal rather than a third rule.
+    EXPECT_EQ(merge_rules_test::paired_min_max(BackwardKind::Mirror)->merge_rule(),
+              MergeRule::Unspecified);
+}
+
+/// @brief Under an accumulating pairing the two halves ADD, and the sum is tested against the cap.
+///
+/// The grid straddles the cap so both outcomes are exercised, and the diagonal `f == b` is
+/// included on purpose: that is the case the old DominanceOrder rule accepted for every value,
+/// including the ones that overflow the cap.
+TEST(MergeRules, MinMaxAccumulateAddsTheTwoHalves) {
+    constexpr double kCapacity = 4.0;
+    const std::vector<double> grid{0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+
+    for (const double forward_value : grid) {
+        for (const double backward_value : grid) {
+            SCOPED_TRACE("f=" + std::to_string(forward_value) +
+                         " b=" + std::to_string(backward_value));
+
+            auto forward = merge_rules_test::make_real_resource(
+                forward_value,
+                merge_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+            auto backward = merge_rules_test::make_real_resource(
+                backward_value,
+                merge_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+
+            EXPECT_EQ(forward->can_be_merged(*backward),
+                      forward_value + backward_value <= kCapacity);
+        }
+    }
+
+    // The specific pair the defect accepted: equal halves that together overflow the cap.
+    auto three_forward = merge_rules_test::make_real_resource(
+        3.0,
+        merge_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+    auto three_backward = merge_rules_test::make_real_resource(
+        3.0,
+        merge_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+    EXPECT_FALSE(three_forward->can_be_merged(*three_backward));
+}
+
+/// @brief The accumulating body is compared against the TIGHTEST cap in the model, not this
+///        node's.
+///
+/// The merged path has to fit under the cap at every node it passes through after the join, and
+/// `can_be_merged` sees two values rather than the suffix's nodes -- the same reason
+/// `SizeFeasibilityFunction` caches one. Sound but conservative, which is what the replay flag
+/// below is for.
+TEST(MergeRules, MinMaxAccumulateUsesTheTightestCapAndSaysItIsConservative) {
+    std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}, {1, {0.0, 4.0}}};
+    auto function = std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0, windows);
+    function->set_backward_kind(BackwardKind::Accumulate);
+    EXPECT_TRUE(function->merge_refusal_may_be_conservative());
+
+    auto forward = merge_rules_test::make_real_resource(3.0, std::move(function));
+
+    auto other = std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0, windows);
+    other->set_backward_kind(BackwardKind::Accumulate);
+    auto backward = merge_rules_test::make_real_resource(3.0, std::move(other));
+
+    // Node 0's own window would allow 6; node 1's cap of 4 is the one that governs.
+    EXPECT_FALSE(forward->can_be_merged(*backward));
+
+    // A uniform window whose minimum is zero makes the sum exact, so a refusal can be trusted.
+    EXPECT_FALSE(merge_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, 4.0)
+                     ->merge_refusal_may_be_conservative());
+
+    // A non-zero minimum seeds the backward label above zero, so the sum over-counts that offset.
+    EXPECT_TRUE(merge_rules_test::paired_min_max(BackwardKind::Accumulate, 1.0, 4.0)
+                    ->merge_refusal_may_be_conservative());
+
+    // A threshold pairing never routes through the sum at all.
+    EXPECT_FALSE(merge_rules_test::paired_min_max(BackwardKind::Threshold, 1.0, 4.0)
+                     ->merge_refusal_may_be_conservative());
+}
+
+/// @brief The accumulating body refuses to answer for a pairing it is not the body of.
+///
+/// A threshold pairing merges through MergeRule::DominanceOrder, so `Resource::can_be_merged`
+/// asks the dominance function and never calls this. Writing a second, hand-rolled `f <= b` here
+/// for that case would be the second source of truth the rule dispatch removed, so the direct
+/// call is a loud error instead.
+TEST(MergeRules, MinMaxCanBeMergedIsTheAccumulatingBodyOnly) {
+    auto threshold = merge_rules_test::paired_min_max(BackwardKind::Threshold);
+    const RealResource low(1.0);
+    const RealResource high(2.0);
+    // The result is [[nodiscard]], and EXPECT_THROW would discard it; binding it keeps the
+    // expression an ordinary use rather than a suppressed warning.
+    EXPECT_THROW(
+        { [[maybe_unused]] const bool merged = threshold->can_be_merged(low, high); },
+        std::logic_error);
+
+    auto accumulate = merge_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, 4.0);
+    EXPECT_TRUE(accumulate->can_be_merged(low, high));
 }
 
 /// @brief ReachableFeasibilityFunction actually works, now that it can be instantiated.
@@ -417,12 +572,17 @@ TEST(MergeRules, DominanceOrderAgreesWithTheDeletedBodies) {
             // What MinMaxFeasibilityFunction::can_be_merged used to compute with
             // merge_by_increasing_value_ = true. The flag is kept on the constructor but no
             // longer drives the test; the dominance function carries the direction instead.
+            //
+            // The pairing is supplied explicitly: `f <= b` is the THRESHOLD reading, which is the
+            // one the deleted body implemented and the only one it was ever right for. Under an
+            // accumulating pairing the same two values add instead -- see
+            // MinMaxAccumulateAddsTheTwoHalves.
             auto mm_forward = merge_rules_test::make_real_resource(
                 forward_value,
-                std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0, true));
+                merge_rules_test::paired_min_max(BackwardKind::Threshold));
             auto mm_backward = merge_rules_test::make_real_resource(
                 backward_value,
-                std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0, true));
+                merge_rules_test::paired_min_max(BackwardKind::Threshold));
             EXPECT_EQ(mm_forward->can_be_merged(*mm_backward), old_time_window_answer);
         }
     }

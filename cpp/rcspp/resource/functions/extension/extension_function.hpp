@@ -11,6 +11,7 @@
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
+#include "rcspp/resource/functions/backward_kind.hpp"
 
 namespace rcspp {
 
@@ -26,16 +27,9 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Arc;
 
-/// @brief How a resource's backward extension relates to its forward one.
-///
-/// Declared per extension function via @c backward_kind(). A bidirectional solve refuses to start
-/// on any component still reporting @c Unspecified. Forward-only solves never read it.
-enum class BackwardKind {
-    Unspecified,  ///< not declared -- a bidirectional solve will refuse to run
-    Accumulate,   ///< no bound; extend_back == extend (e.g. cost)
-    Threshold,    ///< stores a deadline/ceiling; extend_back inverts extend and clamps
-    Mirror,       ///< stores a set seen on its own half; same formula, origin/destination swapped
-};
+// @c BackwardKind is defined in `rcspp/resource/functions/backward_kind.hpp`: the feasibility
+// function stores it as well, and a shared vocabulary header keeps that from becoming a
+// dependency edge between the two function families.
 
 /// @brief True when a concrete extension function publishes its shape as a constant.
 ///

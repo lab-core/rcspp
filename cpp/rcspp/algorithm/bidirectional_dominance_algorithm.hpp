@@ -717,6 +717,30 @@ class BidirectionalDominanceAlgorithm
             // without intersects(). The mistake became unrepresentable rather than merely
             // detected, so nothing is lost for Python callers either -- they cannot construct the
             // bad pairing.
+            // A second, independent guard on the same pairing, and the one that catches the
+            // general case rather than one class's version of it. `DominanceOrder` means "compare
+            // the forward value against the backward one", which is a sentence about a *bound*: it
+            // reads the backward value as the largest forward value still admissible here. Under
+            // an accumulation the backward value is not a bound, it is the suffix's own
+            // consumption, and comparing two consumptions tests nothing the model contains -- a
+            // prefix of 3 and a suffix of 3 pass `3 <= 3` under a capacity of 4 while the merged
+            // path carries 6, so the join ACCEPTS an infeasible splice and returns it as the
+            // optimum with a COMPLETE status. Refusals are replayed; acceptances are not, and
+            // deliberately so, which is why this has to be caught here and not in the joiner.
+            //
+            // `MinMaxFeasibilityFunction` no longer reaches this -- its merge_rule() reads the
+            // same kind and answers Custom under an accumulation. The arm stays because the
+            // hazard belongs to the pairing rather than to that class: any feasibility function
+            // that declares DominanceOrder without consulting its extension function has it.
+            if (kind == BackwardKind::Accumulate && rule == MergeRule::DominanceOrder) {
+                problems->push_back(
+                    label +
+                    ": its extension accumulates but its feasibility function declares "
+                    "MergeRule::DominanceOrder, which compares a prefix value against a suffix "
+                    "value rather than against a bound; use a Threshold extension (e.g. "
+                    "BudgetExtensionFunction) or declare MergeRule::Custom with a body that adds "
+                    "the two halves");
+            }
             if (kind == BackwardKind::Accumulate && seeds_itself_out_of_range(component)) {
                 problems->push_back(
                     label +

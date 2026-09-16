@@ -77,8 +77,15 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
             // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
             // at model-build time rather than one per node.
-            dominance_function->set_backward_reversed(extension_function->backward_kind() ==
-                                                      BackwardKind::Threshold);
+            const BackwardKind kind = extension_function->backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+
+            // The feasibility function gets the kind itself rather than a derived flag, because
+            // what it does with it is pick a merge test, and the three kinds do not collapse to a
+            // bool there: a Threshold backward value is compared against the forward one, an
+            // Accumulate backward value is added to it, and an Unspecified one means refuse.
+            // See FeasibilityFunction::set_backward_kind.
+            feasibility_function->set_backward_kind(kind);
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
@@ -121,8 +128,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
             // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
             // at model-build time rather than one per node.
-            dominance_function->set_backward_reversed(extension_function->backward_kind() ==
-                                                      BackwardKind::Threshold);
+            const BackwardKind kind = extension_function->backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+
+            // See the other add_resource overload for why the feasibility function is handed the
+            // kind itself rather than a derived flag.
+            feasibility_function->set_backward_kind(kind);
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),

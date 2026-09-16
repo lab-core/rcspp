@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -19,9 +21,14 @@ namespace rcspp {
 ///
 /// At each graph node the active window [min_, max_] is either the global default or the
 /// per-node override supplied at construction.  The resource is feasible when
-/// `min_ <= resource.value <= max_`.  A `can_be_merged` check determines whether a
-/// forward and backward label can be combined during bidirectional search, using either
-/// increasing or decreasing value order.
+/// `min_ <= resource.value <= max_`.
+///
+/// **The join test depends on the paired extension function, not on this class alone.** A
+/// backward label's value is a remaining-capacity ceiling under a threshold extension and the
+/// suffix's own consumption under an accumulating one, so the same two numbers mean different
+/// things and need different tests. @ref merge_rule reads the kind
+/// @c ResourceGraph::add_resource records for it; see @ref can_be_merged for the accumulating
+/// body.
 ///
 /// @tparam ResourceType The resource type whose value supports `geq()`, `leq()`, and
 ///         `get_value()`.
@@ -47,7 +54,9 @@ class MinMaxFeasibilityFunction
               default_max_(max),
               min_(min),
               max_(max),
-              merge_by_increasing_value_(merge_by_increasing_value) {}
+              merge_by_increasing_value_(merge_by_increasing_value) {
+            cache_merge_bounds();
+        }
 
         /// @brief Constructs the function with default global bounds and optional per-node
         ///        overrides.
@@ -69,7 +78,9 @@ class MinMaxFeasibilityFunction
               default_min_(default_min),
               default_max_(default_max),
               min_(default_min),
-              max_(default_max) {}
+              max_(default_max) {
+            cache_merge_bounds();
+        }
 
         /// @brief Checks that the resource value lies within [min_, max_].
         ///
@@ -79,17 +90,105 @@ class MinMaxFeasibilityFunction
             return resource.geq(min_) && resource.leq(max_);
         }
 
-        /// @brief A backward label holds the bound directly, so the merge test *is* forward
-        ///        dominance.
+        /// @brief The merge test follows the paired extension function's declared backward kind.
         ///
-        /// This used to be a hand-written comparison switched by @c merge_by_increasing_value_.
-        /// The dominance function already encodes that direction -- a higher-is-better resource
-        /// carries a flipped `check_dominance` -- so the rule follows it automatically, and the
-        /// two can no longer disagree. The constructor flag is kept because callers building a
-        /// resource by hand still pass it, but it no longer drives the merge test.
+        /// A backward label's value is not one quantity here, it is two, and only the extension
+        /// function knows which:
         ///
-        /// @return @c MergeRule::DominanceOrder.
-        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::DominanceOrder; }
+        ///  - **@c Threshold** (`BudgetExtensionFunction`, `TimeWindowExtensionFunction`): the
+        ///    backward label carries the largest forward value still admissible at this node --
+        ///    a ceiling counting down from the bound. The test is `forward <= ceiling`, which is
+        ///    exactly what @c check_dominance computes, so the rule is @c DominanceOrder and the
+        ///    direction rides on the dominance function: a higher-is-better resource carries a
+        ///    flipped `check_dominance` and this flips with it.
+        ///  - **@c Accumulate** (`AdditionExtensionFunction`): the backward label carries the
+        ///    *suffix's own consumption*, counting up from the seed exactly as the forward label
+        ///    counts up from zero. Two consumptions do not compare, they add, so the test is
+        ///    `forward + backward <= capacity` -- @c Custom, with the body in @ref can_be_merged.
+        ///
+        /// **Declaring @c DominanceOrder for both is the bug this dispatch exists to prevent.**
+        /// It compares a prefix load against a suffix load, which is not a constraint the model
+        /// contains: a prefix of 3 and a suffix of 3 pass `3 <= 3` under a capacity of 4 while
+        /// the merged path carries 6. That accepts an infeasible splice, which
+        /// @c FeasibilityFunction::merge_refusal_may_be_conservative documents as the one thing a
+        /// merge rule may never do -- and nothing downstream re-checks an acceptance, so the
+        /// joined path is returned as the optimum with a @c COMPLETE status.
+        ///
+        /// **@c Unspecified** for every other pairing, including an unpaired function: a
+        /// directly constructed @c MinMaxFeasibilityFunction has no kind yet, and guessing one
+        /// here would restore exactly the silent-wrong-answer path above. A bidirectional solve
+        /// then refuses at setup naming the component, which is also what the undeclared
+        /// extension function itself already earns.
+        ///
+        /// @return The merge rule implied by the paired extension function.
+        [[nodiscard]] MergeRule merge_rule() const override {
+            switch (this->backward_kind_) {
+                case BackwardKind::Threshold:
+                    return MergeRule::DominanceOrder;
+                case BackwardKind::Accumulate:
+                    return accumulate_merge_is_sound_ ? MergeRule::Custom : MergeRule::Unspecified;
+                default:
+                    return MergeRule::Unspecified;
+            }
+        }
+
+        /// @brief The accumulating form's body: two consumptions add, they do not compare.
+        ///
+        /// Reached only when @ref merge_rule answered @c Custom, i.e. under an @c Accumulate
+        /// pairing. A @c Threshold pairing merges through @c MergeRule::DominanceOrder and
+        /// @c Resource::can_be_merged asks the dominance function directly rather than calling
+        /// this -- deliberately, because a hand-written `forward <= backward` here would be the
+        /// second source of truth that this design removed.
+        ///
+        /// **The tightest cap in the model, not this node's**, for the same reason
+        /// @c SizeFeasibilityFunction caches one: the merged path has to fit under the cap at
+        /// every node it passes through *after* the join, and nothing else checks those -- the
+        /// forward half never got there and the backward half only ever counted its own
+        /// contribution. With a uniform cap the tightest one *is* this node's.
+        ///
+        /// **Only the upper bound.** The lower one cannot be checked mid-join, because the merged
+        /// path only grows from here; it is enforced at the endpoints by @ref is_feasible.
+        ///
+        /// **Precondition: a cumulative extension.** The sum is the merged path's value at its
+        /// last node, and bounds it everywhere in between, only because an accumulation never
+        /// decreases and never jumps. An `AdditionExtensionFunction` built with its optional
+        /// `min_value` clamp does jump, so the true value can exceed the sum -- the same
+        /// cumulativity precondition @c SizeFeasibilityFunction states for its union rule, and
+        /// @c DisjointMergeForm for its disjointness one. Nothing in the library pairs a clamped
+        /// addition with this function, and a bounded resource that wants a clamp wants
+        /// @c BudgetExtensionFunction, which is a threshold and takes the branch above.
+        ///
+        /// @param resource      The forward label's resource at the merge node.
+        /// @param back_resource The backward label's resource at the merge node.
+        /// @return `true` if the two consumptions together fit under the tightest cap.
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
+            if (this->backward_kind_ != BackwardKind::Accumulate) {
+                throw std::logic_error(
+                    "MinMaxFeasibilityFunction::can_be_merged is the accumulating form's body; a "
+                    "threshold pairing merges through MergeRule::DominanceOrder and an unpaired "
+                    "function declares MergeRule::Unspecified");
+            }
+            return static_cast<ValueType>(resource.get_value() + back_resource.get_value()) <=
+                   tightest_max_;
+        }
+
+        /// @brief Only the accumulating form, and then only when its sum is not exact.
+        ///
+        /// The backward label starts at this node's @c min_ rather than at zero, so
+        /// `forward + backward` over-counts that offset; and with per-node windows the cap it is
+        /// compared against is the tightest in the model rather than the ones the merged path
+        /// actually visits. Both make the test *stricter* than the model, never looser, so the
+        /// answer stays sound -- but an over-strict join makes `bidirectional` answer a stricter
+        /// question than `simple` on the same model, which is what replaying a refusal recovers.
+        ///
+        /// With a uniform window whose minimum is zero the sum is exact and a refusal can be
+        /// trusted. A @c Threshold pairing never routes here at all.
+        ///
+        /// @return @c true when a refusal is worth verifying rather than trusting.
+        [[nodiscard]] bool merge_refusal_may_be_conservative() const override {
+            return this->backward_kind_ == BackwardKind::Accumulate && !accumulate_merge_is_exact_;
+        }
 
         /// @brief A backward label starts at the loosest end of this node's window.
         ///
@@ -114,7 +213,60 @@ class MinMaxFeasibilityFunction
 
         // true: merge by increasing value, false: decreasing value
         // increasing value means that resource.get_value() <= back_resource.get_value()
+        //
+        // Drives back_seed_value() only. It does NOT pick the merge test: which quantity a
+        // backward label holds is a property of the extension function, and merge_rule() reads
+        // that instead. The two used to be set independently here, which is how a capacity
+        // written as an addition came to declare a threshold's merge rule.
         bool merge_by_increasing_value_ = true;
+
+        /// @brief The smallest upper bound anywhere in the model, cached at construction.
+        ///
+        /// Read by @ref can_be_merged, which has to hold for every node the merged path visits
+        /// after the join and cannot see which those are. Equal to @ref max_ at every node when
+        /// no per-node overrides are given, which is the case the test is exact for.
+        ValueType tightest_max_{};
+
+        /// @brief Whether `forward + backward <= tightest_max_` is sound for this window.
+        ///
+        /// The backward label is seeded at a sink's @c min_, so the sum is `true_total + seed`.
+        /// A non-negative seed makes the test stricter than the model, which is safe. A negative
+        /// one would make it looser -- it would accept a merged path that exceeds the cap -- and
+        /// there is no sharper test available from two values, so the pairing is refused at setup
+        /// instead. @ref merge_rule answers @c Unspecified when this is false.
+        bool accumulate_merge_is_sound_ = true;
+
+        /// @brief Whether that sum is exact rather than merely sound. See
+        ///        @ref merge_refusal_may_be_conservative.
+        bool accumulate_merge_is_exact_ = true;
+
+        /// @brief Computes @ref tightest_max_ and the two accumulating-merge flags.
+        void cache_merge_bounds() {
+            tightest_max_ = default_max_;
+            accumulate_merge_is_sound_ = is_non_negative(default_min_);
+            // A non-zero minimum offsets the backward seed; per-node windows make the tightest
+            // cap stricter than the ones the path visits. Either costs exactness, not soundness.
+            accumulate_merge_is_exact_ =
+                min_max_by_node_id_ == nullptr && default_min_ == ValueType{};
+            if (min_max_by_node_id_ == nullptr) {
+                return;
+            }
+            for (const auto& [node_id, bounds] : *min_max_by_node_id_) {
+                tightest_max_ = std::min(tightest_max_, bounds.second);
+                accumulate_merge_is_sound_ =
+                    accumulate_merge_is_sound_ && is_non_negative(bounds.first);
+            }
+        }
+
+        /// @brief Whether @p value is at or above zero, without tripping a sign-compare warning
+        ///        on an unsigned @c ValueType.
+        static bool is_non_negative(const ValueType& value) {
+            if constexpr (std::is_arithmetic_v<ValueType> && std::is_signed_v<ValueType>) {
+                return value >= ValueType{};
+            } else {
+                return true;
+            }
+        }
 
         void preprocess(size_t node_id) override {
             if (min_max_by_node_id_ == nullptr) {

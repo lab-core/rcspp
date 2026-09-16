@@ -88,6 +88,7 @@
 #include "rcspp/resource/concrete/functions/feasibility/size_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/functions/backward_kind.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
 #include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"

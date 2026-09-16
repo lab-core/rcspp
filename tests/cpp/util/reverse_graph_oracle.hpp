@@ -53,6 +53,14 @@ struct AdditiveInstance {
 /// *add*, which is the threshold reading -- correct for a resource whose extension subtracts, and
 /// wrong for one that adds.
 ///
+/// The *merge* test follows from the same pairing, and is not this fixture's to choose:
+/// `add_resource` hands `MinMaxFeasibilityFunction` the extension function's declared
+/// `BackwardKind`, and under `Accumulate` it declares `MergeRule::Custom` with a body that adds
+/// the two halves and compares the sum against the cap. It used to declare `DominanceOrder` here
+/// as everywhere else, i.e. `prefix <= suffix`, and this builder was the one live instance of
+/// that: a prefix of 3 and a suffix of 3 joined under a capacity of 4. See
+/// `BidirectionalValidation.AccumulatingCapacityJoinsOnlyWithinTheCap`.
+///
 /// @param instance The instance description.
 /// @param reversed When true, swap every arc's endpoints and exchange the source/sink flags.
 /// @return An owning pointer to the built graph.

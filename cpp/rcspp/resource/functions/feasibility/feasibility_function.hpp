@@ -10,6 +10,7 @@
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
+#include "rcspp/resource/functions/backward_kind.hpp"
 
 namespace rcspp {
 
@@ -71,8 +72,40 @@ class FeasibilityFunction {
 
         /// @brief Which merge test this resource uses. See @c MergeRule.
         ///
+        /// May depend on @ref backward_kind(): a bound-style backward value is compared against
+        /// the forward value, while an accumulating one has to be added to it, and those are
+        /// different rules on the same feasibility function. See @c MinMaxFeasibilityFunction.
+        ///
         /// @return The merge rule declared by this feasibility function.
         [[nodiscard]] virtual MergeRule merge_rule() const { return MergeRule::Unspecified; }
+
+        /// @brief Records how the paired extension function extends backwards.
+        ///
+        /// Derived -- never declared by hand. @c ResourceGraph::add_resource sets it from the
+        /// extension function's @c backward_kind(), exactly as it sets
+        /// @c DominanceFunction::set_backward_reversed from the same value, so the three can never
+        /// disagree about one model's shape.
+        ///
+        /// A feasibility function needs it because a merge test reads a *backward* value and the
+        /// kind is what says which quantity that value is. @c MinMaxFeasibilityFunction is the
+        /// case that motivated it: paired with a threshold extension its backward label carries a
+        /// remaining-capacity ceiling, so the merge test is `consumed <= ceiling`; paired with an
+        /// accumulating one the backward label carries the suffix's own consumption, so the test
+        /// is `prefix + suffix <= capacity`. The same two values, two incompatible readings, and
+        /// only the extension function knows which applies.
+        ///
+        /// @param kind The paired extension function's declared backward kind.
+        void set_backward_kind(BackwardKind kind) { backward_kind_ = kind; }
+
+        /// @brief How the paired extension function extends backwards.
+        ///
+        /// @c Unspecified until @c ResourceGraph::add_resource pairs this function with an
+        /// extension function -- which is also the state a directly constructed function stays
+        /// in, so a @c merge_rule() that reads this must treat @c Unspecified as "refuse" rather
+        /// than guessing a default.
+        ///
+        /// @return The declared backward kind of the paired extension function.
+        [[nodiscard]] BackwardKind backward_kind() const { return backward_kind_; }
 
         /// @brief Whether @c can_be_merged may refuse a pair the model would actually accept.
         ///
@@ -141,6 +174,13 @@ class FeasibilityFunction {
         ///
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}
+
+        /// @brief How the paired extension function extends backwards. See @ref set_backward_kind.
+        ///
+        /// Set on the model's prototype, which @c ResourceFactory::create_resource clones per
+        /// node; @c Clonable::clone() copy-constructs, so every clone inherits it. Protected so a
+        /// derived @c merge_rule() can read it without a virtual call.
+        BackwardKind backward_kind_ = BackwardKind::Unspecified;
 };
 
 /// @brief Specialization of @c FeasibilityFunction for composed resource types.

@@ -25,7 +25,9 @@
 
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -365,6 +367,137 @@ TEST(BidirectionalValidation, ReverseGraphOracleAgreesOnAdditiveInstances) {
             << "an additive-only model has no clock, so the bound must be off";
         EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
     }
+}
+
+// ============================================================================
+// An accumulating capacity joins on the sum, not on a comparison
+// ============================================================================
+
+/// @brief A bidirectional solve never splices two halves whose loads together break the cap.
+///
+/// The regression for the one defect that made this algorithm return a *wrong* answer rather than
+/// a slow or an incomplete one. `MinMaxFeasibilityFunction` declared `MergeRule::DominanceOrder`
+/// for every pairing, which compares the forward value against the backward one. Under a
+/// threshold extension that is right -- the backward label carries a remaining-capacity ceiling.
+/// Under `AdditionExtensionFunction` the backward label carries the suffix's own load, so the
+/// comparison asks `prefix <= suffix`, which is not a constraint the model contains. The join then
+/// accepted a pair whose loads add to more than the cap, and since refusals are replayed but
+/// acceptances are not, the infeasible path came back as `solutions.front()` with a COMPLETE
+/// status.
+///
+/// The graph below is the smallest one that reaches it with preprocessing ON, which is the
+/// default. Node 5 exists only to give node 2 a light-but-expensive second route, so the
+/// preprocessor cannot delete arc 2->3 on minimum-load grounds and erase the backward label the
+/// bad join needs -- which is exactly what masks the defect on `oracle_instances()`'s own capacity
+/// instance.
+///
+/// Feasible paths, capacity 4: 0-1-3-4 costs 6 carrying 3, and 0-5-2-3-4 costs 12 carrying 3.
+/// 0-2-3-4 costs 3 but carries 6, and is the path the defect returned.
+TEST(BidirectionalValidation, AccumulatingCapacityJoinsOnlyWithinTheCap) {
+    namespace bv = bidirectional_validation_test;
+
+    constexpr double kCapacity = 4.0;
+    // {cost, load, origin, destination}
+    const std::vector<std::tuple<double, double, size_t, size_t>> arcs{{3.0, 1.0, 0, 1},
+                                                                       {1.0, 3.0, 0, 2},
+                                                                       {2.0, 1.0, 1, 3},
+                                                                       {1.0, 2.0, 2, 3},
+                                                                       {1.0, 1.0, 3, 4},
+                                                                       {5.0, 0.0, 0, 5},
+                                                                       {5.0, 0.0, 5, 2}};
+
+    auto build = [&]() {
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        // An accumulating load with a cap. The merge-direction flag is false so the backward
+        // label seeds at the minimum and accumulates upward, which is the only coherent way to
+        // pair a back seed with an addition -- see BidirectionalDominanceAlgorithm's
+        // seeds_itself_out_of_range.
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                0.0,
+                kCapacity,
+                /*merge_by_increasing_value=*/false),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        for (size_t node_id = 0; node_id < 6; ++node_id) {
+            graph->add_node(node_id, node_id == 0, node_id == 4);
+        }
+        for (const auto& [cost, load, origin, destination] : arcs) {
+            graph->add_arc<RealResource, RealResource>({cost, load}, origin, destination, cost);
+        }
+        return graph;
+    };
+
+    auto forward_graph = build();
+    const double reference =
+        bv::best_cost(forward_graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    ASSERT_NEAR(reference, 6.0, bv::kTolerance) << "the forward search should find 0-1-3-4";
+
+    auto candidate_graph = build();
+    AlgorithmParams<LabelList<bv::Composed>> params;
+    auto algorithm =
+        candidate_graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    const SolveResult result = candidate_graph->solve(algorithm.get());
+
+    EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance)
+        << "bidirectional returned a cheaper path than the forward search, which on this graph "
+           "means it spliced two halves whose loads break the cap";
+
+    // Not just the best one: every returned path must actually fit under the cap.
+    for (const auto& solution : result.solutions) {
+        double load = 0.0;
+        for (const size_t arc_id : solution.path_arc_ids) {
+            load += std::get<1>(arcs.at(arc_id));
+        }
+        EXPECT_LE(load, kCapacity + bv::kTolerance)
+            << "a returned path carries " << load << " against a capacity of " << kCapacity;
+    }
+}
+
+/// @brief A feasibility function that declares a bound's merge rule against an accumulation is
+///        refused at setup, rather than answering with it.
+///
+/// The general guard behind the specific fix: `MinMaxFeasibilityFunction` no longer reaches this,
+/// because its own `merge_rule()` reads the same kind. Any other feasibility function that
+/// declares `DominanceOrder` without consulting its extension function has the identical hazard,
+/// so the pairing is checked once where both declarations are visible.
+TEST(BidirectionalValidation, AccumulatingExtensionWithADominanceOrderMergeIsRefused) {
+    namespace bv = bidirectional_validation_test;
+
+    /// A stand-in for the defect: a bound's merge rule on an accumulating resource.
+    class BoundRuleOnAnAccumulation
+        : public Clonable<BoundRuleOnAnAccumulation, FeasibilityFunction<RealResource>> {
+        public:
+            auto is_feasible(const RealResource& resource) -> bool override {
+                return resource.leq(10.0);
+            }
+            [[nodiscard]] MergeRule merge_rule() const override {
+                return MergeRule::DominanceOrder;
+            }
+    };
+
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<BoundRuleOnAnAccumulation>(),
+                                      std::make_unique<TrivialCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 0, 1, 1.0);
+
+    AlgorithmParams<LabelList<bv::Composed>> params;
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    EXPECT_THROW(graph->solve(algorithm.get()), std::runtime_error);
 }
 
 // ============================================================================
