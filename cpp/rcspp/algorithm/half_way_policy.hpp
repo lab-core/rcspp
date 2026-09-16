@@ -146,8 +146,7 @@ template <typename CriticalRC, typename... ResourceTypes>
 
                 const auto& extended_component =
                     extended.template get_component<CriticalRC>(critical_resource_index);
-                const double after =
-                    static_cast<double>(extended_component.get_value().get_value());
+                const auto after = static_cast<double>(extended_component.get_value().get_value());
                 if (after < probe) {
                     monotone = false;
                     return;

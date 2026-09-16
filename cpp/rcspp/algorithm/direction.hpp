@@ -30,8 +30,8 @@ struct ForwardDirection {
 
         /// @brief The arcs to walk from @p node: outgoing, going forward.
         template <typename ResourceType>
-        static auto arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
-            -> std::span<Arc<ResourceType>*> {
+        static auto arcs(const Graph<ResourceType>& graph,
+                         const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
             return graph.get_out_arcs(node);
         }
 
@@ -66,8 +66,8 @@ struct ForwardDirection {
 
         /// @brief Whether @p lhs dominates @p rhs in this direction.
         template <typename ResourceType>
-        static auto dominates(const Label<ResourceType>& lhs, const Label<ResourceType>& rhs)
-            -> bool {
+        static auto dominates(const Label<ResourceType>& lhs,
+                              const Label<ResourceType>& rhs) -> bool {
             return lhs <= rhs;
         }
 
@@ -118,8 +118,8 @@ struct BackwardDirection {
 
         /// @brief The arcs to walk from @p node: incoming, going backward.
         template <typename ResourceType>
-        static auto arcs(const Graph<ResourceType>& graph, const Node<ResourceType>* node)
-            -> std::span<Arc<ResourceType>*> {
+        static auto arcs(const Graph<ResourceType>& graph,
+                         const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
             return graph.get_in_arcs(node);
         }
 
@@ -156,8 +156,8 @@ struct BackwardDirection {
         /// permissive, so the order reverses. Which resources reverse is derived from their
         /// extension function's declared shape.
         template <typename ResourceType>
-        static auto dominates(const Label<ResourceType>& lhs, const Label<ResourceType>& rhs)
-            -> bool {
+        static auto dominates(const Label<ResourceType>& lhs,
+                              const Label<ResourceType>& rhs) -> bool {
             return lhs.back_dominates(rhs);
         }
 

@@ -52,7 +52,8 @@ def _cost_only_graph(arc_costs):
 
 
 def _time_window_graph(windows, arcs):
-    """Cost in slot 0, a time window in slot 1 -- the clock a bidirectional solve can use."""
+    """Cost in slot 0, a time window in slot 1 -- the clock a bidirectional solve can
+    use."""
     rg = ResourceGraph()
     rg.add_real_resource(
         AdditionExtensionFunction(),
@@ -96,7 +97,8 @@ def test_bidirectional_is_reachable_by_name():
 
 
 def test_unknown_algorithm_message_lists_bidirectional():
-    """The error listing valid names is built from ALGORITHMS, so it must mention the new one."""
+    """The error listing valid names is built from ALGORITHMS, so it must mention the
+    new one."""
     rg = _cost_only_graph([1.0])
     with pytest.raises(ValueError, match="bidirectional"):
         rg.solve(algorithm="not-an-algorithm")
@@ -109,9 +111,9 @@ def test_unknown_algorithm_message_lists_bidirectional():
 def test_matches_simple_on_a_small_instance(arc_costs, half_way_point):
     """Same optimum as algorithm='simple'.
 
-    Compared with pytest.approx, never with ==: a joined path sums two independently accumulated
-    cost chains, so the floating-point association order differs from a single forward
-    accumulation and the totals can disagree in the last bits.
+    Compared with pytest.approx, never with ==: a joined path sums two independently
+    accumulated cost chains, so the floating-point association order differs from a
+    single forward accumulation and the totals can disagree in the last bits.
     """
     expected = _cost_only_graph(arc_costs).solve(algorithm="simple").solutions[0].cost
 
@@ -123,7 +125,8 @@ def test_matches_simple_on_a_small_instance(arc_costs, half_way_point):
 
 
 def test_matches_simple_with_a_time_window_clock():
-    """With a real clock the bound is in force, and the answer is still the forward one."""
+    """With a real clock the bound is in force, and the answer is still the forward
+    one."""
     windows = {0: (0.0, 100.0), 1: (0.0, 100.0), 2: (0.0, 100.0), 3: (0.0, 5.0)}
     # The cheap route 0 -> 2 -> 3 arrives at 6 and misses node 3's window.
     arcs = [
@@ -147,8 +150,8 @@ def test_matches_simple_with_a_time_window_clock():
 def test_short_route_is_found():
     """An instance whose optimum never reaches the half-way point is still found.
 
-    Such a path crosses H on no arc, so the join cannot produce it; it exists only as a forward
-    label that ran all the way to a sink.
+    Such a path crosses H on no arc, so the join cannot produce it; it exists only as a
+    forward label that ran all the way to a sink.
     """
     windows = {0: (0.0, 1000.0), 1: (0.0, 1000.0), 2: (0.0, 1000.0)}
     arcs = [(1.0, 1.0, 0, 1), (1.0, 1.0, 1, 2)]
@@ -177,7 +180,8 @@ def test_params_are_settable():
 
 
 def test_dynamic_half_way_is_not_exposed():
-    """An inert flag in a public API invites a user to set it and conclude the policy is broken.
+    """An inert flag in a public API invites a user to set it and conclude the policy is
+    broken.
 
     It stays a C++-side placeholder until the dynamic policy exists.
     """
@@ -202,9 +206,8 @@ def test_result_reports_whether_the_bound_was_in_force():
 
 
 def test_a_cost_only_model_reports_the_bound_off():
-    """Cost is never a clock -- reduced costs go negative -- so the bound must switch itself off,
-    and the result must say so rather than only logging it.
-    """
+    """Cost is never a clock -- reduced costs go negative -- so the bound must switch
+    itself off, and the result must say so rather than only logging it."""
     result = _cost_only_graph([1.0, 2.0, 3.0]).solve(
         algorithm="bidirectional",
         params=_bidirectional_params(3.0),
@@ -213,7 +216,8 @@ def test_a_cost_only_model_reports_the_bound_off():
 
 
 def test_a_forward_solve_leaves_the_diagnostics_at_their_defaults():
-    """The fields are bidirectional-only; every other algorithm must leave them alone."""
+    """The fields are bidirectional-only; every other algorithm must leave them
+    alone."""
     result = _cost_only_graph([1.0, 2.0, 3.0]).solve(algorithm="simple")
     assert result.bounded_by_half_way is False
     assert result.number_of_joined_paths == 0
@@ -222,9 +226,9 @@ def test_a_forward_solve_leaves_the_diagnostics_at_their_defaults():
 def test_half_way_point_reaches_the_algorithm():
     """A half-way point that cuts the graph in two still returns the optimum.
 
-    If the param were dropped on the way through the binding every solve here would be identical,
-    so what matters is that values which change what each direction explores -- one below the
-    path's total clock, one above it -- do not change the answer.
+    If the param were dropped on the way through the binding every solve here would be
+    identical, so what matters is that values which change what each direction explores
+    -- one below the path's total clock, one above it -- do not change the answer.
     """
     windows = {node_id: (0.0, 1000.0) for node_id in range(5)}
     arcs = [(1.0, 10.0, i, i + 1) for i in range(4)]
@@ -286,7 +290,8 @@ def test_budget_extension_function_is_bound_for_signed_types_only():
 
 
 def test_budget_extension_function_accepts_per_node_bounds_and_a_default():
-    """Every constructor shape reaches C++: bare, per-node, and per-node with a default."""
+    """Every constructor shape reaches C++: bare, per-node, and per-node with a
+    default."""
     assert BudgetExtensionFunction().create("real") is not None
     assert BudgetExtensionFunction({0: 5.0, 1: 3.0}).create("real") is not None
     assert BudgetExtensionFunction({0: 5}, default_max=9).create("int") is not None

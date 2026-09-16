@@ -368,7 +368,6 @@ class BidirectionalDominanceAlgorithm
             }
 
             extend_into<Dir>(label_ptr, containers, frontier);
-            return;
         }
 
         /// @brief Extends one label along its direction's arcs into @p containers.

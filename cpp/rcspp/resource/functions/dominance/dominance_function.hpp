@@ -91,8 +91,8 @@ class DominanceFunction {
         /// @return @c true if @p lhs_resource is (partially) backward-dominated by
         ///         @p rhs_resource.
         virtual auto fast_check_back_dominance(const ResourceType& lhs_resource,
-                                               const ResourceType& rhs_resource, double delta)
-            -> bool {
+                                               const ResourceType& rhs_resource,
+                                               double delta) -> bool {
             return backward_reversed_ ? fast_check_dominance(rhs_resource, lhs_resource, delta)
                                       : fast_check_dominance(lhs_resource, rhs_resource, delta);
         }

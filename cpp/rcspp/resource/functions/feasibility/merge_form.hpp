@@ -76,8 +76,8 @@ class DisjointMergeForm : public Base {
         /// @param resource      The forward label's value.
         /// @param back_resource The backward label's value.
         /// @return @c true when the two sets are disjoint.
-        [[nodiscard]] auto can_be_merged(const R& resource, const R& back_resource)
-            -> bool override {
+        [[nodiscard]] auto can_be_merged(const R& resource,
+                                         const R& back_resource) -> bool override {
             return !resource.intersects(back_resource.get_value());
         }
 
