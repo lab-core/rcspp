@@ -275,6 +275,25 @@ So it is **not a default**.  It does not pay when:
   from a search reaching a terminal rather than from the join, so `H` is placed such that
   nothing crosses it.
 
+### One thing `status` cannot tell you
+
+Every algorithm, not only this one, prunes its label queues when RSS crosses
+`memory_pressure_fraction ×` the effective limit, and tightens the per-node extension quota
+along with it.  Labels that were never extended are abandoned, so the answer may no longer be
+optimal — but `status` still reads `complete`, because the label sets really were exhausted *of
+what survived the trim*.  There is no status value for "exhausted but lossy", and reusing
+`memory_limit` would conflate a hard stop with a soft trim, so it is reported as a flag:
+
+```python
+result = rg.solve(algorithm="bidirectional", params=p)
+if result.memory_pressure_triggered:
+    print("memory pressure trimmed this solve; the answer is not a proof")
+```
+
+Code that treats `complete` as proof of optimality — a column-generation loop deciding it has
+converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
+*parameters*, and memory pressure is a property of the run.
+
 ## `Greedy`
 
 Extends labels greedily (best-cost-first) with limited backtracking.

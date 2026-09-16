@@ -214,6 +214,10 @@ class BidirectionalDominanceAlgorithm
         /// The accessors above stay and read the same members, so the two cannot disagree; this is
         /// the copy that crosses the Python boundary, where the algorithm object does not.
         void annotate(SolveResult* result) const override {
+            // The base reports `memory_pressure_triggered`, which matters more here than
+            // anywhere else: `trim_frontier` abandons frontier entries rather than setting them
+            // aside for a later phase, and this algorithm's phase loop only ever runs once.
+            Base::annotate(result);
             result->bounded_by_half_way = half_way_.enabled();
             result->number_of_joined_paths = joined_paths_;
         }

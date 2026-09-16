@@ -111,6 +111,13 @@ void init_graph(py::module_& m) {
                       "How many complete paths the bidirectional join pass produced. 0 from every "
                       "other algorithm. Zero with a correct answer means the answer came from a "
                       "search reaching a terminal, not from the join.")
+        .def_readonly("memory_pressure_triggered",
+                      &SolveResult::memory_pressure_triggered,
+                      "Whether memory pressure trimmed this solve, in which case the result may "
+                      "not be optimal. Reported by every algorithm. status stays 'complete' when "
+                      "it happens -- the label sets really were exhausted, of what survived the "
+                      "trim -- so code that treats 'complete' as a proof of optimality has to "
+                      "check this too.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -140,6 +147,12 @@ void init_graph(py::module_& m) {
                 text += ", bounded_by_half_way=" +
                         std::string(r.bounded_by_half_way ? "True" : "False") +
                         ", joined=" + std::to_string(r.number_of_joined_paths);
+            }
+            // Only when set: it is the one field that says the answer may not be a proof, so it
+            // belongs in the repr a user sees, and a "False" on every ordinary solve would train
+            // them to stop reading it.
+            if (r.memory_pressure_triggered) {
+                text += ", memory_pressure_triggered=True";
             }
             return text + ")";
         });

@@ -567,6 +567,12 @@ class ResourceGraph:
         Returns:
             :class:`SolveResult` with a ``solutions`` list and an
             ``AlgorithmStatus`` indicating why the solver stopped.
+
+            A ``complete`` status does not on its own mean the answer is optimal:
+            if memory pressure trimmed the run, the label sets were exhausted only
+            of what survived the trim. ``result.memory_pressure_triggered`` reports
+            that, and no status value can -- see :doc:`the algorithms guide
+            </advanced/algorithms>`.
         """
         if cost_index < 0:
             raise ValueError(f"cost_index must be non-negative, got {cost_index}")

@@ -740,6 +740,70 @@ TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
            "value, so they refilled immediately";
 }
 
+/// @brief Memory-pressure lossiness reaches `SolveResult`, not just the algorithm object.
+///
+/// A pressure event abandons frontier entries, so the answer may no longer be optimal -- and no
+/// `AlgorithmStatus` value says so. `COMPLETE` stays true, because the label sets really were
+/// exhausted *of what survived the trim*, and `could_be_non_optimal()` reads `params_` only, so it
+/// cannot see a property of the run. `memory_pressure_was_triggered()` closes the gap for a caller
+/// holding the algorithm object, which `ResourceGraph::solve` and every Python caller do not.
+///
+/// So the assertion that matters is the pair: the status is still COMPLETE *and* the result says
+/// the run was lossy. Without the second half a caller treating COMPLETE as a proof of optimality
+/// -- a column-generation loop deciding it has converged -- has no way to know otherwise.
+TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
+    namespace bt = bidirectional_test;
+
+    const auto run = [](bool under_pressure) {
+        auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+        auto p = bt::params(3.0, bt::kClockIndex);
+        if (under_pressure) {
+            constexpr double kHugeLimitGiB = 1e9;  // pressure on every check, never a hard stop
+            p.max_memory_gb = kHugeLimitGiB;
+            p.memory_pressure_fraction = 0.0;
+            p.memory_check_interval = 1;
+            p.memory_pressure_max_labels_per_node = 0;
+        }
+        auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(p);
+        const SolveResult result = graph->solve(algorithm.get());
+        return std::make_pair(result, algorithm->memory_pressure_was_triggered());
+    };
+
+    const auto [relaxed, relaxed_flag] = run(/*under_pressure=*/false);
+    EXPECT_FALSE(relaxed_flag);
+    EXPECT_FALSE(relaxed.memory_pressure_triggered)
+        << "an ordinary solve must not claim it was trimmed";
+
+    const auto [pressed, pressed_flag] = run(/*under_pressure=*/true);
+    ASSERT_TRUE(pressed_flag) << "the pressure recipe did not fire";
+    EXPECT_TRUE(pressed.memory_pressure_triggered)
+        << "the algorithm knows the run was trimmed but the result the caller receives does not";
+    EXPECT_EQ(pressed.status, AlgorithmStatus::COMPLETE)
+        << "the status cannot express this, which is exactly why the flag has to";
+}
+
+/// @brief Every algorithm reports it, not only the bidirectional one.
+///
+/// `Algorithm::annotate` is where the flag is set, so a forward algorithm that adds no
+/// diagnostics of its own still reports this one. The bidirectional override has to call
+/// `Base::annotate` to keep it -- which `MemoryPressureReachesTheSolveResult` above is what
+/// catches if it ever stops doing so.
+TEST(Bidirectional, MemoryPressureIsReportedByForwardAlgorithmsToo) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+
+    constexpr double kHugeLimitGiB = 1e9;
+    AlgorithmBaseParams pressed;
+    pressed.max_memory_gb = kHugeLimitGiB;
+    pressed.memory_pressure_fraction = 0.0;
+    pressed.memory_check_interval = 1;
+    pressed.memory_pressure_max_labels_per_node = 0;
+
+    EXPECT_TRUE(graph->solve<SimpleDominanceAlgorithm>(pressed).memory_pressure_triggered);
+    EXPECT_FALSE(
+        graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}).memory_pressure_triggered);
+}
+
 /// @brief The default `release_after_solve` frees the backward containers too.
 ///
 /// Every other test here turns that off so it can look at the label sets afterwards, which means

@@ -88,6 +88,24 @@ struct SolveResult {
         /// means the opposite: the crossing test is not filtering.
         size_t number_of_joined_paths = 0;
 
+        /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
+        ///
+        /// Reported by every algorithm, not only the bidirectional one. A pressure event trims
+        /// the unprocessed queues and tightens the per-node extension quota: labels that were
+        /// never extended are abandoned, and the answer stops being a proof.
+        ///
+        /// **This is the only lossiness the status cannot express.** @c AlgorithmStatus::COMPLETE
+        /// means "the label sets were exhausted", which stays true after a trim -- they were
+        /// exhausted *of what survived it*. There is no status value for "exhausted but lossy",
+        /// and reusing @c MEMORY_LIMIT would conflate a hard stop with a soft trim, so it is a
+        /// flag rather than a status. A caller treating @c COMPLETE as a proof of optimality --
+        /// a column-generation loop deciding it has converged, say -- has to read this too.
+        ///
+        /// @c Algorithm::memory_pressure_was_triggered() is the same value, and is the one a C++
+        /// caller holding the algorithm object can reach. This is the copy that crosses the
+        /// Python boundary, where the algorithm object does not.
+        bool memory_pressure_triggered = false;
+
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
@@ -505,13 +523,20 @@ class Algorithm {
     protected:
         bool print_{false};
 
-        /// @brief Adds algorithm-specific diagnostics to the result, just before it is returned.
+        /// @brief Adds diagnostics to the result, just before it is returned.
         ///
         /// `SolveResult` is what crosses the Python boundary; the algorithm object does not. So a
-        /// diagnostic a user is told to check has to arrive here. Default: nothing to add.
+        /// diagnostic a user is told to check has to arrive here.
+        ///
+        /// The base reports the one diagnostic every algorithm has: whether memory pressure
+        /// trimmed the run, which no @ref AlgorithmStatus value can express. **An override must
+        /// call this** -- `Base::annotate(result)` -- or its algorithm silently stops reporting
+        /// it.
         ///
         /// @param result The result about to be returned; never null.
-        virtual void annotate(SolveResult* /*result*/) const {}
+        virtual void annotate(SolveResult* result) const {
+            result->memory_pressure_triggered = memory_pressure_triggered_;
+        }
 
         /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
         ///
