@@ -60,9 +60,16 @@ void VRPSubproblem::construct_resource_graph(RGraph* resource_graph,
         std::make_unique<ValueCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
-    // Demand
+    // Demand.
+    //
+    // BudgetExtensionFunction, not AdditionExtensionFunction. Forward the two are the same
+    // accumulation, so every forward result below is unchanged. Backward they diverge, and only
+    // this one is coherent: MinMaxFeasibilityFunction seeds a backward label at the capacity, so
+    // the extension has to count *down* from it. Paired with an addition the label would exceed
+    // the capacity on its first arc and the backward search would find nothing -- which is why
+    // BidirectionalDominanceAlgorithm refuses that pairing at setup rather than solving it wrongly.
     resource_graph->add_resource<IntResource>(
-        std::make_unique<AdditionExtensionFunction<IntResource>>(),
+        std::make_unique<BudgetExtensionFunction<IntResource>>(),
         std::make_unique<MinMaxFeasibilityFunction<IntResource>>(0, instance_.get_capacity()),
         std::make_unique<ValueCostFunction<IntResource>>(),
         std::make_unique<ValueDominanceFunction<IntResource>>());

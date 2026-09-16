@@ -4,10 +4,12 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/base/resource_type.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -115,6 +117,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->dominance_function_->check_dominance(this->value_, rhs_resource.value_);
         }
 
+        /// @brief Backward dominance: `true` if this resource dominates `rhs_resource` going
+        ///        backward.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates `rhs_resource`.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(this->value_,
+                                                                   rhs_resource.value_);
+        }
+
         // Check distance from the resource to another
         /// @brief Fast dominance check with a relaxation delta.
         ///
@@ -129,6 +141,26 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->dominance_function_->fast_check_dominance(this->value_,
                                                                    rhs_resource.value_,
                                                                    delta);
+        }
+
+        /// @brief Fast (approximate) backward dominance check with a relaxation delta.
+        ///
+        /// The backward twin of `is_lower`. Like `check_back_dominance`, the reversal is exactly
+        /// an argument swap, tolerance included, so this needs no new comparison of its own.
+        ///
+        /// Scalar only: the composition specialisation of `DominanceFunction` has no
+        /// `fast_check_dominance` to delegate to, and the bucket resource is always a *component*
+        /// rather than the composition, so there is nothing to add on that side.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @param delta        Relaxation tolerance (default 0).
+        /// @return `true` if this resource is backward-dominated by `rhs_resource` within the
+        ///         tolerance.
+        [[nodiscard]] auto is_back_lower(const Resource& rhs_resource,
+                                         double delta = 0) const -> bool {
+            return this->dominance_function_->fast_check_back_dominance(this->value_,
+                                                                        rhs_resource.value_,
+                                                                        delta);
         }
 
         // Return resource cost
@@ -156,15 +188,77 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->feasibility_function_->is_back_feasible(this->value_);
         }
 
+        /// @brief Applies this resource's backward starting value, if it has one.
+        ///
+        /// A forward label starts at "nothing consumed"; a backward label at a sink starts at that
+        /// sink's upper bound, and the number differs per sink. Resources with no such bound --
+        /// cost, and every container -- return `std::nullopt` and keep the type default.
+        ///
+        /// Called once per initial backward label from the algorithm's `initialize_labels()`, and
+        /// never on the label-recycling path: only initial labels keep their starting values,
+        /// because every other label has all of its values overwritten by extension.
+        void apply_back_seed() {
+            if (auto seed = this->feasibility_function_->back_seed_value()) {
+                this->value_ = *seed;
+            }
+        }
+
         /// @brief Returns `true` if this (forward) resource can be merged with a backward label.
         ///
-        /// Used in bidirectional labelling to determine whether a forward and a backward label
-        /// can be joined into a complete path.
+        /// Used in bidirectional labelling to determine whether a forward and a backward label can
+        /// be joined into a complete path. Dispatches on the rule the feasibility function
+        /// declares, cached at bind time because the join consults it once per component per
+        /// candidate pair.
         ///
         /// @param back_resource The backward resource to attempt merging with.
         /// @return `true` when the two labels are compatible for merging.
+        /// @throws std::runtime_error If the feasibility function declares no rule.
         [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
-            return this->feasibility_function_->can_be_merged(this->value_, back_resource.value_);
+            switch (this->merge_rule_) {
+                case MergeRule::AlwaysTrue:
+                    return true;
+                case MergeRule::DominanceOrder:
+                    // check_dominance, NOT check_back_dominance. The phase-3 reversal is for
+                    // comparing two *backward* labels with each other; this compares a forward
+                    // value against a threshold, in the forward order. For a higher-is-better
+                    // resource the dominance function is already flipped, so this flips with it.
+                    return this->dominance_function_->check_dominance(this->value_,
+                                                                      back_resource.value_);
+                case MergeRule::Custom:
+                    return this->feasibility_function_->can_be_merged(this->value_,
+                                                                      back_resource.value_);
+                default:
+                    throw std::runtime_error("FeasibilityFunction::merge_rule() not declared");
+            }
+        }
+
+        /// @brief Whether this resource's merge test may refuse a pair the model would accept.
+        ///
+        /// See @c FeasibilityFunction::merge_refusal_may_be_conservative. Read once per solve by
+        /// the joiner, which verifies such a refusal by replay rather than trusting it.
+        ///
+        /// @return @c true when a refusal is worth verifying.
+        [[nodiscard]] auto merge_refusal_may_be_conservative() const -> bool {
+            return this->feasibility_function_->merge_refusal_may_be_conservative();
+        }
+
+        /// @brief The merge rule this resource's feasibility function declares.
+        ///
+        /// Exposes the value cached at bind time, so a setup-time check can report an undeclared
+        /// component by name rather than letting the join throw mid-solve.
+        ///
+        /// @return The declared @ref MergeRule.
+        [[nodiscard]] auto merge_rule() const -> MergeRule { return this->merge_rule_; }
+
+        /// @brief Whether this resource's feasibility function supplies a backward starting value.
+        ///
+        /// Pairing a back seed with an *accumulating* extension is incoherent -- the seed says
+        /// "start at the bound and count down" while the extension adds -- and both halves declare
+        /// legal values individually, so only a check that sees both catches it.
+        ///
+        /// @return `true` when `back_seed_value()` returns a value.
+        [[nodiscard]] auto has_back_seed() const -> bool {
+            return this->feasibility_function_->back_seed_value().has_value();
         }
 
         /// @brief Returns `true` if the destination node is reachable from this resource's state.

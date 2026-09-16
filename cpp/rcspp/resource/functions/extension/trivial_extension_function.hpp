@@ -26,5 +26,11 @@ class TrivialExtensionFunction
         /// @param reused_resource Pointer to the result (not modified).
         void extend(const ResourceType& resource, const ResourceType& extender_value,
                     ResourceType* reused_resource) override {}
+
+        /// @brief A no-op is trivially symmetric: it does nothing in either direction.
+        static constexpr BackwardKind kind = BackwardKind::Accumulate;
+
+        /// @return @c BackwardKind::Accumulate.
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

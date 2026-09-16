@@ -67,6 +67,26 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
+            // Derive the backward dominance direction from the extension function's declared
+            // shape, so the two can never disagree. A Threshold resource stores a deadline, where
+            // a LARGER value is more permissive, so its dominance reverses; Accumulate and Mirror
+            // keep the forward comparison. Anything else -- including Unspecified -- stays
+            // unreversed, which is inert only because a bidirectional solve refuses to start on an
+            // undeclared component.
+            //
+            // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
+            // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
+            // at model-build time rather than one per node.
+            const BackwardKind kind = extension_function->backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+
+            // The feasibility function gets the kind itself rather than a derived flag, because
+            // what it does with it is pick a merge test, and the three kinds do not collapse to a
+            // bool there: a Threshold backward value is compared against the forward one, an
+            // Accumulate backward value is added to it, and an Unspecified one means refuse.
+            // See FeasibilityFunction::set_backward_kind.
+            feasibility_function->set_backward_kind(kind);
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -97,6 +117,24 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             };  // NOLINT
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
+
+            // Derive the backward dominance direction from the extension function's declared
+            // shape, so the two can never disagree. A Threshold resource stores a deadline, where
+            // a LARGER value is more permissive, so its dominance reverses; Accumulate and Mirror
+            // keep the forward comparison. Anything else -- including Unspecified -- stays
+            // unreversed, which is inert only because a bidirectional solve refuses to start on an
+            // undeclared component.
+            //
+            // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
+            // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
+            // at model-build time rather than one per node.
+            const BackwardKind kind = extension_function->backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+
+            // See the other add_resource overload for why the feasibility function is handed the
+            // kind itself rather than a derived flag.
+            feasibility_function->set_backward_kind(kind);
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -105,6 +143,18 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                       resource_base_prototype));
         }
 
+        /// @brief Adds a node whose per-node resource is built from explicit initial values.
+        ///
+        /// The values in @p resource_initializer seed the node resource's *value* slots, which
+        /// @c BellmanFordAlgorithm reads as arc weights during preprocessing. They are **not** a
+        /// label's starting state: a label's resource borrows the node's function objects and
+        /// defaults its own value. Currently unused inside the repository and unbound in Python.
+        ///
+        /// @param node_id              Identifier of the node to add.
+        /// @param resource_initializer Per-type vectors of component initialiser tuples.
+        /// @param source               Whether the node is a source.
+        /// @param sink                 Whether the node is a sink.
+        /// @return Reference to the newly added node.
         Node<ResourceCompositionType>& add_node(
             size_t node_id,
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&

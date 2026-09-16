@@ -48,6 +48,16 @@ class ReachableFeasibilityFunction
             return true;
         }
 
+        /// @brief Merging is genuinely unconstrained here.
+        ///
+        /// @c is_feasible() is unconditionally true; all the real work is in @c is_reachable(),
+        /// which is a look-ahead test on a *single* label. There is no pairwise condition two
+        /// halves can violate by being combined, so this is @c AlwaysTrue rather than an
+        /// oversight.
+        ///
+        /// @return @c MergeRule::AlwaysTrue.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::AlwaysTrue; }
+
         /// @brief Checks that a required destination node is reachable from the current label.
         ///
         /// A destination is reachable if either it is not in `checked_nodes` (not required) or
@@ -58,9 +68,14 @@ class ReachableFeasibilityFunction
         /// @return `true` if the destination is reachable (or not required to have been visited).
         auto is_reachable(const Resource<ContainerResourceType>& resource,
                           size_t destination_node_id) -> bool override {
-            // either not to be checked (i.e., not required) or contained in the reachable set
-            return !checked_nodes_->contains(destination_node_id) ||
-                   resource.contains(destination_node_id);
+            // either not to be checked (i.e., not required) or contained in the reachable set.
+            //
+            // NOTE: reads through resource.get_value(). `Resource` has no contains() of its own,
+            // so the previous `resource.contains(...)` made this class impossible to instantiate;
+            // it compiled only because nothing in the repository ever used it.
+            const auto node =
+                static_cast<typename ContainerResourceType::ValueType>(destination_node_id);
+            return !checked_nodes_->contains(node) || resource.get_value().contains(node);
         }
 
     private:

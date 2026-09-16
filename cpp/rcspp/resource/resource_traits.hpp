@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <set>
 #include <tuple>
@@ -41,6 +42,12 @@ struct ComponentInitializerTypeTuple<BitsetResource<T>> {
 
 using UIntBitsetResource = BitsetResource<unsigned int>;
 using SizeTBitsetResource = BitsetResource<size_t>;
+
+// HasIntersects retired in step 6. It existed only to guard the MergeRule::Disjoint arm of
+// Resource::can_be_merged, which had to compile for every instantiation including the scalar cost
+// resource. That arm is gone: the disjointness body now lives on DisjointMergeForm, which is
+// instantiated only where an author asks for it, so `intersects()` is required only where it
+// exists.
 
 // Type trait: true iff T is NumericalResource<U> for some U
 template <typename T>

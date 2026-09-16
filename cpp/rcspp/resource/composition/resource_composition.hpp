@@ -244,6 +244,15 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->dominance_function_->check_dominance(*this, rhs_resource);
         }
 
+        /// @brief Backward dominance: `true` if this resource dominates @p rhs_resource going
+        ///        backward.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates @p rhs_resource.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(*this, rhs_resource);
+        }
+
         /// @brief Returns the total cost of this composed resource.
         ///
         /// @return The cost value computed by the cost function.
@@ -263,6 +272,34 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         /// @return Result of the feasibility function's `is_back_feasible` check.
         [[nodiscard]] auto is_back_feasible() const -> bool {
             return this->feasibility_function_->is_back_feasible(*this);
+        }
+
+        /// @brief Applies the backward starting value to every component that has one.
+        ///
+        /// Deliberately does *not* route through `CompositionFeasibilityFunction`: seeding is a
+        /// mutation rather than a predicate, and the composition's own `ResourceType` is a tag
+        /// carrying no values, which is why `back_seed_value()` exists only on the scalar
+        /// specialisation.
+        void apply_back_seed() {
+            this->for_each_component([](auto&& component) { component.apply_back_seed(); });
+        }
+
+        /// @brief Whether ANY component's merge test may refuse a pair the model would accept.
+        ///
+        /// OR, not AND: the composed `can_be_merged` is an AND, so one component that cannot decide
+        /// exactly from two values is enough to have caused a refusal, and enough to make that
+        /// refusal worth verifying. Expressed through the const AND helper because that is the one
+        /// that exists; `!all(!x)` is `any(x)`.
+        ///
+        /// Like `apply_back_seed`, this deliberately does not route through
+        /// `CompositionFeasibilityFunction`: the composition's own `ResourceType` is a tag carrying
+        /// no values, and the components are reachable from here.
+        ///
+        /// @return @c true when at least one component declares it.
+        [[nodiscard]] auto merge_refusal_may_be_conservative() const -> bool {
+            return !this->for_each_component_and([](const auto& component) {
+                return !component.merge_refusal_may_be_conservative();
+            });
         }
 
         /// @brief Returns `true` if this (forward) resource can be merged with @p back_resource.

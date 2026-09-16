@@ -97,7 +97,9 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
+// New values go at the END: the enum is exposed to Python, where an integer value may have been
+// persisted or pickled, and inserting alphabetically would silently renumber the rest.
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, Bidirectional };
 
 template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
@@ -123,12 +125,42 @@ struct AStarAlgoEntry {
         }
 };
 
+// Dispatch entry for bidirectional labeling: binds CostRC as both the critical resource TYPE and
+// the cost type, and injects the cost INDEX.
+//
+// It injects `heuristic_cost_index` for the same reason AStarAlgoEntry does: a cost-to-go bound
+// that relaxes on a different slot from the one the labels accumulate is not a lower bound at all.
+// The bidirectional algorithm's completion bounds are exactly such a bound.
+//
+// It deliberately does NOT touch `critical_resource_index`: that is a modelling choice arriving
+// through params, and overwriting it with the cost slot would silently point the clock at the
+// cost -- which is the one resource that can never be a clock, because reduced costs go negative.
+//
+// Binding CostRC as the critical type means the clock must live in the cost resource's type slot.
+// That covers the usual case, a real-valued time or duration alongside a real-valued cost; a model
+// whose clock is an IntResource while its cost is real is not expressible through this entry and
+// needs the C++ API, where BidirectionalAlgoBound takes the two types separately.
+template <SolverAlgorithm E>
+struct BidirectionalAlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC, typename LC>
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            p.heuristic_cost_index = ci;
+            return rg.template solve<BidirectionalAlgoBound<CostRC>::template Algo, CostRC, LC>(
+                ub,
+                std::move(p),
+                pre,
+                ci);
+        }
+};
+
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AStarAlgoEntry<SolverAlgorithm::AStar>>;
+                                  AStarAlgoEntry<SolverAlgorithm::AStar>,
+                                  BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
@@ -367,7 +399,13 @@ py::class_<G>& bind_graph_methods(py::class_<G>& c) {
              "Return the next arc ID that will be assigned by add_arc().")
         .def(
             "_add_rows_bulk",
-            [](G& g, py::array_t<double, py::array::c_style | py::array::forcecast> rows) {
+            // Take the array by const reference, not by value.  A by-value py::array_t
+            // parameter is move-constructed from its type caster *inside* the
+            // py::call_guard scope below, so its destructor would run the ndarray's
+            // dec_ref with the GIL released — which trips pybind11's GIL assertion in
+            // debug builds and is undefined behaviour in release ones.  A const& binds
+            // straight to the caster's value, which is destroyed after the guard.
+            [](G& g, const py::array_t<double, py::array::c_style | py::array::forcecast>& rows) {
                 // rows must be sorted by arc_id (column 0) — the Python side
                 // guarantees this via np.argsort in _build_base_graph.
                 //

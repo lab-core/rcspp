@@ -3,13 +3,15 @@
 
 #pragma once
 
-#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -21,10 +23,14 @@ namespace rcspp {
 ///
 /// - **Forward extension**: `max(earliest[destination], current + arc_time)` — a vehicle
 ///   arriving before the earliest service time waits until that time.
-/// - **Backward extension**: `min(latest[origin], current + arc_time)` — used in
-///   bidirectional labelling to propagate the latest permissible departure time.
+/// - **Backward extension**: `min(latest[origin], current - arc_time)` — used in
+///   bidirectional labelling to propagate the latest permissible departure time. A backward
+///   label stores a *deadline*, so the arc time is subtracted, not added.
 ///
-/// The relevant time-window bounds are cached per arc via `preprocess()`.
+/// Both formulas, and the discipline that decides which clamp binds in which direction, come
+/// from `TranslationThresholdForm`. This class only answers *what the bounds are*: a window is a
+/// floor and a ceiling at every node, which is the single thing that distinguishes it from
+/// `BudgetExtensionFunction`. The form caches both per arc through `preprocess()`.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
@@ -32,8 +38,10 @@ namespace rcspp {
 template <typename ResourceType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class TimeWindowExtensionFunction
-    : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
-                      ExtensionFunction<ResourceType>> {
+    : public Clonable<
+          TimeWindowExtensionFunction<ResourceType, ValueType>,
+          TranslationThresholdForm<ResourceType, ExtensionFunction<ResourceType>, ValueType>,
+          ExtensionFunction<ResourceType>> {
     public:
         /// @brief Constructs a TimeWindowExtensionFunction with node time windows.
         ///
@@ -49,48 +57,43 @@ class TimeWindowExtensionFunction
             : time_window_by_node_id_(
                   std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
                       std::move(time_window_by_node_id))),
-              max_time_window_(default_max_time_window) {}
+              default_max_time_window_(default_max_time_window) {}
 
-        /// @brief Forward extension: adds arc time and clamps to the destination's earliest
-        /// time.
+    protected:
+        /// @brief The node's opening time, defaulting to zero.
         ///
-        /// @param resource           Current time resource of the forward label.
-        /// @param extender_value     Arc's travel time.
-        /// @param extended_resource  Output: receives `max(earliest[dest], current + arc_time)`.
-        void extend(const ResourceType& resource, const ResourceType& extender_value,
-                    ResourceType* extended_resource) override {
-            auto sum_value = resource.get_value() + extender_value.get_value();
-            sum_value = std::max(min_time_window_, sum_value);
-            extended_resource->set_value(sum_value);
+        /// Absent from the map means `0`, not "no clamp": the forward extension has always
+        /// clamped up to zero, and a resource whose value can go negative through a reduced cost
+        /// would notice the difference.
+        ///
+        /// @param node_id Index of the node the forward extension arrives at.
+        /// @return The node's earliest service time, or zero if it has no window.
+        [[nodiscard]] std::optional<ValueType> lower_bound_at(size_t node_id) const final {
+            auto it = time_window_by_node_id_->find(node_id);
+            return it != time_window_by_node_id_->end() ? it->second.first
+                                                        : default_min_time_window_;
         }
 
-        /// @brief Backward extension: adds arc time and clamps to the origin's latest time.
+        /// @brief The node's closing time, defaulting to the constructor's bound.
         ///
-        /// @param resource           Current time resource of the backward label.
-        /// @param extender_value     Arc's travel time.
-        /// @param extended_resource  Output: receives `min(latest[origin], current + arc_time)`.
-        void extend_back(const ResourceType& resource, const ResourceType& extender_value,
-                         ResourceType* extended_resource) override {
-            auto sum_value = resource.get_value() + extender_value.get_value();
-            sum_value = std::min(max_time_window_, sum_value);
-            extended_resource->set_value(sum_value);
+        /// That default is `max()/2`, so the forward addition cannot overflow. There is
+        /// deliberately no clamp *up* to the opening time on the backward side:
+        /// `TimeWindowFeasibilityFunction::is_back_feasible` tests `value >= earliest`, and
+        /// clamping up to that bound would make every infeasible backward label look feasible.
+        /// The form owns that rule.
+        ///
+        /// @param node_id Index of the node the backward extension arrives at.
+        /// @return The node's latest service time, or the default bound if it has no window.
+        [[nodiscard]] std::optional<ValueType> upper_bound_at(size_t node_id) const final {
+            auto it = time_window_by_node_id_->find(node_id);
+            return it != time_window_by_node_id_->end() ? it->second.second
+                                                        : default_max_time_window_;
         }
 
     private:
         std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
             time_window_by_node_id_;
-        ValueType min_time_window_{0};
-        ValueType max_time_window_;
-
-        void preprocess(size_t origin_id, size_t destination_id) override {
-            auto it = time_window_by_node_id_->find(destination_id);
-            if (it != time_window_by_node_id_->end()) {
-                min_time_window_ = it->second.first;
-            }
-            it = time_window_by_node_id_->find(origin_id);
-            if (it != time_window_by_node_id_->end()) {
-                max_time_window_ = it->second.second;
-            }
-        }
+        ValueType default_min_time_window_{0};
+        ValueType default_max_time_window_;
 };
 }  // namespace rcspp

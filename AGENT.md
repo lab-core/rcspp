@@ -26,7 +26,8 @@ python/
   bindings/           ← pybind11 C++ source (wraps the C++ engine)
   src/rcspp/          ← pure-Python package (the public Python API)
 tests/
-  cpp/                ← GoogleTest suite (tests/cpp/test_main.cpp + test_*.hpp)
+  cpp/                ← GoogleTest suite (test_*.hpp headers, split across
+                        test_main.cpp / test_resources.cpp / test_algorithms.cpp)
   python/             ← pytest suite
 examples/
   cpp/                ← VRP C++ benchmark
@@ -117,7 +118,8 @@ rg.add_arc((5.0,  2), 1, 2, cost=5.0)
 
 # 4. Solve
 result = rg.solve()                          # returns SolveResult
-result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar", …
+result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
+                                             # "bidirectional", …
                   upper_bound=-1e-9,         # prune cost ≥ this
                   params=AlgorithmParams(),
                   preprocess=True,
@@ -130,7 +132,10 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar", 
 result.solutions            # list[Solution], best-first
 result.status               # AlgorithmStatus enum
 result.status_string()      # "complete" | "timeout" | "max_solutions" | …
-result.num_extended_labels  # int
+# How many labels the search extended is on the algorithm, not on SolveResult:
+#   auto algo = graph.create_algorithm<Algo>(params);
+#   graph.solve(algo.get());
+#   algo->get_number_of_extended_labels();
 
 sol = result.solutions[0]
 sol.cost            # float
@@ -173,7 +178,28 @@ p.tabu_tenure             = 5
 p.seed                    = 42
 p.limit_to_available_ram  = True
 p.memory_limit_fraction   = 0.8
+
+# Bidirectional only
+p.critical_resource_index = 1      # the clock's slot within the cost resource type
+p.half_way_point          = 500.0  # H; the clock's range is taken as [0, 2H]
 ```
+
+### `algorithm="bidirectional"`
+
+Searches forward from the sources and backward from the sinks, stops each
+direction at a half-way point `H` on one designated resource, and joins the halves
+at the node where that resource crosses `H`. Two requirements:
+
+- **The critical resource must be a clock**: monotone, bounded, and a *threshold*
+  backwards (`TimeWindowExtensionFunction` or `BudgetExtensionFunction`, never
+  `AdditionExtensionFunction` and never the cost). If it is not, the half-way bound
+  switches itself off — the answer stays correct, the solve is just slower.
+- **Every resource must declare its backward semantics**, or the solve raises before
+  the first label and names the offending component. The usual cause is a capacity
+  written as `AdditionExtensionFunction` + `MinMaxFeasibilityFunction(0, cap)`;
+  use `BudgetExtensionFunction` instead (signed numerical types only).
+
+See `docs/advanced/algorithms.md` for the full description.
 
 ---
 

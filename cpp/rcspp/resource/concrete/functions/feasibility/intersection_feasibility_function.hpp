@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <set>
@@ -10,6 +11,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/resource/functions/feasibility/merge_form.hpp"
 
 namespace rcspp {
 
@@ -32,8 +34,10 @@ namespace rcspp {
 template <typename ContainerResourceType,
           typename ValueType = typename ContainerResourceType::ValueType>
 class IntersectionFeasibilityFunction
-    : public Clonable<IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
-                      FeasibilityFunction<ContainerResourceType>> {
+    : public Clonable<
+          IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
+          DisjointMergeForm<ContainerResourceType, FeasibilityFunction<ContainerResourceType>>,
+          FeasibilityFunction<ContainerResourceType>> {
     public:
         /// @brief Constructs the function with a per-node map of value sets.
         ///
@@ -45,7 +49,15 @@ class IntersectionFeasibilityFunction
             std::map<size_t, std::set<ValueType>> values_by_node_id, bool forbidden = true)
             : values_by_node_id_(std::make_shared<const std::map<size_t, std::set<ValueType>>>(
                   std::move(values_by_node_id))),
-              forbidden_(forbidden) {}
+              forbidden_(forbidden) {
+            // Whether this function forbids anything ANYWHERE, computed once. Not per node: the
+            // disjointness merge test asks whether the two halves share any node at all, so a
+            // per-node answer at the merge node would miss an overlap on a node that is forbidden
+            // somewhere else. See merge_rule().
+            constrains_something_ = std::ranges::any_of(*values_by_node_id_, [](const auto& entry) {
+                return !entry.second.empty();
+            });
+        }
 
         /// @brief Checks whether the resource satisfies the intersection constraint at the
         ///        current node.
@@ -65,11 +77,48 @@ class IntersectionFeasibilityFunction
             return resource.intersects(values_.get_value()) ^ forbidden_;
         }
 
+        /// @brief The merge test depends on which way the constraint points.
+        ///
+        /// **Forbidden** values: the two halves must not both contain a forbidden node, or the
+        /// merged path visits it twice -- so the disjointness body inherited from
+        /// @c DisjointMergeForm applies, and the rule is @c Custom.
+        ///
+        /// **Required** values: "did the path collect everything" is a property of the *whole*
+        /// path, already enforced at the endpoints, and two halves cannot violate it by being
+        /// combined -> @c AlwaysTrue, a free short-circuit rather than a call that returns true.
+        ///
+        /// The asymmetry is not obvious from the class name, which is why it is spelled out here.
+        ///
+        /// @note The runtime branch survives and stops costing anything. It now selects between
+        ///       *call my own body* and *free short circuit*, rather than between two rules a
+        ///       third party (@c Resource) has to interpret. Keeping the @c AlwaysTrue arm
+        ///       matters: without it a required-values model would pay a virtual call per
+        ///       component per candidate pair just to return true.
+        ///
+        /// **Nothing forbidden anywhere**: also @c AlwaysTrue, and this arm is not cosmetic.
+        /// Disjointness is a restriction the *extension* does not impose: it rejects two halves
+        /// that share a node even when revisiting that node is legal. A function that forbids
+        /// nothing constrains nothing, and must constrain the join no more than it constrains an
+        /// extension -- otherwise a component documented as inert makes the bounded search return
+        /// a worse answer than the unbounded one, which is exactly what it did (review finding D6:
+        /// -51.95 against -80.02 on a cyclic instance, reported `complete`).
+        ///
+        /// @return @c MergeRule::Custom when values are forbidden somewhere, @c AlwaysTrue
+        ///         otherwise.
+        [[nodiscard]] MergeRule merge_rule() const override {
+            return (forbidden_ && constrains_something_) ? MergeRule::Custom
+                                                         : MergeRule::AlwaysTrue;
+        }
+
     private:
         std::shared_ptr<const std::map<size_t, std::set<ValueType>>> values_by_node_id_;
         ContainerResourceType values_;
         bool forbidden_;     // values are forbidden or required
         bool empty_ = true;  // to avoid checking intersection if no values to check
+
+        /// @brief Whether any node forbids anything. Whole-function, not per node; see
+        ///        @ref merge_rule.
+        bool constrains_something_ = false;
 
         void preprocess(size_t node_id) override {
             if (values_by_node_id_ == nullptr) {

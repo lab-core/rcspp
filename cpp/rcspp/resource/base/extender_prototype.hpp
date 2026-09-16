@@ -109,6 +109,18 @@ class ExtenderPrototype {
         /// @return Arc identifier.
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
+        /// @brief The backward form this extender's extension function implements.
+        ///
+        /// Read-only, and the only route to it: an extension function lives on the *arc*, not on a
+        /// node's resource, so a setup-time check of a model's backward semantics has nowhere else
+        /// to look. Returns @c Unspecified when no extension function is bound.
+        ///
+        /// @return The declared @ref BackwardKind, or @c Unspecified.
+        [[nodiscard]] BackwardKind backward_kind() const {
+            return extension_function_ != nullptr ? extension_function_->backward_kind()
+                                                  : BackwardKind::Unspecified;
+        }
+
     protected:
         ResourceType value_;
         std::unique_ptr<ExtensionFunction<ResourceType>> extension_function_;

@@ -69,6 +69,43 @@ struct SolveResult {
         std::vector<Solution> solutions;
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
+        /// @brief Whether a directional bound was in force for this solve.
+        ///
+        /// Bidirectional only; `false` from every other algorithm, which have no such bound. A
+        /// bidirectional solve whose clock fails validation runs *both* searches to completion and
+        /// then joins every pair, which is strictly more work than a forward search alone -- so a
+        /// disabled bound is not merely an un-accelerated solve, it is a pessimisation. It is
+        /// reported here rather than only logged because the caller who needs to know is usually a
+        /// Python caller, who never holds the algorithm object.
+        bool bounded_by_half_way = false;
+
+        /// @brief How many complete paths the join pass produced.
+        ///
+        /// Bidirectional only; `0` from every other algorithm. The one number that tells the two
+        /// payoff failures apart. Zero on an instance that still returns the optimum means the
+        /// answer came from a search reaching a terminal rather than from the join -- which is what
+        /// happens to a route whose clock never reaches `H`. A number that dwarfs the label count
+        /// means the opposite: the crossing test is not filtering.
+        size_t number_of_joined_paths = 0;
+
+        /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
+        ///
+        /// Reported by every algorithm, not only the bidirectional one. A pressure event trims
+        /// the unprocessed queues and tightens the per-node extension quota: labels that were
+        /// never extended are abandoned, and the answer stops being a proof.
+        ///
+        /// **This is the only lossiness the status cannot express.** @c AlgorithmStatus::COMPLETE
+        /// means "the label sets were exhausted", which stays true after a trim -- they were
+        /// exhausted *of what survived it*. There is no status value for "exhausted but lossy",
+        /// and reusing @c MEMORY_LIMIT would conflate a hard stop with a soft trim, so it is a
+        /// flag rather than a status. A caller treating @c COMPLETE as a proof of optimality --
+        /// a column-generation loop deciding it has converged, say -- has to read this too.
+        ///
+        /// @c Algorithm::memory_pressure_was_triggered() is the same value, and is the one a C++
+        /// caller holding the algorithm object can reach. This is the copy that crosses the
+        /// Python boundary, where the algorithm object does not.
+        bool memory_pressure_triggered = false;
+
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
@@ -173,12 +210,62 @@ struct AlgorithmBaseParams {
 
         int seed = 0;
 
-        /// @brief Index of the cost resource component used to compute the A* heuristic.
+        /// @brief Index of the cost resource component that cost-to-go bounds relax on.
         ///
-        /// Injected by the dispatch layer (see AStarAlgoEntry in graph_impl.hpp) so that
-        /// AStarDominanceAlgorithm::initialize() runs Bellman–Ford on the same cost slot
-        /// as the labeling algorithm itself.  Ignored by all other algorithm types.
+        /// Injected by the dispatch layer (see AStarAlgoEntry and BidirectionalAlgoEntry in
+        /// graph_impl.hpp) so that a cost-to-go bound runs Bellman–Ford on the same cost slot as
+        /// the labeling algorithm itself. Read by @c AStarDominanceAlgorithm (its heuristic) and
+        /// by @c BidirectionalDominanceAlgorithm (its completion bounds); ignored by every other
+        /// algorithm.
+        ///
+        /// The name is historical -- this was an A*-only field. It is not renamed because it is
+        /// public C++ API, and a second field meaning the same thing is exactly the
+        /// two-sources-of-truth hazard the rest of this design refuses.
         size_t heuristic_cost_index = 0;
+
+        /// @brief Component index of the monotone bounding resource used as the bidirectional
+        ///        clock.
+        ///
+        /// Injected by the dispatch layer, like @ref heuristic_cost_index. The resource *type*
+        /// is a template parameter of the algorithm; this is the index within that type's slot.
+        size_t critical_resource_index = 0;
+
+        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**.
+        ///
+        /// Each direction stops at `H`: the forward search discards labels whose clock exceeds
+        /// it, the backward search discards labels whose clock falls below it, and the join pairs
+        /// what is left. Set it to roughly half the clock's range -- the algorithm takes that
+        /// range to be `[0, 2H]`, so `H` is the only number it has to go on.
+        ///
+        /// **Zero does not derive anything.** `HalfWayPolicy` does have a "derive `H` as `R / 2`"
+        /// branch, but it needs a finite `R`, and there is no general accessor for a feasibility
+        /// function's upper bound -- so `BidirectionalDominanceAlgorithm::resource_upper_bound()`
+        /// reports `2H` when `H` is given and infinity when it is not. Zero therefore reaches
+        /// `HalfWayPolicy` as "no `H` and no finite `R`", which starts the bound disabled. The
+        /// derive branch is reachable, and tested, only from a direct construction with a known
+        /// `R`.
+        ///
+        /// That makes zero the supported way to ask for **two unbounded searches plus a join**,
+        /// and the equivalence suite relies on it for exactly that. A disabled bound costs speed,
+        /// not optimality: both searches run to completion, the join considers every pair, and
+        /// the answer is the same one a forward search would give -- for strictly more work than
+        /// a forward search would do. @c SolveResult::bounded_by_half_way reports which of the
+        /// two happened, so it is worth checking rather than assuming.
+        ///
+        /// So: a bidirectional solve that wants the speed-up sets this explicitly.
+        double half_way_point = 0.0;
+
+        /// @brief Reserved for a half-way policy that moves as the search runs. Not yet read.
+        ///
+        /// `HalfWayPolicy` is an object rather than a pair of numbers precisely so a dynamic
+        /// variant can replace the static one without re-plumbing the algorithm, and this is the
+        /// switch that variant will use. Setting it today changes nothing, and
+        /// `BidirectionalDominanceAlgorithm::configure_half_way` says so at WARN level rather than
+        /// letting a caller conclude the policy is broken.
+        ///
+        /// Deliberately **not** exposed to Python: a C++ caller can read this comment and a Python
+        /// caller cannot, so there the flag would only mislead.
+        bool dynamic_half_way = false;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
 
@@ -418,7 +505,9 @@ class Algorithm {
                 release_label_memory();
             }
 
-            return {.solutions = std::move(solutions), .status = status};
+            SolveResult result{.solutions = std::move(solutions), .status = status};
+            annotate(&result);
+            return result;
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
@@ -430,8 +519,46 @@ class Algorithm {
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
+        /// @brief How many labels the last solve extended.
+        ///
+        /// The measurement that says whether a search strategy is paying off. Label *extensions*
+        /// are what the work actually is, and they are comparable across algorithms in a way that
+        /// wall-clock time is not: the same instance on a busier machine takes longer without any
+        /// algorithm having changed. Read-only, and already counted -- only the accessor is new.
+        ///
+        /// @return The number of label extensions performed.
+        [[nodiscard]] size_t get_number_of_extended_labels() const { return num_extended_labels_; }
+
+        /// @brief Whether memory pressure fired at least once during the last solve.
+        ///
+        /// A pressure event trims queues and tightens the per-node extension quota, so the result
+        /// may no longer be optimal. `could_be_non_optimal()` cannot report it: that predicate
+        /// reads `params_` only, and memory pressure is a property of the run rather than of the
+        /// request. This is the accessor that closes the gap -- the same role
+        /// `bounded_by_half_way()` plays for the half-way bound.
+        ///
+        /// @return `true` when `on_memory_pressure()` was called during the last solve.
+        [[nodiscard]] bool memory_pressure_was_triggered() const {
+            return memory_pressure_triggered_;
+        }
+
     protected:
         bool print_{false};
+
+        /// @brief Adds diagnostics to the result, just before it is returned.
+        ///
+        /// `SolveResult` is what crosses the Python boundary; the algorithm object does not. So a
+        /// diagnostic a user is told to check has to arrive here.
+        ///
+        /// The base reports the one diagnostic every algorithm has: whether memory pressure
+        /// trimmed the run, which no @ref AlgorithmStatus value can express. **An override must
+        /// call this** -- `Base::annotate(result)` -- or its algorithm silently stops reporting
+        /// it.
+        ///
+        /// @param result The result about to be returned; never null.
+        virtual void annotate(SolveResult* result) const {
+            result->memory_pressure_triggered = memory_pressure_triggered_;
+        }
 
         /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
         ///
@@ -459,7 +586,11 @@ class Algorithm {
 
         virtual void main_loop() = 0;
 
-        void extract_remaining_solutions() {
+        /// @brief Records the solutions still sitting at terminal nodes when the loop ends.
+        ///
+        /// Virtual because a bidirectional search has more than one source of complete paths:
+        /// forward labels at sinks, backward labels at sources, and joined pairs.
+        virtual void extract_remaining_solutions() {
             auto labels_at_sinks = this->get_labels_at_sinks();
             for (const auto* sink_label : labels_at_sinks) {
                 this->extract_solution(*sink_label);
@@ -486,7 +617,31 @@ class Algorithm {
                 return;
             }
 
-            auto path_arc_ids = this->get_path_arc_ids(end_label);
+            extract_solution(end_label.get_cost(),
+                             this->get_path_arc_ids(end_label),
+                             end_label.get_end_node()->id);
+        }
+
+        /// @brief Build and record a Solution from an explicit path.
+        ///
+        /// Used by the bidirectional algorithm, where a complete path can come from a joined pair
+        /// or from a backward label reaching a source, and no single label holds the merged cost
+        /// or the end node.
+        ///
+        /// Applies the caller's `cost_upper_bound_` here rather than at each call site: the
+        /// `Label` overload above already filters, and the joiner's own cutoff already implies
+        /// this test, but `extract_backward_solution` had no filter of its own and returned
+        /// columns above the bound. One guard on the one function every solution passes through is
+        /// the version that cannot be forgotten by the next caller.
+        ///
+        /// @param cost         Total cost of the path.
+        /// @param path_arc_ids Arc ids of the path, in traversal order.
+        /// @param end_node_id  Id of the node the path ends at.
+        virtual void extract_solution(double cost, std::vector<size_t> path_arc_ids,
+                                      size_t end_node_id) {
+            if (cost >= cost_upper_bound_) {
+                return;
+            }
             if (path_arc_ids.empty()) {
                 return;
             }
@@ -504,7 +659,7 @@ class Algorithm {
                     row_map[row.index] += row.coefficient;
                 }
             }
-            path_node_ids.push_back(end_label.get_end_node()->id);
+            path_node_ids.push_back(end_node_id);
             column.rows.reserve(row_map.size());
             for (auto& [idx, coef] : row_map) {
                 column.rows.push_back({idx, coef});
@@ -513,7 +668,7 @@ class Algorithm {
                 return a.index < b.index;
             });
 
-            auto sol = Solution(end_label.get_cost(),
+            auto sol = Solution(cost,
                                 std::move(path_node_ids),
                                 std::move(path_arc_ids),
                                 std::move(column));
