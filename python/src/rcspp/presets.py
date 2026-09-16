@@ -66,9 +66,7 @@ def add_cost_resource(graph, resource_type: str = "real") -> None:
     )
 
 
-def add_window_resource(
-    graph, resource_type: str, windows: dict, default_max=None
-) -> None:
+def add_window_resource(graph, resource_type: str, windows: dict, default_max=None) -> None:
     """Register a scalar resource with a per-node window: a *threshold*.
 
     Expands to ``graph.add_<resource_type>_resource(TimeWindowExtensionFunction(windows),

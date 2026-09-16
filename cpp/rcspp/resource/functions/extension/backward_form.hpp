@@ -250,8 +250,8 @@ class NodeMirrorForm : public Base {
     protected:
         /// @brief One traversal of this arc, oriented: what is left, and what is arrived at.
         struct Side {
-                R node_left;              ///< the singleton {node being left}
-                R arrival_neighborhood;   ///< the per-node set of the node being ARRIVED at
+                R node_left;             ///< the singleton {node being left}
+                R arrival_neighborhood;  ///< the per-node set of the node being ARRIVED at
         };
 
         /// @brief The formula, written once, direction-blind.
@@ -270,8 +270,7 @@ class NodeMirrorForm : public Base {
         /// @param node_left_id    Index of the node the label leaves.
         /// @param node_arrived_id Index of the node the label arrives at.
         /// @return The singleton of the node left, and the neighborhood of the node arrived at.
-        [[nodiscard]] virtual Side make_side(size_t node_left_id,
-                                             size_t node_arrived_id) const = 0;
+        [[nodiscard]] virtual Side make_side(size_t node_left_id, size_t node_arrived_id) const = 0;
 
     private:
         Side forward_side_;

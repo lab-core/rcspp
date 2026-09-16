@@ -10,6 +10,6 @@
 // TU with the algorithm tests pushed the coverage build past MinGW's assembler limit
 // ("string table overflow ... file too big").
 
-#include <gtest/gtest.h>
-
 #include "test_presets.hpp"
+
+#include <gtest/gtest.h>

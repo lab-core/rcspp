@@ -328,8 +328,11 @@ TEST(Equivalence, TheJoinAcceptsARevisitTheModelPermits) {
             windows[node] = {0.0, 55.0};
             forbidden[node] = {node};
         }
-        const std::map<size_t, std::set<size_t>> ng{
-            {0, {0}}, {1, {1}}, {2, {1, 2}}, {3, {3}}, {5, {5}}};
+        const std::map<size_t, std::set<size_t>> ng{{0, {0}},
+                                                    {1, {1}},
+                                                    {2, {1, 2}},
+                                                    {3, {3}},
+                                                    {5, {5}}};
 
         presets::add_cost_resource<RealResource>(*graph);
         presets::add_window_resource<RealResource>(*graph, windows);

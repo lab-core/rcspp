@@ -7,6 +7,6 @@
 // THREE-slot resource pack, which instantiates the whole engine a third time; sharing a TU with
 // the algorithm tests overflows MinGW's assembler under coverage instrumentation.
 
-#include <gtest/gtest.h>
-
 #include "test_bidirectional_benchmark_ng.hpp"
+
+#include <gtest/gtest.h>

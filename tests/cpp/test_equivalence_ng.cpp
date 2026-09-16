@@ -8,6 +8,6 @@
 // place a two-slot resource pack is instantiated, which doubles the engine's template
 // instantiations and overflowed the assembler's string table when it shared a TU.
 
-#include <gtest/gtest.h>
-
 #include "test_equivalence_ng.hpp"
+
+#include <gtest/gtest.h>
