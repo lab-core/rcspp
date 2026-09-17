@@ -287,8 +287,20 @@ class MinMaxFeasibilityFunction
 //
 // back_seed_value() returns `merge_by_increasing_value_ ? max_ : min_`, chosen from a constructor
 // argument, so the *type* cannot say where the seed sits. It therefore keeps the primary
-// template's `Unknown`, and the coherence check in ResourceGraph's typed add_resource stays
-// silent for it, deferring to BidirectionalDominanceAlgorithm::seeds_itself_out_of_range.
+// template's `Unknown`, and the compile-time coherence check in ResourceGraph's typed
+// add_resource stays silent for it.
+//
+// That leaves this class covered by two of the six checks rather than one, which is worth stating
+// because the obvious reading -- "the trait is Unknown, so nothing checks it" -- is wrong:
+//
+//   - BidirectionalDominanceAlgorithm::seeds_itself_out_of_range (check 6) asks the runtime value
+//     the same question the static_assert asks the type, and asks it more sharply: "is this seed
+//     strictly worse than the unseeded state" rather than "is it a ceiling".
+//   - merge_rule() above reads backward_kind_ (set by the same add_resource call) and answers
+//     Custom under an accumulation, so the wrong merge test is not merely *detected* for this
+//     class, it is unrepresentable. That is why check 5 can no longer fire here.
+//
+// See the inventory in resource/functions/backward_kind.hpp.
 //
 // Do not "complete" this by declaring Ceiling: that would falsely reject
 // MinMaxFeasibilityFunction(min, max, /*merge_by_increasing_value=*/false), which seeds at the

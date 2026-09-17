@@ -741,6 +741,10 @@ class BidirectionalDominanceAlgorithm
         }
 
         /// @brief Records what, if anything, is wrong with one component's backward declarations.
+        ///
+        /// Checks 3 to 6 of six. The other two are `static_assert`s in `ResourceGraph`'s typed
+        /// `add_resource`, which a Python-built model never reaches; the inventory and the
+        /// division of labour are in @c resource/functions/backward_kind.hpp.
         template <typename ComponentResource>
         static void describe_problem(const ComponentResource& component, BackwardKind kind,
                                      size_t index, std::vector<std::string>* problems) {

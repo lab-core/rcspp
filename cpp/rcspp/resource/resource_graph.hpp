@@ -99,6 +99,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                           std::unique_ptr<Feas> feasibility_function,
                           std::unique_ptr<Cost> cost_function,
                           std::unique_ptr<Dom> dominance_function) {
+            // Checks 1 and 2 of six; the full inventory, and why the compile-time pair does not
+            // subsume the runtime four, is in resource/functions/backward_kind.hpp.
             static_assert(backward_kind_of_v<Ext> != BackwardKind::Unspecified,
                           "this extension function declares no backward kind, so a bidirectional "
                           "solve will refuse to run on the model. Derive it from a form in "

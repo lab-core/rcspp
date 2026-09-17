@@ -148,24 +148,29 @@ wraps to a huge positive value that reads as a very loose bound.
 
 From C++, `add_resource` has a type-aware overload that is selected automatically
 whenever the four function objects are constructed inline — which is every ordinary
-call site.  It checks the same two things the setup validation checks, but as
-`static_assert`s:
+call site.  It checks two of the four above early, as `static_assert`s:
 
 - the extension function declares a `BackwardKind` other than `Unspecified`;
 - an `Accumulate` extension is not paired with a feasibility function that *always*
   seeds its backward label at a ceiling.
 
-So the capacity-written-as-an-addition mistake above is a **compile error** in C++,
-naming the fix in the message, rather than a `runtime_error` at the first solve.
+**But not the capacity-written-as-an-addition mistake above**, and the reason is worth
+knowing: that mistake pairs `AdditionExtensionFunction` with `MinMaxFeasibilityFunction`,
+whose seed end is chosen from a *constructor argument* and so cannot be read from the
+type at all.  Its trait is deliberately `Unknown`, the second `static_assert` stays
+silent, and the setup validation catches it — asking the sharper question, "is this seed
+strictly worse than the unseeded state", rather than "is it a ceiling".  What the
+`static_assert` does catch is a feasibility function whose type always seeds at a ceiling,
+such as `TimeWindowFeasibilityFunction`, put behind an accumulating extension.
 
-Two things this does not change.  **Python is unaffected**: the bindings call the
-type-erased overload, so a Python model is still checked at setup, with the same
-message and the same component numbering.  And the runtime validation is still the
-only check for `MinMaxFeasibilityFunction`, whose seed end is chosen from a
-constructor argument and therefore cannot be read from the type — `seeds_itself_out_of_range`
-asks the sharper question anyway, so it stays.  A C++ caller who wants the runtime
-path (to test it, say) gets it by declaring one argument as a base-typed
-`std::unique_ptr<ExtensionFunction<R>>` local.
+So the compile-time pair is an **early warning on a subset**, not a replacement.  Two
+things follow.  **Python is unaffected**: the bindings call the type-erased overload, so a
+Python model is checked at setup with the same messages and component numbering.  And a
+C++ caller who wants the runtime path (to test it, say) gets it by declaring one argument
+as a base-typed `std::unique_ptr<ExtensionFunction<R>>` local.
+
+The full inventory — all six checks, which fires where, and why no one of them subsumes
+another — is in `cpp/rcspp/resource/functions/backward_kind.hpp`.
 
 ### One rule the join imposes, and what it requires of a container resource
 
