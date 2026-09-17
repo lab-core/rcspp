@@ -19,6 +19,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <set>
@@ -108,6 +110,7 @@ TEST(Equivalence, NgPathIsInertOnADag) {
 TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) {
     namespace eq = equivalence_test;
 
+    size_t joined = 0;
     for (unsigned seed = 0; seed < 6; ++seed) {
         test_util::InstanceConfig config;
         config.num_nodes = 8;
@@ -135,8 +138,20 @@ TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) 
                 << "bound=" << with_bound << " " << where;
             EXPECT_EQ(eq::any_path_problem(bidi), "")
                 << "a joined path violated ng-feasibility: " << where;
+            joined += bidi.result.number_of_joined_paths;
         }
     }
+
+    // `any_path_problem` above is this tier's real safety net -- a join that glues two halves
+    // remembering the same node shows up there as an infeasible replay -- and it can only inspect
+    // paths the join actually returned. So the count is asserted, not merely hoped for: with the
+    // incumbent cutoff on, which is what an infinite cost bound would give, this sweep returned
+    // almost nothing from the join and the replay had nothing to check. See
+    // `equivalence_test::kNonBindingUpperBound`.
+    std::cout << "[ SWEEP ] ng cyclic joins: " << joined << std::endl;
+    EXPECT_GT(joined, 0U)
+        << "the join produced no paths across the whole cyclic sweep, so any_path_problem "
+           "inspected only search output and this tier is not testing the join";
 }
 
 // Cyclic instances past the size where tier 2 sits. This was DISABLED_ and failing: the forward
@@ -421,7 +436,16 @@ TEST(Equivalence, BoundedBidirectionalMatchesForwardWhereNgActuallyForgets) {
         ASSERT_FALSE(forward.result.solutions.empty()) << where;
 
         for (bool with_bound : {false, true}) {
-            const auto bidi = eq::solve_bidirectional_ng(config, with_bound);
+            // The one caller that keeps the joiner's incumbent cutoff on, by passing an infinite
+            // bound. This test's subject is the returned COST on 11-to-14-node cyclic instances
+            // chosen because they disagreed before the fix, not the join's breadth. With the
+            // cutoff off the join returns every admissible pair on a cyclic graph that size and
+            // `any_path_problem` replays all of them: 91 s for this test alone, against 3 s for
+            // the rest of the tier put together. The breadth it gives up is covered at a size
+            // chosen for it by test_join_optimality_ng.hpp.
+            const auto bidi = eq::solve_bidirectional_ng(config,
+                                                         with_bound,
+                                                         std::numeric_limits<double>::infinity());
             EXPECT_NEAR(bidi.best_cost(), forward.best_cost(), eq::kTolerance)
                 << "bound=" << with_bound << " " << where;
             EXPECT_EQ(eq::any_path_problem(bidi), "") << where;

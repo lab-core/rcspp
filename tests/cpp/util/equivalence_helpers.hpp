@@ -42,6 +42,30 @@ using NgGraph = ResourceGraph<RealResource, SizeTBitsetResource>;
 
 constexpr double kTolerance = 1e-9;
 
+/// @brief The cost bound every bidirectional run here passes -- finite, and far above any cost
+///        this generator produces, so it filters nothing.
+///
+/// **Finite on purpose, and it is not a detail.** `Joiner::join` turns its incumbent cutoff on
+/// whenever `cost_upper_bound` is infinite, reasoning that a solve which expressed no filter is
+/// not asking for every admissible pair. Under that cutoff the join *accepts* only pairs that
+/// improve on an incumbent the forward search has usually already set, so the returned set is
+/// nearly all search output and almost none of it is the join.
+///
+/// That guts the check this suite leans on hardest. `any_path_problem` replays every returned
+/// path through the model's own extenders, and on the ng model a join that glues two halves
+/// remembering the same node is *exactly* what it is there to catch -- but it can only catch it
+/// in paths the join actually returned. Measured on the ng join-optimality sweep, which builds
+/// comparable cyclic instances: 6 accepted joins across 192 solves with an infinite bound, 5420
+/// with this one.
+///
+/// A finite bound also makes the returned set well defined rather than a function of the order
+/// pairs happen to be visited in -- the same reason `vrp_subproblem.hpp::solve_result` carries
+/// this warning for callers comparing solution sets.
+///
+/// It changes nothing else: `prune_based_on_upper_bound_` is off, so no label-level prune reads
+/// it, and no cost here comes within nine orders of magnitude of it.
+constexpr double kNonBindingUpperBound = 1e9;
+
 /// @brief A solve and the graph it ran on, kept together so the paths can be replayed afterwards.
 ///
 /// Templated on both the graph and its composition because @c ResourceGraph keeps its
@@ -96,7 +120,7 @@ inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool wit
 
     auto algorithm =
         run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
-    run.result = run.graph->solve(algorithm.get());
+    run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
     run.bounded = algorithm->bounded_by_half_way();
     EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
         << "reference counts must survive two searches and a join";
@@ -178,7 +202,14 @@ inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
 /// @param config     The instance to build.
 /// @param with_bound As in @c solve_bidirectional: false leaves the half-way point at 0, so the
 ///                   policy starts disabled.
-inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound) {
+/// @param cost_upper_bound Defaults to @ref kNonBindingUpperBound, which is what almost every
+///                   caller wants. Pass infinity to put the joiner's incumbent cutoff back ON --
+///                   worth it only for a test whose subject is the returned COST at a size where
+///                   replaying every admissible pair would dominate its runtime, and whose join
+///                   breadth is covered elsewhere. `BoundedBidirectionalMatchesForwardWhereNg`
+///                   `ActuallyForgets` is the one such caller and says why at the call site.
+inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound,
+                                    double cost_upper_bound = kNonBindingUpperBound) {
     NgRun run;
     auto built = test_util::build_ng_instance(config);
     run.graph = std::move(built.graph);
@@ -189,7 +220,7 @@ inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, boo
 
     auto algorithm =
         run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
-    run.result = run.graph->solve(algorithm.get());
+    run.result = run.graph->solve(algorithm.get(), cost_upper_bound);
     run.bounded = algorithm->bounded_by_half_way();
     EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
         << "reference counts must survive two searches and a join";
