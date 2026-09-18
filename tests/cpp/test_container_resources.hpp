@@ -1033,3 +1033,92 @@ TEST(BitsetResourceInPlace, IntersectWithAcceptsAnAliasedMask) {
     EXPECT_EQ(resource.get_value(), expected.get_value());
     EXPECT_EQ(resource.size(), kSz3);
 }
+
+/// @brief The base-class fallbacks, exercised through a container that does not override them.
+///
+/// `SetResource` and `BitsetResource` both override `assign_union` / `intersect_with`, so nothing
+/// else reaches `ContainerResource`'s defaults -- the coverage report is what pointed this out.
+/// They are the path a *third-party* container takes, and the contract they have to meet is the
+/// same one the overrides do: produce what `get_union` / `get_intersection` would have produced.
+/// A default that drifted from that would be discovered by whoever wrote the container, which is
+/// the worst place to discover it.
+TEST(ContainerResourceDefaults, FallbacksMatchTheAllocatingPair) {
+    // The minimum a container has to implement. Deliberately does NOT override assign_union or
+    // intersect_with, so the base versions run.
+    class PlainSet : public ContainerResource<std::set<int>, PlainSet, int> {
+        public:
+            using Container = std::set<int>;
+
+            void add(const int& value) override { container_.insert(value); }
+            void add(const Container& other) override {
+                container_.insert(other.begin(), other.end());
+            }
+            void remove(const int& value) override { container_.erase(value); }
+
+            [[nodiscard]] bool contains(const int& value) const override {
+                return container_.contains(value);
+            }
+            [[nodiscard]] bool includes(const Container& other) const override {
+                return std::includes(container_.begin(),
+                                     container_.end(),
+                                     other.begin(),
+                                     other.end());
+            }
+            [[nodiscard]] bool intersects(const Container& other) const override {
+                Container shared;
+                std::set_intersection(container_.begin(),
+                                      container_.end(),
+                                      other.begin(),
+                                      other.end(),
+                                      std::inserter(shared, shared.begin()));
+                return !shared.empty();
+            }
+            [[nodiscard]] Container get_union(const Container& other) const override {
+                Container result;
+                std::set_union(container_.begin(),
+                               container_.end(),
+                               other.begin(),
+                               other.end(),
+                               std::inserter(result, result.begin()));
+                return result;
+            }
+            [[nodiscard]] Container get_intersection(const Container& other) const override {
+                Container result;
+                std::set_intersection(container_.begin(),
+                                      container_.end(),
+                                      other.begin(),
+                                      other.end(),
+                                      std::inserter(result, result.begin()));
+                return result;
+            }
+            [[nodiscard]] Container subtract(const Container& other) const override {
+                Container result;
+                std::set_difference(container_.begin(),
+                                    container_.end(),
+                                    other.begin(),
+                                    other.end(),
+                                    std::inserter(result, result.begin()));
+                return result;
+            }
+    };
+
+    const std::vector<std::set<int>> samples{{}, {1}, {1, 2}, {2, 3}, {1, 3, 5}, {4, 5, 6}};
+
+    for (const auto& lhs : samples) {
+        for (const auto& rhs : samples) {
+            PlainSet expected_union;
+            expected_union.set_value(lhs);
+            PlainSet actual_union;
+            actual_union.set_value({99});  // unrelated, so a leftover would show
+            actual_union.assign_union(lhs, rhs);
+            EXPECT_EQ(actual_union.get_value(), expected_union.get_union(rhs));
+
+            PlainSet expected_masked;
+            expected_masked.set_value(lhs);
+            PlainSet actual_masked;
+            actual_masked.set_value(lhs);
+            actual_masked.intersect_with(rhs);
+            EXPECT_EQ(actual_masked.get_value(), expected_masked.get_intersection(rhs));
+        }
+    }
+}

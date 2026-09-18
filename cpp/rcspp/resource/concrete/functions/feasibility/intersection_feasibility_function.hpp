@@ -253,9 +253,9 @@ class IntersectionFeasibilityFunction
         bool self_forbidden_only_ = false;
 
         void preprocess(size_t node_id) override {
-            if (values_by_node_id_ == nullptr) {
-                return;
-            }
+            // No null guard: the only constructor always `make_shared`s the map, and the copy
+            // constructor copies the shared_ptr, so it cannot be null. The guard that used to sit
+            // here was dead code the coverage report flagged.
             auto it = values_by_node_id_->find(node_id);
             if (it != values_by_node_id_->end()) {
                 values_.set_value(it->second);

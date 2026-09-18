@@ -32,6 +32,15 @@ if(USE_COVERAGE)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(rcspp_coverage INTERFACE -fprofile-update=atomic)
   endif()
+  # The second half of "runnable on Windows". Instrumentation multiplies the number of COMDAT
+  # sections in an object, and the heavier test TUs pass the 32767 the default COFF format allows.
+  # It fails twice over: the assembler reports "file too big", and where it does not, ld silently
+  # drops sections and the link ends in a wall of undefined references to standard-library inline
+  # templates. MSVC has had /bigobj for this since forever (see tests/cpp/CMakeLists.txt); this is
+  # the MinGW spelling, and without it the coverage gate cannot be run on Windows at all.
+  if(MINGW)
+    target_compile_options(rcspp_coverage INTERFACE -Wa,-mbig-obj)
+  endif()
 endif()
 
 if (POLICY CMP0141)
