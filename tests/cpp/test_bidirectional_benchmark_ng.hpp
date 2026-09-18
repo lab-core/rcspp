@@ -97,12 +97,25 @@ inline void report_ng(const std::string& name, const TimedNg& timed) {
 /// Release. Run it with:
 /// @code tests-rcspp --gtest_also_run_disabled_tests --gtest_filter="*NgForwardVersus*" @endcode
 ///
-/// Measured (R101, iteration-0 duals, ng size 8, H = 115), Release:
+/// Measured (R101, iteration-0 duals, ng size 8, H = 115), Release, g++ 13.1 `-O2`, best of five:
 ///
 /// | run | cost | extended labels | joined paths | seconds |
 /// |---|---|---|---|---|
-/// | ng forward       | -319.87786809696524 | 34 475 | -- | 0.10 |
-/// | ng bidirectional | -319.87786809696524 | 35 564 | 9  | 0.12 |
+/// | ng forward       | -319.87786809696524 | 34 475 | -- | 0.050 |
+/// | ng bidirectional | -319.87786809696524 | 35 564 | 9  | 0.061 |
+///
+/// **Both rows were 0.092 and 0.103 s until the ng memory stopped allocating.**
+/// `NgPathExtensionFunction::apply` used to spell its formula with `get_union` and
+/// `get_intersection`, which return containers by value, so every label extension allocated two
+/// word vectors and freed the two it replaced. `assign_union` / `intersect_with` do the same
+/// arithmetic into the destination's existing buffer. **1.8x on both rows**, with the cost and the
+/// extended-label counts unchanged to the digit -- which is what says it is constant-factor work
+/// and not a different search.
+///
+/// `joined_paths` is the one number here that is not reproducible across toolchains: it depends on
+/// the order in which `best_cost_upper_bound_` tightens, which floating-point contraction can
+/// perturb. MSVC Debug reports 4 where this table reports 9. The test asserts `> 0` for that
+/// reason; treat the 9 as an observation, not a constant.
 ///
 /// **The headline this table used to carry has been overtaken twice, and both are worth keeping.**
 ///

@@ -95,11 +95,19 @@ class NgPathExtensionFunction
         ///                          arrives at.
         void apply(const ResourceType& resource, ResourceType* extended_resource,
                    const Side& side) const final {
-            // Two set_value calls rather than a temporary resource: this runs once per label
-            // extension, which is the hottest path in the solver.
-            extended_resource->set_value(side.node_left.get_union(resource.get_value()));
-            extended_resource->set_value(
-                extended_resource->get_intersection(side.arrival_neighborhood.get_value()));
+            // In place, into the destination's own storage. This runs once per label extension --
+            // the hottest path in the solver -- and the obvious spelling,
+            //
+            //   extended->set_value(side.node_left.get_union(resource.get_value()));
+            //   extended->set_value(extended->get_intersection(side.arrival.get_value()));
+            //
+            // allocates a container per call and frees the one it replaces, twice, because
+            // `get_union` and `get_intersection` both return by value. `assign_union` and
+            // `intersect_with` produce bit-identical results -- same word count, same contents --
+            // and reuse the buffer a recycled label already holds. See
+            // `ContainerResource::assign_union`.
+            extended_resource->assign_union(resource.get_value(), side.node_left.get_value());
+            extended_resource->intersect_with(side.arrival_neighborhood.get_value());
         }
 
         /// @brief Loads the singleton of the node left and the neighborhood of the node arrived at.

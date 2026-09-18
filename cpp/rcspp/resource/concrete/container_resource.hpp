@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <bit>      // NOLINT
+#include <cassert>      // NOLINT
 #include <cstdint>  // NOLINT
 #include <iterator>
 #include <set>
@@ -101,6 +102,40 @@ class ContainerResource {
         /// @param other Elements to exclude.
         /// @return A new container with the elements of @p other removed.
         [[nodiscard]] virtual Container subtract(const Container& /*other*/) const = 0;
+
+        /// @brief Replaces this container with `lhs u rhs`, reusing this object's storage.
+        ///
+        /// The in-place twin of @ref get_union, and the reason it exists: `get_union` returns a
+        /// fresh container by value, so a label extension that unions and then assigns allocates
+        /// one container and frees the one it replaces. Doing it in place reuses the destination's
+        /// buffer, which a recycled label already has. This is the hottest path in the solver --
+        /// see @c NgPathExtensionFunction::apply, its only caller today.
+        ///
+        /// The default goes through the allocating path and is correct for any container; a type
+        /// that can reuse its storage overrides it. The result must equal `get_union`'s, including
+        /// any representation detail a derived class maintains, because callers mix the two.
+        ///
+        /// @warning Neither operand may alias this resource's own value. The destination is a
+        ///          different label's resource in every current caller, and reusing storage means
+        ///          growing it can invalidate a reference into it.
+        ///
+        /// @param lhs First operand.
+        /// @param rhs Second operand.
+        virtual void assign_union(const Container& lhs, const Container& rhs) {
+            container_ = lhs;
+            add(rhs);
+        }
+
+        /// @brief Intersects this container with @p mask in place.
+        ///
+        /// The in-place twin of @ref get_intersection; see @ref assign_union for why. An
+        /// intersection never grows, so unlike @ref assign_union this one cannot reallocate and
+        /// @p mask may safely alias this resource's own value.
+        ///
+        /// @param mask Elements to keep.
+        virtual void intersect_with(const Container& mask) {
+            container_ = get_intersection(mask);
+        }
 
         /// @brief Returns the number of logical elements stored in the container.
         ///
@@ -260,6 +295,45 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
                                   other_set.end(),
                                   std::inserter(result, result.begin()));
             return result;
+        }
+
+        /// @brief Replaces this set with `lhs u rhs` without building a second set.
+        ///
+        /// See @c ContainerResource::assign_union. `std::set` is node-based, so the nodes
+        /// themselves are still allocated one by one -- what this avoids is the *second* set that
+        /// `get_union` returns and the assignment that then frees the first.
+        ///
+        /// @param lhs First operand.
+        /// @param rhs Second operand.
+        void assign_union(const Container& lhs, const Container& rhs) override {
+            this->container_.clear();
+            std::set_union(lhs.begin(),
+                           lhs.end(),
+                           rhs.begin(),
+                           rhs.end(),
+                           std::inserter(this->container_, this->container_.begin()));
+        }
+
+        /// @brief Erases every element not in @p mask, walking both sorted ranges once.
+        ///
+        /// O(n + m) and allocation-free: the elements that survive keep their nodes, rather than
+        /// being copied into a fresh set that then replaces this one.
+        ///
+        /// @param mask Elements to keep.
+        void intersect_with(const Container& mask) override {
+            auto it = this->container_.begin();
+            auto mask_it = mask.begin();
+            while (it != this->container_.end()) {
+                while (mask_it != mask.end() && *mask_it < *it) {
+                    ++mask_it;
+                }
+                if (mask_it == mask.end() || *it < *mask_it) {
+                    it = this->container_.erase(it);
+                } else {
+                    ++it;
+                    ++mask_it;
+                }
+            }
         }
 
         /// @brief Returns the set difference: elements in this set but not in @p other_set.
@@ -462,6 +536,55 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
             //     out.pop_back();
             // }
             return out;
+        }
+
+        /// @brief Replaces this bitset with `lhs | rhs`, reusing the word vector.
+        ///
+        /// The allocation-free twin of @ref get_union -- see
+        /// @c ContainerResource::assign_union for why it exists. Produces the same
+        /// `max(lhs, rhs)` word count `get_union` does, so the two are interchangeable, and
+        /// maintains @ref size_ from the same pass rather than a second sweep.
+        ///
+        /// `resize` reuses the existing buffer whenever its capacity allows, which after the
+        /// first few extensions it always does: the destination is a recycled label.
+        ///
+        /// @warning Neither operand may alias this bitset's own words; growing may reallocate.
+        ///
+        /// @param lhs First operand.
+        /// @param rhs Second operand.
+        void assign_union(const Container& lhs, const Container& rhs) override {
+            assert(&lhs != &this->container_ && &rhs != &this->container_ &&
+                   "assign_union operands must not alias the destination");
+            const size_t words = std::max(lhs.size(), rhs.size());
+            this->container_.resize(words);
+            size_t count = 0;
+            for (size_t i = 0; i < words; ++i) {
+                const uint64_t left = i < lhs.size() ? lhs[i] : 0ULL;
+                const uint64_t right = i < rhs.size() ? rhs[i] : 0ULL;
+                const uint64_t merged = left | right;
+                this->container_[i] = merged;
+                count += static_cast<size_t>(std::popcount(merged));
+            }
+            size_ = count;
+        }
+
+        /// @brief ANDs @p mask into this bitset in place.
+        ///
+        /// Truncates to `min(this, mask)` words, exactly as @ref get_intersection does -- a word
+        /// the mask does not reach contributes nothing, so dropping it loses no bit. Shrinking
+        /// never reallocates, so this allocates nothing at all and @p mask may alias this bitset.
+        ///
+        /// @param mask Words to keep.
+        void intersect_with(const Container& mask) override {
+            const size_t words = std::min(this->container_.size(), mask.size());
+            this->container_.resize(words);
+            size_t count = 0;
+            for (size_t i = 0; i < words; ++i) {
+                const uint64_t kept = this->container_[i] & mask[i];
+                this->container_[i] = kept;
+                count += static_cast<size_t>(std::popcount(kept));
+            }
+            size_ = count;
         }
 
         /// @brief Returns the bitwise AND-NOT (set difference) of this bitset minus @p other.

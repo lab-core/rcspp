@@ -876,3 +876,160 @@ TEST(SizeFeasibilityFunction, PreprocessNullMapReturnsEarly) {
     fn.reset(0);                     // Should return early (null map branch).
     EXPECT_TRUE(fn.is_feasible(r));  // Bounds unchanged: size 1 in [1,3].
 }
+
+// ============================================================================
+// assign_union / intersect_with -- the in-place twins
+// ============================================================================
+
+// They exist only to avoid two allocations per ng label extension, so the property that matters is
+// that they are INDISTINGUISHABLE from the allocating pair they replace. Not "equivalent as sets":
+// identical, down to the word count a bitset keeps, because `NgPathExtensionFunction` produces
+// values that `DisjointMergeForm`, `InclusionDominanceFunction` and `SizeFeasibilityFunction` all
+// read afterwards.
+//
+// Swept over a grid rather than spot-checked: the interesting cases are the ragged ones, where the
+// two operands have different word counts and the shorter one decides the result's length.
+
+namespace container_inplace_test {
+
+/// @brief The operand sets the sweep pairs up, chosen to straddle several word boundaries.
+inline const std::vector<std::set<size_t>>& samples() {
+    static const std::vector<std::set<size_t>> values{
+        {},
+        {kIdx0},
+        {kIdx1, kIdx2},
+        {kIdx63},
+        {kIdx64},
+        {kIdx0, kIdx63, kIdx64, kIdx65},
+        {kIdx127},
+        {kIdx128},
+        {kIdx0, kIdx1, kIdx2, kIdx3, kIdx5, kIdx10},
+        {kIdx65, kIdx127, kIdx128},
+    };
+    return values;
+}
+
+}  // namespace container_inplace_test
+
+/// @brief BitsetResource: assign_union matches get_union, word for word, and keeps size() right.
+TEST(BitsetResourceInPlace, AssignUnionMatchesGetUnion) {
+    for (const auto& lhs_values : container_inplace_test::samples()) {
+        for (const auto& rhs_values : container_inplace_test::samples()) {
+            SizeTBitsetResource lhs;
+            lhs.set_value(lhs_values);
+            SizeTBitsetResource rhs;
+            rhs.set_value(rhs_values);
+
+            // The allocating pair, exactly as NgPathExtensionFunction::apply used to spell it.
+            SizeTBitsetResource expected;
+            expected.set_value(rhs.get_union(lhs.get_value()));
+
+            // A destination with unrelated contents, so a stale word would show.
+            SizeTBitsetResource actual;
+            actual.set_value(std::set<size_t>{kIdx0, kIdx10, kIdx127});
+            actual.assign_union(lhs.get_value(), rhs.get_value());
+
+            EXPECT_EQ(actual.get_value(), expected.get_value());
+            EXPECT_EQ(actual.size(), expected.size()) << "the cached element count drifted";
+        }
+    }
+}
+
+/// @brief BitsetResource: intersect_with matches get_intersection, including the word count.
+TEST(BitsetResourceInPlace, IntersectWithMatchesGetIntersection) {
+    for (const auto& lhs_values : container_inplace_test::samples()) {
+        for (const auto& mask_values : container_inplace_test::samples()) {
+            SizeTBitsetResource mask;
+            mask.set_value(mask_values);
+
+            SizeTBitsetResource expected;
+            expected.set_value(lhs_values);
+            expected.set_value(expected.get_intersection(mask.get_value()));
+
+            SizeTBitsetResource actual;
+            actual.set_value(lhs_values);
+            actual.intersect_with(mask.get_value());
+
+            EXPECT_EQ(actual.get_value(), expected.get_value());
+            EXPECT_EQ(actual.size(), expected.size()) << "the cached element count drifted";
+        }
+    }
+}
+
+/// @brief The two composed are the ng formula, and must equal the pair they replaced.
+TEST(BitsetResourceInPlace, TheNgFormulaIsUnchanged) {
+    for (const auto& memory_values : container_inplace_test::samples()) {
+        for (const auto& mask_values : container_inplace_test::samples()) {
+            SizeTBitsetResource memory;
+            memory.set_value(memory_values);
+            SizeTBitsetResource node_left;
+            node_left.set_value(std::set<size_t>{kIdx2});
+            SizeTBitsetResource arrival;
+            arrival.set_value(mask_values);
+
+            SizeTBitsetResource expected;
+            expected.set_value(node_left.get_union(memory.get_value()));
+            expected.set_value(expected.get_intersection(arrival.get_value()));
+
+            SizeTBitsetResource actual;
+            actual.assign_union(memory.get_value(), node_left.get_value());
+            actual.intersect_with(arrival.get_value());
+
+            EXPECT_EQ(actual.get_value(), expected.get_value());
+            EXPECT_EQ(actual.size(), expected.size());
+        }
+    }
+}
+
+/// @brief SetResource: the same two properties, on the node-based container.
+TEST(SetResourceInPlace, AssignUnionAndIntersectWithMatchTheAllocatingPair) {
+    const std::vector<std::set<int>> samples{
+        {},
+        {1},
+        {1, 2},
+        {2, 3},
+        {5},
+        {1, 3, 5, 7},
+        {2, 4, 6},
+        {7, 8, 9},
+    };
+
+    for (const auto& lhs_values : samples) {
+        for (const auto& rhs_values : samples) {
+            SetResource<int> lhs(lhs_values);
+            SetResource<int> rhs(rhs_values);
+
+            SetResource<int> expected;
+            expected.set_value(rhs.get_union(lhs.get_value()));
+
+            SetResource<int> actual({42, 43});  // unrelated, so leftovers would show
+            actual.assign_union(lhs.get_value(), rhs.get_value());
+            EXPECT_EQ(actual.get_value(), expected.get_value());
+
+            SetResource<int> masked_expected(lhs_values);
+            masked_expected.set_value(masked_expected.get_intersection(rhs.get_value()));
+
+            SetResource<int> masked_actual(lhs_values);
+            masked_actual.intersect_with(rhs.get_value());
+            EXPECT_EQ(masked_actual.get_value(), masked_expected.get_value());
+        }
+    }
+}
+
+/// @brief intersect_with tolerates a mask that aliases the resource's own value.
+///
+/// Asserted because the doc promises it -- an intersection only shrinks, so it cannot reallocate
+/// and invalidate the reference. `assign_union` makes no such promise and is guarded by an assert
+/// instead, which is why there is no twin for it here.
+TEST(BitsetResourceInPlace, IntersectWithAcceptsAnAliasedMask) {
+    SizeTBitsetResource resource;
+    resource.set_value(std::set<size_t>{kIdx1, kIdx64, kIdx127});
+    const std::set<size_t> before{kIdx1, kIdx64, kIdx127};
+
+    resource.intersect_with(resource.get_value());  // x & x == x
+
+    SizeTBitsetResource expected;
+    expected.set_value(before);
+    EXPECT_EQ(resource.get_value(), expected.get_value());
+    EXPECT_EQ(resource.size(), kSz3);
+}
