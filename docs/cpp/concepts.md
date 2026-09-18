@@ -84,9 +84,10 @@ Built-in implementations:
 | `AdditionExtensionFunction<T>` | `result = current + arc_value` |
 | `SubtractExtensionFunction<T>` | `result = current - arc_value` |
 | `TimeWindowExtensionFunction<T>` | `result = max(current + travel, ready_time)` |
+| `BudgetExtensionFunction<T>` | `result = current + arc_value`, as a *threshold* (a capacity with a backward form) |
 | `UnionExtensionFunction<T>` | `result = current ∪ arc_value` |
 | `IntersectionExtensionFunction<T>` | `result = current ∩ arc_value` |
-| `NGPathExtensionFunction<T>` | Adds visited node (NG-path extension) |
+| `NgPathExtensionFunction<T>` | `result = (current ∪ {node left}) ∩ ng[node arrived]` — derived from the arc's endpoints, so `arc_value` is ignored |
 
 ### Feasibility function
 

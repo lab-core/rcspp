@@ -57,10 +57,11 @@ All C++ symbols live in namespace `rcspp`.
 
 ### Resources
 
-Each resource slot is defined by four functions.  For the four common shapes
-(cost, window, budget, ng-path) use **`rcspp/resource/presets.hpp`** — one call
-per resource, constructing a quadruple that cannot disagree — and drop to the
-four-object form below for anything else:
+Each resource slot is defined by four functions.  For the five common shapes
+(cost, window, budget, ng-path, elementary) use **`rcspp/resource/presets.hpp`** —
+one call per resource, constructing a quadruple that cannot disagree — and drop to
+the four-object form below for anything else.  From Python, `rcspp.presets` has the
+first three; the two container shapes are C++-only:
 
 | Function | Interface | Responsibility |
 |---|---|---|
@@ -88,18 +89,24 @@ at each node.
 from rcspp.graph    import ResourceGraph, AlgorithmParams, BucketAlgorithmParams
 from rcspp.resource import (
     AdditionExtensionFunction, SubtractExtensionFunction,
+    BudgetExtensionFunction,
     TimeWindowExtensionFunction, TimeWindowFeasibilityFunction,
     UnionExtensionFunction, IntersectionExtensionFunction,
-    NGPathExtensionFunction,
     TrivialFeasibilityFunction, MinMaxFeasibilityFunction,
-    SizeFeasibilityFunction, IntersectionFeasibilityFunction,
+    SizeFeasibilityFunction,
     TrivialCostFunction, ValueCostFunction,
-    TrivialDominanceFunction, ValueDominanceFunction,
+    ValueDominanceFunction,
     InclusionDominanceFunction, ContainDominanceFunction,
 )
+from rcspp import presets          # add_cost_resource, add_window_resource, add_budget_resource
 from rcspp.pricing_pool import PricingPool
 from rcspp._core.graph  import Solution, Column, Row, Algorithm, AlgorithmStatus
 ```
+
+**Not exposed to Python.** `NgPathExtensionFunction`, `IntersectionFeasibilityFunction` and
+`TrivialDominanceFunction` have no Python descriptors, so **an ng-path or elementary-path model
+cannot be built from Python at all** — those need the C++ API.  `rcspp.presets` mirrors
+`rcspp::presets` minus the two container presets, for the same reason.
 
 ### Build and solve
 
@@ -191,7 +198,7 @@ p.half_way_point          = 500.0  # H; the clock's range is taken as [0, 2H]
 
 Searches forward from the sources and backward from the sinks, stops each
 direction at a half-way point `H` on one designated resource, and joins the halves
-at the node where that resource crosses `H`. Two requirements:
+at the node where that resource crosses `H`. Three requirements:
 
 - **The critical resource must be a clock**: monotone, bounded, and a *threshold*
   backwards (`TimeWindowExtensionFunction` or `BudgetExtensionFunction`, never
@@ -201,6 +208,16 @@ at the node where that resource crosses `H`. Two requirements:
   the first label and names the offending component. The usual cause is a capacity
   written as `AdditionExtensionFunction` + `MinMaxFeasibilityFunction(0, cap)`;
   use `BudgetExtensionFunction` instead (signed numerical types only).
+- **A container that forbids anything must forbid each node at itself, and its memory
+  must come from a node-identity mirror.** `IntersectionFeasibilityFunction` asks what
+  the label has collected *so far*, which is a predicate on a prefix; only
+  `forbidden[v] = {v}` carried by `NgPathExtensionFunction` has a backward reading.
+  Anything else raises at setup and names the component — including the obvious
+  elementary-path spelling, a visited set built with `UnionExtensionFunction`. Use
+  `presets::add_ng_path_resource` or `presets::add_elementary_resource`.
+
+Unlike the clock, the last two are refusals rather than slowdowns: a model that cannot
+express backward semantics cannot produce a correct answer at all.
 
 See `docs/advanced/algorithms.md` for the full description.
 
@@ -261,9 +278,20 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
 | `SubtractExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
-| `UnionExtensionFunction<T>` | Container | `∪=` |
-| `IntersectionExtensionFunction<T>` | Container | `∩=` |
-| `NGPathExtensionFunction<T>` | Set | add destination node |
+| `BudgetExtensionFunction<T>(cap)` | Numerical | `+=`, as a *threshold* — the backward form of a capacity |
+| `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
+| `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
+| `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
+| `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
+
+The last four are all containers, but they split into two **backward kinds**, and pairing the wrong
+one with a forbidden-set feasibility is refused at setup:
+
+- `NgPathExtensionFunction` reads node identities off the arc's *endpoints* and swaps them per
+  direction (`BackwardKind::NodeMirror`), so the memory at a node excludes that node going both
+  ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
+- The other three accumulate the arc's *value*, which is the same object in both directions
+  (`BackwardKind::Mirror`).  Right for genuine per-arc set data; wrong for node identities.
 
 ### Feasibility
 
@@ -273,7 +301,7 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `MinMaxFeasibilityFunction<T>(min, max)` | `min ≤ val ≤ max` |
 | `TimeWindowFeasibilityFunction<T>(tw)` | `val ≤ due[node]` |
 | `SizeFeasibilityFunction<T>(min, max)` | `min ≤ size ≤ max` |
-| `IntersectionFeasibilityFunction<T>` | `∩ ≠ ∅` |
+| `IntersectionFeasibilityFunction<T>(sets)` | forbidden (default): `∩ = ∅`; required: `∩ ≠ ∅` |
 
 ### Dominance
 
