@@ -20,6 +20,51 @@ using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTB
 using ResourceType =
     ResourceTypeComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 
+/// @brief Which route relaxation the pricing subproblem solves.
+///
+/// The textbook VRPTW pricer prices over *resource-feasible* routes, which may revisit a customer.
+/// Forbidding that outright is @c Elementary and is expensive; @c NgPath is the standard middle
+/// ground, forbidding a revisit only while the customer is still inside the memory each node's
+/// neighborhood defines.
+enum class RouteRelaxation {
+    None,        ///< resource-feasible routes; cycles are allowed
+    NgPath,      ///< ng-route: no revisit within the node's ng-neighborhood
+    Elementary,  ///< no customer visited twice
+};
+
+/// @brief The relaxation this build prices over. Change it and rebuild.
+///
+/// A constant rather than a runtime flag because the choice changes the *shape of a label*: the
+/// memory is a fourth resource component, and every arc then carries a fourth value. Both
+/// spellings sit in `if constexpr` branches so the compiler checks both whichever way this is set
+/// -- which is the point. This used to be a commented-out block, and commented-out code rots: it
+/// had accumulated two errors (the wrong class name, and a set type where an element type
+/// belonged) that nothing could catch.
+///
+/// @c None is the default because the benchmark drivers in `examples/cpp/` publish timings for it,
+/// and a memory component every label carries would change those numbers.
+///
+/// Measured on `instances/C101_25.txt`, Release:
+///
+/// | setting | LP cost | wall clock |
+/// |---|---|---|
+/// | @c None | 191.814 | 0.19 s |
+/// | @c NgPath | 191.814 | 0.19 s |
+/// | @c Elementary | — | **> 10 min, killed** |
+///
+/// The first two agreeing is the expected result rather than a sign the memory is inert: the
+/// optimal columns on this instance are already elementary, so the restriction removes only
+/// columns that were never chosen. It is the same finding
+/// `test_bidirectional_benchmark_ng.hpp` records on R101.
+///
+/// @c Elementary is there because it is the shape people reach for first, and the table is the
+/// warning: pricing over elementary routes is NP-hard in a way ng deliberately is not, and 25
+/// customers is already past what this example will finish. Use @c NgPath.
+///
+/// A fully worked ng model, built and measured in CI, is
+/// `tests/cpp/vrp_subproblem/vrp_subproblem_ng.cpp`.
+inline constexpr RouteRelaxation kRouteRelaxation = RouteRelaxation::None;
+
 /// @brief Result of a column-generation VRP::solve() run.
 struct CGSolveResult {
         /// @brief Per-algorithm timing in the same order as the algorithm parameters.

@@ -414,28 +414,29 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     using DemandResource = IntResource;
     presets::add_budget_resource<DemandResource>(*resource_graph, instance_.get_capacity());
 
-    // // Node: an elementary path.
-    // //
-    // // This used to be spelled by hand as a visited set -- UnionExtensionFunction over arcs
-    // // carrying {origin}, with IntersectionFeasibilityFunction forbidding each node at itself.
-    // // That is correct forward and incoherent backward: the arc's value is the same object in
-    // // both directions, so the backward memory at v contains v itself and the feasibility test
-    // // at v rejects every backward label the moment it is created. A bidirectional solve now
-    // // refuses that pairing at setup rather than returning an empty result; the preset below is
-    // // the coherent spelling, and it is why one exists.
-    // using NodeResource = SizeTBitsetResource;
-    // std::vector<size_t> node_ids;
-    // for (const auto& [node_id, forbidden] : node_set_by_node_id_) {
-    //     node_ids.push_back(node_id);
-    // }
-    // presets::add_elementary_resource<NodeResource>(*resource_graph, node_ids);
-
-    // // NG path. Correct when uncommented, which the four-object spelling above it was not:
-    // // the class is IntersectionFeasibilityFunction, and its second template argument is the
-    // // set's ELEMENT type, not the set type.
-    // using NgResource = SizeTBitsetResource;  // SizeTBitsetResource or SizeTSetResource
-    // presets::add_ng_path_resource<NgResource>(
-    //     *resource_graph, ng_neighborhood_customer_id_, node_set_by_node_id_);
+    // The route memory, when this build asks for one. See `kRouteRelaxation` in vrp.hpp for why
+    // this is a compile-time constant and not a flag.
+    //
+    // Both presets pair `NgPathExtensionFunction` with an `IntersectionFeasibilityFunction` whose
+    // forbidden sets are `{v}` at each node -- the ng-route condition. That pairing is not
+    // optional: the memory has to come from the arc's *endpoints* so that it excludes the node it
+    // sits on going both ways, and a bidirectional solve refuses any other spelling at setup. A
+    // visited set built with `UnionExtensionFunction` is the obvious wrong answer, and it fails by
+    // returning nothing rather than loudly.
+    using MemoryResource = SizeTBitsetResource;
+    if constexpr (kRouteRelaxation == RouteRelaxation::NgPath) {
+        // `node_set_by_node_id_` is already `{v: {v}}`, which is what the condition needs.
+        presets::add_ng_path_resource<MemoryResource>(*resource_graph,
+                                                      ng_neighborhood_customer_id_,
+                                                      node_set_by_node_id_);
+    } else if constexpr (kRouteRelaxation == RouteRelaxation::Elementary) {
+        std::vector<size_t> node_ids;
+        node_ids.reserve(node_set_by_node_id_.size());
+        for (const auto& [node_id, forbidden_here] : node_set_by_node_id_) {
+            node_ids.push_back(node_id);
+        }
+        presets::add_elementary_resource<MemoryResource>(*resource_graph, node_ids);
+    }
 
     add_all_nodes_to_graph(resource_graph);
 
@@ -516,11 +517,28 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
-                                                                     customer_orig_id,
-                                                                     customer_dest_id,
-                                                                     distance,
-                                                                     {Row(customer_orig_id, 1.0)});
+    // One value per registered resource, in registration order -- so the arc grows a fourth when
+    // `kRouteRelaxation` asks for a route memory. The memory's value is empty on purpose:
+    // `NgPathExtensionFunction` derives the node it remembers from the arc's own endpoints and
+    // ignores whatever is supplied here.
+    if constexpr (kRouteRelaxation == RouteRelaxation::None) {
+        resource_graph->add_arc<RealResource, RealResource, IntResource>(
+            {reduced_cost, time, demand},
+            customer_orig_id,
+            customer_dest_id,
+            distance,
+            {Row(customer_orig_id, 1.0)});
+    } else {
+        resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
+            std::make_tuple(std::make_tuple(reduced_cost),
+                            std::make_tuple(time),
+                            std::make_tuple(demand),
+                            std::make_tuple(std::set<size_t>{})),
+            customer_orig_id,
+            customer_dest_id,
+            distance,
+            {Row(customer_orig_id, 1.0)});
+    }
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {
