@@ -41,8 +41,12 @@ static_assert(backward_kind_of_v<IntersectionExtensionFunction<SetResource<int>>
               BackwardKind::Mirror);
 static_assert(backward_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
               BackwardKind::Mirror);
+// NodeMirror, not Mirror. The three rows above accumulate the arc's VALUE; this one reads node
+// identities off the arc's ENDPOINTS, and only that gives a memory excluding the node it sits on in
+// both directions. Merging these two rows back together re-opens F12 -- see check 7 in
+// backward_kind.hpp.
 static_assert(backward_kind_of_v<NgPathExtensionFunction<SetResource<int>>> ==
-              BackwardKind::Mirror);
+              BackwardKind::NodeMirror);
 
 // The two deliberate Unspecified rows, asserted so that "removing" either reads as a decision.
 //

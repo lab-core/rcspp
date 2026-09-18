@@ -242,6 +242,20 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->feasibility_function_->merge_refusal_may_be_conservative();
         }
 
+        /// @brief Whether this resource's feasibility function needs a node-identity memory.
+        ///
+        /// See @c FeasibilityFunction::requires_node_identity_mirror. Read once per component at
+        /// setup by @c BidirectionalDominanceAlgorithm::describe_problem, which compares it
+        /// against the paired extension function's declared @c BackwardKind.
+        ///
+        /// Not cached the way @ref merge_rule_ is: this is asked once per solve rather than once
+        /// per candidate pair, so a virtual call is the cheaper of the two costs.
+        ///
+        /// @return @c true when only a node-identity mirror can supply this component's memory.
+        [[nodiscard]] auto requires_node_identity_mirror() const -> bool {
+            return this->feasibility_function_->requires_node_identity_mirror();
+        }
+
         /// @brief The merge rule this resource's feasibility function declares.
         ///
         /// Exposes the value cached at bind time, so a setup-time check can report an undeclared

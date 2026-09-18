@@ -180,8 +180,15 @@ TEST(MergeRules, DominanceOrderFollowsAFlippedDominanceFunction) {
 }
 
 /// @brief Disjoint: containers sharing an element reject; disjoint ones accept.
+///
+/// The map is the ng-route condition -- every node forbids itself -- because that is the only
+/// shape whose merge rule is `Custom`; anything else is refused at setup rather than merged. See
+/// `ForbiddingSomeOtherNodeIsRefusedRatherThanMerged`.
 TEST(MergeRules, DisjointRejectsSharedElements) {
-    std::map<size_t, std::set<int>> forbidden{{0, {1, 2, 3}}};
+    std::map<size_t, std::set<int>> forbidden;
+    for (int node = 0; node <= 8; ++node) {
+        forbidden[static_cast<size_t>(node)] = {node};
+    }
 
     auto forward = merge_rules_test::make_resource<SetResource<int>>(
         merge_rules_test::make_set({1, 2}),
@@ -220,9 +227,22 @@ TEST(MergeRules, AnIntersectionFunctionThatForbidsNothingIsAlwaysTrue) {
     IntersectionFeasibilityFunction<R> all_empty({{0, {}}, {1, {}}}, /*forbidden=*/true);
     EXPECT_EQ(all_empty.merge_rule(), MergeRule::AlwaysTrue);
 
-    // One non-empty entry is enough to make the rule bite.
+    // One non-empty entry is enough to make the rule bite -- when it forbids its own node.
     IntersectionFeasibilityFunction<R> forbidding({{0, {}}, {1, {1}}}, /*forbidden=*/true);
     EXPECT_EQ(forbidding.merge_rule(), MergeRule::Custom);
+
+    // And non-empty is NOT enough on its own: "any set non-empty" was the old test and it is a
+    // proxy. A set that forbids some other node, or that binds nothing at all, is refused.
+    IntersectionFeasibilityFunction<R> forbids_another({{1, {2}}}, /*forbidden=*/true);
+    EXPECT_EQ(forbids_another.merge_rule(), MergeRule::Unspecified);
+
+    IntersectionFeasibilityFunction<R> forbids_itself_and_more({{1, {1, 2}}}, /*forbidden=*/true);
+    EXPECT_EQ(forbids_itself_and_more.merge_rule(), MergeRule::Unspecified);
+
+    // One bad entry among good ones is enough: the rule is a property of the whole model.
+    IntersectionFeasibilityFunction<R> mostly_good({{0, {0}}, {1, {1}}, {2, {9}}},
+                                                   /*forbidden=*/true);
+    EXPECT_EQ(mostly_good.merge_rule(), MergeRule::Unspecified);
 
     // Required values that require something refuse instead -- see
     // RequiredIntersectionIsRefusedRatherThanMerged. Inertness is checked in BOTH directions, so
@@ -266,6 +286,53 @@ TEST(MergeRules, RequiredIntersectionIsRefusedRatherThanMerged) {
     EXPECT_THROW(
         { [[maybe_unused]] const bool merged = forward->can_be_merged(*backward); },
         std::runtime_error);
+}
+
+/// @brief Forbidding some OTHER node is a prefix question too, and is refused.
+///
+/// `forbidden(v) = {v}` -- the ng-route condition -- is the only forbidden shape with a backward
+/// reading. Forward it says "the prefix already visited `v`"; backward the inherited
+/// `is_back_feasible` reads it as "the suffix visits `v` again", which is the right mirror; and
+/// the cross case is exactly what `DisjointMergeForm` tests. `forbidden(u) = {w}` has no such
+/// coincidence, and it fails by ACCEPTING: the backward half never sees `w`, so it is admitted,
+/// and disjointness never sees `w` either because `w` is not on the suffix. The end-to-end
+/// consequence is pinned by `Bidirectional.AContainerForbiddingAnotherNodeIsRefused`; this is the
+/// declaration it rests on.
+///
+/// The sibling case in the same test is a set that binds nothing. It fails the other way -- an
+/// over-strict join -- and is the reason "is any set non-empty" is not the precondition.
+TEST(MergeRules, ForbiddingSomeOtherNodeIsRefusedRatherThanMerged) {
+    // Node 0 forbids node 3. A path that collects 3 and later reaches 0 is infeasible, and no
+    // backward label can tell.
+    std::map<size_t, std::set<int>> forbids_another{{0, {3}}};
+
+    auto forward = merge_rules_test::make_resource<SetResource<int>>(
+        merge_rules_test::make_set({3}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto backward = merge_rules_test::make_resource<SetResource<int>>(
+        merge_rules_test::make_set({7}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+
+    // Disjointness would have said `true` here -- {3} and {7} share nothing -- which is exactly
+    // the acceptance this refusal replaces.
+    EXPECT_EQ(forward->merge_rule(), MergeRule::Unspecified);
+    EXPECT_THROW(
+        { [[maybe_unused]] const bool merged = forward->can_be_merged(*backward); },
+        std::runtime_error);
+
+    // The same refusal for a set that constrains nothing reachable. Disjointness would have said
+    // `false` here -- {1,2} and {2,5} share 2 -- on a model that permits the revisit outright.
+    std::map<size_t, std::set<int>> binds_nothing{{0, {99}}};
+    auto loose_forward = merge_rules_test::make_resource<SetResource<int>>(
+        merge_rules_test::make_set({1, 2}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(binds_nothing,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    EXPECT_EQ(loose_forward->merge_rule(), MergeRule::Unspecified);
 }
 
 /// @brief Custom: SizeFeasibilityFunction counts |f u b| against the cap, not |f| + |b|.
@@ -397,15 +464,19 @@ TEST(MergeRules, EveryConcreteFunctionDeclaresARule) {
     min_max.set_backward_kind(BackwardKind::Threshold);
     EXPECT_EQ(min_max.merge_rule(), MergeRule::DominanceOrder);
     // Custom, not Disjoint: the body is inherited from DisjointMergeForm, so the rule only has
-    // to say "call my own body" rather than naming a test a third party must interpret.
-    EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.merge_rule()),
-              MergeRule::Custom);
+    // to say "call my own body" rather than naming a test a third party must interpret. The map
+    // has to be the ng-route condition -- every node forbidding itself -- because that is the
+    // precondition the inherited body needs; see ForbiddingSomeOtherNodeIsRefusedRatherThanMerged.
+    const std::map<size_t, std::set<int>> self_forbidden{{0, {0}}, {1, {1}}};
+    EXPECT_EQ(
+        (IntersectionFeasibilityFunction<SetResource<int>>{self_forbidden, true}.merge_rule()),
+        MergeRule::Custom);
     EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U}.merge_rule()), MergeRule::Custom);
 
-    // Two functions deliberately declare Unspecified, which is a refusal rather than an omission
-    // -- the test name's "other than Unspecified" does not extend to them, and each says why in
-    // its own merge_rule() doc. Both are about is_feasible / is_reachable asking a PREFIX question
-    // that a backward label's suffix cannot answer, not about the merge.
+    // Four configurations deliberately declare Unspecified, which is a refusal rather than an
+    // omission -- the test name's "other than Unspecified" does not extend to them, and each says
+    // why in its own merge_rule() doc. All four are about is_feasible / is_reachable asking a
+    // PREFIX question that a backward label's suffix cannot answer, not about the merge.
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, false}.merge_rule()),
               MergeRule::Unspecified);
     EXPECT_EQ((ReachableFeasibilityFunction<SetResource<int>>{merge_rules_test::make_set({1, 2})}
@@ -414,6 +485,12 @@ TEST(MergeRules, EveryConcreteFunctionDeclaresARule) {
 
     // A non-zero size floor is the third: the cap is suffix-safe, the floor is not.
     EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{2U, 4U}.merge_rule()),
+              MergeRule::Unspecified);
+
+    // And the fourth: forbidden values that are not the node's own. `values` above is
+    // {0: {1, 2}}, i.e. node 0 forbidding nodes 1 and 2, which has no backward reading in either
+    // direction of the constraint.
+    EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.merge_rule()),
               MergeRule::Unspecified);
 }
 

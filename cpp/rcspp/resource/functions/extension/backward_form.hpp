@@ -180,6 +180,14 @@ class TranslationThresholdForm : public ThresholdForm<R, Base, V> {
 /// @c Accumulate resource, or a @c Mirror one whose arc value is genuine per-arc data, writes its
 /// own @c extend and inherits @c extend_back.
 ///
+/// @warning Declaring @c BackwardKind::Mirror here asserts that the arc's value **is** genuine
+///          per-arc data. Putting a node identity in it instead -- `{origin}` for an
+///          elementary-path model -- makes the declaration false: the arc value is the same object
+///          in both directions, so the backward memory is offset by one node and the two halves
+///          stop being comparable. That shape is @c NodeMirrorForm, which declares
+///          @c BackwardKind::NodeMirror. Check 7 in @c backward_kind.hpp refuses the pairing
+///          rather than letting it run.
+///
 /// @tparam Base The base to insert above -- @c ExtensionFunction<R> in every current use.
 /// @tparam Kind The shape this function declares.
 template <typename Base, BackwardKind Kind>
@@ -216,14 +224,18 @@ class DeclaredKindForm : public Base {
 ///
 /// @note A container resource whose arc value is genuine per-arc data is **not** this shape. It
 ///       is a `DeclaredKindForm<ExtensionFunction<R>, BackwardKind::Mirror>` that writes its own
-///       @c extend, which is what the three container markers in this library are.
+///       @c extend, which is what the three container markers in this library are. The two
+///       declare **different kinds**, and that is load-bearing rather than descriptive: only this
+///       one gives a memory that excludes the node it sits on in both directions, which is what a
+///       feasibility function asking "am I already in my own memory" needs. See the section on
+///       the two container kinds in @c backward_kind.hpp, and check 7 beside it.
 ///
 /// @tparam R    The container resource type.
 /// @tparam Base The base to insert above -- @c ExtensionFunction<R> in every current use.
 template <typename R, typename Base>
 class NodeMirrorForm : public Base {
     public:
-        static constexpr BackwardKind kind = BackwardKind::Mirror;
+        static constexpr BackwardKind kind = BackwardKind::NodeMirror;
 
         [[nodiscard]] BackwardKind backward_kind() const final { return kind; }
 

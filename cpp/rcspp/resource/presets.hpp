@@ -3,12 +3,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <limits>
 #include <map>
 #include <memory>
 #include <set>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/inclusion_dominance_function.hpp"
@@ -24,7 +26,7 @@
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 
 /// @file presets.hpp
-/// @brief One call per resource *kind*, for the four shapes this library actually has.
+/// @brief One call per resource *kind*, for the shapes this library actually has.
 ///
 /// A resource is four function objects that have to agree with each other. Individually each can
 /// be legal while the quadruple is incoherent -- the recorded example is an accumulating
@@ -158,6 +160,51 @@ void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborho
                                    std::move(feasibility),
                                    std::make_unique<TrivialCostFunction<R>>(),
                                    std::make_unique<InclusionDominanceFunction<R>>());
+}
+
+/// @brief An elementary path: no node may be visited twice.
+///
+/// Expands to @ref add_ng_path_resource with every node's neighborhood set to *every node* -- so
+/// nothing is ever forgotten -- and `forbidden_by_node[v] = {v}`.
+///
+/// **Why this is a preset and not a `UnionExtensionFunction`.** The obvious spelling of an
+/// elementary path is a visited set: `UnionExtensionFunction` over arcs carrying `{origin}`, with
+/// `IntersectionFeasibilityFunction` forbidding each node at itself. That is correct forward and
+/// incoherent backward, and it fails silently. The arc's value is the same object in both
+/// directions, so the backward memory at `v` contains `v` itself; the feasibility test at `v` then
+/// rejects every backward label as soon as it is created. The backward search keeps only its seed,
+/// and with the half-way bound on the forward search stops short of the sinks -- so the solve
+/// returns an **empty result** with a COMPLETE status. A bidirectional solve now refuses that
+/// pairing at setup (check 7 in @c backward_kind.hpp) and names this function; it is the thing to
+/// use instead.
+///
+/// @note The neighborhoods are `O(n^2)` in total, one copy of the node set per node. That is the
+///       price of elementarity rather than an oversight -- an ng relaxation with a small
+///       neighborhood is the cheaper model and @ref add_ng_path_resource is how to build it.
+///
+/// @tparam R     The container resource type.
+/// @tparam Graph The graph type, deduced.
+/// @tparam E     The element type stored in the sets.
+/// @param graph    The graph to register the resource on.
+/// @param node_ids Every node id in the model. Passed rather than read from @p graph because
+///                 resources are registered before nodes are added.
+template <typename R, typename Graph, typename E = typename R::ValueType>
+void add_elementary_resource(Graph& graph, const std::vector<size_t>& node_ids) {
+    std::set<E> every_node;
+    for (const size_t node_id : node_ids) {
+        every_node.insert(static_cast<E>(node_id));
+    }
+
+    std::map<size_t, std::set<E>> neighborhoods;
+    std::map<size_t, std::set<E>> forbidden_by_node;
+    for (const size_t node_id : node_ids) {
+        neighborhoods[node_id] = every_node;
+        forbidden_by_node[node_id] = {static_cast<E>(node_id)};
+    }
+
+    add_ng_path_resource<R, Graph, E>(graph,
+                                      std::move(neighborhoods),
+                                      std::move(forbidden_by_node));
 }
 
 }  // namespace rcspp::presets

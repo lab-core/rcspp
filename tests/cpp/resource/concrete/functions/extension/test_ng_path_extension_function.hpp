@@ -214,9 +214,16 @@ TEST(NgPathExtensionFunction, ForwardExtendThroughExtenderMatches) {
 }
 
 // The ng-set is a container whose node identity swaps between directions.
-TEST(NgPathExtensionFunction, DeclaresMirrorBackwardKind) {
+//
+// NodeMirror, not Mirror: the two are separate kinds because only this one gives a memory that
+// excludes the node it sits on in both directions. A feasibility function forbidding each node at
+// itself needs exactly that, and `UnionExtensionFunction` -- which declares plain Mirror because it
+// accumulates the arc's direction-independent value -- does not supply it. See check 7 in
+// backward_kind.hpp.
+TEST(NgPathExtensionFunction, DeclaresNodeMirrorBackwardKind) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-    EXPECT_EQ(proto.backward_kind(), BackwardKind::Mirror);
+    EXPECT_EQ(proto.backward_kind(), BackwardKind::NodeMirror);
+    EXPECT_NE(proto.backward_kind(), UnionExtensionFunction<SetResource<int>>{}.backward_kind());
 }
 
 // The arc's extender value is ignored: the node added is the one the label LEAVES, derived from

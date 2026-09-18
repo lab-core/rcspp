@@ -162,6 +162,32 @@ class FeasibilityFunction {
         /// @return @c true when a refusal is worth verifying rather than trusting.
         [[nodiscard]] virtual bool merge_refusal_may_be_conservative() const { return false; }
 
+        /// @brief Whether this function's test only has a backward reading when the memory
+        ///        excludes the node it sits on.
+        ///
+        /// Declared by the *feasibility* side and compared against the *extension* side's
+        /// @c BackwardKind at setup -- check 7 of the inventory in @c backward_kind.hpp. Like
+        /// @c BackSeedEndOf it cannot be derived from the kind, because it describes what this
+        /// function asks rather than how the paired extension behaves; an incoherent pairing is
+        /// exactly a disagreement between the two.
+        ///
+        /// Declare @c true when @c is_feasible asks about **the node the label is standing on** --
+        /// "am I already in my own memory", the ng-route condition. That question reads correctly
+        /// backwards only under @c BackwardKind::NodeMirror, where the memory at `v` excludes `v`
+        /// in both directions. Under @c BackwardKind::Mirror the arc's value is the same object
+        /// both ways, so a backward label arrives at `v` already holding `v`, every backward
+        /// extension is rejected by the node it lands on, and the backward search dies after its
+        /// seed -- silently, with a COMPLETE status and an empty result once the half-way bound
+        /// stops the forward search short.
+        ///
+        /// Leave it @c false for a test that does not name the current node. @c
+        /// SizeFeasibilityFunction is the case worth contrasting: it counts `|forward u backward|`
+        /// against a cap, which is the merged path's count whether or not either half includes the
+        /// meeting node, so it pairs correctly with either container kind.
+        ///
+        /// @return @c true when only a node-identity mirror can supply this function's memory.
+        [[nodiscard]] virtual bool requires_node_identity_mirror() const { return false; }
+
         /// @brief The value a backward label starts with at this node, if any.
         ///
         /// A backward label at a sink does not start at zero -- it starts at that node's *upper*

@@ -135,10 +135,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
             // Derive the backward dominance direction from the extension function's declared
             // shape, so the two can never disagree. A Threshold resource stores a deadline, where
-            // a LARGER value is more permissive, so its dominance reverses; Accumulate and Mirror
-            // keep the forward comparison. Anything else -- including Unspecified -- stays
-            // unreversed, which is inert only because a bidirectional solve refuses to start on an
-            // undeclared component.
+            // a LARGER value is more permissive, so its dominance reverses; Accumulate and both
+            // container kinds keep the forward comparison. Anything else -- including
+            // Unspecified -- stays unreversed, which is inert only because a bidirectional solve
+            // refuses to start on an undeclared component.
             //
             // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
             // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment
@@ -192,10 +192,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
             // Derive the backward dominance direction from the extension function's declared
             // shape, so the two can never disagree. A Threshold resource stores a deadline, where
-            // a LARGER value is more permissive, so its dominance reverses; Accumulate and Mirror
-            // keep the forward comparison. Anything else -- including Unspecified -- stays
-            // unreversed, which is inert only because a bidirectional solve refuses to start on an
-            // undeclared component.
+            // a LARGER value is more permissive, so its dominance reverses; Accumulate and both
+            // container kinds keep the forward comparison. Anything else -- including
+            // Unspecified -- stays unreversed, which is inert only because a bidirectional solve
+            // refuses to start on an undeclared component.
             //
             // Set on the *prototype*: ResourceFactory::create_resource clones these per node and
             // Clonable::clone() copy-constructs, so every clone inherits the flag. One assignment

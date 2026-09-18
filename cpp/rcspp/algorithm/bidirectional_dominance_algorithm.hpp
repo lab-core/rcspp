@@ -742,7 +742,7 @@ class BidirectionalDominanceAlgorithm
 
         /// @brief Records what, if anything, is wrong with one component's backward declarations.
         ///
-        /// Checks 3 to 6 of six. The other two are `static_assert`s in `ResourceGraph`'s typed
+        /// Checks 3 to 7 of seven. The other two are `static_assert`s in `ResourceGraph`'s typed
         /// `add_resource`, which a Python-built model never reaches; the inventory and the
         /// division of labour are in @c resource/functions/backward_kind.hpp.
         template <typename ComponentResource>
@@ -796,6 +796,27 @@ class BidirectionalDominanceAlgorithm
                     ": its extension accumulates but its feasibility function seeds a backward "
                     "label at the far end of its range, so the first backward extension leaves "
                     "that range; use a Threshold extension (e.g. BudgetExtensionFunction) instead");
+            }
+            // The third pairing fault, and the quietest of the three. The other two are caught
+            // because a *number* ends up on the wrong scale; this one is caught because a *set*
+            // does. A feasibility function asking "am I already in my own memory" needs the memory
+            // at a node to exclude that node, which only a node-identity mirror gives: a Mirror
+            // container accumulates the arc's value, which is the same object in both directions,
+            // so a backward label reaches `v` already holding `v` and is rejected by the node it
+            // just landed on. Every backward extension dies that way, the backward search keeps
+            // only its seed, and with the half-way bound on the forward search stops short of the
+            // sinks -- so the solve returns an EMPTY result and reports COMPLETE. Neither half's
+            // declaration is wrong on its own, which is why only a check that sees both catches it.
+            if (component.requires_node_identity_mirror() && kind != BackwardKind::NodeMirror) {
+                problems->push_back(
+                    label +
+                    ": its feasibility function forbids each node at itself, which only reads "
+                    "correctly backwards when the memory at a node excludes that node; its "
+                    "extension function does not declare BackwardKind::NodeMirror, so going "
+                    "backward the memory arrives already holding the node it sits on and every "
+                    "backward extension is rejected. Derive the extension function from "
+                    "NodeMirrorForm -- NgPathExtensionFunction is the one this library ships, and "
+                    "presets::add_elementary_resource wires it up for an elementary path");
             }
         }
 

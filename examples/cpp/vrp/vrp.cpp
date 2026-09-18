@@ -414,15 +414,21 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
     using DemandResource = IntResource;
     presets::add_budget_resource<DemandResource>(*resource_graph, instance_.get_capacity());
 
-    // // Node: an elementary path. Not a preset -- a union over per-node singletons is its own
-    // // shape, so it stays in the four-object form.
+    // // Node: an elementary path.
+    // //
+    // // This used to be spelled by hand as a visited set -- UnionExtensionFunction over arcs
+    // // carrying {origin}, with IntersectionFeasibilityFunction forbidding each node at itself.
+    // // That is correct forward and incoherent backward: the arc's value is the same object in
+    // // both directions, so the backward memory at v contains v itself and the feasibility test
+    // // at v rejects every backward label the moment it is created. A bidirectional solve now
+    // // refuses that pairing at setup rather than returning an empty result; the preset below is
+    // // the coherent spelling, and it is why one exists.
     // using NodeResource = SizeTBitsetResource;
-    // resource_graph->add_resource<NodeResource>(
-    //     std::make_unique<UnionExtensionFunction<NodeResource>>(),
-    //     std::make_unique<IntersectionFeasibilityFunction<NodeResource, size_t>>(
-    //         node_set_by_node_id_, /*forbidden=*/true),
-    //     std::make_unique<TrivialCostFunction<NodeResource>>(),
-    //     std::make_unique<InclusionDominanceFunction<NodeResource>>());
+    // std::vector<size_t> node_ids;
+    // for (const auto& [node_id, forbidden] : node_set_by_node_id_) {
+    //     node_ids.push_back(node_id);
+    // }
+    // presets::add_elementary_resource<NodeResource>(*resource_graph, node_ids);
 
     // // NG path. Correct when uncommented, which the four-object spelling above it was not:
     // // the class is IntersectionFeasibilityFunction, and its second template argument is the

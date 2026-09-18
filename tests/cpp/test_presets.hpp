@@ -15,6 +15,7 @@
 #include <memory>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 
@@ -129,6 +130,50 @@ TEST(Presets, NgPathResourceMatchesTheHandBuiltModel) {
     by_hand->add_node(0, /*source=*/true, /*sink=*/false);
     by_hand->add_node(1, /*source=*/false, /*sink=*/true);
     by_hand->add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}), 0, 1, 10.0);
+
+    presets_test::expect_same_solutions(
+        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
+        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+}
+
+/// @brief The elementary preset is the ng preset with nothing ever forgotten.
+///
+/// Asserted against the hand-built expansion rather than against a solve alone, because what the
+/// preset is *for* is getting the two maps right: neighborhoods spanning every node, so the memory
+/// never narrows, and `forbidden[v] = {v}`. A neighborhood that missed a node would silently permit
+/// a revisit through it.
+TEST(Presets, ElementaryResourceIsNgPathWithUniversalNeighborhoods) {
+    const std::vector<size_t> node_ids{0, 1, 2};
+    const std::map<size_t, std::set<size_t>> universal{{0, {0, 1, 2}},
+                                                       {1, {0, 1, 2}},
+                                                       {2, {0, 1, 2}}};
+    const std::map<size_t, std::set<size_t>> forbidden{{0, {0}}, {1, {1}}, {2, {2}}};
+
+    const auto build_arcs = [](auto* graph) {
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        graph->add_node(1);
+        graph->add_node(2, /*source=*/false, /*sink=*/true);
+        graph->template add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}),
+                                                     0,
+                                                     1,
+                                                     10.0);
+        graph->template add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}),
+                                                     1,
+                                                     2,
+                                                     10.0);
+        graph->template add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}),
+                                                     0,
+                                                     2,
+                                                     30.0);
+    };
+
+    auto by_preset = std::make_unique<ResourceGraph<SizeTBitsetResource>>();
+    presets::add_elementary_resource<SizeTBitsetResource>(*by_preset, node_ids);
+    build_arcs(by_preset.get());
+
+    auto by_hand = std::make_unique<ResourceGraph<SizeTBitsetResource>>();
+    presets::add_ng_path_resource<SizeTBitsetResource>(*by_hand, universal, forbidden);
+    build_arcs(by_hand.get());
 
     presets_test::expect_same_solutions(
         by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),

@@ -18,9 +18,16 @@ namespace rcspp {
 /// remembers. A label's remembered set is then a subset of the nodes on its own half, and an
 /// *elementary* path's two halves are node-disjoint, so disjointness never rejects an elementary
 /// path. On a model that permits revisits it rejects plenty -- two halves that legally share a node
-/// are refused at the join while the same walk is perfectly reachable by extension -- which is why
-/// @c IntersectionFeasibilityFunction declares @c AlwaysTrue when its forbidden sets are empty,
-/// i.e. when it is not that model after all.
+/// are refused at the join while the same walk is perfectly reachable by extension.
+///
+/// For @c IntersectionFeasibilityFunction that precondition has an exact, checkable form:
+/// **`forbidden(v) = {v}` at every node that constrains anything**, i.e. the ng-route condition.
+/// It declares @c AlwaysTrue when nothing is forbidden anywhere and @c Unspecified when something
+/// is forbidden that is not the node's own id, so the body below is reached only where its
+/// precondition holds. "Is any set non-empty" was the earlier test and is a *proxy*: a set that is
+/// non-empty but binds nothing permits every revisit while still gating the join, and a set that
+/// forbids some other node breaks `is_back_feasible` rather than the merge -- see that class's
+/// @c merge_rule for both, with measurements.
 ///
 /// **The second precondition is load-bearing in the same way.** Disjointness is exact exactly
 /// when **the stored set is the memory the label will carry out of this node** -- i.e. when

@@ -450,20 +450,35 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
     // validate_backward_semantics would early-return on a graph with no extender to read. That is
     // what the first version of this test did, and it failed for that reason rather than the one
     // it is about.
-    const auto build = [](bool forbidden, const std::set<int>& values) {
+    //
+    // `node_mirror` selects the memory. Only a node-identity mirror can carry the ng-route
+    // condition -- see AContainerForbiddingAnotherNodeIsRefused -- so the sibling case that has to
+    // SOLVE uses one, while the required-values case under test is unaffected by the choice.
+    const auto build = [](bool forbidden, const std::set<int>& values, bool node_mirror = false) {
         auto graph = std::make_unique<ResourceGraph<RealResource, SetResource<int>>>();
         graph->add_resource<RealResource>(
             std::make_unique<AdditionExtensionFunction<RealResource>>(),
             std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
             std::make_unique<ValueCostFunction<RealResource>>(),
             std::make_unique<ValueDominanceFunction<RealResource>>());
-        graph->add_resource<SetResource<int>>(
-            std::make_unique<UnionExtensionFunction<SetResource<int>>>(),
+
+        std::unique_ptr<ExtensionFunction<SetResource<int>>> memory;
+        if (node_mirror) {
+            memory = std::make_unique<NgPathExtensionFunction<SetResource<int>, int>>(
+                std::map<size_t, std::set<int>>{{0, {0, 1}}, {1, {0, 1}}});
+        } else {
+            memory = std::make_unique<UnionExtensionFunction<SetResource<int>>>();
+        }
+        std::unique_ptr<FeasibilityFunction<SetResource<int>>> feasibility =
             std::make_unique<IntersectionFeasibilityFunction<SetResource<int>, int>>(
                 std::map<size_t, std::set<int>>{{1, values}},
-                forbidden),
+                forbidden);
+        graph->add_resource<SetResource<int>>(
+            std::move(memory),
+            std::move(feasibility),
             std::make_unique<TrivialCostFunction<SetResource<int>>>(),
             std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1, /*source=*/false, /*sink=*/true);
         graph->add_arc<RealResource, SetResource<int>>(
@@ -491,9 +506,17 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
         EXPECT_NE(message.find("merge_rule"), std::string::npos) << message;
     }
 
-    // Forbidden values on the same shape still solve: the refusal is about the prefix question,
-    // not about carrying a container.
-    auto forbidding = build(/*forbidden=*/true, /*values=*/{9});
+    // Forbidden values still solve -- when they are the ng-route condition, node 1 forbidding node
+    // 1, carried by a node-identity mirror. The refusal above is about the prefix question, not
+    // about carrying a container.
+    //
+    // Both departures from the required case are forced, and each by a different check. `{1}`
+    // rather than `{9}`: a set forbidding some other node is a prefix question too, and declares
+    // MergeRule::Unspecified. `node_mirror` rather than UnionExtensionFunction: a Union memory
+    // arrives at node 1 already holding node 1 going backward, so check 7 refuses that pairing.
+    // With UnionExtensionFunction there is in fact NO binding forbidden set that passes both --
+    // which is the point of AContainerForbiddingAnotherNodeIsRefused and of F12.
+    auto forbidding = build(/*forbidden=*/true, /*values=*/{1}, /*node_mirror=*/true);
     auto solving = forbidding->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
     EXPECT_NO_THROW({ forbidding->solve(solving.get()); });
 
@@ -502,6 +525,324 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
         auto forward_only = build(/*forbidden=*/false, /*values=*/{0});
         forward_only->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
     });
+}
+
+/// @brief A forbidden set that is not the node's own is refused, on the two models that used to
+///        get a wrong answer from it.
+///
+/// `IntersectionFeasibilityFunction` used to declare `MergeRule::Custom` whenever *any* forbidden
+/// set was non-empty. That is a proxy for the precondition `DisjointMergeForm` actually needs --
+/// `forbidden(v) = {v}` -- and it is one notch too coarse in both directions. Each case below is
+/// the smallest model that produced one of the two wrong answers; both are now refused at setup
+/// and named, and both still solve forward unchanged.
+///
+/// The ng models this library ships are unaffected: `presets::add_ng_path_resource` callers, the
+/// generated instances and the VRP subproblem all pass `forbidden(v) = {v}` at every node.
+TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
+    struct Arc {
+            size_t origin;
+            size_t destination;
+            double cost;
+    };
+
+    // cost (component 0), a clock (component 1), and the memory (component 2). The clock is what
+    // keeps the cyclic case finite; the refusal itself is decided before it is ever read.
+    const auto build = [](size_t num_nodes,
+                          size_t sink,
+                          double horizon,
+                          const std::map<size_t, std::set<int>>& forbidden,
+                          const std::vector<Arc>& arcs) {
+        auto graph = std::make_unique<ResourceGraph<RealResource, SetResource<int>>>();
+        std::map<size_t, std::pair<double, double>> windows;
+        for (size_t node = 0; node < num_nodes; ++node) {
+            windows[node] = {0.0, horizon};
+        }
+
+        presets::add_cost_resource<RealResource>(*graph);
+        presets::add_window_resource<RealResource>(*graph, windows);
+        // A plain visited set: it never forgets, so DisjointMergeForm's SECOND precondition holds
+        // and the first one is the only thing under test.
+        graph->add_resource<SetResource<int>>(
+            std::make_unique<UnionExtensionFunction<SetResource<int>>>(),
+            std::make_unique<IntersectionFeasibilityFunction<SetResource<int>, int>>(
+                forbidden,
+                /*forbidden=*/true),
+            std::make_unique<TrivialCostFunction<SetResource<int>>>(),
+            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+
+        for (size_t node = 0; node < num_nodes; ++node) {
+            graph->add_node(node, /*source=*/node == 0, /*sink=*/node == sink);
+        }
+        for (const auto& arc : arcs) {
+            graph->add_arc<RealResource, RealResource, SetResource<int>>(
+                std::make_tuple(std::make_tuple(arc.cost),
+                                std::make_tuple(10.0),
+                                std::make_tuple(std::set<int>{static_cast<int>(arc.origin)})),
+                arc.origin,
+                arc.destination,
+                arc.cost);
+        }
+        return graph;
+    };
+
+    using Composed = ResourceTypeComposition<RealResource, SetResource<int>>;
+    const auto expect_refused = [](auto* graph, double half_way) {
+        AlgorithmParams<LabelList<Composed>> params;
+        params.critical_resource_index = 1;
+        params.half_way_point = half_way;
+        auto algorithm =
+            graph->template create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+        try {
+            graph->solve(algorithm.get());
+            FAIL() << "a forbidden set that is not the node's own has no backward reading and "
+                      "must be refused";
+        } catch (const std::runtime_error& error) {
+            const std::string message = error.what();
+            EXPECT_NE(message.find("component 2"), std::string::npos) << message;
+            EXPECT_NE(message.find("merge_rule"), std::string::npos) << message;
+        }
+    };
+
+    // ── Case 1: the rule used to ACCEPT an infeasible splice ──────────────────────────────────
+    //
+    //   0 ──▶ 1 ──▶ 2 ──▶ 3 ──▶ 4          forbidden(3) = {1}
+    //    \          ▲
+    //     \________/
+    //
+    // `0 1 2 3 4` is infeasible -- arriving at 3 the memory holds 1 -- and the forward search says
+    // so, returning `0 2 3 4` at -2. The backward search never sees 1 before it passes 3, so it
+    // admitted the whole suffix and `extract_backward_solution` recorded the path at -13 with a
+    // COMPLETE status. Note that the join is not what failed: this reproduced at half_way_point 0
+    // as well, with joined_paths == 0.
+    {
+        const std::vector<Arc> arcs{{0, 1, -10.0},
+                                    {1, 2, -1.0},
+                                    {0, 2, 0.0},
+                                    {2, 3, -1.0},
+                                    {3, 4, -1.0}};
+        auto accepting = build(/*num_nodes=*/5, /*sink=*/4, /*horizon=*/100.0, {{3, {1}}}, arcs);
+        expect_refused(accepting.get(), /*half_way=*/0.0);
+
+        auto bounded = build(/*num_nodes=*/5, /*sink=*/4, /*horizon=*/100.0, {{3, {1}}}, arcs);
+        expect_refused(bounded.get(), /*half_way=*/15.0);
+
+        // Forward-only is unchanged, and returns what the model actually means.
+        auto forward = build(/*num_nodes=*/5, /*sink=*/4, /*horizon=*/100.0, {{3, {1}}}, arcs);
+        const auto result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        ASSERT_FALSE(result.solutions.empty());
+        EXPECT_NEAR(result.solutions.front().cost, -2.0, 1e-9);
+        EXPECT_EQ(result.solutions.front().path_node_ids, (std::vector<size_t>{0, 2, 3, 4}));
+    }
+
+    // ── Case 2: the rule used to REFUSE splices the model permits ─────────────────────────────
+    //
+    //   0 ──▶ 1 ⇄ 2                        forbidden(2) = {9}, which is never collected
+    //    \    │
+    //     \   ▼
+    //      ──▶ 3
+    //
+    // Nothing is actually forbidden, so the optimum goes round the 1 -> 2 -> 1 cycle twice for -24
+    // until the horizon stops it. Disjointness refused every splice that shared a node, and the
+    // bounded solve returned -13 with a COMPLETE status. This is review finding D6 surviving its
+    // own fix, because "is any set non-empty" is not the precondition.
+    {
+        const std::vector<Arc> arcs{{0, 1, -1.0},
+                                    {1, 2, -1.0},
+                                    {2, 1, -10.0},
+                                    {1, 3, -1.0},
+                                    {0, 3, 0.0}};
+        auto over_strict = build(/*num_nodes=*/4, /*sink=*/3, /*horizon=*/60.0, {{2, {9}}}, arcs);
+        expect_refused(over_strict.get(), /*half_way=*/25.0);
+
+        auto forward = build(/*num_nodes=*/4, /*sink=*/3, /*horizon=*/60.0, {{2, {9}}}, arcs);
+        const auto result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        ASSERT_FALSE(result.solutions.empty());
+        EXPECT_NEAR(result.solutions.front().cost, -24.0, 1e-9);
+    }
+
+    // ── The control: the same graph under the ng-route condition still solves ─────────────────
+    //
+    // Without this the two refusals above could be passing for the wrong reason -- "a container
+    // model is refused" rather than "this forbidden set has no backward reading".
+    //
+    // The memory here is `NgPathExtensionFunction`, not the `UnionExtensionFunction` above, and
+    // that is not incidental: `forbidden(v) = {v}` has a backward reading only when the memory a
+    // label carries at `v` excludes `v` in BOTH directions, which is what `NodeMirrorForm` buys by
+    // deriving the node from the arc's endpoints rather than from its value. Neighborhoods that
+    // span every node mean nothing is ever forgotten, so this is the elementary-path model and
+    // `0 1 2 3 4` is its optimum.
+    {
+        auto graph = std::make_unique<ResourceGraph<RealResource, SetResource<int>>>();
+        std::map<size_t, std::pair<double, double>> windows;
+        std::map<size_t, std::set<int>> neighborhoods;
+        std::map<size_t, std::set<int>> self_forbidden;
+        for (int node = 0; node < 5; ++node) {
+            windows[static_cast<size_t>(node)] = {0.0, 100.0};
+            neighborhoods[static_cast<size_t>(node)] = {0, 1, 2, 3, 4};
+            self_forbidden[static_cast<size_t>(node)] = {node};
+        }
+        presets::add_cost_resource<RealResource>(*graph);
+        presets::add_window_resource<RealResource>(*graph, windows);
+        presets::add_ng_path_resource<SetResource<int>>(*graph, neighborhoods, self_forbidden);
+
+        for (size_t node = 0; node < 5; ++node) {
+            graph->add_node(node, /*source=*/node == 0, /*sink=*/node == 4);
+        }
+        const std::vector<Arc> arcs{{0, 1, -10.0},
+                                    {1, 2, -1.0},
+                                    {0, 2, 0.0},
+                                    {2, 3, -1.0},
+                                    {3, 4, -1.0}};
+        for (const auto& arc : arcs) {
+            graph->add_arc<RealResource, RealResource, SetResource<int>>(
+                std::make_tuple(std::make_tuple(arc.cost),
+                                std::make_tuple(10.0),
+                                std::make_tuple(std::set<int>{})),
+                arc.origin,
+                arc.destination,
+                arc.cost);
+        }
+
+        AlgorithmParams<LabelList<Composed>> params;
+        params.critical_resource_index = 1;
+        params.half_way_point = 15.0;
+        auto algorithm =
+            graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+        SolveResult result;
+        EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
+        ASSERT_FALSE(result.solutions.empty());
+        EXPECT_NEAR(result.solutions.front().cost, -13.0, 1e-9);
+    }
+}
+
+/// @brief The elementary-path model written as a visited set is refused, and the preset that
+///        replaces it solves.
+///
+/// `UnionExtensionFunction` over arcs carrying `{origin}`, with each node forbidding itself, is the
+/// obvious spelling of "no node twice" and it is what `examples/cpp/vrp/vrp.cpp` has commented out.
+/// It is correct forward and incoherent backward: the arc's value is the same object in both
+/// directions, so the backward memory at `v` contains `v` itself and the feasibility test at `v`
+/// rejects every backward label the moment it is created.
+///
+/// Measured before check 7 existed, on the graph below: the backward search kept **one** label --
+/// its sink seed -- and with the half-way bound on the forward search stopped short of the sink, so
+/// the solve returned an **empty result** with a COMPLETE status. With the bound off it returned
+/// -13 from the forward search alone, which is why this hid: the failure needs the bound to be on.
+///
+/// Both halves declare legal values on their own. `UnionExtensionFunction` really is a `Mirror` --
+/// it accumulates the arc's value, and for genuine per-arc data that is right -- and
+/// `IntersectionFeasibilityFunction` really does carry the ng-route condition. Only a check that
+/// sees both catches it.
+TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
+    struct Arc {
+            size_t origin;
+            size_t destination;
+            double cost;
+    };
+    const std::vector<Arc> arcs{{0, 1, -10.0},
+                                {1, 2, -1.0},
+                                {0, 2, 0.0},
+                                {2, 3, -1.0},
+                                {3, 4, -1.0}};
+    const std::vector<size_t> node_ids{0, 1, 2, 3, 4};
+
+    enum class Memory { VisitedSet, Elementary };
+    const auto build = [&](Memory memory) {
+        auto graph = std::make_unique<ResourceGraph<RealResource, SetResource<int>>>();
+        std::map<size_t, std::pair<double, double>> windows;
+        std::map<size_t, std::set<int>> self_forbidden;
+        for (int node = 0; node < 5; ++node) {
+            windows[static_cast<size_t>(node)] = {0.0, 100.0};
+            self_forbidden[static_cast<size_t>(node)] = {node};
+        }
+        presets::add_cost_resource<RealResource>(*graph);
+        presets::add_window_resource<RealResource>(*graph, windows);
+
+        if (memory == Memory::Elementary) {
+            presets::add_elementary_resource<SetResource<int>>(*graph, node_ids);
+        } else {
+            graph->add_resource<SetResource<int>>(
+                std::make_unique<UnionExtensionFunction<SetResource<int>>>(),
+                std::make_unique<IntersectionFeasibilityFunction<SetResource<int>, int>>(
+                    self_forbidden,
+                    /*forbidden=*/true),
+                std::make_unique<TrivialCostFunction<SetResource<int>>>(),
+                std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        }
+
+        for (size_t node : node_ids) {
+            graph->add_node(node, /*source=*/node == 0, /*sink=*/node == 4);
+        }
+        for (const auto& arc : arcs) {
+            graph->add_arc<RealResource, RealResource, SetResource<int>>(
+                std::make_tuple(std::make_tuple(arc.cost),
+                                std::make_tuple(10.0),
+                                // {origin} is what a visited-set model puts here, and what
+                                // NgPathExtensionFunction ignores.
+                                std::make_tuple(std::set<int>{static_cast<int>(arc.origin)})),
+                arc.origin,
+                arc.destination,
+                arc.cost);
+        }
+        return graph;
+    };
+
+    using Composed = ResourceTypeComposition<RealResource, SetResource<int>>;
+    AlgorithmParams<LabelList<Composed>> params;
+    params.critical_resource_index = 1;
+    params.half_way_point = 15.0;
+    params.release_after_solve = false;  // so the backward containers stay readable
+
+    // The visited set is refused, and the message says which declaration to change rather than
+    // only that something is missing.
+    {
+        auto graph = build(Memory::VisitedSet);
+        auto algorithm =
+            graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+        try {
+            graph->solve(algorithm.get());
+            FAIL() << "a visited set cannot carry the elementary condition backwards";
+        } catch (const std::runtime_error& error) {
+            const std::string message = error.what();
+            EXPECT_NE(message.find("component 2"), std::string::npos) << message;
+            EXPECT_NE(message.find("NodeMirror"), std::string::npos) << message;
+            // The remedy is named, because "declares no merge_rule()" would send the reader to
+            // the wrong half of the pairing.
+            EXPECT_NE(message.find("NodeMirrorForm"), std::string::npos) << message;
+        }
+    }
+
+    // The preset solves the same model, and its backward search actually runs -- which is the
+    // thing the refused pairing could not do.
+    {
+        auto graph = build(Memory::Elementary);
+        auto algorithm =
+            graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+        SolveResult result;
+        EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
+        ASSERT_FALSE(result.solutions.empty());
+        EXPECT_NEAR(result.solutions.front().cost, -13.0, 1e-9);
+        EXPECT_TRUE(result.bounded_by_half_way);
+
+        size_t backward_labels = 0;
+        for (const auto& container : algorithm->get_backward_labels_by_node_pos()) {
+            backward_labels += container.get_labels().size();
+        }
+        // More than the seed. One label here is exactly the symptom: it means every backward
+        // extension was rejected by the node it landed on.
+        EXPECT_GT(backward_labels, 1U)
+            << "the backward search kept only its seed, which is what a memory that includes the "
+               "node it sits on does";
+    }
+
+    // Forward-only is unaffected for both: the incoherence is in the backward reading, and the
+    // visited-set model is a perfectly good forward model.
+    for (const Memory memory : {Memory::VisitedSet, Memory::Elementary}) {
+        auto graph = build(memory);
+        const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        ASSERT_FALSE(result.solutions.empty());
+        EXPECT_NEAR(result.solutions.front().cost, -13.0, 1e-9);
+    }
 }
 
 // DisjointOnAResourceWithoutIntersectsIsRefused was deleted in step 6.

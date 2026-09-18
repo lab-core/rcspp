@@ -114,3 +114,24 @@ TEST(DeclaredKindForm, DeclaresWithoutFinalisingExtend) {
     EXPECT_EQ(UnionExtensionFunction<SetResource<int>>{}.backward_kind(), BackwardKind::Mirror);
     EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Accumulate);
 }
+
+// The marker and the form declare DIFFERENT container kinds, and that is the whole point of
+// splitting them: a marker-declared container accumulates the arc's value, which is the same
+// object in both directions, so its memory at a node INCLUDES that node going backward. Only
+// NodeMirrorForm swaps the endpoint, and only it can serve a feasibility function that asks "am I
+// already in my own memory". Collapsing these two back into one value re-opens F12.
+TEST(NodeMirrorForm, DeclaresADifferentKindFromTheMarker) {
+    static_assert(NodeMirrorForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::kind ==
+                  BackwardKind::NodeMirror);
+    static_assert(
+        NodeMirrorForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::kind !=
+        DeclaredKindForm<ExtensionFunction<SetResource<int>>, BackwardKind::Mirror>::kind);
+
+    // Both are containers, so both keep the forward dominance order and neither can be the clock.
+    static_assert(is_container_kind(BackwardKind::Mirror));
+    static_assert(is_container_kind(BackwardKind::NodeMirror));
+    static_assert(!is_container_kind(BackwardKind::Threshold));
+    static_assert(!is_container_kind(BackwardKind::Accumulate));
+
+    EXPECT_EQ(mirror_form_test::LabelledMirror{}.backward_kind(), BackwardKind::NodeMirror);
+}

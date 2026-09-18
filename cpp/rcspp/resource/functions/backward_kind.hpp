@@ -22,16 +22,55 @@ enum class BackwardKind {
     Unspecified,  ///< not declared -- a bidirectional solve will refuse to run
     Accumulate,   ///< no bound; extend_back == extend (e.g. cost)
     Threshold,    ///< stores a deadline/ceiling; extend_back inverts extend and clamps
-    Mirror,       ///< stores a set seen on its own half; same formula, origin/destination swapped
+    Mirror,       ///< a container accumulating the ARC VALUES of its own half; extend_back ==
+                  ///< extend, because the arc value is direction-independent
+    NodeMirror,   ///< a container accumulating NODE IDENTITIES, read off the arc's endpoints;
+                  ///< extend_back is the same formula with origin and destination swapped
 };
 
+/// @brief Whether a kind means "a container carrying the nodes of its own half".
+///
+/// Both container kinds keep the forward dominance order and neither can serve as the half-way
+/// clock, so the places that only care about "is this a set rather than a number" ask this rather
+/// than naming both.
+///
+/// @param kind The kind to test.
+/// @return @c true for @c Mirror and @c NodeMirror.
+[[nodiscard]] constexpr bool is_container_kind(BackwardKind kind) {
+    return kind == BackwardKind::Mirror || kind == BackwardKind::NodeMirror;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// WHY THE TWO CONTAINER KINDS ARE SEPARATE
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// They used to be one value, and the distinction lived only in prose on `NodeMirrorForm`. The
+// difference is *where the container's elements come from*, and it decides whether the memory a
+// label carries at a node includes that node:
+//
+//   Mirror      the elements are the ARC'S VALUE, which is the same object in both directions.
+//               `UnionExtensionFunction` with the usual {origin} payload therefore holds, at `v`,
+//               the nodes strictly BEFORE `v` going forward and `v` ITSELF plus the nodes after
+//               it going backward. Nothing is swapped, because there is nothing to swap.
+//
+//   NodeMirror  the elements are read off the arc's ENDPOINTS, and `NodeMirrorForm` swaps which
+//               endpoint is "the node being left" per direction. The memory at `v` excludes `v`
+//               in both directions, which is what makes the two halves comparable at a join.
+//
+// The consequence is not cosmetic. A feasibility function that asks "is the node I am sitting on
+// already in my memory" -- `IntersectionFeasibilityFunction` with the ng-route condition -- has a
+// backward reading only under `NodeMirror`. Under `Mirror` the backward label arrives at `v`
+// already holding `v`, so every backward extension is rejected by the node it lands on, the
+// backward search dies after its seed, and with the half-way bound on the solve returns NOTHING
+// and reports COMPLETE. Check 7 below is what catches that pairing.
+//
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // THE BACKWARD COHERENCE CHECKS, IN ONE PLACE
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //
-// Six checks now guard the same question -- "do this component's four function objects agree
+// Seven checks now guard the same question -- "do this component's four function objects agree
 // about what happens backwards?" -- across three files and two moments. They grew one at a time,
-// from two separate reviews, and no single site could see the others. This is the map. Anything
+// from three separate reviews, and no single site could see the others. This is the map. Anything
 // added to the family belongs in this list too.
 //
 // **What is derived, and from what.** The extension function's `backward_kind()` is the single
@@ -43,10 +82,14 @@ enum class BackwardKind {
 //        +-> DominanceFunction::backward_reversed_   (== Threshold: a later deadline is looser)
 //        +-> FeasibilityFunction::backward_kind_     (read by merge_rule(), see MinMax)
 //
-// A fourth fact is declared independently and cannot be derived: `BackSeedEndOf<Feas>`, a
-// compile-time trait saying where the feasibility function's backward seed sits. It describes the
-// *feasibility* side where `backward_kind` describes the *extension* side, which is why there are
-// two and not one -- an incoherent pairing is exactly a disagreement between them.
+// Two further facts are declared independently and cannot be derived, both on the *feasibility*
+// side, which is why an incoherent pairing is exactly a disagreement between the two sides:
+//
+//   `BackSeedEndOf<Feas>`                       a compile-time trait saying where the feasibility
+//                                               function's backward seed sits.
+//   `FeasibilityFunction::                      a runtime declaration saying the function's test
+//     requires_node_identity_mirror()`          only has a backward reading when the memory
+//                                               excludes the node it sits on. Read by check 7.
 //
 // **Compile time**, in `ResourceGraph`'s typed `add_resource` overload. Reached only from C++,
 // and only when the four objects are constructed inline; the Python bindings always take the
@@ -76,6 +119,14 @@ enum class BackwardKind {
 //                                                      than the type, so it also catches a
 //                                                      feasibility function whose seed end is a
 //                                                      constructor argument.
+//   7. `requires_node_identity_mirror()             -- a feasibility function that asks about the
+//       && kind != NodeMirror`                        node it sits on, paired with a memory that
+//                                                     does not exclude that node. See the section
+//                                                     above. Like 5 it is a disagreement between
+//                                                     two independently legal declarations; unlike
+//                                                     5 its failure is a backward search that
+//                                                     silently finds nothing rather than a join
+//                                                     that accepts too much.
 //
 // **Why 2 and 6 both exist, and are not redundant.** 2 is a `static_assert` and 6 is a runtime
 // probe, so 2 fires earlier and with a better message where it can fire at all -- but it can only
