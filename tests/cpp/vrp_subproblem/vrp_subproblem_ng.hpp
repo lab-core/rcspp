@@ -12,10 +12,18 @@
 // *construction*; what is shared is `Instance`, which is where a divergence would actually
 // invalidate the comparison.
 //
-// **The reference optimum is a different number.** ng-feasibility is a *restriction* -- it forbids
-// cycles within each node's neighborhood -- so the set of admissible columns shrinks and the
-// optimum becomes less negative than the non-ng model's `kOptimal`. It cannot be corrected by
-// inspection; it has to be derived. See `test_bidirectional_benchmark.hpp`.
+// **The reference optimum is the same number, which was not the prediction.** ng-feasibility is a
+// *restriction* -- it forbids cycles within each node's neighborhood -- so the plan expected a new
+// constant here, less negative than the non-ng model's `kOptimal`. Derived from a completed
+// forward search on R101 with the iteration-0 duals, it is **exactly `kOptimal`**: the optimal
+// column is already elementary, so the restriction removes only non-elementary columns that were
+// never optimal. So there is no second constant, and `kOptimal` stays in one place --
+// `util/benchmark_constants.hpp`.
+//
+// That is a statement about R101, not about the model. A restriction *can* move the optimum, and
+// on an instance where the best column is non-elementary it will; asserting the same `kOptimal` is
+// what will say so when that happens. The full note, with the measurements, is on
+// `test_bidirectional_benchmark_ng.hpp`.
 //
 // **The ng arcs carry no per-arc set data.** Step 4's accepted narrowing means
 // `NgPathExtensionFunction` derives the node it adds from the arc's own endpoints, so an origin
