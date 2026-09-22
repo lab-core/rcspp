@@ -88,6 +88,44 @@ struct SolveResult {
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
+        /// @brief Labels surviving dominance in the forward containers when the solve ended.
+        ///
+        /// Reported by every algorithm deriving from @ref DirectionalDominanceAlgorithm, which is
+        /// all four exact forward algorithms and the bidirectional one. `Greedy`, the tabu
+        /// searches, `Diversification` and `BacktrackingDive` derive from @ref Algorithm directly
+        /// and leave this at 0.
+        ///
+        /// Together with @ref backward_labels this is the imbalance signal a moving half-way point
+        /// feeds on: a ratio far from 1, iteration after iteration, is a static `H` placed where
+        /// one direction does nearly all the work. Counted **after** the search, so these are
+        /// survivors and not extensions -- @c Algorithm::get_number_of_extended_labels() is the
+        /// other number, and they answer different questions.
+        size_t forward_labels = 0;
+
+        /// @brief Labels surviving dominance in the backward containers when the solve ended.
+        ///
+        /// Non-zero only from a search that ran backwards: the bidirectional algorithm, or a
+        /// @ref DirectionalDominanceAlgorithm instantiated on @c BackwardDirection. 0 everywhere
+        /// else, which is what makes `forward_labels / backward_labels` meaningful only when both
+        /// are non-zero.
+        size_t backward_labels = 0;
+
+        /// @brief Dominance comparisons performed across every label container, both directions.
+        ///
+        /// See @c LabelList::dominance_checks. Divided by the surviving label count this is the
+        /// cost of the dominance rule per label kept, which is the quantity a container or
+        /// dominance change has to move to be worth having.
+        size_t dominance_checks = 0;
+
+        /// @brief The half-way point `H` this solve actually used; 0 when the bound was off.
+        ///
+        /// Bidirectional only. It is not simply `params.half_way_point`: the bound disables itself
+        /// when the critical resource fails validation, and a future policy may move `H` between
+        /// solves. Reporting what was used rather than what was asked for is what lets a caller
+        /// feed the next value back. Read @ref bounded_by_half_way to tell "the bound was off"
+        /// from "`H` really was 0".
+        double half_way_point_used = 0.0;
+
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
