@@ -39,6 +39,18 @@ class LabelList {
         /// @brief Read-only access to the underlying label list.
         [[nodiscard]] const std::list<Label<ResourceType>*>& get_labels() const { return labels_; }
 
+        /// @brief How many dominance comparisons this container has performed.
+        ///
+        /// One per call to @ref dominates, across both @ref is_dominated and
+        /// @ref remove_dominated_labels, for the life of this container object.
+        /// `initialize_labels()` builds a fresh container per node per solve, so this is a
+        /// per-solve number and needs no reset.
+        ///
+        /// Checks per surviving label is what says whether a container change paid off: the label
+        /// count alone cannot distinguish "fewer labels" from "the same labels, sifted more
+        /// cheaply". Summed over all nodes onto @c SolveResult::dominance_checks.
+        [[nodiscard]] size_t dominance_checks() const { return num_dominance_checks_; }
+
         /// @brief Appends @p label at the end and returns its iterator.
         virtual LabelPosition add_label(Label<ResourceType>* label) {
             return labels_.insert(labels_.end(), label);
@@ -63,7 +75,7 @@ class LabelList {
             for (auto non_dominated_label_it = labels_.begin();
                  non_dominated_label_it != labels_.end();) {
                 if (&label != *non_dominated_label_it &&
-                    dominates(label, *(*non_dominated_label_it))) {
+                    dominates_counted(label, *(*non_dominated_label_it))) {
                     (*non_dominated_label_it)->dominated = true;
                     non_dominated_label_it = labels_.erase(non_dominated_label_it);
                     ++removed;
@@ -80,7 +92,7 @@ class LabelList {
                 if (&label == non_dominated_label_ptr) {
                     continue;
                 }
-                if (dominates(*non_dominated_label_ptr, label)) {
+                if (dominates_counted(*non_dominated_label_ptr, label)) {
                     return true;
                 }
             }
@@ -99,7 +111,26 @@ class LabelList {
             return Dir::template dominates<ResourceType>(lhs, rhs);
         }
 
+        /// @brief @ref dominates, counted.
+        ///
+        /// Every dominance comparison in this class and in @ref LabelBuckets goes through here,
+        /// so the count cannot drift from what the scans actually do. Not static, because it
+        /// touches the instance counter; the counter is `mutable`, because @ref is_dominated is
+        /// const and is half of what it counts.
+        ///
+        /// @param lhs The candidate dominating label.
+        /// @param rhs The label being tested.
+        /// @return `true` when @p lhs dominates @p rhs in this container's direction.
+        [[nodiscard]] bool dominates_counted(const Label<ResourceType>& lhs,
+                                             const Label<ResourceType>& rhs) const {
+            ++num_dominance_checks_;
+            return dominates(lhs, rhs);
+        }
+
         std::list<Label<ResourceType>*> labels_;
+
+        /// Mutable: @ref is_dominated is const and is half of what this counts.
+        mutable size_t num_dominance_checks_ = 0;
 };
 
 /// @brief Bucket-partitioned label container with O(log B) lookup via binary search.
@@ -319,7 +350,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                     --label_it;
                     reached_begin = (label_it == buckets_[idx].begin);
                     auto* current = *label_it;
-                    if (&label != current && this->dominates(label, *current)) {
+                    if (&label != current && this->dominates_counted(label, *current)) {
                         current->dominated = true;
                         // Capture the begin pointer BEFORE erasing: the erase
                         // invalidates the stored bucket begin iterator.
@@ -366,7 +397,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                     if (&label == *it) {
                         continue;
                     }
-                    if (this->dominates(**it, label)) {
+                    if (this->dominates_counted(**it, label)) {
                         return true;
                     }
                     if (!sort_dominates(get_sort_resource(**it), lsr)) {
