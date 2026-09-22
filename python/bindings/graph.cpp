@@ -118,6 +118,28 @@ void init_graph(py::module_& m) {
                       "it happens -- the label sets really were exhausted, of what survived the "
                       "trim -- so code that treats 'complete' as a proof of optimality has to "
                       "check this too.")
+        .def_readonly("forward_labels",
+                      &SolveResult::forward_labels,
+                      "Labels surviving dominance in the forward containers when the solve "
+                      "ended. Reported by the four exact forward algorithms and by "
+                      "bidirectional; 0 from the heuristics, which do not use these containers.")
+        .def_readonly("backward_labels",
+                      &SolveResult::backward_labels,
+                      "Labels surviving dominance in the backward containers. Non-zero only "
+                      "from a search that ran backwards, so forward_labels / backward_labels is "
+                      "meaningful only when both are non-zero -- an imbalance far from 1, "
+                      "iteration after iteration, is a half-way point in the wrong place.")
+        .def_readonly("dominance_checks",
+                      &SolveResult::dominance_checks,
+                      "Dominance comparisons performed across every label container, both "
+                      "directions. Divided by the surviving label count it is the cost of the "
+                      "dominance rule per label kept.")
+        .def_readonly("half_way_point_used",
+                      &SolveResult::half_way_point_used,
+                      "The half-way point H this solve actually used; 0.0 when the bound was "
+                      "off. Not the same as the requested params.half_way_point: the bound "
+                      "disables itself when the critical resource fails validation. Check "
+                      "bounded_by_half_way to tell 'the bound was off' from 'H really was 0'.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
