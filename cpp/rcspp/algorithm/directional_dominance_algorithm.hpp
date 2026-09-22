@@ -49,6 +49,46 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
             non_dominated_labels_by_node_pos_.clear();
         }
 
+        /// @brief Adds this search's surviving-label and dominance-comparison counts.
+        ///
+        /// Which field the labels land in follows the direction policy, so a backward-only
+        /// instantiation reports backward labels rather than mislabelling them as forward. Both
+        /// use `+=` rather than `=`, so @ref BidirectionalDominanceAlgorithm can call this for its
+        /// forward half and then add its backward half without the two orders disagreeing.
+        ///
+        /// Runs before `release_label_memory()` clears the containers; see @c Algorithm::solve,
+        /// which orders the two deliberately.
+        ///
+        /// @param result The result about to be returned; never null.
+        void annotate(SolveResult* result) const override {
+            Algorithm<ResourceType, LabelContainerType>::annotate(result);
+
+            size_t labels = 0;
+            size_t checks = 0;
+            accumulate_container_stats(non_dominated_labels_by_node_pos_, &labels, &checks);
+            if constexpr (Dir::backward) {
+                result->backward_labels += labels;
+            } else {
+                result->forward_labels += labels;
+            }
+            result->dominance_checks += checks;
+        }
+
+        /// @brief Sums one container set's surviving labels and dominance comparisons.
+        ///
+        /// @tparam Container The per-node label container type.
+        /// @param containers The per-node containers.
+        /// @param labels     Accumulator for surviving labels; never null.
+        /// @param checks     Accumulator for dominance comparisons; never null.
+        template <typename Container>
+        static void accumulate_container_stats(const std::vector<Container>& containers,
+                                               size_t* labels, size_t* checks) {
+            for (const auto& container : containers) {
+                *labels += container.get_labels().size();
+                *checks += container.dominance_checks();
+            }
+        }
+
         void initialize_labels() override {
             // Release all labels from the previous run (including any pending_release ones)
             // so the pool is fully reset before we start fresh.

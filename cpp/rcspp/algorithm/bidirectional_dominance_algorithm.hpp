@@ -175,11 +175,26 @@ class BidirectionalDominanceAlgorithm
             run_join_pass();
         }
 
-        /// @brief Puts the two bidirectional diagnostics on the result the caller receives.
+        /// @brief Puts the bidirectional diagnostics on the result the caller receives.
         void annotate(SolveResult* result) const override {
+            // Also fills forward_labels and dominance_checks, from the forward containers.
             Base::annotate(result);
             result->bounded_by_half_way = half_way_.enabled();
             result->number_of_joined_paths = joined_paths_;
+            // 0 when the bound is off, so a caller reading this without also reading
+            // `bounded_by_half_way` gets the value that means "no bound" rather than a number
+            // that was never applied.
+            result->half_way_point_used = half_way_.enabled() ? half_way_.h() : 0.0;
+
+            // The backward half. `Base::annotate` cannot see these containers; they belong to
+            // this class.
+            size_t backward_labels = 0;
+            size_t backward_checks = 0;
+            Base::accumulate_container_stats(backward_labels_by_node_pos_,
+                                             &backward_labels,
+                                             &backward_checks);
+            result->backward_labels += backward_labels;
+            result->dominance_checks += backward_checks;
         }
 
         /// @brief Trims both frontiers and tightens the per-node quota, never loosening one the
