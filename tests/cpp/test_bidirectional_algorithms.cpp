@@ -13,6 +13,7 @@
 #include "test_bidirectional.hpp"
 #include "test_bidirectional_benchmark.hpp"
 #include "test_bidirectional_validation.hpp"
+#include "test_instruments.hpp"
 #include "test_join_optimality.hpp"
 #include "test_label_frontier.hpp"
 #include "test_label_join.hpp"
