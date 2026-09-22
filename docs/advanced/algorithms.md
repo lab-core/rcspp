@@ -526,6 +526,56 @@ So it is **not a default**.  It does not pay when:
   from a search reaching a terminal rather than from the join, so `H` is placed such that
   nothing crosses it.
 
+### What a solve reports about itself
+
+Beyond `status`, every `SolveResult` carries diagnostics the status cannot express:
+
+| Field | Reported by | What it says |
+|---|---|---|
+| `memory_pressure_triggered` | every algorithm | the run was trimmed, so `complete` is not a proof |
+| `bounded_by_half_way` | `bidirectional` | whether the half-way bound was in force |
+| `number_of_joined_paths` | `bidirectional` | how many complete paths the join produced |
+| `forward_labels` | the four exact forward algorithms, and `bidirectional` | labels surviving dominance in the forward containers |
+| `backward_labels` | `bidirectional`, and a backward-only search | the same, backwards |
+| `dominance_checks` | as above | dominance comparisons performed, both directions |
+| `half_way_point_used` | `bidirectional` | the `H` actually applied; `0.0` when the bound was off |
+
+The heuristics — `greedy`, the tabu searches, `diversification`, `backtracking_dive` — derive from
+`Algorithm` directly rather than from the directional base, so they leave the label and check
+counts at 0.
+
+Two of these answer questions no single number does.  **`forward_labels / backward_labels`** is the
+imbalance the half-way point controls: a ratio far from 1, iteration after iteration of a column
+generation, means `H` is placed where one direction does nearly all the work.  And
+**`dominance_checks` divided by the surviving label count** is the cost of the dominance rule per
+label kept — the quantity a container change has to move to be worth having, and one the label
+count alone cannot see, because it cannot distinguish "fewer labels" from "the same labels, sifted
+more cheaply".
+
+```python
+result = rg.solve(algorithm="bidirectional", params=p)
+if result.backward_labels:
+    print("imbalance:", result.forward_labels / result.backward_labels)
+print("checks per label:",
+      result.dominance_checks / max(1, result.forward_labels + result.backward_labels))
+```
+
+Two things to know before reading the numbers.
+
+`half_way_point_used` is deliberately not `params.half_way_point`: the bound disables itself when
+the critical resource fails validation, so the number a caller asked for and the number applied can
+differ.  Read `bounded_by_half_way` alongside it to tell "the bound was off" from "`H` really was
+0".
+
+And **zero dominance checks is a real answer, not a broken counter.**  A node's container is
+consulted *before* the new label is inserted, so the first label to arrive is compared against
+nothing.  On a graph where each node receives one label per direction — a line — the count is
+legitimately 0.  It becomes non-zero exactly when two partial paths meet at a node, which is also
+the only situation in which dominance does any work.
+
+`examples/cpp/bidirectional_cg_main.cpp` prints all of these per pricing solve across a whole
+column generation, which is the shape in which they are worth reading.
+
 ### One thing `status` cannot tell you
 
 Every algorithm, not only this one, prunes its label queues when RSS crosses
