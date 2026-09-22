@@ -292,3 +292,39 @@ TEST(DirectionalContainers, ForwardBucketsUnchanged) {
     static_assert(std::is_same_v<decltype(copied), Buckets>,
                   "LabelBuckets::copy() must preserve the direction");
 }
+
+// ============================================================================
+// Instrumentation
+// ============================================================================
+
+/// @brief The counter advances once per call to `dominates`, and not once per loop iteration.
+///
+/// Asserted as exact numbers rather than "> 0", because the counter's whole value is that it is
+/// proportional to the work done: a counter that incremented per iteration, or that counted the
+/// skipped self-comparison, would still be positive and would still look plausible.
+///
+/// The arithmetic. Two stored labels (10, 20) and a candidate of 5, forward order, so:
+///   * `is_dominated(5)` compares 5 against both and neither dominates it -- 2 comparisons, and no
+///     early exit, because an early exit only happens on a dominator.
+///   * `remove_dominated_labels(5)` compares 5 against both, dominates both, and erases both -- 2
+///     more. The candidate is not in the list, so the `&label != *it` guard never skips.
+TEST(DirectionalContainers, DominanceChecksCountEveryComparison) {
+    namespace dct = directional_containers_test;
+
+    LabelList<dct::RealComposition> container;
+    auto ten = dct::make_real_label(0, 10.0, /*reversed=*/false);
+    auto twenty = dct::make_real_label(1, 20.0, /*reversed=*/false);
+    auto five = dct::make_real_label(2, 5.0, /*reversed=*/false);
+
+    EXPECT_EQ(container.dominance_checks(), 0U) << "a fresh container has compared nothing";
+
+    container.add_label(ten.get());
+    container.add_label(twenty.get());
+    EXPECT_EQ(container.dominance_checks(), 0U) << "storing a label is not a comparison";
+
+    EXPECT_FALSE(container.is_dominated(*five));
+    EXPECT_EQ(container.dominance_checks(), 2U) << "both stored labels were compared, neither won";
+
+    EXPECT_EQ(container.remove_dominated_labels(*five), 2U);
+    EXPECT_EQ(container.dominance_checks(), 4U) << "one further comparison per stored label";
+}
