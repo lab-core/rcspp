@@ -342,3 +342,56 @@ def test_capacity_model_solves_with_a_budget_clock():
     )
     assert len(result.solutions) > 0
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
+
+
+def _diamond_window_graph():
+    """Two routes 0->{1,2}->3, so labels actually compete at a node.
+
+    A line gives each node one label per direction, and the container is consulted
+    before the insert, so a line performs zero dominance comparisons -- correctly.  The
+    diamond is what makes ``dominance_checks`` non-zero.
+    """
+    windows = {node_id: (0.0, 1000.0) for node_id in range(4)}
+    arcs = [
+        (1.0, 10.0, 0, 1),
+        (2.0, 10.0, 0, 2),
+        (1.0, 10.0, 1, 3),
+        (1.0, 10.0, 2, 3),
+    ]
+    return _time_window_graph(windows, arcs)
+
+
+def test_result_reports_the_label_counts_and_dominance_checks():
+    """A bounded bidirectional solve reports both sides and the H it used."""
+    params = _bidirectional_params(20.0, critical_resource_index=1)
+    result = _diamond_window_graph().solve(algorithm="bidirectional", params=params)
+
+    assert result.bounded_by_half_way is True
+    assert result.forward_labels > 0
+    assert result.backward_labels > 0
+    assert result.dominance_checks > 0
+    assert result.half_way_point_used == params.half_way_point
+
+
+def test_the_reported_half_way_point_is_the_one_applied_not_the_one_asked_for():
+    """Cost is never a clock, so the bound switches itself off and H is reported as 0.
+
+    Paired with ``bounded_by_half_way`` this is what tells a caller that the 0 means
+    "no bound" rather than "H really was 0" -- the params still say 3.0.
+    """
+    result = _cost_only_graph([1.0, 2.0, 3.0]).solve(
+        algorithm="bidirectional",
+        params=_bidirectional_params(3.0),
+    )
+    assert result.bounded_by_half_way is False
+    assert result.half_way_point_used == 0.0
+
+
+def test_a_forward_solve_leaves_the_backward_diagnostics_at_zero():
+    """Only a search that ran backwards reports backward labels."""
+    result = _diamond_window_graph().solve(algorithm="simple")
+
+    assert result.forward_labels > 0
+    assert result.backward_labels == 0
+    assert result.dominance_checks > 0
+    assert result.half_way_point_used == 0.0
