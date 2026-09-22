@@ -450,13 +450,20 @@ class Algorithm {
                 status = AlgorithmStatus::MAX_PHASES;
             }
 
+            SolveResult result{.solutions = std::move(solutions), .status = status};
+            // BEFORE the release, not after. `annotate` reads the per-node label containers, and
+            // `release_label_memory()` clears them -- `DirectionalDominanceAlgorithm` clears the
+            // forward set, `BidirectionalDominanceAlgorithm` the backward set as well. With
+            // `release_after_solve` defaulting to true, annotating afterwards reports zero on
+            // every ordinary solve, and reports the truth only when a caller happens to have
+            // turned the release off. The ordering is the contract: an override may read anything
+            // the solve produced.
+            annotate(&result);
+
             // Optionally release label memory so RAM is reclaimed when the caller returns.
             if (params_.release_after_solve) {
                 release_label_memory();
             }
-
-            SolveResult result{.solutions = std::move(solutions), .status = status};
-            annotate(&result);
             return result;
         }
 
@@ -490,6 +497,9 @@ class Algorithm {
         /// @brief Adds diagnostics to the result, just before it is returned.
         ///
         /// The base reports memory pressure; overrides must call `Base::annotate(result)`.
+        ///
+        /// Called **before** `release_label_memory()`, so an override may read the label
+        /// containers and the label pool. Do not reorder those two in @ref solve.
         ///
         /// @param result The result about to be returned; never null.
         virtual void annotate(SolveResult* result) const {
