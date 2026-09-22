@@ -42,3 +42,7 @@ add_vrp_example(rcspp-vrp-benchmark-large benchmark_large_main.cpp)
 #   cmake --build <build-dir> --target rcspp-ng-cg-comparison
 add_vrp_example(rcspp-ng-cg-comparison ng_cg_comparison_main.cpp)
 set_target_properties(rcspp-ng-cg-comparison PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+# Forward against bidirectional over a whole column generation, one row per pricing solve.
+# The instrument every "learns across solves" proposal is measured through.
+add_vrp_example(rcspp-bidirectional-cg bidirectional_cg_main.cpp)
