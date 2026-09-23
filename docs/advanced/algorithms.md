@@ -563,9 +563,9 @@ print("checks per label:",
 Two things to know before reading the numbers.
 
 `half_way_point_used` is deliberately not `params.half_way_point`: the bound disables itself when
-the critical resource fails validation, so the number a caller asked for and the number applied can
-differ.  Read `bounded_by_half_way` alongside it to tell "the bound was off" from "`H` really was
-0".
+the critical resource fails validation, and a dynamic half-way point (below) moves `H` between
+solves, so the number a caller asked for and the number applied can differ.  Read
+`bounded_by_half_way` alongside it to tell "the bound was off" from "`H` really was 0".
 
 And **zero dominance checks is a real answer, not a broken counter.**  A node's container is
 consulted *before* the new label is inserted, so the first label to arrive is compared against
@@ -575,6 +575,96 @@ the only situation in which dominance does any work.
 
 `examples/cpp/bidirectional_cg_main.cpp` prints all of these per pricing solve across a whole
 column generation, which is the shape in which they are worth reading.
+
+### A half-way point that moves between solves
+
+A static `H = R/2` can leave one direction doing nearly all the work: on `R201_25` the forward
+search kept 2 to 10 times the backward search's labels at every iteration of a column generation.
+`HalfWayController` corrects that **between** solves, after RouteOpt's meet-point rule.  After each
+solve it reads `forward_labels` and `backward_labels` and:
+
+1. **learns only from a trustworthy solve** — `complete`, untrimmed by memory pressure, not
+   truncated, with the bound in force.  Anything else is `Skipped`;
+2. **moves away from the heavier side** when `|f − b| / min(f, b)` exceeds a 20 % dead zone:
+   `H × 0.8` when forward is heavier (so forward stops earlier), `H × 1.2` when backward is;
+3. **pulls `H` back toward the centre** when the counts are balanced but nothing was joined while
+   solutions were still found — the answer then came from a search running all the way to a
+   terminal, and the split bought nothing;
+4. **halves the step whenever the direction reverses**, down to a floor of 2.5 %, so `H` settles
+   instead of oscillating; and keeps `H` inside `[0.05, 0.95] × 2H₀`.
+
+**`H` never moves during a solve.** The half-way bound's correctness rests on each path crossing
+`H` exactly once, and a label discarded under one `H` cannot be recovered under another.  So a
+moving `H` changes how the work is split, never the answer — and the equivalence suite checks that
+across its whole sweep.
+
+From **C++**, set `dynamic_half_way` and keep the algorithm object alive between solves; the
+controller lives on it:
+
+```cpp
+AlgorithmParams<LabelList<Composition>> params;
+params.critical_resource_index = 1;
+params.half_way_point = 500.0;      // H0: where the controller starts, and R = 2 * H0
+params.dynamic_half_way = true;
+
+auto algorithm = graph.create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+for (/* each pricing iteration */) {
+    // ... update reduced costs ...
+    SolveResult result = graph.solve(algorithm.get(), -1e-9);
+    // algorithm->half_way_controller().h() is the H the next solve will use
+}
+algorithm->half_way_controller().set_frozen(true);   // e.g. once the root node has converged
+```
+
+The one-shot `graph.solve<Algo>(params)` builds a fresh algorithm every call, so the controller is
+discarded with it — which is also why `dynamic_half_way` is **not** a Python parameter.  From
+**Python**, keep a `HalfWayController` yourself:
+
+```python
+from rcspp import HalfWayController
+
+controller = HalfWayController(500.0)          # H0
+for iteration in range(max_iterations):
+    p.half_way_point = controller.h
+    result = rg.solve(algorithm="bidirectional", params=p)
+    controller.update(result)                  # returns the HalfWayMove it made
+```
+
+Pass `truncated=True` to `update` if you capped the search with `num_labels_to_extend_by_node`: a
+bidirectional solve still reports `complete` then, so the status cannot say so.  The knobs — dead
+zone, first step, decay, floor, clamp — are on `HalfWayControllerParams`, with RouteOpt's values as
+defaults.
+
+Two limits worth knowing.  `H₀` also fixes the range `R = 2H₀` the controller keeps `H` inside, so a
+badly chosen `H₀` cannot be corrected past `1.9 H₀`; start from roughly half the clock's real
+range, as for a static `H`.  And the signal is **surviving** labels, as RouteOpt's is: a forward
+label stopped past `H` is still stored as a join boundary, so on a small graph the counts can stay
+flat while `H` moves, and the controller then keeps stepping until the clamp.  That costs speed,
+not correctness.
+
+**It is not a default, and today it is not a speed-up.**  Measured with
+`examples/cpp/bidirectional_cg_main.cpp` over whole column generations (Release, Gurobi 13.0,
+`H₀ = R/2`), every instance proving the same LP bound as the forward pricer:
+
+| Instance | Imbalance, static → dynamic | Dominance checks | Columns the join returned | Pricing time |
+|---|---|---|---|---|
+| R101_25 | 1.97× → 1.44× | −3 % | 189 → 190 | ≈0 s both |
+| R201_25 | 2.83× → 2.04× | −28 % | 83 k → 170 k | 0.37 → 0.54 s |
+| R202_25 | 1.69× → 1.70× | −14 % | 2.47 M → 2.64 M | 11.3 → 11.1 s |
+| R201_50 | 2.34× → 1.44× | −6 % | 1.19 M → 1.84 M | 5.1 → 7.2 s |
+| RC201_50 | 2.26× → 1.36× | −11 % | 0.70 M → 1.86 M | 4.5 → 8.4 s |
+
+The controller does what it is for: the split is more balanced and dominance does less work.  But a
+more central `H` lets more pairs cross it, the join returns *every* improving pair, and recording
+them costs more than the labeling saves — time per column actually fell on every instance, while
+the column count rose up to 2.7×.  Until the join's output is bounded, balancing the searches
+mostly feeds the join.  Imbalance is the geometric mean over iterations of `max(f, b) / min(f, b)`.
+
+`stop_after_X_solutions` does bound it: the join then splices only the cheapest that many paths
+(see "Parameters that behave differently here").  But it also stops the *searches* once that many
+solutions exist, and a solve stopped that way ends `MAX_SOLUTIONS`, not `COMPLETE`, so the
+controller does not learn from it.  With the bound in force few forward labels reach a sink, so
+the searches rarely hit the budget; count the `MAX_SOLUTIONS` solves before trusting the result.
 
 ### One thing `status` cannot tell you
 
