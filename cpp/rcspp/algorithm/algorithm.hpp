@@ -86,7 +86,8 @@ struct BidirectionalStats {
         /// @brief The half-way point `H` this solve actually used; 0 when the bound was off.
         ///
         /// It is not simply `params.half_way_point`: the bound disables itself when the critical
-        /// resource fails validation. Reporting what was used rather than what was asked for is
+        /// resource fails validation. With `dynamic_half_way`, the controller moves `H` between
+        /// solves. Reporting what was used rather than what was asked for is
         /// what lets a caller feed the next value back. Read @ref bounded_by_half_way to tell "the
         /// bound was off" from "`H` really was 0".
         double half_way_point_used = 0.0;
@@ -316,6 +317,23 @@ struct AlgorithmBaseParams {
         /// @c BidirectionalStats::bounded_by_half_way, in @c SolveResult::bidirectional, reports
         /// which happened.
         double half_way_point = 0.0;
+
+        /// @brief Let the half-way point adapt **between** solves on the same algorithm object.
+        ///
+        /// Bidirectional only. After each solve a `HalfWayController` compares the surviving
+        /// forward and backward label counts and moves `H` away from the side that did more of the
+        /// work. `H` never moves during a solve, so this affects speed, never the answer.
+        ///
+        /// Needs a persistent algorithm object (`ResourceGraph::create_algorithm` plus
+        /// `solve(algorithm*, ...)`, or the vector `VRP::solve` accepts) and a positive
+        /// @ref half_way_point, which gives the controller its initial `H` and fixes the range
+        /// `[0, 2H]` it keeps `H` inside. The controller learns only from exact solves with the
+        /// bound in force.
+        /// `as_bidirectional(algorithm)->half_way_controller()` reads, freezes or resets it.
+        ///
+        /// Not exposed to Python, where `rg.solve(...)` builds a fresh algorithm each call; Python
+        /// uses `rcspp.HalfWayController` directly and feeds its `h` into `half_way_point`.
+        bool dynamic_half_way = false;
 
         /// @brief Whether the join still runs after a timeout or the memory limit (default true).
         ///
