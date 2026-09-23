@@ -177,6 +177,16 @@ def test_params_are_settable():
     assert p.half_way_point == 12.5
 
 
+def test_dynamic_half_way_is_not_exposed():
+    """The flag adapts H across solves on ONE persistent algorithm object, and rg.solve
+    builds a fresh algorithm every call -- so from Python it could never take effect.
+
+    Python gets rcspp.HalfWayController instead; see test_half_way_controller.py.
+    """
+    p = AlgorithmParams()
+    assert not hasattr(p, "dynamic_half_way")
+
+
 # -- Diagnostics on the result ------------------------------------------------
 
 
