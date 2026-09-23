@@ -45,14 +45,6 @@ inline bool first_report_of(HalfWayOff reason) {
     return (reported.fetch_or(bit) & bit) == 0U;
 }
 
-/// @brief Whether this process has not yet warned that `dynamic_half_way` is only reserved.
-///
-/// @return @c true the first time it is asked.
-inline bool first_report_of_dynamic_half_way() {
-    static std::atomic<bool> reported{false};
-    return !reported.exchange(true);
-}
-
 /// @brief Decides where each direction's search stops.
 ///
 /// Uses a critical resource that acts as a clock: monotone (never decreasing along an arc) and
