@@ -177,6 +177,86 @@ void init_graph(py::module_& m) {
             return text + ")";
         });
 
+    // ── HalfWayController ─────────────────────────────────────────────────────
+    // The Python route to a half-way point that adapts between solves. `dynamic_half_way` is not
+    // bound, because `rg.solve(...)` builds a fresh algorithm every call and the flag's state would
+    // die with it. The controller is a plain value object instead: the caller keeps it across the
+    // loop, reads `h` into `params.half_way_point` before each solve, and hands it the result
+    // afterwards. That keeps the damping state RouteOpt's rule needs without giving the bindings a
+    // stateful handle on a solver, which they have never had.
+
+    py::enum_<HalfWayMove>(m, "HalfWayMove")
+        .value("Unchanged", HalfWayMove::Unchanged)
+        .value("Skipped", HalfWayMove::Skipped)
+        .value("Frozen", HalfWayMove::Frozen)
+        .value("Down", HalfWayMove::Down)
+        .value("Up", HalfWayMove::Up)
+        .value("TowardCentre", HalfWayMove::TowardCentre);
+
+    py::class_<HalfWayControllerParams>(m, "HalfWayControllerParams")
+        .def(py::init<>())
+        .def_readwrite("dead_zone",
+                       &HalfWayControllerParams::dead_zone,
+                       "Relative imbalance |f - b| / min(f, b) tolerated before H moves "
+                       "(default 0.2).")
+        .def_readwrite("initial_step",
+                       &HalfWayControllerParams::initial_step,
+                       "First multiplicative step, H <- H * (1 -/+ step) (default 0.2).")
+        .def_readwrite("step_decay",
+                       &HalfWayControllerParams::step_decay,
+                       "The step is divided by this whenever the direction reverses "
+                       "(default 2.0).")
+        .def_readwrite("min_step",
+                       &HalfWayControllerParams::min_step,
+                       "Floor under the decaying step (default 0.025).")
+        .def_readwrite("min_fraction",
+                       &HalfWayControllerParams::min_fraction,
+                       "H is kept at or above min_fraction * R, with R = 2 * initial H "
+                       "(default 0.05).")
+        .def_readwrite("max_fraction",
+                       &HalfWayControllerParams::max_fraction,
+                       "H is kept at or below max_fraction * R (default 0.95).");
+
+    py::class_<HalfWayController>(m, "HalfWayController")
+        .def(py::init<double, HalfWayControllerParams>(),
+             py::arg("initial_h"),
+             py::arg("params") = HalfWayControllerParams{},
+             "Seed the controller at initial_h, which must be positive: it is the first "
+             "half_way_point, and it fixes the range R = 2 * initial_h that H is kept inside. "
+             "Raises ValueError for a non-positive initial_h or out-of-range params.")
+        .def(
+            "update",
+            [](HalfWayController& controller, const SolveResult& result, bool truncated) {
+                return controller.update(half_way_observation(result, truncated));
+            },
+            py::arg("result"),
+            py::arg("truncated") = false,
+            "Fold one bidirectional solve's result into H and return the move made. Learns only "
+            "from a complete solve with the bound in force; pass truncated=True if you capped "
+            "the search with num_labels_to_extend_by_node, which the status cannot show.")
+        .def("reset",
+             &HalfWayController::reset,
+             "Return H and the step to their initial values and forget the direction.")
+        .def_property_readonly("h",
+                               &HalfWayController::h,
+                               "The half_way_point the next solve should use.")
+        .def_property_readonly("initial_h", &HalfWayController::initial_h)
+        .def_property_readonly("range", &HalfWayController::range, "R = 2 * initial_h.")
+        .def_property_readonly("step", &HalfWayController::step)
+        .def_property_readonly("last_move", &HalfWayController::last_move)
+        .def_property_readonly("observations", &HalfWayController::observations)
+        .def_property_readonly("moves", &HalfWayController::moves)
+        .def_property("frozen",
+                      &HalfWayController::frozen,
+                      &HalfWayController::set_frozen,
+                      "While True, update() records nothing and H stays put.")
+        .def("__repr__", [](const HalfWayController& controller) {
+            return "HalfWayController(h=" + std::to_string(controller.h()) +
+                   ", step=" + std::to_string(controller.step()) +
+                   ", last_move=" + to_string(controller.last_move()) +
+                   (controller.frozen() ? ", frozen=True" : "") + ")";
+        });
+
     // ── Shared scalar types ───────────────────────────────────────────────────
 
     py::class_<Row>(m, "Row")
@@ -259,7 +339,10 @@ void init_graph(py::module_& m) {
                        "the join considers every pair, which is correct but slower than a forward "
                        "solve rather than faster. Check result.bounded_by_half_way to see which "
                        "you got.");
-    // dynamic_half_way is deliberately not bound: it is an unused C++ placeholder.
+    // dynamic_half_way is deliberately NOT bound. It adapts H between solves on one persistent
+    // algorithm object, and rg.solve(...) builds a fresh algorithm every call -- so here the flag
+    // could never take effect, and would only invite someone to set it and conclude the policy is
+    // broken. The Python route is HalfWayController, bound above next to SolveResult.
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())
