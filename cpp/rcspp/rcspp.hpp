@@ -22,6 +22,7 @@
 #include "rcspp/algorithm/astar_dominance_algorithm.hpp"
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
 #include "rcspp/algorithm/bidirectional_dominance_algorithm.hpp"
+#include "rcspp/algorithm/bidirectional_search.hpp"
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/directional_dominance_algorithm.hpp"
 #include "rcspp/algorithm/directional_implementations.hpp"
