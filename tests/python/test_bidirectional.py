@@ -172,7 +172,11 @@ def test_params_are_settable():
 
 
 def test_dynamic_half_way_is_not_exposed():
-    """The dynamic half-way flag is inert, so it is not exposed to Python."""
+    """The flag adapts H across solves on ONE persistent algorithm object, and rg.solve
+    builds a fresh algorithm every call -- so from Python it could never take effect.
+
+    Python gets rcspp.HalfWayController instead; see test_half_way_controller.py.
+    """
     p = AlgorithmParams()
     assert not hasattr(p, "dynamic_half_way")
 
