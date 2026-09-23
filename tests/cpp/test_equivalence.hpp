@@ -104,6 +104,59 @@ TEST(Equivalence, ACostOnlyInstanceRunsWithTheBoundOff) {
     EXPECT_NEAR(bounded.best_cost(), eq::solve_forward(config).best_cost(), eq::kTolerance);
 }
 
+/// @brief A half-way point that moves between solves never changes any solve's answer.
+///
+/// One persistent algorithm object per instance, `dynamic_half_way` on, solved repeatedly on the
+/// same graph -- so every solve after the first starts from an `H` the controller chose, not the
+/// one the sweep would have picked. Each must still return the forward optimum, and every path it
+/// returns must replay cleanly. The claim under test is the one the design rests on: the bound is
+/// correct for ANY `H`, so moving it can only change the work, never the result.
+///
+/// Non-vacuity is asserted too. If `H` never moved anywhere in the sweep, every solve after the
+/// first would be a repeat of the first, and this would be the static test again.
+TEST(Equivalence, ADynamicHalfWayPointNeverChangesTheAnswer) {
+    namespace eq = equivalence_test;
+    constexpr int kSolvesPerInstance = 5;
+
+    size_t instances_where_h_moved = 0;
+    for (const auto& config : eq::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const eq::Run reference = eq::solve_forward(config);
+
+        auto built = test_util::build_instance(config);
+        AlgorithmParams<LabelList<eq::Composed>> params;
+        params.critical_resource_index = built.clock_index;
+        params.half_way_point = built.clock_upper_bound / 2.0;
+        params.dynamic_half_way = true;
+        auto algorithm =
+            built.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+
+        for (int solve = 0; solve < kSolvesPerInstance; ++solve) {
+            const SolveResult result =
+                built.graph->solve(algorithm.get(), eq::kNonBindingUpperBound);
+            EXPECT_EQ(reference.result.solutions.empty(), result.solutions.empty())
+                << "solve " << solve;
+            if (!reference.result.solutions.empty() && !result.solutions.empty()) {
+                EXPECT_NEAR(result.solutions.front().cost, reference.best_cost(), eq::kTolerance)
+                    << "solve " << solve << " at H = " << result.half_way_point_used;
+            }
+            for (const auto& solution : result.solutions) {
+                EXPECT_EQ(eq::path_problem<eq::Composed>(*built.graph, solution), "")
+                    << "solve " << solve;
+            }
+        }
+        EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
+        if (algorithm->half_way_controller().moves() > 0) {
+            ++instances_where_h_moved;
+        }
+    }
+
+    EXPECT_GT(instances_where_h_moved, 0U)
+        << "H never moved anywhere in the sweep, so no solve here ran from a learned H";
+}
+
 // ============================================================================
 // The sweep again, with a finite upper bound
 // ============================================================================
