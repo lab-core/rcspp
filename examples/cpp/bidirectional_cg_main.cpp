@@ -26,10 +26,22 @@
 // needs, and it is why this driver goes through the `algorithms` vector rather than the variadic
 // template parameter -- the latter constructs a fresh object every iteration.
 //
+// **Three pricers per instance**: forward, bidirectional with a static `H = R/2`, and
+// bidirectional with `dynamic_half_way` -- the same persistent object, with a `HalfWayController`
+// moving `H` between pricing calls. The `move` column is what the controller did after each solve
+// (blank for the static run). Each summary line ends with the imbalance the controller is meant to
+// shrink: the geometric mean over bounded iterations of `max(fwd, bwd) / min(fwd, bwd)`, and how
+// many iterations sat outside the controller's 20 % dead zone.
+//
+// Pass instance names to choose them (default `R101_25 R201_25`); `--summary` drops the
+// per-iteration tables.
+//
 // Needs Gurobi, like every other driver here. Works under any `kRouteRelaxation`: all three
 // presets declare coherent backward forms, so the bidirectional solve is accepted at setup.
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <optional>
@@ -59,6 +71,8 @@ struct PricingRow {
         double seconds = 0.0;
         /// Why the half-way bound was off; empty when it was in force or the pricer has none.
         std::string off_reason;
+        /// What the half-way controller did after this solve; empty when nothing adapts.
+        std::string move;
 };
 
 /// @brief Wraps an algorithm template and records one row per `solve()`.
@@ -98,7 +112,15 @@ struct Recording {
                                                .bounded = result.bounded_by_half_way,
                                                .half_way_point = result.half_way_point_used,
                                                .seconds = seconds,
-                                               .off_reason = std::move(off_reason)});
+                                               .off_reason = std::move(off_reason),
+                                               .move = {}});
+                    // Only the bidirectional algorithm has a controller, and only a dynamic run
+                    // seeds it; the forward pricer compiles this branch away.
+                    if constexpr (requires(Inner<RT, LC>& algo) { algo.half_way_controller(); }) {
+                        if (this->half_way_controller().seeded()) {
+                            rows_.back().move = to_string(this->half_way_controller().last_move());
+                        }
+                    }
                     return result;
                 }
 
@@ -111,7 +133,7 @@ struct Recording {
 
 void print_header() {
     std::cout << "    iter  status     cols   fwd_lbl   bwd_lbl  fwd/bwd   dom_checks  joined"
-                 "        H      sec\n";
+                 "        H      sec  move\n";
 }
 
 void print_row(const PricingRow& row) {
@@ -124,25 +146,53 @@ void print_row(const PricingRow& row) {
               << std::setw(9) << std::fixed << std::setprecision(2) << ratio << std::setw(13)
               << row.dominance_checks << std::setw(8) << row.joined_paths << std::setw(9)
               << std::setprecision(1) << row.half_way_point << std::setw(9) << std::setprecision(3)
-              << row.seconds << std::endl;
+              << row.seconds << "  " << row.move << std::endl;
     if (!row.off_reason.empty()) {
         std::cout << "          bound off: " << row.off_reason << std::endl;
     }
+}
+
+/// @brief How far one iteration's split is from balanced: `max(f, b) / min(f, b)`, or 0 when the
+///        bound was off or a side is empty, so it cannot be measured.
+double imbalance(const PricingRow& row) {
+    if (!row.bounded || row.forward_labels == 0 || row.backward_labels == 0) {
+        return 0.0;
+    }
+    const auto forward = static_cast<double>(row.forward_labels);
+    const auto backward = static_cast<double>(row.backward_labels);
+    return std::max(forward, backward) / std::min(forward, backward);
 }
 
 void print_summary(const std::string& label, const CGSolveResult& cg,
                    const std::vector<PricingRow>& rows, double wall_seconds) {
     double pricing_seconds = 0.0;
     size_t checks = 0;
+    double log_imbalance = 0.0;
+    size_t measured = 0;
+    size_t outside_dead_zone = 0;
     for (const auto& row : rows) {
         pricing_seconds += row.seconds;
         checks += row.dominance_checks;
+        const double ratio = imbalance(row);
+        if (ratio > 0.0) {
+            log_imbalance += std::log(ratio);
+            ++measured;
+            // The controller's own test: |f - b| / min(f, b) > 0.2, i.e. max / min > 1.2.
+            if (ratio > 1.2) {  // NOLINT(readability-magic-numbers)
+                ++outside_dead_zone;
+            }
+        }
     }
     std::cout << "    " << label << ": lp_cost=" << std::fixed << std::setprecision(4) << cg.lp_cost
               << "  iterations=" << cg.iterations << "  dom_checks=" << checks
               << "  pricing=" << std::setprecision(2) << pricing_seconds << " s"
-              << "  total=" << wall_seconds << " s"
-              << (cg.proven_optimal ? "" : "  (NOT proven optimal)") << std::endl;
+              << "  total=" << wall_seconds << " s";
+    if (measured > 0) {
+        std::cout << "  imbalance=" << std::setprecision(2)
+                  << std::exp(log_imbalance / static_cast<double>(measured)) << "x"
+                  << "  outside_dead_zone=" << outside_dead_zone << "/" << measured;
+    }
+    std::cout << (cg.proven_optimal ? "" : "  (NOT proven optimal)") << std::endl;
 }
 
 /// @brief One full column generation with the forward pricer.
@@ -167,14 +217,19 @@ CGSolveResult run_forward(const Instance& instance) {
 ///
 /// The clock is the time window, which the VRP example registers as the SECOND `RealResource`
 /// component -- slot 0 is the cost. `half_way_point` is half the depot's closing time, which is
-/// the clock's range.
-CGSolveResult run_bidirectional(const Instance& instance) {
+/// the clock's range; with @p dynamic it is only where the controller starts.
+///
+/// @param instance      The instance.
+/// @param dynamic       Whether `H` adapts between pricing calls.
+/// @param per_iteration Whether to print the per-iteration table before the summary.
+CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per_iteration) {
     VRP vrp(instance);
     const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
 
     AlgorithmParams<ListLC> params;
     params.critical_resource_index = 1;  // time
     params.half_way_point = horizon / 2.0;
+    params.dynamic_half_way = dynamic;
 
     auto algo =
         vrp.get_graph()
@@ -187,11 +242,14 @@ CGSolveResult run_bidirectional(const Instance& instance) {
     const double wall =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 
-    print_header();
-    for (const auto& row : algo->rows()) {
-        print_row(row);
+    if (per_iteration) {
+        std::cout << "  " << (dynamic ? "dynamic H" : "static H") << "\n";
+        print_header();
+        for (const auto& row : algo->rows()) {
+            print_row(row);
+        }
     }
-    print_summary("bidirectional", cg, algo->rows(), wall);
+    print_summary(dynamic ? "dynamic H    " : "static H     ", cg, algo->rows(), wall);
     return cg;
 }
 
@@ -199,15 +257,21 @@ CGSolveResult run_bidirectional(const Instance& instance) {
 
 int main(int argc, char** argv) {
     std::vector<std::string> names;
+    bool per_iteration = true;
     for (int i = 1; i < argc; ++i) {
-        names.emplace_back(argv[i]);
+        const std::string arg = argv[i];
+        if (arg == "--summary") {
+            per_iteration = false;
+        } else {
+            names.push_back(arg);
+        }
     }
     if (names.empty()) {
         names = {"R101_25", "R201_25"};
     }
 
-    std::cout << "[ CG ] forward against bidirectional, full column generation\n"
-              << "       fwd/bwd is the imbalance a moving half-way point would drive towards 1.\n"
+    std::cout << "[ CG ] forward, static-H and dynamic-H bidirectional, full column generation\n"
+              << "       fwd/bwd is the imbalance the dynamic half-way point drives towards 1.\n"
               << std::endl;
 
     for (const auto& name : names) {
@@ -219,15 +283,20 @@ int main(int argc, char** argv) {
 
         std::cout << "  " << name << std::endl;
         const auto forward = run_forward(instance);
-        const auto bidirectional = run_bidirectional(instance);
+        const auto fixed = run_bidirectional(instance, /*dynamic=*/false, per_iteration);
+        const auto adaptive = run_bidirectional(instance, /*dynamic=*/true, per_iteration);
 
-        // The two pricers must agree. A difference here is a bug in the algorithm, not in the
+        // The pricers must agree. A difference here is a bug in the algorithm, not in the
         // reporting, and is worth shouting about rather than leaving in a table to be squinted at.
-        const double gap = std::abs(forward.lp_cost - bidirectional.lp_cost);
-        if (gap > 1e-6) {
-            std::cout << "    *** DISAGREEMENT: forward " << forward.lp_cost << " vs "
-                      << "bidirectional " << bidirectional.lp_cost << " (gap " << gap << ")"
-                      << std::endl;
+        // Moving H must not change the LP bound either: the half-way bound is correct for any H.
+        const std::vector<std::pair<std::string, CGSolveResult>> others{{"static H", fixed},
+                                                                        {"dynamic H", adaptive}};
+        for (const auto& [label, other] : others) {
+            const double gap = std::abs(forward.lp_cost - other.lp_cost);
+            if (gap > 1e-6) {  // NOLINT(readability-magic-numbers)
+                std::cout << "    *** DISAGREEMENT: forward " << forward.lp_cost << " vs " << label
+                          << " " << other.lp_cost << " (gap " << gap << ")" << std::endl;
+            }
         }
         std::cout << std::endl;
     }
