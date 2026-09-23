@@ -23,6 +23,28 @@
 
 namespace rcspp {
 
+/// @brief Reduces a bidirectional `SolveResult` to what @ref HalfWayController reads.
+///
+/// `exact` is `COMPLETE` and untrimmed by memory pressure, and not @p truncated. The status alone
+/// cannot say the last part: a per-node extension quota truncates a bidirectional search while it
+/// still reports `COMPLETE`, so a caller who set `num_labels_to_extend_by_node` says so here.
+///
+/// @param result    A bidirectional solve's result.
+/// @param truncated Whether the caller capped the search in a way the status does not show.
+/// @return The observation.
+[[nodiscard]] inline HalfWayObservation half_way_observation(const SolveResult& result,
+                                                             bool truncated = false) {
+    return HalfWayObservation{
+        .forward_labels = result.forward_labels,
+        .backward_labels = result.backward_labels,
+        .joined_paths = result.number_of_joined_paths,
+        .solutions = result.solutions.size(),
+        .bounded = result.bounded_by_half_way,
+        .exact = result.status == AlgorithmStatus::COMPLETE && !result.memory_pressure_triggered &&
+                 !truncated,
+    };
+}
+
 /// @brief Bidirectional labeling: a forward search, a backward search, and a join.
 ///
 /// The class is the forward search (a @ref DirectionalDominanceAlgorithm bound to
@@ -79,6 +101,49 @@ class BidirectionalDominanceAlgorithm
             const {
             return backward_labels_by_node_pos_;
         }
+
+        /// @brief Solves, then -- with `dynamic_half_way` set -- lets the controller learn from
+        ///        the result.
+        ///
+        /// The update runs **after** the solve has finished, never during it: `H` is fixed for
+        /// the whole of one search (see @ref HalfWayPolicy), and what moves is the value the
+        /// *next* solve on this object will start from. It reads the returned `SolveResult`
+        /// rather than the containers, so it works under the default `release_after_solve`.
+        ///
+        /// Only a caller that keeps this object alive between solves benefits --
+        /// `ResourceGraph::create_algorithm` plus `solve(algorithm*, ...)`, or the pre-built
+        /// algorithm vector `VRP::solve` accepts. The one-shot `graph.solve<Algo>(params)` path
+        /// builds a fresh algorithm per call, so the learned `H` is discarded with it.
+        SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            SolveResult result = Base::solve(graph, cost_upper_bound);
+            if (this->params_.dynamic_half_way && half_way_controller_.seeded()) {
+                // A per-node extension quota is truncation the status cannot show: this
+                // algorithm's phase loop always runs once and reports COMPLETE. See step().
+                const bool truncated = this->params_.num_labels_to_extend_by_node < MAX_INT;
+                half_way_controller_.update(half_way_observation(result, truncated));
+            }
+            return result;
+        }
+
+        /// @brief The controller that moves `H` between solves when `dynamic_half_way` is set.
+        ///
+        /// Seeded from `half_way_point` by the first solve that runs with the flag; unseeded
+        /// (and inert) before that, and always when `half_way_point` is 0. `h()` is the value
+        /// the next solve will use.
+        [[nodiscard]] const HalfWayController& half_way_controller() const {
+            return half_way_controller_;
+        }
+
+        /// @brief Mutable access, to freeze the controller, reset what it learned, or tune it.
+        ///
+        /// RouteOpt adapts during the root node's column generation and freezes for the whole
+        /// branch-and-bound tree: `half_way_controller().set_frozen(true)` once the root has
+        /// converged is the same move.
+        ///
+        /// The first solve seeds a default-tuned controller only if none is seeded yet, so
+        /// assigning one beforehand is how to change the knobs:
+        /// `algo->half_way_controller() = HalfWayController(500.0, my_params);`.
+        [[nodiscard]] HalfWayController& half_way_controller() { return half_way_controller_; }
 
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
@@ -425,22 +490,12 @@ class BidirectionalDominanceAlgorithm
 
         /// @brief Builds the half-way policy and validates the clock, disabling rather than
         ///        throwing.
+        ///
+        /// With `dynamic_half_way` set, `H` comes from the controller rather than straight from
+        /// `half_way_point`; everything after that -- the validation, and disabling on failure --
+        /// is identical, because a learned `H` has to pass the same checks a static one does.
         void configure_half_way(const Graph<ResourceType>& graph) {
-            if (this->params_.dynamic_half_way) {
-                // Warn once per process.
-                if (first_report_of_dynamic_half_way()) {
-                    LOG_WARN(
-                        "BidirectionalDominanceAlgorithm: dynamic_half_way is reserved and not yet "
-                        "implemented; the half-way point is static. (Reported once per "
-                        "process.)\n");
-                } else {
-                    LOG_DEBUG(
-                        "BidirectionalDominanceAlgorithm: dynamic_half_way is reserved; the "
-                        "half-way point is static for this solve.\n");
-                }
-            }
-
-            half_way_ = HalfWayPolicy(this->params_.half_way_point, resource_upper_bound(graph));
+            half_way_ = HalfWayPolicy(half_way_point_for_this_solve(), resource_upper_bound(graph));
             half_way_off_reason_.clear();
 
             if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
@@ -603,6 +658,27 @@ class BidirectionalDominanceAlgorithm
         [[nodiscard]] double resource_upper_bound(const Graph<ResourceType>& /*graph*/) const {
             return this->params_.half_way_point > 0.0 ? this->params_.half_way_point * 2.0
                                                       : std::numeric_limits<double>::infinity();
+        }
+
+        /// @brief The `H` this solve starts from: the controller's when it adapts, else the
+        ///        caller's.
+        ///
+        /// Seeds the controller on the first solve that runs with `dynamic_half_way`, from the
+        /// params that solve sees, so a caller who never sets the flag never pays for one. With
+        /// `half_way_point = 0` there is nothing to adapt: the bound is off, and
+        /// @ref configure_half_way reports it once per process (`HalfWayOff::NoHalfWayPoint`).
+        ///
+        /// `R` (see @ref resource_upper_bound) stays `2 * half_way_point` however far the
+        /// controller moves `H`; the controller clamps `H` inside that same range.
+        [[nodiscard]] double half_way_point_for_this_solve() {
+            const double requested = this->params_.half_way_point;
+            if (!this->params_.dynamic_half_way || !(requested > 0.0)) {
+                return requested;
+            }
+            if (!half_way_controller_.seeded()) {
+                half_way_controller_ = HalfWayController(requested);
+            }
+            return half_way_controller_.h();
         }
 
         /// @brief Computes both completion bounds (cost-to-sink and cost-from-source).
@@ -1085,6 +1161,10 @@ class BidirectionalDominanceAlgorithm
 
         HalfWayPolicy half_way_{0.0, std::numeric_limits<double>::infinity()};
         std::string half_way_off_reason_;
+
+        /// @brief Survives across solves -- unlike everything above it, which `initialize`
+        ///        rebuilds. That persistence is the whole of the dynamic half-way point.
+        HalfWayController half_way_controller_;
 
         size_t joined_paths_ = 0;
         Joiner<ResourceType, CriticalRC> joiner_;
