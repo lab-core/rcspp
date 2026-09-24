@@ -3,8 +3,14 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+#include <deque>
 #include <limits>
+#include <optional>
+#include <stdexcept>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "rcspp/graph/graph.hpp"
@@ -66,6 +72,91 @@ class BellmanFordAlgorithm {
         }
 
     public:
+        /// @brief An arc and the weight to relax it with, for @ref solve_weighted.
+        struct WeightedArc {
+                size_t origin_id;
+                size_t destination_id;
+                double weight;
+        };
+
+        /// @brief Shortest distances from @p target_ids (@p forward) or to them (!@p forward), on
+        ///        explicit arc weights.
+        ///
+        /// Label-correcting: a node is queued again only when its distance improves, so a graph
+        /// without a negative cycle typically settles in a few passes. A negative cycle is caught
+        /// as soon as a shortest path would need as many arcs as the graph has nodes, rather than
+        /// after |V| full passes over every arc. Arcs with a weight that is not finite are skipped:
+        /// no finite path uses them.
+        ///
+        /// @param graph      The graph, for its node ids.
+        /// @param target_ids Where distances are 0.
+        /// @param arcs       The arcs and their weights.
+        /// @param forward    From the targets (true) or to them (false).
+        /// @return Distance map keyed by node id; infinity where no target is reached.
+        /// @throws std::runtime_error when a negative-weight cycle is reachable.
+        template <typename ResourceType>
+        static Distance solve_weighted(const Graph<ResourceType>& graph,
+                                       const std::vector<size_t>& target_ids,
+                                       const std::vector<WeightedArc>& arcs, bool forward) {
+            const std::vector<size_t> node_ids = graph.get_node_ids();
+            std::unordered_map<size_t, size_t> index_of;
+            index_of.reserve(node_ids.size());
+            for (size_t index = 0; index < node_ids.size(); ++index) {
+                index_of.emplace(node_ids[index], index);
+            }
+            const size_t count = node_ids.size();
+
+            // Adjacency in the direction distances propagate.
+            std::vector<std::vector<std::pair<size_t, double>>> next(count);
+            for (const auto& arc : arcs) {
+                if (!std::isfinite(arc.weight)) {
+                    continue;
+                }
+                const auto from = index_of.find(forward ? arc.origin_id : arc.destination_id);
+                const auto to = index_of.find(forward ? arc.destination_id : arc.origin_id);
+                if (from != index_of.end() && to != index_of.end()) {
+                    next[from->second].emplace_back(to->second, arc.weight);
+                }
+            }
+
+            std::vector<double> distance(count, std::numeric_limits<double>::infinity());
+            std::vector<size_t> arcs_on_path(count, 0);
+            std::vector<bool> queued(count, false);
+            std::deque<size_t> queue;
+            for (const size_t target_id : target_ids) {
+                if (const auto it = index_of.find(target_id); it != index_of.end()) {
+                    distance[it->second] = 0.0;
+                    queued[it->second] = true;
+                    queue.push_back(it->second);
+                }
+            }
+            while (!queue.empty()) {
+                const size_t node = queue.front();
+                queue.pop_front();
+                queued[node] = false;
+                for (const auto& [neighbour, weight] : next[node]) {
+                    if (distance[node] + weight < distance[neighbour]) {
+                        distance[neighbour] = distance[node] + weight;
+                        arcs_on_path[neighbour] = arcs_on_path[node] + 1;
+                        if (arcs_on_path[neighbour] >= count) {
+                            throw std::runtime_error("Graph contains a negative-weight cycle");
+                        }
+                        if (!queued[neighbour]) {
+                            queued[neighbour] = true;
+                            queue.push_back(neighbour);
+                        }
+                    }
+                }
+            }
+
+            Distance result;
+            result.reserve(count);
+            for (size_t index = 0; index < count; ++index) {
+                result.emplace(node_ids[index], distance[index]);
+            }
+            return result;
+        }
+
         /// @brief Compute shortest paths using @p arc.cost as the arc weight.
         ///
         /// Does not require a cost resource type — works with any graph composition.
