@@ -5,6 +5,9 @@
 
 // Shared machinery for the equivalence suites: build a model, solve it, replay every returned
 // path through the real Extender and report what is wrong with it.
+//
+// It lives under util/ because two translation units include it; a util/ header carries no TEST
+// macros, so it may be shared. The replay helpers are templated so the ng model can use them too.
 
 #include <gtest/gtest.h>
 
@@ -27,6 +30,10 @@ namespace equivalence_test {
 
 using Composed = ResourceTypeComposition<RealResource>;
 using Graph = ResourceGraph<RealResource>;
+
+// The ng variant's pack: a container component alongside the scalar clock.
+using NgComposed = ResourceTypeComposition<RealResource, SizeTBitsetResource>;
+using NgGraph = ResourceGraph<RealResource, SizeTBitsetResource>;
 
 constexpr double kTolerance = 1e-9;
 
@@ -70,6 +77,9 @@ struct RunT {
 
 /// @brief The single-type run.
 using Run = RunT<Graph, Composed>;
+
+/// @brief The two-slot run carrying an ng-path component.
+using NgRun = RunT<NgGraph, NgComposed>;
 
 /// @brief The reference: an ordinary forward search.
 inline Run solve_forward(const test_util::InstanceConfig& config) {
@@ -152,6 +162,44 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
     auto algorithm =
         run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), options.upper_bound, options.preprocess);
+    run.bounded = run.result.bidirectional->bounded_by_half_way;
+    expect_consistent_ref_counts(algorithm->get_label_pool());
+    return run;
+}
+
+/// @brief The reference, on the ng model.
+///
+/// The clock is still a `RealResource`, the cost's type, so the default clock type applies.
+inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
+    NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+    run.result = run.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    return run;
+}
+
+/// @brief The candidate, on the ng model.
+///
+/// @param config     The instance to build.
+/// @param with_bound As in @c solve_bidirectional: false leaves the half-way point at 0, so the
+///                   policy starts disabled.
+/// @param cost_upper_bound Defaults to @ref kNonBindingUpperBound. Pass infinity to turn the
+///                   joiner's incumbent cutoff back on, e.g. when replaying every joined path
+///                   would be too slow.
+inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound,
+                                    double cost_upper_bound = kNonBindingUpperBound) {
+    NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+
+    AlgorithmParams<LabelList<NgComposed>> params;
+    params.critical_resource_index = built.clock_index;
+    params.half_way_point = with_bound ? built.clock_upper_bound / 2.0 : 0.0;
+    params.release_after_solve = false;
+
+    auto algorithm =
+        run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    run.result = run.graph->solve(algorithm.get(), cost_upper_bound);
     run.bounded = run.result.bidirectional->bounded_by_half_way;
     expect_consistent_ref_counts(algorithm->get_label_pool());
     return run;
