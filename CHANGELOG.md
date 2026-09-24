@@ -14,7 +14,18 @@ with a pointer to where they are documented.
   out of a sink. On a graph with several sources, an arc into a source or an arc out of a sink,
   answers can change: in the example in the docs, -6 via `0 1 2` becomes -1 via `1 2`. See "What
   every algorithm returns" in `docs/advanced/algorithms.md`.
-
+- **`NgPathExtensionFunction` reads the node it adds from the arc's endpoints, and ignores the
+  arc's value. This is a breaking change outside the ng-route case.** Before, it added the arc's
+  value, normally `{origin}`, to the memory. It also stores the memory already narrowed by the node
+  arrived at, which makes dominance stronger: on R101 with ng(8) the forward search extends 34 475
+  labels instead of 190 339.
+  - For the ng-route condition (`forbidden(v) = {v}` on `IntersectionFeasibilityFunction`) with
+    arcs carrying `{origin}`, the optimum is unchanged. The set of columns a forward ng pricing
+    solve returns can differ.
+  - Otherwise results can change. An arc value other than `{origin}` is now ignored, including an
+    empty one, which used to leave the memory empty and ng inert. A forbidden set other than `{v}`
+    now tests a memory already narrowed by the node arrived at, so a node forgotten on arrival no
+    longer counts: in the example in `tests/cpp/test_ng_forward.hpp`, -1 becomes -10.
 - **`MinMaxFeasibilityFunction`'s third constructor argument, `merge_by_increasing_value`, is
   ignored.** It only ever mattered to a bidirectional solve, and its backward seed and merge test
   now follow the extension it is paired with. The argument is kept so existing calls compile.
@@ -40,6 +51,13 @@ with a pointer to where they are documented.
   refusal table in `docs/advanced/algorithms.md`.
 - **`SolveResult` diagnostics**: `bounded_by_half_way`, `number_of_joined_paths` and
   `memory_pressure_triggered`.
+- **ng-path in bidirectional solves.** `NgPathExtensionFunction` joins exactly with an
+  `IntersectionFeasibilityFunction` that forbids `{v}` at each node; a visited set built with
+  `UnionExtensionFunction` is refused, naming the fix.
+- **Presets**, one call per resource kind, each a coherent quadruple (`rcspp/resource/presets.hpp`):
+  `add_cost_resource`, `add_window_resource`, `add_budget_resource`, `add_ng_path_resource` and
+  `add_elementary_resource`. Python has the first three, in `rcspp.presets`. C++ callers can assert
+  the same coherence on their own pairings with `rcspp::backward_coherent_v<Ext, Feas>`.
 
 ### Fixed
 
