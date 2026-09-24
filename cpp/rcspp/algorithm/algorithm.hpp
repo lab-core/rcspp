@@ -69,6 +69,18 @@ struct SolveResult {
         std::vector<Solution> solutions;
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
+        /// @brief Whether the half-way bound was in force for this solve.
+        ///
+        /// Bidirectional only; `false` from every other algorithm. Without the bound, a
+        /// bidirectional solve does more work than a forward search alone.
+        bool bounded_by_half_way = false;
+
+        /// @brief How many distinct complete paths only the join pass produced.
+        ///
+        /// A path the join produced at several nodes counts once, and one a search also reached
+        /// on its own not at all. Bidirectional only; `0` from every other algorithm.
+        size_t number_of_joined_paths = 0;
+
         /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
         ///
         /// Status can still be @c AlgorithmStatus::COMPLETE after a trim, so a caller treating
@@ -180,12 +192,29 @@ struct AlgorithmBaseParams {
 
         int seed = 0;
 
-        /// @brief Index of the cost resource component used to compute the A* heuristic.
+        /// @brief Index of the cost resource component that cost-to-go bounds relax on.
         ///
-        /// Injected by the dispatch layer (see AStarAlgoEntry in graph_impl.hpp) so that
-        /// AStarDominanceAlgorithm::initialize() runs Bellman–Ford on the same cost slot
-        /// as the labeling algorithm itself.  Ignored by all other algorithm types.
+        /// Injected by the dispatch layer so Bellman–Ford runs on the labeling cost slot. Read by
+        /// @c AStarDominanceAlgorithm and @c BidirectionalDominanceAlgorithm; ignored otherwise.
         size_t heuristic_cost_index = 0;
+
+        /// @brief Component index of the monotone bounding resource used as the bidirectional
+        ///        clock.
+        ///
+        /// The index within the critical type's slot; the type is a template parameter.
+        size_t critical_resource_index = 0;
+
+        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**.
+        ///
+        /// Forward labels stop above `H`, backward labels below it. Set it to about half the
+        /// clock's range. With 0, both searches run unbounded: correct but slower
+        /// (@c SolveResult::bounded_by_half_way reports which happened).
+        double half_way_point = 0.0;
+
+        /// @brief Reserved for a dynamic half-way policy; setting it only logs a warning.
+        ///
+        /// Not exposed to Python.
+        bool dynamic_half_way = false;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
 
@@ -493,7 +522,10 @@ class Algorithm {
 
         virtual void main_loop() = 0;
 
-        void extract_remaining_solutions() {
+        /// @brief Records the solutions still sitting at terminal nodes when the loop ends.
+        ///
+        /// Virtual so a bidirectional search can add backward and joined paths.
+        virtual void extract_remaining_solutions() {
             auto labels_at_sinks = this->get_labels_at_sinks();
             for (const auto* sink_label : labels_at_sinks) {
                 this->extract_solution(*sink_label);
@@ -520,13 +552,30 @@ class Algorithm {
                 return;
             }
 
-            auto path_arc_ids = this->get_path_arc_ids(end_label);
+            extract_solution(end_label.get_cost(),
+                             this->get_path_arc_ids(end_label),
+                             end_label.get_end_node()->id);
+        }
+
+        /// @brief Build and record a Solution from an explicit path.
+        ///
+        /// Used when no single label holds the path (e.g. joined pairs). Paths costing at least
+        /// `cost_upper_bound_` are dropped here, for every caller.
+        ///
+        /// @param cost         Total cost of the path.
+        /// @param path_arc_ids Arc ids of the path, in traversal order.
+        /// @param end_node_id  Id of the node the path ends at.
+        virtual void extract_solution(double cost, std::vector<size_t> path_arc_ids,
+                                      size_t end_node_id) {
+            if (cost >= cost_upper_bound_) {
+                return;
+            }
             if (path_arc_ids.empty()) {
                 return;
             }
 
             // Its hash reads the arc ids only, so a duplicate is caught before the column is built.
-            auto sol = Solution(end_label.get_cost(), {}, std::move(path_arc_ids));
+            auto sol = Solution(cost, {}, std::move(path_arc_ids));
             if (solutions_.contains(sol)) {
                 return;
             }
@@ -544,7 +593,7 @@ class Algorithm {
                     row_map[row.index] += row.coefficient;
                 }
             }
-            path_node_ids.push_back(end_label.get_end_node()->id);
+            path_node_ids.push_back(end_node_id);
             column.rows.reserve(row_map.size());
             for (auto& [idx, coef] : row_map) {
                 column.rows.push_back({idx, coef});

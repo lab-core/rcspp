@@ -56,6 +56,10 @@ class FeasibilityFunction {
         /// (a sum). A threshold's backward value is a limit, so override it: a time window tests
         /// only the opening time, since the clamp already enforces the closing time.
         ///
+        /// Must handle any value of its type, the infinities included: a bidirectional setup asks
+        /// it about a value below every bound, to learn whether it tests a floor, and about the
+        /// lowest value a forward label can hold at the node, to check that floor.
+        ///
         /// @param resource The accumulated resource value to test.
         /// @return @c true if the resource satisfies the backward feasibility constraint.
         [[nodiscard]] virtual auto is_back_feasible(const ResourceType& resource) -> bool {
