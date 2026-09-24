@@ -281,8 +281,11 @@ def test_budget_extension_function_takes_a_capacity():
 
 
 def test_a_budget_whose_capacity_differs_from_its_feasibility_function_is_refused():
-    """The budget clamps backward labels to its own capacity, so it must be the one the
-    feasibility function enforces forward; a bidirectional solve refuses the mismatch."""
+    """A budget whose capacity differs from its feasibility function is refused.
+
+    The budget clamps backward labels to its own capacity, so it must be the one the
+    feasibility function enforces forward.
+    """
     rg = ResourceGraph()
     rg.add_real_resource(
         AdditionExtensionFunction(),
