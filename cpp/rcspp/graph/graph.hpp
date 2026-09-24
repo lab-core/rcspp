@@ -269,6 +269,18 @@ class Graph {
             }
         }
 
+        /// @brief The first active arc, or `nullptr` when the graph has none.
+        ///
+        /// @return A non-owning pointer to the first active arc, or `nullptr`.
+        [[nodiscard]] const Arc<ResourceType>* first_arc() const {
+            for (const auto& arc : arcs_) {
+                if (arc) {
+                    return &*arc;
+                }
+            }
+            return nullptr;
+        }
+
         [[nodiscard]] size_t get_arcs_size() const { return active_arc_count_; }
 
         [[nodiscard]] std::vector<size_t> get_removed_arc_ids() const {
