@@ -7,6 +7,7 @@
 
 #include "test_backward_search.hpp"
 #include "test_bidirectional.hpp"
+#include "test_bidirectional_benchmark.hpp"
 #include "test_bidirectional_validation.hpp"
 #include "test_dive_algorithms.hpp"
 #include "test_dominance_algorithms.hpp"
