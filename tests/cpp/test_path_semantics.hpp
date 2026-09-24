@@ -3,15 +3,9 @@
 
 #pragma once
 
-// What a path is, asserted across every algorithm at once.
-//
-// A path starts at a source and ends at a sink, with neither a source nor a sink strictly inside
-// it. The dominance algorithms enforce it in DominanceAlgorithm::extend_label (no extension INTO a
-// source) and in their main loops (a label at a sink is terminal); the dive
-// heuristics enforce it in their own extend_label. It lives here rather than beside any one
-// algorithm because the failure it guards against is a *disagreement between* algorithms: the
-// dominance algorithms used to be the only ones applying it, so `greedy` could return a better
-// "path" than `simple` on the same graph by passing through a second source.
+// What a path is, asserted across every algorithm at once: it starts at a source, ends at a sink,
+// and has neither a source nor a sink strictly inside it. Checking all algorithms together catches
+// them disagreeing on this rule.
 
 #include <gtest/gtest.h>
 
@@ -88,6 +82,12 @@ inline std::vector<Run> every_algorithm() {
          [](auto* g) {
              return g->template solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
          }},
+        {"bidirectional",
+         true,
+         [](auto* g) {
+             return g->template solve<BidirectionalAlgoBound<RealResource>::Algo>(
+                 AlgorithmBaseParams{});
+         }},
         {"greedy",
          false,
          [](auto* g) { return g->template solve<GreedyAlgorithm>(AlgorithmBaseParams{}); }},
@@ -124,8 +124,7 @@ inline void expect_well_formed(ResourceGraph<RealResource>* graph, const SolveRe
 ///
 ///   sources {0, 1}, sink 2:  0 -> 1 (-5), 1 -> 2 (-1), 0 -> 2 (0)
 ///
-/// `0 1 2` would cost -6, but it has source 1 inside it; the answer is `1 2` at -1. Before this
-/// rule was library-wide, `simple` answered -1 while `greedy` and `tabu` answered -6 on this graph.
+/// `0 1 2` would cost -6, but it has source 1 inside it; the answer is `1 2` at -1.
 TEST(PathSemantics, NoAlgorithmPassesThroughASource) {
     namespace pst = path_semantics_test;
     const std::vector<std::tuple<size_t, bool, bool>> nodes{{0, true, false},
@@ -149,9 +148,7 @@ TEST(PathSemantics, NoAlgorithmPassesThroughASource) {
 ///
 ///   source 0, sinks {1, 3}:  0 -> 1 (1), 1 -> 2 (-10), 2 -> 3 (1), 0 -> 3 (5)
 ///
-/// `0 1 2 3` would cost -8, but it has sink 1 inside it; the answer is `0 1` at 1. `greedy` used to
-/// record `0 1` and then keep extending from the sink, and `pulling` pulled the sink's label on to
-/// node 2 and returned -8 -- the only exact algorithm that did.
+/// `0 1 2 3` would cost -8, but it has sink 1 inside it; the answer is `0 1` at 1.
 TEST(PathSemantics, NoAlgorithmContinuesPastASink) {
     namespace pst = path_semantics_test;
     const std::vector<std::tuple<size_t, bool, bool>> nodes{{0, true, false},
