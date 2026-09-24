@@ -48,6 +48,14 @@ class AdditionExtensionFunction
             extended_resource->set_value(sum_value);
         }
 
+        /// @brief Unbounded accumulation (e.g. cost): the backward form is the forward one.
+        ///
+        /// For a bounded additive resource (capacity, duration) use @c BudgetExtensionFunction.
+        static constexpr BackwardKind kind = BackwardKind::Accumulate;
+
+        /// @return @c BackwardKind::Accumulate.
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
+
     private:
         std::optional<ValueType> min_value_;
 };

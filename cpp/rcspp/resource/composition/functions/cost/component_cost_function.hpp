@@ -41,6 +41,17 @@ class ComponentCostFunction
             return cost;
         }
 
+        /// @brief Whether the targeted sub-resource's cost adds across a join.
+        ///
+        /// @param resource_composition Any node's resource.
+        /// @return See @c Resource::cost_adds_across_join.
+        [[nodiscard]] auto adds_across_join(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition) const
+            -> bool override {
+            return resource_composition.template get_component<ResourceTypeIndex>(resource_index_)
+                .cost_adds_across_join();
+        }
+
     private:
         size_t resource_index_;
 };

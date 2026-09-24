@@ -15,6 +15,17 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Resource;
 
+/// @brief What a component cost function computes from its value, as far as the bidirectional
+///        join needs to know.
+///
+/// The join adds a forward and a backward label's costs, which is exact only when each cost is a
+/// sum over arcs. Setup refuses a model whose cost cannot be shown to be one.
+enum class CostForm {
+    Unspecified,  ///< not declared -- a bidirectional solve will refuse a cost that reads it
+    Zero,         ///< always zero
+    Value,        ///< the resource's value itself
+};
+
 /// @brief Abstract base class defining the cost function for a resource type.
 ///
 /// A cost function maps a label's accumulated resource value to a scalar cost.
@@ -32,6 +43,12 @@ class CostFunction {
         /// @param resource The accumulated resource value of a label.
         /// @return The scalar cost for this resource.
         [[nodiscard]] virtual auto get_cost(const ResourceType& resource) const -> double = 0;
+
+        /// @brief What this function computes. Defaults to @c Unspecified, on which a
+        ///        bidirectional solve refuses a cost that reads this component.
+        ///
+        /// @return The form declared by this cost function.
+        [[nodiscard]] virtual CostForm cost_form() const { return CostForm::Unspecified; }
 
         /// @brief Creates a polymorphic copy of this cost function.
         ///
@@ -82,6 +99,21 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto get_cost(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource) const
             -> double = 0;
+
+        /// @brief Whether the cost of a joined path is the forward half's cost plus the backward
+        ///        half's.
+        ///
+        /// The bidirectional join and its pruning add the two halves' costs. That is exact only
+        /// if every component this function reads has a cost that is zero, or that is its value
+        /// under an accumulating extension; a backward @c Threshold value is a bound, not a
+        /// consumption. Defaults to @c false, on which a bidirectional solve refuses.
+        ///
+        /// @param resource Any node's resource, to read the components' declarations from.
+        /// @return @c true if the cost adds across a join.
+        [[nodiscard]] virtual auto adds_across_join(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/) const -> bool {
+            return false;
+        }
 
         /// @brief Creates a polymorphic copy of this cost function.
         ///

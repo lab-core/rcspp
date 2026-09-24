@@ -32,5 +32,18 @@ class CompositionCostFunction
                 [&](const auto& res_comp) { total_cost += res_comp.get_cost(); });
             return total_cost;
         }
+
+        /// @brief Whether every component's cost adds across a join.
+        ///
+        /// @param resource_composition Any node's resource.
+        /// @return See @c Resource::cost_adds_across_join.
+        [[nodiscard]] auto adds_across_join(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition) const
+            -> bool override {
+            bool adds = true;
+            resource_composition.for_each_component(
+                [&](const auto& res_comp) { adds = adds && res_comp.cost_adds_across_join(); });
+            return adds;
+        }
 };
 }  // namespace rcspp

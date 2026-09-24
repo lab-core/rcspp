@@ -15,6 +15,12 @@
     X(int,           int,           IntResource)  \
     X(uint,          unsigned int,  UIntResource)
 
+// The signed subset, for functions that require a signed value type (e.g. BudgetExtensionFunction,
+// which subtracts when extending backwards).
+#define RCSPP_SIGNED_NUMERICAL_RESOURCES(X)       \
+    X(real,          double,        RealResource) \
+    X(int,           int,           IntResource)
+
 #define RCSPP_SET_RESOURCES(X)                    \
     X(real_set,   double,        RealSetResource)  \
     X(int_set,    int,           IntSetResource)   \

@@ -11,6 +11,7 @@
 #include <memory>
 #include <tuple>
 
+#include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
@@ -84,4 +85,28 @@ TEST(ResourceFactory, CloneProducesWorkingCopy) {
     auto cloned = factory.clone();
     ASSERT_NE(cloned, nullptr);
     EXPECT_NE(cloned->create_resource(), nullptr);
+}
+
+/// @brief reset() adopts the other resource's merge rule along with its function objects.
+///
+/// It is copied rather than re-read through a virtual call, since the feasibility function is the
+/// same object.
+TEST(ResourceBase, ResetCopiesTheCachedMergeRule) {
+    Resource<R> always(std::make_unique<ValueDominanceFunction<R>>(),
+                       std::make_unique<TrivialFeasibilityFunction<R>>(),
+                       std::make_unique<TrivialCostFunction<R>>());
+
+    class Undeclared : public Clonable<Undeclared, FeasibilityFunction<R>> {
+        public:
+            auto is_feasible(const R& /*resource*/) -> bool override { return true; }
+    };
+    Resource<R> pooled(std::make_unique<ValueDominanceFunction<R>>(),
+                       std::make_unique<Undeclared>(),
+                       std::make_unique<TrivialCostFunction<R>>());
+    ASSERT_EQ(pooled.merge_rule(), MergeRule::Unspecified);
+    ASSERT_NE(always.merge_rule(), MergeRule::Unspecified);
+
+    pooled.reset(always);
+    EXPECT_EQ(pooled.merge_rule(), always.merge_rule());
+    EXPECT_TRUE(pooled.can_be_merged(always));
 }

@@ -244,11 +244,27 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->dominance_function_->check_dominance(*this, rhs_resource);
         }
 
+        /// @brief Backward dominance: `true` if this resource dominates @p rhs_resource going
+        ///        backward.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates @p rhs_resource.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(*this, rhs_resource);
+        }
+
         /// @brief Returns the total cost of this composed resource.
         ///
         /// @return The cost value computed by the cost function.
         [[nodiscard]] auto get_cost() const -> double {
             return this->cost_function_->get_cost(*this);
+        }
+
+        /// @brief Whether the cost of a joined path is the sum of its two halves' costs.
+        ///
+        /// @return Result of the cost function's `adds_across_join` check.
+        [[nodiscard]] auto cost_adds_across_join() const -> bool {
+            return this->cost_function_->adds_across_join(*this);
         }
 
         /// @brief Returns `true` if this resource satisfies all forward-direction constraints.
@@ -263,6 +279,11 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
         /// @return Result of the feasibility function's `is_back_feasible` check.
         [[nodiscard]] auto is_back_feasible() const -> bool {
             return this->feasibility_function_->is_back_feasible(*this);
+        }
+
+        /// @brief Applies the backward starting value to every component that has one.
+        void apply_back_seed() {
+            this->for_each_component([](auto&& component) { component.apply_back_seed(); });
         }
 
         /// @brief Returns `true` if this (forward) resource can be merged with @p back_resource.
