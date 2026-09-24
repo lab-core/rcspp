@@ -109,6 +109,18 @@ class FeasibilityFunction {
         /// @return The declared backward kind of the paired extension function.
         [[nodiscard]] BackwardKind backward_kind() const { return backward_kind_; }
 
+        /// @brief Whether this function's test only has a backward reading when the memory
+        ///        excludes the node it sits on.
+        ///
+        /// Declare @c true when @c is_feasible asks whether the current node is already in the
+        /// label's memory (the ng-route condition). That only works backward with
+        /// @c BackwardKind::ArcEndpoints; under @c ArcValue every backward label would be
+        /// rejected. The model checks refuse the mismatched pairing.
+        ///
+        /// @return @c true when only an @c ArcEndpoints extension can supply this function's
+        /// memory.
+        [[nodiscard]] virtual bool requires_arc_endpoints() const { return false; }
+
         /// @brief Whether this function's join test is exact only if the value is a running sum
         ///        that no arc lowers.
         ///

@@ -26,13 +26,18 @@ namespace rcspp {
 /// `BackwardForm<ExtensionFunction<R>, BackwardKind::Accumulate>` for an addition,
 /// `BackwardForm<ExtensionFunction<R>, BackwardKind::ArcValue>` for a set filled from arc values.
 /// Derive a form from it when the kind needs steps of its own: @c ThresholdForm writes
-/// @c extend and @c extend_back and asks for per-node bounds.
+/// @c extend and @c extend_back and asks for per-node bounds; @c ArcEndpointsForm writes them
+/// and asks for one formula per side of the arc.
 ///
 /// To write a new form, derive from `BackwardForm<Base, Kind>`, write the steps the kind needs
 /// as @c final (with @c start_back if a backward label must not start at the type default), and
 /// leave the resource-specific pieces pure virtual. A form for an existing kind is
 /// self-contained; a new @c BackwardKind also needs @ref reverses_back_dominance to say how its
 /// backward labels compare, and the feasibility functions to say how they join.
+///
+/// @warning @c BackwardKind::ArcValue asserts the arc's value is genuine per-arc data. A node
+///          identity such as `{origin}` offsets the backward memory by one node; use
+///          @c ArcEndpointsForm for that shape.
 ///
 /// @tparam Base The base to insert above, normally @c ExtensionFunction<R>.
 /// @tparam Kind The kind this form declares. @c Unspecified only from a form whose kind depends on

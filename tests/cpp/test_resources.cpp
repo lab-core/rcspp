@@ -10,6 +10,7 @@
 #include "resource/concrete/functions/extension/test_ng_path_extension_function.hpp"
 #include "resource/concrete/functions/extension/test_time_window_extension_function.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
+#include "resource/test_arc_endpoints_form.hpp"
 #include "resource/test_back_start.hpp"
 #include "resource/test_backward_dominance.hpp"
 #include "resource/test_join_rules.hpp"
