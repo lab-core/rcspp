@@ -8,6 +8,10 @@
 //
 // The joiner pairs a forward boundary label (extended to a node, past `H`) with a backward label
 // at that same node.
+//
+// There is no ng-path fixture here: to the joiner, ng is just a `JoinRule::Custom` component
+// that refuses halves sharing a node, which `UnjoinableFeasibilityFunction` already covers. The
+// ng join body is tested in join_contract.hpp and test_join_optimality_ng.hpp.
 
 #include <gtest/gtest.h>
 
@@ -187,7 +191,7 @@ class CountingFeasibilityFunction
 
 /// @brief A feasibility function that is locally feasible but never joinable.
 ///
-/// Isolates the join step as the only possible rejection.
+/// Isolates the join step as the only possible rejection; this is also the ng-path case.
 class UnjoinableFeasibilityFunction
     : public Clonable<UnjoinableFeasibilityFunction, FeasibilityFunction<RealResource>> {
     public:
