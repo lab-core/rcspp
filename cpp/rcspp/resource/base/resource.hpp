@@ -4,10 +4,12 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/base/resource_type.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -115,6 +117,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->dominance_function_->check_dominance(this->value_, rhs_resource.value_);
         }
 
+        /// @brief Whether this backward label's resource dominates @p rhs_resource: the backward
+        ///        search's dominance test.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates `rhs_resource`.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(this->value_,
+                                                                   rhs_resource.value_);
+        }
+
         // Check distance from the resource to another
         /// @brief Fast dominance check with a relaxation delta.
         ///
@@ -131,12 +143,60 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                                                                    delta);
         }
 
+        /// @brief Relaxed backward dominance within @p delta, for bucketed backward label
+        ///        containers.
+        ///
+        /// The backward twin of @c is_lower; scalar resources only.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @param delta        Relaxation tolerance (default 0).
+        /// @return `true` if this resource is backward-dominated by `rhs_resource` within the
+        ///         tolerance.
+        [[nodiscard]] auto is_back_lower(const Resource& rhs_resource,
+                                         double delta = 0) const -> bool {
+            return this->dominance_function_->fast_check_back_dominance(this->value_,
+                                                                        rhs_resource.value_,
+                                                                        delta);
+        }
+
         // Return resource cost
         /// @brief Returns the scalar cost associated with this resource's current value.
         ///
         /// @return Cost as computed by the configured `CostFunction`.
         [[nodiscard]] auto get_cost() const -> double {
             return this->cost_function_->get_cost(this->value_);
+        }
+
+        /// @brief Whether this component's cost is additive: the cost of a path is the sum of
+        ///        the costs of its two halves, wherever it is split.
+        ///
+        /// The bidirectional join assumes it, since it prices a joined path as the forward half's
+        /// cost plus the backward half's. True for a zero cost, and for a cost equal to the value
+        /// under an accumulating extension, where the backward value is the suffix's own share.
+        /// Any other backward value (a deadline, say) is not a share of the path's cost. That an
+        /// accumulation is a sum is not declared: a bidirectional setup checks it by running the
+        /// extension.
+        ///
+        /// @return `true` when the join may add this component's two costs.
+        [[nodiscard]] auto is_cost_additive() const -> bool {
+            switch (this->cost_function_->cost_form()) {
+                case CostForm::Zero:
+                    return true;
+                case CostForm::Value:
+                    return this->feasibility_function_->backward_kind() == BackwardKind::Accumulate;
+                default:
+                    return false;
+            }
+        }
+
+        /// @brief What this resource's cost function computes.
+        ///
+        /// Used by setup-time checks: the accumulation check runs only for a component whose cost
+        /// is its value.
+        ///
+        /// @return See @c CostFunction::cost_form.
+        [[nodiscard]] auto cost_form() const -> CostForm {
+            return this->cost_function_->cost_form();
         }
 
         // Return true if the resource is feasible
@@ -156,15 +216,74 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->feasibility_function_->is_back_feasible(this->value_);
         }
 
-        /// @brief Returns `true` if this (forward) resource can be merged with a backward label.
+        /// @brief Whether this forward resource and @p back_resource, meeting at the same node, fit
+        ///        together, by the feasibility function's join rule.
         ///
-        /// Used in bidirectional labelling to determine whether a forward and a backward label
-        /// can be joined into a complete path.
+        /// The join asks it once per pair it considers.
         ///
-        /// @param back_resource The backward resource to attempt merging with.
-        /// @return `true` when the two labels are compatible for merging.
-        [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
-            return this->feasibility_function_->can_be_merged(this->value_, back_resource.value_);
+        /// @param back_resource The backward resource to attempt joining with.
+        /// @return `true` when the two labels are compatible for joining.
+        /// @throws std::runtime_error If the feasibility function declares no rule.
+        [[nodiscard]] auto can_be_joined(const Resource& back_resource) const -> bool {
+            switch (this->join_rule_) {
+                case JoinRule::AlwaysTrue:
+                    return true;
+                case JoinRule::ValueOrder:
+                    // Compare values (`forward <= backward`), not via the dominance function.
+                    if constexpr (is_numerical_resource_v<ResourceType>) {
+                        return this->value_.leq(back_resource.value_);
+                    } else {
+                        // Refused at setup (describe_problem), so a solve never gets here.
+                        throw std::logic_error(
+                            "JoinRule::ValueOrder compares two scalar values, and this "
+                            "resource has none; its feasibility function must declare "
+                            "JoinRule::Custom");
+                    }
+                case JoinRule::Custom:
+                    return this->feasibility_function_->can_be_joined(this->value_,
+                                                                      back_resource.value_);
+                default:
+                    throw std::runtime_error("FeasibilityFunction::join_rule() not declared");
+            }
+        }
+
+        /// @brief The join rule this resource uses, cached from its feasibility function.
+        ///
+        /// The bidirectional setup reads it to refuse @c Unspecified, naming the component.
+        ///
+        /// @return The declared @ref JoinRule.
+        [[nodiscard]] auto join_rule() const -> JoinRule { return this->join_rule_; }
+
+        /// @brief Whether this resource's join test needs a running sum that no arc lowers.
+        ///
+        /// The bidirectional setup then scans every arc for a negative consumption, and checks that
+        /// the extension adds.
+        ///
+        /// @return See @c FeasibilityFunction::requires_nondecreasing.
+        [[nodiscard]] auto requires_nondecreasing() const -> bool {
+            return this->feasibility_function_->requires_nondecreasing();
+        }
+
+        /// @brief Whether this node's forward test accepts @p value.
+        ///
+        /// Lets the bidirectional setup ask the test about chosen values (one above every bound,
+        /// each clamp and start, the value just above it) without building a label.
+        ///
+        /// @param value A forward value.
+        /// @return See @c FeasibilityFunction::is_feasible.
+        [[nodiscard]] auto admits_value(const ResourceType& value) const -> bool {
+            return this->feasibility_function_->is_feasible(value);
+        }
+
+        /// @brief Whether this node's backward test accepts @p value.
+        ///
+        /// Lets the bidirectional setup ask the test about chosen values (a clamp, a value below
+        /// every bound) without building a label.
+        ///
+        /// @param value A backward value.
+        /// @return See @c FeasibilityFunction::is_back_feasible.
+        [[nodiscard]] auto admits_back_value(const ResourceType& value) const -> bool {
+            return this->feasibility_function_->is_back_feasible(value);
         }
 
         /// @brief Returns `true` if the destination node is reachable from this resource's state.

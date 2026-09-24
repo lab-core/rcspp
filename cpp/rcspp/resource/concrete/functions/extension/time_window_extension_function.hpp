@@ -3,14 +3,18 @@
 
 #pragma once
 
-#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
+#include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
+#include "rcspp/resource/functions/extension/threshold_form.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -21,10 +25,12 @@ namespace rcspp {
 ///
 /// - **Forward extension**: `max(earliest[destination], current + arc_time)` — a vehicle
 ///   arriving before the earliest service time waits until that time.
-/// - **Backward extension**: `min(latest[origin], current + arc_time)` — used in
-///   bidirectional labelling to propagate the latest permissible departure time.
+/// - **Backward extension**: `min(latest[origin], current - arc_time)` — a backward label
+///   stores the latest permissible departure time (a deadline).
 ///
-/// The relevant time-window bounds are cached per arc via `preprocess()`.
+/// The formulas come from `TranslationThresholdForm`; this class only supplies the per-node
+/// floor and ceiling. They must be the windows the paired feasibility function enforces: build
+/// both from one @ref SharedNodeBounds.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
@@ -32,8 +38,10 @@ namespace rcspp {
 template <typename ResourceType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class TimeWindowExtensionFunction
-    : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
-                      ExtensionFunction<ResourceType>> {
+    : public Clonable<
+          TimeWindowExtensionFunction<ResourceType, ValueType>,
+          TranslationThresholdForm<ResourceType, ExtensionFunction<ResourceType>, ValueType>,
+          ExtensionFunction<ResourceType>> {
     public:
         /// @brief Constructs a TimeWindowExtensionFunction with node time windows.
         ///
@@ -46,51 +54,52 @@ class TimeWindowExtensionFunction
         explicit TimeWindowExtensionFunction(
             std::map<size_t, std::pair<ValueType, ValueType>> time_window_by_node_id,
             ValueType default_max_time_window = std::numeric_limits<ValueType>::max() / 2)
-            : time_window_by_node_id_(
-                  std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
-                      std::move(time_window_by_node_id))),
-              max_time_window_(default_max_time_window) {}
+            : TimeWindowExtensionFunction(make_node_bounds(ValueType{0}, default_max_time_window,
+                                                           std::move(time_window_by_node_id))) {}
 
-        /// @brief Forward extension: adds arc time and clamps to the destination's earliest
-        /// time.
+        /// @brief Constructs the function on shared per-node `{earliest, latest}` windows.
         ///
-        /// @param resource           Current time resource of the forward label.
-        /// @param extender_value     Arc's travel time.
-        /// @param extended_resource  Output: receives `max(earliest[dest], current + arc_time)`.
-        void extend(const ResourceType& resource, const ResourceType& extender_value,
-                    ResourceType* extended_resource) override {
-            auto sum_value = resource.get_value() + extender_value.get_value();
-            sum_value = std::max(min_time_window_, sum_value);
-            extended_resource->set_value(sum_value);
+        /// @param windows The windows, shared with the paired feasibility function; must not be
+        ///                null.
+        /// @throws std::invalid_argument If @p windows is null.
+        explicit TimeWindowExtensionFunction(SharedNodeBounds<ValueType> windows)
+            : windows_(std::move(windows)) {
+            if (windows_ == nullptr) {
+                throw std::invalid_argument(
+                    "TimeWindowExtensionFunction: windows must not be null");
+            }
         }
 
-        /// @brief Backward extension: adds arc time and clamps to the origin's latest time.
+        /// @brief The per-node windows this function waits for and clamps to.
         ///
-        /// @param resource           Current time resource of the backward label.
-        /// @param extender_value     Arc's travel time.
-        /// @param extended_resource  Output: receives `min(latest[origin], current + arc_time)`.
-        void extend_back(const ResourceType& resource, const ResourceType& extender_value,
-                         ResourceType* extended_resource) override {
-            auto sum_value = resource.get_value() + extender_value.get_value();
-            sum_value = std::min(max_time_window_, sum_value);
-            extended_resource->set_value(sum_value);
+        /// @return The shared windows.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return windows_; }
+
+    protected:
+        /// @brief The node's opening time: a forward label waits until it, and a backward deadline
+        ///        before it is unmeetable.
+        ///
+        /// Zero for a node without a window.
+        ///
+        /// @param node_id Index of the node the forward extension arrives at.
+        /// @return The node's earliest service time, or zero if it has no window.
+        [[nodiscard]] std::optional<ValueType> lower_bound_at(size_t node_id) const final {
+            return windows_->lower(node_id);
+        }
+
+        /// @brief The node's closing time: a backward label's deadline is never later, and one
+        ///        starting at this node starts there.
+        ///
+        /// Backward values are deliberately not clamped up to the opening time, or infeasible
+        /// backward labels would look feasible.
+        ///
+        /// @param node_id Index of the node the backward extension arrives at.
+        /// @return The node's latest service time, or the default bound if it has no window.
+        [[nodiscard]] std::optional<ValueType> upper_bound_at(size_t node_id) const final {
+            return windows_->upper(node_id);
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
-            time_window_by_node_id_;
-        ValueType min_time_window_{0};
-        ValueType max_time_window_;
-
-        void preprocess(size_t origin_id, size_t destination_id) override {
-            auto it = time_window_by_node_id_->find(destination_id);
-            if (it != time_window_by_node_id_->end()) {
-                min_time_window_ = it->second.first;
-            }
-            it = time_window_by_node_id_->find(origin_id);
-            if (it != time_window_by_node_id_->end()) {
-                max_time_window_ = it->second.second;
-            }
-        }
+        SharedNodeBounds<ValueType> windows_;
 };
 }  // namespace rcspp

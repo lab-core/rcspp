@@ -6,10 +6,13 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <stdexcept>
+#include <tuple>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -19,11 +22,14 @@ namespace rcspp {
 /// Each node may have an associated time window `[min_time_window, max_time_window]`.
 /// A forward label is feasible when `resource.value <= max_time_window_`.
 /// A backward label is back-feasible when `resource.value >= min_time_window_`.
-/// Two labels can be merged when `forward.value <= backward.value`.
+/// Two labels can be joined when `forward.value <= backward.value`.
 ///
 /// Nodes without an explicit entry in the map fall back to
 /// `[0, default_max_time_window]`.  The default upper bound is set to
 /// `numeric_limits<ValueType>::max() / 2` to prevent overflow.
+///
+/// Build it and the paired @c TimeWindowExtensionFunction from one @ref SharedNodeBounds (see
+/// @ref bounds).
 ///
 /// @tparam ResourceType The resource type whose value supports `get_value()`, `leq()`,
 ///         and `geq()`.
@@ -45,11 +51,31 @@ class TimeWindowFeasibilityFunction
             std::map<size_t, std::pair<ValueType, ValueType>> time_window_by_node_id,
             ValueType default_max_time_window = std::numeric_limits<ValueType>::max() /
                                                 2)  // prevent overflow
-            : time_window_by_node_id_(
-                  std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
-                      std::move(time_window_by_node_id))),
-              default_max_time_window_(default_max_time_window),
-              max_time_window_(default_max_time_window) {}
+            : TimeWindowFeasibilityFunction(make_node_bounds(ValueType{0}, default_max_time_window,
+                                                             std::move(time_window_by_node_id))) {}
+
+        /// @brief Constructs the function on shared per-node `{opening, closing}` windows.
+        ///
+        /// Pass the same object to the paired @c TimeWindowExtensionFunction, or read it back
+        /// through @ref bounds.
+        ///
+        /// @param windows The windows; must not be null.
+        /// @throws std::invalid_argument If @p windows is null.
+        explicit TimeWindowFeasibilityFunction(SharedNodeBounds<ValueType> windows)
+            : windows_(std::move(windows)) {
+            if (windows_ == nullptr) {
+                throw std::invalid_argument(
+                    "TimeWindowFeasibilityFunction: windows must not be null");
+            }
+            min_time_window_ = windows_->default_lower();
+            max_time_window_ = windows_->default_upper();
+        }
+
+        /// @brief The per-node windows this function enforces, to share with the paired
+        ///        extension function.
+        ///
+        /// @return The shared windows.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return windows_; }
 
         /// @brief Checks that the forward-label resource does not exceed the node's upper time
         ///        bound.
@@ -69,36 +95,20 @@ class TimeWindowFeasibilityFunction
             return resource.get_value() >= min_time_window_;
         }
 
-        /// @brief Checks whether a forward and a backward label can be merged.
+        /// @brief @c ValueOrder: the forward arrival must not be later than the backward deadline.
         ///
-        /// Merging is valid when the forward value does not exceed the backward value,
-        /// ensuring the combined path respects non-decreasing time ordering.
+        /// Evaluated on the raw values, so a relaxed dominance never lets a late arrival join.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if `resource.value <= back_resource.value`.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            return resource.get_value() <= back_resource.get_value();
-        }
+        /// @return @c JoinRule::ValueOrder.
+        [[nodiscard]] JoinRule join_rule() const override { return JoinRule::ValueOrder; }
 
     private:
-        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
-            time_window_by_node_id_;
-        ValueType default_min_time_window_{0};
-        ValueType default_max_time_window_{};
+        SharedNodeBounds<ValueType> windows_;
         ValueType min_time_window_{0};
         ValueType max_time_window_{};
 
         void preprocess(size_t node_id) override {
-            auto it = time_window_by_node_id_->find(node_id);
-            if (it != time_window_by_node_id_->end()) {
-                min_time_window_ = it->second.first;
-                max_time_window_ = it->second.second;
-            } else {
-                min_time_window_ = default_min_time_window_;
-                max_time_window_ = default_max_time_window_;
-            }
+            std::tie(min_time_window_, max_time_window_) = windows_->at(node_id);
         }
 };
 }  // namespace rcspp
