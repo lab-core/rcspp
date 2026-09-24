@@ -247,6 +247,17 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             }
         }
 
+        /// @brief Whether this resource's feasibility function needs an endpoint-derived memory.
+        ///
+        /// See @c FeasibilityFunction::requires_arc_endpoints. Queried once per solve at setup,
+        /// so it is not cached.
+        ///
+        /// @return @c true when only an @c ArcEndpoints extension can supply this component's
+        /// memory.
+        [[nodiscard]] auto requires_arc_endpoints() const -> bool {
+            return this->feasibility_function_->requires_arc_endpoints();
+        }
+
         /// @brief The join rule this resource uses, cached from its feasibility function.
         ///
         /// The bidirectional setup reads it to refuse @c Unspecified, naming the component.

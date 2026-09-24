@@ -179,20 +179,33 @@ TEST(JoinRules, ValueOrderIgnoresTheDominanceFunction) {
         << "a relaxed dominance must not let an arrival past the deadline join";
 }
 
-/// @brief Disjoint: the body IntersectionFeasibilityFunction inherits rejects shared elements.
+/// @brief Disjoint: containers sharing an element reject; disjoint ones accept.
 ///
-/// Called directly: a constraining function declares JoinRule::Unspecified, so the dispatch never
-/// reaches this body.
+/// Every node forbids itself (the ng-route condition), the only shape whose join rule is `Custom`.
 TEST(JoinRules, DisjointRejectsSharedElements) {
-    std::map<size_t, std::set<int>> forbidden{{0, {1, 2, 3}}};
-    IntersectionFeasibilityFunction<SetResource<int>> function(forbidden, /*forbidden=*/true);
+    std::map<size_t, std::set<int>> forbidden;
+    for (int node = 0; node <= 8; ++node) {
+        forbidden[static_cast<size_t>(node)] = {node};
+    }
 
-    // share element 2
-    EXPECT_FALSE(function.can_be_joined(join_rules_test::make_set({1, 2}),
-                                        join_rules_test::make_set({2, 5})));
-    // no shared element
-    EXPECT_TRUE(function.can_be_joined(join_rules_test::make_set({1, 2}),
-                                       join_rules_test::make_set({7, 8})));
+    auto forward = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({1, 2}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto overlapping = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({2, 5}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto disjoint = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({7, 8}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+
+    EXPECT_FALSE(forward->can_be_joined(*overlapping));  // share element 2
+    EXPECT_TRUE(forward->can_be_joined(*disjoint));      // no shared element
 }
 
 /// @brief A forbidding intersection function that forbids nothing declares AlwaysTrue.
@@ -210,40 +223,90 @@ TEST(JoinRules, AnIntersectionFunctionThatForbidsNothingIsAlwaysTrue) {
     IntersectionFeasibilityFunction<R> all_empty({{0, {}}, {1, {}}}, /*forbidden=*/true);
     EXPECT_EQ(all_empty.join_rule(), JoinRule::AlwaysTrue);
 
-    // One non-empty entry constrains something, which has no backward reading: a refusal.
+    // One entry forbidding its own node is enough to make the rule bite.
     IntersectionFeasibilityFunction<R> forbidding({{0, {}}, {1, {1}}}, /*forbidden=*/true);
-    EXPECT_EQ(forbidding.join_rule(), JoinRule::Unspecified);
+    EXPECT_EQ(forbidding.join_rule(), JoinRule::Custom);
 
-    // The same for required values; an inert required-values function stays AlwaysTrue.
+    // Non-empty alone is not enough: a set forbidding some other node is refused.
+    IntersectionFeasibilityFunction<R> forbids_another({{1, {2}}}, /*forbidden=*/true);
+    EXPECT_EQ(forbids_another.join_rule(), JoinRule::Unspecified);
+
+    IntersectionFeasibilityFunction<R> forbids_itself_and_more({{1, {1, 2}}}, /*forbidden=*/true);
+    EXPECT_EQ(forbids_itself_and_more.join_rule(), JoinRule::Unspecified);
+
+    // One bad entry among good ones refuses the whole model.
+    IntersectionFeasibilityFunction<R> mostly_good({{0, {0}}, {1, {1}}, {2, {9}}},
+                                                   /*forbidden=*/true);
+    EXPECT_EQ(mostly_good.join_rule(), JoinRule::Unspecified);
+
+    // Required values refuse too, but a required-values function that requires nothing is still
+    // AlwaysTrue.
     IntersectionFeasibilityFunction<R> required({{1, {1}}}, /*forbidden=*/false);
     EXPECT_EQ(required.join_rule(), JoinRule::Unspecified);
-    IntersectionFeasibilityFunction<R> inert_required({{1, {}}}, /*forbidden=*/false);
+
+    IntersectionFeasibilityFunction<R> inert_required({{0, {}}}, /*forbidden=*/false);
     EXPECT_EQ(inert_required.join_rule(), JoinRule::AlwaysTrue);
 }
 
-/// @brief Any constraining intersection function is refused rather than joined.
+/// @brief Required (not forbidden) values refuse the join rather than let it through.
 ///
-/// Every constraining configuration asks a prefix question a backward label cannot answer.
-/// Model-level behaviour is covered by
-/// `JoinContract.ContainerConstraintsWithoutABackwardReadingAreRefused`.
-TEST(JoinRules, AConstrainingIntersectionIsRefusedRatherThanJoined) {
-    const std::map<size_t, std::set<int>> values{{0, {1, 2, 3}}};
+/// `is_feasible` asks a question about the prefix collected so far, which a backward label's
+/// suffix cannot answer. So the rule declares Unspecified and `can_be_joined` throws.
+TEST(JoinRules, RequiredIntersectionIsRefusedRatherThanJoined) {
+    std::map<size_t, std::set<int>> required{{0, {1, 2, 3}}};
 
-    for (const bool forbidden : {true, false}) {
-        SCOPED_TRACE(forbidden ? "forbidden values" : "required values");
-        auto forward = join_rules_test::make_resource<SetResource<int>>(
-            join_rules_test::make_set({1, 2}),
-            std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(values, forbidden),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
-        auto backward = join_rules_test::make_resource<SetResource<int>>(
-            join_rules_test::make_set({7, 8}),
-            std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(values, forbidden),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto forward = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({1, 2}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(required,
+                                                                            /*forbidden=*/false),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto backward = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({2, 5}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(required,
+                                                                            /*forbidden=*/false),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
 
-        EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
-        // Backstop: validate_backward_semantics refuses such a model before any solve gets here.
-        EXPECT_THROW((void)forward->can_be_joined(*backward), std::runtime_error);
-    }
+    // The rule is undeclared, so the dispatch throws rather than guessing.
+    EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
+    EXPECT_THROW(
+        { [[maybe_unused]] const bool joined = forward->can_be_joined(*backward); },
+        std::runtime_error);
+}
+
+/// @brief Forbidding some OTHER node is a prefix question too, and is refused.
+///
+/// Only `forbidden(v) = {v}` (the ng-route condition) has a backward reading. `forbidden(u) = {w}`
+/// would wrongly accept: neither the backward half nor disjointness ever sees `w`. A set that
+/// binds nothing is refused too, since disjointness would be over-strict there.
+TEST(JoinRules, ForbiddingSomeOtherNodeIsRefusedRatherThanJoined) {
+    // Node 0 forbids node 3; no backward label can tell that a path collected 3 before reaching 0.
+    std::map<size_t, std::set<int>> forbids_another{{0, {3}}};
+
+    auto forward = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({3}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    auto backward = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({7}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+
+    // Disjointness would wrongly accept here: {3} and {7} share nothing.
+    EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
+    EXPECT_THROW(
+        { [[maybe_unused]] const bool joined = forward->can_be_joined(*backward); },
+        std::runtime_error);
+
+    // A set that constrains nothing reachable is refused too; disjointness would wrongly reject.
+    std::map<size_t, std::set<int>> binds_nothing{{0, {99}}};
+    auto loose_forward = join_rules_test::make_resource<SetResource<int>>(
+        join_rules_test::make_set({1, 2}),
+        std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(binds_nothing,
+                                                                            /*forbidden=*/true),
+        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+    EXPECT_EQ(loose_forward->join_rule(), JoinRule::Unspecified);
 }
 
 /// @brief Custom: SizeFeasibilityFunction counts |f u b| against the cap, not |f| + |b|.
@@ -338,11 +401,9 @@ TEST(JoinRules, CompositionRejectsIfAnyComponentRejects) {
 // Declared rules for every concrete function
 // ============================================================================
 
-/// @brief Every concrete feasibility function declares a rule, and every Unspecified in the table
-///        is a deliberate refusal.
+/// @brief Every concrete feasibility function declares a rule other than Unspecified.
 ///
-/// One component without a rule makes every join in the model throw, so the whole table is pinned
-/// here, including the configurations that deliberately answer Unspecified.
+/// One resource without a rule makes every join in the model throw.
 TEST(JoinRules, EveryConcreteFunctionDeclaresARule) {
     std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
     std::map<size_t, std::set<int>> values{{0, {1, 2}}};
@@ -354,21 +415,26 @@ TEST(JoinRules, EveryConcreteFunctionDeclaresARule) {
     MinMaxFeasibilityFunction<RealResource> min_max{0.0, 100.0};
     min_max.set_backward_kind(BackwardKind::Threshold);
     EXPECT_EQ(min_max.join_rule(), JoinRule::ValueOrder);
-    // Refusals: a constraining intersection function in either direction, a reachability
-    // look-ahead, and a size floor all ask a prefix question a backward label cannot answer.
-    EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.join_rule()),
-              JoinRule::Unspecified);
+    // Custom: the body is inherited from DisjointJoinForm, and needs every node to forbid itself.
+    const std::map<size_t, std::set<int>> self_forbidden{{0, {0}}, {1, {1}}};
+    EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{self_forbidden, true}.join_rule()),
+              JoinRule::Custom);
+    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U}.join_rule()), JoinRule::Custom);
+
+    // Four configurations deliberately declare Unspecified: each asks a prefix question that a
+    // backward label's suffix cannot answer.
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, false}.join_rule()),
               JoinRule::Unspecified);
-    EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{{}, true}.join_rule()),
-              JoinRule::AlwaysTrue);
     EXPECT_EQ((ReachableFeasibilityFunction<SetResource<int>>{join_rules_test::make_set({1, 2})}
                    .join_rule()),
               JoinRule::Unspecified);
-    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U}.join_rule()), JoinRule::Custom);
-    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{1U, 4U}.join_rule()),
+
+    // A non-zero size floor: the cap is suffix-safe, the floor is not.
+    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{2U, 4U}.join_rule()),
               JoinRule::Unspecified);
-    EXPECT_EQ((SizeFeasibilityFunction<SetResource<int>>{0U, 4U, {{2, {1, 4}}}}.join_rule()),
+
+    // Forbidden values that are not the node's own (node 0 forbids nodes 1 and 2).
+    EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{values, true}.join_rule()),
               JoinRule::Unspecified);
     // A per-node cap bounds what the path has collected up to that node, which the backward suffix
     // cannot see; an override equal to the default is still a uniform cap.
