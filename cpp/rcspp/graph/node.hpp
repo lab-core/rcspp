@@ -60,19 +60,19 @@ class Node {
         /// @brief Non-owning pointers to all arcs whose origin is this node.
         std::vector<Arc<ResourceType>*> out_arcs;
 
-        /// @brief Optional resource attached to this node for node-level constraints.
+        /// @brief Per-node carrier for the cloned, node-preprocessed function objects.
+        ///
+        /// Not a label's initial value: labels only borrow these function objects.
         ///
         /// May be null if no node resource is needed.
         std::unique_ptr<Resource<ResourceType>> resource;
 
         /// @brief True if this node is a source (labels may start here).
-        ///
-        /// A source is never *inside* a path: no algorithm extends a label into one.
+        /// A source is never inside a path.
         const bool source;
 
         /// @brief True if this node is a sink (labels may terminate here).
-        ///
-        /// A sink is never *inside* a path either: a label that reaches one is finished.
+        /// A sink is never inside a path: a label that reaches one is finished.
         const bool sink;
 
         /// @brief Returns the topological position of this node in the sorted graph.
