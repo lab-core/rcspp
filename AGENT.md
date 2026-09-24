@@ -348,6 +348,11 @@ Test files:
 8. **Thread safety** — `ResourceGraph` is NOT thread-safe.  `SolutionPool` /
    `PricingPool` ARE thread-safe for concurrent `add` + `price` calls.
 
+9. **No source or sink inside a path** — every algorithm returns paths that start at
+   a source and end at a sink with neither in between: a search never continues past
+   a sink and never extends into a source. Model a depot a route passes through as
+   separate source and sink nodes.
+
 ---
 
 ## Extending the library

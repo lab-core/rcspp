@@ -66,9 +66,13 @@ class Node {
         std::unique_ptr<Resource<ResourceType>> resource;
 
         /// @brief True if this node is a source (labels may start here).
+        ///
+        /// A source is never *inside* a path: no algorithm extends a label into one.
         const bool source;
 
         /// @brief True if this node is a sink (labels may terminate here).
+        ///
+        /// A sink is never *inside* a path either: a label that reaches one is finished.
         const bool sink;
 
         /// @brief Returns the topological position of this node in the sorted graph.
