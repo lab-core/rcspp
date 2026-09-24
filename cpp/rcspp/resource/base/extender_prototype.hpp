@@ -109,6 +109,34 @@ class ExtenderPrototype {
         /// @return Arc identifier.
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
+        /// @brief The backward form this extender's extension function implements.
+        ///
+        /// @return The declared @ref BackwardKind, or @c Unspecified if no function is bound.
+        [[nodiscard]] BackwardKind backward_kind() const {
+            return extension_function_ != nullptr ? extension_function_->backward_kind()
+                                                  : BackwardKind::Unspecified;
+        }
+
+        /// @brief The value this extender's extension function clamps a forward arrival at
+        ///        @p node_id up to, if any.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The forward floor there, or @c std::nullopt.
+        [[nodiscard]] auto floor_at(size_t node_id) const -> std::optional<ResourceType> {
+            return extension_function_ != nullptr ? extension_function_->floor_at(node_id)
+                                                  : std::nullopt;
+        }
+
+        /// @brief The value this extender's extension function clamps a backward arrival at
+        ///        @p node_id down to, if any.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The backward ceiling there, or @c std::nullopt.
+        [[nodiscard]] auto back_ceiling_at(size_t node_id) const -> std::optional<ResourceType> {
+            return extension_function_ != nullptr ? extension_function_->back_ceiling_at(node_id)
+                                                  : std::nullopt;
+        }
+
     protected:
         ResourceType value_;
         std::unique_ptr<ExtensionFunction<ResourceType>> extension_function_;

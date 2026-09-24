@@ -47,7 +47,9 @@ class SizeFeasibilityFunction
               default_min_size_(default_min_size),
               default_max_size_(default_max_size),
               min_size_(default_min_size),
-              max_size_(default_max_size) {}
+              max_size_(default_max_size) {
+            cache_merge_bounds();
+        }
 
         /// @brief Constructs the function from a per-node size map with optional global
         ///        fallback bounds.
@@ -69,7 +71,9 @@ class SizeFeasibilityFunction
               default_min_size_(default_min_size),
               default_max_size_(default_max_size),
               min_size_(default_min_size),
-              max_size_(default_max_size) {}
+              max_size_(default_max_size) {
+            cache_merge_bounds();
+        }
 
         /// @brief Checks that the resource's size lies within the active [min_size_, max_size_]
         ///        window.
@@ -81,6 +85,37 @@ class SizeFeasibilityFunction
             return size >= min_size_ && size <= max_size_;
         }
 
+        /// @brief Whether the merged path's element count can stay within the cap.
+        ///
+        /// Counts the union of the two sets, not the sum, since halves may share elements. Only
+        /// declared for a uniform cap (see @ref merge_rule), where the union is the merged path's
+        /// largest set and the test is exact. Only the upper bound is checked.
+        ///
+        /// @param resource      The forward label's resource at the merge node.
+        /// @param back_resource The backward label's resource at the merge node.
+        /// @return `true` if the combined element count fits under the upper bound.
+        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
+            ResourceType merged;
+            merged.set_value(resource.get_union(back_resource.get_value()));
+            return merged.size() <= default_max_size_;
+        }
+
+        /// @brief @c Custom merge rule (see @ref can_be_merged), or @c Unspecified when a lower
+        ///        bound or a per-node cap is configured anywhere.
+        ///
+        /// Both bound what the path has collected up to a node, which a backward label cannot
+        /// know: it holds only what it collected from there to the sink. The inherited
+        /// @c is_back_feasible would lose paths under a floor and accept infeasible ones under a
+        /// per-node cap, so bidirectional solves refuse instead.
+        ///
+        /// @return @c MergeRule::Unspecified when any lower bound is non-zero or any node's cap
+        ///         differs from the default, @c Custom otherwise.
+        [[nodiscard]] MergeRule merge_rule() const override {
+            return has_lower_bound_ || has_per_node_cap_ ? MergeRule::Unspecified
+                                                         : MergeRule::Custom;
+        }
+
     private:
         std::shared_ptr<const std::map<size_t, std::pair<size_t, size_t>>> min_max_size_by_node_id_;
 
@@ -88,6 +123,28 @@ class SizeFeasibilityFunction
         size_t default_max_size_;
         size_t min_size_;
         size_t max_size_;
+
+        /// @brief Whether any node's cap differs from the default. Model-wide, like
+        ///        @ref has_lower_bound_.
+        bool has_per_node_cap_ = false;
+
+        /// @brief Whether any node's window has a non-zero floor. Model-wide so that every
+        ///        node's @ref merge_rule agrees.
+        bool has_lower_bound_ = false;
+
+        /// @brief Computes @ref has_per_node_cap_ and @ref has_lower_bound_ from the defaults and
+        ///        any per-node overrides.
+        void cache_merge_bounds() {
+            has_per_node_cap_ = false;
+            has_lower_bound_ = default_min_size_ > 0;
+            if (min_max_size_by_node_id_ == nullptr) {
+                return;
+            }
+            for (const auto& [node_id, bounds] : *min_max_size_by_node_id_) {
+                has_per_node_cap_ = has_per_node_cap_ || bounds.second != default_max_size_;
+                has_lower_bound_ = has_lower_bound_ || bounds.first > 0;
+            }
+        }
 
         void preprocess(size_t node_id) override {
             if (min_max_size_by_node_id_ == nullptr) {

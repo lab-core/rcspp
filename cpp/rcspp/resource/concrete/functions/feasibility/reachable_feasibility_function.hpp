@@ -48,6 +48,16 @@ class ReachableFeasibilityFunction
             return true;
         }
 
+        /// @brief @c Unspecified: this class has no backward semantics, so a bidirectional solve
+        ///        refuses to start on it.
+        ///
+        /// The merge itself is unconstrained; the problem is @ref is_reachable, a predicate on the
+        /// prefix that would be misapplied to a backward label's suffix. @c merge_rule() is where
+        /// the solver looks for that refusal. Forward-only use is unaffected.
+        ///
+        /// @return @c MergeRule::Unspecified.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Unspecified; }
+
         /// @brief Checks that a required destination node is reachable from the current label.
         ///
         /// A destination is reachable if either it is not in `checked_nodes` (not required) or
@@ -59,8 +69,9 @@ class ReachableFeasibilityFunction
         auto is_reachable(const Resource<ContainerResourceType>& resource,
                           size_t destination_node_id) -> bool override {
             // either not to be checked (i.e., not required) or contained in the reachable set
-            return !checked_nodes_->contains(destination_node_id) ||
-                   resource.contains(destination_node_id);
+            const auto node =
+                static_cast<typename ContainerResourceType::ValueType>(destination_node_id);
+            return !checked_nodes_->contains(node) || resource.get_value().contains(node);
         }
 
     private:

@@ -33,5 +33,12 @@ class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerR
             auto union_value = resource.get_union(extender_value.get_value());
             extended_resource->set_value(union_value);
         }
+
+        /// @brief The arc value is direction-independent set data, so the inherited
+        ///        @c extend_back (same formula as @c extend) is correct.
+        static constexpr BackwardKind kind = BackwardKind::Mirror;
+
+        /// @return @c BackwardKind::Mirror.
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

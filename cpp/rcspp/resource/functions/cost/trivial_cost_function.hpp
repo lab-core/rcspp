@@ -25,5 +25,7 @@ class TrivialCostFunction
         /// @param resource The accumulated resource value (unused).
         /// @return @c 0.0 unconditionally.
         [[nodiscard]] double get_cost(const ResourceType& resource) const override { return 0; }
+
+        [[nodiscard]] CostForm cost_form() const override { return CostForm::Zero; }
 };
 }  // namespace rcspp

@@ -5,6 +5,9 @@
 
 #include <map>
 #include <memory>
+#include <optional>
+#include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -18,9 +21,10 @@ namespace rcspp {
 ///
 /// At each graph node the active window [min_, max_] is either the global default or the
 /// per-node override supplied at construction.  The resource is feasible when
-/// `min_ <= resource.value <= max_`.  A `can_be_merged` check determines whether a
-/// forward and backward label can be combined during bidirectional search, using either
-/// increasing or decreasing value order.
+/// `min_ <= resource.value <= max_`.
+///
+/// The bidirectional join test depends on the paired extension function's backward kind; see
+/// @ref merge_rule.
 ///
 /// @tparam ResourceType The resource type whose value supports `geq()`, `leq()`, and
 ///         `get_value()`.
@@ -32,21 +36,20 @@ class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
     public:
-        /// @brief Constructs the function with a single global [min, max] window and a merge
-        ///        direction flag.
+        /// @brief Constructs the function with a single global [min, max] window.
         ///
         /// No per-node overrides; every node uses the same bounds.
         ///
+        /// @deprecated The flag is ignored and kept only so existing calls compile. The merge test
+        ///             and the backward seed follow the paired extension; see @ref merge_rule and
+        ///             @ref back_seed_value.
+        ///
         /// @param min Global lower bound on the resource value.
         /// @param max Global upper bound on the resource value.
-        /// @param merge_by_increasing_value If `true`, merging requires
-        ///        `resource.value <= back_resource.value`; if `false`, the opposite.
-        MinMaxFeasibilityFunction(ValueType min, ValueType max, bool merge_by_increasing_value)
-            : default_min_(min),
-              default_max_(max),
-              min_(min),
-              max_(max),
-              merge_by_increasing_value_(merge_by_increasing_value) {}
+        MinMaxFeasibilityFunction(ValueType min, ValueType max, bool /*merge_by_increasing_value*/)
+            : default_min_(min), default_max_(max), min_(min), max_(max) {
+            cache_merge_bounds();
+        }
 
         /// @brief Constructs the function with default global bounds and optional per-node
         ///        overrides.
@@ -68,7 +71,9 @@ class MinMaxFeasibilityFunction
               default_min_(default_min),
               default_max_(default_max),
               min_(default_min),
-              max_(default_max) {}
+              max_(default_max) {
+            cache_merge_bounds();
+        }
 
         /// @brief Checks that the resource value lies within [min_, max_].
         ///
@@ -78,20 +83,93 @@ class MinMaxFeasibilityFunction
             return resource.geq(min_) && resource.leq(max_);
         }
 
-        /// @brief Checks whether a forward resource and a backward resource can be merged in
-        ///        bidirectional search.
+        /// @brief The merge test, chosen by the paired extension function's backward kind.
         ///
-        /// The direction of comparison (increasing vs. decreasing) is set at construction.
+        ///  - @c Threshold: the backward value is a ceiling, so @c DominanceOrder
+        ///    (`forward <= ceiling`); @c Unspecified if any minimum is non-zero, since a floor is
+        ///    never checked on the backward side.
+        ///  - @c Accumulate: the backward value is the suffix's consumption, so @c Custom
+        ///    (`forward + backward <= capacity`, see @ref can_be_merged), but only for a uniform
+        ///    window with a zero minimum. Otherwise the sum cannot be exact, so @c Unspecified.
+        ///  - Otherwise (including unpaired): @c Unspecified, so bidirectional refuses.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if the two labels can be combined.
+        /// @return The merge rule implied by the paired extension function.
+        [[nodiscard]] MergeRule merge_rule() const override {
+            switch (this->backward_kind_) {
+                case BackwardKind::Threshold:
+                    return has_floor_ ? MergeRule::Unspecified : MergeRule::DominanceOrder;
+                case BackwardKind::Accumulate:
+                    return accumulate_merge_is_exact_ ? MergeRule::Custom : MergeRule::Unspecified;
+                default:
+                    return MergeRule::Unspecified;
+            }
+        }
+
+        /// @brief The @c Accumulate merge test: `forward + backward` must fit under the cap.
+        ///
+        /// Only declared for a uniform `[0, max]` window (see @ref merge_rule), where the sum is
+        /// the merged path's largest value and the test is exact. Assumes a cumulative (never
+        /// decreasing, unclamped) extension.
+        ///
+        /// @param resource      The forward label's resource at the merge node.
+        /// @param back_resource The backward label's resource at the merge node.
+        /// @return `true` if the two consumptions together fit under the cap.
         [[nodiscard]] auto can_be_merged(const ResourceType& resource,
                                          const ResourceType& back_resource) -> bool override {
-            if (merge_by_increasing_value_) {
-                return resource.get_value() <= back_resource.get_value();
+            if (this->backward_kind_ != BackwardKind::Accumulate) {
+                throw std::logic_error(
+                    "MinMaxFeasibilityFunction::can_be_merged is the accumulating form's body; a "
+                    "threshold pairing merges through MergeRule::DominanceOrder and an unpaired "
+                    "function declares MergeRule::Unspecified");
             }
-            return resource.get_value() >= back_resource.get_value();
+            return static_cast<ValueType>(resource.get_value() + back_resource.get_value()) <=
+                   default_max_;
+        }
+
+        /// @brief Where a backward label starts, which follows the paired extension.
+        ///
+        /// A @c Threshold backward value is a ceiling, so it starts at this node's maximum. An
+        /// @c Accumulate one is the suffix's consumption, so it starts at the empty suffix, the
+        /// type default.
+        ///
+        /// @return This node's maximum, or @c std::nullopt under an accumulating extension.
+        [[nodiscard]] auto back_seed_value() const -> std::optional<ResourceType> override {
+            if (this->backward_kind_ == BackwardKind::Accumulate) {
+                return std::nullopt;
+            }
+            ResourceType seed;
+            seed.set_value(max_);
+            return seed;
+        }
+
+        /// @brief This node's upper bound (override or default), used to clamp backward labels.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The node's maximum.
+        [[nodiscard]] auto ceiling_at(size_t node_id) const
+            -> std::optional<ResourceType> override {
+            ResourceType ceiling;
+            ceiling.set_value(bounds_at(node_id).second);
+            return ceiling;
+        }
+
+        /// @brief This node's minimum, which @c is_back_feasible (the forward test) applies.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The node's minimum.
+        [[nodiscard]] auto back_floor_at(size_t node_id) const
+            -> std::optional<ResourceType> override {
+            ResourceType floor;
+            floor.set_value(bounds_at(node_id).first);
+            return floor;
+        }
+
+        /// @brief The accumulating merge test adds the two halves, which bounds the path's
+        ///        largest value only if the value never decreases.
+        ///
+        /// @return @c true under an accumulating extension.
+        [[nodiscard]] auto requires_nondecreasing() const -> bool override {
+            return this->backward_kind_ == BackwardKind::Accumulate;
         }
 
     private:
@@ -102,22 +180,47 @@ class MinMaxFeasibilityFunction
         ValueType min_;
         ValueType max_;
 
-        // true: merge by increasing value, false: decreasing value
-        // increasing value means that resource.get_value() <= back_resource.get_value()
-        bool merge_by_increasing_value_ = true;
+        /// @brief Whether `forward + backward <= max` is exact: the window is uniform with a zero
+        ///        minimum. See @ref merge_rule.
+        bool accumulate_merge_is_exact_ = true;
+
+        /// @brief Whether any minimum, default or per node, is non-zero. See @ref merge_rule.
+        bool has_floor_ = false;
+
+        /// @brief Computes @ref has_floor_ and @ref accumulate_merge_is_exact_.
+        void cache_merge_bounds() {
+            has_floor_ = default_min_ != ValueType{};
+            // A non-zero minimum offsets the backward seed, and a per-node window bounds what the
+            // path has consumed up to a node, which a backward label cannot know.
+            accumulate_merge_is_exact_ =
+                min_max_by_node_id_ == nullptr && default_min_ == ValueType{};
+            if (min_max_by_node_id_ == nullptr) {
+                return;
+            }
+            for (const auto& [node_id, bounds] : *min_max_by_node_id_) {
+                has_floor_ = has_floor_ || bounds.first != ValueType{};
+            }
+        }
+
+        /// @brief The `{min, max}` window at @p node_id: its override, or the defaults.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The node's window.
+        [[nodiscard]] std::pair<ValueType, ValueType> bounds_at(size_t node_id) const {
+            if (min_max_by_node_id_ != nullptr) {
+                auto it = min_max_by_node_id_->find(node_id);
+                if (it != min_max_by_node_id_->end()) {
+                    return it->second;
+                }
+            }
+            return {default_min_, default_max_};
+        }
 
         void preprocess(size_t node_id) override {
             if (min_max_by_node_id_ == nullptr) {
                 return;
             }
-            auto it = min_max_by_node_id_->find(node_id);
-            if (it != min_max_by_node_id_->end()) {
-                min_ = it->second.first;
-                max_ = it->second.second;
-            } else {
-                min_ = default_min_;
-                max_ = default_max_;
-            }
+            std::tie(min_, max_) = bounds_at(node_id);
         }
 };
 }  // namespace rcspp

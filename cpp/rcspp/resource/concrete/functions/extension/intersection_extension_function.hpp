@@ -33,5 +33,12 @@ class IntersectionExtensionFunction
             auto intersection_value = resource.get_intersection(extender_value.get_value());
             extended_resource->set_value(intersection_value);
         }
+
+        /// @brief The arc value is direction-independent set data, so the inherited
+        ///        @c extend_back (same formula as @c extend) is correct.
+        static constexpr BackwardKind kind = BackwardKind::Mirror;
+
+        /// @return @c BackwardKind::Mirror.
+        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

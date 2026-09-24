@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "rcspp/resource/base/resource_type.hpp"
@@ -56,6 +57,46 @@ class DominanceFunction {
             -> bool = 0;
         // clang-format on
 
+        /// @brief Sets whether backward dominance reverses the forward comparison.
+        ///
+        /// Set by @c ResourceGraph::add_resource from the extension function's
+        /// @c backward_kind(); not meant to be set by hand.
+        ///
+        /// @param reversed @c true when the backward comparison is the forward one, swapped.
+        void set_backward_reversed(bool reversed) { backward_reversed_ = reversed; }
+
+        /// @brief Returns whether backward dominance reverses the forward comparison.
+        ///
+        /// @return @c true when the backward comparison is the forward one, swapped.
+        [[nodiscard]] bool is_backward_reversed() const { return backward_reversed_; }
+
+        /// @brief Returns whether @p lhs_resource dominates @p rhs_resource going backward.
+        ///
+        /// Reversed dominance is the forward check with arguments swapped.
+        ///
+        /// @param lhs_resource The resource value of the label being tested for dominance.
+        /// @param rhs_resource The resource value of the reference label.
+        /// @return @c true if @p lhs_resource is dominated by @p rhs_resource going backward.
+        [[nodiscard]] virtual auto check_back_dominance(const ResourceType& lhs_resource,
+                                                        const ResourceType& rhs_resource) -> bool {
+            return backward_reversed_ ? check_dominance(rhs_resource, lhs_resource)
+                                      : check_dominance(lhs_resource, rhs_resource);
+        }
+
+        /// @brief Fast (possibly partial) backward dominance check with a tolerance.
+        ///
+        /// @param lhs_resource The resource value of the label being tested.
+        /// @param rhs_resource The resource value of the reference label.
+        /// @param delta        Tolerance used for approximate dominance comparisons.
+        /// @return @c true if @p lhs_resource is (partially) backward-dominated by
+        ///         @p rhs_resource.
+        virtual auto fast_check_back_dominance(const ResourceType& lhs_resource,
+                                               const ResourceType& rhs_resource,
+                                               double delta) -> bool {
+            return backward_reversed_ ? fast_check_dominance(rhs_resource, lhs_resource, delta)
+                                      : fast_check_dominance(lhs_resource, rhs_resource, delta);
+        }
+
         /// @brief Creates a polymorphic copy of this dominance function.
         ///
         /// @return A new heap-allocated copy wrapped in a unique_ptr.
@@ -83,6 +124,17 @@ class DominanceFunction {
         ///
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}
+
+        /// @brief Whether backward dominance reverses the forward comparison.
+        bool backward_reversed_ = false;
+};
+
+/// @brief Thrown by a composed dominance function that has no backward form.
+///
+/// A bidirectional solve checks for this once at setup and refuses the model.
+class NoBackwardDominance : public std::logic_error {
+    public:
+        using std::logic_error::logic_error;
 };
 
 /// @brief Specialization of @c DominanceFunction for composed resource types.
@@ -107,6 +159,22 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto check_dominance(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& lhs_resource,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& rhs_resource) -> bool = 0;
+
+        /// @brief Returns whether @p lhs_resource dominates @p rhs_resource going backward.
+        ///
+        /// Not pure, so forward-only user compositions still compile; the default throws.
+        ///
+        /// @param lhs_resource The label being tested for dominance.
+        /// @param rhs_resource The reference label.
+        /// @return @c true if @p lhs_resource is backward-dominated by @p rhs_resource.
+        /// @throws NoBackwardDominance unless overridden.
+        [[nodiscard]] virtual auto check_back_dominance(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*lhs_resource*/,
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*rhs_resource*/) -> bool {
+            throw NoBackwardDominance(
+                "this composition dominance function has no backward form: override "
+                "check_back_dominance, as CompositionDominanceFunction does");
+        }
 
         /// @brief Creates a polymorphic copy of this dominance function.
         ///

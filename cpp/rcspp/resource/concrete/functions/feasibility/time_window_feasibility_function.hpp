@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
@@ -69,17 +70,49 @@ class TimeWindowFeasibilityFunction
             return resource.get_value() >= min_time_window_;
         }
 
-        /// @brief Checks whether a forward and a backward label can be merged.
+        /// @brief A backward label holds the deadline directly, so the merge test is
+        ///        `arrival <= deadline`.
         ///
-        /// Merging is valid when the forward value does not exceed the backward value,
-        /// ensuring the combined path respects non-decreasing time ordering.
+        /// Evaluated on the raw values, so a relaxed dominance never lets a late arrival join.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if `resource.value <= back_resource.value`.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            return resource.get_value() <= back_resource.get_value();
+        /// @return @c MergeRule::DominanceOrder.
+        [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::DominanceOrder; }
+
+        /// @brief A backward label at this node starts at the node's closing time.
+        ///
+        /// Uses the bound cached by `preprocess(node_id)`, so sinks can seed differently.
+        ///
+        /// @return The node's upper time bound, as the seed for a backward label here.
+        [[nodiscard]] auto back_seed_value() const -> std::optional<ResourceType> override {
+            ResourceType seed;
+            seed.set_value(max_time_window_);
+            return seed;
+        }
+
+        /// @brief This node's closing time, the ceiling for a backward threshold extension.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The node's upper time bound.
+        [[nodiscard]] auto ceiling_at(size_t node_id) const
+            -> std::optional<ResourceType> override {
+            auto it = time_window_by_node_id_->find(node_id);
+            ResourceType ceiling;
+            ceiling.set_value(it != time_window_by_node_id_->end() ? it->second.second
+                                                                   : default_max_time_window_);
+            return ceiling;
+        }
+
+        /// @brief This node's opening time, which @ref is_back_feasible tests.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The node's lower time bound.
+        [[nodiscard]] auto back_floor_at(size_t node_id) const
+            -> std::optional<ResourceType> override {
+            auto it = time_window_by_node_id_->find(node_id);
+            ResourceType floor;
+            floor.set_value(it != time_window_by_node_id_->end() ? it->second.first
+                                                                 : default_min_time_window_);
+            return floor;
         }
 
     private:

@@ -7,8 +7,10 @@
 #include <limits>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <optional>
 #include <stdexcept>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -67,11 +69,51 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
+            // Derive backward dominance from the extension's declared kind: a Threshold value is
+            // a deadline (larger is better), so its comparison reverses. Set on the prototype so
+            // every per-node clone inherits it.
+            const BackwardKind kind = extension_function->backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+
+            // The feasibility function needs the kind itself to pick its merge test.
+            feasibility_function->set_backward_kind(kind);
+
+            // A threshold extension clamps backward labels to the same per-node ceilings the
+            // feasibility function enforces forward.
+            if (kind == BackwardKind::Threshold) {
+                adopt_ceilings_of(*feasibility_function, extension_function.get());
+            }
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
                                                       std::move(cost_function),
                                                       std::move(dominance_function)));
+        }
+
+        /// @brief Hands @p extension_function the per-node ceilings of @p feasibility_function.
+        ///
+        /// Each node's ceiling is read from a clone preprocessed for that node, as the node's own
+        /// resource is, so a function that caches its bound in `preprocess()` reports the right
+        /// one. Memoised, so a graph costs one clone per node.
+        ///
+        /// @param feasibility_function The paired feasibility function, its backward kind set.
+        /// @param extension_function   The threshold extension function to clamp with it.
+        template <typename ResourceType>
+        static void adopt_ceilings_of(const FeasibilityFunction<ResourceType>& feasibility_function,
+                                      ExtensionFunction<ResourceType>* extension_function) {
+            std::shared_ptr<FeasibilityFunction<ResourceType>> prototype =
+                feasibility_function.clone();
+            auto by_node =
+                std::make_shared<std::unordered_map<size_t, std::optional<ResourceType>>>();
+            extension_function->adopt_ceilings([prototype, by_node](size_t node_id) {
+                auto it = by_node->find(node_id);
+                if (it == by_node->end()) {
+                    it = by_node->emplace(node_id, prototype->create(node_id)->ceiling_at(node_id))
+                             .first;
+                }
+                return it->second;
+            });
         }
 
         Node<ResourceCompositionType>& add_node(size_t node_id, bool source = false,
@@ -97,6 +139,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             };  // NOLINT
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
+
+            // Same backward wiring as the other add_resource overload.
+            const BackwardKind kind = extension_function->backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+
+            feasibility_function->set_backward_kind(kind);
+            if (kind == BackwardKind::Threshold) {
+                adopt_ceilings_of(*feasibility_function, extension_function.get());
+            }
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -105,6 +157,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                       resource_base_prototype));
         }
 
+        /// @brief Adds a node whose per-node resource is built from explicit initial values.
+        ///
+        /// The values seed the node resource's value slots (read by @c BellmanFordAlgorithm
+        /// during preprocessing); they are not a label's starting state.
+        ///
+        /// @param node_id              Identifier of the node to add.
+        /// @param resource_initializer Per-type vectors of component initialiser tuples.
+        /// @param source               Whether the node is a source.
+        /// @param sink                 Whether the node is a sink.
+        /// @return Reference to the newly added node.
         Node<ResourceCompositionType>& add_node(
             size_t node_id,
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
@@ -331,9 +393,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             }
 
             std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
-            // Restores the removed arcs however the solve ends: a user function's exception must
-            // not delete arcs from the caller's graph. The graph then stays marked modified, so the
-            // next solve re-runs its checks.
+            // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
+            // function's exception must not delete arcs from the caller's graph. The graph then
+            // stays marked modified, so the next solve re-runs its checks.
             struct RestoreRemovedArcs {
                     std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
                     ~RestoreRemovedArcs() {

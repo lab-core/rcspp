@@ -4,10 +4,12 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/base/resource_type.hpp"
+#include "rcspp/resource/resource_traits.hpp"
 
 namespace rcspp {
 
@@ -115,6 +117,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->dominance_function_->check_dominance(this->value_, rhs_resource.value_);
         }
 
+        /// @brief Backward dominance: `true` if this resource dominates `rhs_resource` going
+        ///        backward.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates `rhs_resource`.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(this->value_,
+                                                                   rhs_resource.value_);
+        }
+
         // Check distance from the resource to another
         /// @brief Fast dominance check with a relaxation delta.
         ///
@@ -131,12 +143,45 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                                                                    delta);
         }
 
+        /// @brief Fast (approximate) backward dominance check with a relaxation delta.
+        ///
+        /// The backward twin of `is_lower`; scalar resources only.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @param delta        Relaxation tolerance (default 0).
+        /// @return `true` if this resource is backward-dominated by `rhs_resource` within the
+        ///         tolerance.
+        [[nodiscard]] auto is_back_lower(const Resource& rhs_resource,
+                                         double delta = 0) const -> bool {
+            return this->dominance_function_->fast_check_back_dominance(this->value_,
+                                                                        rhs_resource.value_,
+                                                                        delta);
+        }
+
         // Return resource cost
         /// @brief Returns the scalar cost associated with this resource's current value.
         ///
         /// @return Cost as computed by the configured `CostFunction`.
         [[nodiscard]] auto get_cost() const -> double {
             return this->cost_function_->get_cost(this->value_);
+        }
+
+        /// @brief Whether this component's cost on a joined path is the sum of its costs on the
+        ///        two halves.
+        ///
+        /// True for a zero cost, and for a cost equal to the value under an accumulating
+        /// extension. A @c Threshold backward value is a bound, so a cost that reads it is not.
+        ///
+        /// @return `true` when the join may add this component's two costs.
+        [[nodiscard]] auto cost_adds_across_join() const -> bool {
+            switch (this->cost_function_->cost_form()) {
+                case CostForm::Zero:
+                    return true;
+                case CostForm::Value:
+                    return this->feasibility_function_->backward_kind() == BackwardKind::Accumulate;
+                default:
+                    return false;
+            }
         }
 
         // Return true if the resource is feasible
@@ -156,15 +201,85 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->feasibility_function_->is_back_feasible(this->value_);
         }
 
+        /// @brief Applies this resource's backward starting value, if it has one.
+        ///
+        /// A backward label at a sink starts at that sink's upper bound. Called only for initial
+        /// backward labels; resources without a seed keep the type default.
+        void apply_back_seed() {
+            if (auto seed = this->feasibility_function_->back_seed_value()) {
+                this->value_ = *seed;
+            }
+        }
+
         /// @brief Returns `true` if this (forward) resource can be merged with a backward label.
         ///
-        /// Used in bidirectional labelling to determine whether a forward and a backward label
-        /// can be joined into a complete path.
+        /// Used in bidirectional labelling to determine whether a forward and a backward label can
+        /// be joined into a complete path. Dispatches on the feasibility function's merge rule,
+        /// cached at bind time.
         ///
         /// @param back_resource The backward resource to attempt merging with.
         /// @return `true` when the two labels are compatible for merging.
+        /// @throws std::runtime_error If the feasibility function declares no rule.
         [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
-            return this->feasibility_function_->can_be_merged(this->value_, back_resource.value_);
+            switch (this->merge_rule_) {
+                case MergeRule::AlwaysTrue:
+                    return true;
+                case MergeRule::DominanceOrder:
+                    // Compare values (`forward <= bound`), not via the dominance function.
+                    if constexpr (is_numerical_resource_v<ResourceType>) {
+                        return this->value_.leq(back_resource.value_);
+                    } else {
+                        // Refused at setup (describe_problem), so a solve never gets here.
+                        throw std::logic_error(
+                            "MergeRule::DominanceOrder compares two scalar values, and this "
+                            "resource has none; its feasibility function must declare "
+                            "MergeRule::Custom");
+                    }
+                case MergeRule::Custom:
+                    return this->feasibility_function_->can_be_merged(this->value_,
+                                                                      back_resource.value_);
+                default:
+                    throw std::runtime_error("FeasibilityFunction::merge_rule() not declared");
+            }
+        }
+
+        /// @brief The merge rule this resource's feasibility function declares.
+        ///
+        /// Cached at bind time; lets setup report an undeclared component by name.
+        ///
+        /// @return The declared @ref MergeRule.
+        [[nodiscard]] auto merge_rule() const -> MergeRule { return this->merge_rule_; }
+
+        /// @brief Whether this resource's feasibility function supplies a backward starting value.
+        ///
+        /// Used by setup-time checks on backward seeds.
+        ///
+        /// @return `true` when `back_seed_value()` returns a value.
+        [[nodiscard]] auto has_back_seed() const -> bool {
+            return this->feasibility_function_->back_seed_value().has_value();
+        }
+
+        /// @brief The smallest backward value this node's feasibility function admits, if it
+        ///        tests one. Used by setup-time checks.
+        ///
+        /// @return See @c FeasibilityFunction::back_floor_at.
+        [[nodiscard]] auto back_floor() const -> std::optional<ResourceType> {
+            return this->feasibility_function_->back_floor_at(this->node_id_);
+        }
+
+        /// @brief Whether this resource's backward reading needs non-negative consumptions.
+        ///
+        /// @return See @c FeasibilityFunction::requires_nondecreasing.
+        [[nodiscard]] auto requires_nondecreasing() const -> bool {
+            return this->feasibility_function_->requires_nondecreasing();
+        }
+
+        /// @brief Whether this node's backward test admits @p value. Used by setup-time checks.
+        ///
+        /// @param value A backward value.
+        /// @return See @c FeasibilityFunction::is_back_feasible.
+        [[nodiscard]] auto admits_back_value(const ResourceType& value) const -> bool {
+            return this->feasibility_function_->is_back_feasible(value);
         }
 
         /// @brief Returns `true` if the destination node is reachable from this resource's state.
