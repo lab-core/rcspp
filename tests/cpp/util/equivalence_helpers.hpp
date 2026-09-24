@@ -5,6 +5,9 @@
 
 // Shared machinery for the equivalence suites: build a model, solve it, replay every returned
 // path through the real Extender and report what is wrong with it.
+//
+// It lives under util/ because two translation units include it; a util/ header carries no TEST
+// macros, so it may be shared. The replay helpers are templated so the ng model can use them too.
 
 #include <gtest/gtest.h>
 
@@ -27,35 +30,55 @@ namespace equivalence_test {
 using Composed = ResourceTypeComposition<RealResource>;
 using Graph = ResourceGraph<RealResource>;
 
+// The ng variant's pack: a container component alongside the scalar clock.
+using NgComposed = ResourceTypeComposition<RealResource, SizeTBitsetResource>;
+using NgGraph = ResourceGraph<RealResource, SizeTBitsetResource>;
+
 constexpr double kTolerance = 1e-9;
 
-/// @brief A finite upper bound no path reaches.
+/// @brief The cost bound every bidirectional run here passes: finite, but far above any cost
+///        this generator produces, so it filters nothing.
 ///
-/// With an infinite bound the join prunes against the incumbent, so it would drop most pairs and
-/// the sweep would barely exercise it. A finite one makes it return every pair it admits.
+/// Finite on purpose: with an infinite bound `Joiner::join` enables its incumbent cutoff and
+/// returns few joined paths, leaving `any_path_problem` little join output to replay.
 constexpr double kNonBindingUpperBound = 1e9;
 
 /// @brief Checks the pool's reference counts after a solve that kept its labels.
 ///
 /// With `release_after_solve` on the pool is empty after a solve, so the check would pass on
 /// nothing; the callers turn it off.
-inline void expect_consistent_ref_counts(const LabelPool<Composed>& pool) {
+template <typename ComposedType>
+inline void expect_consistent_ref_counts(const LabelPool<ComposedType>& pool) {
     EXPECT_GT(pool.get_nb_total_labels(), 0U) << "the pool is empty, so the check tests nothing";
     EXPECT_TRUE(pool.check_ref_count_consistency())
         << "reference counts must survive two searches and a join";
 }
 
 /// @brief A solve and the graph it ran on, kept together so the paths can be replayed afterwards.
-struct Run {
-        std::unique_ptr<Graph> graph;
+///
+/// Takes the composition separately because @c ResourceGraph keeps its composition alias private.
+///
+/// @tparam GraphType   The concrete @c ResourceGraph instantiation.
+/// @tparam ComposedType The matching @c ResourceTypeComposition.
+template <typename GraphType, typename ComposedType>
+struct RunT {
+        std::unique_ptr<GraphType> graph;
         SolveResult result;
         bool bounded = false;
+
+        using Composition = ComposedType;
 
         [[nodiscard]] double best_cost() const {
             return result.solutions.empty() ? std::numeric_limits<double>::infinity()
                                             : result.solutions.front().cost;
         }
 };
+
+/// @brief The single-type run.
+using Run = RunT<Graph, Composed>;
+
+/// @brief The two-slot run carrying an ng-path component.
+using NgRun = RunT<NgGraph, NgComposed>;
 
 /// @brief The reference: an ordinary forward search.
 inline Run solve_forward(const test_util::InstanceConfig& config) {
@@ -143,11 +166,50 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
     return run;
 }
 
+/// @brief The reference, on the ng model.
+///
+/// The clock is still a `RealResource`, so `BidirectionalAlgoBound<RealResource>::Algo` applies.
+inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
+    NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+    run.result = run.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    return run;
+}
+
+/// @brief The candidate, on the ng model.
+///
+/// @param config     The instance to build.
+/// @param with_bound As in @c solve_bidirectional: false leaves the half-way point at 0, so the
+///                   policy starts disabled.
+/// @param cost_upper_bound Defaults to @ref kNonBindingUpperBound. Pass infinity to turn the
+///                   joiner's incumbent cutoff back on, e.g. when replaying every joined path
+///                   would be too slow.
+inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound,
+                                    double cost_upper_bound = kNonBindingUpperBound) {
+    NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+
+    AlgorithmParams<LabelList<NgComposed>> params;
+    params.critical_resource_index = built.clock_index;
+    params.half_way_point = with_bound ? built.clock_upper_bound / 2.0 : 0.0;
+    params.release_after_solve = false;
+
+    auto algorithm =
+        run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    run.result = run.graph->solve(algorithm.get(), cost_upper_bound);
+    run.bounded = algorithm->bounded_by_half_way();
+    expect_consistent_ref_counts(algorithm->get_label_pool());
+    return run;
+}
+
 /// @brief Replays one path through the model, returning what is wrong with it, or "".
 ///
 /// Extends a fresh source resource arc by arc through each arc's extender, requires every node
 /// along the way to be feasible, and requires the replayed cost to be the reported one.
-inline std::string path_problem(const rcspp::Graph<Composed>& graph, const Solution& solution) {
+template <typename ComposedType>
+inline std::string path_problem(const rcspp::Graph<ComposedType>& graph, const Solution& solution) {
     if (solution.path_arc_ids.empty()) {
         return "empty path";
     }
@@ -160,8 +222,8 @@ inline std::string path_problem(const rcspp::Graph<Composed>& graph, const Solut
         return "path does not start at a source";
     }
 
-    auto current = std::make_unique<Resource<Composed>>(*first->origin->resource);
-    const Arc<Composed>* previous = nullptr;
+    auto current = std::make_unique<Resource<ComposedType>>(*first->origin->resource);
+    const Arc<ComposedType>* previous = nullptr;
 
     for (size_t arc_id : solution.path_arc_ids) {
         const auto* arc = graph.get_arc(arc_id);
@@ -175,7 +237,7 @@ inline std::string path_problem(const rcspp::Graph<Composed>& graph, const Solut
             return "arc has no extender";
         }
 
-        auto extended = std::make_unique<Resource<Composed>>(*arc->destination->resource);
+        auto extended = std::make_unique<Resource<ComposedType>>(*arc->destination->resource);
         arc->extender->extend(*current, extended.get());
         if (!extended->is_feasible()) {
             return "path is infeasible at node " + std::to_string(arc->destination->id);
@@ -195,9 +257,10 @@ inline std::string path_problem(const rcspp::Graph<Composed>& graph, const Solut
 }
 
 /// @brief Replays every returned path and reports the first problem found.
-inline std::string any_path_problem(const Run& run) {
+template <typename GraphType, typename ComposedType>
+inline std::string any_path_problem(const RunT<GraphType, ComposedType>& run) {
     for (const auto& solution : run.result.solutions) {
-        const std::string problem = path_problem(*run.graph, solution);
+        const std::string problem = path_problem<ComposedType>(*run.graph, solution);
         if (!problem.empty()) {
             return problem;
         }
