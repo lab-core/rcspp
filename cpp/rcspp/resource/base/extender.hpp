@@ -102,6 +102,15 @@ class Extender : public ExtenderPrototype<Extender<ResourceType>, ResourceType> 
                                                    &extended_resource->get_value());
         }
 
+        /// @brief Sets the value a backward label starts with at the arc's destination.
+        ///
+        /// Delegates to `ExtensionFunction::start_back`.
+        ///
+        /// @param resource The backward label resource at the arc's destination.
+        void start_back(Resource<ResourceType>* resource) const {
+            this->extension_function_->start_back(&resource->get_value());
+        }
+
         /// @brief Returns a human-readable string representation of the arc resource value.
         ///
         /// @return String representation of the stored resource value.

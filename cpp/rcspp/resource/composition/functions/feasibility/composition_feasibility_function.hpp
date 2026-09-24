@@ -12,7 +12,7 @@ namespace rcspp {
 /// @brief Feasibility function that checks all components of a composed resource.
 ///
 /// All three feasibility checks — forward feasibility, backward feasibility, and
-/// merge feasibility — are evaluated component-wise: the composed resource is
+/// join feasibility — are evaluated component-wise: the composed resource is
 /// feasible only if every constituent sub-resource passes the corresponding check.
 ///
 /// @tparam ResourceTypes The individual resource types forming the composition.
@@ -47,21 +47,21 @@ class CompositionFeasibilityFunction
             });
         }
 
-        /// @brief Returns `true` if every component pair can be merged.
+        /// @brief Returns `true` if every component pair can be joined.
         ///
-        /// Checks `res.can_be_merged(back_res)` for each paired sub-resource across the
+        /// Checks `res.can_be_joined(back_res)` for each paired sub-resource across the
         /// forward and backward compositions.
         ///
         /// @param resource_composition      The forward composed resource.
-        /// @param back_resource_composition The backward composed resource to merge with.
-        /// @return `true` if every paired sub-resource can be merged.
-        [[nodiscard]] bool can_be_merged(
+        /// @param back_resource_composition The backward composed resource to join with.
+        /// @return `true` if every paired sub-resource can be joined.
+        [[nodiscard]] bool can_be_joined(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& back_resource_composition)
             override {
             return resource_composition.for_each_component_and(
                 back_resource_composition,
-                [](const auto& res, const auto& back_res) { return res.can_be_merged(back_res); });
+                [](const auto& res, const auto& back_res) { return res.can_be_joined(back_res); });
         }
 
     private:
