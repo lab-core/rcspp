@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <optional>
 #include <stdexcept>
 #include <tuple>
 #include <utility>
@@ -67,6 +68,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
+            pass_backward_kind(*extension_function,
+                               feasibility_function.get(),
+                               dominance_function.get());
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -97,6 +102,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             };  // NOLINT
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
+
+            pass_backward_kind(*extension_function,
+                               feasibility_function.get(),
+                               dominance_function.get());
+
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
@@ -105,6 +115,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                       resource_base_prototype));
         }
 
+        /// @brief Adds a node whose per-node resource is built from explicit initial values.
+        ///
+        /// The values seed the node resource's value slots (read by @c BellmanFordAlgorithm
+        /// during preprocessing); they are not a label's starting state.
+        ///
+        /// @param node_id              Identifier of the node to add.
+        /// @param resource_initializer Per-type vectors of component initialiser tuples.
+        /// @param source               Whether the node is a source.
+        /// @param sink                 Whether the node is a sink.
+        /// @return Reference to the newly added node.
         Node<ResourceCompositionType>& add_node(
             size_t node_id,
             const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
@@ -331,9 +351,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             }
 
             std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
-            // Restores the removed arcs however the solve ends: a user function's exception must
-            // not delete arcs from the caller's graph. The graph then stays marked modified, so the
-            // next solve re-runs its checks.
+            // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
+            // function's exception must not delete arcs from the caller's graph. The graph then
+            // stays marked modified, so the next solve re-runs its checks.
             struct RestoreRemovedArcs {
                     std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
                     ~RestoreRemovedArcs() {
@@ -483,6 +503,26 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Construct directly from a pre-built factory (used by clone()).
         explicit ResourceGraph(ResourceCompositionFactory<ResourceTypes...>&& factory)
             : resource_factory_(std::move(factory)), connectivityMatrix_(this) {}
+
+        /// @brief Tells a resource's dominance and feasibility functions how its extension function
+        ///        extends backwards.
+        ///
+        /// The extension's backward kind decides how the other functions read the resource
+        /// backward: the dominance function reverses where @ref reverses_back_dominance says (a
+        /// threshold: a larger limit is better), and the feasibility function records the kind to
+        /// pick its join test. Set on the prototypes, so every per-node clone inherits both.
+        ///
+        /// @param extension_function   The resource's extension function.
+        /// @param feasibility_function Receives the kind.
+        /// @param dominance_function   Receives whether the backward order reverses.
+        template <typename ResourceType>
+        static void pass_backward_kind(const ExtensionFunction<ResourceType>& extension_function,
+                                       FeasibilityFunction<ResourceType>* feasibility_function,
+                                       DominanceFunction<ResourceType>* dominance_function) {
+            const BackwardKind kind = extension_function.backward_kind();
+            dominance_function->set_backward_reversed(reverses_back_dominance(kind));
+            feasibility_function->set_backward_kind(kind);
+        }
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         ConnectivityMatrix<ResourceCompositionType> connectivityMatrix_;

@@ -15,6 +15,16 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Resource;
 
+/// @brief What a cost function computes, as far as the bidirectional join needs to know.
+///
+/// The join adds a forward and a backward label's costs, which is right only for an additive cost:
+/// one that sums over arcs. The form lets setup check that without evaluating the function.
+enum class CostForm {
+    Unspecified,  ///< not declared: a bidirectional solve refuses a cost that reads this component
+    Zero,         ///< always zero, so additive
+    Value,        ///< the resource's value, additive only under an accumulation that is a sum
+};
+
 /// @brief Abstract base class defining the cost function for a resource type.
 ///
 /// A cost function maps a label's accumulated resource value to a scalar cost.
@@ -32,6 +42,14 @@ class CostFunction {
         /// @param resource The accumulated resource value of a label.
         /// @return The scalar cost for this resource.
         [[nodiscard]] virtual auto get_cost(const ResourceType& resource) const -> double = 0;
+
+        /// @brief What this function computes, for the bidirectional setup's cost check.
+        ///
+        /// Defaults to @c Unspecified, on which a bidirectional solve refuses a cost that reads
+        /// this component.
+        ///
+        /// @return The form declared by this cost function.
+        [[nodiscard]] virtual CostForm cost_form() const { return CostForm::Unspecified; }
 
         /// @brief Creates a polymorphic copy of this cost function.
         ///
@@ -82,6 +100,21 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto get_cost(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource) const
             -> double = 0;
+
+        /// @brief Whether this function's cost is additive: the cost of a path is the sum of
+        ///        the costs of its two halves, wherever it is split.
+        ///
+        /// The bidirectional join and its pruning add the two halves' costs, so a bidirectional
+        /// solve refuses a cost that is not additive. It is if every component this function
+        /// reads has an additive cost (@c Resource::is_cost_additive). Defaults to @c false, on
+        /// which a bidirectional solve refuses.
+        ///
+        /// @param resource Any node's resource, to read the components' declarations from.
+        /// @return @c true if the cost is additive.
+        [[nodiscard]] virtual auto is_additive(
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/) const -> bool {
+            return false;
+        }
 
         /// @brief Creates a polymorphic copy of this cost function.
         ///

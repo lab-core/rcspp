@@ -5,11 +5,14 @@
 
 #include <map>
 #include <memory>
+#include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -18,9 +21,12 @@ namespace rcspp {
 ///
 /// At each graph node the active window [min_, max_] is either the global default or the
 /// per-node override supplied at construction.  The resource is feasible when
-/// `min_ <= resource.value <= max_`.  A `can_be_merged` check determines whether a
-/// forward and backward label can be combined during bidirectional search, using either
-/// increasing or decreasing value order.
+/// `min_ <= resource.value <= max_`.
+///
+/// The bidirectional join test depends on the paired extension function's backward kind; see
+/// @ref join_rule. Under a threshold extension, build both functions from one
+/// @ref SharedNodeBounds (see @ref bounds), so the extension clamps backward labels to the same
+/// per-node maxima this function enforces forward.
 ///
 /// @tparam ResourceType The resource type whose value supports `geq()`, `leq()`, and
 ///         `get_value()`.
@@ -32,22 +38,6 @@ class MinMaxFeasibilityFunction
     : public Clonable<MinMaxFeasibilityFunction<ResourceType, ValueType>,
                       FeasibilityFunction<ResourceType>> {
     public:
-        /// @brief Constructs the function with a single global [min, max] window and a merge
-        ///        direction flag.
-        ///
-        /// No per-node overrides; every node uses the same bounds.
-        ///
-        /// @param min Global lower bound on the resource value.
-        /// @param max Global upper bound on the resource value.
-        /// @param merge_by_increasing_value If `true`, merging requires
-        ///        `resource.value <= back_resource.value`; if `false`, the opposite.
-        MinMaxFeasibilityFunction(ValueType min, ValueType max, bool merge_by_increasing_value)
-            : default_min_(min),
-              default_max_(max),
-              min_(min),
-              max_(max),
-              merge_by_increasing_value_(merge_by_increasing_value) {}
-
         /// @brief Constructs the function with default global bounds and optional per-node
         ///        overrides.
         ///
@@ -60,15 +50,31 @@ class MinMaxFeasibilityFunction
         MinMaxFeasibilityFunction(
             ValueType default_min, ValueType default_max,
             std::map<size_t, std::pair<ValueType, ValueType>> min_max_by_node_id = {})
-            : min_max_by_node_id_(
-                  min_max_by_node_id.empty()
-                      ? nullptr
-                      : std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
-                            std::move(min_max_by_node_id))),
-              default_min_(default_min),
-              default_max_(default_max),
-              min_(default_min),
-              max_(default_max) {}
+            : MinMaxFeasibilityFunction(
+                  make_node_bounds(default_min, default_max, std::move(min_max_by_node_id))) {}
+
+        /// @brief Constructs the function on shared per-node `{min, max}` windows.
+        ///
+        /// Pass the same object to the paired extension function (e.g.
+        /// @c CapacityExtensionFunction), or read it back through @ref bounds.
+        ///
+        /// @param bounds The windows; must not be null.
+        /// @throws std::invalid_argument If @p bounds is null.
+        explicit MinMaxFeasibilityFunction(SharedNodeBounds<ValueType> bounds)
+            : bounds_(std::move(bounds)) {
+            if (bounds_ == nullptr) {
+                throw std::invalid_argument("MinMaxFeasibilityFunction: bounds must not be null");
+            }
+            min_ = bounds_->default_lower();
+            max_ = bounds_->default_upper();
+            cache_join_bounds();
+        }
+
+        /// @brief The per-node windows this function enforces, to share with the paired
+        ///        extension function.
+        ///
+        /// @return The shared windows.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return bounds_; }
 
         /// @brief Checks that the resource value lies within [min_, max_].
         ///
@@ -78,46 +84,89 @@ class MinMaxFeasibilityFunction
             return resource.geq(min_) && resource.leq(max_);
         }
 
-        /// @brief Checks whether a forward resource and a backward resource can be merged in
-        ///        bidirectional search.
+        /// @brief How the join tests this resource, which depends on the paired extension:
         ///
-        /// The direction of comparison (increasing vs. decreasing) is set at construction.
+        ///  - @c Threshold: the backward value is a ceiling, so @c ValueOrder
+        ///    (`forward <= ceiling`); @c Unspecified if any minimum is non-zero, since a floor is
+        ///    never checked on the backward side.
+        ///  - @c Accumulate: the backward value is the suffix's consumption, so @c Custom
+        ///    (`forward + backward <= capacity`, see @ref can_be_joined), but only for a uniform
+        ///    window with a zero minimum. Otherwise the sum cannot be exact, so @c Unspecified.
+        ///  - Otherwise (including unpaired): @c Unspecified, so bidirectional refuses.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if the two labels can be combined.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            if (merge_by_increasing_value_) {
-                return resource.get_value() <= back_resource.get_value();
+        /// @return The join rule implied by the paired extension function.
+        [[nodiscard]] JoinRule join_rule() const override {
+            switch (this->backward_kind_) {
+                case BackwardKind::Threshold:
+                    return has_floor_ ? JoinRule::Unspecified : JoinRule::ValueOrder;
+                case BackwardKind::Accumulate:
+                    return accumulate_join_is_exact_ ? JoinRule::Custom : JoinRule::Unspecified;
+                default:
+                    return JoinRule::Unspecified;
             }
-            return resource.get_value() >= back_resource.get_value();
+        }
+
+        /// @brief The join test under an accumulation: the two halves' consumptions together must
+        ///        fit under the cap.
+        ///
+        /// Only declared for a uniform `[0, max]` window (see @ref join_rule), where the sum is the
+        /// joined path's largest value and the test is exact. Assumes a cumulative (never
+        /// decreasing, unclamped) extension. A bidirectional setup checks that the extension adds.
+        ///
+        /// @param resource      The forward label's resource at the join node.
+        /// @param back_resource The backward label's resource at the join node.
+        /// @return `true` if the two consumptions together fit under the cap.
+        [[nodiscard]] auto can_be_joined(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
+            if (this->backward_kind_ != BackwardKind::Accumulate) {
+                throw std::logic_error(
+                    "MinMaxFeasibilityFunction::can_be_joined is the accumulating form's body; a "
+                    "threshold pairing joins through JoinRule::ValueOrder and an unpaired "
+                    "function declares JoinRule::Unspecified");
+            }
+            return static_cast<ValueType>(resource.get_value() + back_resource.get_value()) <=
+                   bounds_->default_upper();
+        }
+
+        /// @brief The accumulating join test adds the two halves, which bounds the path's
+        ///        largest value only if the value never decreases.
+        ///
+        /// @return @c true under an accumulating extension.
+        [[nodiscard]] auto requires_nondecreasing() const -> bool override {
+            return this->backward_kind_ == BackwardKind::Accumulate;
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
-            min_max_by_node_id_;
-        ValueType default_min_{};
-        ValueType default_max_{};
-        ValueType min_;
-        ValueType max_;
+        SharedNodeBounds<ValueType> bounds_;
+        ValueType min_{};
+        ValueType max_{};
 
-        // true: merge by increasing value, false: decreasing value
-        // increasing value means that resource.get_value() <= back_resource.get_value()
-        bool merge_by_increasing_value_ = true;
+        /// @brief Whether the accumulating join test is exact: one window for every node, with a
+        ///        zero minimum.
+        bool accumulate_join_is_exact_ = true;
+
+        /// @brief Whether any minimum is non-zero. A backward label carries only an upper limit, so
+        ///        a threshold's join cannot check a minimum.
+        bool has_floor_ = false;
+
+        /// @brief Computes the two flags above, once, from the whole model: every node's resource
+        ///        must agree on the join rule.
+        void cache_join_bounds() {
+            has_floor_ = bounds_->default_lower() != ValueType{};
+            // A non-zero minimum rejects the empty suffix a backward label starts from, and a
+            // per-node window bounds what the path has consumed up to a node, which a backward
+            // label cannot know.
+            accumulate_join_is_exact_ = bounds_->is_uniform() && !has_floor_;
+            for (const auto& [node_id, window] : bounds_->by_node()) {
+                has_floor_ = has_floor_ || window.first != ValueType{};
+            }
+        }
 
         void preprocess(size_t node_id) override {
-            if (min_max_by_node_id_ == nullptr) {
+            if (bounds_->is_uniform()) {
                 return;
             }
-            auto it = min_max_by_node_id_->find(node_id);
-            if (it != min_max_by_node_id_->end()) {
-                min_ = it->second.first;
-                max_ = it->second.second;
-            } else {
-                min_ = default_min_;
-                max_ = default_max_;
-            }
+            std::tie(min_, max_) = bounds_->at(node_id);
         }
 };
 }  // namespace rcspp

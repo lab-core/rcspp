@@ -79,5 +79,14 @@ class Extender<ResourceTypeComposition<ResourceTypes...>>
                          Resource<ResourceType>* extended_resource) const {
             this->extension_function_->extend_back(resource, *this, extended_resource);
         }
+
+        /// @brief Sets the values a backward label starts with at the arc's destination.
+        ///
+        /// Delegates to the stored extension function.
+        ///
+        /// @param resource The backward label resource at the arc's destination.
+        void start_back(Resource<ResourceType>* resource) const {
+            this->extension_function_->start_back(*this, resource);
+        }
 };
 }  // namespace rcspp
