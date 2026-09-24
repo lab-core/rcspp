@@ -11,6 +11,8 @@ class Algorithm(Enum):
     Pulling: Algorithm
     Greedy: Algorithm
     Tabu: Algorithm
+    AStar: Algorithm
+    Bidirectional: Algorithm
 
 class AlgorithmStatus(Enum):
     Complete: AlgorithmStatus
@@ -55,6 +57,10 @@ class SolveResult:
     solutions: list[Solution]
     status: AlgorithmStatus
     @property
+    def bounded_by_half_way(self) -> bool: ...
+    @property
+    def number_of_joined_paths(self) -> int: ...
+    @property
     def memory_pressure_triggered(self) -> bool: ...
     def __init__(self) -> None: ...
     def status_string(self) -> str: ...
@@ -85,6 +91,8 @@ class AlgorithmParams:
     memory_check_interval: int
     memory_pressure_fraction: float
     memory_pressure_max_labels_per_node: int
+    critical_resource_index: int
+    half_way_point: float
     def __init__(self) -> None: ...
     def check(self) -> None: ...
     def could_be_non_optimal(self) -> bool: ...
