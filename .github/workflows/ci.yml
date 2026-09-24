@@ -3,8 +3,8 @@ name: Coverage Gate
 on:
   push:
     branches: [main]
+  # Every base branch, so a PR stacked on another feature branch is tested too.
   pull_request:
-    branches: [main]
   workflow_dispatch:
   workflow_call:  # allows ci-full.yml to call this as a reusable sub-workflow
 
