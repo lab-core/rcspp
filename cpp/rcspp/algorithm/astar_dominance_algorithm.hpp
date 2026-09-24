@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <queue>
 #include <utility>
@@ -215,7 +216,8 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// excess in @ref unprocessed_truncated_labels_ for the next phase.
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
-            this->effective_max_labels_per_node_ = limit;
+            this->effective_max_labels_per_node_ =
+                std::min(this->effective_max_labels_per_node_, limit);
 
             if (this->memory_pressure_triggered_) {
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
