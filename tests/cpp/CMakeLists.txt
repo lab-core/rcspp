@@ -29,6 +29,15 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 if(MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
 endif()
+# MinGW writes COFF objects, whose limits the larger test TUs exceed. -mbig-obj (MinGW's /bigobj)
+# lifts the section count, but every out-of-line template instantiation still adds a long-named
+# section (.text$<mangled>, and .debug_frame$<mangled> with debug info) to a string table that
+# cannot pass 10 MB. Unoptimised, nothing is inlined and several TUs overflow it; so on MinGW the
+# tests build with -O1 and without debug info, whatever the build type. NDEBUG is not touched, so a
+# Debug build still runs every assert.
+if(MINGW)
+  target_compile_options(${PROJECT_NAME} PRIVATE -Wa,-mbig-obj -O1 -g0)
+endif()
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
     ${CMAKE_SOURCE_DIR}/examples/cpp  # for "vrp/..." headers used by vrp_subproblem test
