@@ -111,4 +111,5 @@ class TimeWindowFeasibilityFunction
             std::tie(min_time_window_, max_time_window_) = windows_->at(node_id);
         }
 };
+
 }  // namespace rcspp

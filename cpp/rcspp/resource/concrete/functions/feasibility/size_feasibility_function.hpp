@@ -159,4 +159,5 @@ class SizeFeasibilityFunction
             }
         }
 };
+
 }  // namespace rcspp
