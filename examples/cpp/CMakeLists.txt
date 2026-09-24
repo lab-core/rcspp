@@ -36,3 +36,9 @@ add_vrp_example(rcspp-vrp-benchmark benchmark_main.cpp)
 
 # Large benchmark (C2/R2/RC2 + Gehring & Homberger)
 add_vrp_example(rcspp-vrp-benchmark-large benchmark_large_main.cpp)
+
+# ng-path vs. no ng over a whole column generation. Requires kRouteRelaxation = NgPath in
+# vrp/vrp.hpp (it static_asserts otherwise), so it is excluded from the default build:
+#   cmake --build <build-dir> --target rcspp-ng-cg-comparison
+add_vrp_example(rcspp-ng-cg-comparison ng_cg_comparison_main.cpp)
+set_target_properties(rcspp-ng-cg-comparison PROPERTIES EXCLUDE_FROM_ALL TRUE)
