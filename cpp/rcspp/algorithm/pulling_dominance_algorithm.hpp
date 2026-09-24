@@ -159,9 +159,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             const auto& current_node =
                 this->graph_->get_sorted_nodes().at(this->current_unprocessed_node_pos_);
             for (auto arc_ptr : this->graph_->get_in_arcs(current_node)) {
-                // A path never continues past a sink, so a label at one is finished and is never
-                // pulled onward. The other dominance algorithms stop at the sink in their main
-                // loop; pulling extends from the far end of the arc, so the rule has to live here.
+                // A path never continues past a sink, so labels there are never pulled onward.
                 if (arc_ptr->origin->sink) {
                     continue;
                 }

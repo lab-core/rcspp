@@ -520,13 +520,30 @@ class Algorithm {
                 return;
             }
 
-            auto path_arc_ids = this->get_path_arc_ids(end_label);
+            extract_solution(end_label.get_cost(),
+                             this->get_path_arc_ids(end_label),
+                             end_label.get_end_node()->id);
+        }
+
+        /// @brief Build and record a Solution from an explicit path.
+        ///
+        /// Used when no single label holds the path (e.g. joined pairs). Paths costing at least
+        /// `cost_upper_bound_` are dropped here, for every caller.
+        ///
+        /// @param cost         Total cost of the path.
+        /// @param path_arc_ids Arc ids of the path, in traversal order.
+        /// @param end_node_id  Id of the node the path ends at.
+        virtual void extract_solution(double cost, std::vector<size_t> path_arc_ids,
+                                      size_t end_node_id) {
+            if (cost >= cost_upper_bound_) {
+                return;
+            }
             if (path_arc_ids.empty()) {
                 return;
             }
 
             // Its hash reads the arc ids only, so a duplicate is caught before the column is built.
-            auto sol = Solution(end_label.get_cost(), {}, std::move(path_arc_ids));
+            auto sol = Solution(cost, {}, std::move(path_arc_ids));
             if (solutions_.contains(sol)) {
                 return;
             }
@@ -544,7 +561,7 @@ class Algorithm {
                     row_map[row.index] += row.coefficient;
                 }
             }
-            path_node_ids.push_back(end_label.get_end_node()->id);
+            path_node_ids.push_back(end_node_id);
             column.rows.reserve(row_map.size());
             for (auto& [idx, coef] : row_map) {
                 column.rows.push_back({idx, coef});
