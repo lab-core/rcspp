@@ -99,6 +99,12 @@ void init_graph(py::module_& m) {
         .def(py::init<>())
         .def_readwrite("solutions", &SolveResult::solutions)
         .def_readwrite("status", &SolveResult::status)
+        .def_readonly("memory_pressure_triggered",
+                      &SolveResult::memory_pressure_triggered,
+                      "Whether memory pressure dropped labels during this solve. If so, the result "
+                      "may not be optimal, even when status is 'complete': 'complete' then means "
+                      "only that the labels that were kept were all processed. Reported by every "
+                      "algorithm.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
