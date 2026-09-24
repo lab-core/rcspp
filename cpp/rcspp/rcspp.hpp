@@ -99,6 +99,7 @@
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/functions/feasibility/merge_form.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
+#include "rcspp/resource/presets.hpp"
 #include "rcspp/resource/resource_graph.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 #include "rcspp/utils/logger.hpp"
