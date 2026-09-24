@@ -97,6 +97,10 @@ class ExtensionFunction {
         /// @p extender_value is the arc's consumption, the same as going forward. Where the label
         /// starts, at the sink, is @c start_back's.
         ///
+        /// A @c Threshold must accept any value of its type: a bidirectional setup reads its clamps
+        /// by extending values beyond every bound (the infinities, or an integral type's extremes),
+        /// forward and backward, and checks them against the feasibility function.
+        ///
         /// @param resource        The current accumulated resource value.
         /// @param extender_value  The arc's contribution to the resource.
         /// @param extended_resource Pointer to the result; must not be null.
