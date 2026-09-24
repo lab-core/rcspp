@@ -26,6 +26,7 @@ _ALGORITHM_MAP = {
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
     "tabu": lambda: _ext.graph.Algorithm.Tabu,
     "astar": lambda: _ext.graph.Algorithm.AStar,
+    "bidirectional": lambda: _ext.graph.Algorithm.Bidirectional,
 }
 
 # Kept for backward compatibility
@@ -545,8 +546,17 @@ class ResourceGraph:
         Args:
             algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
                 ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.AStar``,
-                or the equivalent strings ``'simple'``, ``'pushing'``, ``'pulling'``,
-                ``'greedy'``, ``'astar'``.
+                ``Algorithm.Bidirectional``, or the equivalent strings
+                ``'simple'``, ``'pushing'``, ``'pulling'``, ``'greedy'``,
+                ``'astar'``, ``'bidirectional'``.
+
+                ``'bidirectional'`` searches forward from the sources and
+                backward from the sinks and joins the halves in the middle. It
+                needs ``params.critical_resource_index`` and
+                ``params.half_way_point`` set, and every resource in the model
+                must declare its backward semantics or the solve raises before
+                the first label -- see :doc:`the algorithms guide
+                </advanced/algorithms>`.
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.
