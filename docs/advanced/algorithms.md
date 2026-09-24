@@ -434,14 +434,22 @@ result = rg.solve(algorithm="greedy", params=params)
 
 A labelling search runs **forward** by default: from the sources, along each node's out-arcs, until
 its labels reach a sink. It can also run **backward**, from the sinks along in-arcs until its labels
-reach a source, or **bidirectionally**, a forward and a backward half joined where they meet. In
-C++, the direction is a parameter, `AlgorithmBaseParams::direction`:
+reach a source, or **bidirectionally**, a forward and a backward half joined where they meet. The
+direction is an argument of `solve` in Python, and a parameter, `AlgorithmBaseParams::direction`,
+in C++:
+
+```python
+result = rg.solve(algorithm="simple", direction="backward")  # "forward" (default), "bidirectional"
+```
 
 ```cpp
 rcspp::AlgorithmBaseParams params;
 params.direction = rcspp::SearchDirection::Backward;
 const rcspp::SolveResult result = graph.solve<rcspp::SimpleDominanceAlgorithm>(params);
 ```
+
+`algorithm="bidirectional"` is `simple` with `direction="bidirectional"`, and refuses any other
+direction.
 
 A backward or bidirectional search returns the same kind of paths as a forward one, in forward
 order: each starts at a source and ends at a sink. A bidirectional search also reads
@@ -454,7 +462,8 @@ runs it is internal.
 | `Pushing`, `Pulling`, `AStar` | ✓ | — | — |
 | `Greedy`, `Tabu`, `Diversification` | ✓ | — | — |
 
-An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
+An algorithm asked for a direction it does not support throws `std::invalid_argument` (a
+`ValueError` in Python): when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
 (`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels
 in a `LabelList` that compares them backward; `LabelBuckets` has no backward form, so a backward
@@ -482,7 +491,8 @@ none, while reporting `complete`. The model checks find that before any label ex
 | `JoinCheck` | bidirectional searches | every component declares how two halves join, and the halves the join adds are sums |
 
 `ResourceGraph::check_model(direction)` runs the checks a search in that direction needs, without
-solving, and returns one line per problem (an empty `problems` list means the model is ready):
+solving, and returns one line per problem (an empty `problems` list means the model is ready); in
+Python, `rg.check_model("backward")` returns the list, for `"bidirectional"` by default:
 
 ```cpp
 const rcspp::ModelReport report = graph.check_model(rcspp::SearchDirection::Bidirectional);

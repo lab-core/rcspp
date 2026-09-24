@@ -1,7 +1,8 @@
 # Changelog
 
 Notable changes to rcspp. There has been no release yet, so everything below is **Unreleased**.
-Each entry says what an existing model or caller sees differently.
+Each entry says what an existing model or caller sees differently; new features are summarised,
+with a pointer to where they are documented.
 
 ## Unreleased
 
@@ -23,27 +24,76 @@ Each entry says what an existing model or caller sees differently.
   `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
   `auto`, or build the algorithm directly. With constructor arguments beyond the params,
   `create_algorithm` still returns the type it names.
-- **`preprocess` only says whether a solve may reduce the graph.** A backward search runs the
-  model checks its direction needs before any preprocessing, whatever `preprocess` says, and also
-  when `Algorithm::solve` is called directly; a model that fails them is refused with
-  `ModelRefused`. Forward solves are unchanged: they need no check.
+- **`preprocess` only says whether a solve may reduce the graph.** A backward or bidirectional
+  search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
+  says, and also when `Algorithm::solve` is called directly; a model that fails them is refused
+  with `ModelRefused`. Forward solves are unchanged: they need no check.
+- **`MinMaxFeasibilityFunction(min, max, merge_by_increasing_value)` is removed.** The flag only
+  chose the direction of `can_be_merged`, which no algorithm called before this release; the join
+  test now follows the extension the function is paired with. Drop the third argument:
+  `MinMaxFeasibilityFunction(min, max)`.
+- **`can_be_merged` is now `can_be_joined`**, on feasibility functions, resources and
+  compositions, to match the join it serves. An override of your own must be renamed; it is only
+  called when the function's `join_rule()` is `JoinRule::Custom`. `TrivialFeasibilityFunction`
+  and `TimeWindowFeasibilityFunction` no longer override it: their rules, `AlwaysTrue` and
+  `ValueOrder`, decide without it.
+- **`TimeWindowExtensionFunction::extend_back` returns a deadline.** It computes
+  `min(latest[origin], deadline - arc_time)`, the latest time a label can leave the arc's origin
+  and still meet the deadline it carries. Before, it added the travel time. No algorithm called
+  it before this release.
 
 ### Added
 
-- **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
-  default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
-  `SimpleDominanceAlgorithm` searches backward, from the sinks, and returns complete paths in
-  forward order; `create_algorithm` and `solve` build the class that does it. The other
-  algorithms search forward only (`Algorithm::supported_directions()`), and throw
-  `std::invalid_argument` when created or solved with another direction; so does a backward
-  search with `LabelBuckets`, which has no backward form. `SimpleDominanceAlgorithm` also searches
-  bidirectionally (`Bidirectional`); in C++ the clock's type is the last template parameter of
-  `solve` and `create_algorithm`, after the cost's, and defaults to it.
-
+- **A search direction**: `AlgorithmBaseParams::direction` in C++ (`SearchDirection::Forward` by
+  default, `Backward`, `Bidirectional`), and `solve(direction="forward" | "backward" |
+  "bidirectional")` in Python. `simple` searches in all three; the other algorithms search forward
+  only, and refuse another direction (`std::invalid_argument` in C++, `ValueError` in Python), as
+  does a backward search with `LabelBuckets`. A backward search returns complete paths in forward
+  order. See "Search directions" in `docs/advanced/algorithms.md`.
+- **Bidirectional labelling**: `algorithm="bidirectional"` in Python, the same as `simple` with
+  `direction="bidirectional"`; in C++, `SimpleDominanceAlgorithm` with
+  `direction = SearchDirection::Bidirectional`, the clock's type being the last template parameter
+  of `solve` and `create_algorithm`, after the cost's, and defaulting to it. Give it a
+  `critical_resource_index` and a `half_way_point`: with the default `half_way_point = 0` the
+  half-way bound is off, and the solve does more work than a forward one and logs a warning saying
+  so. A bidirectional search runs one phase. See "`Bidirectional`" in
+  `docs/advanced/algorithms.md`.
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
-  `BackwardExtensionCheck` and `JoinCheck`, and `ResourceGraph::check_model(direction)`, which
-  runs the checks a search in that direction needs without solving and returns every problem
-  found. `Preprocessor` is now the Reduce kind of `PreSolveStage`; a check is the Check kind.
+  `BackwardExtensionCheck` and `JoinCheck`. A backward or bidirectional solve runs the checks its
+  direction needs on the whole model, removed arcs included, before any preprocessing and before
+  the first label, and refuses a model that fails them with `ModelRefused` (a
+  `std::runtime_error`; `RuntimeError` in Python) listing every problem.
+  `ResourceGraph::check_model(direction)` in C++, and `check_model(direction="bidirectional")` in
+  Python, run them without solving and return the problems. `Preprocessor` is now the Reduce kind
+  of `PreSolveStage`; a check is the Check kind. See "Model checks" in
+  `docs/advanced/algorithms.md`.
+- **`CapacityExtensionFunction`** (C++ and Python, signed types only): additive forward and a
+  threshold backward, which is what a bounded accumulation such as a capacity needs in a backward
+  or bidirectional solve. It takes its capacity, `CapacityExtensionFunction(capacity)`, or in C++
+  the per-node caps as a `NodeBounds` shared with its feasibility function.
+- **`NodeBounds`** (C++, `rcspp/resource/functions/node_bounds.hpp`): per-node `[lower, upper]`
+  bounds that a threshold extension and its feasibility function share, so the two cannot disagree.
+  Build one with `make_node_bounds`. `MinMaxFeasibilityFunction`, `TimeWindowFeasibilityFunction`
+  and `TimeWindowExtensionFunction` gain a constructor that takes one and a `bounds()` accessor;
+  their other constructors are unchanged. The model checks refuse a threshold extension whose
+  backward clamp at a node, or whose backward start at a sink, is not the largest value the
+  feasibility function admits there, or that does not clamp or start at all. The clamps are
+  observed, not declared: the checks run the extension on values beyond every bound, so a
+  threshold extension of your own is checked however it is written, and must accept any value of
+  its type. A feasibility function's floor is checked the same way, by asking its backward test.
+- **Backward-semantics declarations** for custom functions, each with a default that keeps existing
+  code compiling: `ExtensionFunction::backward_kind()` and `start_back()`; on `FeasibilityFunction`
+  `join_rule()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition
+  `DominanceFunction` gains a `check_back_dominance()` whose default refuses, and a composition
+  `CostFunction` an `is_additive()` whose default refuses: a backward label's cost is its
+  suffix's, and the join adds the two halves' costs, so a cost that reads a threshold's value is
+  refused. An accumulation whose halves the join adds, through its cost or its join test, must be
+  a sum, which the checks verify by running the extension. The model checks refuse a model whose
+  declarations are missing or incoherent, naming the component; a bidirectional search is also
+  refused constraints a backward label cannot check exactly, such as per-node caps on
+  `SizeFeasibilityFunction`. See "Model checks" in `docs/advanced/algorithms.md`.
+- **`SolveResult` diagnostics of a bidirectional solve** (C++ and Python): `bounded_by_half_way`,
+  `half_way_off_reason` and `number_of_joined_paths`.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.
@@ -52,9 +102,12 @@ Each entry says what an existing model or caller sees differently.
 
 ### Fixed
 
-- `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
-  Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
-  the caller's graph, so a fallback solve priced on a smaller graph.
 - Memory pressure no longer loosens a per-node label quota the caller set tighter than
   `memory_pressure_max_labels_per_node`, in any labelling algorithm. It used to replace the quota
   outright, so under pressure a quota of 5 became 200.
+- `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
+  Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
+  the caller's graph, so a fallback solve priced on a smaller graph.
+- The Python bindings hold the GIL while they release the array `_add_rows_bulk` returns.
+- The Windows wheel build no longer pins the "Visual Studio 17 2022" generator, which the current
+  GitHub runner image does not have.

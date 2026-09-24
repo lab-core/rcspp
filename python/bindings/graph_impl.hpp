@@ -97,13 +97,20 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
+// Append new values at the end: the integer values are exposed to Python.
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, Bidirectional };
 
+// The direction comes with the params: an algorithm that does not support it throws
+// std::invalid_argument, which Python sees as ValueError. A bidirectional search relaxes its
+// completion bounds on the cost slot, as A* does.
 template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
         static constexpr SolverAlgorithm value = E;
         template <typename RG, typename CostRC, typename LC>
         static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            if (p.direction == SearchDirection::Bidirectional) {
+                p.heuristic_cost_index = ci;
+            }
             return rg.template solve<Algo, CostRC, LC>(ub, std::move(p), pre, ci);
         }
 };
@@ -123,12 +130,31 @@ struct AStarAlgoEntry {
         }
 };
 
+// Dispatch entry for `algorithm="bidirectional"`: the simple search with direction Bidirectional,
+// the clock's type being the cost's, and the cost index injected as `heuristic_cost_index` (as
+// AStarAlgoEntry does). `critical_resource_index` comes from params untouched. A clock whose type
+// differs from the cost's needs the C++ API.
+template <SolverAlgorithm E>
+struct BidirectionalAlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC, typename LC>
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            p.direction = SearchDirection::Bidirectional;
+            p.heuristic_cost_index = ci;
+            return rg.template solve<SimpleDominanceAlgorithm, CostRC, LC, CostRC>(ub,
+                                                                                   std::move(p),
+                                                                                   pre,
+                                                                                   ci);
+        }
+};
+
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AStarAlgoEntry<SolverAlgorithm::AStar>>;
+                                  AStarAlgoEntry<SolverAlgorithm::AStar>,
+                                  BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
@@ -464,6 +490,14 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             py::arg("params") = PyAlgorithmParams{},
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
+        .def(
+            "check_model",
+            [](const RG& rg, SearchDirection direction) {
+                return rg.check_model(direction).problems;
+            },
+            py::arg("direction") = SearchDirection::Bidirectional,
+            "The problems the model checks a search in `direction` needs find, one per line, "
+            "without solving; empty when the model is ready for that search.")
         .def("preprocess_feasibility", &RG::process_feasibility)
         .def("is_connected",
              &RG::is_connected,
