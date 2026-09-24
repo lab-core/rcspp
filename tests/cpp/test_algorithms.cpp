@@ -10,6 +10,8 @@
 #include "test_bidirectional_validation.hpp"
 #include "test_dive_algorithms.hpp"
 #include "test_dominance_algorithms.hpp"
+#include "test_equivalence.hpp"
+#include "test_join_optimality.hpp"
 #include "test_label_buckets.hpp"
 #include "test_label_join.hpp"
 #include "test_path_semantics.hpp"
