@@ -13,9 +13,9 @@ FetchContent_MakeAvailable(googletest)
 set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_CLANG_TIDY "")
 
 # Sources ---------------------------------------------------------------------
-file(GLOB_RECURSE TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_connectivity.cpp")
-file(GLOB_RECURSE LIB_SOURCES "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
 
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
 # The vrp_subproblem test reuses a few VRP data classes from the VRP example.
