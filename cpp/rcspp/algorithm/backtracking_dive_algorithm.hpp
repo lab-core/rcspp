@@ -109,10 +109,8 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
         /// and pushes the chosen list as a new depth in @c path_. Returns true
         /// iff a new depth was pushed.
         ///
-        /// A path starts at a source and ends at a sink, with neither strictly inside it -- the
-        /// rule every algorithm in the library applies (see
-        /// DominanceAlgorithm::extend_label). So a label at a sink is never extended,
-        /// and no extension lands on a source.
+        /// Sources and sinks are never inside a path: a label at a sink is not extended, and
+        /// no extension lands on a source.
         bool extend_label(Label<ResourceType>* label) {
             if (label->get_end_node()->sink) {
                 return false;

@@ -1,0 +1,96 @@
+// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+// All rights reserved.
+
+#pragma once
+
+#include <algorithm>
+#include <memory>
+#include <tuple>
+#include <vector>
+
+#include "rcspp/rcspp.hpp"
+
+namespace test_util {
+
+/// @brief One arc of an additive test instance.
+struct OracleArc {
+        size_t origin;
+        size_t destination;
+        double cost;
+        double load;
+};
+
+/// @brief A small instance description, from which the forward graph and its reversal are built.
+///        (An arc's consumption cannot be read back out of its `Extender`, so graphs are rebuilt.)
+struct AdditiveInstance {
+        size_t num_nodes = 0;
+        std::vector<size_t> sources;
+        std::vector<size_t> sinks;
+        std::vector<OracleArc> arcs;
+
+        /// @brief Upper bound on the accumulated load; <= 0 builds a cost-only model.
+        double capacity = 0.0;
+};
+
+/// @brief Builds a `ResourceGraph` for @p instance, optionally with every arc reversed.
+///
+/// Valid only for additive models: a reversed arc still applies the forward extension function.
+/// That keeps it independent of `BackwardDirection`, so it serves as an oracle.
+///
+/// Under an addition, MinMax seeds the load's backward labels at 0, so they accumulate load from
+/// the sink as forward ones do from the source.
+///
+/// @param instance The instance description.
+/// @param reversed When true, swap every arc's endpoints and exchange the source/sink flags.
+/// @return An owning pointer to the built graph.
+inline std::unique_ptr<rcspp::ResourceGraph<rcspp::RealResource>> build_additive_graph(
+    const AdditiveInstance& instance, bool reversed) {
+    using rcspp::RealResource;
+
+    auto graph = std::make_unique<rcspp::ResourceGraph<RealResource>>();
+
+    // Component 0: cost. Accumulate, unbounded.
+    graph->add_resource<RealResource>(
+        std::make_unique<rcspp::AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<rcspp::TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<rcspp::ValueCostFunction<RealResource>>(),
+        std::make_unique<rcspp::ValueDominanceFunction<RealResource>>());
+
+    const bool with_load = instance.capacity > 0.0;
+    if (with_load) {
+        // Component 1: load. Accumulate, bounded by [0, capacity].
+        graph->add_resource<RealResource>(
+            std::make_unique<rcspp::AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<rcspp::MinMaxFeasibilityFunction<RealResource>>(
+                0.0,
+                instance.capacity,
+                /*merge_by_increasing_value=*/false),
+            std::make_unique<rcspp::TrivialCostFunction<RealResource>>(),
+            std::make_unique<rcspp::ValueDominanceFunction<RealResource>>());
+    }
+
+    for (size_t node_id = 0; node_id < instance.num_nodes; ++node_id) {
+        const bool is_source =
+            std::ranges::find(instance.sources, node_id) != instance.sources.end();
+        const bool is_sink = std::ranges::find(instance.sinks, node_id) != instance.sinks.end();
+        // Reversing exchanges the source and sink roles.
+        graph->add_node(node_id, reversed ? is_sink : is_source, reversed ? is_source : is_sink);
+    }
+
+    for (const auto& arc : instance.arcs) {
+        const size_t origin = reversed ? arc.destination : arc.origin;
+        const size_t destination = reversed ? arc.origin : arc.destination;
+        if (with_load) {
+            graph->add_arc<RealResource, RealResource>({arc.cost, arc.load},
+                                                       origin,
+                                                       destination,
+                                                       arc.cost);
+        } else {
+            graph->add_arc<RealResource>(std::make_tuple(arc.cost), origin, destination, arc.cost);
+        }
+    }
+
+    return graph;
+}
+
+}  // namespace test_util
