@@ -342,3 +342,66 @@ TEST(DominanceAlgorithms, ExtendedLabelCountIsPerSolve) {
     EXPECT_GT(first, 0U);
     EXPECT_EQ(algorithm->get_number_of_extended_labels(), first);
 }
+
+// ============================================================================
+// A subclass override of update_non_dominated_labels runs
+// ============================================================================
+
+namespace dominance_override_test {
+
+/// @brief How many times a counting override ran.
+inline int calls = 0;
+
+/// @brief Counts the calls to the protected virtual on top of @p Base.
+template <template <typename, typename> class Base>
+struct Counting {
+        template <typename RT, typename LC>
+        class Algo : public Base<RT, LC> {
+            public:
+                using Base<RT, LC>::Base;
+
+            protected:
+                bool update_non_dominated_labels(const Label<RT>& label) override {
+                    ++calls;
+                    return Base<RT, LC>::update_non_dominated_labels(label);
+                }
+        };
+};
+
+/// @brief A three-arc line, so three labels are tested for dominance.
+inline std::unique_ptr<ResourceGraph<RealResource>> line() {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < 4; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == 3);
+    }
+    for (size_t node_id = 0; node_id < 3; ++node_id) {
+        graph->add_arc<RealResource>({1.0}, node_id, node_id + 1, 1.0);
+    }
+    return graph;
+}
+
+}  // namespace dominance_override_test
+
+/// @brief The protected virtual `update_non_dominated_labels(const Label&)` is still the hook a
+///        subclass overrides, for `Simple` and `Pushing`.
+///
+/// Extension had moved to the non-virtual template, so an override compiled but never ran.
+TEST(DominanceAlgorithms, ASubclassOverrideOfUpdateNonDominatedLabelsRuns) {
+    namespace dot = dominance_override_test;
+
+    dot::calls = 0;
+    auto simple =
+        dot::line()->solve<dot::Counting<SimpleDominanceAlgorithm>::Algo>(AlgorithmBaseParams{});
+    EXPECT_EQ(simple.solutions.size(), 1U);
+    EXPECT_EQ(dot::calls, 3) << "Simple";
+
+    dot::calls = 0;
+    auto pushing =
+        dot::line()->solve<dot::Counting<PushingDominanceAlgorithm>::Algo>(AlgorithmBaseParams{});
+    EXPECT_EQ(pushing.solutions.size(), 1U);
+    EXPECT_EQ(dot::calls, 3) << "Pushing";
+}
