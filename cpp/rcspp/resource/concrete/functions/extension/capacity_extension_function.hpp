@@ -36,6 +36,7 @@ namespace rcspp {
 /// @endcode
 ///
 /// or take them from the feasibility function, `CapacityExtensionFunction(feasibility.bounds())`.
+/// @c presets::add_capacity_resource does the first.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`

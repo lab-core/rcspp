@@ -29,7 +29,7 @@ namespace rcspp {
 /// `numeric_limits<ValueType>::max() / 2` to prevent overflow.
 ///
 /// Build it and the paired @c TimeWindowExtensionFunction from one @ref SharedNodeBounds (see
-/// @ref bounds).
+/// @ref bounds), as @c presets::add_window_resource does.
 ///
 /// @tparam ResourceType The resource type whose value supports `get_value()`, `leq()`,
 ///         and `geq()`.
