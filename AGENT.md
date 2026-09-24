@@ -123,7 +123,10 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
                   upper_bound=-1e-9,         # prune cost ≥ this
                   params=AlgorithmParams(),
                   preprocess=True,
-                  cost_index=0)
+                  cost_index=0,
+                  direction=None)            # or "forward", "backward",
+                                             # "bidirectional" (simple only)
+problems = rg.check_model("backward")        # the model checks, without solving
 ```
 
 ### SolveResult
@@ -408,6 +411,8 @@ Test files:
     A forward-only model may fail them: a forward search reads none of it.
 
 11. **The search direction is a parameter** — `params.direction` in C++.
+    `solve(direction=...)` in Python, which raises `ValueError` for a direction the algorithm
+    does not search.
     `SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward.
     `SearchDirection::Bidirectional` makes it search both ways.
     An algorithm asked for a direction it does not search throws `std::invalid_argument`, so
