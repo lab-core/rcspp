@@ -160,8 +160,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             const auto& current_node =
                 this->graph_->get_sorted_nodes().at(this->current_unprocessed_node_pos_);
             for (auto arc_ptr : this->graph_->get_in_arcs(current_node)) {
-                // A path never continues past a sink, so a label at one is never pulled onward:
-                // the graph refuses an arc that leaves a sink.
+                // A path never continues past a sink: the graph refuses an arc that leaves one.
                 assert(!arc_ptr->origin->sink && "an arc leaves a sink");
                 // pull all the unprocessed labels from the origin node
                 const auto& unprocessed_labels =
