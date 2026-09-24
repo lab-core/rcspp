@@ -331,6 +331,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             }
 
             std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
+            // Restores the removed arcs however the solve ends: a user function's exception must
+            // not delete arcs from the caller's graph. The graph then stays marked modified, so the
+            // next solve re-runs its checks.
+            struct RestoreRemovedArcs {
+                    std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
+                    ~RestoreRemovedArcs() {
+                        for (auto& preprocessor : *list) {
+                            preprocessor->restore();
+                        }
+                    }
+            } restore_removed_arcs{&preprocessors};
             if (preprocess) {
                 // if graph has been modified, try to remove some arcs based on feasibility
                 // initialize or update connectivity matrix
@@ -401,6 +412,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 for (auto& preprocessor : preprocessors) {
                     preprocessor->restore();
                 }
+                preprocessors.clear();
                 this->track_modifications();  // mark as unmodified after restoring arcs
             }
 

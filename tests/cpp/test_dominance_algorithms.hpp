@@ -245,3 +245,100 @@ TEST(AStarDominanceAlgorithmTest, NoPathReturnsEmpty) {
     const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }
+
+// ============================================================================
+// Memory pressure and per-solve diagnostics
+// ============================================================================
+
+namespace memory_pressure_test {
+
+/// @brief Six hops of two parallel arcs, one cheap and heavy, one dear and light, so every node
+///        holds several non-dominated labels and a quota of 2 has something to refuse.
+inline std::unique_ptr<ResourceGraph<RealResource>> fan() {
+    constexpr size_t kHops = 6;
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 1000.0),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id <= kHops; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == kHops);
+    }
+    for (size_t node_id = 0; node_id < kHops; ++node_id) {
+        graph->add_arc<RealResource, RealResource>({1.0, 4.0}, node_id, node_id + 1, 1.0);
+        graph->add_arc<RealResource, RealResource>({3.0, 1.0}, node_id, node_id + 1, 3.0);
+    }
+    return graph;
+}
+
+/// @brief Makes @p params report memory pressure on every check without ever stopping the solve.
+inline void put_under_pressure(
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>* params) {
+    constexpr double kHugeLimitGiB = 1e9;
+    params->max_memory_gb = kHugeLimitGiB;
+    params->memory_pressure_fraction = 0.0;
+    params->memory_check_interval = 1;
+}
+
+/// @brief Labels extended under a per-node quota of 2, with or without memory pressure.
+template <template <typename, typename> class Algorithm>
+size_t extended_labels(bool pressure) {
+    auto graph = fan();
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.num_labels_to_extend_by_node = 2;
+    if (pressure) {
+        put_under_pressure(&params);
+        params.memory_pressure_max_labels_per_node = 200;
+    }
+    auto algorithm = graph->template create_algorithm<Algorithm>(params);
+    const auto result = graph->solve(algorithm.get());
+    EXPECT_EQ(result.memory_pressure_triggered, pressure);
+    return algorithm->get_number_of_extended_labels();
+}
+
+}  // namespace memory_pressure_test
+
+/// @brief Memory pressure lowers the per-node quota to its own limit, never raises it.
+///
+/// It used to assign the pressure limit (200 by default) unconditionally, so a caller's tighter
+/// quota was loosened exactly when memory ran short.
+TEST(MemoryPressure, NeverLoosensTheCallersQuota) {
+    namespace mp = memory_pressure_test;
+    EXPECT_EQ(mp::extended_labels<SimpleDominanceAlgorithm>(true),
+              mp::extended_labels<SimpleDominanceAlgorithm>(false))
+        << "Simple";
+    EXPECT_EQ(mp::extended_labels<PushingDominanceAlgorithm>(true),
+              mp::extended_labels<PushingDominanceAlgorithm>(false))
+        << "Pushing";
+}
+
+/// @brief A solve that memory pressure trimmed says so on its result, though its status can still
+///        read complete.
+TEST(MemoryPressure, IsReportedOnTheResult) {
+    namespace mp = memory_pressure_test;
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> pressed;
+    mp::put_under_pressure(&pressed);
+    pressed.memory_pressure_max_labels_per_node = 0;
+    EXPECT_TRUE(mp::fan()->solve<SimpleDominanceAlgorithm>(pressed).memory_pressure_triggered);
+    EXPECT_FALSE(mp::fan()
+                     ->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})
+                     .memory_pressure_triggered);
+}
+
+/// @brief The extended-label count describes the last solve, not every solve so far.
+TEST(DominanceAlgorithms, ExtendedLabelCountIsPerSolve) {
+    namespace mp = memory_pressure_test;
+    auto graph = mp::fan();
+    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{});
+    static_cast<void>(graph->solve(algorithm.get()));
+    const size_t first = algorithm->get_number_of_extended_labels();
+    static_cast<void>(graph->solve(algorithm.get()));
+    EXPECT_GT(first, 0U);
+    EXPECT_EQ(algorithm->get_number_of_extended_labels(), first);
+}
