@@ -30,7 +30,7 @@ namespace rcspp {
 ///
 /// The formulas come from `TranslationThresholdForm`; this class only supplies the per-node
 /// floor and ceiling. They must be the windows the paired feasibility function enforces: build
-/// both from one @ref SharedNodeBounds.
+/// both from one @ref SharedNodeBounds, as @c presets::add_window_resource does.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
