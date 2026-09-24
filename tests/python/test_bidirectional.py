@@ -282,8 +282,11 @@ def test_capacity_extension_function_takes_a_capacity():
 
 
 def test_a_capacity_that_differs_from_its_feasibility_function_is_refused():
-    """The capacity clamps backward labels to its own cap, so it must be the one the
-    feasibility function enforces forward; a bidirectional solve refuses the mismatch."""
+    """A capacity whose cap differs from its feasibility function's is refused.
+
+    The capacity clamps backward labels to its own cap, so it must be the one the
+    feasibility function enforces forward.
+    """
     rg = ResourceGraph()
     rg.add_real_resource(
         AdditionExtensionFunction(),
