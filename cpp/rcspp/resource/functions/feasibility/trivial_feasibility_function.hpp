@@ -32,4 +32,5 @@ class TrivialFeasibilityFunction
         /// @return @c JoinRule::AlwaysTrue.
         [[nodiscard]] JoinRule join_rule() const override { return JoinRule::AlwaysTrue; }
 };
+
 }  // namespace rcspp

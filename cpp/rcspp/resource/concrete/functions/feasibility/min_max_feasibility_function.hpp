@@ -169,4 +169,5 @@ class MinMaxFeasibilityFunction
             std::tie(min_, max_) = bounds_->at(node_id);
         }
 };
+
 }  // namespace rcspp

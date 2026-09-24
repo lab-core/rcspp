@@ -93,6 +93,7 @@
 #include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/dominance/trivial_dominance_function.hpp"
+#include "rcspp/resource/functions/extension/arc_endpoints_form.hpp"
 #include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/extension/threshold_form.hpp"
