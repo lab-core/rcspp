@@ -14,6 +14,7 @@
 #include "resource/test_back_start.hpp"
 #include "resource/test_backward_dominance.hpp"
 #include "resource/test_join_rules.hpp"
+#include "resource/test_node_bounds.hpp"
 #include "resource/test_threshold_form.hpp"
 #include "test_backward_api.hpp"
 #include "test_container_resources.hpp"

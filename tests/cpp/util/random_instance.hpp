@@ -273,7 +273,7 @@ inline GeneratedInstance build_instance(const InstanceConfig& config) {
     }
     if (config.with_capacity) {
         built.graph->add_resource<RealResource>(
-            std::make_unique<CapacityExtensionFunction<RealResource>>(),
+            std::make_unique<CapacityExtensionFunction<RealResource>>(draw.capacity),
             std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, draw.capacity),
             std::make_unique<TrivialCostFunction<RealResource>>(),
             std::make_unique<ValueDominanceFunction<RealResource>>());
@@ -415,7 +415,7 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
     }
     if (config.with_capacity) {
         built.graph->add_resource<RealResource>(
-            std::make_unique<CapacityExtensionFunction<RealResource>>(),
+            std::make_unique<CapacityExtensionFunction<RealResource>>(draw.capacity),
             std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, draw.capacity),
             std::make_unique<TrivialCostFunction<RealResource>>(),
             std::make_unique<ValueDominanceFunction<RealResource>>());

@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <functional>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -26,9 +25,10 @@ namespace rcspp {
 /// the per-node bounds (@c lower_bound_at, @c upper_bound_at). This class applies the bounds:
 /// forward values are raised to the lower bound (waiting); backward values are lowered to the upper
 /// bound, and become @c unmeetable below the lower one; a backward label starts at its sink's upper
-/// bound (@c start_back), the one bound no backward step applies. The upper bound is the paired
-/// feasibility function's where it states one (see @c adopt_ceilings), else @c upper_bound_at, so
-/// the two searches solve the same model.
+/// bound (@c start_back), the one bound no backward step applies. The bounds must be the paired
+/// feasibility function's, or the two searches solve different models (the concrete forms take a
+/// @c SharedNodeBounds for that); a bidirectional setup refuses a clamp or a start that is not the
+/// largest value the feasibility function admits there.
 ///
 /// The formulas must satisfy `extend(x, arc) <= b  <==>  x <= extend_back(b, arc)` wherever neither
 /// clamp binds. A bidirectional setup observes the clamps and the start by running the extension on
@@ -100,13 +100,6 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
             extended_resource->set_value(value);
         }
 
-        /// @brief Clamps backward to the paired feasibility function's upper bounds from now on.
-        ///
-        /// @param ceiling_at The feasibility function's upper bound at a node, if it has one.
-        void adopt_ceilings(typename Base::CeilingSource ceiling_at) override {
-            ceiling_at_ = std::move(ceiling_at);
-        }
-
         /// @brief Backward start: the destination's upper bound, which no backward step applies,
         ///        since none arrives at a sink. Without one, the type default.
         ///
@@ -145,7 +138,7 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
         /// @brief This node's upper bound: backward values are lowered to it, and a backward label
         ///        starting here starts at it.
         ///
-        /// Used only where the paired feasibility function states no bound of its own.
+        /// Must be the paired feasibility function's bound at the node.
         ///
         /// @param node_id Index of the node the extension arrives at.
         /// @return The bound to clamp down to, or @c nullopt.
@@ -163,21 +156,6 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
         std::optional<V> upper_;
         std::optional<V> back_lower_;
         std::optional<V> back_start_;
-        typename Base::CeilingSource ceiling_at_;
-
-        /// @brief The feasibility function's bound at a node, else this function's own
-        ///        (@c upper_bound_at): the backward clamp there, and the backward start at a sink.
-        ///
-        /// @param node_id Index of the node the backward extension arrives at.
-        /// @return The feasibility function's bound there, else this function's own.
-        [[nodiscard]] std::optional<V> backward_bound_at(size_t node_id) const {
-            if (ceiling_at_) {
-                if (auto ceiling = ceiling_at_(node_id)) {
-                    return static_cast<V>(ceiling->get_value());
-                }
-            }
-            return upper_bound_at(node_id);
-        }
 
         /// @brief Caches this arc's bounds: forward arrives at the destination, backward at the
         ///        origin, where its lower bound marks the deadlines no arrival can meet. A backward
@@ -187,9 +165,9 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
         /// @param destination_id Index of the arc's destination node.
         void preprocess(size_t origin_id, size_t destination_id) final {
             lower_ = lower_bound_at(destination_id);
-            upper_ = backward_bound_at(origin_id);
+            upper_ = upper_bound_at(origin_id);
             back_lower_ = lower_bound_at(origin_id);
-            back_start_ = backward_bound_at(destination_id);
+            back_start_ = upper_bound_at(destination_id);
         }
 };
 

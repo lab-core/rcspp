@@ -3,16 +3,16 @@
 
 #pragma once
 
-#include <limits>
-#include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/extension/threshold_form.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -24,9 +24,18 @@ namespace rcspp {
 /// starts at the sink's cap. So the join only compares `forward <= backward`, and a capacity can be
 /// the half-way clock, which an addition cannot.
 ///
-/// @note The per-node bounds here are a fallback. When paired through
-///       @c ResourceGraph::add_resource, the backward clamp reads caps from the feasibility
-///       function; this map is used only at nodes where that function states none.
+/// The per-node capacities must be the ones the paired feasibility function enforces forward, or
+/// the two searches solve different models (a bidirectional solve refuses the mismatch). Build
+/// both from one @ref SharedNodeBounds:
+///
+/// @code
+/// auto caps = make_node_bounds(0, capacity, per_node_caps);
+/// CapacityExtensionFunction<IntResource> extension(caps);
+/// MinMaxFeasibilityFunction<IntResource> feasibility(caps);
+/// @endcode
+///
+/// or take them from the feasibility function, `CapacityExtensionFunction(feasibility.bounds())`.
+/// @c presets::add_capacity_resource does the first.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
@@ -43,25 +52,38 @@ class CapacityExtensionFunction
                       "CapacityExtensionFunction requires a signed value type");
 
     public:
-        /// @brief A capacity with per-node caps (@p max_by_node_id) and a default.
+        /// @brief A capacity with the same cap at every node.
         ///
-        /// The paired feasibility function's caps take precedence where it states one.
+        /// @param capacity The upper bound at every node.
+        explicit CapacityExtensionFunction(ValueType capacity)
+            : CapacityExtensionFunction(make_node_bounds(ValueType{0}, capacity)) {}
+
+        /// @brief A capacity whose per-node caps are the upper ends of @p caps, shared with the
+        ///        paired feasibility function.
         ///
-        /// @param max_by_node_id Per-node upper bounds, used where the paired feasibility
-        ///                       function states none (see the class note). May be empty.
-        /// @param default_max    Bound used at nodes absent from the map. Defaults to half of the
-        ///                       value type's maximum so the forward addition cannot overflow.
-        explicit CapacityExtensionFunction(
-            std::map<size_t, ValueType> max_by_node_id = {},
-            ValueType default_max = std::numeric_limits<ValueType>::max() / 2)
-            : max_by_node_id_(max_by_node_id.empty()
-                                  ? nullptr
-                                  : std::make_shared<const std::map<size_t, ValueType>>(
-                                        std::move(max_by_node_id))),
-              default_max_(default_max) {}
+        /// The lower ends are not read: a capacity does not wait.
+        ///
+        /// @param caps The per-node bounds, shared with the paired feasibility function; must not
+        ///             be null.
+        /// @throws std::invalid_argument If @p caps is null.
+        explicit CapacityExtensionFunction(SharedNodeBounds<ValueType> caps)
+            : caps_(std::move(caps)) {
+            if (caps_ == nullptr) {
+                throw std::invalid_argument("CapacityExtensionFunction: caps must not be null");
+            }
+        }
+
+        /// @brief The shared bounds whose upper ends are the caps, to build the paired feasibility
+        ///        function from.
+        ///
+        /// @return The shared bounds.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return caps_; }
 
     protected:
         /// @brief None: a capacity does not wait.
+        ///
+        /// Not the bounds' lower end: a clamp at 0 would hide a negative load, which a
+        /// bidirectional solve must see to refuse.
         ///
         /// @param node_id Index of the node the forward extension arrives at (unused).
         /// @return @c std::nullopt.
@@ -69,21 +91,15 @@ class CapacityExtensionFunction
             return std::nullopt;
         }
 
-        /// @brief This node's own cap: backward labels are clamped to it, and start at it at a
-        ///        sink, where the paired feasibility function states none.
+        /// @brief This node's cap, where backward labels are clamped and, at a sink, start.
         ///
         /// @param node_id Index of the node the backward extension arrives at.
-        /// @return The node's upper bound, or @c default_max_ if it has none.
+        /// @return The upper end of the node's bounds.
         [[nodiscard]] std::optional<ValueType> upper_bound_at(size_t node_id) const final {
-            if (max_by_node_id_ == nullptr) {
-                return default_max_;
-            }
-            auto it = max_by_node_id_->find(node_id);
-            return it != max_by_node_id_->end() ? it->second : default_max_;
+            return caps_->upper(node_id);
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, ValueType>> max_by_node_id_;
-        ValueType default_max_;
+        SharedNodeBounds<ValueType> caps_;
 };
 }  // namespace rcspp

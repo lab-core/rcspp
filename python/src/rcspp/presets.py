@@ -96,7 +96,7 @@ def add_capacity_resource(
 ) -> None:
     """Register a bounded accumulation -- capacity, duration, any limit.
 
-    Expands to ``graph.add_<resource_type>_resource(CapacityExtensionFunction(None, capacity),
+    Expands to ``graph.add_<resource_type>_resource(CapacityExtensionFunction(capacity),
     MinMaxFeasibilityFunction(0, capacity), TrivialCostFunction(), ValueDominanceFunction())``.
 
     Uniform capacity only; per-node capacities need the C++
@@ -113,7 +113,7 @@ def add_capacity_resource(
     """
     add = getattr(graph, f"add_{resource_type}_resource")
     add(
-        CapacityExtensionFunction(None, capacity),
+        CapacityExtensionFunction(capacity),
         MinMaxFeasibilityFunction(0, capacity),
         TrivialCostFunction(),
         ValueDominanceFunction(),
