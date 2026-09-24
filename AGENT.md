@@ -57,7 +57,11 @@ All C++ symbols live in namespace `rcspp`.
 
 ### Resources
 
-Each resource slot is defined by four functions:
+Each resource slot is defined by four functions.  For the five common shapes
+(cost, window, budget, ng-path, elementary) use **`rcspp/resource/presets.hpp`** —
+one call per resource, constructing a quadruple that cannot disagree — and drop to
+the four-object form below for anything else.  From Python, `rcspp.presets` has the
+first three; the two container shapes are C++-only:
 
 | Function | Interface | Responsibility |
 |---|---|---|
@@ -85,18 +89,24 @@ at each node.
 from rcspp.graph    import ResourceGraph, AlgorithmParams, BucketAlgorithmParams
 from rcspp.resource import (
     AdditionExtensionFunction, SubtractExtensionFunction,
+    BudgetExtensionFunction,
     TimeWindowExtensionFunction, TimeWindowFeasibilityFunction,
     UnionExtensionFunction, IntersectionExtensionFunction,
-    NGPathExtensionFunction,
     TrivialFeasibilityFunction, MinMaxFeasibilityFunction,
-    SizeFeasibilityFunction, IntersectionFeasibilityFunction,
+    SizeFeasibilityFunction,
     TrivialCostFunction, ValueCostFunction,
-    TrivialDominanceFunction, ValueDominanceFunction,
+    ValueDominanceFunction,
     InclusionDominanceFunction, ContainDominanceFunction,
 )
+from rcspp import presets          # add_cost_resource, add_window_resource, add_budget_resource
 from rcspp.pricing_pool import PricingPool
 from rcspp._core.graph  import Solution, Column, Row, Algorithm, AlgorithmStatus
 ```
+
+**Not exposed to Python.** `NgPathExtensionFunction`, `IntersectionFeasibilityFunction` and
+`TrivialDominanceFunction` have no Python descriptors, so **an ng-path or elementary-path model
+cannot be built from Python at all** — those need the C++ API.  `rcspp.presets` mirrors
+`rcspp::presets` minus the two container presets, for the same reason.
 
 ### Build and solve
 
@@ -201,15 +211,22 @@ at the node where that resource crosses `H`. Three requirements:
   `AdditionExtensionFunction` + `MinMaxFeasibilityFunction(0, cap)` or as
   `BudgetExtensionFunction` (signed numerical types only) + the same feasibility
   function; either way its loads must be non-negative.
-- **Constraints a backward label cannot check are refused.**
-  `IntersectionFeasibilityFunction` with any non-empty set, `SizeFeasibilityFunction`
-  with a non-zero minimum, `ReachableFeasibilityFunction`, and a
-  `MinMaxFeasibilityFunction` floor (any non-zero minimum) under a threshold extension
-  ask what the path has done *so far*, which a backward label cannot answer, so they
-  raise at setup too. Solve those models with a forward algorithm.
-- **A per-node cap goes on the feasibility function.** A threshold extension clamps
-  its backward label to the feasibility function's bound at each node;
-  `BudgetExtensionFunction`'s own per-node map is only a fallback.
+- **A container that forbids anything must forbid each node at itself, and its memory
+  must come from a node-identity mirror.** `IntersectionFeasibilityFunction` asks what
+  the label has collected *so far*, which is a predicate on a prefix; only
+  `forbidden[v] = {v}` carried by `NgPathExtensionFunction` has a backward reading.
+  Anything else raises at setup and names the component — including the obvious
+  elementary-path spelling, a visited set built with `UnionExtensionFunction`. Use
+  `presets::add_ng_path_resource` or `presets::add_elementary_resource`. The other
+  prefix questions are refused outright: `IntersectionFeasibilityFunction` with
+  *required* values, `SizeFeasibilityFunction` with a non-zero minimum,
+  `ReachableFeasibilityFunction`, and a `MinMaxFeasibilityFunction` floor (any non-zero
+  minimum) under a threshold extension.
+
+Unlike the clock, the last two are refusals rather than slowdowns: a model that cannot
+express backward semantics cannot produce a correct answer at all. And a per-node cap goes on
+the feasibility function: a threshold extension clamps its backward label to that function's
+bound at each node, and `BudgetExtensionFunction`'s own per-node map is only a fallback.
 
 See `docs/advanced/algorithms.md` for the full description.
 
@@ -270,9 +287,20 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
 | `SubtractExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
-| `UnionExtensionFunction<T>` | Container | `∪=` |
-| `IntersectionExtensionFunction<T>` | Container | `∩=` |
-| `NGPathExtensionFunction<T>` | Set | add destination node |
+| `BudgetExtensionFunction<T>()` | Numerical | `+=`, as a *threshold* — the backward form of a capacity; the cap comes from the paired feasibility function |
+| `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
+| `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
+| `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
+| `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
+
+The last four are all containers, but they split into two **backward kinds**, and pairing the wrong
+one with a forbidden-set feasibility is refused at setup:
+
+- `NgPathExtensionFunction` reads node identities off the arc's *endpoints* and swaps them per
+  direction (`BackwardKind::EndpointMirror`), so the memory at a node excludes that node going both
+  ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
+- The other three accumulate the arc's *value*, which is the same object in both directions
+  (`BackwardKind::ArcValue`).  Right for genuine per-arc set data; wrong for node identities.
 
 ### Feasibility
 
@@ -282,7 +310,7 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `MinMaxFeasibilityFunction<T>(min, max)` | `min ≤ val ≤ max` |
 | `TimeWindowFeasibilityFunction<T>(tw)` | `val ≤ due[node]` |
 | `SizeFeasibilityFunction<T>(min, max)` | `min ≤ size ≤ max` |
-| `IntersectionFeasibilityFunction<T>` | `∩ ≠ ∅` |
+| `IntersectionFeasibilityFunction<T>(sets)` | forbidden (default): `∩ = ∅`; required: `∩ ≠ ∅` |
 
 ### Dominance
 

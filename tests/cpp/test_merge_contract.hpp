@@ -343,3 +343,78 @@ TEST(MergeContract, PerNodeSizeCapsAreRefused) {
     ASSERT_FALSE(bidirectional.solutions.empty());
     EXPECT_NEAR(bidirectional.solutions.front().cost, 4.0, 1e-9);
 }
+
+// ============================================================================
+// A node the ng neighbourhoods mention but nothing forbids may be revisited
+// ============================================================================
+
+namespace revisitable_ng_test {
+
+using Graph = ResourceGraph<RealResource, RealResource, SizeTBitsetResource>;
+
+/// @brief A charging station, node 2, that the neighbourhoods mention but only node 1 is forbidden.
+///
+/// The best route, 0 2 1 2 3 at -40, revisits node 2. Both halves of it remember node 2 wherever
+/// they meet.
+inline std::unique_ptr<Graph> build(double capacity) {
+    auto graph = std::make_unique<Graph>();
+    presets::add_cost_resource<RealResource>(*graph);
+    presets::add_budget_resource<RealResource>(*graph, capacity);
+    graph->add_resource<SizeTBitsetResource>(
+        std::make_unique<NgPathExtensionFunction<SizeTBitsetResource>>(
+            std::map<size_t, std::set<size_t>>{{1, {2}}, {2, {1, 2}}}),
+        std::make_unique<IntersectionFeasibilityFunction<SizeTBitsetResource>>(
+            std::map<size_t, std::set<size_t>>{{1, {1}}},
+            /*forbidden=*/true),
+        std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
+        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+    for (size_t node_id = 0; node_id < 4; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == 3);
+    }
+    const auto arc = [&](size_t origin, size_t destination, double cost) {
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>(
+            std::make_tuple(std::make_tuple(cost),
+                            std::make_tuple(1.0),
+                            std::make_tuple(std::set<size_t>{origin})),
+            origin,
+            destination,
+            cost);
+    };
+    arc(0, 2, -10.0);
+    arc(2, 1, -10.0);
+    arc(1, 2, -10.0);
+    arc(2, 3, -10.0);
+    arc(0, 3, 0.0);
+    return graph;
+}
+
+}  // namespace revisitable_ng_test
+
+/// @brief The join lets both halves remember a node that forbids nothing.
+///
+/// Plain disjointness refused the only join at H = 1.5 (memories {2} and {2} at node 1) and
+/// returned -20 via 0 3, status complete, where simple returns -40.
+TEST(MergeContract, ARevisitableNgNodeDoesNotBlockTheJoin) {
+    namespace rng = revisitable_ng_test;
+    for (const double capacity : {4.0, 10.0}) {
+        const auto forward =
+            rng::build(capacity)->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        ASSERT_FALSE(forward.solutions.empty());
+        ASSERT_DOUBLE_EQ(forward.solutions.front().cost, -40.0) << "capacity " << capacity;
+
+        for (const double half_way_point : {0.0, 1.5, 2.5}) {
+            auto graph = rng::build(capacity);
+            AlgorithmParams<
+                LabelList<ResourceTypeComposition<RealResource, RealResource, SizeTBitsetResource>>>
+                params;
+            params.critical_resource_index = 1;
+            params.half_way_point = half_way_point;
+            auto algorithm =
+                graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+            const auto result = graph->solve(algorithm.get());
+            ASSERT_FALSE(result.solutions.empty());
+            EXPECT_DOUBLE_EQ(result.solutions.front().cost, -40.0)
+                << "capacity " << capacity << ", H = " << half_way_point;
+        }
+    }
+}

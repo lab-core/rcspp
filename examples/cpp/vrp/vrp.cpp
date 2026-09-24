@@ -19,19 +19,19 @@
 
 constexpr double MICROSECONDS_PER_SECOND = 1e6;
 
-VRP::VRP(Instance instance)
+VRP::VRP(Instance instance, size_t ng_neighborhood_size)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(3)),
+      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(ng_neighborhood_size)),
       solution_output_(std::nullopt) {
     LOG_TRACE("VRP::VRP\n");
     construct_resource_graph(&graph_);
 }
 
-VRP::VRP(Instance instance, std::string duals_directory)
+VRP::VRP(Instance instance, std::string duals_directory, size_t ng_neighborhood_size)
     : instance_(std::move(instance)),
       time_window_by_customer_id_(initialize_time_windows()),
-      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(3)),
+      ng_neighborhood_customer_id_(initialize_ng_neighborhoods(ng_neighborhood_size)),
       solution_output_(SolutionOutput(duals_directory)) {
     LOG_TRACE("VRP::VRP\n");
     construct_resource_graph(&graph_);
@@ -391,46 +391,35 @@ void VRP::construct_resource_graph(RGraph* resource_graph,
                                    const std::map<size_t, double>* dual_by_id) {
     LOG_TRACE(__FUNCTION__, '\n');
 
+    // Presets build matching extension/feasibility/cost/dominance quadruples; use the
+    // four-object `add_resource` form for anything they do not cover.
+
     // Distance (cost)
-    resource_graph->add_resource<RealResource>(
-        std::make_unique<AdditionExtensionFunction<RealResource>>(),
-        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
+    presets::add_cost_resource<RealResource>(*resource_graph);
 
     // Time
     using TimeResource = RealResource;
-    resource_graph->add_resource<TimeResource>(
-        std::make_unique<TimeWindowExtensionFunction<TimeResource>>(time_window_by_customer_id_),
-        std::make_unique<TimeWindowFeasibilityFunction<TimeResource>>(time_window_by_customer_id_),
-        std::make_unique<ValueCostFunction<TimeResource>>(),
-        std::make_unique<ValueDominanceFunction<TimeResource>>());
+    presets::add_window_resource<TimeResource>(*resource_graph, time_window_by_customer_id_);
 
-    // Demand
+    // Demand, as a budget. An addition under the same cap solves too, but only a threshold such as
+    // a budget can be the half-way clock.
     using DemandResource = IntResource;
-    resource_graph->add_resource<DemandResource>(
-        std::make_unique<AdditionExtensionFunction<DemandResource>>(),
-        std::make_unique<MinMaxFeasibilityFunction<DemandResource>>(0, instance_.get_capacity()),
-        std::make_unique<ValueCostFunction<DemandResource>>(),
-        std::make_unique<ValueDominanceFunction<DemandResource>>());
+    presets::add_budget_resource<DemandResource>(*resource_graph, instance_.get_capacity());
 
-    // // Node
-    // using NodeResource = SizeTBitsetResource;
-    // resource_graph->add_resource<NodeResource>(
-    //     std::make_unique<UnionExtensionFunction<NodeResource>>(),
-    //     std::make_unique<IntersectFeasibilityFunction<NodeResource>>(node_set_by_node_id_),
-    //     std::make_unique<TrivialCostFunction<NodeResource>>(),
-    //     std::make_unique<InclusionDominanceFunction<NodeResource>>());
-
-    // // NG path
-    // using NgResource = SizeTBitsetResource;  // SizeTBitsetResource SizeTSetResource
-    // resource_graph->add_resource<NgResource>(
-    //     std::make_unique<NgPathExtensionFunction<NgResource,
-    //     size_t>>(ng_neighborhood_customer_id_),
-    //     std::make_unique<IntersectFeasibilityFunction<NgResource, std::set<size_t>>>(
-    //         node_set_by_node_id_),
-    //     std::make_unique<TrivialCostFunction<NgResource>>(),
-    //     std::make_unique<InclusionDominanceFunction<NgResource>>());
+    // Route memory, selected by `kRouteRelaxation`. Use these presets rather than a hand-built
+    // `UnionExtensionFunction` visited set, which a bidirectional solve refuses at setup.
+    using MemoryResource = SizeTBitsetResource;
+    if constexpr (kRouteRelaxation == RouteRelaxation::NgPath) {
+        presets::add_ng_path_resource<MemoryResource>(*resource_graph,
+                                                      ng_neighborhood_customer_id_);
+    } else if constexpr (kRouteRelaxation == RouteRelaxation::Elementary) {
+        std::vector<size_t> node_ids;
+        node_ids.reserve(node_set_by_node_id_.size());
+        for (const auto& [node_id, forbidden_here] : node_set_by_node_id_) {
+            node_ids.push_back(node_id);
+        }
+        presets::add_elementary_resource<MemoryResource>(*resource_graph, node_ids);
+    }
 
     add_all_nodes_to_graph(resource_graph);
 
@@ -511,11 +500,26 @@ void VRP::add_arc_to_graph(RGraph* resource_graph, size_t customer_orig_id, size
 
     auto demand = customer_dest.demand;
 
-    resource_graph->add_arc<RealResource, RealResource, IntResource>({reduced_cost, time, demand},
-                                                                     customer_orig_id,
-                                                                     customer_dest_id,
-                                                                     distance,
-                                                                     {Row(customer_orig_id, 1.0)});
+    // One value per registered resource. The route memory's value is empty: its extension
+    // derives the remembered node from the arc's endpoints.
+    if constexpr (kRouteRelaxation == RouteRelaxation::None) {
+        resource_graph->add_arc<RealResource, RealResource, IntResource>(
+            {reduced_cost, time, demand},
+            customer_orig_id,
+            customer_dest_id,
+            distance,
+            {Row(customer_orig_id, 1.0)});
+    } else {
+        resource_graph->add_arc<RealResource, RealResource, IntResource, SizeTBitsetResource>(
+            std::make_tuple(std::make_tuple(reduced_cost),
+                            std::make_tuple(time),
+                            std::make_tuple(demand),
+                            std::make_tuple(std::set<size_t>{})),
+            customer_orig_id,
+            customer_dest_id,
+            distance,
+            {Row(customer_orig_id, 1.0)});
+    }
 }
 
 double VRP::calculate_distance(const Customer& customer1, const Customer& customer2) {

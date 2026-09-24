@@ -20,6 +20,19 @@ using RGraph = ResourceGraph<RealResource, IntResource, SizeTSetResource, SizeTB
 using ResourceType =
     ResourceTypeComposition<RealResource, IntResource, SizeTSetResource, SizeTBitsetResource>;
 
+/// @brief Which route relaxation the pricing subproblem solves.
+enum class RouteRelaxation {
+    None,        ///< resource-feasible routes; cycles are allowed
+    NgPath,      ///< ng-route: no revisit within the node's ng-neighborhood
+    Elementary,  ///< no customer visited twice
+};
+
+/// @brief The relaxation this build prices over. Change it and rebuild.
+///
+/// Compile-time because a route memory adds a fourth resource to every label and arc.
+/// @c Elementary is very slow even on small instances; prefer @c NgPath.
+inline constexpr RouteRelaxation kRouteRelaxation = RouteRelaxation::None;
+
 /// @brief Result of a column-generation VRP::solve() run.
 struct CGSolveResult {
         /// @brief Per-algorithm timing in the same order as the algorithm parameters.
@@ -30,6 +43,8 @@ struct CGSolveResult {
         /// not run to completion (timeout / memory / phase / solution cap) — the bound is then
         /// valid but not proven optimal.
         bool proven_optimal = true;
+        /// @brief Column-generation iterations run before convergence.
+        int iterations = 0;
 };
 
 /// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
@@ -45,9 +60,15 @@ struct ExtraSolver {
 
 class VRP {
     public:
-        VRP(Instance instance);
+        /// @brief Builds the model.
+        ///
+        /// @param instance             The VRP instance.
+        /// @param ng_neighborhood_size Nearest customers in each node's ng-neighborhood under
+        ///                             `RouteRelaxation::NgPath`; 0 keeps the memory but makes
+        ///                             it inert. Ignored under `RouteRelaxation::None`.
+        explicit VRP(Instance instance, size_t ng_neighborhood_size = 8);
 
-        VRP(Instance instance, std::string duals_directory);
+        VRP(Instance instance, std::string duals_directory, size_t ng_neighborhood_size = 8);
 
         const std::vector<Path>& generate_initial_paths();
 
@@ -250,7 +271,7 @@ class VRP {
                 LOG_DEBUG(std::string(45, '*'), '\n');
             }
 
-            return CGSolveResult{timers, master_solution.cost, proven_optimal};
+            return CGSolveResult{timers, master_solution.cost, proven_optimal, nb_iter};
         }
 
         RGraph& get_graph() { return graph_; }

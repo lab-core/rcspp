@@ -68,54 +68,8 @@ inline void report_ratio(const Timed& forward, const Timed& bidirectional) {
               << std::endl;
 }
 
-/// @brief Synthetic duals for the instances that have no dual files.
-///
-/// A customer's dual is @p alpha times its round-trip distance from the depot, making distant
-/// customers attractive (zero duals would leave nothing to search). These are not real LP duals;
-/// they only give both algorithms the same realistic-shaped input.
-///
-/// @param instance The instance whose customers to price.
-/// @param alpha    Scales how attractive visiting a customer is; 1.0 makes a direct out-and-back
-///                 trip exactly break even.
-inline std::map<size_t, double> synthetic_duals(const Instance& instance, double alpha) {
-    const auto& depot = instance.get_depot_customer();
-    std::map<size_t, double> duals;
-    for (const auto& [customer_id, customer] : instance.get_customers_by_id()) {
-        if (customer_id == depot.id) {
-            duals[customer_id] = 0.0;
-            continue;
-        }
-        const double dx = customer.pos_x - depot.pos_x;
-        const double dy = customer.pos_y - depot.pos_y;
-        duals[customer_id] = alpha * 2.0 * std::sqrt((dx * dx) + (dy * dy));
-    }
-    return duals;
-}
-
-/// @brief Reads one Solomon instance by name.
-inline Instance load(const std::string& name) {
-    const std::string root_dir = file_parent_dir(__FILE__, 3);
-    InstanceReader reader(root_dir + "/instances/" + name + ".txt");
-    return reader.read();
-}
-
-/// @brief Params for a bidirectional run whose clock is the time slot.
-inline AlgorithmBaseParams bidirectional_params(double horizon, double timeout_s) {
-    AlgorithmBaseParams params;
-    params.critical_resource_index = 1;  // time
-    params.half_way_point = horizon / 2.0;
-    params.timeout_s = timeout_s;
-    params.max_memory_gb = kMemoryCapGiB;
-    return params;
-}
-
-/// @brief Params for a forward reference run.
-inline AlgorithmBaseParams forward_params(double timeout_s) {
-    AlgorithmBaseParams params;
-    params.timeout_s = timeout_s;
-    params.max_memory_gb = kMemoryCapGiB;
-    return params;
-}
+// `synthetic_duals`, `load`, `bidirectional_params` and `forward_params` live in
+// util/benchmark_constants.hpp, shared with the ng benchmark.
 
 }  // namespace bidirectional_benchmark
 
@@ -308,34 +262,8 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAt75Customers) {
     namespace bb = bidirectional_benchmark;
 
     constexpr double kBudget = 300.0;
-    // Cheapest-first, so a long tail does not delay the rest of the table.
-    const std::vector<std::string> names{
-        // R1 -- short horizon, narrow windows.
-        "R101_75",
-        "R102_75",
-        "R105_75",
-        "R103_75",
-        "R107_75",
-        // C1 -- clustered, long horizon, narrow windows.
-        "C101_75",
-        "C102_75",
-        "C105_75",
-        "C103_75",
-        // RC1 -- mixed geography, short horizon.
-        "RC101_75",
-        "RC103_75",
-        "RC105_75",
-        "RC102_75",
-        // C2 -- the longest horizons in the set.
-        "C201_75",
-        "C203_75",
-        "C205_75",
-        "C202_75",
-        // RC2.
-        "RC201_75",
-        // R2 -- long horizon, wide windows.
-        "R201_75",
-    };
+    // Shared with the ng benchmark so both run the same instances.
+    const std::vector<std::string>& names = bb::seventy_five_customer_instances();
 
     std::cout << "[ BENCHMARK ] Solomon families at 75 customers, synthetic duals (alpha = "
               << bb::kDualAlpha << "), " << kBudget << " s per solve" << std::endl;
