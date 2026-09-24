@@ -59,7 +59,7 @@ inline std::unique_ptr<Label<RealComposition>> make_real_label(size_t label_id, 
 
 /// @brief Builds a one-component composition label over a container resource.
 ///
-/// A set resource is a Mirror shape: the smaller remembered set wins in both directions.
+/// A set resource is a container shape: the smaller remembered set wins in both directions.
 inline std::unique_ptr<Label<SetComposition>> make_set_label(size_t label_id,
                                                              const std::set<int>& values) {
     SetResource<int> value;
@@ -165,7 +165,7 @@ TEST(DirectionalContainers, SameLabelsOppositeSurvivors) {
 }
 
 // ============================================================================
-// Accumulate and Mirror behave the same in both directions
+// Accumulate and the container kinds behave the same in both directions
 // ============================================================================
 
 /// @brief A backward LabelList over an Accumulate resource behaves like the forward one.
@@ -187,7 +187,7 @@ TEST(DirectionalContainers, BackwardMatchesForwardOnAccumulate) {
     EXPECT_FALSE(backward.is_dominated(*cheap));
 }
 
-/// @brief A backward LabelList over a Mirror resource behaves like the forward one.
+/// @brief A backward LabelList over a container resource behaves like the forward one.
 ///
 /// The library stores the visited set, not its complement, so the smaller set wins both ways.
 TEST(DirectionalContainers, BackwardMatchesForwardOnMirror) {

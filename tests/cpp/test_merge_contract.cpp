@@ -8,3 +8,5 @@
 #include "test_merge_contract.hpp"
 
 #include <gtest/gtest.h>
+
+#include "test_ng_forward.hpp"
