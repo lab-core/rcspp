@@ -96,7 +96,7 @@ def add_budget_resource(
 ) -> None:
     """Register a bounded accumulation -- capacity, duration, any budget.
 
-    Expands to ``graph.add_<resource_type>_resource(BudgetExtensionFunction(None, capacity),
+    Expands to ``graph.add_<resource_type>_resource(BudgetExtensionFunction(capacity),
     MinMaxFeasibilityFunction(0, capacity), TrivialCostFunction(), ValueDominanceFunction())``.
 
     Uniform capacity only; per-node budgets need the C++ ``rcspp::presets::add_budget_resource``.
@@ -112,7 +112,7 @@ def add_budget_resource(
     """
     add = getattr(graph, f"add_{resource_type}_resource")
     add(
-        BudgetExtensionFunction(None, capacity),
+        BudgetExtensionFunction(capacity),
         MinMaxFeasibilityFunction(0, capacity),
         TrivialCostFunction(),
         ValueDominanceFunction(),

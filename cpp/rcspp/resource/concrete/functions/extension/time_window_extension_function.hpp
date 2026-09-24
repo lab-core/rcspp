@@ -7,12 +7,14 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -27,7 +29,8 @@ namespace rcspp {
 ///   stores the latest permissible departure time (a deadline).
 ///
 /// The formulas come from `TranslationThresholdForm`; this class only supplies the per-node
-/// floor and ceiling.
+/// floor and ceiling. They must be the windows the paired feasibility function enforces: build
+/// both from one @ref SharedNodeBounds, as @c presets::add_window_resource does.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
@@ -51,10 +54,26 @@ class TimeWindowExtensionFunction
         explicit TimeWindowExtensionFunction(
             std::map<size_t, std::pair<ValueType, ValueType>> time_window_by_node_id,
             ValueType default_max_time_window = std::numeric_limits<ValueType>::max() / 2)
-            : time_window_by_node_id_(
-                  std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
-                      std::move(time_window_by_node_id))),
-              default_max_time_window_(default_max_time_window) {}
+            : TimeWindowExtensionFunction(make_node_bounds(ValueType{0}, default_max_time_window,
+                                                           std::move(time_window_by_node_id))) {}
+
+        /// @brief Constructs the function on shared per-node `{earliest, latest}` windows.
+        ///
+        /// @param windows The windows, shared with the paired feasibility function; must not be
+        ///                null.
+        /// @throws std::invalid_argument If @p windows is null.
+        explicit TimeWindowExtensionFunction(SharedNodeBounds<ValueType> windows)
+            : windows_(std::move(windows)) {
+            if (windows_ == nullptr) {
+                throw std::invalid_argument(
+                    "TimeWindowExtensionFunction: windows must not be null");
+            }
+        }
+
+        /// @brief The per-node windows this function waits for and clamps to.
+        ///
+        /// @return The shared windows.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return windows_; }
 
     protected:
         /// @brief The node's opening time, defaulting to zero.
@@ -64,9 +83,7 @@ class TimeWindowExtensionFunction
         /// @param node_id Index of the node the forward extension arrives at.
         /// @return The node's earliest service time, or zero if it has no window.
         [[nodiscard]] std::optional<ValueType> lower_bound_at(size_t node_id) const final {
-            auto it = time_window_by_node_id_->find(node_id);
-            return it != time_window_by_node_id_->end() ? it->second.first
-                                                        : default_min_time_window_;
+            return windows_->lower(node_id);
         }
 
         /// @brief The node's closing time, defaulting to the constructor's bound.
@@ -77,15 +94,10 @@ class TimeWindowExtensionFunction
         /// @param node_id Index of the node the backward extension arrives at.
         /// @return The node's latest service time, or the default bound if it has no window.
         [[nodiscard]] std::optional<ValueType> upper_bound_at(size_t node_id) const final {
-            auto it = time_window_by_node_id_->find(node_id);
-            return it != time_window_by_node_id_->end() ? it->second.second
-                                                        : default_max_time_window_;
+            return windows_->upper(node_id);
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
-            time_window_by_node_id_;
-        ValueType default_min_time_window_{0};
-        ValueType default_max_time_window_;
+        SharedNodeBounds<ValueType> windows_;
 };
 }  // namespace rcspp

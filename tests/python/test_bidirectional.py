@@ -243,8 +243,8 @@ def test_undeclared_resource_raises_at_setup():
         ValueDominanceFunction(),
     )
     rg.add_real_resource(
-        BudgetExtensionFunction(),
-        TimeWindowFeasibilityFunction({1: (0.5, 10.0)}),
+        BudgetExtensionFunction(10.0),
+        TimeWindowFeasibilityFunction({1: (0.5, 10.0)}, 10.0),
         TrivialCostFunction(),
         ValueDominanceFunction(),
     )
@@ -255,7 +255,7 @@ def test_undeclared_resource_raises_at_setup():
     # Forward-only is fine on exactly this model.
     assert len(rg.solve(algorithm="simple").solutions) > 0
 
-    with pytest.raises(RuntimeError, match="component 1"):
+    with pytest.raises(RuntimeError, match="component 1: its feasibility function rejects"):
         rg.solve(algorithm="bidirectional", params=_bidirectional_params(1.0))
 
 
@@ -269,14 +269,40 @@ def test_budget_extension_function_is_bound_for_signed_types_only():
     assert not hasattr(_resource, "BudgetExtensionFunction_uint")
 
     with pytest.raises(TypeError, match="uint"):
-        BudgetExtensionFunction().create("uint")
+        BudgetExtensionFunction(5).create("uint")
 
 
-def test_budget_extension_function_accepts_per_node_bounds_and_a_default():
-    """Bare, per-node, and per-node-with-default constructors all work."""
-    assert BudgetExtensionFunction().create("real") is not None
-    assert BudgetExtensionFunction({0: 5.0, 1: 3.0}).create("real") is not None
-    assert BudgetExtensionFunction({0: 5}, default_max=9).create("int") is not None
+def test_budget_extension_function_takes_a_capacity():
+    """The capacity is required, and is the same at every node."""
+    assert BudgetExtensionFunction(5.0).create("real") is not None
+    assert BudgetExtensionFunction(capacity=9).create("int") is not None
+    with pytest.raises(TypeError):
+        BudgetExtensionFunction()
+
+
+def test_a_budget_whose_capacity_differs_from_its_feasibility_function_is_refused():
+    """The budget clamps backward labels to its own capacity, so it must be the one the
+    feasibility function enforces forward; a bidirectional solve refuses the mismatch."""
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_real_resource(
+        BudgetExtensionFunction(4.0),
+        MinMaxFeasibilityFunction(0.0, 5.0),
+        TrivialCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc((1.0, 1.0), 0, 1, cost=1.0)
+
+    assert len(rg.solve(algorithm="simple").solutions) > 0
+    with pytest.raises(RuntimeError, match="clamped to 4.0+, but its feasibility function"):
+        rg.solve(algorithm="bidirectional", params=_bidirectional_params(1.0))
 
 
 def test_capacity_model_solves_with_a_budget_clock():
@@ -291,7 +317,7 @@ def test_capacity_model_solves_with_a_budget_clock():
         ValueDominanceFunction(),
     )
     rg.add_real_resource(
-        BudgetExtensionFunction(),
+        BudgetExtensionFunction(5.0),
         MinMaxFeasibilityFunction(0.0, 5.0),
         TrivialCostFunction(),
         ValueDominanceFunction(),

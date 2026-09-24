@@ -85,20 +85,14 @@ void init_resource(py::module_& m) {
 
     // -- Concrete functions for SIGNED numerical resources only ---------------
     // BudgetExtensionFunction subtracts when extending backwards, so it needs a signed type.
+    // Uniform capacity only: the Python MinMaxFeasibilityFunction has no per-node bounds either,
+    // and the two must agree.
 
     // clang-format off
-#define BIND_SIGNED_NUMERICAL_FUNCTIONS(name, scalar, RT)                                       \
-    py::class_<BudgetExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(           \
-        m, "BudgetExtensionFunction_" #name)                                                    \
-        .def(py::init([](const py::dict& d, scalar default_max) {                               \
-                 std::map<size_t, scalar> map;                                                  \
-                 for (const auto& [k, v] : d) {                                                 \
-                     map.emplace(k.cast<size_t>(), v.cast<scalar>());                           \
-                 }                                                                              \
-                 return BudgetExtensionFunction<RT>(std::move(map), default_max);               \
-             }),                                                                                \
-             py::arg("max_by_node") = py::dict(),                                               \
-             py::arg("default_max") = std::numeric_limits<scalar>::max() / 2);
+#define BIND_SIGNED_NUMERICAL_FUNCTIONS(name, scalar, RT)                                   \
+    py::class_<BudgetExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(       \
+        m, "BudgetExtensionFunction_" #name)                                                \
+        .def(py::init<scalar>(), py::arg("capacity"));
     // clang-format on
     RCSPP_SIGNED_NUMERICAL_RESOURCES(BIND_SIGNED_NUMERICAL_FUNCTIONS)
 #undef BIND_SIGNED_NUMERICAL_FUNCTIONS

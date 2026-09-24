@@ -4,7 +4,6 @@
 #pragma once
 
 #include <concepts>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -101,15 +100,6 @@ class ExtensionFunction {
             extend(resource, extender_value, extended_resource);
         }
 
-        /// @brief A node's upper bound as the paired feasibility function states it, if it does.
-        using CeilingSource = std::function<std::optional<ResourceType>(size_t node_id)>;
-
-        /// @brief Receives the paired feasibility function's upper bounds, for clamping backward
-        ///        extensions. Ignored by default; @c ThresholdForm uses it.
-        ///
-        /// @param ceiling_at The feasibility function's upper bound at a node, if it has one.
-        virtual void adopt_ceilings(CeilingSource /*ceiling_at*/) {}
-
         /// @brief The value a forward extension arriving at @p node_id is clamped up to, if any.
         ///
         /// Read at setup to check a @c Threshold extension against its feasibility function's
@@ -126,8 +116,8 @@ class ExtensionFunction {
         /// @brief The value a backward extension arriving at @p node_id is clamped down to, if
         ///        any.
         ///
-        /// Read at setup, to check it against that node's @c is_back_feasible. @c ThresholdForm
-        /// returns the feasibility function's ceiling there, else its own upper bound.
+        /// Read at setup, to check it against that node's feasibility function. @c ThresholdForm
+        /// returns its upper bound there. Must work for any node without preprocessing.
         ///
         /// @param node_id Index of the node.
         /// @return This node's backward ceiling, or @c std::nullopt for no clamp.

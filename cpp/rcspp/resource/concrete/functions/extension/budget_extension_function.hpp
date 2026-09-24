@@ -3,16 +3,16 @@
 
 #pragma once
 
-#include <limits>
-#include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -22,9 +22,18 @@ namespace rcspp {
 /// `b(u) = min(capacity_u, b(v) - q)`. The formulas come from `TranslationThresholdForm`; this
 /// class only supplies the bounds: a ceiling at every node and no floor.
 ///
-/// @note The per-node bounds here are a fallback. When paired through
-///       @c ResourceGraph::add_resource, the backward clamp reads caps from the feasibility
-///       function; this map is used only at nodes where that function states none.
+/// The per-node capacities must be the ones the paired feasibility function enforces forward, or
+/// the two searches solve different models (a bidirectional solve refuses the mismatch). Build
+/// both from one @ref SharedNodeBounds:
+///
+/// @code
+/// auto caps = make_node_bounds(0, capacity, per_node_caps);
+/// BudgetExtensionFunction<IntResource> extension(caps);
+/// MinMaxFeasibilityFunction<IntResource> feasibility(caps);
+/// @endcode
+///
+/// or take them from the feasibility function, `BudgetExtensionFunction(feasibility.bounds())`.
+/// @c presets::add_budget_resource does the first.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
@@ -41,23 +50,37 @@ class BudgetExtensionFunction
                       "BudgetExtensionFunction requires a signed value type");
 
     public:
-        /// @brief Constructs a BudgetExtensionFunction with optional per-node upper bounds.
+        /// @brief Constructs a budget with the same capacity at every node.
         ///
-        /// @param max_by_node_id Per-node upper bounds, used where the paired feasibility
-        ///                       function states none (see the class note). May be empty.
-        /// @param default_max    Bound used at nodes absent from the map. Defaults to half of the
-        ///                       value type's maximum so the forward addition cannot overflow.
-        explicit BudgetExtensionFunction(
-            std::map<size_t, ValueType> max_by_node_id = {},
-            ValueType default_max = std::numeric_limits<ValueType>::max() / 2)
-            : max_by_node_id_(max_by_node_id.empty()
-                                  ? nullptr
-                                  : std::make_shared<const std::map<size_t, ValueType>>(
-                                        std::move(max_by_node_id))),
-              default_max_(default_max) {}
+        /// @param capacity The upper bound at every node.
+        explicit BudgetExtensionFunction(ValueType capacity)
+            : BudgetExtensionFunction(make_node_bounds(ValueType{0}, capacity)) {}
+
+        /// @brief Constructs a budget whose per-node capacities are the upper ends of @p caps.
+        ///
+        /// Only the upper ends are read. A budget does not wait, so the lower ends, typically 0,
+        /// are not a forward clamp; see @ref lower_bound_at.
+        ///
+        /// @param caps The per-node bounds, shared with the paired feasibility function; must not
+        ///             be null.
+        /// @throws std::invalid_argument If @p caps is null.
+        explicit BudgetExtensionFunction(SharedNodeBounds<ValueType> caps)
+            : caps_(std::move(caps)) {
+            if (caps_ == nullptr) {
+                throw std::invalid_argument("BudgetExtensionFunction: caps must not be null");
+            }
+        }
+
+        /// @brief The per-node bounds whose upper ends are this budget's capacities.
+        ///
+        /// @return The shared bounds.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return caps_; }
 
     protected:
         /// @brief A budget has no forward clamp: consumption accumulates without waiting.
+        ///
+        /// Deliberately not the lower end of the bounds: a clamp at 0 would silently raise a
+        /// negative load to 0, where a bidirectional solve refuses it.
         ///
         /// @param node_id Index of the node the forward extension arrives at (unused).
         /// @return @c std::nullopt.
@@ -65,20 +88,15 @@ class BudgetExtensionFunction
             return std::nullopt;
         }
 
-        /// @brief This node's capacity, defaulting to the constructor's bound.
+        /// @brief This node's capacity.
         ///
         /// @param node_id Index of the node the backward extension arrives at.
-        /// @return The node's upper bound, or @c default_max_ if it has none.
+        /// @return The upper end of the node's bounds.
         [[nodiscard]] std::optional<ValueType> upper_bound_at(size_t node_id) const final {
-            if (max_by_node_id_ == nullptr) {
-                return default_max_;
-            }
-            auto it = max_by_node_id_->find(node_id);
-            return it != max_by_node_id_->end() ? it->second : default_max_;
+            return caps_->upper(node_id);
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, ValueType>> max_by_node_id_;
-        ValueType default_max_;
+        SharedNodeBounds<ValueType> caps_;
 };
 }  // namespace rcspp

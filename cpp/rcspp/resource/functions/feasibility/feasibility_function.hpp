@@ -126,22 +126,11 @@ class FeasibilityFunction {
         /// @brief The value a backward label starts with at this node (typically its upper
         ///        bound), or @c std::nullopt to start at the type default.
         ///
+        /// Under a @c Threshold extension the seed must be this node's upper bound: a bidirectional
+        /// solve refuses an extension whose backward clamp at a node differs from it.
+        ///
         /// @return The seed value for a backward label at this node, or @c std::nullopt.
         [[nodiscard]] virtual auto back_seed_value() const -> std::optional<ResourceType> {
-            return std::nullopt;
-        }
-
-        /// @brief The largest value this function admits at @p node_id, if it bounds it there.
-        ///
-        /// Handed to a @c Threshold extension function to clamp backward labels. Called on a clone
-        /// preprocessed for @p node_id, so returning a bound cached in @c preprocess() is correct.
-        /// A bidirectional solve refuses a model whose clamp at some node fails that node's
-        /// @c is_back_feasible.
-        ///
-        /// @param node_id Index of the node.
-        /// @return This node's upper bound, or @c std::nullopt.
-        [[nodiscard]] virtual auto ceiling_at(size_t /*node_id*/) const
-            -> std::optional<ResourceType> {
             return std::nullopt;
         }
 
