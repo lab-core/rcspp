@@ -73,4 +73,5 @@ class ReachableFeasibilityFunction
     private:
         std::shared_ptr<const ContainerResourceType> checked_nodes_;
 };
+
 }  // namespace rcspp
