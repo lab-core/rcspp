@@ -134,4 +134,12 @@ class TimeWindowFeasibilityFunction
             }
         }
 };
+
+/// A time window seeds backward labels at the node's closing time (a ceiling). Both template
+/// parameters must be named, or the specialisation never matches.
+template <typename R, typename V>
+struct BackSeedEndOf<TimeWindowFeasibilityFunction<R, V>> {
+        static constexpr BackSeedEnd value = BackSeedEnd::Ceiling;
+};
+
 }  // namespace rcspp

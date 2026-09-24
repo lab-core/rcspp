@@ -72,7 +72,7 @@ class ExtensionFunction {
         virtual void extend(const ResourceType& resource, const ResourceType& extender_value,
                             ResourceType* extended_resource) = 0;
 
-        /// @brief Which of the three backward forms this function implements. Defaults to
+        /// @brief Which backward form this function implements. Defaults to
         ///        @c Unspecified, on which a bidirectional solve refuses to run.
         ///
         /// @return The backward form declared by this extension function.
@@ -88,8 +88,9 @@ class ExtensionFunction {
         /// going backward, the node being left is the arc's destination.
         ///
         /// Forms: no bound -> @c Accumulate (inherit this); scalar with a bound -> @c Threshold
-        /// (invert @c extend, clamp down by the node's upper bound); container with a bound ->
-        /// @c Mirror (same formula, origin and destination swapped). @c Threshold must satisfy
+        /// (invert @c extend, clamp down by the node's upper bound); container filled from the
+        /// arc's value -> @c ArcValue (same formula); container of the arc's endpoints ->
+        /// @c EndpointMirror (via @c EndpointMirrorForm). @c Threshold must satisfy
         /// @code extend(x, arc) <= b   <==>   x <= extend_back(b, arc) @endcode
         ///
         /// @param resource        The current accumulated resource value.

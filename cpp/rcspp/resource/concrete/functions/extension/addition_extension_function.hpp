@@ -8,6 +8,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -19,11 +20,16 @@ namespace rcspp {
 /// `max(min_value, sum)`.  Typical use: accumulating arc costs, travel times,
 /// or distances along a path in the RCSPP labelling algorithm.
 ///
+/// Backward kind: @c Accumulate; the inherited @c extend_back adds like @c extend. For a bounded
+/// accumulation (capacity, duration) use @c BudgetExtensionFunction instead.
+///
 /// @tparam ResourceType A NumericalResource-compatible type whose `get_value()`
 ///                      returns an arithmetic value and which supports `set_value()`.
 template <typename ResourceType>
 class AdditionExtensionFunction
-    : public Clonable<AdditionExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    : public Clonable<AdditionExtensionFunction<ResourceType>,
+                      DeclaredKindForm<ExtensionFunction<ResourceType>, BackwardKind::Accumulate>,
+                      ExtensionFunction<ResourceType>> {
         using ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>;
 
     public:
@@ -47,14 +53,6 @@ class AdditionExtensionFunction
             }
             extended_resource->set_value(sum_value);
         }
-
-        /// @brief Unbounded accumulation (e.g. cost): the backward form is the forward one.
-        ///
-        /// For a bounded additive resource (capacity, duration) use @c BudgetExtensionFunction.
-        static constexpr BackwardKind kind = BackwardKind::Accumulate;
-
-        /// @return @c BackwardKind::Accumulate.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 
     private:
         std::optional<ValueType> min_value_;

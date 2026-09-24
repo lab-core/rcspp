@@ -4,6 +4,7 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -14,12 +15,17 @@ namespace rcspp {
 /// extender's container.  Typical use: tracking which elements (e.g. customers, nodes)
 /// are reachable or eligible along a path by narrowing the candidate set at each arc.
 ///
+/// Backward kind: @c ArcValue. The arc's value is per-arc set data, not a node identity, so the
+/// inherited @c extend_back (same formula) is correct.
+///
 /// @tparam ContainerResourceType A ContainerResource-compatible type supporting
 ///                               `get_intersection()` and `set_value()`.
 template <typename ContainerResourceType>
 class IntersectionExtensionFunction
-    : public Clonable<IntersectionExtensionFunction<ContainerResourceType>,
-                      ExtensionFunction<ContainerResourceType>> {
+    : public Clonable<
+          IntersectionExtensionFunction<ContainerResourceType>,
+          DeclaredKindForm<ExtensionFunction<ContainerResourceType>, BackwardKind::ArcValue>,
+          ExtensionFunction<ContainerResourceType>> {
     public:
         /// @brief Extends @p resource by intersecting it with @p extender_value, storing the
         /// result in @p extended_resource.
@@ -33,12 +39,5 @@ class IntersectionExtensionFunction
             auto intersection_value = resource.get_intersection(extender_value.get_value());
             extended_resource->set_value(intersection_value);
         }
-
-        /// @brief The arc value is direction-independent set data, so the inherited
-        ///        @c extend_back (same formula as @c extend) is correct.
-        static constexpr BackwardKind kind = BackwardKind::Mirror;
-
-        /// @return @c BackwardKind::Mirror.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

@@ -160,4 +160,11 @@ class SizeFeasibilityFunction
             }
         }
 };
+
+/// A size bound is tested against the container, not seeded into a backward label.
+template <typename R>
+struct BackSeedEndOf<SizeFeasibilityFunction<R>> {
+        static constexpr BackSeedEnd value = BackSeedEnd::Never;
+};
+
 }  // namespace rcspp

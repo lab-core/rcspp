@@ -45,4 +45,11 @@ class TrivialFeasibilityFunction
         /// @return @c MergeRule::AlwaysTrue.
         [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::AlwaysTrue; }
 };
+
+/// A trivial feasibility function has no bound at all, so it never seeds a backward label.
+template <typename R>
+struct BackSeedEndOf<TrivialFeasibilityFunction<R>> {
+        static constexpr BackSeedEnd value = BackSeedEnd::Never;
+};
+
 }  // namespace rcspp
