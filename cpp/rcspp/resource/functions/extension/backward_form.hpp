@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <functional>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -23,8 +22,10 @@ namespace rcspp {
 /// value below the node's lower bound is a deadline no forward arrival can meet, so it becomes
 /// `numeric_limits<V>::lowest()`, which stays there.
 /// The formulas must satisfy `extend(x, arc) <= b  <==>  x <= extend_back(b, arc)` wherever
-/// neither clamp binds. The backward clamp uses the paired feasibility function's upper bound
-/// (see @c adopt_ceilings), falling back to @c upper_bound_at.
+/// neither clamp binds. Both bounds come from the derived class (@c lower_bound_at,
+/// @c upper_bound_at), which must state the same per-node bounds as the paired feasibility
+/// function; the concrete forms take a @c SharedNodeBounds for that. A bidirectional solve refuses
+/// a backward clamp that disagrees with the feasibility function.
 ///
 /// @note Use as the middle argument of a three-argument @c Clonable:
 ///       `Clonable<Derived, ThresholdForm<R, ExtensionFunction<R>>, ExtensionFunction<R>>`.
@@ -87,13 +88,6 @@ class ThresholdForm : public Base {
             extended_resource->set_value(value);
         }
 
-        /// @brief Clamps backward to the paired feasibility function's upper bounds from now on.
-        ///
-        /// @param ceiling_at The feasibility function's upper bound at a node, if it has one.
-        void adopt_ceilings(typename Base::CeilingSource ceiling_at) override {
-            ceiling_at_ = std::move(ceiling_at);
-        }
-
         /// @brief This node's lower bound, the value a forward extension is clamped up to.
         ///
         /// @param node_id Index of the node.
@@ -110,9 +104,9 @@ class ThresholdForm : public Base {
         /// @brief The bound a backward extension arriving at @p node_id clamps down to.
         ///
         /// @param node_id Index of the node.
-        /// @return The feasibility function's ceiling there, else this function's upper bound.
+        /// @return This function's upper bound there, or @c std::nullopt for no clamp.
         [[nodiscard]] auto back_ceiling_at(size_t node_id) const -> std::optional<R> override {
-            if (auto upper = backward_bound_at(node_id)) {
+            if (auto upper = upper_bound_at(node_id)) {
                 R ceiling;
                 ceiling.set_value(*upper);
                 return ceiling;
@@ -141,8 +135,7 @@ class ThresholdForm : public Base {
         /// @return The bound to clamp up to, or @c nullopt.
         [[nodiscard]] virtual std::optional<V> lower_bound_at(size_t node_id) const = 0;
 
-        /// @brief This node's upper bound, or @c nullopt for no backward clamp. Used only where
-        ///        the paired feasibility function states no bound of its own.
+        /// @brief This node's upper bound, or @c nullopt for no backward clamp.
         ///
         /// @param node_id Index of the node the extension arrives at.
         /// @return The bound to clamp down to, or @c nullopt.
@@ -155,20 +148,6 @@ class ThresholdForm : public Base {
         std::optional<V> lower_;
         std::optional<V> upper_;
         std::optional<V> back_lower_;
-        typename Base::CeilingSource ceiling_at_;
-
-        /// @brief The bound a backward extension arriving at @p node_id clamps down to.
-        ///
-        /// @param node_id Index of the node the backward extension arrives at.
-        /// @return The feasibility function's bound there, else this function's own.
-        [[nodiscard]] std::optional<V> backward_bound_at(size_t node_id) const {
-            if (ceiling_at_) {
-                if (auto ceiling = ceiling_at_(node_id)) {
-                    return static_cast<V>(ceiling->get_value());
-                }
-            }
-            return upper_bound_at(node_id);
-        }
 
         /// @brief Caches this arc's bounds: forward arrives at the destination, backward at the
         ///        origin, where its lower bound marks the deadlines no arrival can meet.
@@ -177,7 +156,7 @@ class ThresholdForm : public Base {
         /// @param destination_id Index of the arc's destination node.
         void preprocess(size_t origin_id, size_t destination_id) final {
             lower_ = lower_bound_at(destination_id);
-            upper_ = backward_bound_at(origin_id);
+            upper_ = upper_bound_at(origin_id);
             back_lower_ = lower_bound_at(origin_id);
         }
 };

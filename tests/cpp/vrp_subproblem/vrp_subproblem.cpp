@@ -63,7 +63,7 @@ void VRPSubproblem::construct_resource_graph(RGraph* resource_graph,
     // Demand. A budget rather than an addition: identical forward, but backward labels are seeded
     // at the capacity and must count down from it.
     resource_graph->add_resource<IntResource>(
-        std::make_unique<BudgetExtensionFunction<IntResource>>(),
+        std::make_unique<BudgetExtensionFunction<IntResource>>(instance_.get_capacity()),
         std::make_unique<MinMaxFeasibilityFunction<IntResource>>(0, instance_.get_capacity()),
         std::make_unique<ValueCostFunction<IntResource>>(),
         std::make_unique<ValueDominanceFunction<IntResource>>());

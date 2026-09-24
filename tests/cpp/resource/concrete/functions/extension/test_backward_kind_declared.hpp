@@ -102,7 +102,7 @@ TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
               TimeWindowExtensionFunction<RealResource>::kind);
     EXPECT_EQ(TimeWindowExtensionFunction<UIntResource>{uwindows}.backward_kind(),
               TimeWindowExtensionFunction<UIntResource>::kind);
-    EXPECT_EQ(BudgetExtensionFunction<RealResource>{}.backward_kind(),
+    EXPECT_EQ(BudgetExtensionFunction<RealResource>{10.0}.backward_kind(),
               BudgetExtensionFunction<RealResource>::kind);
     EXPECT_EQ(UnionExtensionFunction<SetResource<int>>{}.backward_kind(),
               UnionExtensionFunction<SetResource<int>>::kind);

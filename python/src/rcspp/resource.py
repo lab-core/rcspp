@@ -227,19 +227,19 @@ class BudgetExtensionFunction(_GenericFunctionDescriptor):
     Forward it adds like :class:`AdditionExtensionFunction`; backward a label carries the
     largest forward value still admissible at the node. Signed types (``"real"``, ``"int"``)
     only, since extending backwards subtracts.
+
+    Pair it with ``MinMaxFeasibilityFunction(0, capacity)``, the same capacity: a bidirectional
+    solve refuses a budget whose capacity differs from its feasibility function's maximum.
+    :func:`rcspp.presets.add_budget_resource` registers the pair.
     """
 
-    def __init__(self, max_by_node: dict | None = None, default_max=None):
+    def __init__(self, capacity):
         """Initialize the budget extension function.
 
         Args:
-            max_by_node: Mapping from node identifier to that node's upper bound. May be omitted
-                for a uniform capacity.
-            default_max: Bound used at nodes absent from *max_by_node*. When ``None`` the C++
-                default is applied.
+            capacity: The upper bound at every node.
         """
-        self.max_by_node = max_by_node or {}
-        self.default_max = default_max
+        self.capacity = capacity
 
     def create(self, resource_type: str):
         """Instantiate a BudgetExtensionFunction for *resource_type*.
@@ -254,9 +254,7 @@ class BudgetExtensionFunction(_GenericFunctionDescriptor):
             TypeError: If *resource_type* is not one of the signed numerical types.
         """
         fn = _get_fn("BudgetExtensionFunction", resource_type)
-        if self.default_max is None:
-            return fn(self.max_by_node)
-        return fn(self.max_by_node, self.default_max)
+        return fn(self.capacity)
 
 
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):

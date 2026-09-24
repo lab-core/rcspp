@@ -209,7 +209,7 @@ at the node where that resource crosses `H`. Three requirements:
 - **Every resource must declare its backward semantics**, or the solve raises before
   the first label and names the offending component. A capacity may be written as
   `AdditionExtensionFunction` + `MinMaxFeasibilityFunction(0, cap)` or as
-  `BudgetExtensionFunction` (signed numerical types only) + the same feasibility
+  `BudgetExtensionFunction(cap)` (signed numerical types only) + the same feasibility
   function; either way its loads must be non-negative.
 - **A container that forbids anything must forbid each node at itself, and its memory
   must come from a node-identity mirror.** `IntersectionFeasibilityFunction` asks what
@@ -225,8 +225,10 @@ at the node where that resource crosses `H`. Three requirements:
 
 Unlike the clock, the last two are refusals rather than slowdowns: a model that cannot
 express backward semantics cannot produce a correct answer at all. And a per-node cap goes on
-the feasibility function: a threshold extension clamps its backward label to that function's
-bound at each node, and `BudgetExtensionFunction`'s own per-node map is only a fallback.
+both functions: a threshold extension clamps its backward label to its own bound at each node,
+so build it and the feasibility function from one `NodeBounds` (`make_node_bounds`, or the
+feasibility function's `bounds()`), as `presets::add_budget_resource` does. Setup refuses a
+clamp that differs from the feasibility function's bound.
 
 See `docs/advanced/algorithms.md` for the full description.
 
@@ -287,7 +289,7 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
 | `SubtractExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
-| `BudgetExtensionFunction<T>()` | Numerical | `+=`, as a *threshold* — the backward form of a capacity; the cap comes from the paired feasibility function |
+| `BudgetExtensionFunction<T>(cap)` | Numerical | `+=`, as a *threshold* — the backward form of a capacity; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
 | `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
 | `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
 | `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |

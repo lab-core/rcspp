@@ -270,7 +270,7 @@ TEST(BackwardDominance, DerivationMatchesBackwardKind) {
     // Threshold, the other one.
     auto* budget = backward_dominance_test::add_real_resource(
         &graph,
-        std::make_unique<BudgetExtensionFunction<RealResource>>());
+        std::make_unique<BudgetExtensionFunction<RealResource>>(10.0));
     EXPECT_TRUE(budget->is_backward_reversed());
 
     // EndpointMirror -> not reversed.

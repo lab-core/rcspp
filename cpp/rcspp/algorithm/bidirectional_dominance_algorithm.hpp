@@ -834,8 +834,9 @@ class BidirectionalDominanceAlgorithm
         ///    have a negative consumption on any arc. A backward deadline carries only a ceiling,
         ///    so a dip below the floor inside the suffix would go unseen;
         ///  - a @c Threshold's backward clamp at a node must pass that node's @c is_back_feasible,
-        ///    or every backward label there is rejected (a @c ceiling_at that is missing or
-        ///    reports another node's bound).
+        ///    or every backward label there is rejected, and must equal the node's backward seed,
+        ///    its upper bound, or the two searches solve different models (an extension and a
+        ///    feasibility function built from different bounds).
         ///
         /// Costs one pass over the nodes and one over the arcs, with no clones.
         ///
@@ -963,8 +964,16 @@ class BidirectionalDominanceAlgorithm
             });
         }
 
-        /// @brief Records a @c Threshold component whose backward clamp at @p node_id fails that
-        ///        node's own backward test, once per component.
+        /// @brief Records a @c Threshold component whose backward clamp at @p node_id disagrees
+        ///        with that node's feasibility function, once per component.
+        ///
+        /// Two disagreements:
+        ///  - the node's backward test rejects the clamp, so every backward label there is lost;
+        ///  - the clamp differs from the node's backward seed, which for a threshold pairing is the
+        ///    node's upper bound (see @c FeasibilityFunction::back_seed_value). Above it, the
+        ///    backward search admits deadlines the forward search rejects, which a test on the
+        ///    floor alone (a time window's) cannot see; below it, the backward search rejects
+        ///    deadlines a forward path meets.
         ///
         /// A clamp below the node's backward floor is left alone: that node cannot be reached in
         /// time whatever the ceiling, which is the model's business, not an incoherence.
@@ -984,15 +993,27 @@ class BidirectionalDominanceAlgorithm
             }
             Value value;
             value.set_value(static_cast<Scalar>(*ceiling));
-            if (component.admits_back_value(value)) {
+            std::string fault;
+            if (!component.admits_back_value(value)) {
+                fault =
+                    ", which its feasibility function rejects there, so every backward label at "
+                    "that node is lost";
+            } else if (const auto seed = component.back_seed();
+                       seed && static_cast<double>(seed->get_value()) != *ceiling) {
+                const auto bound = static_cast<double>(seed->get_value());
+                fault = ", but its feasibility function bounds the value there at " +
+                        std::to_string(bound) + ", so the backward search " +
+                        (*ceiling > bound ? "admits deadlines the forward search rejects"
+                                          : "rejects deadlines a forward path meets");
+            } else {
                 return;
             }
             (*ceiling_reported)[component_index] = true;
             problems->push_back(
                 "component " + std::to_string(component_index) + ": its backward labels at node " +
-                std::to_string(node_id) + " are clamped to " + std::to_string(*ceiling) +
-                ", which its feasibility function rejects there, so every backward label at that "
-                "node is lost; make ceiling_at(node) return the node's own upper bound");
+                std::to_string(node_id) + " are clamped to " + std::to_string(*ceiling) + fault +
+                "; build the extension and the feasibility function from one NodeBounds "
+                "(make_node_bounds, or the feasibility function's bounds())");
         }
 
         /// @brief Whether an accumulating component starts its backward labels somewhere hopeless.

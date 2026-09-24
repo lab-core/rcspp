@@ -269,6 +269,14 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             return this->feasibility_function_->back_seed_value().has_value();
         }
 
+        /// @brief The value a backward label starts with at this node, if any. Used by
+        ///        setup-time checks: under a threshold pairing it is the node's upper bound.
+        ///
+        /// @return See @c FeasibilityFunction::back_seed_value.
+        [[nodiscard]] auto back_seed() const -> std::optional<ResourceType> {
+            return this->feasibility_function_->back_seed_value();
+        }
+
         /// @brief The smallest backward value this node's feasibility function admits, if it
         ///        tests one. Used by setup-time checks.
         ///

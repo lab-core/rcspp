@@ -100,13 +100,14 @@ inline std::unique_ptr<ResourceGraph<RealResource>> clock_line_graph(
                                       std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
                                       std::make_unique<ValueCostFunction<RealResource>>(),
                                       std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
-                                      std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
-                                          0.0,
-                                          capacity,
-                                          /*merge_by_increasing_value=*/true),
-                                      std::make_unique<TrivialCostFunction<RealResource>>(),
-                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(
+        std::make_unique<BudgetExtensionFunction<RealResource>>(capacity),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+            0.0,
+            capacity,
+            /*merge_by_increasing_value=*/true),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
     const size_t num_nodes = arc_values.size() + 1;
     for (size_t node_id = 0; node_id < num_nodes; ++node_id) {
         graph->add_node(node_id, node_id == 0, node_id + 1 == num_nodes);
@@ -176,13 +177,14 @@ TEST(Bidirectional, CapacityInstanceMatchesForwardOptimum) {
             std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
             std::make_unique<ValueCostFunction<RealResource>>(),
             std::make_unique<ValueDominanceFunction<RealResource>>());
-        graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
-                                          std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
-                                              0.0,
-                                              5.0,
-                                              /*merge_by_increasing_value=*/true),
-                                          std::make_unique<TrivialCostFunction<RealResource>>(),
-                                          std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(
+            std::make_unique<BudgetExtensionFunction<RealResource>>(5.0),
+            std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                0.0,
+                5.0,
+                /*merge_by_increasing_value=*/true),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1);
         graph->add_node(2);
@@ -866,7 +868,7 @@ TEST(Bidirectional, ATrivialDominanceOnTheClockDisablesTheBound) {
                                       std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
                                       std::make_unique<ValueCostFunction<RealResource>>(),
                                       std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
+    graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(20.0),
                                       std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
                                           0.0,
                                           20.0,
@@ -1065,13 +1067,14 @@ TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
             std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
             std::make_unique<ValueCostFunction<RealResource>>(),
             std::make_unique<ValueDominanceFunction<RealResource>>());
-        graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
-                                          std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
-                                              0.0,
-                                              40.0,
-                                              /*merge_by_increasing_value=*/true),
-                                          std::make_unique<TrivialCostFunction<RealResource>>(),
-                                          std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(
+            std::make_unique<BudgetExtensionFunction<RealResource>>(40.0),
+            std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                0.0,
+                40.0,
+                /*merge_by_increasing_value=*/true),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
         for (size_t node_id = 0; node_id < 5; ++node_id) {
             graph->add_node(node_id, node_id == 0, node_id == 4);
         }
@@ -1361,13 +1364,14 @@ TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
             std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
             std::make_unique<ValueCostFunction<RealResource>>(),
             std::make_unique<ValueDominanceFunction<RealResource>>());
-        graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
-                                          std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
-                                              0.0,
-                                              18.0,
-                                              /*merge_by_increasing_value=*/true),
-                                          std::make_unique<TrivialCostFunction<RealResource>>(),
-                                          std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(
+            std::make_unique<BudgetExtensionFunction<RealResource>>(18.0),
+            std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+                0.0,
+                18.0,
+                /*merge_by_increasing_value=*/true),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1);
         graph->add_node(2);
@@ -1489,11 +1493,10 @@ namespace bidirectional_test {
 
 /// @brief A cost slot plus a budget clock whose per-node caps live wherever the caller says.
 ///
-/// @param extension_caps   Per-node caps handed to `BudgetExtensionFunction`.
-/// @param feasibility_caps Per-node `{min, max}` windows handed to `MinMaxFeasibilityFunction`.
+/// @param extension_caps   The bounds handed to `BudgetExtensionFunction`.
+/// @param feasibility_caps The bounds handed to `MinMaxFeasibilityFunction`; often the same object.
 inline std::unique_ptr<ResourceGraph<RealResource>> budget_graph(
-    std::map<size_t, double> extension_caps,
-    std::map<size_t, std::pair<double, double>> feasibility_caps) {
+    SharedNodeBounds<double> extension_caps, SharedNodeBounds<double> feasibility_caps) {
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
                                       std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
@@ -1501,9 +1504,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> budget_graph(
                                       std::make_unique<ValueDominanceFunction<RealResource>>());
     graph->add_resource<RealResource>(
         std::make_unique<BudgetExtensionFunction<RealResource>>(std::move(extension_caps)),
-        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0,
-                                                                  100.0,
-                                                                  std::move(feasibility_caps)),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(std::move(feasibility_caps)),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
     return graph;
@@ -1519,13 +1520,15 @@ inline SolveResult solve_on_the_budget_clock(ResourceGraph<RealResource>* graph,
 
 }  // namespace bidirectional_test
 
-/// @brief A per-node cap given to the feasibility function alone binds in both directions.
+/// @brief Per-node caps shared by the extension and the feasibility function bind in both
+///        directions.
 ///
-/// The backward ceiling at node 1 must be clamped to the cap, or the only path is lost.
-TEST(Bidirectional, APerNodeCapOnTheFeasibilityFunctionAloneBindsBackward) {
+/// The backward ceiling at node 1 must be clamped to its cap of 50, or the only path is lost.
+TEST(Bidirectional, PerNodeCapsSharedByBothFunctionsBindBackward) {
     namespace bt = bidirectional_test;
     const auto build = [] {
-        auto graph = bt::budget_graph({}, {{1, {0.0, 50.0}}});
+        const auto caps = make_node_bounds(0.0, 100.0, {{1, {0.0, 50.0}}});
+        auto graph = bt::budget_graph(caps, caps);
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1);
         graph->add_node(2, /*source=*/false, /*sink=*/true);
@@ -1546,34 +1549,51 @@ TEST(Bidirectional, APerNodeCapOnTheFeasibilityFunctionAloneBindsBackward) {
     EXPECT_NEAR(result.solutions.front().cost, -2.0, bt::kTolerance);
 }
 
-/// @brief A cap on the extension alone cannot make the two searches solve different models.
+/// @brief Caps that differ between the extension and the feasibility function are refused, in
+///        both directions, rather than letting the two searches solve different models.
 ///
-/// The feasibility function alone defines the caps, so node 1 is uncapped and every H agrees with
-/// the forward optimum.
-TEST(Bidirectional, ACapOnTheExtensionAloneCannotMakeTheTwoSearchesDisagree) {
+/// Tighter: the extension caps node 1 at 5 where the forward search allows 100, so the backward
+/// search would reject the deadline of the -10 path. Looser: the feasibility function caps node 1
+/// at 5 and the extension does not, which `MinMaxFeasibilityFunction` rejects backward too.
+TEST(Bidirectional, CapsThatDifferBetweenTheTwoFunctionsAreRefused) {
     namespace bt = bidirectional_test;
-    const auto build = [] {
-        auto graph = bt::budget_graph({{1, 5.0}}, {});
-        graph->add_node(0, /*source=*/true, /*sink=*/false);
-        graph->add_node(1);
-        graph->add_node(3);
-        graph->add_node(2, /*source=*/false, /*sink=*/true);
-        graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 0, 1, -5.0);
-        graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 1, 2, -5.0);
-        graph->add_arc<RealResource, RealResource>({-0.5, 1.0}, 0, 3, -0.5);
-        graph->add_arc<RealResource, RealResource>({-0.5, 1.0}, 3, 2, -0.5);
-        return graph;
+    const auto build =
+        [](SharedNodeBounds<double> extension_caps, SharedNodeBounds<double> feasibility_caps) {
+            auto graph = bt::budget_graph(std::move(extension_caps), std::move(feasibility_caps));
+            graph->add_node(0, /*source=*/true, /*sink=*/false);
+            graph->add_node(1);
+            graph->add_node(3);
+            graph->add_node(2, /*source=*/false, /*sink=*/true);
+            graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 0, 1, -5.0);
+            graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 1, 2, -5.0);
+            graph->add_arc<RealResource, RealResource>({-0.5, 1.0}, 0, 3, -0.5);
+            graph->add_arc<RealResource, RealResource>({-0.5, 1.0}, 3, 2, -0.5);
+            return graph;
+        };
+    const auto uniform = make_node_bounds(0.0, 100.0);
+    const auto capped = make_node_bounds(0.0, 100.0, {{1, {0.0, 5.0}}});
+    const auto refusal = [](ResourceGraph<RealResource>* graph) -> std::string {
+        try {
+            static_cast<void>(bt::solve_on_the_budget_clock(graph, 5.0));
+        } catch (const std::runtime_error& error) {
+            return error.what();
+        }
+        return {};
     };
 
-    const double forward = bt::forward_optimum(build().get());
-    EXPECT_NEAR(forward, -10.0, bt::kTolerance);
-    for (const double half_way_point : {0.0, 5.0, 15.0}) {
-        auto graph = build();
-        const auto result = bt::solve_on_the_budget_clock(graph.get(), half_way_point);
-        ASSERT_FALSE(result.solutions.empty()) << "H = " << half_way_point;
-        EXPECT_NEAR(result.solutions.front().cost, forward, bt::kTolerance)
-            << "H = " << half_way_point;
-    }
+    EXPECT_NEAR(bt::forward_optimum(build(capped, uniform).get()), -10.0, bt::kTolerance);
+    const std::string tighter = refusal(build(capped, uniform).get());
+    EXPECT_NE(tighter.find("component 1: its backward labels at node 1 are clamped to 5"),
+              std::string::npos)
+        << tighter;
+    EXPECT_NE(tighter.find("rejects deadlines a forward path meets"), std::string::npos) << tighter;
+    EXPECT_NE(tighter.find("NodeBounds"), std::string::npos) << tighter;
+
+    const std::string looser = refusal(build(uniform, capped).get());
+    EXPECT_NE(looser.find("its backward labels at node 1 are clamped to 100"), std::string::npos)
+        << looser;
+    EXPECT_NE(looser.find("which its feasibility function rejects there"), std::string::npos)
+        << looser;
 }
 
 /// @brief A relaxed dominance on the time window cannot let an arrival past the deadline join.
@@ -1599,7 +1619,7 @@ TEST(Bidirectional, ARelaxedDominanceCannotLetAnInfeasibleSpliceJoin) {
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<TrivialDominanceFunction<RealResource>>());
     // The clock is a budget in slot 2, so the relaxed window is not the one the bound reads.
-    graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(),
+    graph->add_resource<RealResource>(std::make_unique<BudgetExtensionFunction<RealResource>>(20.0),
                                       std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
                                           0.0,
                                           20.0,
@@ -1800,7 +1820,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> fan() {
                                       std::make_unique<ValueCostFunction<RealResource>>(),
                                       std::make_unique<ValueDominanceFunction<RealResource>>());
     graph->add_resource<RealResource>(
-        std::make_unique<BudgetExtensionFunction<RealResource>>(),
+        std::make_unique<BudgetExtensionFunction<RealResource>>(1000.0),
         std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 1000.0),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());

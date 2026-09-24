@@ -38,10 +38,17 @@ with a pointer to where they are documented.
   and logs a warning saying so. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
 - **`BudgetExtensionFunction`** (C++ and Python, signed types only): additive forward and a
   threshold backward, which is what a bounded accumulation such as a capacity needs in a
-  bidirectional solve.
+  bidirectional solve. It takes its capacity, `BudgetExtensionFunction(capacity)`, or in C++ the
+  per-node caps as a `NodeBounds` shared with its feasibility function.
+- **`NodeBounds`** (C++, `rcspp/resource/functions/node_bounds.hpp`): per-node `[lower, upper]`
+  bounds that a threshold extension and its feasibility function share, so the two cannot disagree.
+  Build one with `make_node_bounds`. `MinMaxFeasibilityFunction`, `TimeWindowFeasibilityFunction`
+  and `TimeWindowExtensionFunction` gain a constructor that takes one and a `bounds()` accessor;
+  their other constructors are unchanged. A bidirectional solve refuses a threshold extension whose
+  backward clamp at a node differs from the feasibility function's bound there.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
   code compiling: `ExtensionFunction::backward_kind()`, `floor_at()` and `back_ceiling_at()`; on
-  `FeasibilityFunction` `merge_rule()`, `back_seed_value()`, `ceiling_at()`, `back_floor_at()` and
+  `FeasibilityFunction` `merge_rule()`, `back_seed_value()`, `back_floor_at()` and
   `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition `DominanceFunction`
   gains a `check_back_dominance()` whose default refuses, and a composition `CostFunction` an
   `adds_across_join()` whose default refuses: the join adds the two halves' costs, so a cost that

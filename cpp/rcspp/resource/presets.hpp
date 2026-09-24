@@ -28,6 +28,7 @@
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 /// @file presets.hpp
 /// @brief One call per resource kind, registering a coherent set of four function objects.
@@ -109,8 +110,9 @@ void add_cost_resource(Graph& graph) {
 /// @brief A scalar resource with a per-node window (a threshold, seeded backward at its closing
 ///        bound).
 ///
-/// Expands to `add_resource(TimeWindowExtensionFunction, TimeWindowFeasibilityFunction,
-/// ValueCostFunction, ValueDominanceFunction)`, passing the window map to both.
+/// Expands to `add_resource(TimeWindowExtensionFunction(windows), TimeWindowFeasibilityFunction(
+/// windows), ValueCostFunction, ValueDominanceFunction)`, where `windows` is one
+/// @ref SharedNodeBounds holding the map, with an opening time of 0 at the nodes absent from it.
 ///
 /// @tparam R     The resource type. Must be signed: backward extension subtracts.
 /// @tparam Graph The graph type, deduced.
@@ -125,15 +127,10 @@ void add_window_resource(
     Graph& graph,
     std::map<size_t, std::pair<std::type_identity_t<V>, std::type_identity_t<V>>> windows,
     std::type_identity_t<V> default_max = std::numeric_limits<V>::max() / 2) {
-    // Named locals: argument evaluation order is unspecified, so an inline copy and move of
-    // `windows` could leave the extension with an empty map.
-    auto extension = std::make_unique<TimeWindowExtensionFunction<R, V>>(windows, default_max);
-    auto feasibility =
-        std::make_unique<TimeWindowFeasibilityFunction<R, V>>(std::move(windows), default_max);
-
+    const auto bounds = make_node_bounds(V{0}, default_max, std::move(windows));
     detail::add_coherent_resource<R>(graph,
-                                     std::move(extension),
-                                     std::move(feasibility),
+                                     std::make_unique<TimeWindowExtensionFunction<R, V>>(bounds),
+                                     std::make_unique<TimeWindowFeasibilityFunction<R, V>>(bounds),
                                      std::make_unique<ValueCostFunction<R>>(),
                                      std::make_unique<ValueDominanceFunction<R>>());
 }
@@ -161,14 +158,14 @@ void add_window_resource(Graph& graph, const std::map<size_t, std::pair<W, W>>& 
 
 /// @brief A bounded accumulation (capacity, duration, any budget).
 ///
-/// Expands to `add_resource(BudgetExtensionFunction({}, capacity),
-/// MinMaxFeasibilityFunction(0, capacity, [per-node caps]), TrivialCostFunction,
-/// ValueDominanceFunction)`.
+/// Expands to `add_resource(BudgetExtensionFunction(caps), MinMaxFeasibilityFunction(caps),
+/// TrivialCostFunction, ValueDominanceFunction)`, where `caps` is one @ref SharedNodeBounds of
+/// `[0, capacity]` with the per-node capacities as overrides.
 ///
-/// Per-node capacities go to the feasibility function; `add_resource` forwards them to the
-/// extension to clamp backward ceilings. The minimum is 0, which a bidirectional solve checks only
-/// while loads are non-negative, so they must be: setup refuses a negative arc load. A non-zero
-/// minimum would go unchecked, since backward labels carry only a ceiling.
+/// Both functions read the same capacities: the feasibility function enforces them forward, and
+/// the extension clamps backward labels to them. The minimum is 0, which a bidirectional solve
+/// checks only while loads are non-negative, so they must be: setup refuses a negative arc load.
+/// A non-zero minimum would go unchecked, since backward labels carry only a ceiling.
 ///
 /// @tparam R     The resource type. Must be signed.
 /// @tparam Graph The graph type, deduced.
@@ -187,14 +184,12 @@ void add_budget_resource(Graph& graph, std::type_identity_t<V> capacity,
         windows.emplace(node_id, std::pair<V, V>{V{0}, node_capacity});
     }
 
-    auto feasibility =
-        std::make_unique<MinMaxFeasibilityFunction<R, V>>(V{0}, capacity, std::move(windows));
-    detail::add_coherent_resource<R>(
-        graph,
-        std::make_unique<BudgetExtensionFunction<R, V>>(std::map<size_t, V>{}, capacity),
-        std::move(feasibility),
-        std::make_unique<TrivialCostFunction<R>>(),
-        std::make_unique<ValueDominanceFunction<R>>());
+    const auto caps = make_node_bounds(V{0}, capacity, std::move(windows));
+    detail::add_coherent_resource<R>(graph,
+                                     std::make_unique<BudgetExtensionFunction<R, V>>(caps),
+                                     std::make_unique<MinMaxFeasibilityFunction<R, V>>(caps),
+                                     std::make_unique<TrivialCostFunction<R>>(),
+                                     std::make_unique<ValueDominanceFunction<R>>());
 }
 
 /// @brief The ng-path relaxation: an endpoint mirror plus the ng-route condition.

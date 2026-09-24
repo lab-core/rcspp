@@ -10,7 +10,6 @@
 #include <optional>
 #include <stdexcept>
 #include <tuple>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -80,51 +79,15 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
-            // Derive backward dominance from the extension's declared kind: a Threshold value is
-            // a deadline (larger is better), so its comparison reverses. Set on the prototype so
-            // every per-node clone inherits it.
-            const BackwardKind kind = extension_function->backward_kind();
-            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
-
-            // The feasibility function needs the kind itself to pick its merge test.
-            feasibility_function->set_backward_kind(kind);
-
-            // A threshold extension clamps backward labels to the same per-node ceilings the
-            // feasibility function enforces forward.
-            if (kind == BackwardKind::Threshold) {
-                adopt_ceilings_of(*feasibility_function, extension_function.get());
-            }
+            pass_backward_kind(*extension_function,
+                               feasibility_function.get(),
+                               dominance_function.get());
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
                                                       std::move(feasibility_function),
                                                       std::move(cost_function),
                                                       std::move(dominance_function)));
-        }
-
-        /// @brief Hands @p extension_function the per-node ceilings of @p feasibility_function.
-        ///
-        /// Each node's ceiling is read from a clone preprocessed for that node, as the node's own
-        /// resource is, so a function that caches its bound in `preprocess()` reports the right
-        /// one. Memoised, so a graph costs one clone per node.
-        ///
-        /// @param feasibility_function The paired feasibility function, its backward kind set.
-        /// @param extension_function   The threshold extension function to clamp with it.
-        template <typename ResourceType>
-        static void adopt_ceilings_of(const FeasibilityFunction<ResourceType>& feasibility_function,
-                                      ExtensionFunction<ResourceType>* extension_function) {
-            std::shared_ptr<FeasibilityFunction<ResourceType>> prototype =
-                feasibility_function.clone();
-            auto by_node =
-                std::make_shared<std::unordered_map<size_t, std::optional<ResourceType>>>();
-            extension_function->adopt_ceilings([prototype, by_node](size_t node_id) {
-                auto it = by_node->find(node_id);
-                if (it == by_node->end()) {
-                    it = by_node->emplace(node_id, prototype->create(node_id)->ceiling_at(node_id))
-                             .first;
-                }
-                return it->second;
-            });
         }
 
         Node<ResourceCompositionType>& add_node(size_t node_id, bool source = false,
@@ -151,14 +114,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
 
-            // Same backward wiring as the other add_resource overload.
-            const BackwardKind kind = extension_function->backward_kind();
-            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
-
-            feasibility_function->set_backward_kind(kind);
-            if (kind == BackwardKind::Threshold) {
-                adopt_ceilings_of(*feasibility_function, extension_function.get());
-            }
+            pass_backward_kind(*extension_function,
+                               feasibility_function.get(),
+                               dominance_function.get());
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
@@ -556,6 +514,25 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Construct directly from a pre-built factory (used by clone()).
         explicit ResourceGraph(ResourceCompositionFactory<ResourceTypes...>&& factory)
             : resource_factory_(std::move(factory)), connectivityMatrix_(this) {}
+
+        /// @brief Tells a resource's dominance and feasibility functions how its extension
+        ///        function extends backwards.
+        ///
+        /// A Threshold value is a deadline (larger is better), so backward dominance reverses;
+        /// the feasibility function needs the kind itself to pick its merge test. Set on the
+        /// prototypes, so every per-node clone inherits both.
+        ///
+        /// @param extension_function   The resource's extension function.
+        /// @param feasibility_function Receives the kind.
+        /// @param dominance_function   Receives whether the backward order reverses.
+        template <typename ResourceType>
+        static void pass_backward_kind(const ExtensionFunction<ResourceType>& extension_function,
+                                       FeasibilityFunction<ResourceType>* feasibility_function,
+                                       DominanceFunction<ResourceType>* dominance_function) {
+            const BackwardKind kind = extension_function.backward_kind();
+            dominance_function->set_backward_reversed(kind == BackwardKind::Threshold);
+            feasibility_function->set_backward_kind(kind);
+        }
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         ConnectivityMatrix<ResourceCompositionType> connectivityMatrix_;

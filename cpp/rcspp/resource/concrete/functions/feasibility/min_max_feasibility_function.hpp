@@ -13,6 +13,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
+#include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
 
@@ -24,7 +25,9 @@ namespace rcspp {
 /// `min_ <= resource.value <= max_`.
 ///
 /// The bidirectional join test depends on the paired extension function's backward kind; see
-/// @ref merge_rule.
+/// @ref merge_rule. Under a threshold extension, build both functions from one
+/// @ref SharedNodeBounds (see @ref bounds), so the extension clamps backward labels to the same
+/// per-node maxima this function enforces forward.
 ///
 /// @tparam ResourceType The resource type whose value supports `geq()`, `leq()`, and
 ///         `get_value()`.
@@ -47,9 +50,7 @@ class MinMaxFeasibilityFunction
         /// @param min Global lower bound on the resource value.
         /// @param max Global upper bound on the resource value.
         MinMaxFeasibilityFunction(ValueType min, ValueType max, bool /*merge_by_increasing_value*/)
-            : default_min_(min), default_max_(max), min_(min), max_(max) {
-            cache_merge_bounds();
-        }
+            : MinMaxFeasibilityFunction(make_node_bounds(min, max)) {}
 
         /// @brief Constructs the function with default global bounds and optional per-node
         ///        overrides.
@@ -63,17 +64,31 @@ class MinMaxFeasibilityFunction
         MinMaxFeasibilityFunction(
             ValueType default_min, ValueType default_max,
             std::map<size_t, std::pair<ValueType, ValueType>> min_max_by_node_id = {})
-            : min_max_by_node_id_(
-                  min_max_by_node_id.empty()
-                      ? nullptr
-                      : std::make_shared<const std::map<size_t, std::pair<ValueType, ValueType>>>(
-                            std::move(min_max_by_node_id))),
-              default_min_(default_min),
-              default_max_(default_max),
-              min_(default_min),
-              max_(default_max) {
+            : MinMaxFeasibilityFunction(
+                  make_node_bounds(default_min, default_max, std::move(min_max_by_node_id))) {}
+
+        /// @brief Constructs the function on shared per-node `{min, max}` windows.
+        ///
+        /// Pass the same object to the paired extension function (e.g.
+        /// @c BudgetExtensionFunction), or read it back through @ref bounds.
+        ///
+        /// @param bounds The windows; must not be null.
+        /// @throws std::invalid_argument If @p bounds is null.
+        explicit MinMaxFeasibilityFunction(SharedNodeBounds<ValueType> bounds)
+            : bounds_(std::move(bounds)) {
+            if (bounds_ == nullptr) {
+                throw std::invalid_argument("MinMaxFeasibilityFunction: bounds must not be null");
+            }
+            min_ = bounds_->default_lower();
+            max_ = bounds_->default_upper();
             cache_merge_bounds();
         }
+
+        /// @brief The per-node windows this function enforces, to share with the paired
+        ///        extension function.
+        ///
+        /// @return The shared windows.
+        [[nodiscard]] auto bounds() const -> const SharedNodeBounds<ValueType>& { return bounds_; }
 
         /// @brief Checks that the resource value lies within [min_, max_].
         ///
@@ -123,7 +138,7 @@ class MinMaxFeasibilityFunction
                     "function declares MergeRule::Unspecified");
             }
             return static_cast<ValueType>(resource.get_value() + back_resource.get_value()) <=
-                   default_max_;
+                   bounds_->default_upper();
         }
 
         /// @brief Where a backward label starts, which follows the paired extension.
@@ -142,17 +157,6 @@ class MinMaxFeasibilityFunction
             return seed;
         }
 
-        /// @brief This node's upper bound (override or default), used to clamp backward labels.
-        ///
-        /// @param node_id Index of the node.
-        /// @return The node's maximum.
-        [[nodiscard]] auto ceiling_at(size_t node_id) const
-            -> std::optional<ResourceType> override {
-            ResourceType ceiling;
-            ceiling.set_value(bounds_at(node_id).second);
-            return ceiling;
-        }
-
         /// @brief This node's minimum, which @c is_back_feasible (the forward test) applies.
         ///
         /// @param node_id Index of the node.
@@ -160,7 +164,7 @@ class MinMaxFeasibilityFunction
         [[nodiscard]] auto back_floor_at(size_t node_id) const
             -> std::optional<ResourceType> override {
             ResourceType floor;
-            floor.set_value(bounds_at(node_id).first);
+            floor.set_value(bounds_->lower(node_id));
             return floor;
         }
 
@@ -173,12 +177,9 @@ class MinMaxFeasibilityFunction
         }
 
     private:
-        std::shared_ptr<const std::map<size_t, std::pair<ValueType, ValueType>>>
-            min_max_by_node_id_;
-        ValueType default_min_{};
-        ValueType default_max_{};
-        ValueType min_;
-        ValueType max_;
+        SharedNodeBounds<ValueType> bounds_;
+        ValueType min_{};
+        ValueType max_{};
 
         /// @brief Whether `forward + backward <= max` is exact: the window is uniform with a zero
         ///        minimum. See @ref merge_rule.
@@ -189,38 +190,20 @@ class MinMaxFeasibilityFunction
 
         /// @brief Computes @ref has_floor_ and @ref accumulate_merge_is_exact_.
         void cache_merge_bounds() {
-            has_floor_ = default_min_ != ValueType{};
+            has_floor_ = bounds_->default_lower() != ValueType{};
             // A non-zero minimum offsets the backward seed, and a per-node window bounds what the
             // path has consumed up to a node, which a backward label cannot know.
-            accumulate_merge_is_exact_ =
-                min_max_by_node_id_ == nullptr && default_min_ == ValueType{};
-            if (min_max_by_node_id_ == nullptr) {
-                return;
+            accumulate_merge_is_exact_ = bounds_->is_uniform() && !has_floor_;
+            for (const auto& [node_id, window] : bounds_->by_node()) {
+                has_floor_ = has_floor_ || window.first != ValueType{};
             }
-            for (const auto& [node_id, bounds] : *min_max_by_node_id_) {
-                has_floor_ = has_floor_ || bounds.first != ValueType{};
-            }
-        }
-
-        /// @brief The `{min, max}` window at @p node_id: its override, or the defaults.
-        ///
-        /// @param node_id Index of the node.
-        /// @return The node's window.
-        [[nodiscard]] std::pair<ValueType, ValueType> bounds_at(size_t node_id) const {
-            if (min_max_by_node_id_ != nullptr) {
-                auto it = min_max_by_node_id_->find(node_id);
-                if (it != min_max_by_node_id_->end()) {
-                    return it->second;
-                }
-            }
-            return {default_min_, default_max_};
         }
 
         void preprocess(size_t node_id) override {
-            if (min_max_by_node_id_ == nullptr) {
+            if (bounds_->is_uniform()) {
                 return;
             }
-            std::tie(min_, max_) = bounds_at(node_id);
+            std::tie(min_, max_) = bounds_->at(node_id);
         }
 };
 
