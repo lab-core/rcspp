@@ -399,6 +399,16 @@ params.direction = rcspp::SearchDirection::Backward;
 const rcspp::SolveResult result = graph.solve<rcspp::SimpleDominanceAlgorithm>(params);
 ```
 
+In Python, it is an argument of `solve`, and a direction the algorithm does not search raises
+`ValueError`:
+
+```python
+result = rg.solve(algorithm="simple", direction="backward")  # "forward" (default), "bidirectional"
+```
+
+`algorithm="bidirectional"` is `simple` with `direction="bidirectional"`, and refuses any other
+direction.
+
 Whatever its direction, a search returns the same kind of paths, in forward order: each starts at a
 source and ends at a sink.
 A bidirectional search also reads `critical_resource_index` and `half_way_point`
@@ -448,6 +458,8 @@ for (const auto& problem : report.problems) {
     std::cerr << problem << '\n';
 }
 ```
+
+In Python, `rg.check_model("backward")` returns the list, for `"bidirectional"` by default.
 
 The checks read the whole model, arcs that preprocessing removed included, so a verdict never
 depends on what one solve's bound happened to remove. They never change the graph.
