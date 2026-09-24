@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <list>
 #include <utility>
 
@@ -83,7 +84,8 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
 
             // Permanently tighten the per-node extension cap.
-            this->effective_max_labels_per_node_ = limit;
+            this->effective_max_labels_per_node_ =
+                std::min(this->effective_max_labels_per_node_, limit);
 
             if (this->memory_pressure_triggered_) {
                 // Second+ call: labels stored aside are still consuming memory.

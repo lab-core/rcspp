@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <list>
@@ -207,7 +208,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
 
-            this->effective_max_labels_per_node_ = limit;
+            this->effective_max_labels_per_node_ =
+                std::min(this->effective_max_labels_per_node_, limit);
 
             if (this->memory_pressure_triggered_) {
                 this->release_truncated_labels(
