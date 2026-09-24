@@ -111,7 +111,7 @@ class MinMaxFeasibilityFunction
         ///
         /// Only declared for a uniform `[0, max]` window (see @ref join_rule), where the sum is the
         /// joined path's largest value and the test is exact. Assumes a cumulative (never
-        /// decreasing, unclamped) extension. A bidirectional setup checks that the extension adds.
+        /// decreasing, unclamped) extension. @c JoinCheck checks that the extension adds.
         ///
         /// @param resource      The forward label's resource at the join node.
         /// @param back_resource The backward label's resource at the join node.

@@ -11,11 +11,13 @@
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/bidirectional_test_util.hpp"
 #include "util/reverse_graph_oracle.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
@@ -25,6 +27,9 @@ namespace search_direction_test {
 using Composed = ResourceTypeComposition<RealResource>;
 using List = LabelList<Composed>;
 using Buckets = LabelBuckets<RealResource, RealResource, Composed>;
+/// The internal bidirectional search on these graphs, with a clock of type @p Clock.
+template <typename Clock>
+using Bidir = detail::BidirectionalDominanceAlgorithm<Composed, List, Clock, RealResource>;
 
 constexpr double kTolerance = 1e-9;
 
@@ -115,13 +120,28 @@ TEST(SearchDirection, OtherAlgorithmsRefuseBackward) {
     sdt::expect_backward_refused<TabuSearchAlgorithm>("Tabu");
 }
 
-/// @brief No algorithm searches bidirectionally in this version.
-TEST(SearchDirection, BidirectionalIsNotYetSupported) {
+/// @brief Simple searches bidirectionally when its params say so, and finds the forward optimum
+///        along complete paths.
+TEST(SearchDirection, SimpleRunsBidirectionally) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
-    EXPECT_THROW((void)g->create_algorithm<SimpleDominanceAlgorithm>(
-                     sdt::params(SearchDirection::Bidirectional)),
-                 std::invalid_argument);
+    const auto forward = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+
+    AlgorithmBaseParams base;
+    base.direction = SearchDirection::Bidirectional;
+    const auto bidirectional = g->solve<SimpleDominanceAlgorithm>(base);
+
+    ASSERT_FALSE(forward.solutions.empty());
+    ASSERT_FALSE(bidirectional.solutions.empty());
+    EXPECT_NEAR(bidirectional.solutions.front().cost,
+                forward.solutions.front().cost,
+                sdt::kTolerance);
+    EXPECT_EQ(bidirectional.solutions.front().path_arc_ids, forward.solutions.front().path_arc_ids);
+    for (const auto& solution : bidirectional.solutions) {
+        ASSERT_GE(solution.path_node_ids.size(), 2U);
+        EXPECT_TRUE(g->get_node(solution.path_node_ids.front())->source);
+        EXPECT_TRUE(g->get_node(solution.path_node_ids.back())->sink);
+    }
 }
 
 /// @brief A backward search compares labels backward, which only a LabelList can.
@@ -165,4 +185,57 @@ TEST(SearchDirection, CreateAlgorithmStillAcceptsOtherArguments) {
     static_assert(std::is_same_v<decltype(outer),
                                  std::unique_ptr<DiversificationSearch<sdt::Composed, sdt::List>>>);
     EXPECT_EQ(outer->direction(), SearchDirection::Forward);
+}
+
+// ============================================================================
+// Which class a bidirectional search is
+// ============================================================================
+
+/// @brief Simple asked for a bidirectional search builds the internal bidirectional class, which
+///        says so.
+TEST(BidirectionalSelection, SimpleBuildsTheBidirectionalSearch) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    auto algorithm =
+        g->create_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
+    EXPECT_NO_THROW((void)test_util::bidirectional_impl<sdt::Bidir<RealResource>>(algorithm.get()));
+    EXPECT_EQ(algorithm->direction(), SearchDirection::Bidirectional);
+    EXPECT_EQ(algorithm->supported_directions(),
+              std::vector<SearchDirection>{SearchDirection::Bidirectional});
+}
+
+/// @brief The clock's type, named after the cost's, selects its own instantiation; left out, it
+///        is the cost's.
+TEST(BidirectionalSelection, AnIntClockSelectsTheIntInstantiation) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    auto algorithm =
+        g->create_algorithm<SimpleDominanceAlgorithm, sdt::List, RealResource, IntResource>(
+            sdt::params(SearchDirection::Bidirectional));
+    EXPECT_NO_THROW((void)test_util::bidirectional_impl<sdt::Bidir<IntResource>>(algorithm.get()));
+    EXPECT_THROW((void)test_util::bidirectional_impl<sdt::Bidir<RealResource>>(algorithm.get()),
+                 std::logic_error);
+}
+
+/// @brief Only Simple searches bidirectionally.
+TEST(BidirectionalSelection, PushingRefusesBidirectional) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    EXPECT_THROW((void)g->create_algorithm<PushingDominanceAlgorithm>(
+                     sdt::params(SearchDirection::Bidirectional)),
+                 std::invalid_argument);
+}
+
+/// @brief A bidirectional search runs one phase, and says so when asked for more.
+TEST(BidirectionalSelection, MorePhasesAreWarnedAbout) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    auto params = sdt::params(SearchDirection::Bidirectional);
+    params.num_max_phases = 2;
+    testing::internal::CaptureStdout();
+    auto algorithm = g->create_algorithm<SimpleDominanceAlgorithm>(params);
+    const std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_NE(output.find("num_max_phases > 1 has no effect on a bidirectional search"),
+              std::string::npos)
+        << output;
 }

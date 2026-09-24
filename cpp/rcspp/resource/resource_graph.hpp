@@ -280,6 +280,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
         /// @tparam LabelContainerType The per-node label container.
         /// @tparam CostResourceType   The cost resource type.
+        /// @tparam ClockResourceType  The type of a bidirectional search's clock; defaults to the
+        ///                            cost's.
         /// @param args The constructor arguments after the resource factory.
         /// @return The algorithm: a @c std::unique_ptr<Algorithm<R, LabelContainerType>> when
         ///         @p args is the params alone.
@@ -287,7 +289,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///         params ask for.
         template <template <typename, typename> class AlgorithmType,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename CostResourceType = RealResource, typename... Args>
+                  typename CostResourceType = RealResource,
+                  typename ClockResourceType = CostResourceType, typename... Args>
         auto create_algorithm(Args&&... args) {
             if constexpr (sizeof...(Args) == 1 &&
                           (std::is_same_v<std::remove_cvref_t<Args>,
@@ -296,7 +299,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return detail::make_directional_algorithm<AlgorithmType,
                                                           ResourceCompositionType,
                                                           LabelContainerType,
-                                                          CostResourceType>(
+                                                          CostResourceType,
+                                                          ClockResourceType>(
                     &resource_factory_,
                     std::forward<Args>(args)...);
             } else {
@@ -308,14 +312,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename ClockResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
-            auto algorithm = create_algorithm<AlgorithmType, LabelContainerType, CostResourceType>(
-                std::move(params));
+            auto algorithm = create_algorithm<AlgorithmType,
+                                              LabelContainerType,
+                                              CostResourceType,
+                                              ClockResourceType>(std::move(params));
             return solve<Algorithm<ResourceCompositionType, LabelContainerType>, CostResourceType>(
                 algorithm.get(),
                 upper_bound,
@@ -325,11 +332,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename ClockResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
                           size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
                 std::numeric_limits<double>::infinity(),
                 std::move(params),
                 preprocess,
@@ -348,12 +356,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @param cost_index     Index of the cost component to use.
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename ClockResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmBaseParams base_params,
                           double upper_bound = std::numeric_limits<double>::infinity(),
                           bool preprocess = true, size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
                 upper_bound,
                 AlgorithmParams<LabelContainerType>(std::move(base_params)),
                 preprocess,
@@ -386,9 +395,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
             // The Reduce stages that ran; each is undone after the search.
             std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>> preprocessors;
-            // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
-            // function's exception must not delete arcs from the caller's graph. The graph then
-            // stays marked modified, so the next solve re-runs its checks.
+            // Restores the removed arcs however the solve ends: an exception out of a user's
+            // function must not delete arcs from the caller's graph. The graph then stays marked
+            // modified, so the next solve preprocesses it afresh.
             struct RestoreRemovedArcs {
                     std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>>* list;
                     ~RestoreRemovedArcs() {
