@@ -48,7 +48,7 @@ jobs:
           CIBW_SKIP: pp* *-musllinux_* *-win32 *_i686
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
-          CIBW_ENVIRONMENT_WINDOWS: CMAKE_GENERATOR="Visual Studio 17 2022" CMAKE_GENERATOR_PLATFORM=x64
+          # No generator pin: CMake picks the newest Visual Studio on the runner.
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4

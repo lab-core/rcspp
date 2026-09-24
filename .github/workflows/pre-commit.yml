@@ -3,8 +3,8 @@ name: Pre-commit
 on:
   push:
     branches: [ main ]
+  # Every base branch, so a PR stacked on another feature branch is tested too.
   pull_request:
-    branches: [ main ]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
