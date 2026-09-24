@@ -243,6 +243,16 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
             }
         }
 
+        /// @brief Whether this resource's feasibility function needs an endpoint-derived memory.
+        ///
+        /// See @c FeasibilityFunction::requires_endpoint_mirror. Queried once per solve at setup,
+        /// so it is not cached.
+        ///
+        /// @return @c true when only an endpoint mirror can supply this component's memory.
+        [[nodiscard]] auto requires_endpoint_mirror() const -> bool {
+            return this->feasibility_function_->requires_endpoint_mirror();
+        }
+
         /// @brief The merge rule this resource's feasibility function declares.
         ///
         /// Cached at bind time; lets setup report an undeclared component by name.

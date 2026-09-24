@@ -146,7 +146,7 @@ TEST(BackwardDominance, ThresholdReverses) {
 }
 
 // ============================================================================
-// 3. Mirror resources do NOT reverse
+// 3. Container resources do NOT reverse
 // ============================================================================
 
 /// @brief An ng-set does not reverse: the smaller set is more permissive in both directions.
@@ -273,7 +273,7 @@ TEST(BackwardDominance, DerivationMatchesBackwardKind) {
         std::make_unique<BudgetExtensionFunction<RealResource>>());
     EXPECT_TRUE(budget->is_backward_reversed());
 
-    // Mirror -> not reversed.
+    // EndpointMirror -> not reversed.
     ResourceGraph<SetResource<int>> set_graph;
     std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
     auto mirror = std::make_unique<InclusionDominanceFunction<SetResource<int>>>();
@@ -312,7 +312,9 @@ TEST(BackwardDominance, UnspecifiedDerivesUnreversed) {
 
     auto dominance = std::make_unique<ValueDominanceFunction<UIntResource>>();
     auto* borrowed = dominance.get();
-    auto extension = std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
+    // An unsigned time window reports Unspecified, which `add_resource` accepts (forward-only).
+    std::unique_ptr<ExtensionFunction<UIntResource>> extension =
+        std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
     ASSERT_EQ(extension->backward_kind(), BackwardKind::Unspecified);
 
     graph.add_resource<UIntResource>(std::move(extension),

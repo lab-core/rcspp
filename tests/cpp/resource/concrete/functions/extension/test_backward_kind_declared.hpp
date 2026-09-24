@@ -30,23 +30,19 @@ static_assert(backward_kind_of_v<TimeWindowExtensionFunction<RealResource>> ==
               BackwardKind::Threshold);
 static_assert(backward_kind_of_v<TimeWindowExtensionFunction<IntResource>> ==
               BackwardKind::Threshold);
-static_assert(backward_kind_of_v<UnionExtensionFunction<SetResource<int>>> == BackwardKind::Mirror);
+static_assert(backward_kind_of_v<UnionExtensionFunction<SetResource<int>>> ==
+              BackwardKind::ArcValue);
 static_assert(backward_kind_of_v<IntersectionExtensionFunction<SetResource<int>>> ==
-              BackwardKind::Mirror);
+              BackwardKind::ArcValue);
 static_assert(backward_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
-              BackwardKind::Mirror);
+              BackwardKind::ArcValue);
 
 // The deliberate Unspecified rows:
 // - An unsigned time window cannot represent an unmeetable deadline, so it stays forward-only.
 // - The base class publishes no constant, which also exercises the trait fallback.
-// - Ng-path stores its memory before the arrival node's neighbourhood narrows it, so a join's
-//   disjointness test would compare stale sets; it stays forward-only until that changes.
 static_assert(backward_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
               BackwardKind::Unspecified);
 static_assert(backward_kind_of_v<ExtensionFunction<RealResource>> == BackwardKind::Unspecified);
-static_assert(backward_kind_of_v<NgPathExtensionFunction<SetResource<int>>> ==
-              BackwardKind::Unspecified);
-static_assert(!DeclaresBackwardKind<NgPathExtensionFunction<SetResource<int>>>);
 
 // Checks at compile time, over a sample grid, that x + arc <= theta iff x <= theta - arc, i.e.
 // that the unclamped translation pair is a genuine inverse. The clamps are covered in
@@ -109,13 +105,6 @@ TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
               IntersectionExtensionFunction<SetResource<int>>::kind);
     EXPECT_EQ(SubtractExtensionFunction<SetResource<int>>{}.backward_kind(),
               SubtractExtensionFunction<SetResource<int>>::kind);
-}
-
-// Ng-path has no constant, so pin that its virtual returns the Unspecified default.
-TEST(BackwardKindDeclared, NgPathVirtualReportsUnspecified) {
-    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
-    EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
-              BackwardKind::Unspecified);
 }
 
 // The trait falls back to Unspecified for a class that publishes no constant.

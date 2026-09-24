@@ -26,6 +26,28 @@ enum class MergeRule {
     Custom,          ///< the function writes its own can_be_merged body
 };
 
+/// @brief Where a feasibility function's backward seed sits, as far as the type can tell.
+///
+/// @c Unknown is needed because some functions (e.g. @c MinMaxFeasibilityFunction) choose their
+/// seed end at construction; those are checked at setup instead.
+enum class BackSeedEnd {
+    Never,    ///< back_seed_value() is always nullopt
+    Ceiling,  ///< always seeds at an upper bound -- incoherent with an accumulating extension
+    Unknown,  ///< depends on runtime state; defer to the setup validation
+};
+
+/// @brief What a feasibility function's type says about its backward seed.
+///
+/// Defaults to @c Unknown; concrete functions specialise it in their own headers.
+template <typename T>
+struct BackSeedEndOf {
+        static constexpr BackSeedEnd value = BackSeedEnd::Unknown;
+};
+
+/// @brief The backward-seed end @p T publishes, or @c Unknown if its type cannot say.
+template <typename T>
+inline constexpr BackSeedEnd back_seed_end_v = BackSeedEndOf<T>::value;
+
 /// @brief Abstract base class defining the feasibility function for a resource type.
 ///
 /// A feasibility function determines whether a label's accumulated resource
@@ -89,6 +111,17 @@ class FeasibilityFunction {
         ///
         /// @return The declared backward kind of the paired extension function.
         [[nodiscard]] BackwardKind backward_kind() const { return backward_kind_; }
+
+        /// @brief Whether this function's test only has a backward reading when the memory
+        ///        excludes the node it sits on.
+        ///
+        /// Declare @c true when @c is_feasible asks whether the current node is already in the
+        /// label's memory (the ng-route condition). That only works backward with
+        /// @c BackwardKind::EndpointMirror; under @c ArcValue every backward label would be
+        /// rejected. A bidirectional solve refuses the mismatched pairing at setup.
+        ///
+        /// @return @c true when only an endpoint mirror can supply this function's memory.
+        [[nodiscard]] virtual bool requires_endpoint_mirror() const { return false; }
 
         /// @brief The value a backward label starts with at this node (typically its upper
         ///        bound), or @c std::nullopt to start at the type default.

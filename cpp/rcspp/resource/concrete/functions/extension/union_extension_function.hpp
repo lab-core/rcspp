@@ -5,6 +5,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -15,11 +16,17 @@ namespace rcspp {
 /// extender's container.  Typical use: accumulating visited nodes or collected
 /// items along a path where the resource grows monotonically.
 ///
+/// Backward kind: @c ArcValue. The arc's value is per-arc set data, not a node identity, so the
+/// inherited @c extend_back (same formula) is correct.
+///
 /// @tparam ContainerResourceType A ContainerResource-compatible type supporting
 ///                               `get_union()` and `set_value()`.
 template <typename ContainerResourceType>
-class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerResourceType>,
-                                               ExtensionFunction<ContainerResourceType>> {
+class UnionExtensionFunction
+    : public Clonable<
+          UnionExtensionFunction<ContainerResourceType>,
+          DeclaredKindForm<ExtensionFunction<ContainerResourceType>, BackwardKind::ArcValue>,
+          ExtensionFunction<ContainerResourceType>> {
     public:
         /// @brief Extends @p resource by taking its union with @p extender_value, storing the
         /// result in @p extended_resource.
@@ -33,12 +40,5 @@ class UnionExtensionFunction : public Clonable<UnionExtensionFunction<ContainerR
             auto union_value = resource.get_union(extender_value.get_value());
             extended_resource->set_value(union_value);
         }
-
-        /// @brief The arc value is direction-independent set data, so the inherited
-        ///        @c extend_back (same formula as @c extend) is correct.
-        static constexpr BackwardKind kind = BackwardKind::Mirror;
-
-        /// @return @c BackwardKind::Mirror.
-        [[nodiscard]] BackwardKind backward_kind() const override { return kind; }
 };
 }  // namespace rcspp

@@ -223,4 +223,9 @@ class MinMaxFeasibilityFunction
             std::tie(min_, max_) = bounds_at(node_id);
         }
 };
+
+// No BackSeedEndOf specialisation: the seed end depends on the paired extension (a ceiling under a
+// threshold, none under an accumulation), so the type keeps `Unknown`. Declaring `Ceiling` would
+// wrongly reject the accumulating pairing, which is valid.
+
 }  // namespace rcspp
