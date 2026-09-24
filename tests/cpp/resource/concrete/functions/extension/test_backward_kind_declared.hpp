@@ -36,6 +36,10 @@ static_assert(backward_kind_of_v<IntersectionExtensionFunction<SetResource<int>>
               BackwardKind::ArcValue);
 static_assert(backward_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
               BackwardKind::ArcValue);
+// EndpointMirror, not ArcValue: ng-path reads node identities off the arc's endpoints rather than
+// its value, which is what keeps a memory from containing its own node in both directions.
+static_assert(backward_kind_of_v<NgPathExtensionFunction<SetResource<int>>> ==
+              BackwardKind::EndpointMirror);
 
 // The deliberate Unspecified rows:
 // - An unsigned time window cannot represent an unmeetable deadline, so it stays forward-only.
@@ -88,6 +92,7 @@ TEST(BackwardKindDeclared, BaseDefaultRemainsUnspecified) {
 TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
     std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}};
     std::map<size_t, std::pair<unsigned int, unsigned int>> uwindows{{0, {0U, 100U}}};
+    std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
 
     EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(),
               AdditionExtensionFunction<RealResource>::kind);
@@ -105,6 +110,8 @@ TEST(BackwardKindDeclared, ConstantAgreesWithTheVirtual) {
               IntersectionExtensionFunction<SetResource<int>>::kind);
     EXPECT_EQ(SubtractExtensionFunction<SetResource<int>>{}.backward_kind(),
               SubtractExtensionFunction<SetResource<int>>::kind);
+    EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.backward_kind(),
+              NgPathExtensionFunction<SetResource<int>>::kind);
 }
 
 // The trait falls back to Unspecified for a class that publishes no constant.

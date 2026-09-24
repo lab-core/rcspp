@@ -8,6 +8,10 @@
 //
 // The joiner pairs a forward boundary label (extended to a node, past `H`) with a backward label
 // at that same node.
+//
+// There is no ng-path fixture here: to the joiner, ng is just a `MergeRule::Custom` component
+// that refuses halves sharing a node, which `UnmergeableFeasibilityFunction` already covers. The
+// ng merge body is tested in merge_contract.hpp and test_join_optimality_ng.hpp.
 
 #include <gtest/gtest.h>
 
@@ -184,7 +188,7 @@ class CountingFeasibilityFunction
 
 /// @brief A feasibility function that is locally feasible but never mergeable.
 ///
-/// Isolates the merge step as the only possible rejection.
+/// Isolates the merge step as the only possible rejection; this is also the ng-path case.
 class UnmergeableFeasibilityFunction
     : public Clonable<UnmergeableFeasibilityFunction, FeasibilityFunction<RealResource>> {
     public:
