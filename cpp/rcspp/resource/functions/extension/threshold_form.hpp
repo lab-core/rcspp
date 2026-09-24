@@ -31,7 +31,9 @@ namespace rcspp {
 /// largest value the feasibility function admits there.
 ///
 /// The formulas must satisfy `extend(x, arc) <= b  <==>  x <= extend_back(b, arc)` wherever neither
-/// clamp binds.
+/// clamp binds. A bidirectional setup observes the clamps and the start by running the extension on
+/// values beyond every bound, so the formulas must accept any value of @p V (the infinities
+/// included).
 ///
 /// Backward kind: @c Threshold if the value type is signed, @c Unspecified if it is unsigned.
 /// Going backward, a deadline can become impossible to meet: a deadline of 3 before an arc that
