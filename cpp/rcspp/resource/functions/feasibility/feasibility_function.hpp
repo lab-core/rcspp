@@ -4,7 +4,6 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -44,6 +43,10 @@ class FeasibilityFunction {
         virtual ~FeasibilityFunction() = default;
 
         /// @brief Returns whether the given resource value is feasible in the forward direction.
+        ///
+        /// Must handle any value of its type, the infinities included: a bidirectional setup asks
+        /// it about a value above every bound, and about each value the extension clamps a
+        /// backward label to or starts one at, and the value just above it.
         ///
         /// @param resource The accumulated resource value to test.
         /// @return @c true if the resource satisfies the forward feasibility constraint.
@@ -117,18 +120,6 @@ class FeasibilityFunction {
         /// @return @c true when only an @c ArcEndpoints extension can supply this function's
         /// memory.
         [[nodiscard]] virtual bool requires_arc_endpoints() const { return false; }
-
-        /// @brief This node's upper bound, handed to a threshold extension for its backward clamp
-        ///        and start.
-        ///
-        /// Read on a clone preprocessed for the node.
-        ///
-        /// @param node_id Index of the node.
-        /// @return This node's upper bound, or @c std::nullopt.
-        [[nodiscard]] virtual auto ceiling_at(size_t /*node_id*/) const
-            -> std::optional<ResourceType> {
-            return std::nullopt;
-        }
 
         /// @brief Whether this function's join test is exact only if the value is a running sum
         ///        that no arc lowers.

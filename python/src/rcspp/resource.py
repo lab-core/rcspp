@@ -228,21 +228,19 @@ class CapacityExtensionFunction(_GenericFunctionDescriptor):
     much the prefix may still have consumed at the node, and starts at the cap, so it works
     in a bidirectional solve and can be its half-way clock. Signed types (``"real"``,
     ``"int"``) only, since the backward step subtracts.
+
+    Pair it with ``MinMaxFeasibilityFunction(0, capacity)``, the same capacity: a
+    bidirectional solve refuses a capacity that differs from its feasibility function's
+    maximum. :func:`rcspp.presets.add_capacity_resource` registers the pair.
     """
 
-    def __init__(self, max_by_node: dict | None = None, default_max=None):
-        """Initialize a capacity with per-node caps and a default.
-
-        The paired feasibility function's caps take precedence where it states one.
+    def __init__(self, capacity):
+        """Initialize the capacity extension function.
 
         Args:
-            max_by_node: Mapping from node identifier to that node's upper bound. May be omitted
-                for a uniform capacity.
-            default_max: Bound used at nodes absent from *max_by_node*. When ``None`` the C++
-                default is applied.
+            capacity: The upper bound at every node.
         """
-        self.max_by_node = max_by_node or {}
-        self.default_max = default_max
+        self.capacity = capacity
 
     def create(self, resource_type: str):
         """Instantiate a CapacityExtensionFunction for *resource_type*.
@@ -257,9 +255,7 @@ class CapacityExtensionFunction(_GenericFunctionDescriptor):
             TypeError: If *resource_type* is not one of the signed numerical types.
         """
         fn = _get_fn("CapacityExtensionFunction", resource_type)
-        if self.default_max is None:
-            return fn(self.max_by_node)
-        return fn(self.max_by_node, self.default_max)
+        return fn(self.capacity)
 
 
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):

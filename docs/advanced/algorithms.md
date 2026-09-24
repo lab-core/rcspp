@@ -140,7 +140,7 @@ BidirectionalDominanceAlgorithm cannot run on this model:
     floor would be accepted; loads must be non-negative
 ```
 
-There are seventeen complaints it can make, in two groups.  **Something was not declared, or was
+There are eighteen complaints it can make, in two groups.  **Something was not declared, or was
 declared for the wrong kind of resource:**
 
 | Complaint | What to do |
@@ -169,7 +169,7 @@ change the model rather than the function:
 
 In every one of the six, forward-only solves are unaffected.
 
-**Or two declarations were each legal on their own and incoherent together.**  All seven of these
+**Or two declarations were each legal on their own and incoherent together.**  All eight of these
 are a *pairing* fault: nothing is wrong with either half in isolation, which is why only a check
 that sees both catches them.
 
@@ -177,20 +177,24 @@ The clamps a threshold extension applies are not declared: setup observes them, 
 extension on values beyond every bound (the infinities, or an integral type's extremes) through an
 arc leaving and an arc entering each node, so a threshold of your own is checked however it is
 written, and must accept any value of its type.  The same goes for where a backward label starts at
-a sink: setup calls `start_back` through an arc entering the sink, as the search does.  A
-feasibility function's floor is not declared either: setup asks the node's backward test directly,
-at the lowest value a forward label can hold there (the forward clamp, or 0), so that test must
-handle any value too.  An arc that preprocessing removed for the solve still counts, here and in
-the negative-load scan below, so a refusal does not depend on one solve's bounds.  A node no arc
-leaves is never the arrival of a backward step, so its backward clamp is not checked, though a
-sink's start is; likewise the forward clamp at a node no arc enters.
+a sink: setup calls `start_back` through an arc entering the sink, as the search does.  Each clamp
+and start is then put to the node's forward test, which must admit it and reject a value just above
+it: a backward label starts at, and is clamped to, the largest value the forward test admits.  So
+that test must handle any value, and be exact at its ceiling.  A feasibility function's floor is
+not declared either: setup asks the node's backward test directly, at the lowest value a forward
+label can hold there (the forward clamp, or 0), so that test must handle any value too.  An arc
+that preprocessing removed for the solve still counts, here and in the negative-load scan below, so
+a refusal does not depend on one solve's bounds.  A node no arc leaves is never the arrival of a
+backward step, so its backward clamp is not checked, though a sink's start is; likewise the forward
+clamp at a node no arc enters.
 
 | Complaint | What it means |
 |---|---|
 | `its extension accumulates but its feasibility function declares JoinRule::ValueOrder` | `ValueOrder` compares the forward value against the backward one, which reads the backward value as a *bound*.  Under an accumulation it is not a bound, it is the suffix's own consumption, so the comparison tests nothing the model contains — and it fails by *accepting*.  Use a threshold extension, or declare `JoinRule::Custom` with a body that adds the two halves. |
 | `its feasibility function forbids each node at itself … does not declare BackwardKind::ArcEndpoints` | The feasibility test asks *am I already in my own memory*, which needs the memory at a node to exclude that node in **both** directions.  Only an `ArcEndpoints` extension gives that.  A `BackwardKind::ArcValue` container takes its elements from the arc's *value*, which is the same object going each way, so the backward label reaches a node already holding it and is rejected there — every time.  Use `NgPathExtensionFunction`, or `presets::add_elementary_resource` for an elementary path. |
 | `its feasibility function rejects a backward value of … at node …, the lowest value a forward label can hold there` | The feasibility function's backward test has a floor, a node's opening time say, above that value: the extension never waits for it going forward, and the forward test does not check it either.  The backward search would then reject deadlines a forward path meets.  Build the extension and the feasibility function from the same windows (`TimeWindowExtensionFunction` with `TimeWindowFeasibilityFunction`), or pair `CapacityExtensionFunction` with `MinMaxFeasibilityFunction(0, capacity)`. |
-| `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, which its feasibility function rejects there` | A threshold extension clamps each backward label to the feasibility function's `ceiling_at(node)`, or to its own upper bound where that returns nothing.  If the node's `is_back_feasible` rejects that value, every backward label there is lost.  A feasibility function of your own with per-node bounds must override `ceiling_at` to return the node's bound.  It is called on a copy preprocessed for that node, so returning a bound your `preprocess()` cached is correct. |
+| `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, which its feasibility function rejects there` | A threshold extension clamps each backward label to its own upper bound at the node.  If the node's `is_back_feasible` rejects that value, every backward label there is lost: the extension was built with other caps than the feasibility function, typically `CapacityExtensionFunction(capacity)` beside per-node caps on the feasibility function.  Build both from one `NodeBounds` (`make_node_bounds(0, capacity, per_node)`, or `feasibility->bounds()`), or use `presets::add_capacity_resource`. |
+| `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, above` (or `below`) `the largest value its feasibility function admits there` | The same mismatch where the node's backward test cannot see it.  The node's ceiling is the largest value its forward test admits.  A clamp or start *above* it lets the backward search admit deadlines the forward search rejects — a time window's backward test reads only the opening time, so the join would accept infeasible paths; one *below* it rejects deadlines a forward path meets.  The fix is the one above.  A forward test of your own that admits values a little above its ceiling, beyond the library's own `epsilon` tolerance, reads as a ceiling higher than the clamp and is refused: make it exact. |
 | `arc … consumes …, but its backward reading assumes no arc lowers the value` | A backward label carries only a ceiling, so it cannot see a path's value dip below a floor inside the suffix: with a negative load, a `MinMaxFeasibilityFunction(0, capacity)` under `CapacityExtensionFunction` or `AdditionExtensionFunction` accepted a path whose load went below 0.  Loads must be non-negative.  A time window is exempt, since it waits at each node's opening time. |
 | `its extension declares BackwardKind::Accumulate, but along … it is not a sum` | The join adds the component's two halves, through its cost (`ValueCostFunction`) or its feasibility function's join test (`MinMaxFeasibilityFunction` under an accumulation tests `forward + backward`), which is exact only if a path's value is the sum of one amount per arc.  `Accumulate` promises less: that the step is the same in both directions.  A bottleneck, the largest load seen, is such a step, but its halves 3 and 5 add up to 8 where the path's value is 5.  Setup checks the sum by running the extension: from the type default, two steps along the model's arcs must give the sum of the two single steps.  Write the step as an addition, or keep the component's halves apart: a `TrivialCostFunction`, and a feasibility function whose join test does not add. |
 | `its extension declares BackwardKind::Accumulate, but starts its backward labels at sink …` | A forward label starts at the type default, so a backward label whose halves are added must start there too: any other start is counted on top of the path's own sum.  Leave `start_back` to its default. |
@@ -211,8 +215,8 @@ other way to write it, and the one that can also be the half-way clock:
 from rcspp.resource import CapacityExtensionFunction, MinMaxFeasibilityFunction
 
 rg.add_real_resource(
-    CapacityExtensionFunction(),                 # additive forward, threshold backward
-    MinMaxFeasibilityFunction(0.0, capacity),
+    CapacityExtensionFunction(capacity),         # additive forward, threshold backward
+    MinMaxFeasibilityFunction(0.0, capacity),  # the same capacity
     TrivialCostFunction(),
     ValueDominanceFunction(),
 )
@@ -231,10 +235,21 @@ Two things the join does *not* take from a component's declarations, so there is
 wrong.  Its join test compares values, never the dominance function: a relaxed dominance on a
 time window — ignoring time in dominance is a common heuristic pricing choice — costs optimality,
 as it does forward, and never lets an arrival past the deadline join.  And a threshold extension
-clamps its backward label to each node's upper bound **as the feasibility function states it**:
-a per-node cap given to `MinMaxFeasibilityFunction` alone binds in both directions, and
-`CapacityExtensionFunction`'s own per-node map is only a fallback for a node where the feasibility
-function states no bound.
+clamps its backward label to each node's upper bound **as its own bounds state it**, so those must
+be the feasibility function's.  Give both functions one `NodeBounds`, as the presets do:
+
+```cpp
+auto caps = rcspp::make_node_bounds(0.0, capacity, per_node_caps);  // {node: {0, cap}}
+graph.add_resource<RealResource>(
+    std::make_unique<CapacityExtensionFunction<RealResource>>(caps),
+    std::make_unique<MinMaxFeasibilityFunction<RealResource>>(caps),
+    std::make_unique<TrivialCostFunction<RealResource>>(),
+    std::make_unique<ValueDominanceFunction<RealResource>>());
+```
+
+`TimeWindowExtensionFunction` and `TimeWindowFeasibilityFunction` take a `NodeBounds` of windows
+the same way, and every feasibility function that has one returns it from `bounds()`.  Setup
+refuses a clamp that differs from the node's bound, in either direction.
 
 #### C++ callers can ask for one of these at compile time
 
