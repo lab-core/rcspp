@@ -5,6 +5,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -15,11 +16,16 @@ namespace rcspp {
 /// are NOT in the extender's container.  Typical use: removing visited or consumed
 /// elements from an eligibility set as a path is extended.
 ///
+/// Backward kind: @c ArcValue. The arc's value is per-arc set data, not a node identity, so the
+/// inherited @c extend_back (same formula) is correct.
+///
 /// @tparam ResourceType A ContainerResource-compatible type supporting `subtract()`
 ///                      and `set_value()`.
 template <typename ResourceType>
 class SubtractExtensionFunction
-    : public Clonable<SubtractExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    : public Clonable<SubtractExtensionFunction<ResourceType>,
+                      BackwardForm<ExtensionFunction<ResourceType>, BackwardKind::ArcValue>,
+                      ExtensionFunction<ResourceType>> {
     public:
         /// @brief Extends @p resource by subtracting @p extender_value, storing the result in
         /// @p extended_resource.

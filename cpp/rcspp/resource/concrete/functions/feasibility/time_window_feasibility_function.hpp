@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
@@ -19,7 +20,7 @@ namespace rcspp {
 /// Each node may have an associated time window `[min_time_window, max_time_window]`.
 /// A forward label is feasible when `resource.value <= max_time_window_`.
 /// A backward label is back-feasible when `resource.value >= min_time_window_`.
-/// Two labels can be merged when `forward.value <= backward.value`.
+/// Two labels can be joined when `forward.value <= backward.value`.
 ///
 /// Nodes without an explicit entry in the map fall back to
 /// `[0, default_max_time_window]`.  The default upper bound is set to
@@ -69,17 +70,27 @@ class TimeWindowFeasibilityFunction
             return resource.get_value() >= min_time_window_;
         }
 
-        /// @brief Checks whether a forward and a backward label can be merged.
+        /// @brief @c ValueOrder: the forward arrival must not be later than the backward deadline.
         ///
-        /// Merging is valid when the forward value does not exceed the backward value,
-        /// ensuring the combined path respects non-decreasing time ordering.
+        /// Evaluated on the raw values, so a relaxed dominance never lets a late arrival join.
         ///
-        /// @param resource The forward-label resource at the merge node.
-        /// @param back_resource The backward-label resource at the merge node.
-        /// @return `true` if `resource.value <= back_resource.value`.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            return resource.get_value() <= back_resource.get_value();
+        /// @return @c JoinRule::ValueOrder.
+        [[nodiscard]] JoinRule join_rule() const override { return JoinRule::ValueOrder; }
+
+        /// @brief This node's upper bound, handed to a threshold extension for its backward clamp
+        ///        and start.
+        ///
+        /// Read on a clone preprocessed for the node.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The node's upper time bound.
+        [[nodiscard]] auto ceiling_at(size_t node_id) const
+            -> std::optional<ResourceType> override {
+            auto it = time_window_by_node_id_->find(node_id);
+            ResourceType ceiling;
+            ceiling.set_value(it != time_window_by_node_id_->end() ? it->second.second
+                                                                   : default_max_time_window_);
+            return ceiling;
         }
 
     private:

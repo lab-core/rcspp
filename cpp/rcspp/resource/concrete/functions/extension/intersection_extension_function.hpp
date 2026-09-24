@@ -4,6 +4,7 @@
 #pragma once
 
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -14,12 +15,17 @@ namespace rcspp {
 /// extender's container.  Typical use: tracking which elements (e.g. customers, nodes)
 /// are reachable or eligible along a path by narrowing the candidate set at each arc.
 ///
+/// Backward kind: @c ArcValue. The arc's value is per-arc set data, not a node identity, so the
+/// inherited @c extend_back (same formula) is correct.
+///
 /// @tparam ContainerResourceType A ContainerResource-compatible type supporting
 ///                               `get_intersection()` and `set_value()`.
 template <typename ContainerResourceType>
 class IntersectionExtensionFunction
-    : public Clonable<IntersectionExtensionFunction<ContainerResourceType>,
-                      ExtensionFunction<ContainerResourceType>> {
+    : public Clonable<
+          IntersectionExtensionFunction<ContainerResourceType>,
+          BackwardForm<ExtensionFunction<ContainerResourceType>, BackwardKind::ArcValue>,
+          ExtensionFunction<ContainerResourceType>> {
     public:
         /// @brief Extends @p resource by intersecting it with @p extender_value, storing the
         /// result in @p extended_resource.
