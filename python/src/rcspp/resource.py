@@ -231,7 +231,7 @@ class CapacityExtensionFunction(_GenericFunctionDescriptor):
 
     Pair it with ``MinMaxFeasibilityFunction(0, capacity)``, the same capacity: a
     bidirectional solve refuses a capacity that differs from its feasibility function's
-    maximum.
+    maximum. :func:`rcspp.presets.add_capacity_resource` registers the pair.
     """
 
     def __init__(self, capacity):
