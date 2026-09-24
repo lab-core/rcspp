@@ -27,14 +27,9 @@ class TrivialFeasibilityFunction
             return true;
         }
 
-        /// @brief Always returns @c true, indicating any pair of labels can be merged.
+        /// @brief @c AlwaysTrue: an unconstrained resource never blocks a join.
         ///
-        /// @param resource      The forward label's resource value (unused).
-        /// @param back_resource The backward label's resource value (unused).
-        /// @return @c true unconditionally.
-        [[nodiscard]] auto can_be_merged(const ResourceType& resource,
-                                         const ResourceType& back_resource) -> bool override {
-            return true;
-        }
+        /// @return @c JoinRule::AlwaysTrue.
+        [[nodiscard]] JoinRule join_rule() const override { return JoinRule::AlwaysTrue; }
 };
 }  // namespace rcspp

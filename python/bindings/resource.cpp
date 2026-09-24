@@ -83,6 +83,20 @@ void init_resource(py::module_& m) {
     RCSPP_NUMERICAL_RESOURCES(BIND_NUMERICAL_FUNCTIONS)
 #undef BIND_NUMERICAL_FUNCTIONS
 
+    // -- Concrete functions for SIGNED numerical resources only ---------------
+    // CapacityExtensionFunction subtracts when extending backwards, so it needs a signed type.
+    // Uniform capacity only: the Python MinMaxFeasibilityFunction has no per-node bounds either,
+    // and the two must agree.
+
+    // clang-format off
+#define BIND_SIGNED_NUMERICAL_FUNCTIONS(name, scalar, RT)                                   \
+    py::class_<CapacityExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(       \
+        m, "CapacityExtensionFunction_" #name)                                                \
+        .def(py::init<scalar>(), py::arg("capacity"));
+    // clang-format on
+    RCSPP_SIGNED_NUMERICAL_RESOURCES(BIND_SIGNED_NUMERICAL_FUNCTIONS)
+#undef BIND_SIGNED_NUMERICAL_FUNCTIONS
+
     // ── Concrete functions for container resources ────────────────────────────
 
 #define BIND_CONTAINER_FUNCTIONS(name, scalar, RT)                                          \

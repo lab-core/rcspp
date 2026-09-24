@@ -221,6 +221,43 @@ class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
         return fn(self.tw_by_node, self.default_max_value)
 
 
+class CapacityExtensionFunction(_GenericFunctionDescriptor):
+    """A capacity: a sum along the path that must stay under a cap, readable backward.
+
+    Forward it adds like :class:`AdditionExtensionFunction`; backward a label carries how
+    much the prefix may still have consumed at the node, and starts at the cap, so it works
+    in a bidirectional solve and can be its half-way clock. Signed types (``"real"``,
+    ``"int"``) only, since the backward step subtracts.
+
+    Pair it with ``MinMaxFeasibilityFunction(0, capacity)``, the same capacity: a
+    bidirectional solve refuses a capacity that differs from its feasibility function's
+    maximum.
+    """
+
+    def __init__(self, capacity):
+        """Initialize the capacity extension function.
+
+        Args:
+            capacity: The upper bound at every node.
+        """
+        self.capacity = capacity
+
+    def create(self, resource_type: str):
+        """Instantiate a CapacityExtensionFunction for *resource_type*.
+
+        Args:
+            resource_type: Signed numerical resource type string (``"real"`` or ``"int"``).
+
+        Returns:
+            A typed C++ CapacityExtensionFunction instance.
+
+        Raises:
+            TypeError: If *resource_type* is not one of the signed numerical types.
+        """
+        fn = _get_fn("CapacityExtensionFunction", resource_type)
+        return fn(self.capacity)
+
+
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
     """Feasibility function that checks whether a resource value lies within a time
     window.
@@ -400,6 +437,7 @@ _overridden = {
     "MinMaxFeasibilityFunction",
     "TimeWindowExtensionFunction",
     "TimeWindowFeasibilityFunction",
+    "CapacityExtensionFunction",
     "UnionExtensionFunction",
     "IntersectionExtensionFunction",
     "SubtractExtensionFunction",

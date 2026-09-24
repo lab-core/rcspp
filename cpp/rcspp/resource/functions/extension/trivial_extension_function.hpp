@@ -5,6 +5,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
+#include "rcspp/resource/functions/extension/backward_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -14,10 +15,14 @@ namespace rcspp {
 /// Useful as a placeholder when a resource does not need to accumulate
 /// any value along arcs (e.g., pure counting or cost-only resources).
 ///
+/// Backward kind: @c Accumulate; the inherited @c extend_back is the same no-op.
+///
 /// @tparam ResourceType The resource type satisfying @c ResourceTypeConcept.
 template <typename ResourceType>
 class TrivialExtensionFunction
-    : public Clonable<TrivialExtensionFunction<ResourceType>, ExtensionFunction<ResourceType>> {
+    : public Clonable<TrivialExtensionFunction<ResourceType>,
+                      BackwardForm<ExtensionFunction<ResourceType>, BackwardKind::Accumulate>,
+                      ExtensionFunction<ResourceType>> {
     public:
         /// @brief Performs no extension; leaves @p reused_resource unchanged.
         ///

@@ -32,5 +32,17 @@ class CompositionCostFunction
                 [&](const auto& res_comp) { total_cost += res_comp.get_cost(); });
             return total_cost;
         }
+
+        /// @brief Whether this cost is additive: every component's cost must be.
+        ///
+        /// @param resource_composition Any node's resource.
+        /// @return See @c Resource::is_cost_additive.
+        [[nodiscard]] auto is_additive(const Resource<ResourceTypeComposition<ResourceTypes...>>&
+                                           resource_composition) const -> bool override {
+            bool additive = true;
+            resource_composition.for_each_component(
+                [&](const auto& res_comp) { additive = additive && res_comp.is_cost_additive(); });
+            return additive;
+        }
 };
 }  // namespace rcspp
