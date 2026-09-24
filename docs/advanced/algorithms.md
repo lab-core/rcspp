@@ -191,7 +191,7 @@ wrong.  Its join test compares values, never the dominance function: a relaxed d
 time window — ignoring time in dominance is a common heuristic pricing choice — costs optimality,
 as it does forward, and never lets an arrival past the deadline join.  And a threshold extension
 clamps its backward label to each node's upper bound **as its own bounds state it**, so those must
-be the feasibility function's.  Give both functions one `NodeBounds`:
+be the feasibility function's.  Give both functions one `NodeBounds`, as the presets do:
 
 ```cpp
 auto caps = rcspp::make_node_bounds(0.0, capacity, per_node_caps);  // {node: {0, cap}}
@@ -206,27 +206,89 @@ graph.add_resource<RealResource>(
 the same way, and every feasibility function that has one returns it from `bounds()`.  The
 checks refuse a clamp that differs from the node's bound, in either direction.
 
+#### C++ callers can ask for one of these at compile time
+
+One of the checks can be answered from the *types* alone, and C++ exposes it as a trait,
+`rcspp::backward_coherent_v<Ext, Feas>` (in `rcspp/resource/presets.hpp`): the extension
+function declares a `BackwardKind` other than `Unspecified`.
+
+Every preset asserts it on its own pairing, so an incoherent preset does not compile.  For a
+pairing of your own, assert it yourself:
+
+```cpp
+static_assert(rcspp::backward_coherent_v<MyExtension, MyFeasibility>);
+```
+
+`add_resource` itself does **not** assert it, on purpose.  A model that is never solved
+bidirectionally owes the check nothing — a custom extension function with no declared kind
+and an unsigned time window are both valid forward-only models — so a hard error there would
+reject correct code.
+
+So the trait is an **early warning on a subset**, not a replacement: every backward or
+bidirectional solve runs the model checks first, from C++ and from Python alike, with the same
+messages and component numbering.
+
+The full inventory — all six checks, which fires where, and why no one of them subsumes
+another — is in `cpp/rcspp/resource/functions/backward_kind.hpp`.
+
 ### One rule the join imposes, and what it requires of a container resource
 
 A container resource can declare that two halves may only be joined when their remembered sets are
-**disjoint** — the test `IntersectionFeasibilityFunction` inherits from `DisjointJoinForm`. In this
-release that function declares `Unspecified` whenever it constrains anything (see the table above),
-because the join is not its only problem: `is_back_feasible` asks a backward label the same prefix
-question. What follows is the part the join itself requires, and it is what any container resource
-of your own built on `DisjointJoinForm` has to satisfy.
+**disjoint**.  `IntersectionFeasibilityFunction` declares a refinement of that when it forbids each
+node at itself, which is what the ng-path relaxation means: two halves conflict only on a node both
+remember **and** that forbids itself.  A node both remember but that has no forbidden entry is one
+the model lets a path revisit, so it does not block the join.
 
-That test is exact only when **the set a label stores is the memory it will carry out of the node it
-sits on** — because at the join a forward half and a backward half compare their memories at the
-node where they meet, and the forward half's must already have been filtered by that node. Two ways
-to satisfy it:
+That test needs two things, and the second one is the one people miss.
+
+#### The forbidden sets have to be `forbidden(v) = {v}`
+
+`is_feasible` here asks *what has this label collected so far* — a predicate on a **prefix** — and
+`is_back_feasible` is inherited unchanged, so a backward label's **suffix** is asked it too. Only
+the self-forbidden form survives that: forwards it reads "the prefix already visited `v`",
+backwards "the suffix visits `v` again", and the cross case is exactly what disjointness tests.
+
+Any other entry, `forbidden(u) = {w}` for some other node `w`, is refused by the model checks.
+It would fail by **accepting**: a forward half can collect `w` before the meeting node while the
+suffix passes through `u`, and nothing checks it — the backward label never sees `w`, and the join
+test does not either, because `w` is not on the suffix.  The solve would return a path the model
+forbids, with a `complete` status.
+
+A node with **no** entry is not refused, and needs no refusal.  Both halves may remember it — an ng
+neighbourhood that mentions a charging station the model lets a route revisit, say — and the join
+test ignores it, since it forbids nothing.  Plain disjointness would refuse that splice, and
+`bidirectional` would answer a stricter question than `simple`.
+
+Forward-only solves are unaffected by all of this — the restriction is on the backward reading, not
+on the model.
+
+#### The memory has to come from the arc's endpoints, not its value
+
+`forbidden(v) = {v}` needs the memory at `v` to exclude `v` **in both directions**, and that
+depends on where the container's elements come from:
+
+- `NgPathExtensionFunction` reads them off the arc's *endpoints* and swaps which endpoint is "the
+  node being left" per direction — `BackwardKind::ArcEndpoints`. The memory at `v` is the nodes
+  before it going forward and the nodes after it going backward. Correct.
+- `UnionExtensionFunction`, `IntersectionExtensionFunction` and `SubtractExtensionFunction`
+  accumulate the arc's *value*, which is the same object both ways — `BackwardKind::ArcValue`. With
+  the usual `{origin}` payload the backward memory at `v` contains `v` itself, so the feasibility
+  test rejects every backward label the moment it is created and the backward search keeps nothing
+  but its seed.
+
+The second is the obvious way to write an elementary path and it fails silently, so the model
+checks refuse that pairing for a backward or bidirectional solve. Use
+`presets::add_elementary_resource`.
+
+#### The stored set has to be the memory the label carries out of its node
+
+Because at the join a forward half and a backward half compare their memories at the node where
+they meet, and the forward half's must already have been filtered by that node. Two ways to satisfy
+it:
 
 - the memory never forgets — a plain visited set built with `UnionExtensionFunction`; or
-- the memory forgets, but the narrowing has already been applied on arrival, so what is stored is
-  already the post-narrowing set.
-
-A **forgetting** memory that stores the set *before* the arrival node narrows it satisfies neither.
-`NgPathExtensionFunction` is exactly that, which is why it declares no backward kind at all and a
-bidirectional solve refuses on an ng model rather than joining its halves under this rule.
+- the memory forgets, but the narrowing has already been applied on arrival. That is what
+  `NgPathExtensionFunction` does: it stores `(memory ∪ {node left}) ∩ ng(node arrived)`.
 
 If neither holds, the join compares a one-step-stale set against a current one and refuses splices
 the model permits. The symptom is specific and worth recognising: **`bidirectional` returns a worse
@@ -239,6 +301,10 @@ model.
 So if you attach a container resource of your own to a model that permits revisits, either make its
 extension narrow on arrival as above, or give it a `join_rule()` of `AlwaysTrue`; do not give it
 forbidden sets it does not mean.
+
+The simplest way to get both conditions right is `presets::add_ng_path_resource`, which pairs
+`NgPathExtensionFunction` with an `IntersectionFeasibilityFunction` and derives
+`forbidden_by_node[v] = {v}` itself, at every node the neighborhoods mention.
 
 `SizeFeasibilityFunction` shows the other half of the same question. Its join test counts
 `|forward ∪ backward|` — the union, because two halves that meet have both collected whatever they
@@ -310,6 +376,60 @@ One caveat, and it only applies in modes that are already inexact.  When the per
 quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memory_pressure` tightening
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
+
+### Presets: declaring a resource in one call
+
+Most resources are one of five shapes, and for those the four function objects can be
+constructed for you, so they cannot disagree:
+
+| Preset | What it is | C++ | Python |
+|---|---|---|---|
+| cost | unbounded accumulation; the objective | `presets::add_cost_resource<R>` | `presets.add_cost_resource` |
+| window | per-node `[earliest, latest]`; a threshold | `presets::add_window_resource<R>` | `presets.add_window_resource` |
+| capacity | bounded accumulation — capacity, duration | `presets::add_capacity_resource<R>` | `presets.add_capacity_resource` |
+| ng-path | memory read from the arc's endpoints + forbidden sets | `presets::add_ng_path_resource<R>` | *not available* |
+| elementary | ng-path with nothing ever forgotten | `presets::add_elementary_resource<R>` | *not available* |
+
+```cpp
+#include "rcspp/rcspp.hpp"
+
+rcspp::presets::add_cost_resource<RealResource>(*graph);
+rcspp::presets::add_window_resource<TimeResource>(*graph, windows);   // the map, once
+rcspp::presets::add_capacity_resource<DemandResource>(*graph, capacity);
+```
+
+```python
+from rcspp import presets
+
+presets.add_cost_resource(rg)                      # must come first, and be "real"
+presets.add_window_resource(rg, "real", windows)
+presets.add_capacity_resource(rg, "int", capacity)
+```
+
+`add_capacity_resource` is the one that earns the feature: it is the correct spelling of a bounded
+accumulation, and writing it by hand is where the capacity-as-an-addition mistake above comes
+from. `add_elementary_resource` earns it the same way — the obvious hand-written elementary path
+is a visited set (`UnionExtensionFunction` over arcs carrying `{origin}`), and that is incoherent
+backwards for the reason given above, under "One rule the join imposes".
+
+**The four-object `add_resource` form remains normative.** Presets are sugar over it: each one's
+doc comment names exactly what it expands to, and a model that needs a flipped dominance, a
+non-trivial cost on a capacity, or a floor on a capacity uses the general form. Presets
+deliberately do not chase constructor parity.
+
+The C++ capacity preset takes optional per-node capacities, as a map from node id to cap —
+`add_capacity_resource<R>(*graph, capacity, per_node)` — and hands them to the feasibility
+function, the model's one statement of them; the extension takes its backward clamp from there.
+There is no floor, because a backward label on a threshold carries only a ceiling and a minimum
+would never be checked on the backward side.
+
+Three asymmetries worth knowing. Python presets take the resource type as an argument
+(`"real"`, `"int"`) because there is no template parameter to carry it. The Python capacity
+preset takes a uniform capacity only, because `MinMaxFeasibilityFunction` takes a single window
+from Python. And Python has **no**
+ng-path preset — neither `NgPathExtensionFunction` nor `IntersectionFeasibilityFunction` is
+exposed to Python, so an ng-path model cannot be assembled from Python at all today, with or
+without a preset.
 
 ### When it pays, and when it does not
 
@@ -539,7 +659,8 @@ all with a `complete` status, so they are refused instead:
 
 | Component | When it refuses | What to do instead |
 |---|---|---|
-| `IntersectionFeasibilityFunction` | whenever any node's set is non-empty, forbidden or required | Solve that model with a forward algorithm.  No container extension at this point gives these sets a backward reading — even `forbidden(v) = {v}`, the elementary / ng-route condition, needs a memory that excludes the node it sits on in both directions, which the arc-value containers (`UnionExtensionFunction` and friends) cannot provide. |
+| `IntersectionFeasibilityFunction` | **required** values (`forbidden = false`) | Model the requirement on the whole path, not per node: there is no backward form of "collected one of these already". |
+| `IntersectionFeasibilityFunction` | **forbidden** values that are not `{v}` at node `v` | Use the ng-route condition, `forbidden_by_node[v] = {v}`, with `NgPathExtensionFunction`: see "One rule the join imposes" under [`Bidirectional`](#bidirectional). |
 | `SizeFeasibilityFunction` | a non-zero **minimum** size anywhere, or a **per-node cap** that differs from the default | Use one cap for every node, or solve forward.  A single cap is suffix-safe: a backward label that reaches a source holds the whole set, and every set along the path is a subset of it.  A floor or a per-node cap bounds what the path has collected *up to* a node, which a suffix cannot see. |
 | `MinMaxFeasibilityFunction` | a non-zero **minimum** anywhere, default or per node, under a threshold extension (`CapacityExtensionFunction`, `TimeWindowExtensionFunction`) | The same fix, for the same reason: a backward label carries only a *ceiling*, so neither the join nor a backward label that reaches a source can tell whether the forward value got as high as the floor. |
 | `MinMaxFeasibilityFunction` | under an accumulating extension (`AdditionExtensionFunction`), any window other than a single `[0, max]` | Use `CapacityExtensionFunction`.  A per-node window is the same prefix question as a per-node size cap, and a non-zero minimum rejects the empty suffix a backward label starts from; either way the sum of the two halves cannot be tested exactly. |
@@ -571,12 +692,12 @@ checked, though a sink's start is; likewise the forward clamp at a node no arc e
 | `its feasibility function rejects a backward value of … at node …, the lowest value a forward label can hold there` | The feasibility function's backward test has a floor, a node's opening time say, above that value: the extension never waits for it going forward, and the forward test does not check it either.  The backward search would then reject deadlines a forward path meets.  Build the extension and the feasibility function from the same windows (`TimeWindowExtensionFunction` with `TimeWindowFeasibilityFunction`), or pair `CapacityExtensionFunction` with `MinMaxFeasibilityFunction(0, capacity)`. | both |
 | `its backward labels at node … are not clamped at all, but its feasibility function rejects values above some bound there` | The extension's backward step does not clamp, so a deadline can stay above the node's upper bound and the backward search admits deadlines the forward search rejects — under a time window's backward test, which reads only the opening time, the join or a backward label reaching a source would accept an infeasible path.  Clamp each backward label to its node's upper bound, as `ThresholdForm` does, built from the feasibility function's `NodeBounds`. | both |
 | `its backward labels at sink … start at the type default, but its feasibility function rejects values above some bound there` | The extension's `start_back` sets nothing, so a backward label at the sink keeps the type default, 0, as its deadline, and the backward search rejects deadlines a forward path meets.  Start each backward label at the sink's upper bound, as `ThresholdForm::start_back` does. | both |
-| `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, which its feasibility function rejects there` | A threshold extension clamps each backward label to its own upper bound at the node.  If the node's `is_back_feasible` rejects that value, every backward label there is lost: the extension was built with other caps than the feasibility function, typically `CapacityExtensionFunction(capacity)` beside per-node caps on the feasibility function.  Build both from one `NodeBounds` (`make_node_bounds(0, capacity, per_node)`, or `feasibility->bounds()`). | both |
+| `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, which its feasibility function rejects there` | A threshold extension clamps each backward label to its own upper bound at the node.  If the node's `is_back_feasible` rejects that value, every backward label there is lost: the extension was built with other caps than the feasibility function, typically `CapacityExtensionFunction(capacity)` beside per-node caps on the feasibility function.  Build both from one `NodeBounds` (`make_node_bounds(0, capacity, per_node)`, or `feasibility->bounds()`), or use `presets::add_capacity_resource`. | both |
 | `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, above` (or `below`) `the largest value its feasibility function admits there` | The same mismatch where the node's backward test cannot see it.  The node's ceiling is the largest value its forward test admits.  A clamp or start *above* it lets the backward search admit deadlines the forward search rejects — a time window's backward test reads only the opening time, so the join would accept infeasible paths; one *below* it rejects deadlines a forward path meets.  The fix is the one above.  A forward test of your own that admits values a little above its ceiling, beyond the library's own `epsilon` tolerance, reads as a ceiling higher than the clamp and is refused: make it exact. | both |
 | `arc … consumes …, but its backward reading assumes no arc lowers the value` | A backward label carries only a ceiling, so it cannot see a path's value dip below a floor inside the suffix: with a negative load, a `MinMaxFeasibilityFunction(0, capacity)` under `CapacityExtensionFunction` or `AdditionExtensionFunction` accepts a path whose load went below 0.  Loads must be non-negative.  A time window is exempt, since it waits at each node's opening time. | both |
 | `its extension declares BackwardKind::Accumulate, but along … it is not a sum` | The join adds the component's two halves, through its cost (`ValueCostFunction`) or its feasibility function's join test (`MinMaxFeasibilityFunction` under an accumulation tests `forward + backward`), which is exact only if a path's value is the sum of one amount per arc.  `Accumulate` promises less: that the step is the same in both directions.  A bottleneck, the largest load seen, is such a step, but its halves 3 and 5 add up to 8 where the path's value is 5.  The check runs the extension: from the type default, two steps along the model's arcs must give the sum of the two single steps.  Write the step as an addition, or keep the component's halves apart: a `TrivialCostFunction`, and a feasibility function whose join test does not add. | bidirectional |
 | `its extension declares BackwardKind::Accumulate, but starts its backward labels at sink …` | A forward label starts at the type default, so a backward label whose halves are added must start there too: any other start is counted on top of the path's own sum.  Leave `start_back` to its default. | bidirectional |
-| `its feasibility function forbids each node at itself, which only reads correctly backwards when the memory at a node excludes that node; its extension function does not declare BackwardKind::ArcEndpoints` | The feasibility function asks whether a node is in the label's memory, and an `ArcValue` extension fills the memory from the arc's value, the same in both directions: going backward, the memory arrives already holding the node it sits on, and every backward extension is rejected.  Derive the extension function from `ArcEndpointsForm`, which reads the memory off the arc's endpoints and so excludes a node at itself in both directions. | both |
+| `its feasibility function forbids each node at itself … does not declare BackwardKind::ArcEndpoints` | The feasibility test asks *am I already in my own memory*, which needs the memory at a node to exclude that node in **both** directions.  Only an `ArcEndpoints` extension gives that.  A `BackwardKind::ArcValue` container takes its elements from the arc's *value*, which is the same object going each way, so the backward label reaches a node already holding it and is rejected there — every time.  Use `NgPathExtensionFunction`, or `presets::add_elementary_resource` for an elementary path. | both |
 
 (The messages are generated by `BackwardExtensionCheck` and `JoinCheck`, in
 `cpp/rcspp/validation/`; if you change a message there, change these tables too.)
