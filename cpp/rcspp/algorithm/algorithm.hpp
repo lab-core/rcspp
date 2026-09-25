@@ -308,6 +308,18 @@ struct AlgorithmBaseParams {
         /// @c SolveResult::join_truncated is set and @ref could_be_non_optimal is true.
         size_t max_join_pairs = MAX_INT;
 
+        /// @brief Most paths the join returns, the cheapest kept; `MAX_INT` (the default) is no
+        ///        budget.
+        ///
+        /// Bidirectional only. Caps what the **join** splices, and nothing else. Unlike
+        /// @ref stop_after_X_solutions it never stops the search, so the status still describes the
+        /// search. Once the join holds this many paths it prunes every pair that cannot displace
+        /// the dearest of them. The cheapest joined path is always kept, so the optimum, and with
+        /// it `COMPLETE` as a proof of the minimum, is unchanged. What changes is the column *set*:
+        /// "the K cheapest joined paths", not "every admissible pair". Paths a search reaches on
+        /// its own do not count against it.
+        size_t join_column_budget = MAX_INT;
+
         /// @brief Whether the join still runs after a timeout or the memory limit (default true).
         ///
         /// Bidirectional only. With the half-way bound in force few forward labels reach a sink, so
