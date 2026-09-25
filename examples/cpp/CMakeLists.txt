@@ -46,3 +46,10 @@ set_target_properties(rcspp-ng-cg-comparison PROPERTIES EXCLUDE_FROM_ALL TRUE)
 # Forward against bidirectional over a whole column generation, one row per pricing solve.
 # The instrument every "learns across solves" proposal is measured through.
 add_vrp_example(rcspp-bidirectional-cg bidirectional_cg_main.cpp)
+
+# Dynamic ng augmentation against fixed ng sizes, over whole column generations. Like the ng
+# comparison, it requires kRouteRelaxation = NgPath (it static_asserts otherwise), so it is
+# excluded from the default build:
+#   cmake --build <build-dir> --target rcspp-ng-dynamic-cg
+add_vrp_example(rcspp-ng-dynamic-cg ng_dynamic_cg_main.cpp)
+set_target_properties(rcspp-ng-dynamic-cg PROPERTIES EXCLUDE_FROM_ALL TRUE)
