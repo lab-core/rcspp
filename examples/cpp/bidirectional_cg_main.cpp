@@ -36,6 +36,14 @@
 // Pass instance names to choose them (default `R101_25 R201_25`); `--summary` drops the
 // per-iteration tables.
 //
+// **The join's budgets** (PR 3), for measuring what bounding the join's work buys:
+//   --join-budget=K       join_column_budget: the join keeps only its K cheapest paths
+//   --max-join-pairs=N    max_join_pairs: the join stops after N merge-rule questions
+//   --pricing-timeout=S   timeout_s on every pricing solve, forward included
+//   --no-join-after-stop  join_after_early_stop = false: skip the join after a timeout, as before
+//   --no-forward          skip the forward pricer; the dynamic run is then checked against static
+// The `pairs` column is `join_pairs_tested`; a `J` after the move means the join was truncated.
+//
 // Needs Gurobi, like every other driver here. Works under any `kRouteRelaxation`: all three
 // presets declare coherent backward forms, so the bidirectional solve is accepted at setup.
 
@@ -44,6 +52,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -73,6 +82,17 @@ struct PricingRow {
         std::string off_reason;
         /// What the half-way controller did after this solve; empty when nothing adapts.
         std::string move;
+        size_t join_pairs = 0;
+        bool join_truncated = false;
+};
+
+/// @brief What a run caps. Every default is "no cap", which reproduces PR 2's driver.
+struct JoinOptions {
+        size_t join_budget = MAX_INT;                                ///< --join-budget=K
+        size_t max_pairs = MAX_INT;                                  ///< --max-join-pairs=N
+        double timeout_s = std::numeric_limits<double>::infinity();  ///< --pricing-timeout=S
+        bool join_after_stop = true;                                 ///< --no-join-after-stop
+        bool run_forward = true;                                     ///< --no-forward
 };
 
 /// @brief Wraps an algorithm template and records one row per `solve()`.
@@ -113,7 +133,9 @@ struct Recording {
                                                .half_way_point = result.half_way_point_used,
                                                .seconds = seconds,
                                                .off_reason = std::move(off_reason),
-                                               .move = {}});
+                                               .move = {},
+                                               .join_pairs = result.join_pairs_tested,
+                                               .join_truncated = result.join_truncated});
                     // Only the bidirectional algorithm has a controller, and only a dynamic run
                     // seeds it; the forward pricer compiles this branch away.
                     if constexpr (requires(Inner<RT, LC>& algo) { algo.half_way_controller(); }) {
@@ -133,7 +155,7 @@ struct Recording {
 
 void print_header() {
     std::cout << "    iter  status     cols   fwd_lbl   bwd_lbl  fwd/bwd   dom_checks  joined"
-                 "        H      sec  move\n";
+                 "       pairs        H      sec  move\n";
 }
 
 void print_row(const PricingRow& row) {
@@ -144,9 +166,10 @@ void print_row(const PricingRow& row) {
               << to_string(row.status) << std::right << std::setw(6) << row.solutions
               << std::setw(10) << row.forward_labels << std::setw(10) << row.backward_labels
               << std::setw(9) << std::fixed << std::setprecision(2) << ratio << std::setw(13)
-              << row.dominance_checks << std::setw(8) << row.joined_paths << std::setw(9)
-              << std::setprecision(1) << row.half_way_point << std::setw(9) << std::setprecision(3)
-              << row.seconds << "  " << row.move << std::endl;
+              << row.dominance_checks << std::setw(8) << row.joined_paths << std::setw(12)
+              << row.join_pairs << std::setw(9) << std::setprecision(1) << row.half_way_point
+              << std::setw(9) << std::setprecision(3) << row.seconds << "  " << row.move
+              << (row.join_truncated ? " J" : "") << std::endl;
     if (!row.off_reason.empty()) {
         std::cout << "          bound off: " << row.off_reason << std::endl;
     }
@@ -170,9 +193,15 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
     double log_imbalance = 0.0;
     size_t measured = 0;
     size_t outside_dead_zone = 0;
+    size_t columns = 0;
+    size_t timeouts = 0;
+    size_t truncated_joins = 0;
     for (const auto& row : rows) {
         pricing_seconds += row.seconds;
         checks += row.dominance_checks;
+        columns += row.solutions;
+        timeouts += row.status == AlgorithmStatus::TIMEOUT ? 1 : 0;
+        truncated_joins += row.join_truncated ? 1 : 0;
         const double ratio = imbalance(row);
         if (ratio > 0.0) {
             log_imbalance += std::log(ratio);
@@ -186,7 +215,8 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
     std::cout << "    " << label << ": lp_cost=" << std::fixed << std::setprecision(4) << cg.lp_cost
               << "  iterations=" << cg.iterations << "  dom_checks=" << checks
               << "  pricing=" << std::setprecision(2) << pricing_seconds << " s"
-              << "  total=" << wall_seconds << " s";
+              << "  total=" << wall_seconds << " s" << "  cols=" << columns
+              << "  timeouts=" << timeouts << "  jtrunc=" << truncated_joins;
     if (measured > 0) {
         std::cout << "  imbalance=" << std::setprecision(2)
                   << std::exp(log_imbalance / static_cast<double>(measured)) << "x"
@@ -196,9 +226,12 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
 }
 
 /// @brief One full column generation with the forward pricer.
-CGSolveResult run_forward(const Instance& instance) {
+///
+/// Only the pricing timeout applies: the join budgets have nothing to cap in a forward search.
+CGSolveResult run_forward(const Instance& instance, const JoinOptions& options) {
     VRP vrp(instance);
     AlgorithmParams<ListLC> params;
+    params.timeout_s = options.timeout_s;
 
     auto algo =
         vrp.get_graph().create_algorithm<Recording<SimpleDominanceAlgorithm>::Algo, ListLC>(params);
@@ -222,7 +255,9 @@ CGSolveResult run_forward(const Instance& instance) {
 /// @param instance      The instance.
 /// @param dynamic       Whether `H` adapts between pricing calls.
 /// @param per_iteration Whether to print the per-iteration table before the summary.
-CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per_iteration) {
+/// @param options       The join's budgets and the pricing timeout.
+CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per_iteration,
+                                const JoinOptions& options) {
     VRP vrp(instance);
     const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
 
@@ -230,6 +265,10 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
     params.critical_resource_index = 1;  // time
     params.half_way_point = horizon / 2.0;
     params.dynamic_half_way = dynamic;
+    params.join_column_budget = options.join_budget;
+    params.max_join_pairs = options.max_pairs;
+    params.timeout_s = options.timeout_s;
+    params.join_after_early_stop = options.join_after_stop;
 
     auto algo =
         vrp.get_graph()
@@ -258,10 +297,23 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
 int main(int argc, char** argv) {
     std::vector<std::string> names;
     bool per_iteration = true;
+    JoinOptions options;
+    // The value after `=` in an option spelled `--name=value`.
+    const auto value_of = [](const std::string& arg) { return arg.substr(arg.find('=') + 1); };
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--summary") {
             per_iteration = false;
+        } else if (arg.starts_with("--join-budget=")) {
+            options.join_budget = std::stoull(value_of(arg));
+        } else if (arg.starts_with("--max-join-pairs=")) {
+            options.max_pairs = std::stoull(value_of(arg));
+        } else if (arg.starts_with("--pricing-timeout=")) {
+            options.timeout_s = std::stod(value_of(arg));
+        } else if (arg == "--no-join-after-stop") {
+            options.join_after_stop = false;
+        } else if (arg == "--no-forward") {
+            options.run_forward = false;
         } else {
             names.push_back(arg);
         }
@@ -271,7 +323,17 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "[ CG ] forward, static-H and dynamic-H bidirectional, full column generation\n"
-              << "       fwd/bwd is the imbalance the dynamic half-way point drives towards 1.\n"
+              << "       fwd/bwd is the imbalance the dynamic half-way point drives towards 1.\n";
+    // Every log states what it was run with.
+    const auto limit = [](size_t value) {
+        return value >= MAX_INT ? std::string("none") : std::to_string(value);
+    };
+    std::cout << "       join_budget=" << limit(options.join_budget)
+              << "  max_join_pairs=" << limit(options.max_pairs) << "  pricing_timeout="
+              << (std::isfinite(options.timeout_s) ? std::to_string(options.timeout_s) + " s"
+                                                   : std::string("none"))
+              << "  join_after_early_stop=" << (options.join_after_stop ? "yes" : "no")
+              << "  forward=" << (options.run_forward ? "yes" : "no") << "\n"
               << std::endl;
 
     for (const auto& name : names) {
@@ -282,20 +344,33 @@ int main(int argc, char** argv) {
         const auto instance = reader.read();
 
         std::cout << "  " << name << std::endl;
-        const auto forward = run_forward(instance);
-        const auto fixed = run_bidirectional(instance, /*dynamic=*/false, per_iteration);
-        const auto adaptive = run_bidirectional(instance, /*dynamic=*/true, per_iteration);
+        std::optional<CGSolveResult> forward;
+        if (options.run_forward) {
+            forward = run_forward(instance, options);
+        }
+        const auto fixed = run_bidirectional(instance, /*dynamic=*/false, per_iteration, options);
+        const auto adaptive = run_bidirectional(instance, /*dynamic=*/true, per_iteration, options);
 
         // The pricers must agree. A difference here is a bug in the algorithm, not in the
         // reporting, and is worth shouting about rather than leaving in a table to be squinted at.
         // Moving H must not change the LP bound either: the half-way bound is correct for any H.
-        const std::vector<std::pair<std::string, CGSolveResult>> others{{"static H", fixed},
-                                                                        {"dynamic H", adaptive}};
+        // Without the forward run, the static run is the reference. A CG that ended unproven
+        // (a pricing timeout) may legitimately stop at a different LP value, so it is flagged
+        // rather than called a disagreement.
+        const std::pair<std::string, CGSolveResult> reference =
+            forward ? std::pair{std::string("forward"), *forward}
+                    : std::pair{std::string("static H"), fixed};
+        std::vector<std::pair<std::string, CGSolveResult>> others{{"dynamic H", adaptive}};
+        if (forward) {
+            others.insert(others.begin(), {"static H", fixed});
+        }
         for (const auto& [label, other] : others) {
-            const double gap = std::abs(forward.lp_cost - other.lp_cost);
+            const double gap = std::abs(reference.second.lp_cost - other.lp_cost);
             if (gap > 1e-6) {  // NOLINT(readability-magic-numbers)
-                std::cout << "    *** DISAGREEMENT: forward " << forward.lp_cost << " vs " << label
-                          << " " << other.lp_cost << " (gap " << gap << ")" << std::endl;
+                const bool proven = reference.second.proven_optimal && other.proven_optimal;
+                std::cout << "    " << (proven ? "*** DISAGREEMENT" : "(unproven) difference")
+                          << ": " << reference.first << " " << reference.second.lp_cost << " vs "
+                          << label << " " << other.lp_cost << " (gap " << gap << ")" << std::endl;
             }
         }
         std::cout << std::endl;
