@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -256,25 +257,37 @@ inline void sweep(PricingModel& model, const std::string& dataset, const SweepOp
 }
 
 /// @brief The relaxed-dominance variants: the same subproblem, one resource out of dominance.
-inline void sweep_relaxed(PricingModel& model, const std::string& dataset) {
-    const auto base = guarded_params();
-    const auto bidirectional = bidirectional_params(model.horizon());
+///
+/// @param model   The subproblem, built with the relaxation, or plain when @p ignored names it.
+/// @param dataset Its name.
+/// @param ignored Components to leave out of dominance per solve; empty when the model itself is
+///                relaxed. Recorded as `ignore=<components>` in the row's `extra`.
+inline void sweep_relaxed(PricingModel& model, const std::string& dataset,
+                          const std::set<size_t>& ignored = {}) {
+    auto base = guarded_params();
+    base.dominance_ignored_components = ignored;
+    auto bidirectional = bidirectional_params(model.horizon());
+    bidirectional.dominance_ignored_components = ignored;
+    std::string extra;
+    for (const size_t component : ignored) {
+        extra += (extra.empty() ? "ignore=" : "+") + std::to_string(component);
+    }
     for (const size_t quota : {static_cast<size_t>(MAX_INT), static_cast<size_t>(5)}) {
         auto params = bidirectional;
         params.num_labels_to_extend_by_node = quota;
         measure(model,
                 dataset,
-                {.algorithm = "bidirectional", .quota = quota},
+                {.algorithm = "bidirectional", .quota = quota, .extra = extra},
                 make_bidirectional(params));
         auto forward = base;
         forward.num_labels_to_extend_by_node = quota;
         measure(model,
                 dataset,
-                {.algorithm = "simple", .quota = quota},
+                {.algorithm = "simple", .quota = quota, .extra = extra},
                 make<SimpleDominanceAlgorithm>(forward));
         measure(model,
                 dataset,
-                {.algorithm = "pushing", .quota = quota},
+                {.algorithm = "pushing", .quota = quota, .extra = extra},
                 make<PushingDominanceAlgorithm>(forward));
     }
 }
@@ -421,6 +434,42 @@ TEST(HeuristicSweep, DISABLED_S1_EarlyStops) {
                 {.algorithm = "bidirectional"},
                 heuristics::make_bidirectional(heuristics::bidirectional_params(model.horizon())));
             hs::sweep_early_stops(model, dataset.name, exact.seconds, fractions);
+        }
+    }
+}
+
+/// @brief Step 2's gate: E1's relaxed variants again, relaxed per solve on the plain graph.
+///
+/// Each dataset's plain model runs an exact bidirectional solve, then every relaxed configuration
+/// of E1 with `dominance_ignored_components`, then the exact solve again, all on the same graph.
+/// The relaxed rows (`extra` = `ignore=<component>`) must match E1's two-graph rows exactly in
+/// labels extended and columns, and the two exact solves must agree.
+TEST(HeuristicSweep, DISABLED_S1_RelaxedDominance) {
+    namespace hs = heuristic_sweep;
+    constexpr size_t kLoad = 2;
+    constexpr size_t kNgMemory = 3;
+    for (const auto& dataset : hs::all_datasets()) {
+        SCOPED_TRACE(dataset.name);
+        for (const auto relaxation : {heuristics::Relaxation::None, heuristics::Relaxation::Ng}) {
+            heuristics::PricingModel model(dataset.instance,
+                                           dataset.duals,
+                                           {.relaxation = relaxation});
+            const auto exact_params = heuristics::bidirectional_params(model.horizon());
+            const auto before = hs::measure(model,
+                                            dataset.name,
+                                            {.algorithm = "bidirectional"},
+                                            heuristics::make_bidirectional(exact_params));
+            hs::sweep_relaxed(model, dataset.name, {kLoad});
+            if (relaxation == heuristics::Relaxation::Ng) {
+                hs::sweep_relaxed(model, dataset.name, {kNgMemory});
+            }
+            const auto after = heuristics::run(model,
+                                               dataset.name,
+                                               {.algorithm = "bidirectional", .extra = "after"},
+                                               heuristics::make_bidirectional(exact_params));
+            EXPECT_EQ(after.extended, before.extended)
+                << "the relaxation leaked into a later solve";
+            EXPECT_EQ(after.negative_columns, before.negative_columns);
         }
     }
 }
