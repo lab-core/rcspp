@@ -17,6 +17,8 @@ sys.path.insert(
 )
 
 import rcspp._core.resource as _resource  # noqa: E402
+from rcspp import HalfWayController, HalfWayMove  # noqa: E402
+from rcspp._core.graph import SolveResult  # noqa: E402
 from rcspp.graph import ALGORITHMS, Algorithm, AlgorithmParams, ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
@@ -399,3 +401,70 @@ def test_a_forward_solve_leaves_the_backward_diagnostics_at_zero():
     assert result.backward_labels == 0
     assert result.dominance_checks > 0
     assert result.half_way_point_used == 0.0
+
+
+# -- Join budgets (PR 3) -------------------------------------------------------
+
+
+def _two_join_graph():
+    """Two routes only the join completes: 0-1-3-4-6 (cost 2) and 0-1-3-5-6 (cost 3).
+
+    With H = 20 the forward labels stop as boundary labels at 4 and 5 (t = 25), and the backward
+    labels stop at 3 (deadline 10 < H), so neither search reaches a terminal on its own.
+    """
+    windows = {
+        0: (0.0, 0.0),
+        1: (0.0, 60.0),
+        2: (0.0, 60.0),
+        3: (0.0, 60.0),
+        4: (0.0, 25.0),
+        5: (0.0, 25.0),
+        6: (0.0, 60.0),
+    }
+    arcs = [
+        (1.0, 5.0, 0, 1),
+        (2.0, 5.0, 0, 2),
+        (0.0, 5.0, 1, 3),
+        (0.0, 5.0, 2, 3),
+        (1.0, 15.0, 3, 4),
+        (2.0, 15.0, 3, 5),
+        (0.0, 5.0, 4, 6),
+        (0.0, 5.0, 5, 6),
+    ]
+    return _time_window_graph(windows, arcs)
+
+
+def test_join_column_budget_keeps_the_cheapest_joined_path():
+    """A finite bound asks for every column below it; the budget keeps only the cheapest."""
+    p = _bidirectional_params(20.0, critical_resource_index=1)
+    both = _two_join_graph().solve(algorithm="bidirectional", upper_bound=100.0, params=p)
+    assert both.number_of_joined_paths == 2
+
+    p.join_column_budget = 1
+    one = _two_join_graph().solve(algorithm="bidirectional", upper_bound=100.0, params=p)
+    assert one.status_string() == "complete"
+    assert len(one.solutions) == 1
+    assert one.solutions[0].cost == pytest.approx(2.0)
+
+
+def test_a_pair_budget_is_reported_and_not_learned_from():
+    """A capped join says so, and the half-way controller does not learn from it."""
+    p = _bidirectional_params(20.0, critical_resource_index=1)
+    p.max_join_pairs = 0
+    result = _two_join_graph().solve(algorithm="bidirectional", upper_bound=100.0, params=p)
+    assert result.join_truncated is True
+    assert result.join_pairs_tested == 0
+
+    controller = HalfWayController(20.0)
+    assert controller.update(result) == HalfWayMove.Skipped
+
+
+def test_join_diagnostics_default_to_nothing():
+    """A fresh result reports no join work, and the params default to no budget."""
+    result = SolveResult()
+    assert result.join_pairs_tested == 0
+    assert result.join_truncated is False
+    p = AlgorithmParams()
+    assert p.join_after_early_stop is True
+    assert p.max_join_pairs > 10**6
+    assert p.join_column_budget > 10**6
