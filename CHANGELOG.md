@@ -78,6 +78,12 @@ New features are summarised, with a pointer to where they are documented.
   `join_after_early_stop = false` skips it, and so does an interrupt. See "`Bidirectional`" in
   `docs/advanced/algorithms.md`.
 
+- **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
+  join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
+  unchanged. `max_join_pairs` caps the join's work in join-rule questions. `SolveResult` reports
+  `join_pairs_tested` and `join_truncated`, and the half-way controller does not learn from a
+  truncated join.
+
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
   missing or incoherent before any label exists. They read the whole model, removed arcs included.
