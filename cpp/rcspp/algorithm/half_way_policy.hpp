@@ -30,6 +30,7 @@ enum class HalfWayOff : unsigned {
     NotIncreasing,       ///< the clock is not an increasing part of the dominance order
     NoCeiling,           ///< the clock's extension sets no backward start at a sink
     IndexOutOfRange,     ///< `critical_resource_index` names no component of the critical type
+    ClockRelaxed,        ///< `dominance_ignored_components` leaves the clock out of dominance
 };
 
 /// @brief Whether this process has not yet reported the bound being off for @p reason.
