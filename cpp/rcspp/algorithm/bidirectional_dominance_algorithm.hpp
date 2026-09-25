@@ -153,6 +153,8 @@ class BidirectionalDominanceAlgorithm
             }
 
             joined_paths_ = 0;
+            join_pairs_tested_ = 0;
+            join_truncated_ = false;
 
             // The model checks ran before the solve. A half-way setting that does not fit the
             // model turns the bound off rather than throwing.
@@ -253,6 +255,8 @@ class BidirectionalDominanceAlgorithm
                 // that was never applied.
                 .half_way_point_used = half_way_.enabled() ? half_way_.h() : 0.0,
                 .number_of_joined_paths = joined_paths_,
+                .join_pairs_tested = join_pairs_tested_,
+                .join_truncated = join_truncated_,
             };
 
             // The backward half. `Base::annotate` cannot see these containers; they belong to
@@ -459,13 +463,16 @@ class BidirectionalDominanceAlgorithm
                 .prune_requested = this->params_.prune_based_on_upper_bound_ || stopped_early,
                 .cost_upper_bound = this->cost_upper_bound_,
                 .max_solutions = this->params_.stop_after_X_solutions,
+                .max_pairs = this->params_.max_join_pairs,
             };
-            joiner_.join(*this->graph_,
-                         this->non_dominated_labels_by_node_pos_,
-                         backward_labels_by_node_pos_,
-                         options,
-                         this->best_cost_upper_bound_,
-                         record);
+            const JoinStats stats = joiner_.join(*this->graph_,
+                                                 this->non_dominated_labels_by_node_pos_,
+                                                 backward_labels_by_node_pos_,
+                                                 options,
+                                                 this->best_cost_upper_bound_,
+                                                 record);
+            join_pairs_tested_ = stats.pairs_tested;
+            join_truncated_ = stats.truncated;
         }
 
         /// @brief A lower bound on the cost a label at @p node_pos still has to add to become a
@@ -785,6 +792,8 @@ class BidirectionalDominanceAlgorithm
         HalfWayController half_way_controller_;
 
         size_t joined_paths_ = 0;
+        size_t join_pairs_tested_ = 0;
+        bool join_truncated_ = false;
         Joiner<ResourceType, CriticalRC> joiner_;
 };
 
