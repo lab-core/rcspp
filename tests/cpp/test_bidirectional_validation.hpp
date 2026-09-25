@@ -340,8 +340,8 @@ inline std::unique_ptr<ResourceGraph<RealResource>> two_join_graph() {
 
 /// @brief An interrupted solve does not then run the join.
 ///
-/// The join is expensive and should not run after a timeout, stop callback or memory limit. The
-/// stop callback is used here since it is deterministic and reaches the same guard.
+/// An interrupt means stop now, so it is the one run-level stop after which the join does not run;
+/// a timeout or the memory limit still joins (see ASolveStoppedByTheMemoryLimitStillJoins).
 TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     namespace bv = bidirectional_validation_test;
 
@@ -372,6 +372,54 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     EXPECT_GT(algorithm->get_label_pool().get_nb_total_labels(), 0U);
     EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
         << "skipping the join must not change what the pool owns";
+}
+
+/// @brief Which run-level stops still run the join.
+TEST(BidirectionalValidation, OnlyAnInterruptSkipsTheJoin) {
+    static_assert(join_runs_after(RunLevelStop::None));
+    static_assert(join_runs_after(RunLevelStop::Timeout));
+    static_assert(join_runs_after(RunLevelStop::MemoryLimit));
+    static_assert(!join_runs_after(RunLevelStop::Interrupted));
+    SUCCEED();
+}
+
+/// @brief A solve stopped by the memory limit still joins what its halves hold.
+///
+/// A timeout cannot be placed mid-search deterministically; the memory limit can, because
+/// `main_loop` checks it only every `memory_check_interval` iterations, and a limit this small is
+/// always exceeded. Five steps on join_only_graph: forward 0->1, 1->2, 2->3 (t = 30 > H, a
+/// boundary label), pops that label and drops it at H, then backward 4->3 (deadline 30). The check
+/// before step six stops the loop with the backward label still on its frontier, so the stop is
+/// run-level. Node 3 then holds both halves of the only path. Timeout and memory limit share every
+/// line of `run_join_pass` after the policy check, which OnlyAnInterruptSkipsTheJoin covers.
+TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
+    namespace bv = bidirectional_validation_test;
+
+    const auto run = [](bool join_after_early_stop) {
+        auto graph = bv::join_only_graph();
+        auto params = bv::clocked_params(20.0);
+        params.max_memory_gb = 1e-9;  // always exceeded
+        params.memory_check_interval = 5;
+        params.join_after_early_stop = join_after_early_stop;
+        params.release_after_solve = false;
+        auto algorithm =
+            graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+        const SolveResult result = graph->solve(algorithm.get());
+        EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
+        return result;
+    };
+
+    const SolveResult joined = run(/*join_after_early_stop=*/true);
+    ASSERT_EQ(joined.status, AlgorithmStatus::MEMORY_LIMIT)
+        << "the limit did not stop the search, so this test proves nothing";
+    ASSERT_EQ(joined.number_of_joined_paths, 1U);
+    ASSERT_FALSE(joined.solutions.empty());
+    EXPECT_NEAR(joined.solutions.front().cost, 4.0, bv::kTolerance);
+    EXPECT_EQ(joined.solutions.front().path_arc_ids, (std::vector<size_t>{0, 1, 2, 3}));
+
+    const SolveResult skipped = run(/*join_after_early_stop=*/false);
+    ASSERT_EQ(skipped.status, AlgorithmStatus::MEMORY_LIMIT);
+    EXPECT_EQ(skipped.number_of_joined_paths, 0U) << "the opt-out must restore the old behaviour";
 }
 
 /// @brief `stop_after_X_solutions` deliberately does NOT skip the join.

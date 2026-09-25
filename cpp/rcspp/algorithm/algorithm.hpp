@@ -300,6 +300,15 @@ struct AlgorithmBaseParams {
         /// its own do not count against it.
         size_t join_column_budget = MAX_INT;
 
+        /// @brief Whether the join still runs after a timeout or the memory limit (default true).
+        ///
+        /// Bidirectional only. With the half-way bound in force few forward labels reach a sink, so
+        /// skipping the join after an early stop returns almost nothing. With this set the join
+        /// runs with the incumbent cutoff forced on, so it hands back the improving paths the two
+        /// halves already hold. An interrupt (`should_stop`) always skips the join. Set false for
+        /// the behaviour before this parameter existed.
+        bool join_after_early_stop = true;
+
         // ── Memory-limit parameters ─────────────────────────────────────────
 
         /// @brief Hard upper bound on process RSS in gibibytes (GiB); 0 means unlimited.

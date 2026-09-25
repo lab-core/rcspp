@@ -47,6 +47,24 @@ namespace rcspp {
     };
 }
 
+/// @brief A stop that ends a bidirectional search while labels are still waiting to be extended.
+///
+/// `stop_after_X_solutions` and `max_iterations` are not run-level stops: after either, the join
+/// has always run.
+enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
+
+/// @brief Whether the join still runs after @p stop.
+///
+/// A timeout or the memory limit means "stop searching", and the paths both halves already hold
+/// are real columns that a pricing loop needs; the join hands them back, with the incumbent cutoff
+/// on, so its output stays small. An interrupt means "stop now", so it is honoured.
+///
+/// @param stop Why the search stopped.
+/// @return @c true unless the search was interrupted.
+[[nodiscard]] constexpr bool join_runs_after(RunLevelStop stop) {
+    return stop != RunLevelStop::Interrupted;
+}
+
 /// @brief Bidirectional labeling: a forward search, a backward search, and a join.
 ///
 /// The class is the forward search (a @ref DirectionalDominanceAlgorithm bound to
@@ -406,26 +424,38 @@ class BidirectionalDominanceAlgorithm
             pending_frontier_ = nullptr;
         }
 
-        /// @brief Whether the search was cut short by a *run-level* stop, so the join is not owed.
+        /// @brief Which run-level stop, if any, ended the search with labels still to extend.
         ///
-        /// Run-level stops are timeout, interrupt and the hard memory limit, not
-        /// `stop_after_X_solutions`. The frontier is tested first so an exhausted search keeps its
-        /// join and `is_time_out()` (which sets `timed_out_`) is not called.
+        /// The frontier is tested first, so an exhausted search is never reported as stopped and
+        /// `is_time_out()` (which sets `timed_out_`) is not called. An interrupt is reported ahead
+        /// of a timeout, so a run that is both is treated as interrupted.
         ///
-        /// @return @c true when labels remain AND a run-level stop reason is in force.
-        [[nodiscard]] bool search_stopped_early() {
+        /// @return The stop, or @c RunLevelStop::None.
+        [[nodiscard]] RunLevelStop run_level_stop() {
             if (number_of_labels() == 0) {
-                return false;
+                return RunLevelStop::None;
             }
-            return this->is_time_out() || this->is_interrupted() ||
-                   (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded());
+            if (this->is_interrupted()) {
+                return RunLevelStop::Interrupted;
+            }
+            if (this->is_time_out()) {
+                return RunLevelStop::Timeout;
+            }
+            if (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded()) {
+                return RunLevelStop::MemoryLimit;
+            }
+            return RunLevelStop::None;
         }
 
         /// @brief Runs the join pass, feeding every accepted pair to `extract_solution`.
         ///
-        /// Skipped when @ref search_stopped_early.
+        /// After a timeout or the memory limit the join still runs (see @ref join_runs_after), with
+        /// the incumbent cutoff forced on. It is skipped after an interrupt, or after any run-level
+        /// stop when `join_after_early_stop` is false.
         void run_join_pass() {
-            if (search_stopped_early()) {
+            const RunLevelStop stop = run_level_stop();
+            const bool stopped_early = stop != RunLevelStop::None;
+            if (stopped_early && (!this->params_.join_after_early_stop || !join_runs_after(stop))) {
                 LOG_DEBUG(
                     "BidirectionalDominanceAlgorithm: the search stopped early, so the join pass "
                     "is skipped.\n");
@@ -449,7 +479,9 @@ class BidirectionalDominanceAlgorithm
                 half_way_,
                 this->params_.critical_resource_index,
                 this->best_cost_upper_bound_,
-                this->params_.prune_based_on_upper_bound_,
+                // After an early stop, prune against the incumbent whatever the caller asked:
+                // the join only owes the improving paths, and that keeps its output to a handful.
+                this->params_.prune_based_on_upper_bound_ || stopped_early,
                 this->cost_upper_bound_,
                 record,
                 budget < MAX_INT ? budget : std::numeric_limits<size_t>::max(),
