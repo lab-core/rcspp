@@ -462,7 +462,10 @@ class BidirectionalDominanceAlgorithm
                 // join only owes the improving paths, and that keeps its output to a handful.
                 .prune_requested = this->params_.prune_based_on_upper_bound_ || stopped_early,
                 .cost_upper_bound = this->cost_upper_bound_,
-                .max_solutions = this->params_.stop_after_X_solutions,
+                // The join keeps at most the tighter of the two budgets. `stop_after_X_solutions`
+                // also stops the search; `join_column_budget` does not.
+                .max_solutions = std::min(this->params_.stop_after_X_solutions,
+                                          this->params_.join_column_budget),
                 .max_pairs = this->params_.max_join_pairs,
             };
             const JoinStats stats = joiner_.join(*this->graph_,
