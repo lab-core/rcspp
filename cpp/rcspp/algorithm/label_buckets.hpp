@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <list>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/direction.hpp"
@@ -33,8 +34,23 @@ class LabelList {
 
         /// @brief Returns an empty container with the same configuration.
         ///
-        /// Uses the injected-class-name so the copy keeps @c Dir.
-        [[nodiscard]] LabelList copy() const { return LabelList(); }
+        /// Uses the injected-class-name so the copy keeps @c Dir, and keeps the components
+        /// ignored in dominance.
+        [[nodiscard]] LabelList copy() const {
+            LabelList list;
+            list.ignored_in_dominance_ = ignored_in_dominance_;
+            return list;
+        }
+
+        /// @brief Leaves components out of the dominance test (see
+        ///        @c AlgorithmBaseParams::dominance_ignored_components).
+        ///
+        /// @param ignored One flag per component, in composition order; `true` leaves that
+        ///                component out. Empty (the default) keeps the resource's own dominance
+        ///                function, unchanged.
+        void set_ignored_in_dominance(std::vector<bool> ignored) {
+            ignored_in_dominance_ = std::move(ignored);
+        }
 
         /// @brief Read-only access to the underlying label list.
         [[nodiscard]] const std::list<Label<ResourceType>*>& get_labels() const { return labels_; }
@@ -71,11 +87,27 @@ class LabelList {
         /// @brief Marks and removes all labels dominated by @p label.
         /// @return Number of labels removed.
         virtual size_t remove_dominated_labels(const Label<ResourceType>& label) {
+            return relaxed() ? remove_dominated_labels_as<true>(label)
+                             : remove_dominated_labels_as<false>(label);
+        }
+
+        /// @brief Returns true if any stored label dominates @p label.
+        [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label) const {
+            return relaxed() ? is_dominated_as<true>(label) : is_dominated_as<false>(label);
+        }
+
+    protected:
+        /// @brief Whether some components are left out of dominance.
+        [[nodiscard]] bool relaxed() const { return !ignored_in_dominance_.empty(); }
+
+        /// @brief @ref remove_dominated_labels, with the comparison chosen once per scan.
+        template <bool Relaxed>
+        size_t remove_dominated_labels_as(const Label<ResourceType>& label) {
             size_t removed = 0;
             for (auto non_dominated_label_it = labels_.begin();
                  non_dominated_label_it != labels_.end();) {
                 if (&label != *non_dominated_label_it &&
-                    dominates_counted(label, *(*non_dominated_label_it))) {
+                    dominates_counted<Relaxed>(label, *(*non_dominated_label_it))) {
                     (*non_dominated_label_it)->dominated = true;
                     non_dominated_label_it = labels_.erase(non_dominated_label_it);
                     ++removed;
@@ -86,29 +118,70 @@ class LabelList {
             return removed;
         }
 
-        /// @brief Returns true if any stored label dominates @p label.
-        [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label) const {
+        /// @brief @ref is_dominated, with the comparison chosen once per scan.
+        template <bool Relaxed>
+        [[nodiscard]] bool is_dominated_as(const Label<ResourceType>& label) const {
             for (const auto non_dominated_label_ptr : labels_) {
                 if (&label == non_dominated_label_ptr) {
                     continue;
                 }
-                if (dominates_counted(*non_dominated_label_ptr, label)) {
+                if (dominates_counted<Relaxed>(*non_dominated_label_ptr, label)) {
                     return true;
                 }
             }
             return false;
         }
 
-    protected:
         /// @brief Direction-aware dominance: forward uses `operator<=`, backward uses
         ///        `back_dominates`.
         ///
+        /// A scan picks @p Relaxed once (see @ref relaxed), so the exact comparison carries no
+        /// test for ignored components and compiles as it did before they existed.
+        ///
+        /// @tparam Relaxed Whether to compare only the components not ignored.
         /// @param lhs The candidate dominating label.
         /// @param rhs The label being tested.
         /// @return `true` when @p lhs dominates @p rhs in this container's direction.
-        [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
-                                            const Label<ResourceType>& rhs) {
-            return Dir::template dominates<ResourceType>(lhs, rhs);
+        template <bool Relaxed>
+        [[nodiscard]] bool dominates(const Label<ResourceType>& lhs,
+                                     const Label<ResourceType>& rhs) const {
+            if constexpr (Relaxed) {
+                return dominates_on_kept_components(lhs, rhs);
+            } else {
+                return Dir::template dominates<ResourceType>(lhs, rhs);
+            }
+        }
+
+        /// @brief Component-wise dominance over the components not ignored.
+        ///
+        /// Each kept component applies its own rule in this container's direction, as
+        /// `CompositionDominanceFunction` does.
+        ///
+        /// @param lhs The candidate dominating label.
+        /// @param rhs The label being tested.
+        /// @return `true` when every kept component of @p lhs dominates that of @p rhs.
+        [[nodiscard]] bool dominates_on_kept_components(const Label<ResourceType>& lhs,
+                                                        const Label<ResourceType>& rhs) const {
+            if constexpr (requires { lhs.get_resource().get_components(); }) {
+                size_t index = 0;
+                return lhs.get_resource().for_each_component_and(
+                    rhs.get_resource(),
+                    [&](const auto& lhs_component, const auto& rhs_component) {
+                        const size_t component = index++;
+                        if (component < ignored_in_dominance_.size() &&
+                            ignored_in_dominance_[component]) {
+                            return true;
+                        }
+                        if constexpr (Dir::backward) {
+                            return lhs_component.back_dominates(rhs_component);
+                        } else {
+                            return lhs_component <= rhs_component;
+                        }
+                    });
+            } else {
+                // A single resource has no components to leave out.
+                return Dir::template dominates<ResourceType>(lhs, rhs);
+            }
         }
 
         /// @brief @ref dominates, counted.
@@ -121,16 +194,20 @@ class LabelList {
         /// @param lhs The candidate dominating label.
         /// @param rhs The label being tested.
         /// @return `true` when @p lhs dominates @p rhs in this container's direction.
+        template <bool Relaxed>
         [[nodiscard]] bool dominates_counted(const Label<ResourceType>& lhs,
                                              const Label<ResourceType>& rhs) const {
             ++num_dominance_checks_;
-            return dominates(lhs, rhs);
+            return dominates<Relaxed>(lhs, rhs);
         }
 
         std::list<Label<ResourceType>*> labels_;
 
         /// Mutable: @ref is_dominated is const and is half of what this counts.
         mutable size_t num_dominance_checks_ = 0;
+
+        /// @brief One flag per component, `true` for those left out of dominance; empty for none.
+        std::vector<bool> ignored_in_dominance_;
 };
 
 /// @brief Bucket-partitioned label container with O(log B) lookup via binary search.
@@ -244,7 +321,9 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
 
         /// @brief Returns an empty container with the same configuration.
         [[nodiscard]] LabelBuckets copy() const {
-            return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
+            LabelBuckets buckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
+            buckets.set_ignored_in_dominance(this->ignored_in_dominance_);
+            return buckets;
         }
 
         /// @brief Inserts @p label into the appropriate bucket (creating one if needed).
@@ -324,6 +403,22 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
         ///
         /// @return Number of labels removed.
         size_t remove_dominated_labels(const Label<ResourceType>& label) override {
+            return this->relaxed() ? remove_dominated_labels_as<true>(label)
+                                   : remove_dominated_labels_as<false>(label);
+        }
+
+        /// @brief Returns true if any stored label dominates @p label.
+        ///
+        /// Iterates lower buckets forward; stops at the first bucket that starts
+        /// above the new label (upper buckets cannot dominate it).
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& label) const override {
+            return this->relaxed() ? is_dominated_as<true>(label) : is_dominated_as<false>(label);
+        }
+
+    private:
+        /// @brief @ref remove_dominated_labels, with the comparison chosen once per scan.
+        template <bool Relaxed>
+        size_t remove_dominated_labels_as(const Label<ResourceType>& label) {
             if (buckets_.empty()) {
                 return 0;
             }
@@ -350,7 +445,8 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                     --label_it;
                     reached_begin = (label_it == buckets_[idx].begin);
                     auto* current = *label_it;
-                    if (&label != current && this->dominates_counted(label, *current)) {
+                    if (&label != current &&
+                        this->template dominates_counted<Relaxed>(label, *current)) {
                         current->dominated = true;
                         // Capture the begin pointer BEFORE erasing: the erase
                         // invalidates the stored bucket begin iterator.
@@ -374,11 +470,9 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
             return removed;
         }
 
-        /// @brief Returns true if any stored label dominates @p label.
-        ///
-        /// Iterates lower buckets forward; stops at the first bucket that starts
-        /// above the new label (upper buckets cannot dominate it).
-        [[nodiscard]] bool is_dominated(const Label<ResourceType>& label) const override {
+        /// @brief @ref is_dominated, with the comparison chosen once per scan.
+        template <bool Relaxed>
+        [[nodiscard]] bool is_dominated_as(const Label<ResourceType>& label) const {
             if (buckets_.empty()) {
                 return false;
             }
@@ -397,7 +491,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                     if (&label == *it) {
                         continue;
                     }
-                    if (this->dominates_counted(**it, label)) {
+                    if (this->template dominates_counted<Relaxed>(**it, label)) {
                         return true;
                     }
                     if (!sort_dominates(get_sort_resource(**it), lsr)) {
@@ -409,6 +503,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
             return false;
         }
 
+    public:
         /// @brief Logs label list and bucket-efficiency statistics at TRACE level.
         void print_labels() const override {
             LabelList<ResourceType, Dir>::print_labels();

@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <list>
+#include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -149,6 +151,7 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
                 non_dominated_labels_by_node_pos_.emplace_back(
                     rebind_direction<LabelContainerType, Dir>::convert(this->params_.labels));
             }
+            apply_dominance_mask(non_dominated_labels_by_node_pos_, dominance_mask());
 
             for (auto seed_node_id : Dir::seeds(*this->graph_)) {
                 auto* seed_node = this->graph_->get_node(seed_node_id);
@@ -243,6 +246,77 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
         }
 
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
+
+        /// @brief One flag per component, `true` for those
+        ///        @c AlgorithmBaseParams::dominance_ignored_components leaves out of dominance.
+        ///
+        /// @return The flags in composition order, or empty when nothing is left out.
+        /// @throws std::invalid_argument when the set names a component the model does not have.
+        [[nodiscard]] std::vector<bool> dominance_mask() const {
+            const auto& ignored = this->params_.dominance_ignored_components;
+            if (ignored.empty()) {
+                return {};
+            }
+            const size_t count = component_count(*this->graph_);
+            if (*ignored.rbegin() >= count) {
+                throw std::invalid_argument(
+                    "dominance_ignored_components names component " +
+                    std::to_string(*ignored.rbegin()) + ", but the model has " +
+                    std::to_string(count) +
+                    " component(s), numbered from 0 in the order of the ResourceGraph's type "
+                    "parameters, then registration order within a type");
+            }
+            std::vector<bool> mask(count, false);
+            for (const size_t component : ignored) {
+                mask[component] = true;
+            }
+            return mask;
+        }
+
+        /// @brief Installs @p mask on every container of @p containers.
+        ///
+        /// @param containers The per-node containers.
+        /// @param mask       See @ref dominance_mask; empty leaves the containers exact.
+        template <typename Container>
+        static void apply_dominance_mask(std::vector<Container>& containers,
+                                         const std::vector<bool>& mask) {
+            if (mask.empty()) {
+                return;
+            }
+            if constexpr (requires(Container& container) {
+                              container.set_ignored_in_dominance(mask);
+                          }) {
+                for (auto& container : containers) {
+                    container.set_ignored_in_dominance(mask);
+                }
+            } else {
+                throw std::invalid_argument(
+                    "dominance_ignored_components needs a label container that can leave "
+                    "components out of dominance (LabelList or LabelBuckets)");
+            }
+        }
+
+        /// @brief How many components a resource of @p graph has, read off any node's resource.
+        ///
+        /// @param graph The graph.
+        /// @return The component count; 1 for a resource that is not a composition, 0 when no
+        ///         node carries a resource.
+        [[nodiscard]] static size_t component_count(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node == nullptr || node->resource == nullptr) {
+                    continue;
+                }
+                if constexpr (requires { node->resource->get_components(); }) {
+                    size_t count = 0;
+                    node->resource->for_each_component([&count](const auto&) { ++count; });
+                    return count;
+                } else {
+                    return 1;
+                }
+            }
+            return 0;
+        }
 
         virtual void extend(Label<ResourceType>* label_ptr) {
             const auto& current_node = label_ptr->get_end_node();

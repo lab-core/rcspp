@@ -658,6 +658,42 @@ Code that treats `complete` as proof of optimality — a column-generation loop 
 converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
 *parameters*, and memory pressure is a property of the run.
 
+## Relaxing dominance for one solve
+
+`dominance_ignored_components` leaves chosen components out of the dominance test, for one solve.
+Two labels that differ only in those components are then compared as if they were equal there,
+so labels are discarded that an exact search would keep. That makes it a heuristic: the solve may
+miss the optimum, and `could_be_non_optimal()` says so. Every column it returns is still feasible
+and correctly priced, since feasibility, the cost and the bidirectional join never read dominance.
+
+```cpp
+AlgorithmBaseParams params;
+params.dominance_ignored_components = {2};   // leave the load out of dominance
+auto relaxed = graph.solve<SimpleDominanceAlgorithm>(params);
+```
+
+Components are numbered as the model checks' messages number them: type slots in the order of the
+`ResourceGraph`'s template parameters, then registration order within a type. With
+`ResourceGraph<RealResource, IntResource>` holding a cost and a time window in the real slot and a
+load in the int slot, the cost is 0, the time 1 and the load 2. A number the model does not have
+throws `std::invalid_argument`.
+
+It pays where the relaxed resource rarely decides feasibility. On 50-customer Solomon pricing
+graphs with a loose capacity, leaving the load out kept the optimum on 19 of 20 instance and memory
+combinations, at 16–87 times less time than the exact search; on C101, where the capacity binds, it
+reached 88 % of the optimum. Leaving an ng memory out is weaker.
+
+Every labeling algorithm honours it — `Simple`, `Pushing`, `Pulling`, `AStar` and `Bidirectional`,
+the last in both of its searches. With a non-empty set, dominance is tested component by component
+over the other components, as the default `CompositionDominanceFunction` does, whichever
+composition dominance function the model was built with. With `LabelBuckets`, leaving out the
+bucket or sort resource weakens the relaxation, since the buckets' early exits assume those
+resources order dominance. The dives have no dominance and ignore it.
+
+In a bidirectional solve, naming the clock turns the half-way bound off, as a clock outside the
+dominance order does, and `half_way_off_reason()` says so. A relaxed solve does not teach the
+dynamic half-way controller, whose label counts would not be the exact search's.
+
 ## `Greedy`
 
 Extends labels greedily (best-cost-first) with limited backtracking.
