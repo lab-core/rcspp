@@ -100,6 +100,7 @@
 #include "rcspp/resource/functions/feasibility/merge_form.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
 #include "rcspp/resource/functions/node_bounds.hpp"
+#include "rcspp/resource/ng_neighborhoods.hpp"
 #include "rcspp/resource/presets.hpp"
 #include "rcspp/resource/resource_graph.hpp"
 #include "rcspp/resource/resource_traits.hpp"
