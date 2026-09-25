@@ -190,7 +190,7 @@ struct AlgorithmBaseParams {
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((stop_after_X_solutions < MAX_INT) ||
                     (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s) ||
-                    (max_join_pairs < MAX_INT));
+                    (max_join_pairs < MAX_INT) || !dominance_ignored_components.empty());
         }
 
         // stop after finding X solutions (not going to optimality)
@@ -308,6 +308,29 @@ struct AlgorithmBaseParams {
         /// halves already hold. An interrupt (`should_stop`) always skips the join. Set false for
         /// the behaviour before this parameter existed.
         bool join_after_early_stop = true;
+
+        /// @brief Components left out of the dominance test, for this solve only; empty (the
+        ///        default) is exact.
+        ///
+        /// A heuristic: two labels that differ only in ignored components are compared as if
+        /// those components were equal, so a label that would have survived can be discarded,
+        /// and the solve may miss the optimum. Every column it returns is still feasible, because
+        /// feasibility, the join's merge test and the cost never read dominance. Relaxing a
+        /// resource that rarely decides feasibility (a loose capacity, an ng memory) keeps most
+        /// of the optimum at a fraction of the labels.
+        ///
+        /// Components are numbered as the setup messages number them: type slots in the order of
+        /// the `ResourceGraph`'s template parameters, then registration order within a type. With
+        /// a non-empty set, dominance is tested component by component over the other components,
+        /// as `CompositionDominanceFunction` does, whatever composition dominance function the
+        /// model uses; with `LabelBuckets`, ignoring the bucket or sort resource weakens the
+        /// relaxation, since the containers' early exits assume those resources order dominance.
+        ///
+        /// Honoured by every labeling algorithm (`Simple`, `Pushing`, `Pulling`, `AStar`,
+        /// `Bidirectional`); the dives have no dominance and ignore it. Naming a component the
+        /// model does not have throws `std::invalid_argument`. Naming the bidirectional clock
+        /// turns the half-way bound off, since a dominator may then sit past `H`.
+        std::set<size_t> dominance_ignored_components;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
 

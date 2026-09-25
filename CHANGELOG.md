@@ -48,6 +48,13 @@ with a pointer to where they are documented.
 
 ### Added
 
+- **Relaxing dominance for one solve** (C++). `dominance_ignored_components` names components that
+  dominance leaves out, for that solve only, in every labeling algorithm and in both directions of
+  a bidirectional one. Before, relaxing a resource's dominance meant a second graph built with a
+  `TrivialDominanceFunction`; the parameter gives the same search on one graph. It is a heuristic,
+  reported by `could_be_non_optimal()`. Naming the bidirectional clock turns the half-way bound
+  off. See "Relaxing dominance for one solve" in `docs/advanced/algorithms.md`.
+
 - **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
   join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
   unchanged. `max_join_pairs` caps the join's work in merge-rule questions. `SolveResult` reports
