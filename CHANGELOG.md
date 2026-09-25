@@ -86,6 +86,13 @@ with a pointer to where they are documented.
   half-way bound is off, and the solve does more work than a forward one and logs a warning saying
   so. A bidirectional search runs one phase. See "`Bidirectional`" in
   `docs/advanced/algorithms.md`.
+- **Growing ng neighbourhoods on a built graph** (C++). `set_ng_neighborhoods<R>(graph, component,
+  table)` replaces an ng-path resource's neighbourhoods between solves and rebuilds every arc's ng
+  component, since arcs cache what they read; `ng_neighborhoods<R>` reads them back.
+  `find_cycles` and `is_ng_feasible` let a column-generation driver grow the table from the LP
+  solution and remove the master columns it makes infeasible. See "Growing ng neighbourhoods
+  between solves" in `docs/advanced/algorithms.md`.
+
 - **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
   join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
   unchanged. `max_join_pairs` caps the join's work in join-rule questions. `SolveResult` reports
