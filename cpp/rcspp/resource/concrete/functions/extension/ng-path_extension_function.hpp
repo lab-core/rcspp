@@ -67,6 +67,13 @@ class NgPathExtensionFunction
                   std::make_shared<const std::map<size_t, std::set<ValueType>>>(
                       std::move(ng_neighborhood_by_node_id))) {}
 
+        /// @brief The neighbourhood table this function was built with.
+        ///
+        /// @return Each node's ng-neighbourhood, as given to the constructor.
+        [[nodiscard]] const std::map<size_t, std::set<ValueType>>& neighborhoods() const {
+            return *ng_neighborhood_by_node_id_;
+        }
+
     protected:
         // `Side` lives in a dependent base, so it must be named explicitly.
         using Side =
