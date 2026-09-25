@@ -8,6 +8,14 @@ with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **A bidirectional solve stopped by a timeout or the memory limit still runs its join.** Before,
+  it skipped the join, so with the half-way bound in force it returned almost nothing, and a
+  column-generation loop with a pricing budget stalled. The join now runs with the incumbent cutoff
+  forced on and returns the improving paths the two halves already hold; the status still reports
+  `TIMEOUT` or `MEMORY_LIMIT`. An interrupt (`should_stop`) still skips it. Set
+  `join_after_early_stop = false` for the previous behaviour. See "Parameters that behave
+  differently here" in `docs/advanced/algorithms.md`.
+
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
@@ -70,6 +78,11 @@ with a pointer to where they are documented.
   half-way bound is off, and the solve does more work than a forward one and logs a warning saying
   so. A bidirectional search runs one phase. See "`Bidirectional`" in
   `docs/advanced/algorithms.md`.
+- **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
+  join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
+  unchanged. `max_join_pairs` caps the join's work in join-rule questions. `SolveResult` reports
+  `join_pairs_tested` and `join_truncated`, and the half-way controller does not learn from a
+  truncated join.
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`. A backward or bidirectional solve runs the checks its
   direction needs on the whole model, removed arcs included, before any preprocessing and before
