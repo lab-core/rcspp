@@ -8,6 +8,14 @@ with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **The two searches of a bidirectional solve interleave.** The next label now comes from whichever
+  search has extended fewer arcs so far. Before, the solver took the larger frontier, and since the
+  backward frontier holds a single seed until the backward search starts, the whole forward half
+  always ran first: a timeout, `max_iterations` or memory-limit stop on a large instance left a
+  partial forward half and nothing for the join to pair. A complete solve returns the same answer
+  and does the same work; only what a stopped solve holds changes. With
+  `prune_based_on_upper_bound_` on, the two searches share the incumbent, so which labels get
+  pruned can also change.
 - **A bidirectional solve stopped by a timeout or the memory limit still runs its join.** Before,
   it skipped the join, so with the half-way bound in force it returned almost nothing, and a
   column-generation loop with a pricing budget stalled. The join now runs with the incumbent cutoff
