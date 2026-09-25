@@ -6,7 +6,7 @@
 // RCSPP_GOLDEN_CAPTURE=1 prints rows instead of comparing.
 #pragma once
 
-#define GOLDEN_LEVEL 2  // 0: G0 (#32); 1: + backward (#33 on); 2: + bidirectional (#35 on); 3: #43
+#define GOLDEN_LEVEL 3  // 0: G0 (#32); 1: + backward (#33 on); 2: + bidirectional (#35 on); 3: #43
 #define GOLDEN_API 2    // 0: captures (old API); 1: rebuilt #33; 2: from the direction PR on
 
 #include <gtest/gtest.h>
@@ -147,7 +147,8 @@ struct Variant {
         size_t join_column_budget = MAX_INT;  // level 3
         bool join_after_early_stop = true;    // level 3
 };
-inline std::vector<Variant> variants() {
+/// @brief The settings a sweep runs; @p join_budgets adds the join's (bidirectional only).
+inline std::vector<Variant> variants([[maybe_unused]] bool join_budgets) {
     std::vector<Variant> v{{.name = "exact"},
                            {.name = "pre", .preprocess = true},
                            {.name = "quota", .quota = 2},
@@ -155,6 +156,9 @@ inline std::vector<Variant> variants() {
                            {.name = "dominated", .dominated = true},
                            {.name = "prune", .upper_bound = 0.0, .prune = true}};
 #if GOLDEN_LEVEL >= 3
+    if (!join_budgets) {
+        return v;
+    }
     v.push_back({.name = "pairs", .max_join_pairs = 3});
     v.push_back({.name = "columns", .join_column_budget = 1});
     v.push_back({.name = "early", .max_iterations = 30});
@@ -1148,7 +1152,228 @@ inline const std::vector<Row>& golden_g2() {  // bidirectional (from #35)
 }
 inline const std::vector<Row>& golden_g3() {  // bidirectional with the level-3 settings (#43)
     static const std::vector<Row> rows{
-        // recorded with the join budgets
+        // clang-format off
+        {"s1_n8_t1_exact_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_pre_bidirectional", {18u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 8u, 11u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_quota_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_phases_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_dominated_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_prune_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_pairs_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_columns_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_early_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_early_nojoin_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s1_n11_t1_exact_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 396u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_pre_bidirectional", {144u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 396u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_quota_bidirectional", {82u, 3u, -25000LL, 0x8e30f042c8fe70faULL, 1u, 20u, 29u, 141u, 1u, 0u, 1u, 0u}},
+        {"s1_n11_t1_phases_bidirectional", {82u, 3u, -25000LL, 0x8e30f042c8fe70faULL, 1u, 20u, 29u, 141u, 1u, 0u, 1u, 0u}},
+        {"s1_n11_t1_dominated_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 396u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_prune_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 396u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_pairs_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 396u, 3u, 1u, 1u, 0u}},
+        {"s1_n11_t1_columns_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 396u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_early_bidirectional", {66u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 22u, 19u, 99u, 1u, 0u, 1u, 3u}},
+        {"s1_n11_t1_early_nojoin_bidirectional", {66u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 22u, 19u, 99u, 1u, 0u, 1u, 3u}},
+        {"s2_n8_t1_exact_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_pre_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_quota_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_phases_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_dominated_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_prune_bidirectional", {1u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 2u, 0u, 0u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_pairs_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_columns_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_early_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_early_nojoin_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_exact_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_pre_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_quota_bidirectional", {25u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 20u, 2u, 32u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_phases_bidirectional", {25u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 20u, 2u, 32u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_dominated_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_prune_bidirectional", {35u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_pairs_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_columns_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_early_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_early_nojoin_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s3_n8_t1_exact_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_pre_bidirectional", {30u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_quota_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_phases_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_dominated_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_prune_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_pairs_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_columns_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_early_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_early_nojoin_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n11_t1_exact_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 236u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_pre_bidirectional", {120u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 236u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_quota_bidirectional", {68u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 27u, 95u, 2u, 0u, 1u, 0u}},
+        {"s3_n11_t1_phases_bidirectional", {68u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 27u, 95u, 2u, 0u, 1u, 0u}},
+        {"s3_n11_t1_dominated_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 236u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_prune_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 236u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_pairs_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 236u, 3u, 1u, 1u, 0u}},
+        {"s3_n11_t1_columns_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 236u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_early_bidirectional", {63u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 32u, 125u, 7u, 0u, 1u, 3u}},
+        {"s3_n11_t1_early_nojoin_bidirectional", {63u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 32u, 125u, 7u, 0u, 1u, 3u}},
+        {"s4_n8_t1_exact_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_pre_bidirectional", {10u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 6u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_quota_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 1u, 0u, 1u, 0u}},
+        {"s4_n8_t1_phases_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 1u, 0u, 1u, 0u}},
+        {"s4_n8_t1_dominated_bidirectional", {12u, 3u, -13000LL, 0x4cbfaed277eb44b7ULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_prune_bidirectional", {11u, 1u, -13000LL, 0x1068778935bd2cd0ULL, 0u, 3u, 4u, 2u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_pairs_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_columns_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_early_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_early_nojoin_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n11_t1_exact_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 103u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_pre_bidirectional", {67u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 103u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_quota_bidirectional", {52u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 22u, 68u, 5u, 0u, 1u, 0u}},
+        {"s4_n11_t1_phases_bidirectional", {52u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 22u, 68u, 5u, 0u, 1u, 0u}},
+        {"s4_n11_t1_dominated_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 103u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_prune_bidirectional", {78u, 2u, -8000LL, 0xa33b8d9d09f03321ULL, 0u, 15u, 25u, 103u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_pairs_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 103u, 3u, 1u, 1u, 0u}},
+        {"s4_n11_t1_columns_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 103u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_early_bidirectional", {50u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 19u, 52u, 3u, 0u, 1u, 3u}},
+        {"s4_n11_t1_early_nojoin_bidirectional", {50u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 19u, 52u, 3u, 0u, 1u, 3u}},
+        {"s5_n8_t1_exact_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_pre_bidirectional", {15u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 8u, 8u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_quota_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s5_n8_t1_phases_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s5_n8_t1_dominated_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_prune_bidirectional", {15u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 4u, 7u, 6u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_pairs_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_columns_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_early_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_early_nojoin_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n11_t1_exact_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_pre_bidirectional", {42u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_quota_bidirectional", {42u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_phases_bidirectional", {42u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_dominated_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_prune_bidirectional", {46u, 1u, -12000LL, 0xfbcaddeb39e9ee89ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_pairs_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 3u, 1u, 1u, 0u}},
+        {"s5_n11_t1_columns_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_early_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_early_nojoin_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s6_n8_t1_exact_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_pre_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_quota_bidirectional", {26u, 4u, -37000LL, 0x51b475ea1bac6977ULL, 1u, 3u, 14u, 41u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_phases_bidirectional", {26u, 4u, -37000LL, 0x51b475ea1bac6977ULL, 1u, 3u, 14u, 41u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_dominated_bidirectional", {47u, 5u, -39000LL, 0x7fc63171a5612e92ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_prune_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_pairs_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_columns_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_early_bidirectional", {43u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 3u}},
+        {"s6_n8_t1_early_nojoin_bidirectional", {43u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 101u, 1u, 0u, 1u, 3u}},
+        {"s6_n11_t1_exact_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_pre_bidirectional", {18u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 2u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_quota_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_phases_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_dominated_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_prune_bidirectional", {2u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 0u, 3u, 0u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_pairs_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_columns_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_early_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_early_nojoin_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_exact_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_pre_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_quota_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_phases_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_dominated_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_prune_bidirectional", {8u, 1u, -10000LL, 0x11b56bf6e57032d7ULL, 0u, 2u, 2u, 2u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_pairs_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_columns_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_early_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_early_nojoin_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 12u, 0u, 0u, 1u, 0u}},
+        {"s7_n11_t1_exact_bidirectional", {90u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 162u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_pre_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 27u, 143u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_quota_bidirectional", {49u, 2u, -22000LL, 0x932b95a6d1571386ULL, 0u, 13u, 21u, 66u, 2u, 0u, 1u, 0u}},
+        {"s7_n11_t1_phases_bidirectional", {49u, 2u, -22000LL, 0x932b95a6d1571386ULL, 0u, 13u, 21u, 66u, 2u, 0u, 1u, 0u}},
+        {"s7_n11_t1_dominated_bidirectional", {90u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 162u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_prune_bidirectional", {90u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 162u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_pairs_bidirectional", {90u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 162u, 3u, 1u, 1u, 0u}},
+        {"s7_n11_t1_columns_bidirectional", {90u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 162u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_early_bidirectional", {51u, 2u, -22000LL, 0x932b95a6d1571386ULL, 0u, 13u, 21u, 69u, 2u, 0u, 1u, 3u}},
+        {"s7_n11_t1_early_nojoin_bidirectional", {51u, 2u, -22000LL, 0x932b95a6d1571386ULL, 0u, 13u, 21u, 69u, 2u, 0u, 1u, 3u}},
+        {"s8_n8_t1_exact_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_pre_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_quota_bidirectional", {28u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 41u, 1u, 0u, 1u, 0u}},
+        {"s8_n8_t1_phases_bidirectional", {28u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 41u, 1u, 0u, 1u, 0u}},
+        {"s8_n8_t1_dominated_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_prune_bidirectional", {30u, 2u, -20000LL, 0x335d5500959a1ea5ULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_pairs_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_columns_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_early_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_early_nojoin_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n11_t1_exact_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_pre_bidirectional", {50u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 14u, 31u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_quota_bidirectional", {49u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 35u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_phases_bidirectional", {49u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 35u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_dominated_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_prune_bidirectional", {54u, 1u, -20000LL, 0x7dad111c696f13b7ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_pairs_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_columns_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_early_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_early_nojoin_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 37u, 1u, 0u, 1u, 0u}},
+        {"s9_n11_t2_exact_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_pre_bidirectional", {37u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_quota_bidirectional", {37u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 19u, 12u, 40u, 1u, 0u, 1u, 0u}},
+        {"s9_n11_t2_phases_bidirectional", {37u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 19u, 12u, 40u, 1u, 0u, 1u, 0u}},
+        {"s9_n11_t2_dominated_bidirectional", {40u, 6u, -17000LL, 0x7b95cfe7225aa291ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_prune_bidirectional", {40u, 4u, -17000LL, 0x53a6f2e77d879183ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_pairs_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_columns_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_early_bidirectional", {36u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 19u, 12u, 40u, 1u, 0u, 1u, 3u}},
+        {"s9_n11_t2_early_nojoin_bidirectional", {36u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 19u, 12u, 40u, 1u, 0u, 1u, 3u}},
+        {"s10_n11_t2_exact_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 86u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_pre_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 86u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_quota_bidirectional", {59u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 75u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_phases_bidirectional", {59u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 75u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_dominated_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 86u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_prune_bidirectional", {61u, 5u, -18000LL, 0xa06b654a229379d0ULL, 0u, 13u, 23u, 86u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_pairs_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 86u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_columns_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 86u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_early_bidirectional", {50u, 9u, -18000LL, 0xde8aca5f1a0b6e20ULL, 2u, 13u, 22u, 60u, 3u, 0u, 1u, 3u}},
+        {"s10_n11_t2_early_nojoin_bidirectional", {50u, 9u, -18000LL, 0xde8aca5f1a0b6e20ULL, 2u, 13u, 22u, 60u, 3u, 0u, 1u, 3u}},
+        {"s11_n11_t2_exact_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 105u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_pre_bidirectional", {78u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 105u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_quota_bidirectional", {68u, 10u, -33000LL, 0xac1f4ab646292c2fULL, 1u, 20u, 20u, 85u, 1u, 0u, 1u, 0u}},
+        {"s11_n11_t2_phases_bidirectional", {68u, 10u, -33000LL, 0xac1f4ab646292c2fULL, 1u, 20u, 20u, 85u, 1u, 0u, 1u, 0u}},
+        {"s11_n11_t2_dominated_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 105u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_prune_bidirectional", {81u, 10u, -33000LL, 0xe89700d1803e2dd0ULL, 0u, 21u, 22u, 105u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_pairs_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 105u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_columns_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 105u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_early_bidirectional", {68u, 10u, -33000LL, 0xac1f4ab646292c2fULL, 1u, 20u, 20u, 85u, 1u, 0u, 1u, 3u}},
+        {"s11_n11_t2_early_nojoin_bidirectional", {68u, 10u, -33000LL, 0xac1f4ab646292c2fULL, 1u, 20u, 20u, 85u, 1u, 0u, 1u, 3u}},
+        {"s12_n11_t2_exact_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_pre_bidirectional", {15u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_quota_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_phases_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_dominated_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_prune_bidirectional", {16u, 1u, -1000LL, 0x491075c92f7cb864ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_pairs_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_columns_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_early_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_early_nojoin_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 7u, 1u, 0u, 1u, 0u}},
+        {"s13_n16_t1_exact_bidirectional", {914u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 4979u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_pre_bidirectional", {871u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 4979u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_quota_bidirectional", {170u, 8u, -28000LL, 0x9555c3b9b613d977ULL, 4u, 33u, 64u, 442u, 37u, 0u, 1u, 0u}},
+        {"s13_n16_t1_phases_bidirectional", {170u, 8u, -28000LL, 0x9555c3b9b613d977ULL, 4u, 33u, 64u, 442u, 37u, 0u, 1u, 0u}},
+        {"s13_n16_t1_dominated_bidirectional", {914u, 8u, -32000LL, 0x9b8d4623de3de448ULL, 0u, 34u, 202u, 4979u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_prune_bidirectional", {914u, 6u, -32000LL, 0xbb06962f86c69be5ULL, 0u, 34u, 202u, 4979u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_pairs_bidirectional", {914u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 4979u, 3u, 1u, 1u, 0u}},
+        {"s13_n16_t1_columns_bidirectional", {914u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 4979u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_early_bidirectional", {76u, 7u, -24000LL, 0x71c7375d12555f06ULL, 5u, 29u, 29u, 101u, 11u, 0u, 1u, 3u}},
+        {"s13_n16_t1_early_nojoin_bidirectional", {76u, 7u, -24000LL, 0x71c7375d12555f06ULL, 5u, 29u, 29u, 101u, 11u, 0u, 1u, 3u}},
+        {"s14_n16_t1_exact_bidirectional", {389u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 982u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_pre_bidirectional", {349u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 982u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_quota_bidirectional", {123u, 4u, -29000LL, 0x8ea8e3bfcc77efa5ULL, 1u, 5u, 49u, 282u, 2u, 0u, 1u, 0u}},
+        {"s14_n16_t1_phases_bidirectional", {123u, 4u, -29000LL, 0x8ea8e3bfcc77efa5ULL, 1u, 5u, 49u, 282u, 2u, 0u, 1u, 0u}},
+        {"s14_n16_t1_dominated_bidirectional", {389u, 6u, -35000LL, 0x0da2789ba5b35494ULL, 0u, 5u, 84u, 982u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_prune_bidirectional", {389u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 982u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_pairs_bidirectional", {389u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 982u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_columns_bidirectional", {389u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 982u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_early_bidirectional", {87u, 3u, -21000LL, 0x9732c1c835b7c0b9ULL, 1u, 5u, 34u, 160u, 1u, 0u, 1u, 3u}},
+        {"s14_n16_t1_early_nojoin_bidirectional", {87u, 3u, -21000LL, 0x9732c1c835b7c0b9ULL, 1u, 5u, 34u, 160u, 1u, 0u, 1u, 3u}},
+        // clang-format on
     };
     return rows;
 }
@@ -1160,11 +1385,12 @@ inline bool enabled() {
     return capturing() || std::getenv("RCSPP_GOLDEN") != nullptr;
 }
 
-inline void sweep(const std::vector<Kind>& kinds, const std::vector<Row>& golden) {
+inline void sweep(const std::vector<Kind>& kinds, const std::vector<Row>& golden,
+                  bool join_budgets = false) {
     size_t compared = 0;
     for (const Spec& spec : specs()) {
         const Instance in = generate(spec);
-        for (const auto& v : variants()) {
+        for (const auto& v : variants(join_budgets)) {
             for (const Kind k : kinds) {
                 auto g = build(in);  // a fresh graph: feasibility preprocessing is persistent
                 const Outcome o = run(k, v, g.get());
@@ -1254,7 +1480,7 @@ TEST(GoldenLabelling, JoinBudgetsMatchTheRecordedRuns) {
     if (!gl::enabled()) {
         GTEST_SKIP() << "set RCSPP_GOLDEN=1";
     }
-    gl::sweep({gl::Kind::Bidirectional}, gl::golden_g3());
+    gl::sweep({gl::Kind::Bidirectional}, gl::golden_g3(), /*join_budgets=*/true);
 }
 #endif
 
