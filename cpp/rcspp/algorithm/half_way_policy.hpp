@@ -31,6 +31,7 @@ enum class HalfWayOff : unsigned {
     NoCeiling,           ///< the clock's extension sets no backward start at a sink
     IndexOutOfRange,     ///< `critical_resource_index` names no component of the critical type
     NoArcs,              ///< the graph has no arcs, so there is nothing to bound
+    ClockRelaxed,        ///< `dominance_ignored_components` leaves the clock out of dominance
 };
 
 /// @brief Whether this process has not yet reported the bound being off for @p reason.
