@@ -4,6 +4,9 @@
 #include "master_problem.hpp"
 
 #include <algorithm>
+#include <set>
+#include <stdexcept>
+#include <string>
 
 #include "gurobi_c++.h"
 #include "mp_solution.hpp"
@@ -41,6 +44,35 @@ void MasterProblem::add_columns(const std::vector<Path>& paths, size_t max_paths
             break;
         }
     }
+}
+
+size_t MasterProblem::remove_columns(const std::function<bool(const Path&)>& drop) {
+    std::vector<size_t> doomed;
+    std::set<size_t> covered;
+    for (const auto& [path_id, path] : paths_by_id_) {
+        if (drop(path)) {
+            doomed.push_back(path_id);
+        } else {
+            covered.insert(path.visited_nodes.begin(), path.visited_nodes.end());
+        }
+    }
+    // The initial single-customer routes are elementary, so no ng table can drop them; anything
+    // that uncovers a customer is a bug in the caller's predicate, not a model to solve.
+    for (const auto& [node_id, constraint] : node_constraints_by_id_) {
+        if (!covered.contains(node_id)) {
+            throw std::logic_error(
+                "MasterProblem::remove_columns: removing the selected columns "
+                "would leave customer " +
+                std::to_string(node_id) + " uncovered");
+        }
+    }
+    for (const size_t path_id : doomed) {
+        model_.remove(path_variables_by_id_.at(path_id));
+        path_variables_by_id_.erase(path_id);
+        paths_by_id_.erase(path_id);
+    }
+    model_.update();
+    return doomed.size();
 }
 
 void MasterProblem::add_constraints() {

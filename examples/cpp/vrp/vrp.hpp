@@ -5,7 +5,10 @@
 
 #include <functional>
 #include <limits>
+#include <map>
 #include <optional>
+#include <set>
+#include <utility>
 
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
@@ -58,6 +61,14 @@ struct ExtraSolver {
         bool optimal = true;
 };
 
+/// @brief Called when column generation converges with a proof.
+///
+/// "With a proof" means the final pricing solve was complete and found no improving column, so
+/// @p solution is the LP optimum of the current pricing model. Return true to continue column
+/// generation after changing that model -- growing ng neighbourhoods, say, and removing the columns
+/// that made infeasible -- or false to stop. Never called on an unproven convergence.
+using ConvergedHook = std::function<bool(MasterProblem& master, const MPSolution& solution)>;
+
 class VRP {
     public:
         /// @brief Builds the model.
@@ -83,7 +94,8 @@ class VRP {
             AlgorithmParams<LabelContainerType> params,  // NOLINT
             std::optional<size_t> numAlgos = std::nullopt,
             std::vector<Algorithm<ResourceType, LabelContainerType>*> algorithms = {},
-            bool run_boost = false, std::vector<ExtraSolver> extra_solvers = {}) {  // NOLINT
+            bool run_boost = false, std::vector<ExtraSolver> extra_solvers = {},  // NOLINT
+            const ConvergedHook& on_converged = {}) {
             LOG_TRACE(__FUNCTION__, '\n');
 
 #ifndef RCSPP_VRP_HAS_BOOST
@@ -269,12 +281,46 @@ class VRP {
                          negative_red_cost_solutions.size(),
                          '\n');
                 LOG_DEBUG(std::string(45, '*'), '\n');
+
+                // Converged with a proof: the caller may change the pricing model and go on.
+                if (min_reduced_cost >= -EPSILON &&
+                    first_rcspp_status == AlgorithmStatus::COMPLETE && on_converged &&
+                    on_converged(master_problem, master_solution)) {
+                    min_reduced_cost = -std::numeric_limits<double>::infinity();
+                }
             }
 
             return CGSolveResult{timers, master_solution.cost, proven_optimal, nb_iter};
         }
 
         RGraph& get_graph() { return graph_; }
+
+        /// @brief Removes the columns @p drop selects from @p master and from this model's paths.
+        ///
+        /// @param master The master problem column generation is running.
+        /// @param drop   Whether a column should go.
+        /// @return The number of columns removed from the master.
+        size_t remove_columns(MasterProblem* master, const std::function<bool(const Path&)>& drop) {
+            std::erase_if(paths_, drop);
+            return master->remove_columns(drop);
+        }
+
+        /// @brief The ng neighbourhoods pricing uses now. Only under `RouteRelaxation::NgPath`.
+        template <RouteRelaxation Relaxation = kRouteRelaxation>
+            requires(Relaxation == RouteRelaxation::NgPath)
+        [[nodiscard]] const std::map<size_t, std::set<size_t>>& ng_neighborhoods() {
+            return rcspp::ng_neighborhoods<SizeTBitsetResource>(graph_, 0);
+        }
+
+        /// @brief Replaces the ng neighbourhoods pricing uses, between column-generation
+        /// iterations.
+        ///
+        /// See `rcspp::set_ng_neighborhoods`: the same keys, members among them.
+        template <RouteRelaxation Relaxation = kRouteRelaxation>
+            requires(Relaxation == RouteRelaxation::NgPath)
+        void set_ng_neighborhoods(std::map<size_t, std::set<size_t>> neighborhoods) {
+            rcspp::set_ng_neighborhoods<SizeTBitsetResource>(graph_, 0, std::move(neighborhoods));
+        }
 
         /// @brief Runs a single algorithm on the current graph with the given dual values.
         ///
