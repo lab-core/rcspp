@@ -145,6 +145,13 @@ void init_graph(py::module_& m) {
                       "Dominance comparisons performed across every label container, both "
                       "directions. Divided by the surviving label count it is the cost of the "
                       "dominance rule per label kept.")
+        .def_readonly("join_pairs_tested",
+                      &SolveResult::join_pairs_tested,
+                      "Pairs the join tested; 0 when it did not run.")
+        .def_readonly("join_truncated",
+                      &SolveResult::join_truncated,
+                      "Whether the join stopped at max_join_pairs with a pair left to test. A "
+                      "'complete' result with this set is not a proof.")
         .def_readonly("half_way_point_used",
                       &SolveResult::half_way_point_used,
                       "The half-way point H this solve actually used; 0.0 when the bound was "
@@ -356,6 +363,16 @@ void init_graph(py::module_& m) {
                        "the join considers every pair, which is correct but slower than a forward "
                        "solve rather than faster. Check result.bounded_by_half_way to see which "
                        "you got.")
+        .def_readwrite("join_column_budget",
+                       &PyAlgorithmParams::join_column_budget,
+                       "Bidirectional only: the most paths the join returns, the cheapest kept. "
+                       "Never stops the search, so a 'complete' status still means exhaustive, and "
+                       "the optimum is always kept. Default: no budget.")
+        .def_readwrite("max_join_pairs",
+                       &PyAlgorithmParams::max_join_pairs,
+                       "Bidirectional only: the most pairs the join may test before it stops. When "
+                       "it binds, result.join_truncated is set and the result is not a proof. "
+                       "Default: no cap.")
         .def_readwrite("join_after_early_stop",
                        &PyAlgorithmParams::join_after_early_stop,
                        "Bidirectional only: whether the join still runs after a timeout or the "
