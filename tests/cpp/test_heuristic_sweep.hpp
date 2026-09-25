@@ -100,6 +100,44 @@ inline RunRow measure(PricingModel& model, const std::string& dataset, const Run
     return row;
 }
 
+/// @brief Early stops: bidirectional with and without the join, and forward, stopped at fractions
+///        of the exact bidirectional time.
+///
+/// @param model         The subproblem.
+/// @param dataset       Its name.
+/// @param exact_seconds The exact bidirectional solve's median time on this model.
+/// @param fractions     The stops, as fractions of @p exact_seconds.
+inline void sweep_early_stops(PricingModel& model, const std::string& dataset, double exact_seconds,
+                              const std::vector<double>& fractions) {
+    const auto base = guarded_params();
+    const auto bidirectional = bidirectional_params(model.horizon());
+    for (const double fraction : fractions) {
+        const double timeout = std::max(1e-3, fraction * exact_seconds);
+        for (const bool join_after_stop : {true, false}) {
+            auto params = bidirectional;
+            params.timeout_s = timeout;
+            params.join_after_early_stop = join_after_stop;
+            std::ostringstream extra;
+            extra << "timeout-fraction=" << fraction;
+            measure(model,
+                    dataset,
+                    {.algorithm = "bidirectional",
+                     .timeout_s = timeout,
+                     .join_after_stop = join_after_stop,
+                     .extra = extra.str()},
+                    make_bidirectional(params));
+        }
+        auto params = base;
+        params.timeout_s = timeout;
+        std::ostringstream extra;
+        extra << "timeout-fraction=" << fraction;
+        measure(model,
+                dataset,
+                {.algorithm = "simple", .timeout_s = timeout, .extra = extra.str()},
+                make<SimpleDominanceAlgorithm>(params));
+    }
+}
+
 /// @brief The whole E1 grid on one model.
 inline void sweep(PricingModel& model, const std::string& dataset, const SweepOptions& options) {
     const double horizon = model.horizon();
@@ -179,32 +217,7 @@ inline void sweep(PricingModel& model, const std::string& dataset, const SweepOp
                 make_bidirectional(params));
     }
 
-    // Early stops, as fractions of the exact bidirectional time.
-    for (const double fraction : {0.05, 0.2, 0.5}) {
-        const double timeout = std::max(1e-3, fraction * exact.seconds);
-        for (const bool join_after_stop : {true, false}) {
-            auto params = bidirectional;
-            params.timeout_s = timeout;
-            params.join_after_early_stop = join_after_stop;
-            std::ostringstream extra;
-            extra << "timeout-fraction=" << fraction;
-            measure(model,
-                    dataset,
-                    {.algorithm = "bidirectional",
-                     .timeout_s = timeout,
-                     .join_after_stop = join_after_stop,
-                     .extra = extra.str()},
-                    make_bidirectional(params));
-        }
-        auto params = base;
-        params.timeout_s = timeout;
-        std::ostringstream extra;
-        extra << "timeout-fraction=" << fraction;
-        measure(model,
-                dataset,
-                {.algorithm = "simple", .timeout_s = timeout, .extra = extra.str()},
-                make<SimpleDominanceAlgorithm>(params));
-    }
+    sweep_early_stops(model, dataset, exact.seconds, {0.05, 0.2, 0.5});
 
     // The dives.
     auto dive = base;
@@ -377,5 +390,37 @@ TEST(HeuristicSweep, DISABLED_E1_NgRelaxedLoad) {
     for (const auto& dataset : hs::all_datasets()) {
         SCOPED_TRACE(dataset.name);
         hs::sweep_ng_relaxed_load(dataset);
+    }
+}
+
+/// @brief Step 1's gate: early stops on the high-pressure datasets, after the scheduler change.
+///
+/// The exact bidirectional reference, then bidirectional (join on and off) and forward stopped at
+/// 5 %, 10 %, 20 %, 35 % and 50 % of its time, without and with an ng-8 memory. Compare with the
+/// E1 rows for the same datasets.
+TEST(HeuristicSweep, DISABLED_S1_EarlyStops) {
+    namespace hs = heuristic_sweep;
+    const std::vector<double> fractions{0.05, 0.1, 0.2, 0.35, 0.5};
+    for (const auto& dataset : hs::all_datasets()) {
+        for (const auto relaxation : {heuristics::Relaxation::None, heuristics::Relaxation::Ng}) {
+            const bool high = relaxation == heuristics::Relaxation::None
+                                  ? (dataset.name == "RC201_50" || dataset.name == "R201_50" ||
+                                     dataset.name == "C202_50")
+                                  : (dataset.name == "C201_50" || dataset.name == "RC201_50" ||
+                                     dataset.name == "R201_50" || dataset.name == "C202_50");
+            if (!high) {
+                continue;
+            }
+            SCOPED_TRACE(dataset.name);
+            heuristics::PricingModel model(dataset.instance,
+                                           dataset.duals,
+                                           {.relaxation = relaxation});
+            const auto exact = hs::measure(
+                model,
+                dataset.name,
+                {.algorithm = "bidirectional"},
+                heuristics::make_bidirectional(heuristics::bidirectional_params(model.horizon())));
+            hs::sweep_early_stops(model, dataset.name, exact.seconds, fractions);
+        }
     }
 }
