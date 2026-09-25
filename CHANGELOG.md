@@ -84,6 +84,12 @@ New features are summarised, with a pointer to where they are documented.
   bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
   other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
 
+- **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
+  join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
+  unchanged. `max_join_pairs` caps the join's work in join-rule questions.
+  `SolveResult::bidirectional` reports `join_pairs_tested` and `join_truncated`, and the half-way
+  controller does not learn from a truncated join.
+
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
   missing or incoherent before any label exists. They read the whole model, removed arcs included.
