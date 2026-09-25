@@ -156,6 +156,8 @@ class BidirectionalDominanceAlgorithm
 
             // The model checks ran before the solve; a bad half-way bound only disables it.
             joined_paths_ = 0;
+            join_pairs_tested_ = 0;
+            join_truncated_ = false;
 
             configure_half_way(*graph);
             compute_completion_bounds(*graph);
@@ -240,6 +242,8 @@ class BidirectionalDominanceAlgorithm
             result->bounded_by_half_way = half_way_.enabled();
             result->half_way_off_reason = half_way_off_reason_;
             result->number_of_joined_paths = joined_paths_;
+            result->join_pairs_tested = join_pairs_tested_;
+            result->join_truncated = join_truncated_;
             // 0 when the bound is off, so a caller reading this without also reading
             // `bounded_by_half_way` gets the value that means "no bound" rather than a number
             // that was never applied.
@@ -422,18 +426,23 @@ class BidirectionalDominanceAlgorithm
                 this->extract_solution(cost, std::move(arc_ids), end_node_id);
                 joined_paths_ += this->solutions_.size() - before;
             };
-            joiner_.join(*this->graph_,
-                         this->non_dominated_labels_by_node_pos_,
-                         backward_labels_by_node_pos_,
-                         half_way_,
-                         this->params_.critical_resource_index,
-                         this->best_cost_upper_bound_,
-                         this->params_.prune_based_on_upper_bound_,
-                         this->cost_upper_bound_,
-                         record,
-                         this->params_.stop_after_X_solutions < MAX_INT
-                             ? this->params_.stop_after_X_solutions
-                             : std::numeric_limits<size_t>::max());
+            const JoinStats stats = joiner_.join(*this->graph_,
+                                                 this->non_dominated_labels_by_node_pos_,
+                                                 backward_labels_by_node_pos_,
+                                                 half_way_,
+                                                 this->params_.critical_resource_index,
+                                                 this->best_cost_upper_bound_,
+                                                 this->params_.prune_based_on_upper_bound_,
+                                                 this->cost_upper_bound_,
+                                                 record,
+                                                 this->params_.stop_after_X_solutions < MAX_INT
+                                                     ? this->params_.stop_after_X_solutions
+                                                     : std::numeric_limits<size_t>::max(),
+                                                 this->params_.max_join_pairs < MAX_INT
+                                                     ? this->params_.max_join_pairs
+                                                     : std::numeric_limits<size_t>::max());
+            join_pairs_tested_ = stats.pairs_tested;
+            join_truncated_ = stats.truncated;
         }
 
         /// @brief The critical resource's scalar value, or 0 when the type is absent.
@@ -777,6 +786,8 @@ class BidirectionalDominanceAlgorithm
         HalfWayController half_way_controller_;
 
         size_t joined_paths_ = 0;
+        size_t join_pairs_tested_ = 0;
+        bool join_truncated_ = false;
         Joiner<ResourceType, CriticalRC> joiner_;
 };
 
