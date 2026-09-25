@@ -357,6 +357,45 @@ write a merge rule that cannot decide its question exactly from two values, decl
 `MergeRule::Unspecified` so that a bidirectional solve refuses, rather than over- or
 under-rejecting quietly.
 
+### Growing ng neighbourhoods between solves
+
+The useful ng size is a property of the instance: in this repository's column-generation study,
+R201_25 stops improving at ng(4) and RC201_50 only at ng(12), while overshooting costs pricing time
+without limit. Instead of fixing a size, a column-generation driver can start small and grow a
+node's neighbourhood only where a cycle actually appears in the LP solution. Three functions in
+`rcspp/resource/ng_neighborhoods.hpp` support that:
+
+| Function | What it does |
+|---|---|
+| `find_cycles(nodes)` | every pair of consecutive visits to one node in a path, with the nodes strictly between them |
+| `is_ng_feasible(nodes, table)` | whether the solver would accept that path under `table`, replaying `NgPathExtensionFunction` and the presets' forbidden sets exactly |
+| `set_ng_neighborhoods<R>(graph, component, table)` | replaces an ng-path resource's neighbourhoods on a graph already built; `ng_neighborhoods<R>(graph, component)` reads them |
+
+`set_ng_neighborhoods` **rebuilds every arc's ng component**. Each arc caches the neighbourhoods it
+reads when it is created — `EndpointMirrorForm` stores both of the arc's sides — so replacing the
+table alone would change no arc. The swap installs a new prototype and re-creates each arc's ng
+function from it, exactly as `add_arc` does; every other component, and each arc's value, are left
+alone. Afterwards a solve behaves as on a graph built with the new table.
+
+Three rules come with it:
+
+- **The same nodes.** The new table must have the same keys, and name only those nodes as members.
+  The feasibility functions forbid exactly the nodes named at registration and are not rebuilt, so
+  a new node would be remembered but never forbidden. A table that breaks this is refused, with the
+  node named.
+- **Between solves only.** It is not safe while a solve runs on the same graph.
+- **Clones keep their table.** Tables are immutable: a clone taken before the swap keeps the old
+  one, a clone taken after carries the new one.
+
+Growing the memory makes some columns already in a master infeasible; `is_ng_feasible` is how a
+driver finds them. The join stays exact under a grown memory — its preconditions are the form of
+the memory (`forbidden(v) = {v}`, the stored set being the memory on leaving), not its size — so a
+bidirectional pricer can be used throughout.
+
+`examples/cpp/ng_dynamic_cg_main.cpp` is a complete driver: RouteOpt's growth rule
+(`examples/cpp/vrp/ng_growth.hpp`) and brakes, applied on every proven convergence, against fixed
+sizes on the same instances.
+
 ### Parameters that behave differently here
 
 | Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |
