@@ -141,6 +141,22 @@ class ResourceFactory {
                 arc.id);
         }
 
+        /// @brief The prototype extension function arcs are created from (`create(arc)`).
+        ///
+        /// @return The prototype; never null once the factory is built with one.
+        [[nodiscard]] ExtensionFunction<ResourceType>& extension_function() {
+            return *extension_function_;
+        }
+
+        /// @brief Replaces the prototype. Arcs already built keep their own copy until they are
+        ///        re-created from the new one; see `set_ng_neighborhoods`.
+        ///
+        /// @param extension_function The new prototype.
+        void replace_extension_function(
+            std::unique_ptr<ExtensionFunction<ResourceType>> extension_function) {
+            extension_function_ = std::move(extension_function);
+        }
+
     protected:
         // Create a resource prototype with specific functions (but without resource base).
         auto create_resource_prototype(
