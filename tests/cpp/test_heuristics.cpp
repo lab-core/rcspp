@@ -1,8 +1,8 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// The heuristic study: the column validator, and the correctness sweep every heuristic
-// configuration must pass.
+// The heuristic study: the column validator, the correctness sweep every heuristic configuration
+// must pass, and the disabled E1 measurement.
 //
 // A translation unit of its own: the three-slot pricing pack instantiates every algorithm again,
 // and sharing a TU with the other algorithm tests would overflow MinGW's assembler (see the note
@@ -12,3 +12,4 @@
 
 #include "test_column_validator.hpp"
 #include "test_heuristic_correctness.hpp"
+#include "test_heuristic_sweep.hpp"
