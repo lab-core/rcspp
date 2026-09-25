@@ -46,3 +46,7 @@ set_target_properties(rcspp-ng-cg-comparison PROPERTIES EXCLUDE_FROM_ALL TRUE)
 # Forward against bidirectional over a whole column generation, one row per pricing solve.
 # The instrument every "learns across solves" proposal is measured through.
 add_vrp_example(rcspp-bidirectional-cg bidirectional_cg_main.cpp)
+
+# Pricing cascades (heuristic stages, then an exact one) over a whole column generation.
+# The instrument for measuring heuristic pricing stages in front of an exact one.
+add_vrp_example(rcspp-heuristic-cascade heuristic_cascade_main.cpp)
