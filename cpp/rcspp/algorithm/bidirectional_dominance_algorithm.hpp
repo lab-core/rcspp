@@ -28,6 +28,8 @@ namespace rcspp {
 /// `exact` is `COMPLETE` and untrimmed by memory pressure, and not @p truncated. The status alone
 /// cannot say the last part: a per-node extension quota truncates a bidirectional search while it
 /// still reports `COMPLETE`, so a caller who set `num_labels_to_extend_by_node` says so here.
+/// `join_truncated` counts as inexact too: the zero-join guard reads `joined_paths`, which a
+/// capped join understates.
 ///
 /// @param result    A bidirectional solve's result.
 /// @param truncated Whether the caller capped the search in a way the status does not show.
@@ -41,7 +43,7 @@ namespace rcspp {
         .solutions = result.solutions.size(),
         .bounded = result.bounded_by_half_way,
         .exact = result.status == AlgorithmStatus::COMPLETE && !result.memory_pressure_triggered &&
-                 !truncated,
+                 !result.join_truncated && !truncated,
     };
 }
 
@@ -163,6 +165,8 @@ class BidirectionalDominanceAlgorithm
 
             // Throw on a model without backward semantics; a bad half-way bound only disables it.
             joined_paths_ = 0;
+            join_pairs_tested_ = 0;
+            join_truncated_ = false;
 
             validate_backward_semantics(*graph);
 
@@ -246,6 +250,8 @@ class BidirectionalDominanceAlgorithm
             Base::annotate(result);
             result->bounded_by_half_way = half_way_.enabled();
             result->number_of_joined_paths = joined_paths_;
+            result->join_pairs_tested = join_pairs_tested_;
+            result->join_truncated = join_truncated_;
             // 0 when the bound is off, so a caller reading this without also reading
             // `bounded_by_half_way` gets the value that means "no bound" rather than a number
             // that was never applied.
@@ -432,18 +438,23 @@ class BidirectionalDominanceAlgorithm
                 this->extract_solution(cost, std::move(arc_ids), end_node_id);
                 joined_paths_ += this->solutions_.size() - before;
             };
-            joiner_.join(*this->graph_,
-                         this->non_dominated_labels_by_node_pos_,
-                         backward_labels_by_node_pos_,
-                         half_way_,
-                         this->params_.critical_resource_index,
-                         this->best_cost_upper_bound_,
-                         this->params_.prune_based_on_upper_bound_,
-                         this->cost_upper_bound_,
-                         record,
-                         this->params_.stop_after_X_solutions < MAX_INT
-                             ? this->params_.stop_after_X_solutions
-                             : std::numeric_limits<size_t>::max());
+            const JoinStats stats = joiner_.join(*this->graph_,
+                                                 this->non_dominated_labels_by_node_pos_,
+                                                 backward_labels_by_node_pos_,
+                                                 half_way_,
+                                                 this->params_.critical_resource_index,
+                                                 this->best_cost_upper_bound_,
+                                                 this->params_.prune_based_on_upper_bound_,
+                                                 this->cost_upper_bound_,
+                                                 record,
+                                                 this->params_.stop_after_X_solutions < MAX_INT
+                                                     ? this->params_.stop_after_X_solutions
+                                                     : std::numeric_limits<size_t>::max(),
+                                                 this->params_.max_join_pairs < MAX_INT
+                                                     ? this->params_.max_join_pairs
+                                                     : std::numeric_limits<size_t>::max());
+            join_pairs_tested_ = stats.pairs_tested;
+            join_truncated_ = stats.truncated;
         }
 
         /// @brief Records a complete path found by the backward search reaching a source.
@@ -1167,6 +1178,8 @@ class BidirectionalDominanceAlgorithm
         HalfWayController half_way_controller_;
 
         size_t joined_paths_ = 0;
+        size_t join_pairs_tested_ = 0;
+        bool join_truncated_ = false;
         Joiner<ResourceType, CriticalRC> joiner_;
 };
 

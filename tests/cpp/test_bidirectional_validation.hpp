@@ -369,6 +369,35 @@ TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
     EXPECT_NEAR(result.solutions.front().cost, 4.0, bv::kTolerance);
 }
 
+/// @brief A pair budget truncates the join, says so, and marks the params as inexact.
+TEST(BidirectionalValidation, APairBudgetTruncatesTheJoinAndFlagsIt) {
+    namespace bv = bidirectional_validation_test;
+
+    // Control: no cap. The join tests pairs and is not truncated.
+    {
+        auto graph = bv::join_only_graph();
+        auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+            bv::clocked_params(20.0));
+        const SolveResult result = graph->solve(algorithm.get());
+        ASSERT_GT(result.number_of_joined_paths, 0U);
+        EXPECT_GT(result.join_pairs_tested, 0U);
+        EXPECT_FALSE(result.join_truncated);
+    }
+
+    auto graph = bv::join_only_graph();
+    auto params = bv::clocked_params(20.0);
+    params.max_join_pairs = 0;
+    EXPECT_TRUE(params.could_be_non_optimal());
+
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    const SolveResult result = graph->solve(algorithm.get());
+
+    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE) << "the search itself was exhaustive";
+    EXPECT_TRUE(result.join_truncated);
+    EXPECT_EQ(result.join_pairs_tested, 0U);
+    EXPECT_EQ(result.number_of_joined_paths, 0U) << "the only path here comes from the join";
+}
+
 /// @brief The joiner never rejects a half on the half's own cost.
 ///
 /// With negative reduced costs a half's own cost says nothing about its completion. A direct

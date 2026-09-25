@@ -325,3 +325,19 @@ TEST(DynamicHalfWay, TheObservationReadsTheResult) {
     result.status = AlgorithmStatus::TIMEOUT;
     EXPECT_FALSE(half_way_observation(result).exact) << "a timed-out pass is not exact";
 }
+
+/// @brief A solve whose join was truncated is not something the controller learns from.
+///
+/// The label counts are unaffected by a pair budget, but `joined_paths` is, and the zero-join guard
+/// reads it: a capped join that joined nothing would pull `H` toward the centre for no reason.
+TEST(DynamicHalfWay, ATruncatedJoinIsNotAnExactObservation) {
+    SolveResult result;
+    result.status = AlgorithmStatus::COMPLETE;
+    result.bounded_by_half_way = true;
+    result.forward_labels = 10;
+    result.backward_labels = 1;
+    ASSERT_TRUE(half_way_observation(result).exact) << "the control must be exact";
+
+    result.join_truncated = true;
+    EXPECT_FALSE(half_way_observation(result).exact);
+}

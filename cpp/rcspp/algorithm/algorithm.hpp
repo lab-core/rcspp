@@ -126,6 +126,20 @@ struct SolveResult {
         /// was off" from "`H` really was 0".
         double half_way_point_used = 0.0;
 
+        /// @brief Pairs the join asked the merge rule about; 0 when the join did not run.
+        ///
+        /// Bidirectional only. The join's work, in the unit
+        /// @c AlgorithmBaseParams::max_join_pairs caps.
+        size_t join_pairs_tested = 0;
+
+        /// @brief Whether the join stopped at @c AlgorithmBaseParams::max_join_pairs with a pair
+        ///        left to test.
+        ///
+        /// Like @ref memory_pressure_triggered, a flag rather than a status: the *search* may have
+        /// been exhaustive, but with this set a `COMPLETE` status is not a proof. The pairs the
+        /// join never tested may have held a cheaper path.
+        bool join_truncated = false;
+
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
@@ -175,7 +189,8 @@ struct AlgorithmBaseParams {
 
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((stop_after_X_solutions < MAX_INT) ||
-                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s));
+                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s) ||
+                    (max_join_pairs < MAX_INT));
         }
 
         // stop after finding X solutions (not going to optimality)
@@ -264,6 +279,14 @@ struct AlgorithmBaseParams {
         /// Not exposed to Python, where `rg.solve(...)` builds a fresh algorithm each call; Python
         /// uses `rcspp.HalfWayController` directly and feeds its `h` into `half_way_point`.
         bool dynamic_half_way = false;
+
+        /// @brief Most pairs the join may test before it stops; `MAX_INT` (the default) is no cap.
+        ///
+        /// Bidirectional only. A work cap counted in merge-rule questions
+        /// (@c SolveResult::join_pairs_tested). When it binds the join **stops rather than being
+        /// skipped**: every path it produced is real, but the result is no longer a proof, so
+        /// @c SolveResult::join_truncated is set and @ref could_be_non_optimal is true.
+        size_t max_join_pairs = MAX_INT;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
 
