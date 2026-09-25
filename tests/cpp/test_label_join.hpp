@@ -135,21 +135,24 @@ class JoinHarness {
         /// @p upper_bound serves as both of the joiner's bounds. Tests that count candidates pass
         /// @p prune_requested = false, since the incumbent cutoff absorbs equal-cost duplicates.
         std::vector<Recorded> run(const HalfWayPolicy& policy, double upper_bound = kInfinity,
-                                  bool prune_requested = true) {
+                                  bool prune_requested = true,
+                                  size_t max_solutions = std::numeric_limits<size_t>::max()) {
             std::vector<Recorded> recorded;
             Joiner<Composed, RealResource> joiner;
             double best = upper_bound;
-            joiner.join(*graph_,
-                        forward_,
-                        backward_,
-                        policy,
-                        /*critical_resource_index=*/0,
-                        best,
-                        prune_requested,
-                        upper_bound,
-                        [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
-                            recorded.push_back({cost, std::move(arc_ids), end_node_id});
-                        });
+            joiner.join(
+                *graph_,
+                forward_,
+                backward_,
+                policy,
+                /*critical_resource_index=*/0,
+                best,
+                prune_requested,
+                upper_bound,
+                [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
+                    recorded.push_back({cost, std::move(arc_ids), end_node_id});
+                },
+                max_solutions);
             return recorded;
         }
 
@@ -203,6 +206,48 @@ class UnmergeableFeasibilityFunction
 
         [[nodiscard]] MergeRule merge_rule() const override { return MergeRule::Custom; }
 };
+
+/// @brief A graph and a harness holding twenty labels per side, all meeting at node 2.
+///
+/// The harness points into the graph, so the two travel together.
+struct TwentyByTwenty {
+        static constexpr size_t kLabelsPerSide = 20;
+        std::unique_ptr<ResourceGraph<RealResource>> graph;
+        std::unique_ptr<JoinHarness> harness;
+};
+
+/// @brief Twenty forward and twenty backward labels at node 2, costs 1..20 on each side.
+///
+/// Inserted worst-first, so only sorting yields a usable order. Every `can_be_merged` call is
+/// counted into @p merge_calls.
+inline TwentyByTwenty twenty_by_twenty(size_t* merge_calls) {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<CountingFeasibilityFunction>(merge_calls),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>(std::make_tuple(0.0), 0, 1, 0.0);
+    graph->add_arc<RealResource>(std::make_tuple(0.0), 1, 2, 0.0);
+    graph->add_arc<RealResource>(std::make_tuple(0.0), 2, 3, 0.0);
+    graph->sort_nodes();
+    graph->build_csr();
+
+    auto harness = std::make_unique<JoinHarness>(graph.get());
+    auto* at_source = harness->add_forward(0, nullptr, nullptr);
+    JoinHarness::set_value(at_source, 0.0);
+    auto* at_sink = harness->add_backward(3, nullptr, nullptr);
+    JoinHarness::set_value(at_sink, 0.0);
+    for (size_t i = 0; i < TwentyByTwenty::kLabelsPerSide; ++i) {
+        const auto value = static_cast<double>(TwentyByTwenty::kLabelsPerSide - i);
+        JoinHarness::set_value(harness->add_forward(2, graph->get_arc(1), at_source), value);
+        JoinHarness::set_value(harness->add_backward(2, graph->get_arc(2), at_sink), value);
+    }
+    return {.graph = std::move(graph), .harness = std::move(harness)};
+}
 
 }  // namespace label_join_test
 
@@ -485,47 +530,38 @@ TEST(LabelJoin, ContiguityCheckAcceptsAndRejects) {
 /// With a tight incumbent, the merge test must be asked far fewer than |fwd| x |bwd| times.
 TEST(LabelJoin, CostSortingEnablesTheEarlyExit) {
     namespace ljt = label_join_test;
-    constexpr size_t kLabelsPerSide = 20;
+    constexpr size_t kLabelsPerSide = ljt::TwentyByTwenty::kLabelsPerSide;
 
     size_t merge_calls = 0;
-    auto graph = std::make_unique<ResourceGraph<RealResource>>();
-    graph->add_resource<RealResource>(
-        std::make_unique<AdditionExtensionFunction<RealResource>>(),
-        std::make_unique<ljt::CountingFeasibilityFunction>(&merge_calls),
-        std::make_unique<ValueCostFunction<RealResource>>(),
-        std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph->add_node(0, /*source=*/true, /*sink=*/false);
-    graph->add_node(1);
-    graph->add_node(2);
-    graph->add_node(3, /*source=*/false, /*sink=*/true);
-    graph->add_arc<RealResource>(std::make_tuple(0.0), 0, 1, 0.0);
-    graph->add_arc<RealResource>(std::make_tuple(0.0), 1, 2, 0.0);
-    graph->add_arc<RealResource>(std::make_tuple(0.0), 2, 3, 0.0);
-    graph->sort_nodes();
-    graph->build_csr();
-
-    ljt::JoinHarness harness(graph.get());
-    auto* at_source = harness.add_forward(0, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_source, 0.0);
-    auto* at_sink = harness.add_backward(3, nullptr, nullptr);
-    ljt::JoinHarness::set_value(at_sink, 0.0);
-
-    // Both sides meet at node 2, inserted worst-first so only sorting yields a usable order.
-    for (size_t i = 0; i < kLabelsPerSide; ++i) {
-        auto* forward = harness.add_forward(2, graph->get_arc(1), at_source);
-        ljt::JoinHarness::set_value(forward, static_cast<double>(kLabelsPerSide - i));
-        auto* backward = harness.add_backward(2, graph->get_arc(2), at_sink);
-        ljt::JoinHarness::set_value(backward, static_cast<double>(kLabelsPerSide - i));
-    }
+    auto [graph, harness] = ljt::twenty_by_twenty(&merge_calls);
 
     // Bound disabled so every stored label is a boundary label and only cost prunes.
     HalfWayPolicy policy(0.0, 0.0);
     ASSERT_FALSE(policy.enabled());
-    harness.run(policy, /*upper_bound=*/5.0);
+    harness->run(policy, /*upper_bound=*/5.0);
 
     EXPECT_GT(merge_calls, 0U);
     EXPECT_LT(merge_calls, kLabelsPerSide * kLabelsPerSide)
         << "the early exit should stop well short of the full product";
+}
+
+/// @brief A budget of zero returns nothing, and does not read an empty heap to decide so.
+///
+/// Before the guard, `out_of_range` called `Cheapest::worst()` -- the front of an empty vector --
+/// because a zero-capacity heap counts as full.
+TEST(LabelJoin, AZeroSolutionBudgetJoinsNothing) {
+    namespace ljt = label_join_test;
+
+    size_t merge_calls = 0;
+    auto [graph, harness] = ljt::twenty_by_twenty(&merge_calls);
+
+    const auto recorded = harness->run(HalfWayPolicy(0.0, 0.0),
+                                       /*upper_bound=*/1e9,
+                                       /*prune_requested=*/false,
+                                       /*max_solutions=*/0);
+
+    EXPECT_TRUE(recorded.empty());
+    EXPECT_EQ(merge_calls, 0U) << "no pair is worth testing when nothing can be kept";
 }
 
 /// @brief Reference counts stay consistent across a join pass.

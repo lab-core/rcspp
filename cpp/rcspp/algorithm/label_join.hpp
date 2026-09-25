@@ -72,6 +72,10 @@ class Joiner {
                 prune_requested || !std::isfinite(cost_upper_bound);
             const bool capped = max_solutions != std::numeric_limits<size_t>::max();
             Cheapest cheapest(max_solutions);
+            // A budget of zero keeps nothing; stop before `out_of_range` reads an empty heap.
+            if (capped && max_solutions == 0) {
+                return;
+            }
             // A pair at or above this cannot be among the cheapest kept, so is not worth splicing.
             const auto out_of_range = [&](double cost) {
                 return cost >= cost_upper_bound ||
