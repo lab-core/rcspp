@@ -20,6 +20,15 @@
 
 namespace rcspp {
 
+/// @brief What one join pass did.
+struct JoinStats {
+        /// @brief Pairs the merge rule was asked about: one per `can_be_merged` call.
+        size_t pairs_tested = 0;
+        /// @brief Whether the pass stopped at its pair budget with an in-range pair still
+        ///        untested.
+        bool truncated = false;
+};
+
 /// @brief Pairs surviving forward and backward labels at the node they meet on to form complete
 ///        paths.
 ///
@@ -59,12 +68,18 @@ class Joiner {
         /// @param max_solutions           When finite, only the cheapest this many distinct
         ///                                joined paths reach @p on_solution, after the pass;
         ///                                pairs that cannot be among them are never spliced.
+        /// @param max_pairs               When finite, the pass stops after this many merge-rule
+        ///                                questions and reports `truncated`; what it had kept is
+        ///                                still handed to @p on_solution.
+        /// @return How many pairs were tested, and whether @p max_pairs cut the pass short.
         template <typename FwdContainer, typename BwdContainer, typename OnSolution>
-        void join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
-                  std::vector<BwdContainer>& backward_by_pos, const HalfWayPolicy& half_way,
-                  size_t critical_resource_index, double& best_cost_upper_bound,
-                  bool prune_requested, double cost_upper_bound, OnSolution&& on_solution,
-                  size_t max_solutions = std::numeric_limits<size_t>::max()) {
+        JoinStats join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
+                       std::vector<BwdContainer>& backward_by_pos, const HalfWayPolicy& half_way,
+                       size_t critical_resource_index, double& best_cost_upper_bound,
+                       bool prune_requested, double cost_upper_bound, OnSolution&& on_solution,
+                       size_t max_solutions = std::numeric_limits<size_t>::max(),
+                       size_t max_pairs = std::numeric_limits<size_t>::max()) {
+            JoinStats stats;
             // Prune against the incumbent when asked, or when there is no fixed bound: otherwise a
             // default solve would return every admissible pair. A finite bound with no request
             // means "every column below this bound".
@@ -74,7 +89,7 @@ class Joiner {
             Cheapest cheapest(max_solutions);
             // A budget of zero keeps nothing; stop before `out_of_range` reads an empty heap.
             if (capped && max_solutions == 0) {
-                return;
+                return stats;
             }
             // A pair at or above this cannot be among the cheapest kept, so is not worth splicing.
             const auto out_of_range = [&](double cost) {
@@ -84,6 +99,9 @@ class Joiner {
             };
 
             for (const size_t node_id : graph.get_node_ids()) {
+                if (stats.truncated) {
+                    break;
+                }
                 const auto* node = graph.get_node(node_id);
                 // Paths ending at a sink were already recorded by the forward search.
                 if (node == nullptr || node->sink) {
@@ -104,6 +122,9 @@ class Joiner {
                 const double cheapest_backward = backward_sorted.front()->get_cost();
 
                 for (const auto* forward : boundary) {
+                    if (stats.truncated) {
+                        break;
+                    }
                     // Boundary labels are cost-sorted, so every later one is worse too.
                     if (out_of_range(forward->get_cost() + cheapest_backward)) {
                         break;
@@ -119,6 +140,14 @@ class Joiner {
                         if (out_of_range(cost)) {
                             break;
                         }
+                        // The budget binds only on a pair that would really be tested, so
+                        // `truncated` means "an in-range pair was left", never "the budget was
+                        // exactly used up".
+                        if (stats.pairs_tested >= max_pairs) {
+                            stats.truncated = true;
+                            break;
+                        }
+                        ++stats.pairs_tested;
                         // Merge rules are exact, so a refusal is final.
                         if (!forward->get_resource().can_be_merged(backward->get_resource())) {
                             continue;
@@ -138,6 +167,7 @@ class Joiner {
             for (auto& path : cheapest.take()) {
                 on_solution(path.cost, std::move(path.arc_ids), path.end_node_id);
             }
+            return stats;
         }
 
     private:

@@ -136,11 +136,13 @@ class JoinHarness {
         /// @p prune_requested = false, since the incumbent cutoff absorbs equal-cost duplicates.
         std::vector<Recorded> run(const HalfWayPolicy& policy, double upper_bound = kInfinity,
                                   bool prune_requested = true,
-                                  size_t max_solutions = std::numeric_limits<size_t>::max()) {
+                                  size_t max_solutions = std::numeric_limits<size_t>::max(),
+                                  size_t max_pairs = std::numeric_limits<size_t>::max(),
+                                  JoinStats* stats = nullptr) {
             std::vector<Recorded> recorded;
             Joiner<Composed, RealResource> joiner;
             double best = upper_bound;
-            joiner.join(
+            const JoinStats result = joiner.join(
                 *graph_,
                 forward_,
                 backward_,
@@ -152,7 +154,11 @@ class JoinHarness {
                 [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                     recorded.push_back({cost, std::move(arc_ids), end_node_id});
                 },
-                max_solutions);
+                max_solutions,
+                max_pairs);
+            if (stats != nullptr) {
+                *stats = result;
+            }
             return recorded;
         }
 
@@ -562,6 +568,80 @@ TEST(LabelJoin, AZeroSolutionBudgetJoinsNothing) {
 
     EXPECT_TRUE(recorded.empty());
     EXPECT_EQ(merge_calls, 0U) << "no pair is worth testing when nothing can be kept";
+}
+
+/// @brief `pairs_tested` is exactly the number of merge-rule questions.
+TEST(LabelJoin, PairsTestedCountsEveryMergeQuestion) {
+    namespace ljt = label_join_test;
+
+    size_t merge_calls = 0;
+    auto [graph, harness] = ljt::twenty_by_twenty(&merge_calls);
+
+    JoinStats stats;
+    harness->run(HalfWayPolicy(0.0, 0.0),
+                 /*upper_bound=*/5.0,
+                 /*prune_requested=*/true,
+                 std::numeric_limits<size_t>::max(),
+                 std::numeric_limits<size_t>::max(),
+                 &stats);
+
+    EXPECT_GT(stats.pairs_tested, 0U);
+    EXPECT_EQ(stats.pairs_tested, merge_calls);
+    EXPECT_FALSE(stats.truncated);
+}
+
+/// @brief A pair budget stops the pass, says so, and still hands back what it found.
+///
+/// A finite bound with pruning off makes every one of the 400 pairs admissible (costs 2..40), so
+/// the pass would test all of them. The budget stops it at exactly 10.
+TEST(LabelJoin, APairBudgetStopsTheJoinAndSaysSo) {
+    namespace ljt = label_join_test;
+
+    size_t merge_calls = 0;
+    auto [graph, harness] = ljt::twenty_by_twenty(&merge_calls);
+
+    JoinStats stats;
+    const auto recorded = harness->run(HalfWayPolicy(0.0, 0.0),
+                                       /*upper_bound=*/1e9,
+                                       /*prune_requested=*/false,
+                                       std::numeric_limits<size_t>::max(),
+                                       /*max_pairs=*/10,
+                                       &stats);
+
+    EXPECT_EQ(stats.pairs_tested, 10U);
+    EXPECT_EQ(merge_calls, 10U) << "the budget is counted in merge-rule questions";
+    EXPECT_TRUE(stats.truncated);
+    EXPECT_FALSE(recorded.empty()) << "a truncated pass returns what it had, it is not discarded";
+}
+
+/// @brief A budget used up exactly is not a truncation: no in-range pair was left.
+TEST(LabelJoin, ABudgetUsedUpExactlyIsNotReportedAsTruncation) {
+    namespace ljt = label_join_test;
+    constexpr size_t kAllPairs =
+        ljt::TwentyByTwenty::kLabelsPerSide * ljt::TwentyByTwenty::kLabelsPerSide;
+
+    size_t unlimited_calls = 0;
+    auto [unlimited_graph, unlimited_harness] = ljt::twenty_by_twenty(&unlimited_calls);
+    JoinStats unlimited;
+    unlimited_harness->run(HalfWayPolicy(0.0, 0.0),
+                           /*upper_bound=*/1e9,
+                           /*prune_requested=*/false,
+                           std::numeric_limits<size_t>::max(),
+                           std::numeric_limits<size_t>::max(),
+                           &unlimited);
+    ASSERT_EQ(unlimited.pairs_tested, kAllPairs) << "the control must test the full product";
+
+    size_t exact_calls = 0;
+    auto [exact_graph, exact_harness] = ljt::twenty_by_twenty(&exact_calls);
+    JoinStats exact;
+    exact_harness->run(HalfWayPolicy(0.0, 0.0),
+                       /*upper_bound=*/1e9,
+                       /*prune_requested=*/false,
+                       std::numeric_limits<size_t>::max(),
+                       /*max_pairs=*/kAllPairs,
+                       &exact);
+    EXPECT_EQ(exact.pairs_tested, kAllPairs);
+    EXPECT_FALSE(exact.truncated) << "no in-range pair was left untested";
 }
 
 /// @brief Reference counts stay consistent across a join pass.
