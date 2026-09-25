@@ -141,7 +141,9 @@ class BidirectionalDominanceAlgorithm
             if (this->params_.dynamic_half_way && half_way_controller_.seeded()) {
                 // A per-node extension quota is truncation the status cannot show: this
                 // algorithm's phase loop always runs once and reports COMPLETE. See step().
-                const bool truncated = this->params_.num_labels_to_extend_by_node < MAX_INT;
+                // So is a relaxed dominance: its label counts are not the exact search's.
+                const bool truncated = this->params_.num_labels_to_extend_by_node < MAX_INT ||
+                                       !this->params_.dominance_ignored_components.empty();
                 half_way_controller_.update(half_way_observation(result, truncated));
             }
             return result;
@@ -204,6 +206,10 @@ class BidirectionalDominanceAlgorithm
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); ++i) {
                 this->non_dominated_labels_by_node_pos_.emplace_back(this->params_.labels.copy());
             }
+
+            const auto mask = this->dominance_mask();
+            Base::apply_dominance_mask(this->non_dominated_labels_by_node_pos_, mask);
+            Base::apply_dominance_mask(backward_labels_by_node_pos_, mask);
 
             seed_direction<ForwardDirection>(this->non_dominated_labels_by_node_pos_,
                                              &forward_frontier_);
@@ -604,6 +610,15 @@ class BidirectionalDominanceAlgorithm
                                           " does not take part in the dominance order as an "
                                           "increasing one, so a dominator may sit above H while "
                                           "the label it evicted sat below it");
+                    return;
+                }
+                if (const auto component = critical_component_index(graph);
+                    component && this->params_.dominance_ignored_components.contains(*component)) {
+                    turn_half_way_off(HalfWayOff::ClockRelaxed,
+                                      clock + " (component " + std::to_string(*component) +
+                                          ") is left out of dominance by "
+                                          "dominance_ignored_components, so a dominator may sit "
+                                          "above H while the label it evicted sat below it");
                 }
             }
         }
@@ -694,6 +709,38 @@ class BidirectionalDominanceAlgorithm
                 if (!observe_start((*entering)->extender->template get_component<CriticalRC>(index),
                                    &scratch)) {
                     return sink_id;
+                }
+            }
+            return std::nullopt;
+        }
+
+        /// @brief The clock's index among all components, in the numbering the setup messages
+        ///        and @c AlgorithmBaseParams::dominance_ignored_components use.
+        ///
+        /// Found by address on any node's resource, so it needs no knowledge of the pack's layout.
+        ///
+        /// @param graph The graph.
+        /// @return The index, or @c std::nullopt when no node carries a resource or the clock's
+        ///         type is absent.
+        [[nodiscard]] std::optional<size_t> critical_component_index(
+            const Graph<ResourceType>& graph) const {
+            if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
+                for (const size_t node_id : graph.get_node_ids()) {
+                    const auto* node = graph.get_node(node_id);
+                    if (node == nullptr || node->resource == nullptr) {
+                        continue;
+                    }
+                    const void* clock = &node->resource->template get_component<CriticalRC>(
+                        this->params_.critical_resource_index);
+                    std::optional<size_t> found;
+                    size_t index = 0;
+                    node->resource->for_each_component([&](const auto& component) {
+                        if (static_cast<const void*>(&component) == clock) {
+                            found = index;
+                        }
+                        ++index;
+                    });
+                    return found;
                 }
             }
             return std::nullopt;
