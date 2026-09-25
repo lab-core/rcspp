@@ -17,9 +17,8 @@
 //
 // The `H` column doubles as the bound's status: it is `half_way_point_used`, which is 0 exactly
 // when `bounded_by_half_way` is false. A late iteration can read 0 here even though every earlier
-// one read the real `H` -- once the upper bound prunes the graph hard enough there may be no arc
-// left for the clock's monotonicity probe to read, and the bound then switches itself off. Correct
-// but slow, on a subproblem that by then has almost nothing in it.
+// one read the real `H`. Such a row is followed by the algorithm's `half_way_off_reason()`, so the
+// cause is read rather than guessed. The bound being off is correct but slow.
 //
 // **The algorithm object persists across the whole CG.** `VRP::solve` reuses the pointers it is
 // given rather than constructing one per iteration, so state carried on the algorithm survives
@@ -35,6 +34,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -57,6 +57,8 @@ struct PricingRow {
         bool bounded = false;
         double half_way_point = 0.0;
         double seconds = 0.0;
+        /// Why the half-way bound was off; empty when it was in force or the pricer has none.
+        std::string off_reason;
 };
 
 /// @brief Wraps an algorithm template and records one row per `solve()`.
@@ -78,6 +80,14 @@ struct Recording {
                         std::chrono::duration<double>(std::chrono::steady_clock::now() - started)
                             .count();
 
+                    // Only the bidirectional pricer has a half-way bound to explain.
+                    std::string off_reason;
+                    if constexpr (requires(const Inner<RT, LC>& algo) {
+                                      algo.half_way_off_reason();
+                                  }) {
+                        off_reason = this->half_way_off_reason();
+                    }
+
                     rows_.push_back(PricingRow{.iteration = static_cast<int>(rows_.size()),
                                                .status = result.status,
                                                .solutions = result.solutions.size(),
@@ -87,7 +97,8 @@ struct Recording {
                                                .joined_paths = result.number_of_joined_paths,
                                                .bounded = result.bounded_by_half_way,
                                                .half_way_point = result.half_way_point_used,
-                                               .seconds = seconds});
+                                               .seconds = seconds,
+                                               .off_reason = std::move(off_reason)});
                     return result;
                 }
 
@@ -114,6 +125,9 @@ void print_row(const PricingRow& row) {
               << row.dominance_checks << std::setw(8) << row.joined_paths << std::setw(9)
               << std::setprecision(1) << row.half_way_point << std::setw(9) << std::setprecision(3)
               << row.seconds << std::endl;
+    if (!row.off_reason.empty()) {
+        std::cout << "          bound off: " << row.off_reason << std::endl;
+    }
 }
 
 void print_summary(const std::string& label, const CGSolveResult& cg,
