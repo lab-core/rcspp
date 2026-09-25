@@ -364,7 +364,10 @@ under-rejecting quietly.
 | `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found.  Joined paths are **not** filtered by dominance at the sink, whatever the flag says: see below |
 | `stop_after_X_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `stop_after_X_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
 | `prune_based_on_upper_bound_` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
-| `timeout_s`, `should_stop`, the memory limit | stop the search; whatever was found is returned | stop the search **and skip the join**. The join is the most expensive single pass here — 3 million pairs and 12.2 s on a full C201 — so running it after a stop has fired is the opposite of what the stop asked for. The status already says the run was cut short, and `number_of_joined_paths` is then 0. Note the asymmetry with the row above: a solution budget caps what is *returned* and leaves the search exhaustive, while these three mean the search did not finish |
+| `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead, as before this was added |
+| `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
+| `join_column_budget` | ignored | the join keeps only its cheapest this many paths and never splices a pair that cannot enter them. Unlike `stop_after_X_solutions` it **never stops the search**, so `complete` still means exhaustive, and since the cheapest path is always kept the optimum is unchanged. The column *set* becomes "the K cheapest joined paths". The join uses the tighter of the two budgets |
+| `max_join_pairs` | ignored | the join stops after this many merge-rule questions (`join_pairs_tested`). What it found is returned, but the result is no longer a proof: `join_truncated` is set and `could_be_non_optimal()` is true |
 
 Why the last row depends on `upper_bound` being finite: a solve that supplies none has expressed no
 filter, and returning every admissible pair there is nobody's question.  Measured on the full C201
@@ -372,7 +375,9 @@ instance, doing so produced **3 065 288 solutions in 12.2 s** where the forward 
 same optimum in 0.68 s — while the bidirectional *search* extended 1.46× **fewer** labels.  On
 RC201 the same run reached 9.3 GB resident.  None of that is search cost; it is recording and
 de-duplicating the set.  So the incumbent cutoff stays on when there is no bound, and the flag is
-honoured where it means something.
+honoured where it means something.  The same measurement is why the join after an early stop
+always prunes against the incumbent, and why `max_join_pairs` exists: it caps the join's work in a
+unit that, unlike seconds, does not depend on the machine.
 
 The bidirectional solution *set* is not the forward search's, and with a finite bound and pruning
 off it is usually **larger**.  The join pairs every forward half with every backward half the
@@ -380,8 +385,10 @@ bound admits, and a pair that would be dominated at the sink is still returned: 
 each non-dominated where they meet, not as a whole path.  On Solomon pricing graphs at half the
 horizon, with a uniform dual and pruning off, it returned 12 to 19 times the forward search's
 columns.  Every one of them is feasible at its stated cost, and the optimum is the same.  If the
-master should see only non-dominated columns, use a forward algorithm, or cap the count with
-`stop_after_X_solutions`, which the join honours without building the rest.
+master should see only non-dominated columns, use a forward algorithm.  To cap the count, use
+`join_column_budget`: the join then keeps only its cheapest paths, without building the rest, and
+the search stays exhaustive.  `stop_after_X_solutions` also caps the join, but it stops the search
+as well.
 
 ### Where the two halves are paired
 
@@ -539,6 +546,8 @@ Beyond `status`, every `SolveResult` carries diagnostics the status cannot expre
 | `backward_labels` | `bidirectional`, and a backward-only search | the same, backwards |
 | `dominance_checks` | as above | dominance comparisons performed, both directions |
 | `half_way_point_used` | `bidirectional` | the `H` actually applied; `0.0` when the bound was off |
+| `join_pairs_tested` | `bidirectional` | pairs the join asked the merge rule about; 0 when it did not run |
+| `join_truncated` | `bidirectional` | the join stopped at `max_join_pairs` with a pair left, so `complete` is not a proof |
 
 The heuristics — `greedy`, the tabu searches, `diversification`, `backtracking_dive` — derive from
 `Algorithm` directly rather than from the directional base, so they leave the label and check
@@ -660,11 +669,12 @@ them costs more than the labeling saves — time per column actually fell on eve
 the column count rose up to 2.7×.  Until the join's output is bounded, balancing the searches
 mostly feeds the join.  Imbalance is the geometric mean over iterations of `max(f, b) / min(f, b)`.
 
-`stop_after_X_solutions` does bound it: the join then splices only the cheapest that many paths
-(see "Parameters that behave differently here").  But it also stops the *searches* once that many
-solutions exist, and a solve stopped that way ends `MAX_SOLUTIONS`, not `COMPLETE`, so the
-controller does not learn from it.  With the bound in force few forward labels reach a sink, so
-the searches rarely hit the budget; count the `MAX_SOLUTIONS` solves before trusting the result.
+`join_column_budget` bounds it: the join then keeps only its cheapest that many paths (see
+"Parameters that behave differently here"), and the search stays exhaustive, so the solve still
+ends `COMPLETE` and the controller keeps learning.  `stop_after_X_solutions` caps the join too, but
+it also stops the *searches* once that many solutions exist, and a solve stopped that way ends
+`MAX_SOLUTIONS`, which the controller does not learn from.  A join truncated by `max_join_pairs`
+is not learned from either.
 
 ### One thing `status` cannot tell you
 

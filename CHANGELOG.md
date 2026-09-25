@@ -8,6 +8,14 @@ with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **A bidirectional solve stopped by a timeout or the memory limit still runs its join.** Before,
+  it skipped the join, so with the half-way bound in force it returned almost nothing, and a
+  column-generation loop with a pricing budget stalled. The join now runs with the incumbent cutoff
+  forced on and returns the improving paths the two halves already hold; the status still reports
+  `TIMEOUT` or `MEMORY_LIMIT`. An interrupt (`should_stop`) still skips it. Set
+  `join_after_early_stop = false` for the previous behaviour. See "Parameters that behave
+  differently here" in `docs/advanced/algorithms.md`.
+
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with diversification) could extend one
@@ -31,6 +39,12 @@ with a pointer to where they are documented.
   now follow the extension it is paired with. The argument is kept so existing calls compile.
 
 ### Added
+
+- **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
+  join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
+  unchanged. `max_join_pairs` caps the join's work in merge-rule questions. `SolveResult` reports
+  `join_pairs_tested` and `join_truncated`, and the half-way controller does not learn from a
+  truncated join.
 
 - **Bidirectional labelling**: `BidirectionalDominanceAlgorithm` in C++, `algorithm="bidirectional"`
   in Python. Give it a `critical_resource_index` and a `half_way_point`: with the default
@@ -67,6 +81,10 @@ with a pointer to where they are documented.
   the same coherence on their own pairings with `rcspp::backward_coherent_v<Ext, Feas>`.
 
 ### Fixed
+
+- **A solution budget of zero no longer reads an empty heap in the bidirectional join.** With
+  `stop_after_X_solutions = 0` the join read the top of an empty heap (undefined behaviour; a
+  checked-iterator build aborted). It now joins nothing.
 
 - Memory pressure no longer loosens a per-node label quota the caller set tighter than
   `memory_pressure_max_labels_per_node`, in any labelling algorithm. It used to replace the quota
