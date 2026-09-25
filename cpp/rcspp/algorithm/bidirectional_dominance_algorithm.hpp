@@ -438,21 +438,23 @@ class BidirectionalDominanceAlgorithm
                 this->extract_solution(cost, std::move(arc_ids), end_node_id);
                 joined_paths_ += this->solutions_.size() - before;
             };
-            const JoinStats stats = joiner_.join(*this->graph_,
-                                                 this->non_dominated_labels_by_node_pos_,
-                                                 backward_labels_by_node_pos_,
-                                                 half_way_,
-                                                 this->params_.critical_resource_index,
-                                                 this->best_cost_upper_bound_,
-                                                 this->params_.prune_based_on_upper_bound_,
-                                                 this->cost_upper_bound_,
-                                                 record,
-                                                 this->params_.stop_after_X_solutions < MAX_INT
-                                                     ? this->params_.stop_after_X_solutions
-                                                     : std::numeric_limits<size_t>::max(),
-                                                 this->params_.max_join_pairs < MAX_INT
-                                                     ? this->params_.max_join_pairs
-                                                     : std::numeric_limits<size_t>::max());
+            // The join keeps at most the tighter of the two budgets. `stop_after_X_solutions`
+            // also stops the search; `join_column_budget` does not.
+            const size_t budget =
+                std::min(this->params_.stop_after_X_solutions, this->params_.join_column_budget);
+            const JoinStats stats = joiner_.join(
+                *this->graph_,
+                this->non_dominated_labels_by_node_pos_,
+                backward_labels_by_node_pos_,
+                half_way_,
+                this->params_.critical_resource_index,
+                this->best_cost_upper_bound_,
+                this->params_.prune_based_on_upper_bound_,
+                this->cost_upper_bound_,
+                record,
+                budget < MAX_INT ? budget : std::numeric_limits<size_t>::max(),
+                this->params_.max_join_pairs < MAX_INT ? this->params_.max_join_pairs
+                                                       : std::numeric_limits<size_t>::max());
             join_pairs_tested_ = stats.pairs_tested;
             join_truncated_ = stats.truncated;
         }
