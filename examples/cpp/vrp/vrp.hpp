@@ -3,9 +3,13 @@
 
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <limits>
 #include <optional>
+#include <set>
+#include <string>
+#include <vector>
 
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
@@ -56,6 +60,40 @@ struct ExtraSolver {
         std::function<std::vector<Solution>(const std::map<size_t, double>&)> fn;
         /// @brief Whether fn always finds the optimal solution (used for cross-checking).
         bool optimal = true;
+};
+
+/// @brief One stage of a pricing cascade (see VRP::solve_cascade).
+struct PricingStage {
+        /// @brief A name for the results.
+        std::string name;
+        /// @brief The pricer, owned by the caller and reused across iterations.
+        Algorithm<ResourceType, LabelList<ResourceType>>* algorithm = nullptr;
+        /// @brief Whether "no improving column" from this stage proves there is none -- given a
+        ///        `COMPLETE` status, no memory-pressure trim and no truncated join.
+        bool exact = false;
+};
+
+/// @brief What one stage of a cascade did over a whole column generation.
+struct PricingStageStats {
+        std::string name;
+        /// @brief Iterations on which the stage ran.
+        size_t calls = 0;
+        /// @brief Calls that returned at least one improving column.
+        size_t successes = 0;
+        /// @brief Improving columns it contributed that no earlier stage of the same iteration had.
+        size_t columns = 0;
+        double seconds = 0.0;
+};
+
+/// @brief Result of VRP::solve_cascade().
+struct CascadeResult {
+        double lp_cost = std::numeric_limits<double>::infinity();
+        /// @brief False when the last iteration's final stage could not prove "no column".
+        bool proven_optimal = true;
+        int iterations = 0;
+        std::vector<PricingStageStats> stages;
+        /// @brief Seconds spent in the master problem, over the whole run.
+        double master_seconds = 0.0;
 };
 
 class VRP {
@@ -276,6 +314,106 @@ class VRP {
 
         RGraph& get_graph() { return graph_; }
 
+        /// @brief Column generation with the pricers run as a cascade rather than side by side.
+        ///
+        /// On every iteration the stages run in order, and pricing stops at the first stage after
+        /// which at least @p min_columns distinct improving columns have been found. Every
+        /// improving column any executed stage returned goes to the master. The run ends on the
+        /// first iteration where no stage finds one; it is proven optimal only if the last stage
+        /// ran, is exact, and finished that solve exactly.
+        ///
+        /// The duals follow the same schedule as solve(), so a cascade and a single pricer see the
+        /// same master problem on their first iteration.
+        ///
+        /// @param stages      The stages, cheapest first; the last one should be exact.
+        /// @param min_columns Improving columns that end an iteration's pricing early.
+        /// @return The LP value, whether it is proven, and what each stage did.
+        CascadeResult solve_cascade(const std::vector<PricingStage>& stages,
+                                    size_t min_columns = 1) {
+            CascadeResult result;
+            for (const auto& stage : stages) {
+                result.stages.push_back({.name = stage.name});
+            }
+
+            generate_initial_paths();
+            MasterProblem master_problem(instance_.get_demand_customers_id());
+            master_problem.construct_model(paths_);
+
+            const auto seconds_since = [](auto started) {
+                return std::chrono::duration<double>(std::chrono::steady_clock::now() - started)
+                    .count();
+            };
+
+            int nb_iter = 0;
+            while (true) {
+                const auto master_started = std::chrono::steady_clock::now();
+                const MPSolution master_solution = master_problem.solve();
+                result.master_seconds += seconds_since(master_started);
+                result.lp_cost = master_solution.cost;
+
+                const auto dual_by_id =
+                    calculate_dual(master_solution.dual_by_var_id, std::nullopt, nb_iter);
+                update_resource_graph(&graph_, &dual_by_id);
+
+                std::vector<Solution> columns;
+                std::set<std::vector<size_t>> seen;
+                bool proven_none = false;
+                for (size_t i = 0; i < stages.size(); ++i) {
+                    const bool exhaustive =
+                        run_stage(stages[i], &result.stages[i], &columns, &seen);
+                    if (columns.size() >= min_columns) {
+                        break;
+                    }
+                    if (i + 1 == stages.size()) {
+                        proven_none = columns.empty() && stages[i].exact && exhaustive;
+                    }
+                }
+
+                if (columns.empty()) {
+                    result.proven_optimal = proven_none;
+                    break;
+                }
+                add_paths(&master_problem, columns);
+                ++nb_iter;
+            }
+            result.iterations = nb_iter;
+            return result;
+        }
+
+    private:
+        /// @brief Runs one cascade stage on the current graph and keeps its new improving columns.
+        ///
+        /// @param stage   The stage.
+        /// @param stats   Its statistics, updated.
+        /// @param columns This iteration's columns so far; the stage's new ones are appended.
+        /// @param seen    Their paths, to keep a column found by two stages once.
+        /// @return Whether the solve was exhaustive: `COMPLETE`, untrimmed, and with an untruncated
+        ///         join.
+        bool run_stage(const PricingStage& stage, PricingStageStats* stats,
+                       std::vector<Solution>* columns, std::set<std::vector<size_t>>* seen) {
+            const auto started = std::chrono::steady_clock::now();
+            auto solve = graph_.solve(stage.algorithm, -EPSILON);
+            stats->seconds +=
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+            ++stats->calls;
+
+            bool improving = false;
+            for (auto& solution : solve.solutions) {
+                if (solution.cost >= -EPSILON) {
+                    continue;
+                }
+                improving = true;
+                if (seen->insert(solution.path_arc_ids).second) {
+                    columns->push_back(std::move(solution));
+                    ++stats->columns;
+                }
+            }
+            stats->successes += improving ? 1 : 0;
+            return solve.status == AlgorithmStatus::COMPLETE && !solve.memory_pressure_triggered &&
+                   !solve.join_truncated;
+        }
+
+    public:
         /// @brief Runs a single algorithm on the current graph with the given dual values.
         ///
         /// Intended for building ExtraSolver lambdas: the caller creates an algorithm on
