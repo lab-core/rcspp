@@ -12,8 +12,8 @@
 // exact configurations must also reach the optimum.
 //
 // This covers the knobs that make the bidirectional search inexact (quotas, join budgets, pair
-// caps, early stops), the dives, and `DiversificationSearch` wrapped around a bidirectional
-// solver, which nothing tested before (E2's precondition).
+// caps, early stops, relaxed dominance), the dives, and `DiversificationSearch` wrapped around a
+// bidirectional solver, which nothing tested before (E2's precondition).
 
 #include <gtest/gtest.h>
 
@@ -65,9 +65,11 @@ struct Configurations {
             };
         }
 
-        /// @param clock   The clock's index in the real slot.
-        /// @param horizon The clock's range; `H` is half of it (0 turns the bound off).
-        static std::vector<Entry> all(size_t clock, double horizon) {
+        /// @param clock    The clock's index in the real slot.
+        /// @param horizon  The clock's range; `H` is half of it (0 turns the bound off).
+        /// @param relaxable A component the relaxed configurations leave out of dominance: the
+        ///                  capacity, the ng memory, or the clock (which turns the bound off).
+        static std::vector<Entry> all(size_t clock, double horizon, size_t relaxable) {
             auto bidirectional = [&](auto&& tweak) {
                 AlgorithmBaseParams params;
                 params.direction = SearchDirection::Bidirectional;
@@ -134,6 +136,19 @@ struct Configurations {
                      p.return_dominated_solutions = true;
                  })});
 
+            // Dominance relaxed on one component, per solve.
+            const auto relaxed = [relaxable](AlgorithmBaseParams& p) {
+                p.dominance_ignored_components = {relaxable};
+            };
+            entries.push_back({"simple/relaxed", make<SimpleDominanceAlgorithm>(plain(relaxed))});
+            entries.push_back({"pushing/relaxed", make<PushingDominanceAlgorithm>(plain(relaxed))});
+            entries.push_back({"bidirectional/relaxed", bidirectional(relaxed)});
+            entries.push_back(
+                {"bidirectional/q2-relaxed", bidirectional([&](AlgorithmBaseParams& p) {
+                     relaxed(p);
+                     p.num_labels_to_extend_by_node = 2;
+                 })});
+
             // The dives.
             entries.push_back({"greedy/20", make<GreedyAlgorithm>(plain([](AlgorithmBaseParams& p) {
                                    p.stop_after_X_solutions = 20;
@@ -174,9 +189,9 @@ struct Configurations {
 /// @return How many columns were checked.
 template <typename Configs, typename Build>
 size_t check_all(const Build& build, double optimum, const std::string& where, size_t clock,
-                 double horizon) {
+                 double horizon, size_t relaxable) {
     size_t checked = 0;
-    for (const auto& entry : Configs::all(clock, horizon)) {
+    for (const auto& entry : Configs::all(clock, horizon, relaxable)) {
         SCOPED_TRACE(entry.name);
         auto graph = build();
         auto algorithm = entry.maker(*graph);
@@ -226,11 +241,14 @@ TEST(HeuristicCorrectness, EveryConfigurationReturnsRealColumnsOnAcyclicInstance
 
         const double optimum = test_util::brute_force_optimum(config);
         const auto probe = test_util::build_instance(config);
+        // The last component: the capacity when there is one, else the time window (the clock).
+        const size_t last = config.with_capacity ? 2 : 1;
         checked += hc::check_all<Configs>([&] { return test_util::build_instance(config).graph; },
                                           optimum,
                                           where,
                                           probe.clock_index,
-                                          probe.clock_upper_bound);
+                                          probe.clock_upper_bound,
+                                          last);
     }
     EXPECT_GT(checked, 0U) << "no configuration returned a column, so nothing was validated";
 }
@@ -255,12 +273,14 @@ TEST(HeuristicCorrectness, EveryConfigurationReturnsRealColumnsOnCyclicNgInstanc
 
         const double optimum = test_util::ng_cyclic_optimum(config);
         const auto probe = test_util::build_ng_instance(config);
+        // Cost and time in the real slot, then the ng memory: component 2.
         checked +=
             hc::check_all<Configs>([&] { return test_util::build_ng_instance(config).graph; },
                                    optimum,
                                    where,
                                    probe.clock_index,
-                                   probe.clock_upper_bound);
+                                   probe.clock_upper_bound,
+                                   2);
     }
     EXPECT_GT(checked, 0U) << "no configuration returned a column, so nothing was validated";
 }
