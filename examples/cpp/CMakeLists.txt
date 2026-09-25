@@ -53,3 +53,7 @@ add_vrp_example(rcspp-bidirectional-cg bidirectional_cg_main.cpp)
 #   cmake --build <build-dir> --target rcspp-ng-dynamic-cg
 add_vrp_example(rcspp-ng-dynamic-cg ng_dynamic_cg_main.cpp)
 set_target_properties(rcspp-ng-dynamic-cg PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+# Pricing cascades (heuristic stages, then an exact one) over a whole column generation.
+# The instrument for measuring heuristic pricing stages in front of an exact one.
+add_vrp_example(rcspp-heuristic-cascade heuristic_cascade_main.cpp)
