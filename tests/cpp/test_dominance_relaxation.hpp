@@ -97,13 +97,16 @@ bool expect_same_search(const Instance& instance, const std::map<size_t, double>
 }  // namespace dominance_relaxation_test
 
 /// @brief The parameter gives the same search as a second graph with a trivial dominance, for the
-///        load and for the ng memory, forward (Simple, Pushing) and in both directions
-///        (Bidirectional).
+///        load and for the ng memory, forward (Simple, Pushing, Pulling, AStar) and in both
+///        directions (Simple's and Pushing's bidirectional searches).
 TEST(DominanceRelaxation, MatchesATrivialDominanceFunctionOnASecondGraph) {
     namespace dr = dominance_relaxation_test;
     namespace bb = bidirectional_benchmark;
+    using AStar = AStarAlgoBound<RealResource>;
 
-    size_t changed = 0;
+    // Per algorithm: how many relaxed solves extended fewer labels than the exact one, out of how
+    // many compared.
+    std::map<std::string, size_t> changed;
     size_t compared = 0;
     for (const std::string name : {"R101_25", "C101_25", "RC201_12"}) {
         const auto instance = bb::load(name);
@@ -118,31 +121,58 @@ TEST(DominanceRelaxation, MatchesATrivialDominanceFunctionOnASecondGraph) {
         for (const auto& [model, component] : cases) {
             const std::string where = name + " " + model.tag();
             SCOPED_TRACE(where);
-            changed += dr::expect_same_search<SimpleDominanceAlgorithm>(instance,
-                                                                        duals,
-                                                                        model,
-                                                                        component,
-                                                                        {},
-                                                                        where + " simple");
-            changed += dr::expect_same_search<PushingDominanceAlgorithm>(instance,
-                                                                         duals,
-                                                                         model,
-                                                                         component,
-                                                                         {},
-                                                                         where + " pushing");
-            changed += dr::expect_same_search<SimpleDominanceAlgorithm>(instance,
-                                                                        duals,
-                                                                        model,
-                                                                        component,
-                                                                        dr::bidirectional(horizon),
-                                                                        where + " bidirectional");
-            compared += 3;
+            changed["simple"] +=
+                dr::expect_same_search<SimpleDominanceAlgorithm>(instance,
+                                                                 duals,
+                                                                 model,
+                                                                 component,
+                                                                 {},
+                                                                 where + " simple");
+            changed["pushing"] +=
+                dr::expect_same_search<PushingDominanceAlgorithm>(instance,
+                                                                  duals,
+                                                                  model,
+                                                                  component,
+                                                                  {},
+                                                                  where + " pushing");
+            changed["pulling"] +=
+                dr::expect_same_search<PullingDominanceAlgorithm>(instance,
+                                                                  duals,
+                                                                  model,
+                                                                  component,
+                                                                  {},
+                                                                  where + " pulling");
+            changed["astar"] += dr::expect_same_search<AStar::Algo>(instance,
+                                                                    duals,
+                                                                    model,
+                                                                    component,
+                                                                    {},
+                                                                    where + " astar");
+            changed["bidirectional"] +=
+                dr::expect_same_search<SimpleDominanceAlgorithm>(instance,
+                                                                 duals,
+                                                                 model,
+                                                                 component,
+                                                                 dr::bidirectional(horizon),
+                                                                 where + " bidirectional");
+            changed["pushing-bidirectional"] +=
+                dr::expect_same_search<PushingDominanceAlgorithm>(instance,
+                                                                  duals,
+                                                                  model,
+                                                                  component,
+                                                                  dr::bidirectional(horizon),
+                                                                  where + " pushing-bidirectional");
+            ++compared;
         }
     }
-    // Each relaxation must actually prune: equal results from two searches that ignore the
-    // parameter would pass the comparisons above.
-    EXPECT_GT(changed, compared / 2) << changed << " of " << compared
-                                     << " relaxed solves extended fewer labels than the exact one";
+    // Each algorithm's relaxation must actually prune: equal results from two searches that ignore
+    // the parameter would pass the comparisons above.
+    ASSERT_EQ(changed.size(), 6U);
+    for (const auto& [algorithm, count] : changed) {
+        EXPECT_GT(count, compared / 2)
+            << algorithm << ": " << count << " of " << compared
+            << " relaxed solves extended fewer labels than the exact one";
+    }
 }
 
 /// @brief Relaxing the clock turns the half-way bound off, and says why.
