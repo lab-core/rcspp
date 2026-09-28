@@ -18,6 +18,7 @@
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/directional_dominance_algorithm.hpp"
 #include "rcspp/algorithm/half_way_policy.hpp"
+#include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
 
@@ -176,8 +177,15 @@ class BidirectionalDominanceAlgorithm
             backward_extended_per_node_.assign(num_nodes, 0);
             forward_work_ = 0;
             backward_work_ = 0;
-            forward_frontier_.clear();
-            backward_frontier_.clear();
+            // Under a per-node quota the frontiers sweep node by node, so the quota keeps each
+            // node's cheapest labels; an exact search keeps arrival order.
+            if (this->params_.num_labels_to_extend_by_node < MAX_INT) {
+                forward_frontier_.reset_sweep(num_nodes, /*descending=*/false);
+                backward_frontier_.reset_sweep(num_nodes, /*descending=*/true);
+            } else {
+                forward_frontier_.reset_fifo();
+                backward_frontier_.reset_fifo();
+            }
 
             backward_labels_by_node_pos_.clear();
             backward_labels_by_node_pos_.reserve(num_nodes);
@@ -306,14 +314,17 @@ class BidirectionalDominanceAlgorithm
         ///
         /// Lowering the quota keeps the frontiers from refilling. Dropped entries stay in their
         /// containers but are never extended, so there is nothing to release on a later event.
+        /// The result may be non-optimal; `memory_pressure_was_triggered()` reports it.
         void on_memory_pressure() override {
             Base::on_memory_pressure();
             this->effective_max_labels_per_node_ =
                 std::min(this->effective_max_labels_per_node_,
                          this->params_.memory_pressure_max_labels_per_node);
             this->memory_pressure_triggered_ = true;
-            trim_frontier(&forward_frontier_);
-            trim_frontier(&backward_frontier_);
+            const size_t per_node = this->params_.memory_pressure_max_labels_per_node;
+            const size_t num_nodes = this->graph_->get_number_of_nodes();
+            forward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
+            backward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
         }
 
         void release_label_memory() override {
@@ -331,20 +342,20 @@ class BidirectionalDominanceAlgorithm
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
             // Routed by step<Dir>() into the correct frontier; see extend_into().
-            pending_frontier_->push_back(label_iterator_pair);
+            pending_frontier_->push(label_iterator_pair);
         }
 
     private:
         /// @brief Creates the seed labels for one direction and puts them on its frontier.
         template <typename Dir, typename Container>
         void seed_direction(std::vector<Container>& containers,
-                            std::list<LabelIteratorPair<ResourceType>>* frontier) {
+                            LabelFrontier<ResourceType>* frontier) {
             for (auto seed_node_id : Dir::seeds(*this->graph_)) {
                 auto* seed_node = this->graph_->get_node(seed_node_id);
                 auto& label = this->label_pool_.get_next_label(seed_node);
                 Dir::seed(label);
                 auto label_it = containers.at(seed_node->pos()).add_label(&label);
-                frontier->push_back(std::make_pair(&label, label_it));
+                frontier->push(std::make_pair(&label, label_it));
             }
         }
 
@@ -353,11 +364,10 @@ class BidirectionalDominanceAlgorithm
         /// Abandoning a label (dominated, over quota, beyond the completion bound, past `H`) never
         /// stops the solve; run-level stops are checked in `main_loop`.
         template <typename Dir, typename Container>
-        void step(std::vector<Container>& containers,
-                  std::list<LabelIteratorPair<ResourceType>>* frontier,
+        void step(std::vector<Container>& containers, LabelFrontier<ResourceType>* frontier,
                   std::vector<size_t>* extended_per_node) {
-            auto label_iterator_pair = frontier->front();
-            frontier->pop_front();
+            auto label_iterator_pair =
+                frontier->pop(this->effective_max_labels_per_node_, &this->label_pool_);
 
             auto* label_ptr = label_iterator_pair.first;
             if (label_ptr == nullptr) {
@@ -369,14 +379,17 @@ class BidirectionalDominanceAlgorithm
             }
 
             const size_t node_pos = label_ptr->get_end_node()->pos();
-            size_t& extended_count = extended_per_node->at(node_pos);
-            if (extended_count >= this->effective_max_labels_per_node_) {
-                // Known gap: an abandoned label never yields a boundary label, so the join sees
-                // fewer forward halves. Only reachable under truncated labeling or memory pressure,
-                // and such labels are never revisited.
-                return;
+            // A sweeping frontier applies the quota itself, to each node's queue as it visits it.
+            // In FIFO order the quota counts the labels extended at a node so far. Either way an
+            // abandoned label never yields a boundary label, so the join sees fewer forward halves
+            // (a known gap, only reachable under truncated labeling or memory pressure).
+            if (!frontier->sweeping()) {
+                size_t& extended_count = extended_per_node->at(node_pos);
+                if (extended_count >= this->effective_max_labels_per_node_) {
+                    return;
+                }
+                ++extended_count;
             }
-            ++extended_count;
 
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
@@ -433,7 +446,7 @@ class BidirectionalDominanceAlgorithm
         /// Adds the arcs to its direction's work count, which @ref main_loop balances.
         template <typename Dir, typename Container>
         void extend_into(Label<ResourceType>* label_ptr, std::vector<Container>& containers,
-                         std::list<LabelIteratorPair<ResourceType>>* frontier) {
+                         LabelFrontier<ResourceType>* frontier) {
             pending_frontier_ = frontier;
             const auto arcs = Dir::arcs(*this->graph_, label_ptr->get_end_node());
             (Dir::backward ? backward_work_ : forward_work_) += arcs.size();
@@ -1230,33 +1243,11 @@ class BidirectionalDominanceAlgorithm
             return component.back_dominates(seeded) && !seeded.back_dominates(component);
         }
 
-        /// @brief Trims a frontier under memory pressure, keeping the cheapest labels.
-        ///
-        /// Non-dominated dropped entries stay in their containers but are never extended, so the
-        /// result may be non-optimal; `memory_pressure_was_triggered()` reports this.
-        void trim_frontier(std::list<LabelIteratorPair<ResourceType>>* frontier) {
-            const size_t max_total = this->params_.memory_pressure_max_labels_per_node *
-                                     this->graph_->get_number_of_nodes();
-            if (frontier->size() <= max_total) {
-                return;
-            }
-            frontier->sort([](const auto& lhs, const auto& rhs) {
-                return lhs.first->get_cost() < rhs.first->get_cost();
-            });
-            while (frontier->size() > max_total) {
-                auto& back = frontier->back();
-                if (back.first->dominated) {
-                    this->label_pool_.release_with_ref_count(back.first);
-                }
-                frontier->pop_back();
-            }
-        }
-
         std::vector<BackwardContainer> backward_labels_by_node_pos_;
 
-        std::list<LabelIteratorPair<ResourceType>> forward_frontier_;
-        std::list<LabelIteratorPair<ResourceType>> backward_frontier_;
-        std::list<LabelIteratorPair<ResourceType>>* pending_frontier_ = nullptr;
+        LabelFrontier<ResourceType> forward_frontier_;
+        LabelFrontier<ResourceType> backward_frontier_;
+        LabelFrontier<ResourceType>* pending_frontier_ = nullptr;
 
         std::vector<size_t> forward_extended_per_node_;
         std::vector<size_t> backward_extended_per_node_;

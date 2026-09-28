@@ -423,6 +423,17 @@ quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memo
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
+Under a quota the two searches also change their order.  An exact search takes labels in the order
+they arrive; with `num_labels_to_extend_by_node` set, each search instead sweeps the nodes in
+position order, as `Pushing` does — forward from the first position up, backward from the last
+down — and when it reaches a node it sorts that node's waiting labels by cost and extends only the
+cheapest `num_labels_to_extend_by_node`.  The quota therefore keeps each node's cheapest labels,
+not the first to arrive, and applies to each visit, so a node the sweep comes back to can extend
+more.  On 50-customer Solomon pricing graphs at high label pressure, quota 5 reached a median 91 %
+of the optimal reduced cost (arrival order had reached 22 %), level with `Pushing` at the same
+quota.  Pair it with `join_column_budget`: the join still pairs every half the bound admits, and a
+budget of 200 made the truncated solve as fast as `Pushing`'s.
+
 ### Presets: declaring a resource in one call
 
 Most resources are one of five shapes, and for those the four function objects can be
