@@ -27,8 +27,8 @@ anything better than another label (**dominance**).
 | # | Page | Main question |
 |---|---|---|
 | 1 | [Master problem, pricing and duals](master-and-pricing.md) | Where does the RCSPP come from, and why are arcs given `Row`s? |
-| 2 | Resources and labels *(coming next)* | How does the library represent time, load, cost…? |
-| 3 | Dominance and elementarity *(planned)* | Why is it safe to discard labels? What about cycles? |
+| 2 | [Resources and labels](resources-and-labels.md) | How does the library represent time, load, cost…? |
+| 3 | Dominance and elementarity *(coming next)* | Why is it safe to discard labels? What about cycles? |
 | 4 | Algorithms and preprocessing *(planned)* | Exact vs heuristic search; removing arcs before the search |
 | 5 | From LP to integer solutions *(planned)* | Branch-and-price, and what the examples do instead |
 | 6 | The Python layer *(planned)* | How the pieces map onto `rcspp`'s Python API |
@@ -41,4 +41,5 @@ specific to routing.
 :hidden:
 
 master-and-pricing
+resources-and-labels
 :::
