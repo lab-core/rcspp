@@ -8,6 +8,14 @@ with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **A bidirectional solve with a per-node quota keeps each node's cheapest labels.** With
+  `num_labels_to_extend_by_node` set, both searches now sweep the nodes in position order, as
+  `Pushing` does, and extend only the cheapest labels waiting at a node when they reach it. Before,
+  the quota kept the first labels to arrive, and a truncated bidirectional solve reached a median
+  22 % of the optimal reduced cost where it now reaches 91 % (quota 5, high-pressure Solomon pricing
+  graphs). The quota applies per visit, so a node can extend more labels in total than before, and
+  truncated solves return different columns. Exact solves (no quota) are unchanged. See "Where the
+  two halves are paired" in `docs/advanced/algorithms.md`.
 - **The two searches of a bidirectional solve interleave.** The next label now comes from whichever
   search has extended fewer arcs so far. Before, the solver took the larger frontier, and since the
   backward frontier holds a single seed until the backward search starts, the whole forward half
