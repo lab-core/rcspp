@@ -78,8 +78,9 @@ class StageFactory {
         PricingStage truncated_bidirectional() {
             auto params = bidirectional();
             params.num_labels_to_extend_by_node = options_.quota;
+            // Pushing's bidirectional search: the quota keeps each node's cheapest labels.
             return keep("bidirectional q" + std::to_string(options_.quota),
-                        make<SimpleDominanceAlgorithm>(params),
+                        make<PushingDominanceAlgorithm>(params),
                         false);
         }
 

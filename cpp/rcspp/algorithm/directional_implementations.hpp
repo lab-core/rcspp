@@ -11,6 +11,7 @@
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/bidirectional_dominance_algorithm.hpp"
 #include "rcspp/algorithm/directional_dominance_algorithm.hpp"
+#include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
@@ -42,6 +43,19 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
                   typename ClockResourceType>
         using Bidirectional = BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType,
                                                               ClockResourceType, CostResourceType>;
+};
+
+/// @brief @c PushingDominanceAlgorithm also searches bidirectionally, as
+///        @ref BidirectionalPushing: both searches sweep the nodes, as Pushing does.
+template <>
+struct DirectionalImplementations<PushingDominanceAlgorithm> {
+        static constexpr bool has_backward = false;
+        static constexpr bool has_bidirectional = true;
+        // The class takes the clock before the cost.
+        template <typename ResourceType, typename LabelContainerType, typename CostResourceType,
+                  typename ClockResourceType>
+        using Bidirectional = BidirectionalPushing<ResourceType, LabelContainerType,
+                                                   ClockResourceType, CostResourceType>;
 };
 
 /// @brief Builds the class that searches in `params.direction` for @p Strategy.

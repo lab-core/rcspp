@@ -56,6 +56,8 @@ enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 /// @c SimpleDominanceAlgorithm, through @c ResourceGraph::create_algorithm or
 /// @c ResourceGraph::solve, and the model checks it needs (@c BackwardExtensionCheck and
 /// @c JoinCheck) run before the solve.
+/// @c PushingDominanceAlgorithm asks for it the same way, as @ref BidirectionalPushing, whose
+/// searches sweep the nodes; Simple's take their labels in arrival order.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The forward per-node container.
@@ -76,15 +78,22 @@ class BidirectionalDominanceAlgorithm
         using BackwardContainer = LabelList<ResourceType, BackwardDirection>;
 
     public:
+        /// @param resource_factory The graph's resource factory.
+        /// @param params           The algorithm's params.
+        /// @param order            The order both searches take their labels in.
         BidirectionalDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                        AlgorithmParams<LabelContainerType> params)
-            : Base(resource_factory, std::move(params)) {}
+                                        AlgorithmParams<LabelContainerType> params,
+                                        FrontierOrder order = FrontierOrder::Arrival)
+            : Base(resource_factory, std::move(params)), order_(order) {}
 
         ~BidirectionalDominanceAlgorithm() override = default;
 
         [[nodiscard]] std::vector<SearchDirection> supported_directions() const override {
             return {SearchDirection::Bidirectional};
         }
+
+        /// @brief The order both searches take their labels in.
+        [[nodiscard]] FrontierOrder frontier_order() const { return order_; }
 
         /// @brief Whether the half-way bound was in force for the last solve.
         ///
@@ -170,6 +179,12 @@ class BidirectionalDominanceAlgorithm
             backward_work_ = 0;
             forward_frontier_.clear();
             backward_frontier_.clear();
+            // Pushing's frontiers sweep node by node, so a per-node quota keeps each node's
+            // cheapest labels; Simple's keep arrival order, and a quota counts what a node extends.
+            if (order_ == FrontierOrder::Sweep) {
+                forward_frontier_.reset_sweep(num_nodes, /*descending=*/false);
+                backward_frontier_.reset_sweep(num_nodes, /*descending=*/true);
+            }
 
             backward_labels_by_node_pos_.clear();
             backward_labels_by_node_pos_.reserve(num_nodes);
@@ -351,7 +366,8 @@ class BidirectionalDominanceAlgorithm
         template <typename Dir, typename Container>
         void step(std::vector<Container>& containers, LabelFrontier<ResourceType>* frontier,
                   std::vector<size_t>* extended_per_node) {
-            auto label_iterator_pair = frontier->pop();
+            auto label_iterator_pair =
+                frontier->pop(this->effective_max_labels_per_node_, &this->label_pool_);
 
             auto* label_ptr = label_iterator_pair.first;
             if (label_ptr == nullptr) {
@@ -363,14 +379,17 @@ class BidirectionalDominanceAlgorithm
             }
 
             const size_t node_pos = label_ptr->get_end_node()->pos();
-            size_t& extended_count = extended_per_node->at(node_pos);
-            if (extended_count >= this->effective_max_labels_per_node_) {
-                // Known gap: an abandoned label never yields a boundary label, so the join sees
-                // fewer forward halves. Only reachable under truncated labeling or memory pressure,
-                // and such labels are never revisited.
-                return;
+            // A sweeping frontier applies the quota itself, to each node's queue as it visits it.
+            // In FIFO order the quota counts the labels extended at a node so far. Either way an
+            // abandoned label never yields a boundary label, so the join sees fewer forward halves
+            // (a known gap, only reachable under truncated labeling or memory pressure).
+            if (!frontier->sweeping()) {
+                size_t& extended_count = extended_per_node->at(node_pos);
+                if (extended_count >= this->effective_max_labels_per_node_) {
+                    return;
+                }
+                ++extended_count;
             }
-            ++extended_count;
 
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
@@ -867,6 +886,28 @@ class BidirectionalDominanceAlgorithm
         size_t join_pairs_tested_ = 0;
         bool join_truncated_ = false;
         Joiner<ResourceType, CriticalRC> joiner_;
+
+        const FrontierOrder order_;
+};
+
+/// @brief The bidirectional search of @c PushingDominanceAlgorithm: both searches sweep the nodes
+///        in position order, as Pushing does, so a per-node quota keeps each node's cheapest
+///        labels.
+///
+/// @tparam ResourceType       The resource type carried by labels.
+/// @tparam LabelContainerType The forward per-node container.
+/// @tparam CriticalRC         The critical resource's type (the clock).
+/// @tparam CostRC             The cost resource's type.
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
+          typename CriticalRC = RealResource, typename CostRC = RealResource>
+    requires ResourceTypeConcept<ResourceType>
+class BidirectionalPushing
+    : public BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalRC, CostRC> {
+    public:
+        BidirectionalPushing(ResourceFactory<ResourceType>* resource_factory,
+                             AlgorithmParams<LabelContainerType> params)
+            : BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalRC, CostRC>(
+                  resource_factory, std::move(params), FrontierOrder::Sweep) {}
 };
 
 }  // namespace rcspp::detail
