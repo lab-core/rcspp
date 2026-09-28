@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 300" width="780" height="300" role="img" aria-label="The column generation loop" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+<title>The column generation loop</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b1b1b"/></marker><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9480f"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b76"/></marker></defs>
+<rect x="0" y="0" width="780" height="300" rx="10" fill="#ffffff"/>
+<rect x="20" y="60" width="290" height="120" rx="12" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="165.0" y="94.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">Restricted master problem</text>
+<text x="165.0" y="118.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">LP over the columns found so far</text>
+<text x="165.0" y="142.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">solved by an LP solver</text>
+<text x="165.0" y="166.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">(Gurobi, CBC, HiGHS…)</text>
+<rect x="470" y="60" width="290" height="120" rx="12" fill="#eef6fc" stroke="#d9480f" stroke-width="2"/>
+<text x="615.0" y="94.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">Pricing problem</text>
+<text x="615.0" y="118.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">find paths with reduced cost &lt; 0</text>
+<text x="615.0" y="142.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">= a resource-constrained shortest</text>
+<text x="615.0" y="166.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">path problem, solved by rcspp</text>
+<line x1="310.0" y1="95.0" x2="468.0" y2="95.0" stroke="#1b1b1b" stroke-width="1.8" fill="none" marker-end="url(#a)"/>
+<text x="390.0" y="84.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="normal">dual values π</text>
+<line x1="470.0" y1="150.0" x2="312.0" y2="150.0" stroke="#1b1b1b" stroke-width="1.8" fill="none" marker-end="url(#a)"/>
+<text x="390.0" y="172.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="normal">new columns</text>
+<text x="390.0" y="190.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="normal">(paths with c̄ &lt; 0)</text>
+<line x1="165.0" y1="14.0" x2="165.0" y2="56.0" stroke="#5f6b76" stroke-width="1.6" fill="none" marker-end="url(#m)"/>
+<text x="175.0" y="28.0" font-size="13" text-anchor="start" fill="#5f6b76" font-weight="normal">start: a few columns that make the LP feasible</text>
+<line x1="615.0" y1="180.0" x2="615.0" y2="234.0" stroke="#5f6b76" stroke-width="1.6" fill="none" marker-end="url(#m)"/>
+<text x="615.0" y="258.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="normal">no path with c̄ &lt; 0 anywhere</text>
+<text x="615.0" y="278.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="normal">⇒ the master LP is optimal: stop</text>
+</svg>
