@@ -4,6 +4,8 @@
 #pragma once
 
 // LabelFrontier: the labels each search of a bidirectional solve still has to extend.
+// Arrival order for an exact search; a node-by-node sweep that keeps each node's cheapest labels
+// for a search with a per-node quota.
 
 #include <gtest/gtest.h>
 
@@ -57,6 +59,15 @@ class Fixture {
             return costs;
         }
 
+        /// @brief Drains through the quota-aware pop.
+        std::vector<double> drain(detail::LabelFrontier<Composed>* frontier, size_t quota) {
+            std::vector<double> costs;
+            while (!frontier->empty()) {
+                costs.push_back(frontier->pop(quota, &pool_).first->get_cost());
+            }
+            return costs;
+        }
+
         [[nodiscard]] LabelPool<Composed>* pool() { return &pool_; }
 
         [[nodiscard]] size_t nodes() const { return graph_->get_number_of_nodes(); }
@@ -95,4 +106,71 @@ TEST(LabelFrontier, ShedKeepsTheCheapestNonDominatedLabels) {
     frontier.shed(/*per_node=*/1, /*num_nodes=*/2, fixture.pool());
     EXPECT_EQ(frontier.size(), 2U);
     EXPECT_EQ(fixture.drain(&frontier), (std::vector<double>{1.0, 3.0}));
+}
+
+TEST(LabelFrontier, ArrivalOrderIgnoresTheQuota) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    detail::LabelFrontier<lf::Composed> frontier;
+    for (const auto& [node, cost] :
+         std::vector<std::pair<size_t, double>>{{3, 5.0}, {1, 9.0}, {3, 1.0}, {3, 3.0}}) {
+        frontier.push(fixture.label(node, cost));
+    }
+    EXPECT_FALSE(frontier.sweeping());
+    EXPECT_EQ(fixture.drain(&frontier, 1), (std::vector<double>{5.0, 9.0, 1.0, 3.0}));
+}
+
+TEST(LabelFrontier, ASweepVisitsNodesInOrderAndKeepsEachNodesCheapest) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    detail::LabelFrontier<lf::Composed> frontier;
+    frontier.reset_sweep(fixture.nodes(), /*descending=*/false);
+    for (const auto& [node, cost] :
+         std::vector<std::pair<size_t, double>>{{3, 5.0}, {1, 9.0}, {3, 1.0}, {3, 3.0}}) {
+        frontier.push(fixture.label(node, cost));
+    }
+    EXPECT_TRUE(frontier.sweeping());
+    // Node 1 first, then node 3 trimmed to its two cheapest: the label costing 5 is never taken.
+    EXPECT_EQ(fixture.drain(&frontier, 2), (std::vector<double>{9.0, 1.0, 3.0}));
+    EXPECT_TRUE(frontier.empty());
+}
+
+TEST(LabelFrontier, ADescendingSweepStartsFromTheLastNode) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    detail::LabelFrontier<lf::Composed> frontier;
+    frontier.reset_sweep(fixture.nodes(), /*descending=*/true);
+    for (const auto& [node, cost] :
+         std::vector<std::pair<size_t, double>>{{1, 9.0}, {3, 5.0}, {3, 1.0}}) {
+        frontier.push(fixture.label(node, cost));
+    }
+    EXPECT_EQ(fixture.drain(&frontier, std::numeric_limits<size_t>::max()),
+              (std::vector<double>{5.0, 1.0, 9.0}));
+}
+
+/// @brief A trim that empties the frontier ends the pop with a null label.
+///
+/// With a quota of 0 every trim drops its whole queue, and `pop` used to go on sweeping an empty
+/// frontier forever.
+TEST(LabelFrontier, ASweepWithAZeroQuotaReturnsANullLabel) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    detail::LabelFrontier<lf::Composed> frontier;
+    frontier.reset_sweep(fixture.nodes(), /*descending=*/false);
+    frontier.push(fixture.label(1, 9.0));
+    frontier.push(fixture.label(3, 5.0));
+    EXPECT_EQ(frontier.pop(0, nullptr).first, nullptr);
+    EXPECT_TRUE(frontier.empty());
+}
+
+TEST(LabelFrontier, ASweepWrapsRoundForLabelsBehindIt) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    detail::LabelFrontier<lf::Composed> frontier;
+    frontier.reset_sweep(fixture.nodes(), /*descending=*/false);
+    frontier.push(fixture.label(3, 2.0));
+    EXPECT_EQ(frontier.pop(10, nullptr).first->get_cost(), 2.0);
+    // Pushed while the sweep is past node 1: taken on the next round.
+    frontier.push(fixture.label(1, 7.0));
+    EXPECT_EQ(fixture.drain(&frontier, 10), (std::vector<double>{7.0}));
 }

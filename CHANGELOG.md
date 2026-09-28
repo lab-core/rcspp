@@ -67,6 +67,7 @@ New features are summarised, with a pointer to where they are documented.
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
   `SimpleDominanceAlgorithm` searches backward, from the sinks; `create_algorithm` and `solve`
   build the class that does it.
+  `PushingDominanceAlgorithm` searches bidirectionally too.
   In Python, `solve(direction="forward" | "backward" | "bidirectional")`; an unsupported
   direction raises `ValueError`.
   An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
@@ -117,6 +118,14 @@ New features are summarised, with a pointer to where they are documented.
   `find_cycles` and `is_ng_feasible` let a column-generation driver grow the table from the LP
   solution and remove the master columns it makes infeasible. See "Growing ng neighbourhoods
   between solves" in `docs/advanced/algorithms.md`.
+
+- **`pushing` searches bidirectionally**: `PushingDominanceAlgorithm` (`pushing` in Python) with
+  `direction = Bidirectional`. Both searches sweep the nodes in position order, as `Pushing` does
+  forward, and extend a node's cheapest waiting labels when they reach it, so under a per-node
+  quota each node keeps its cheapest labels, where `simple` keeps the first to arrive: quota 5
+  reached a median 91 % of the optimal reduced cost against 22 % (high-pressure Solomon pricing
+  graphs). The quota applies per visit. Without a quota both find the optimum. See "Where the two
+  halves are paired" in `docs/advanced/algorithms.md`.
 
 - **Relaxing dominance for one solve** (C++). `dominance_ignored_components` names components that
   dominance leaves out, for that solve only, in every labeling algorithm and in both directions of

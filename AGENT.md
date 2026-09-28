@@ -135,7 +135,7 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
                   preprocess=True,
                   cost_index=0,
                   direction=None)            # or "forward", "backward",
-                                             # "bidirectional" (simple only)
+                                             # "bidirectional" (simple, pushing)
 problems = rg.check_model("backward")        # the model checks, without solving
 ```
 
@@ -240,7 +240,8 @@ SearchDirection::Bidirectional`; the class behind it is internal
 `solve<SimpleDominanceAlgorithm, RealResource, LC, IntResource>`: the clock's type is the
 last template parameter and defaults to the cost's. `SolveResult::bidirectional`, empty from
 every other algorithm, reports `bounded_by_half_way`, `half_way_off_reason` and
-`number_of_joined_paths`.
+`number_of_joined_paths`. `PushingDominanceAlgorithm` with the same direction searches both ways
+too: its two searches sweep the nodes, so a per-node quota keeps each node's cheapest labels.
 
 **A half-way point that adapts across a pricing loop.** `H` never moves *during* a solve,
 but a `HalfWayController` can move it *between* solves, away from whichever direction
@@ -464,6 +465,7 @@ Test files:
     does not search.
     `SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward.
     `SearchDirection::Bidirectional` makes it search both ways.
+    `PushingDominanceAlgorithm` searches both ways too, sweeping the nodes.
     An algorithm asked for a direction it does not search throws `std::invalid_argument`, so
     `create_algorithm<Strategy>(params)` returns `std::unique_ptr<Algorithm<R, LC>>`.
     A backward or bidirectional solve runs the model checks before any preprocessing and throws

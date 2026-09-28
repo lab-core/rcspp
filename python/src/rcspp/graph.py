@@ -603,8 +603,9 @@ class ResourceGraph:
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
             direction: ``'forward'``, ``'backward'`` or ``'bidirectional'`` (or a
-                ``SearchDirection``). Only ``'simple'`` searches backward or
-                bidirectionally; the other algorithms raise ``ValueError``.
+                ``SearchDirection``). ``'simple'`` searches backward and
+                bidirectionally, and ``'pushing'`` bidirectionally; the other
+                algorithms raise ``ValueError``.
                 ``None`` (the default) uses ``params.direction`` (forward unless
                 set), or ``'bidirectional'`` when ``algorithm='bidirectional'``;
                 that algorithm raises ``ValueError`` with any other direction.

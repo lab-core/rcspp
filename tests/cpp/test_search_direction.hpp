@@ -285,6 +285,31 @@ TEST(BidirectionalSelection, PullingAndAStarRefuseBidirectional) {
                  std::invalid_argument);
 }
 
+/// @brief Pushing searches bidirectionally too, sweeping the nodes; Simple keeps arrival order.
+/// Both find the forward optimum.
+TEST(BidirectionalSelection, PushingSearchesBidirectionallyBySweeping) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    const double forward = g->solve<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Forward))
+                               .solutions.front()
+                               .cost;
+    auto pushing =
+        g->create_algorithm<PushingDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
+    auto simple =
+        g->create_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
+    EXPECT_EQ(
+        test_util::bidirectional_impl<sdt::Bidir<RealResource>>(pushing.get())->frontier_order(),
+        detail::FrontierOrder::Sweep);
+    EXPECT_EQ(
+        test_util::bidirectional_impl<sdt::Bidir<RealResource>>(simple.get())->frontier_order(),
+        detail::FrontierOrder::Arrival);
+    for (auto* algorithm : {pushing.get(), simple.get()}) {
+        const auto result = g->solve(algorithm);
+        ASSERT_FALSE(result.solutions.empty());
+        EXPECT_DOUBLE_EQ(result.solutions.front().cost, forward);
+    }
+}
+
 /// @brief A bidirectional search runs one phase, and says so when asked for more.
 TEST(BidirectionalSelection, MorePhasesAreWarnedAbout) {
     namespace sdt = search_direction_test;
