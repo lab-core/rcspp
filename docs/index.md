@@ -135,4 +135,5 @@ installation
 cpp/index
 python/index
 advanced/index
+theory/index
 :::
