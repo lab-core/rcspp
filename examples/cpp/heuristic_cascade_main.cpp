@@ -16,15 +16,26 @@
 //   E  truncated bidirectional (--quota)        -> exact bidirectional
 //   F  ImprovingTabu -> truncated bidirectional -> exact bidirectional
 //   G  truncated forward Pushing (--quota)      -> exact forward
+//   H  relaxed bidirectional (--relax)          -> exact bidirectional, on the same graph
+//   J  relaxed forward Simple (--relax)         -> exact forward, on the same graph
 //
 // Other options:
 //   --min-columns=K     improving columns that end an iteration's pricing early (default 1)
 //   --quota=Q           per-node extension quota of the truncated stages (default 5)
-//   --join-budget=K     join_column_budget of every bidirectional stage (default none)
+//   --join-budget=K     join_column_budget of every bidirectional stage (default 200; `none`
+//                       for no budget). A budget keeps the cheapest joined path, so the exact
+//                       stages stay exact
+//   --relax=C           component the relaxed stages leave out of dominance (default 2, the load)
 //   --dive-iterations=N max_iterations of the Greedy / ImprovingTabu stages (default 200)
+//   --dynamic-h         let every bidirectional stage adapt H between its solves
+//   --repeats=R         run every cascade R times (default 1); iterations and the LP must repeat
 //
 // Pass instance names to choose them (default `R101_25 R201_25`). Needs Gurobi, like every other
 // column-generation driver here.
+//
+// Each run prints one `[ CSV ]` line: instance, cascade, repeat, LP, proven, iterations, wall,
+// pricing and master seconds, then one `stage:calls:successes:columns:seconds` field per stage,
+// then one `h:stage:observations:moves:final_h` field per bidirectional stage.
 
 #include <algorithm>
 #include <chrono>
@@ -48,13 +59,29 @@ namespace {
 using ListLC = LabelList<ResourceType>;
 using AlgoPtr = std::unique_ptr<Algorithm<ResourceType, ListLC>>;
 
+/// @brief The pricing model's load: the int slot's only component, after the cost and the time.
+constexpr size_t kLoadComponent = 2;
+/// @brief Join budget of the bidirectional stages unless `--join-budget` says otherwise.
+constexpr size_t kDefaultJoinBudget = 200;
+
 /// @brief The driver's options.
 struct Options {
         size_t min_columns = 1;
         size_t quota = 5;
-        size_t join_budget = MAX_INT;
+        size_t join_budget = kDefaultJoinBudget;
+        size_t relaxed_component = kLoadComponent;
         size_t dive_iterations = 200;
-        std::string cascades = "ABCDEFG";
+        bool dynamic_h = false;
+        size_t repeats = 1;
+        std::string cascades = "ABCDEFGHJ";
+};
+
+/// @brief What one bidirectional stage's half-way controller learned over a run.
+struct ControllerStats {
+        std::string stage;
+        size_t observations = 0;
+        size_t moves = 0;
+        double h = 0.0;
 };
 
 /// @brief Builds the algorithms a cascade's stages point at, and keeps them alive.
@@ -70,18 +97,23 @@ class StageFactory {
         }
 
         PricingStage exact_bidirectional() {
-            return keep("exact bidirectional",
-                        make<SimpleDominanceAlgorithm>(bidirectional()),
-                        true);
+            return keep_bidirectional("exact bidirectional", bidirectional(), true);
         }
 
         PricingStage truncated_bidirectional() {
             auto params = bidirectional();
             params.num_labels_to_extend_by_node = options_.quota;
             // Pushing's bidirectional search: the quota keeps each node's cheapest labels.
-            return keep("bidirectional q" + std::to_string(options_.quota),
-                        make<PushingDominanceAlgorithm>(params),
-                        false);
+            return keep_bidirectional<PushingDominanceAlgorithm>(
+                "bidirectional q" + std::to_string(options_.quota),
+                params,
+                false);
+        }
+
+        PricingStage relaxed_bidirectional() {
+            auto params = bidirectional();
+            params.dominance_ignored_components = {options_.relaxed_component};
+            return keep_bidirectional("relaxed bidirectional", params, false);
         }
 
         PricingStage truncated_pushing() {
@@ -90,6 +122,12 @@ class StageFactory {
             return keep("pushing q" + std::to_string(options_.quota),
                         make<PushingDominanceAlgorithm>(params),
                         false);
+        }
+
+        PricingStage relaxed_forward() {
+            AlgorithmBaseParams params;
+            params.dominance_ignored_components = {options_.relaxed_component};
+            return keep("relaxed forward", make<SimpleDominanceAlgorithm>(params), false);
         }
 
         PricingStage greedy() {
@@ -107,6 +145,19 @@ class StageFactory {
             return keep("improving tabu", make<ImprovingTabuSearch>(params), false);
         }
 
+        /// @brief What each bidirectional stage's controller learned; read after the run.
+        [[nodiscard]] std::vector<ControllerStats> controllers() const {
+            std::vector<ControllerStats> stats;
+            for (const auto& [name, algorithm] : bidirectional_) {
+                const auto& controller = algorithm->half_way_controller();
+                stats.push_back({.stage = name,
+                                 .observations = controller.observations(),
+                                 .moves = controller.moves(),
+                                 .h = controller.h()});
+            }
+            return stats;
+        }
+
     private:
         /// @brief A heuristic stage that runs away is stopped; it is a heuristic either way.
         static constexpr double kDiveGuardSeconds = 5.0;
@@ -115,6 +166,7 @@ class StageFactory {
         double horizon_;
         Options options_;
         std::vector<AlgoPtr> owned_;
+        std::vector<std::pair<std::string, BidirectionalSearch<ResourceType>*>> bidirectional_;
 
         [[nodiscard]] AlgorithmBaseParams bidirectional() const {
             AlgorithmBaseParams params;
@@ -122,6 +174,7 @@ class StageFactory {
             params.critical_resource_index = 1;      // time: real slot 1, after the cost
             params.half_way_point = horizon_ / 2.0;  // NOLINT(readability-magic-numbers)
             params.join_column_budget = options_.join_budget;
+            params.dynamic_half_way = options_.dynamic_h;
             return params;
         }
 
@@ -134,6 +187,18 @@ class StageFactory {
         PricingStage keep(std::string name, AlgoPtr algorithm, bool exact) {
             owned_.push_back(std::move(algorithm));
             return {.name = std::move(name), .algorithm = owned_.back().get(), .exact = exact};
+        }
+
+        /// @brief Keeps a bidirectional stage, and its search for @ref controllers.
+        ///
+        /// @tparam Strategy Simple's search takes labels in arrival order; Pushing's sweeps the
+        ///                  nodes.
+        template <template <typename, typename> class Strategy = SimpleDominanceAlgorithm>
+        PricingStage keep_bidirectional(std::string name, const AlgorithmBaseParams& params,
+                                        bool exact) {
+            auto stage = keep(name, make<Strategy>(params), exact);
+            bidirectional_.emplace_back(std::move(name), as_bidirectional(stage.algorithm));
+            return stage;
         }
 };
 
@@ -156,6 +221,10 @@ std::vector<PricingStage> stages_of(char id, StageFactory* factory) {
                     factory->exact_bidirectional()};
         case 'G':
             return {factory->truncated_pushing(), factory->exact_forward()};
+        case 'H':
+            return {factory->relaxed_bidirectional(), factory->exact_bidirectional()};
+        case 'J':
+            return {factory->relaxed_forward(), factory->exact_forward()};
         default:
             return {};
     }
@@ -163,11 +232,13 @@ std::vector<PricingStage> stages_of(char id, StageFactory* factory) {
 
 struct CascadeRun {
         char id;
+        size_t repeat = 0;
         CascadeResult result;
+        std::vector<ControllerStats> controllers;
         double wall = 0.0;
 };
 
-void print(const CascadeRun& run) {
+void print(const std::string& instance, const CascadeRun& run) {
     const auto& result = run.result;
     double pricing = 0.0;
     for (const auto& stage : result.stages) {
@@ -189,13 +260,23 @@ void print(const CascadeRun& run) {
                   << " columns=" << std::setw(kColumnsWidth) << stage.columns
                   << " seconds=" << stage.seconds << "\n";
     }
-    // One machine-readable line per cascade, for tabulating.
-    std::cout << "    [ CSV ] " << run.id << ',' << std::setprecision(kCsvDigits) << result.lp_cost
-              << ',' << (result.proven_optimal ? 1 : 0) << ',' << result.iterations << ','
-              << run.wall << ',' << pricing << ',' << result.master_seconds;
+    for (const auto& controller : run.controllers) {
+        std::cout << "        H of " << controller.stage << ": " << controller.observations
+                  << " observations, " << controller.moves << " moves, ended at " << controller.h
+                  << "\n";
+    }
+    // One machine-readable line per run, for tabulating.
+    std::cout << "    [ CSV ] " << instance << ',' << run.id << ',' << run.repeat << ','
+              << std::setprecision(kCsvDigits) << result.lp_cost << ','
+              << (result.proven_optimal ? 1 : 0) << ',' << result.iterations << ',' << run.wall
+              << ',' << pricing << ',' << result.master_seconds;
     for (const auto& stage : result.stages) {
         std::cout << ',' << stage.name << ':' << stage.calls << ':' << stage.successes << ':'
                   << stage.columns << ':' << stage.seconds;
+    }
+    for (const auto& controller : run.controllers) {
+        std::cout << ",h:" << controller.stage << ':' << controller.observations << ':'
+                  << controller.moves << ':' << controller.h;
     }
     std::cout << std::endl;
 }
@@ -211,9 +292,16 @@ Options parse(int argc, char** argv, std::vector<std::string>* names) {
         } else if (arg.starts_with("--quota=")) {
             options.quota = std::stoull(value_of(arg));
         } else if (arg.starts_with("--join-budget=")) {
-            options.join_budget = std::stoull(value_of(arg));
+            const std::string value = value_of(arg);
+            options.join_budget = value == "none" ? MAX_INT : std::stoull(value);
+        } else if (arg.starts_with("--relax=")) {
+            options.relaxed_component = std::stoull(value_of(arg));
         } else if (arg.starts_with("--dive-iterations=")) {
             options.dive_iterations = std::stoull(value_of(arg));
+        } else if (arg == "--dynamic-h") {
+            options.dynamic_h = true;
+        } else if (arg.starts_with("--repeats=")) {
+            options.repeats = std::max<size_t>(1, std::stoull(value_of(arg)));
         } else if (arg.starts_with("--cascades=")) {
             options.cascades.clear();
             std::ranges::copy_if(value_of(arg), std::back_inserter(options.cascades), [](char c) {
@@ -239,8 +327,10 @@ int main(int argc, char** argv) {
               << "  join_budget="
               << (options.join_budget >= MAX_INT ? std::string("none")
                                                  : std::to_string(options.join_budget))
+              << "  relax=" << options.relaxed_component
               << "  dive_iterations=" << options.dive_iterations
-              << "  cascades=" << options.cascades << "\n"
+              << "  dynamic_h=" << (options.dynamic_h ? "on" : "off")
+              << "  repeats=" << options.repeats << "  cascades=" << options.cascades << "\n"
               << std::endl;
 
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -253,19 +343,24 @@ int main(int argc, char** argv) {
 
         std::vector<CascadeRun> runs;
         for (const char id : options.cascades) {
-            VRP vrp(instance);
-            StageFactory factory(&vrp, horizon, options);
-            const auto stages = stages_of(id, &factory);
-            if (stages.empty()) {
-                std::cout << "    unknown cascade '" << id << "'" << std::endl;
-                continue;
+            for (size_t repeat = 0; repeat < options.repeats; ++repeat) {
+                VRP vrp(instance);
+                StageFactory factory(&vrp, horizon, options);
+                const auto stages = stages_of(id, &factory);
+                if (stages.empty()) {
+                    std::cout << "    unknown cascade '" << id << "'" << std::endl;
+                    break;
+                }
+                const auto started = std::chrono::steady_clock::now();
+                CascadeRun run{.id = id,
+                               .repeat = repeat,
+                               .result = vrp.solve_cascade(stages, options.min_columns)};
+                run.wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - started)
+                               .count();
+                run.controllers = factory.controllers();
+                print(name, run);
+                runs.push_back(std::move(run));
             }
-            const auto started = std::chrono::steady_clock::now();
-            CascadeRun run{.id = id, .result = vrp.solve_cascade(stages, options.min_columns)};
-            run.wall =
-                std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-            print(run);
-            runs.push_back(std::move(run));
         }
 
         // Every proven cascade prices the same LP to optimality, so they must agree.
