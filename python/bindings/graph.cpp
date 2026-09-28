@@ -362,10 +362,10 @@ void init_graph(py::module_& m) {
         .def_readwrite("direction",
                        &PyAlgorithmParams::direction,
                        "Which way the search runs: SearchDirection.Forward (default), Backward or "
-                       "Bidirectional. Only the simple algorithm searches backward or "
-                       "bidirectionally; the others raise ValueError. ResourceGraph.solve's "
-                       "`direction` argument, or algorithm='bidirectional', overrides it for that "
-                       "call only.")
+                       "Bidirectional. The simple algorithm searches backward and "
+                       "bidirectionally, and pushing bidirectionally; the others raise "
+                       "ValueError. ResourceGraph.solve's `direction` argument, or "
+                       "algorithm='bidirectional', overrides it for that call only.")
         // -- Bidirectional parameters ------------------------------------
         .def_readwrite("critical_resource_index",
                        &PyAlgorithmParams::critical_resource_index,
