@@ -135,7 +135,7 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
                   preprocess=True,
                   cost_index=0,
                   direction=None)            # or "forward", "backward",
-                                             # "bidirectional" (simple only)
+                                             # "bidirectional" (simple, pushing)
 problems = rg.check_model("backward")        # the model checks, without solving
 ```
 

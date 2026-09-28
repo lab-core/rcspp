@@ -384,6 +384,18 @@ quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memo
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
+Which strategy you name sets the order the two searches take their labels in.  `simple` takes them
+in the order they arrive, so under `num_labels_to_extend_by_node` a node extends the first labels
+to reach it.  `pushing` sweeps the nodes in position order, as it does forward — forward from the
+first position up, backward from the last down — and when it reaches a node it sorts that node's
+waiting labels by cost and extends only the cheapest `num_labels_to_extend_by_node`.  Its quota
+therefore keeps each node's cheapest labels, and applies to each visit, so a node the sweep comes
+back to can extend more.  On 50-customer Solomon pricing graphs at high label pressure, quota 5
+reached a median 91 % of the optimal reduced cost with `pushing` and 22 % with `simple`, level with
+forward `Pushing` at the same quota.  Pair it with `join_column_budget`: the join still pairs every
+half the bound admits, and a budget of 200 made the truncated solve as fast as forward `Pushing`'s.
+Without a quota both orders find the optimum.
+
 ### Presets: declaring a resource in one call
 
 Most resources are one of five shapes, and for those the four function objects can be
@@ -757,7 +769,8 @@ const rcspp::SolveResult result = graph.solve<rcspp::SimpleDominanceAlgorithm>(p
 ```
 
 `algorithm="bidirectional"` is `simple` with `direction="bidirectional"`, and refuses any other
-direction.
+direction.  `pushing` also searches bidirectionally: its two searches sweep the nodes, so a per-node
+quota keeps each node's cheapest labels (see "Where the two halves are paired").
 
 A backward or bidirectional search returns the same kind of paths as a forward one, in forward
 order: each starts at a source and ends at a sink. A bidirectional search also reads
@@ -767,7 +780,8 @@ runs it is internal.
 | Algorithm | Forward | Backward | Bidirectional |
 |---|---|---|---|
 | `Simple` | ✓ | ✓ | ✓ |
-| `Pushing`, `Pulling`, `AStar` | ✓ | — | — |
+| `Pushing` | ✓ | — | ✓ |
+| `Pulling`, `AStar` | ✓ | — | — |
 | `Greedy`, `Tabu`, `Diversification` | ✓ | — | — |
 
 An algorithm asked for a direction it does not support throws `std::invalid_argument` (a

@@ -408,6 +408,27 @@ def test_simple_runs_in_every_direction(direction):
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
 
 
+@pytest.mark.parametrize("quota", [None, 1])
+def test_pushing_searches_bidirectionally(quota):
+    """``pushing`` searches bidirectionally, sweeping the nodes.
+
+    Without a quota it finds the forward optimum; with one it still returns real paths.
+    """
+    expected = _time_window_graph(_WINDOWS, _ARCS).solve(algorithm="simple").solutions[0].cost
+    params = _bidirectional_params(3.0, critical_resource_index=1)
+    if quota is not None:
+        params.num_labels_to_extend_by_node = quota
+
+    result = _time_window_graph(_WINDOWS, _ARCS).solve(
+        algorithm="pushing", direction="bidirectional", params=params
+    )
+    assert len(result.solutions) > 0
+    if quota is None:
+        assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
+    else:
+        assert result.solutions[0].cost >= expected - 1e-9
+
+
 @pytest.mark.parametrize("algorithm", ["pushing", "pulling", "astar", "greedy", "tabu"])
 def test_other_algorithms_refuse_backward(algorithm):
     """Only ``simple`` searches backward; the others raise ValueError."""

@@ -70,13 +70,19 @@ struct Configurations {
         /// @param relaxable A component the relaxed configurations leave out of dominance: the
         ///                  capacity, the ng memory, or the clock (which turns the bound off).
         static std::vector<Entry> all(size_t clock, double horizon, size_t relaxable) {
-            auto bidirectional = [&](auto&& tweak) {
+            auto bidirectional_params = [&](auto&& tweak) {
                 AlgorithmBaseParams params;
                 params.direction = SearchDirection::Bidirectional;
                 params.critical_resource_index = clock;
                 params.half_way_point = horizon / 2.0;
                 tweak(params);
-                return make<SimpleDominanceAlgorithm>(params);
+                return params;
+            };
+            auto bidirectional = [&](auto&& tweak) {
+                return make<SimpleDominanceAlgorithm>(bidirectional_params(tweak));
+            };
+            auto pushing_bidirectional = [&](auto&& tweak) {
+                return make<PushingDominanceAlgorithm>(bidirectional_params(tweak));
             };
             auto plain = [](auto&& tweak) {
                 AlgorithmBaseParams params;
@@ -105,6 +111,15 @@ struct Configurations {
             for (const size_t quota : {1U, 2U, 5U}) {
                 entries.push_back({"bidirectional/q" + std::to_string(quota),
                                    bidirectional([quota](AlgorithmBaseParams& p) {
+                                       p.num_labels_to_extend_by_node = quota;
+                                   })});
+            }
+            // Pushing's bidirectional search sweeps the nodes, so a quota keeps each node's
+            // cheapest labels.
+            entries.push_back({"pushing-bidirectional", pushing_bidirectional(none), true});
+            for (const size_t quota : {1U, 2U, 5U}) {
+                entries.push_back({"pushing-bidirectional/q" + std::to_string(quota),
+                                   pushing_bidirectional([quota](AlgorithmBaseParams& p) {
                                        p.num_labels_to_extend_by_node = quota;
                                    })});
             }

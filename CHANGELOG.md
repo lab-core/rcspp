@@ -74,10 +74,11 @@ with a pointer to where they are documented.
 
 - **A search direction**: `AlgorithmBaseParams::direction` in C++ (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), and `solve(direction="forward" | "backward" |
-  "bidirectional")` in Python. `simple` searches in all three; the other algorithms search forward
-  only, and refuse another direction (`std::invalid_argument` in C++, `ValueError` in Python), as
-  does a backward search with `LabelBuckets`. A backward search returns complete paths in forward
-  order. See "Search directions" in `docs/advanced/algorithms.md`.
+  "bidirectional")` in Python. `simple` searches in all three, and `pushing` forward and
+  bidirectionally; the other algorithms search forward only, and refuse another direction
+  (`std::invalid_argument` in C++, `ValueError` in Python), as does a backward search with
+  `LabelBuckets`. A backward search returns complete paths in forward order. See "Search
+  directions" in `docs/advanced/algorithms.md`.
 - **Bidirectional labelling**: `algorithm="bidirectional"` in Python, the same as `simple` with
   `direction="bidirectional"`; in C++, `SimpleDominanceAlgorithm` with
   `direction = SearchDirection::Bidirectional`, the clock's type being the last template parameter
@@ -86,6 +87,13 @@ with a pointer to where they are documented.
   half-way bound is off, and the solve does more work than a forward one and logs a warning saying
   so. A bidirectional search runs one phase. See "`Bidirectional`" in
   `docs/advanced/algorithms.md`.
+- **`pushing` searches bidirectionally**: `PushingDominanceAlgorithm` (`pushing` in Python) with
+  `direction = Bidirectional`. Both searches sweep the nodes in position order, as `Pushing` does
+  forward, and extend a node's cheapest waiting labels when they reach it, so under a per-node
+  quota each node keeps its cheapest labels, where `simple` keeps the first to arrive: quota 5
+  reached a median 91 % of the optimal reduced cost against 22 % (high-pressure Solomon pricing
+  graphs). The quota applies per visit. Without a quota both find the optimum. See "Where the two
+  halves are paired" in `docs/advanced/algorithms.md`.
 - **Relaxing dominance for one solve** (C++). `dominance_ignored_components` names components that
   dominance leaves out, for that solve only, in every labeling algorithm and in both directions of
   a bidirectional one. Before, relaxing a resource's dominance meant a second graph built with a

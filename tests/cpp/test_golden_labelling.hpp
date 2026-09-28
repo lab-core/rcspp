@@ -6,8 +6,10 @@
 // RCSPP_GOLDEN_CAPTURE=1 prints rows instead of comparing.
 #pragma once
 
-#define GOLDEN_LEVEL 3  // 0: G0 (#32); 1: + backward (#33 on); 2: + bidirectional (#35 on); 3: #43
-#define GOLDEN_API 2    // 0: captures (old API); 1: rebuilt #33; 2: from the direction PR on
+// GOLDEN_LEVEL 0: G0 (#32); 1: + backward (#33 on); 2: + bidirectional (#35 on); 3: #43;
+// 4: + Pushing's bidirectional search (the heuristics).
+#define GOLDEN_LEVEL 4
+#define GOLDEN_API 2  // 0: captures (old API); 1: rebuilt #33; 2: from the direction PR on
 
 #include <gtest/gtest.h>
 
@@ -237,7 +239,7 @@ inline Outcome summarise(const SolveResult& r, size_t extended) {
     return o;
 }
 
-enum class Kind { Simple, Pushing, Pulling, AStar, Backward, Bidirectional };
+enum class Kind { Simple, Pushing, Pulling, AStar, Backward, Bidirectional, PushingBidirectional };
 inline const char* kind_name(Kind k) {
     switch (k) {
         case Kind::Simple:
@@ -252,6 +254,8 @@ inline const char* kind_name(Kind k) {
             return "backward";
         case Kind::Bidirectional:
             return "bidirectional";
+        case Kind::PushingBidirectional:
+            return "pushing_bidirectional";
     }
     return "?";
 }
@@ -312,12 +316,15 @@ inline Outcome run(Kind k, const Variant& v, ResourceGraph<RealResource>* g) {
             break;
 #endif
         }
-        case Kind::Bidirectional: {
+        case Kind::Bidirectional:
+        case Kind::PushingBidirectional: {
 #if GOLDEN_LEVEL >= 2
             p.critical_resource_index = 1;
             p.half_way_point = 25.0;  // inside the paths' durations, so the join has pairs to test
             p.direction = SearchDirection::Bidirectional;
-            auto a = g->create_algorithm<SimpleDominanceAlgorithm>(p);
+            auto a = k == Kind::PushingBidirectional
+                         ? g->create_algorithm<PushingDominanceAlgorithm>(p)
+                         : g->create_algorithm<SimpleDominanceAlgorithm>(p);
             const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
             Outcome o = summarise(r, a->get_number_of_extended_labels());
             o.joined = r.number_of_joined_paths;
@@ -1378,6 +1385,234 @@ inline const std::vector<Row>& golden_g3() {  // bidirectional with the level-3 
     return rows;
 }
 
+inline const std::vector<Row>& golden_g4() {  // Pushing's bidirectional search (heuristics)
+    static const std::vector<Row> rows{
+        // clang-format off
+        {"s1_n8_t1_exact_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_pre_pushing_bidirectional", {18u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 8u, 12u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_quota_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_phases_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_dominated_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_prune_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_pairs_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_columns_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_early_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n8_t1_early_nojoin_pushing_bidirectional", {22u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 6u, 10u, 16u, 0u, 0u, 1u, 0u}},
+        {"s1_n11_t1_exact_pushing_bidirectional", {165u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 430u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_pre_pushing_bidirectional", {147u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 426u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_quota_pushing_bidirectional", {114u, 2u, -25000LL, 0x43b8f40483415048ULL, 0u, 19u, 30u, 194u, 7u, 0u, 1u, 0u}},
+        {"s1_n11_t1_phases_pushing_bidirectional", {114u, 2u, -25000LL, 0x43b8f40483415048ULL, 0u, 19u, 30u, 194u, 7u, 0u, 1u, 0u}},
+        {"s1_n11_t1_dominated_pushing_bidirectional", {165u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 430u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_prune_pushing_bidirectional", {165u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 430u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_pairs_pushing_bidirectional", {165u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 430u, 3u, 1u, 1u, 0u}},
+        {"s1_n11_t1_columns_pushing_bidirectional", {165u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 26u, 46u, 430u, 9u, 0u, 1u, 0u}},
+        {"s1_n11_t1_early_pushing_bidirectional", {66u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 21u, 22u, 107u, 1u, 0u, 1u, 3u}},
+        {"s1_n11_t1_early_nojoin_pushing_bidirectional", {66u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 21u, 22u, 107u, 1u, 0u, 1u, 3u}},
+        {"s2_n8_t1_exact_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_pre_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_quota_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_phases_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_dominated_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_prune_pushing_bidirectional", {1u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 2u, 0u, 0u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_pairs_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_columns_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_early_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n8_t1_early_nojoin_pushing_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 2u, 7u, 4u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_exact_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_pre_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_quota_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_phases_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_dominated_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_prune_pushing_bidirectional", {35u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_pairs_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_columns_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_early_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s2_n11_t1_early_nojoin_pushing_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 23u, 2u, 44u, 0u, 0u, 1u, 0u}},
+        {"s3_n8_t1_exact_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_pre_pushing_bidirectional", {30u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_quota_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_phases_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_dominated_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_prune_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_pairs_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_columns_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_early_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n8_t1_early_nojoin_pushing_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 7u, 11u, 14u, 1u, 0u, 1u, 0u}},
+        {"s3_n11_t1_exact_pushing_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 225u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_pre_pushing_bidirectional", {120u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 229u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_quota_pushing_bidirectional", {110u, 2u, -23000LL, 0x38a5bda264be4397ULL, 0u, 6u, 40u, 194u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_phases_pushing_bidirectional", {110u, 2u, -23000LL, 0x38a5bda264be4397ULL, 0u, 6u, 40u, 194u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_dominated_pushing_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 225u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_prune_pushing_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 225u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_pairs_pushing_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 225u, 3u, 1u, 1u, 0u}},
+        {"s3_n11_t1_columns_pushing_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 6u, 41u, 225u, 8u, 0u, 1u, 0u}},
+        {"s3_n11_t1_early_pushing_bidirectional", {67u, 2u, -23000LL, 0x38a5bda264be4397ULL, 0u, 6u, 29u, 95u, 3u, 0u, 1u, 3u}},
+        {"s3_n11_t1_early_nojoin_pushing_bidirectional", {67u, 2u, -23000LL, 0x38a5bda264be4397ULL, 0u, 6u, 29u, 95u, 3u, 0u, 1u, 3u}},
+        {"s4_n8_t1_exact_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_pre_pushing_bidirectional", {10u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 6u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_quota_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_phases_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_dominated_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_prune_pushing_bidirectional", {11u, 1u, -13000LL, 0x1068778935bd2cd0ULL, 0u, 3u, 4u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_pairs_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_columns_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_early_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n8_t1_early_nojoin_pushing_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 5u, 8u, 6u, 0u, 0u, 1u, 0u}},
+        {"s4_n11_t1_exact_pushing_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_pre_pushing_bidirectional", {67u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_quota_pushing_bidirectional", {76u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_phases_pushing_bidirectional", {76u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_dominated_pushing_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_prune_pushing_bidirectional", {78u, 2u, -8000LL, 0xa33b8d9d09f03321ULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_pairs_pushing_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 3u, 1u, 1u, 0u}},
+        {"s4_n11_t1_columns_pushing_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 25u, 107u, 7u, 0u, 1u, 0u}},
+        {"s4_n11_t1_early_pushing_bidirectional", {50u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 19u, 52u, 4u, 0u, 1u, 3u}},
+        {"s4_n11_t1_early_nojoin_pushing_bidirectional", {50u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 15u, 19u, 52u, 4u, 0u, 1u, 3u}},
+        {"s5_n8_t1_exact_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_pre_pushing_bidirectional", {15u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 8u, 8u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_quota_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_phases_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_dominated_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_prune_pushing_bidirectional", {16u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 6u, 6u, 9u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_pairs_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_columns_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_early_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n8_t1_early_nojoin_pushing_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 7u, 11u, 14u, 0u, 0u, 1u, 0u}},
+        {"s5_n11_t1_exact_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_pre_pushing_bidirectional", {38u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 30u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_quota_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_phases_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_dominated_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_prune_pushing_bidirectional", {46u, 1u, -12000LL, 0xfbcaddeb39e9ee89ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_pairs_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 3u, 1u, 1u, 0u}},
+        {"s5_n11_t1_columns_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_early_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s5_n11_t1_early_nojoin_pushing_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 14u, 12u, 34u, 5u, 0u, 1u, 0u}},
+        {"s6_n8_t1_exact_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_pre_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_quota_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_phases_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_dominated_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_prune_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_pairs_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_columns_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_early_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n8_t1_early_nojoin_pushing_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 3u, 23u, 81u, 1u, 0u, 1u, 0u}},
+        {"s6_n11_t1_exact_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_pre_pushing_bidirectional", {18u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 2u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_quota_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_phases_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_dominated_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_prune_pushing_bidirectional", {2u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 0u, 3u, 0u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_pairs_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_columns_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_early_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s6_n11_t1_early_nojoin_pushing_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 16u, 3u, 18u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_exact_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_pre_pushing_bidirectional", {26u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 23u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_quota_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_phases_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_dominated_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_prune_pushing_bidirectional", {12u, 1u, -10000LL, 0x11b56bf6e57032d7ULL, 0u, 3u, 3u, 4u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_pairs_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_columns_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_early_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n8_t1_early_nojoin_pushing_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 8u, 10u, 13u, 0u, 0u, 1u, 0u}},
+        {"s7_n11_t1_exact_pushing_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 129u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_pre_pushing_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 27u, 149u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_quota_pushing_bidirectional", {74u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 29u, 119u, 3u, 0u, 1u, 0u}},
+        {"s7_n11_t1_phases_pushing_bidirectional", {74u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 29u, 119u, 3u, 0u, 1u, 0u}},
+        {"s7_n11_t1_dominated_pushing_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 129u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_prune_pushing_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 129u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_pairs_pushing_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 129u, 3u, 1u, 1u, 0u}},
+        {"s7_n11_t1_columns_pushing_bidirectional", {79u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 13u, 30u, 129u, 4u, 0u, 1u, 0u}},
+        {"s7_n11_t1_early_pushing_bidirectional", {44u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 1u, 13u, 20u, 54u, 2u, 0u, 1u, 3u}},
+        {"s7_n11_t1_early_nojoin_pushing_bidirectional", {44u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 1u, 13u, 20u, 54u, 2u, 0u, 1u, 3u}},
+        {"s8_n8_t1_exact_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_pre_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_quota_pushing_bidirectional", {29u, 5u, -20000LL, 0x6dbe89221a43a6f2ULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_phases_pushing_bidirectional", {29u, 5u, -20000LL, 0x6dbe89221a43a6f2ULL, 0u, 8u, 15u, 47u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_dominated_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_prune_pushing_bidirectional", {30u, 2u, -20000LL, 0x335d5500959a1ea5ULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_pairs_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_columns_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_early_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n8_t1_early_nojoin_pushing_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 8u, 15u, 51u, 0u, 0u, 1u, 0u}},
+        {"s8_n11_t1_exact_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_pre_pushing_bidirectional", {50u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 14u, 30u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_quota_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_phases_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_dominated_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_prune_pushing_bidirectional", {54u, 1u, -20000LL, 0x7dad111c696f13b7ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_pairs_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_columns_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_early_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s8_n11_t1_early_nojoin_pushing_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 12u, 17u, 34u, 1u, 0u, 1u, 0u}},
+        {"s9_n11_t2_exact_pushing_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_pre_pushing_bidirectional", {37u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_quota_pushing_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_phases_pushing_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_dominated_pushing_bidirectional", {40u, 6u, -17000LL, 0x7b95cfe7225aa291ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_prune_pushing_bidirectional", {40u, 4u, -17000LL, 0x53a6f2e77d879183ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_pairs_pushing_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_columns_pushing_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 22u, 12u, 56u, 2u, 0u, 1u, 0u}},
+        {"s9_n11_t2_early_pushing_bidirectional", {37u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 19u, 12u, 40u, 1u, 0u, 1u, 3u}},
+        {"s9_n11_t2_early_nojoin_pushing_bidirectional", {37u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 19u, 12u, 40u, 1u, 0u, 1u, 3u}},
+        {"s10_n11_t2_exact_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_pre_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 90u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_quota_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_phases_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_dominated_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_prune_pushing_bidirectional", {61u, 5u, -18000LL, 0xa06b654a229379d0ULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_pairs_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_columns_pushing_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 13u, 23u, 92u, 0u, 0u, 1u, 0u}},
+        {"s10_n11_t2_early_pushing_bidirectional", {53u, 9u, -18000LL, 0xc13756fa0d3459a0ULL, 2u, 13u, 22u, 78u, 3u, 0u, 1u, 3u}},
+        {"s10_n11_t2_early_nojoin_pushing_bidirectional", {53u, 9u, -18000LL, 0xc13756fa0d3459a0ULL, 2u, 13u, 22u, 78u, 3u, 0u, 1u, 3u}},
+        {"s11_n11_t2_exact_pushing_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 106u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_pre_pushing_bidirectional", {78u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 106u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_quota_pushing_bidirectional", {75u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 20u, 22u, 93u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_phases_pushing_bidirectional", {75u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 20u, 22u, 93u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_dominated_pushing_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 106u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_prune_pushing_bidirectional", {81u, 10u, -33000LL, 0xe89700d1803e2dd0ULL, 0u, 21u, 22u, 106u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_pairs_pushing_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 106u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_columns_pushing_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 21u, 22u, 106u, 0u, 0u, 1u, 0u}},
+        {"s11_n11_t2_early_pushing_bidirectional", {72u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 1u, 21u, 20u, 98u, 1u, 0u, 1u, 3u}},
+        {"s11_n11_t2_early_nojoin_pushing_bidirectional", {72u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 1u, 21u, 20u, 98u, 1u, 0u, 1u, 3u}},
+        {"s12_n11_t2_exact_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_pre_pushing_bidirectional", {18u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 13u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_quota_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_phases_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_dominated_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_prune_pushing_bidirectional", {16u, 1u, -1000LL, 0x491075c92f7cb864ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_pairs_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_columns_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_early_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s12_n11_t2_early_nojoin_pushing_bidirectional", {16u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 5u, 10u, 9u, 1u, 0u, 1u, 0u}},
+        {"s13_n16_t1_exact_pushing_bidirectional", {909u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 5215u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_pre_pushing_bidirectional", {945u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 5734u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_quota_pushing_bidirectional", {370u, 5u, -28000LL, 0xe874ee1795dc2983ULL, 0u, 34u, 101u, 1166u, 50u, 0u, 1u, 0u}},
+        {"s13_n16_t1_phases_pushing_bidirectional", {370u, 5u, -28000LL, 0xe874ee1795dc2983ULL, 0u, 34u, 101u, 1166u, 50u, 0u, 1u, 0u}},
+        {"s13_n16_t1_dominated_pushing_bidirectional", {909u, 10u, -32000LL, 0x6b349febe6cd8c1bULL, 0u, 34u, 202u, 5215u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_prune_pushing_bidirectional", {909u, 6u, -32000LL, 0xbb06962f86c69be5ULL, 0u, 34u, 202u, 5215u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_pairs_pushing_bidirectional", {909u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 5215u, 3u, 1u, 1u, 0u}},
+        {"s13_n16_t1_columns_pushing_bidirectional", {909u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 34u, 202u, 5215u, 101u, 0u, 1u, 0u}},
+        {"s13_n16_t1_early_pushing_bidirectional", {77u, 7u, -24000LL, 0x3a80f46c5d69fcc6ULL, 4u, 31u, 23u, 90u, 7u, 0u, 1u, 3u}},
+        {"s13_n16_t1_early_nojoin_pushing_bidirectional", {77u, 7u, -24000LL, 0x3a80f46c5d69fcc6ULL, 4u, 31u, 23u, 90u, 7u, 0u, 1u, 3u}},
+        {"s14_n16_t1_exact_pushing_bidirectional", {460u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 1264u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_pre_pushing_bidirectional", {362u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 1056u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_quota_pushing_bidirectional", {333u, 5u, -35000LL, 0x93cb42847b01acf4ULL, 0u, 5u, 74u, 828u, 2u, 0u, 1u, 0u}},
+        {"s14_n16_t1_phases_pushing_bidirectional", {333u, 5u, -35000LL, 0x93cb42847b01acf4ULL, 0u, 5u, 74u, 828u, 2u, 0u, 1u, 0u}},
+        {"s14_n16_t1_dominated_pushing_bidirectional", {460u, 7u, -35000LL, 0x876c8aad12cbc5abULL, 0u, 5u, 84u, 1264u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_prune_pushing_bidirectional", {460u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 1264u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_pairs_pushing_bidirectional", {460u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 1264u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_columns_pushing_bidirectional", {460u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 5u, 84u, 1264u, 3u, 0u, 1u, 0u}},
+        {"s14_n16_t1_early_pushing_bidirectional", {98u, 4u, -29000LL, 0x143515c8d8783ceaULL, 2u, 5u, 38u, 201u, 2u, 0u, 1u, 3u}},
+        {"s14_n16_t1_early_nojoin_pushing_bidirectional", {98u, 4u, -29000LL, 0x143515c8d8783ceaULL, 2u, 5u, 38u, 201u, 2u, 0u, 1u, 3u}},
+        // clang-format on
+    };
+    return rows;
+}
+
 inline bool capturing() {
     return std::getenv("RCSPP_GOLDEN_CAPTURE") != nullptr;
 }
@@ -1481,6 +1716,17 @@ TEST(GoldenLabelling, JoinBudgetsMatchTheRecordedRuns) {
         GTEST_SKIP() << "set RCSPP_GOLDEN=1";
     }
     gl::sweep({gl::Kind::Bidirectional}, gl::golden_g3(), /*join_budgets=*/true);
+}
+#endif
+
+#if GOLDEN_LEVEL >= 4
+// The same ten settings as G3, for Pushing's bidirectional search, which sweeps the nodes.
+TEST(GoldenLabelling, PushingBidirectionalMatchesTheRecordedRuns) {
+    namespace gl = golden_labelling;
+    if (!gl::enabled()) {
+        GTEST_SKIP() << "set RCSPP_GOLDEN=1";
+    }
+    gl::sweep({gl::Kind::PushingBidirectional}, gl::golden_g4(), /*join_budgets=*/true);
 }
 #endif
 
