@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" width="720" height="470" role="img" aria-label="Pricing graph at iteration 0 with reduced arc costs" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+<title>Pricing graph at iteration 0 with reduced arc costs</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b1b1b"/></marker><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9480f"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b76"/></marker></defs>
+<rect x="0" y="0" width="720" height="470" rx="10" fill="#ffffff"/>
+<line x1="94.8" y1="194.9" x2="279.5" y2="82.5" stroke="#d9480f" stroke-width="3.2" fill="none" marker-end="url(#h)"/>
+<text x="177.7" y="133.0" font-size="15" text-anchor="middle" fill="#d9480f" font-weight="normal">10</text>
+<line x1="99.0" y1="210.0" x2="406.0" y2="210.0" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<text x="188.8" y="201.0" font-size="15" text-anchor="middle" fill="#1b1b1b" font-weight="normal">10</text>
+<line x1="94.8" y1="225.1" x2="279.5" y2="337.5" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<text x="177.7" y="297.0" font-size="15" text-anchor="middle" fill="#1b1b1b" font-weight="normal">10</text>
+<line x1="322.3" y1="78.9" x2="623.1" y2="199.2" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<text x="480.2" y="132.0" font-size="15" text-anchor="middle" fill="#1b1b1b" font-weight="normal">−10</text>
+<line x1="454.0" y1="210.0" x2="621.0" y2="210.0" stroke="#d9480f" stroke-width="3.2" fill="none" marker-end="url(#h)"/>
+<text x="540.0" y="201.0" font-size="15" text-anchor="middle" fill="#d9480f" font-weight="normal">−10</text>
+<line x1="322.3" y1="341.1" x2="623.1" y2="220.8" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<text x="480.2" y="298.0" font-size="15" text-anchor="middle" fill="#1b1b1b" font-weight="normal">−10</text>
+<line x1="316.3" y1="87.6" x2="413.7" y2="192.4" stroke="#d9480f" stroke-width="3.2" fill="none" marker-start="url(#h)" marker-end="url(#h)"/>
+<text x="376.7" y="134.1" font-size="15" text-anchor="middle" fill="#d9480f" font-weight="normal">−16</text>
+<line x1="413.7" y1="227.6" x2="316.3" y2="332.4" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="376.7" y="295.9" font-size="15" text-anchor="middle" fill="#1b1b1b" font-weight="normal">−14</text>
+<line x1="300.0" y1="94.0" x2="300.0" y2="326.0" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="282.0" y="159.0" font-size="15" text-anchor="middle" fill="#1b1b1b" font-weight="normal">−15</text>
+<rect x="45.0" y="185.0" width="50" height="50" rx="6" fill="#fff4e6" stroke="#1b1b1b" stroke-width="2"/>
+<text x="70.0" y="216.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">0</text>
+<rect x="625.0" y="185.0" width="50" height="50" rx="6" fill="#fff4e6" stroke="#1b1b1b" stroke-width="2"/>
+<text x="650.0" y="216.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">0′</text>
+<circle cx="300" cy="70" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="300.0" y="76.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">1</text>
+<circle cx="430" cy="210" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="430.0" y="216.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">2</text>
+<circle cx="300" cy="350" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="300.0" y="356.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">3</text>
+<text x="70.0" y="256.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">source</text>
+<text x="650.0" y="256.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">sink</text>
+<text x="360.0" y="410.0" font-size="13" text-anchor="middle" fill="#5f6b76" font-weight="normal">Arc label = reduced cost c̄ᵢⱼ = dᵢⱼ − πᵢ, with π = (20, 20, 20). Arcs out of the depot carry no dual.</text>
+<text x="360.0" y="432.0" font-size="13" text-anchor="middle" fill="#5f6b76" font-weight="normal">Arcs between customers exist in both directions (same value here).</text>
+<text x="360.0" y="456.0" font-size="14" text-anchor="middle" fill="#d9480f" font-weight="bold">Orange: a best route 0 → 1 → 2 → 0′, reduced cost 10 − 16 − 10 = −16</text>
+</svg>
