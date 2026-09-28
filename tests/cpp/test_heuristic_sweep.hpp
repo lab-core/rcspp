@@ -478,3 +478,53 @@ TEST(HeuristicSweep, DISABLED_S1_RelaxedDominance) {
         }
     }
 }
+
+/// @brief Step 3's gate: truncated bidirectional labeling, now that a quota sweeps node by node.
+///
+/// On every dataset, without and with an ng-8 memory: the exact bidirectional reference, then
+/// bidirectional at quotas 1 to 50, with a join budget of 200 at quotas 1, 5 and 10, and truncated
+/// Pushing at quotas 1, 5 and 10 as the forward reference. Compare the bidirectional rows with
+/// E1's, where the quota kept the first labels to arrive at a node rather than the cheapest.
+TEST(HeuristicSweep, DISABLED_S1_Truncation) {
+    namespace hs = heuristic_sweep;
+    for (const auto& dataset : hs::all_datasets()) {
+        SCOPED_TRACE(dataset.name);
+        for (const auto relaxation : {heuristics::Relaxation::None, heuristics::Relaxation::Ng}) {
+            heuristics::PricingModel model(dataset.instance,
+                                           dataset.duals,
+                                           {.relaxation = relaxation});
+            const auto bidirectional = heuristics::bidirectional_params(model.horizon());
+            hs::measure(model,
+                        dataset.name,
+                        {.algorithm = "bidirectional"},
+                        heuristics::make<hs::Bidirectional::Algo>(bidirectional));
+            for (const size_t quota : {1U, 2U, 5U, 10U, 50U}) {
+                auto params = bidirectional;
+                params.num_labels_to_extend_by_node = quota;
+                hs::measure(model,
+                            dataset.name,
+                            {.algorithm = "bidirectional", .quota = quota},
+                            heuristics::make<hs::Bidirectional::Algo>(params));
+            }
+            // With a join budget: under a quota the join still pairs every half the bound admits,
+            // and recording those columns, not the search, is most of the time.
+            for (const size_t quota : {1U, 5U, 10U}) {
+                auto params = bidirectional;
+                params.num_labels_to_extend_by_node = quota;
+                params.join_column_budget = 200;
+                hs::measure(model,
+                            dataset.name,
+                            {.algorithm = "bidirectional", .quota = quota, .join_budget = 200},
+                            heuristics::make<hs::Bidirectional::Algo>(params));
+            }
+            for (const size_t quota : {1U, 5U, 10U}) {
+                auto params = heuristics::guarded_params();
+                params.num_labels_to_extend_by_node = quota;
+                hs::measure(model,
+                            dataset.name,
+                            {.algorithm = "pushing", .quota = quota},
+                            heuristics::make<PushingDominanceAlgorithm>(params));
+            }
+        }
+    }
+}
