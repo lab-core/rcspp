@@ -106,6 +106,21 @@ TEST(LabelFrontier, ADescendingSweepStartsFromTheLastNode) {
               (std::vector<double>{5.0, 1.0, 9.0}));
 }
 
+/// @brief A trim that empties the frontier ends the pop with a null label.
+///
+/// With a quota of 0 every trim drops its whole queue, and `pop` used to go on sweeping an empty
+/// frontier forever.
+TEST(LabelFrontier, ASweepWithAZeroQuotaReturnsANullLabel) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_sweep(fixture.nodes(), /*descending=*/false);
+    frontier.push(fixture.label(1, 9.0));
+    frontier.push(fixture.label(3, 5.0));
+    EXPECT_EQ(frontier.pop(0, nullptr).first, nullptr);
+    EXPECT_TRUE(frontier.empty());
+}
+
 TEST(LabelFrontier, ASweepWrapsRoundForLabelsBehindIt) {
     namespace lf = label_frontier_test;
     lf::Fixture fixture(5);
