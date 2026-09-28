@@ -1869,6 +1869,24 @@ TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
         << "the backward search never started: the forward half is being run first";
 }
 
+/// @brief A quota of 0 extends nothing and returns, as it did before the sweeping frontier.
+///
+/// The sweep trims each node's queue to the quota as it visits it. At 0 the trims emptied the
+/// frontier before any label was taken, and the solve hung.
+TEST(BidirectionalScheduling, AZeroQuotaExtendsNothingAndReturns) {
+    auto graph = memory_pressure_quota_test::fan();
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.num_labels_to_extend_by_node = 0;
+    params.critical_resource_index = 1;
+    params.half_way_point = 6.0;
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    const auto result = graph->solve(algorithm.get());
+
+    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_EQ(algorithm->get_number_of_extended_labels(), 0U);
+}
+
 // ============================================================================
 // Per-solve diagnostics
 // ============================================================================

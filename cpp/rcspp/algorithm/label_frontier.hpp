@@ -79,14 +79,19 @@ class LabelFrontier {
 
         /// @brief Takes the next label to extend. The frontier must not be empty.
         ///
-        /// In sweep mode, moving to a node's queue sorts it and trims it to @p quota.
+        /// In sweep mode, moving to a node's queue sorts it and trims it to @p quota, so the trims
+        /// can empty the frontier before a label is found: with a quota of 0 they always do.
         ///
         /// @param quota The per-node quota; read in sweep mode only.
         /// @param pool  Receives the dominated labels a trim drops.
-        /// @return The label and its position in its node's container.
+        /// @return The label and its position in its node's container, or a null label when the
+        ///         trims left nothing to take.
         Entry pop(size_t quota, LabelPool<ResourceType>* pool) {
             if (sweeping_) {
                 while (current_.empty()) {
+                    if (size_ == 0) {
+                        return {};
+                    }
                     advance();
                     current_ = std::move(queues_[position_]);
                     queues_[position_].clear();
