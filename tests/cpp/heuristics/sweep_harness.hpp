@@ -175,10 +175,14 @@ AlgorithmMaker make(rcspp::AlgorithmBaseParams params) {
     };
 }
 
-/// @brief A maker for the bidirectional search on @p params.
-inline AlgorithmMaker make_bidirectional(rcspp::AlgorithmBaseParams params) {
+/// @brief A maker for a bidirectional search on @p params.
+///
+/// @tparam Strategy Simple's search takes labels in arrival order; Pushing's sweeps the nodes, so
+///                  a per-node quota keeps each node's cheapest labels.
+template <template <typename, typename> class Strategy = rcspp::SimpleDominanceAlgorithm>
+AlgorithmMaker make_bidirectional(rcspp::AlgorithmBaseParams params) {
     params.direction = rcspp::SearchDirection::Bidirectional;
-    return make<rcspp::SimpleDominanceAlgorithm>(params);
+    return make<Strategy>(params);
 }
 
 /// @brief A maker for `DiversificationSearch` around an inner algorithm.
