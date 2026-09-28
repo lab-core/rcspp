@@ -30,8 +30,8 @@ anything better than another label (**dominance**).
 | 2 | [Resources and labels](resources-and-labels.md) | How does the library represent time, load, cost…? |
 | 3 | [Dominance and elementarity](dominance-and-elementarity.md) | Why is it safe to discard labels? What about cycles? |
 | 4 | [Algorithms and preprocessing](algorithms-and-preprocessing.md) | Exact vs heuristic search; removing arcs before the search |
-| 5 | From LP to integer solutions *(coming next)* | Branch-and-price, and what the examples do instead |
-| 6 | The Python layer *(planned)* | How the pieces map onto `rcspp`'s Python API |
+| 5 | [From LP to integer solutions](lp-to-integer.md) | Branch-and-price, and what the examples do instead |
+| 6 | The Python layer *(coming next)* | How the pieces map onto `rcspp`'s Python API |
 
 The pages use vehicle routing as their running example because it is easy to picture. The library itself is not
 specific to routing.
@@ -44,4 +44,5 @@ master-and-pricing
 resources-and-labels
 dominance-and-elementarity
 algorithms-and-preprocessing
+lp-to-integer
 :::
