@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 250" width="860" height="250" role="img" aria-label="One extension step" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+<title>One extension step</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b1b1b"/></marker><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9480f"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b76"/></marker></defs>
+<rect x="0" y="0" width="860" height="250" rx="10" fill="#ffffff"/>
+<rect x="20" y="40" width="170" height="96" rx="10" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="105.0" y="62.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="bold">label at node 1</text>
+<text x="34.0" y="88.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">reduced cost  10</text>
+<text x="34.0" y="110.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">time  10</text>
+<text x="34.0" y="132.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">load  4</text>
+<rect x="250" y="40" width="170" height="96" rx="10" fill="#f8f9fa" stroke="#1b1b1b" stroke-width="2"/>
+<text x="335.0" y="62.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="bold">arc 1 → 2</text>
+<text x="264.0" y="88.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">reduced cost  −16</text>
+<text x="264.0" y="110.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">travel time  4</text>
+<text x="264.0" y="132.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">demand  5</text>
+<rect x="480" y="40" width="190" height="96" rx="10" fill="#fff4e6" stroke="#d9480f" stroke-width="2"/>
+<text x="575.0" y="62.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="bold">extension</text>
+<text x="494.0" y="88.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">10 + (−16) = −6</text>
+<text x="494.0" y="110.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">max(10 + 4, 20) = 20</text>
+<text x="494.0" y="132.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">4 + 5 = 9</text>
+<rect x="720" y="40" width="120" height="96" rx="10" fill="#ebfbee" stroke="#2b8a3e" stroke-width="2"/>
+<text x="780.0" y="62.0" font-size="14" text-anchor="middle" fill="#1b1b1b" font-weight="bold">checks at 2</text>
+<text x="734.0" y="88.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">—</text>
+<text x="734.0" y="110.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">20 ≤ 30 ✓</text>
+<text x="734.0" y="132.0" font-size="13" text-anchor="start" fill="#1b1b1b" font-weight="normal">9 ≤ 11 ✓</text>
+<line x1="190.0" y1="86.0" x2="248.0" y2="86.0" stroke="#1b1b1b" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<line x1="420.0" y1="86.0" x2="478.0" y2="86.0" stroke="#1b1b1b" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<line x1="670.0" y1="86.0" x2="718.0" y2="86.0" stroke="#1b1b1b" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<text x="575.0" y="30.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">extension functions</text>
+<text x="780.0" y="30.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">feasibility</text>
+<text x="430.0" y="190.0" font-size="13" text-anchor="middle" fill="#1b1b1b" font-weight="normal">Result: a new label at node 2 with (−6, 20, 9), remembering its predecessor (the label at node 1).</text>
+<text x="430.0" y="214.0" font-size="13" text-anchor="middle" fill="#5f6b76" font-weight="normal">Next: dominance against the labels already at node 2 decides whether it is kept.</text>
+<text x="430.0" y="238.0" font-size="13" text-anchor="middle" fill="#5f6b76" font-weight="normal">Time uses max(…, ready time of 2 = 20): arriving early means waiting.</text>
+</svg>
