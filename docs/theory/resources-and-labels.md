@@ -386,7 +386,7 @@ time. How does it know which? The library makes a specialised copy of each funct
 - A label's resources always use the copies belonging to the node where it ends. When a label is recycled for a
   different node, its functions are reset from that node.
 
-This matters as soon as you write your own resource: anything that depends on "where we are" should be read in
+This matters as soon as a new resource is written: anything that depends on "where we are" should be read in
 `preprocess`, not looked up on every call. See
 [`extension_function.hpp`](https://github.com/lab-core/rcspp/blob/main/cpp/rcspp/resource/functions/extension/extension_function.hpp)
 and [`feasibility_function.hpp`](https://github.com/lab-core/rcspp/blob/main/cpp/rcspp/resource/functions/feasibility/feasibility_function.hpp).

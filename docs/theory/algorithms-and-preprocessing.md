@@ -73,7 +73,7 @@ Neither `pushing` nor `pulling` is **bidirectional** (a search from both the sou
 middle). Resources already have the hooks such a search would need (`extend_back`, `can_be_merged`), but no algorithm
 in the library uses them yet.
 
-Which exact algorithm is fastest depends on the graph. Benchmark on your own instances;
+Which exact algorithm is fastest depends on the graph, so it is worth benchmarking on representative instances;
 `examples/cpp/benchmark_main.cpp` shows how.
 
 ---
@@ -113,7 +113,7 @@ Truncating to k labels per node means different things in different algorithms. 
 
 On the toy graph, `greedy` with `stop_after_X_solutions = 1` returns −16 after 4 steps (see the figure above). Here
 that is the optimum, but only by luck. `tabu` with `max_iterations = 5` returns three distinct routes (−16, −15 and
-−15 via 0→3→1→0′). That variety is useful when you want many columns per pricing round.
+−15 via 0→3→1→0′). That variety is useful when many columns per pricing round are wanted.
 
 Always give a dive a stopping rule (`stop_after_X_solutions`, `max_iterations` or `timeout_s`). A dive never discards
 a label by dominance, so on a large graph it could spend a very long time backtracking.
@@ -145,7 +145,7 @@ exists.** In column generation, that is the only situation in which "no negative
 even though the labels set aside were never extended. On the toy graph with duals $\pi = (12, 12.5, 0)$, the exact
 search finds a route with reduced cost −0.5. With `num_labels_to_extend_by_node = 1` it returns **no route, with
 status `complete`**. Similarly, a dive that runs out of options returns `complete`, but a dive never proves
-anything. Until this is fixed, keep track yourself of whether a solve was exact.
+anything. Until this is fixed, the caller has to keep track of whether a solve was exact.
 :::
 
 ### A pricing strategy for column generation

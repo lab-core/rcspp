@@ -92,7 +92,7 @@ Note that `TrivialDominanceFunction` is **not** a fix: it ignores time entirely,
 :::{important}
 A wrong dominance rule doesn't crash anything. The search just silently returns a path that isn't the best one,
 or reports that no negative path exists when one does. In column generation this ends the loop too early, with a
-wrong bound. When you design a resource, check the three conditions explicitly.
+wrong bound. Any new resource should be checked against the three conditions explicitly.
 :::
 
 ---
