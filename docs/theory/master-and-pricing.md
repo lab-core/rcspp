@@ -492,7 +492,8 @@ Column generation gives the **LP** optimum (37.5 here), which is only a lower bo
 The reduced cost is written into the **cost resource** (resource slot 0 by default), and that resource is what
 the solver minimises. In `rcspp` the cost is itself a resource; page 2 explains why.
 
-The library contains no master problem and no LP solver. The column generation loop is the user's code.
+The library contains no master problem and no LP solver. The column generation loop lives outside the library, in the
+application that uses it.
 
 ### In the VRP example
 
