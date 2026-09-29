@@ -11,10 +11,11 @@ vehicle drives a route or it doesn't. This page covers how to get from one to th
 - the quick way to get an integer plan, and why it can miss the optimum;
 - **branch-and-price**: branching in a way that keeps the pricing problem an RCSPP;
 - **cuts**: strengthening the LP without changing the pricing problem;
-- which building blocks `rcspp` already provides, and which are left to you.
+- which building blocks `rcspp` already provides, and which it leaves to the application around it.
 
-`rcspp` itself stops at pricing. Everything on this page happens around it, in your code. The library provides the
-tools it needs, though, and knowing how they fit together is the point of this page.
+`rcspp` itself stops at pricing. Everything on this page happens around it, in the application that drives column
+generation. The library provides the tools it needs, though, and knowing how they fit together is the point of this
+page.
 
 We use the time-window instance of page 2 (capacity 11). Its legal routes and costs are:
 
@@ -34,15 +35,15 @@ Two numbers bracket the optimal plan cost $z^*$:
 
 - a **lower bound** $LB$: the master LP optimum. No plan is cheaper. (During column generation, the bound of page 1,
   section 1.11 gives one even before convergence.)
-- an **upper bound** $UB$: the cost of any real plan you have found.
+- an **upper bound** $UB$: the cost of any real plan found so far.
 
 $$
 LB \;\le\; z^* \;\le\; UB, \qquad \text{gap} = \frac{UB - LB}{UB}.
 $$
 
-In the example, $LB = 37.5$ and $UB = 44$ (once you have found that plan), a gap of $6.5 / 44 \approx 14.8\%$. Everything
+In the example, $LB = 37.5$ and $UB = 44$ (once that plan has been found), a gap of $6.5 / 44 \approx 14.8\%$. Everything
 below either **raises the lower bound** or **finds better plans**, until the gap is closed ($LB = UB$: proven
-optimal) or small enough for your needs.
+optimal) or small enough to be acceptable.
 
 ---
 
@@ -78,7 +79,7 @@ $23 - 9 - 14 = 0$: not negative, so pricing had no reason to report it. The LP d
 reach 40), but the integer plan did.
 
 The restricted master IP is a good **heuristic** for the upper bound. To *prove* optimality, or to find plans it
-misses, you need branching.
+misses, branching is needed.
 
 ---
 
@@ -204,13 +205,13 @@ Combining branching and cuts is called **branch-cut-and-price**, the state of th
 | Exact and heuristic pricing, status | `solve(...)`, page 4 |
 | Arc flows of an LP solution | `solution.path_arc_ids` of each column, weighted by its $x_p$ |
 | Branch by removing arcs, and undo | `remove_arcs`, `restore_arcs`, `remove_arcs_if`, `restore_arcs_if` |
-| An independent copy of the graph per node | `clone()` (a full copy: prefer remove/restore when you can) |
+| An independent copy of the graph per node | `clone()` (a full copy: prefer remove/restore when possible) |
 | Keep columns across nodes, excluding those that break a branch | `PricingPool` and `pool.new_filter(forbidden_arc_ids=[...])` |
-| Master LP, branch-and-bound tree, branching rules, cut separation | **not provided**: your code, with an LP solver |
+| Master LP, branch-and-bound tree, branching rules, cut separation | **not provided**: built around the library, with an LP solver |
 
-That last row is where most of the work of a "large-problem" layer would go. Here is a sketch of processing one
-branch-and-price node with the existing API. `master`, `node`, `arc_flows` and `most_fractional` stand for your own
-code; everything called on `rg`, `pool` and `columns` is `rcspp`:
+That last row is where a higher-level layer on top of `rcspp` would do most of its work. Here is a sketch of
+processing one branch-and-price node with the existing API. `master`, `node`, `arc_flows` and `most_fractional` are
+placeholders for code outside the library; everything called on `rg`, `pool` and `columns` is `rcspp`:
 
 ```python
 def process_node(rg, pool, node, master, upper_bound):
