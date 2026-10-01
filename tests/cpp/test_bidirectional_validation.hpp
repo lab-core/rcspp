@@ -15,6 +15,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -1786,5 +1787,196 @@ TEST(BidirectionalValidation, AClampAboveATimeWindowsClosingTimeIsRefused) {
               std::string::npos)
         << message;
     EXPECT_NE(message.find("admits deadlines the forward search rejects"), std::string::npos)
+        << message;
+}
+
+// ============================================================================
+// Threshold clamps are observed, however the extension is written
+// ============================================================================
+
+namespace bidirectional_validation_test {
+
+/// @brief A threshold written without `ThresholdForm`: it adds going forward, going backward
+///        subtracts and clamps to its own closing time at the node left, and starts a backward
+///        label at the closing time of the node it enters.
+///
+/// It declares nothing about its clamps or starts, so the setup can only learn them by running it.
+class HandWrittenThreshold
+    : public Clonable<HandWrittenThreshold, ExtensionFunction<RealResource>> {
+    public:
+        HandWrittenThreshold(std::map<size_t, double> closing, double default_closing)
+            : closing_(std::make_shared<const std::map<size_t, double>>(std::move(closing))),
+              default_closing_(default_closing),
+              close_(default_closing) {}
+
+        [[nodiscard]] BackwardKind backward_kind() const override {
+            return BackwardKind::Threshold;
+        }
+
+        void extend(const RealResource& resource, const RealResource& extender_value,
+                    RealResource* extended_resource) override {
+            extended_resource->set_value(resource.get_value() + extender_value.get_value());
+        }
+
+        void extend_back(const RealResource& resource, const RealResource& extender_value,
+                         RealResource* extended_resource) override {
+            extended_resource->set_value(
+                std::min(close_, resource.get_value() - extender_value.get_value()));
+        }
+
+        void start_back(RealResource* resource) override { resource->set_value(start_); }
+
+    protected:
+        void preprocess(size_t origin_id, size_t destination_id) override {
+            close_ = closing_at(origin_id);
+            start_ = closing_at(destination_id);
+        }
+
+    private:
+        std::shared_ptr<const std::map<size_t, double>> closing_;
+        double default_closing_;
+        double close_;
+        double start_ = 0.0;
+
+        [[nodiscard]] double closing_at(size_t node_id) const {
+            const auto it = closing_->find(node_id);
+            return it != closing_->end() ? it->second : default_closing_;
+        }
+};
+
+/// @brief A `ThresholdForm` that waits for nothing and clamps nothing.
+class UnclampedThreshold
+    : public Clonable<UnclampedThreshold,
+                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
+                      ExtensionFunction<RealResource>> {
+    protected:
+        [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<double> upper_bound_at(size_t /*node_id*/) const final {
+            return std::nullopt;
+        }
+};
+
+/// @brief Node 1 closes at 3, every other node at 100.
+inline std::unique_ptr<TimeWindowFeasibilityFunction<RealResource>> closes_node_one_at_three() {
+    return std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(
+        std::map<size_t, std::pair<double, double>>{{1, {0.0, 3.0}}},
+        100.0);
+}
+
+}  // namespace bidirectional_validation_test
+
+/// @brief A threshold that is not a `ThresholdForm` is checked by what its backward step does.
+///
+/// It closes node 1 at 100 where the feasibility function closes it at 3. Nothing in its
+/// declarations says so, but its `extend_back` clamps there to 100, which the setup observes.
+TEST(BidirectionalValidation, AHandWrittenThresholdIsCheckedByWhatItDoes) {
+    namespace bv = bidirectional_validation_test;
+    auto graph = bv::threshold_pairing_graph(
+        std::make_unique<bv::HandWrittenThreshold>(std::map<size_t, double>{}, 100.0),
+        bv::closes_node_one_at_three(),
+        3,
+        {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}});
+    const std::string message = bv::refusal(graph.get(), bv::clocked_params(1.0));
+    EXPECT_NE(message.find("component 1: its backward labels at node 1 are clamped to 100"),
+              std::string::npos)
+        << message;
+    EXPECT_NE(message.find("above the largest value its feasibility function admits there"),
+              std::string::npos)
+        << message;
+}
+
+/// @brief The same hand-written threshold, closing node 1 at 3 as the feasibility function does,
+///        is accepted and finds the forward optimum.
+TEST(BidirectionalValidation, AHandWrittenThresholdThatMatchesItsWindowsSolves) {
+    namespace bv = bidirectional_validation_test;
+    const auto build = [] {
+        return bv::threshold_pairing_graph(
+            std::make_unique<bv::HandWrittenThreshold>(std::map<size_t, double>{{1, 3.0}}, 100.0),
+            bv::closes_node_one_at_three(),
+            3,
+            {{-1.0, 2.0, 0, 1}, {-1.0, 1.0, 1, 2}, {0.0, 1.0, 0, 2}});
+    };
+    const double reference =
+        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    ASSERT_NEAR(reference, -2.0, bv::kTolerance);
+
+    auto graph = build();
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bv::clocked_params(1.5));
+    EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
+}
+
+/// @brief A threshold whose backward step does not clamp at all is refused where the feasibility
+///        function bounds the value: its backward search would admit deadlines past every
+///        closing time.
+TEST(BidirectionalValidation, AThresholdThatDoesNotClampIsRefused) {
+    namespace bv = bidirectional_validation_test;
+    auto graph = bv::threshold_pairing_graph(std::make_unique<bv::UnclampedThreshold>(),
+                                             bv::closes_node_one_at_three(),
+                                             3,
+                                             {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}});
+    const std::string message = bv::refusal(graph.get(), bv::clocked_params(1.0));
+    EXPECT_NE(message.find("component 1: its backward labels at node 0 are not clamped at all"),
+              std::string::npos)
+        << message;
+    EXPECT_NE(message.find("rejects values above some bound there"), std::string::npos) << message;
+}
+
+/// @brief A clock that sets no backward start at its sink turns the half-way bound off, with a
+///        reason, and still matches simple.
+///
+/// Without a start, a backward label keeps the type default, 0, below H, and would stop at once.
+/// The feasibility function bounds nothing, so the setup accepts the model.
+TEST(BidirectionalValidation, AClockWithoutABackwardStartTurnsTheBoundOff) {
+    namespace bv = bidirectional_validation_test;
+    const auto build = [] {
+        return bv::threshold_pairing_graph(
+            std::make_unique<bv::UnclampedThreshold>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            5,
+            {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}, {1.0, 1.0, 2, 3}, {1.0, 1.0, 3, 4}});
+    };
+    const double reference =
+        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    ASSERT_NEAR(reference, 4.0, bv::kTolerance);
+
+    auto graph = build();
+    auto algorithm = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bv::clocked_params(2.0));
+    EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
+    EXPECT_FALSE(algorithm->bounded_by_half_way());
+    EXPECT_NE(algorithm->half_way_off_reason().find("no ceiling at sink 4"), std::string::npos)
+        << algorithm->half_way_off_reason();
+}
+
+/// @brief A backward start the feasibility function does not share is refused.
+///
+/// The capacity caps the sink at 5 where the feasibility function caps it at 100. No backward step
+/// arrives at the sink, but the capacity starts its backward labels there, at 5, so the backward
+/// search would reject the path 0-1-2, which reaches the sink at 20 and which simple returns.
+TEST(BidirectionalValidation, ABackwardStartTheFeasibilityFunctionDoesNotShareIsRefused) {
+    namespace bv = bidirectional_validation_test;
+    const auto build = [] {
+        return bv::threshold_pairing_graph(
+            std::make_unique<CapacityExtensionFunction<RealResource>>(
+                make_node_bounds(0.0, 100.0, {{2, {0.0, 5.0}}})),
+            std::make_unique<MinMaxFeasibilityFunction<RealResource>>(make_node_bounds(0.0, 100.0)),
+            3,
+            {{-1.0, 10.0, 0, 1}, {-1.0, 10.0, 1, 2}});
+    };
+    const double reference =
+        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    ASSERT_NEAR(reference, -2.0, bv::kTolerance);
+
+    auto graph = build();
+    const std::string message = bv::refusal(graph.get(), bv::clocked_params(15.0));
+    EXPECT_NE(message.find("component 1: its backward labels at sink 2 start at 5"),
+              std::string::npos)
+        << message;
+    EXPECT_NE(message.find("below the largest value its feasibility function admits there"),
+              std::string::npos)
         << message;
 }

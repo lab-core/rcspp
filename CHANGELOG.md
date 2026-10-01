@@ -56,7 +56,10 @@ with a pointer to where they are documented.
   and `TimeWindowExtensionFunction` gain a constructor that takes one and a `bounds()` accessor;
   their other constructors are unchanged. A bidirectional solve refuses a threshold extension whose
   backward clamp at a node, or whose backward start at a sink, is not the largest value the
-  feasibility function admits there.
+  feasibility function admits there, or that does not clamp or start at all. The clamps are
+  observed, not declared: setup runs the extension on values beyond every bound, so a threshold
+  extension of your own is checked however it is written, and must accept any value of its type. A
+  feasibility function's floor is checked the same way, by asking its backward test.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
   code compiling: `ExtensionFunction::backward_kind()` and `start_back()`; on `FeasibilityFunction`
   `join_rule()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition
