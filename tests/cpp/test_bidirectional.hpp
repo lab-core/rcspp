@@ -1534,6 +1534,9 @@ TEST(Bidirectional, PerNodeCapsSharedByBothFunctionsBindBackward) {
 /// Tighter: the extension caps node 1 at 5 where the forward search allows 100, so the backward
 /// search would reject the deadline of the -10 path. Looser: the feasibility function caps node 1
 /// at 5 and the extension does not, which `MinMaxFeasibilityFunction` rejects backward too.
+/// There, preprocessing removes node 1's arcs, since the cap makes node 1 unreachable; the setup
+/// still observes the clamp through a removed arc, so the refusal does not depend on what one
+/// solve's preprocessing removed.
 TEST(Bidirectional, CapsThatDifferBetweenTheTwoFunctionsAreRefused) {
     namespace bt = bidirectional_test;
     const auto build =
