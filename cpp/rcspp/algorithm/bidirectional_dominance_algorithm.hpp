@@ -30,6 +30,8 @@ namespace rcspp {
 /// `exact` is `COMPLETE` and untrimmed by memory pressure, and not @p truncated. The status alone
 /// cannot say the last part: a per-node extension quota truncates a bidirectional search while it
 /// still reports `COMPLETE`, so a caller who set `num_labels_to_extend_by_node` says so here.
+/// `join_truncated` counts as inexact too: the zero-join guard reads `joined_paths`, which a
+/// capped join understates.
 ///
 /// @param result    A bidirectional solve's result.
 /// @param truncated Whether the caller capped the search in a way the status does not show.
@@ -43,8 +45,26 @@ namespace rcspp {
         .solutions = result.solutions.size(),
         .bounded = result.bounded_by_half_way,
         .exact = result.status == AlgorithmStatus::COMPLETE && !result.memory_pressure_triggered &&
-                 !truncated,
+                 !result.join_truncated && !truncated,
     };
+}
+
+/// @brief A stop that ends a bidirectional search while labels are still waiting to be extended.
+///
+/// `stop_after_X_solutions` and `max_iterations` are not run-level stops: after either, the join
+/// has always run.
+enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
+
+/// @brief Whether the join still runs after @p stop.
+///
+/// A timeout or the memory limit means "stop searching", and the paths both halves already hold
+/// are real columns that a pricing loop needs; the join hands them back, with the incumbent cutoff
+/// on, so its output stays small. An interrupt means "stop now", so it is honoured.
+///
+/// @param stop Why the search stopped.
+/// @return @c true unless the search was interrupted.
+[[nodiscard]] constexpr bool join_runs_after(RunLevelStop stop) {
+    return stop != RunLevelStop::Interrupted;
 }
 
 /// @brief Bidirectional labeling: a forward search, a backward search, and a join.
@@ -165,6 +185,8 @@ class BidirectionalDominanceAlgorithm
 
             // Throw on a model without backward semantics; a bad half-way bound only disables it.
             joined_paths_ = 0;
+            join_pairs_tested_ = 0;
+            join_truncated_ = false;
 
             validate_backward_semantics(*graph);
 
@@ -248,6 +270,8 @@ class BidirectionalDominanceAlgorithm
             Base::annotate(result);
             result->bounded_by_half_way = half_way_.enabled();
             result->number_of_joined_paths = joined_paths_;
+            result->join_pairs_tested = join_pairs_tested_;
+            result->join_truncated = join_truncated_;
             // 0 when the bound is off, so a caller reading this without also reading
             // `bounded_by_half_way` gets the value that means "no bound" rather than a number
             // that was never applied.
@@ -402,26 +426,38 @@ class BidirectionalDominanceAlgorithm
             pending_frontier_ = nullptr;
         }
 
-        /// @brief Whether the search was cut short by a *run-level* stop, so the join is not owed.
+        /// @brief Which run-level stop, if any, ended the search with labels still to extend.
         ///
-        /// Run-level stops are timeout, interrupt and the hard memory limit, not
-        /// `stop_after_X_solutions`. The frontier is tested first so an exhausted search keeps its
-        /// join and `is_time_out()` (which sets `timed_out_`) is not called.
+        /// The frontier is tested first, so an exhausted search is never reported as stopped and
+        /// `is_time_out()` (which sets `timed_out_`) is not called. An interrupt is reported ahead
+        /// of a timeout, so a run that is both is treated as interrupted.
         ///
-        /// @return @c true when labels remain AND a run-level stop reason is in force.
-        [[nodiscard]] bool search_stopped_early() {
+        /// @return The stop, or @c RunLevelStop::None.
+        [[nodiscard]] RunLevelStop run_level_stop() {
             if (number_of_labels() == 0) {
-                return false;
+                return RunLevelStop::None;
             }
-            return this->is_time_out() || this->is_interrupted() ||
-                   (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded());
+            if (this->is_interrupted()) {
+                return RunLevelStop::Interrupted;
+            }
+            if (this->is_time_out()) {
+                return RunLevelStop::Timeout;
+            }
+            if (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded()) {
+                return RunLevelStop::MemoryLimit;
+            }
+            return RunLevelStop::None;
         }
 
         /// @brief Runs the join pass, feeding every accepted pair to `extract_solution`.
         ///
-        /// Skipped when @ref search_stopped_early.
+        /// After a timeout or the memory limit the join still runs (see @ref join_runs_after), with
+        /// the incumbent cutoff forced on. It is skipped after an interrupt, or after any run-level
+        /// stop when `join_after_early_stop` is false.
         void run_join_pass() {
-            if (search_stopped_early()) {
+            const RunLevelStop stop = run_level_stop();
+            const bool stopped_early = stop != RunLevelStop::None;
+            if (stopped_early && (!this->params_.join_after_early_stop || !join_runs_after(stop))) {
                 LOG_DEBUG(
                     "BidirectionalDominanceAlgorithm: the search stopped early, so the join pass "
                     "is skipped.\n");
@@ -434,18 +470,27 @@ class BidirectionalDominanceAlgorithm
                 this->extract_solution(cost, std::move(arc_ids), end_node_id);
                 joined_paths_ += this->solutions_.size() - before;
             };
-            joiner_.join(*this->graph_,
-                         this->non_dominated_labels_by_node_pos_,
-                         backward_labels_by_node_pos_,
-                         half_way_,
-                         this->params_.critical_resource_index,
-                         this->best_cost_upper_bound_,
-                         this->params_.prune_based_on_upper_bound_,
-                         this->cost_upper_bound_,
-                         record,
-                         this->params_.stop_after_X_solutions < MAX_INT
-                             ? this->params_.stop_after_X_solutions
-                             : std::numeric_limits<size_t>::max());
+            // The join keeps at most the tighter of the two budgets. `stop_after_X_solutions`
+            // also stops the search; `join_column_budget` does not.
+            const size_t budget =
+                std::min(this->params_.stop_after_X_solutions, this->params_.join_column_budget);
+            const JoinStats stats = joiner_.join(
+                *this->graph_,
+                this->non_dominated_labels_by_node_pos_,
+                backward_labels_by_node_pos_,
+                half_way_,
+                this->params_.critical_resource_index,
+                this->best_cost_upper_bound_,
+                // After an early stop, prune against the incumbent whatever the caller asked:
+                // the join only owes the improving paths, and that keeps its output to a handful.
+                this->params_.prune_based_on_upper_bound_ || stopped_early,
+                this->cost_upper_bound_,
+                record,
+                budget < MAX_INT ? budget : std::numeric_limits<size_t>::max(),
+                this->params_.max_join_pairs < MAX_INT ? this->params_.max_join_pairs
+                                                       : std::numeric_limits<size_t>::max());
+            join_pairs_tested_ = stats.pairs_tested;
+            join_truncated_ = stats.truncated;
         }
 
         /// @brief Records a complete path found by the backward search reaching a source.
@@ -1835,6 +1880,8 @@ class BidirectionalDominanceAlgorithm
         HalfWayController half_way_controller_;
 
         size_t joined_paths_ = 0;
+        size_t join_pairs_tested_ = 0;
+        bool join_truncated_ = false;
         Joiner<ResourceType, CriticalRC> joiner_;
 };
 
