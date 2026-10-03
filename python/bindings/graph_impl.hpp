@@ -97,7 +97,8 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
+// Append new values at the end: the integer values are exposed to Python.
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, Bidirectional };
 
 template <SolverAlgorithm E, template <typename, typename> class Algo>
 struct AlgoEntry {
@@ -123,12 +124,32 @@ struct AStarAlgoEntry {
         }
 };
 
+// Dispatch entry for bidirectional labeling: binds CostRC as both the critical resource type and
+// the cost type, and injects the cost index as `heuristic_cost_index` (as AStarAlgoEntry does).
+// `critical_resource_index` comes from params untouched. A clock whose type differs from the
+// cost's needs the C++ API.
+template <SolverAlgorithm E>
+struct BidirectionalAlgoEntry {
+        static constexpr SolverAlgorithm value = E;
+        template <typename RG, typename CostRC, typename LC>
+        static SolveResult run(RG& rg, double ub, AlgorithmParams<LC> p, bool pre, size_t ci) {
+            p.heuristic_cost_index = ci;
+            return rg
+                .template solve<BidirectionalAlgoBound<CostRC, CostRC>::template Algo, CostRC, LC>(
+                    ub,
+                    std::move(p),
+                    pre,
+                    ci);
+        }
+};
+
 using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AStarAlgoEntry<SolverAlgorithm::AStar>>;
+                                  AStarAlgoEntry<SolverAlgorithm::AStar>,
+                                  BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
 
 template <typename RG, typename CostRC, typename LC, typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, RG& rg, double ub, AlgorithmParams<LC> p,
