@@ -94,6 +94,22 @@ class Label {
             extended_label->out_arc_ = nullptr;
         }
 
+        /// @brief Extends this backward label along @p arc into @p extended_label, at the arc's
+        ///        origin: the backward search's step.
+        ///
+        /// It records @p arc as the label's outgoing arc, so the path can later be read off towards
+        /// the sink.
+        ///
+        /// @param arc            The arc along which to extend backward.
+        /// @param extended_label Output label that will hold the extended state.
+        ///                       Must be a valid, pre-allocated @c Label object.
+        void extend_back(const Arc<ResourceType>& arc, Label* extended_label) const {
+            arc.extender->extend_back(*resource_, extended_label->resource_.get());
+            extended_label->end_node_ = arc.origin;
+            extended_label->in_arc_ = nullptr;
+            extended_label->out_arc_ = &arc;
+        }
+
         /// @brief Returns the accumulated cost of the partial path represented by this label.
         ///
         /// @return The cost value stored in the underlying resource.
@@ -104,6 +120,20 @@ class Label {
         ///
         /// @return @c true if the label is feasible.
         [[nodiscard]] bool is_feasible() const { return resource_->is_feasible(); }
+
+        /// @brief Whether this backward label is feasible; the backward search drops it otherwise.
+        ///
+        /// @return @c true if the label is feasible in the backward direction.
+        [[nodiscard]] bool is_back_feasible() const { return resource_->is_back_feasible(); }
+
+        /// @brief Whether this backward label dominates @p rhs_label, for the backward search's
+        ///        label containers.
+        ///
+        /// @param rhs_label The label to compare against.
+        /// @return @c true if @c *this backward-dominates @p rhs_label.
+        [[nodiscard]] bool back_dominates(const Label& rhs_label) const {
+            return resource_->back_dominates(*rhs_label.resource_);
+        }
 
         /// @brief Returns whether this label can still reach the specified destination node.
         ///
@@ -127,6 +157,14 @@ class Label {
         ///
         /// @return Pointer to the incoming arc, or @c nullptr for the source label.
         [[nodiscard]] const Arc<ResourceType>* get_in_arc() const { return in_arc_; }
+
+        /// @brief The arc this backward label was extended along, towards the sink.
+        ///
+        /// @c nullptr for a forward label and for a label the backward search started with. The
+        /// join follows these arcs to read a path's backward half.
+        ///
+        /// @return Pointer to the outgoing arc, or @c nullptr for a forward label.
+        [[nodiscard]] const Arc<ResourceType>* get_out_arc() const { return out_arc_; }
 
         /// @brief Sets the predecessor label and increments its reference count.
         ///

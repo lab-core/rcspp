@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <set>
 #include <tuple>

@@ -221,6 +221,47 @@ class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
         return fn(self.tw_by_node, self.default_max_value)
 
 
+class CapacityExtensionFunction(_GenericFunctionDescriptor):
+    """A capacity: a sum along the path that must stay under a cap, readable backward.
+
+    Forward it adds like :class:`AdditionExtensionFunction`; backward a label carries how
+    much the prefix may still have consumed at the node, and starts at the cap, so it works
+    in a bidirectional solve and can be its half-way clock. Signed types (``"real"``,
+    ``"int"``) only, since the backward step subtracts.
+    """
+
+    def __init__(self, max_by_node: dict | None = None, default_max=None):
+        """Initialize a capacity with per-node caps and a default.
+
+        The paired feasibility function's caps take precedence where it states one.
+
+        Args:
+            max_by_node: Mapping from node identifier to that node's upper bound. May be omitted
+                for a uniform capacity.
+            default_max: Bound used at nodes absent from *max_by_node*. When ``None`` the C++
+                default is applied.
+        """
+        self.max_by_node = max_by_node or {}
+        self.default_max = default_max
+
+    def create(self, resource_type: str):
+        """Instantiate a CapacityExtensionFunction for *resource_type*.
+
+        Args:
+            resource_type: Signed numerical resource type string (``"real"`` or ``"int"``).
+
+        Returns:
+            A typed C++ CapacityExtensionFunction instance.
+
+        Raises:
+            TypeError: If *resource_type* is not one of the signed numerical types.
+        """
+        fn = _get_fn("CapacityExtensionFunction", resource_type)
+        if self.default_max is None:
+            return fn(self.max_by_node)
+        return fn(self.max_by_node, self.default_max)
+
+
 class TimeWindowFeasibilityFunction(_GenericFunctionDescriptor):
     """Feasibility function that checks whether a resource value lies within a time
     window.
@@ -400,6 +441,7 @@ _overridden = {
     "MinMaxFeasibilityFunction",
     "TimeWindowExtensionFunction",
     "TimeWindowFeasibilityFunction",
+    "CapacityExtensionFunction",
     "UnionExtensionFunction",
     "IntersectionExtensionFunction",
     "SubtractExtensionFunction",

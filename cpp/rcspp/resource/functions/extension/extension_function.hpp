@@ -3,12 +3,18 @@
 
 #pragma once
 
+#include <concepts>
+#include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
+#include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
+#include "rcspp/resource/functions/backward_kind.hpp"
 
 namespace rcspp {
 
@@ -23,6 +29,28 @@ class Extender;
 template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Arc;
+
+/// @brief Reads an extension function type's backward kind at compile time, from its static
+///        @c kind, or @c Unspecified when it has none.
+///
+/// For checks that run before any object exists, such as the presets' coherence assertion.
+template <typename T>
+concept DeclaresBackwardKind = requires {
+    { T::kind } -> std::convertible_to<BackwardKind>;
+};
+
+template <typename T>
+struct BackwardKindOf {
+        static constexpr BackwardKind value = BackwardKind::Unspecified;
+};
+
+template <DeclaresBackwardKind T>
+struct BackwardKindOf<T> {
+        static constexpr BackwardKind value = T::kind;
+};
+
+template <typename T>
+inline constexpr BackwardKind backward_kind_of_v = BackwardKindOf<T>::value;
 
 /// @brief Abstract base class defining the extension function for a resource type.
 ///
@@ -44,9 +72,30 @@ class ExtensionFunction {
         virtual void extend(const ResourceType& resource, const ResourceType& extender_value,
                             ResourceType* extended_resource) = 0;
 
-        /// @brief Extends a resource value along an arc in the backward direction.
+        /// @brief How a bidirectional solve reads this resource backward.
         ///
-        /// Defaults to calling @c extend(). Override for asymmetric resources.
+        /// The solve derives from it the join test and the direction of backward dominance.
+        /// @c Unspecified by default, which keeps forward-only functions valid but makes a
+        /// bidirectional solve refuse the resource.
+        ///
+        /// @return The backward form declared by this extension function.
+        [[nodiscard]] virtual BackwardKind backward_kind() const {
+            return BackwardKind::Unspecified;
+        }
+
+        /// @brief Extends a value backward along an arc: from a label at the arc's destination to
+        ///        one at its origin.
+        ///
+        /// The backward search of a bidirectional solve calls it, from the sinks. What the backward
+        /// value means follows @c backward_kind():
+        ///  - @c Accumulate (this default): the suffix's sum, by the same formula as @c extend;
+        ///  - @c Threshold: the most the prefix may reach at the origin. It must invert @c extend,
+        ///    `extend(x, arc) <= b  <=>  x <= extend_back(b, arc)`, and clamp down to the origin's
+        ///    bound;
+        ///  - @c ArcValue: the set seen on the suffix.
+        ///
+        /// @p extender_value is the arc's consumption, the same as going forward. Where the label
+        /// starts, at the sink, is @c start_back's.
         ///
         /// @param resource        The current accumulated resource value.
         /// @param extender_value  The arc's contribution to the resource.
@@ -55,6 +104,31 @@ class ExtensionFunction {
                                  ResourceType* extended_resource) {
             extend(resource, extender_value, extended_resource);
         }
+
+        /// @brief Sets the value a backward label starts with at this arc's destination.
+        ///
+        /// A bidirectional solve starts its backward labels at the sinks, with the type default,
+        /// and calls this on an arc entering each sink. Each backward step applies what the node
+        /// it arrives at requires, but no step arrives at the sink, so a form whose labels must
+        /// start elsewhere sets that start here. The default leaves the type default.
+        ///
+        /// Set @p resource without reading it, or leave it unchanged: setup calls it on values
+        /// beyond every bound to see which start it sets.
+        ///
+        /// @param resource The backward label's value at the arc's destination.
+        virtual void start_back(ResourceType* /*resource*/) {}
+
+        /// @brief How a threshold extension asks the paired feasibility function for a node's upper
+        ///        bound.
+        using CeilingSource = std::function<std::optional<ResourceType>(size_t node_id)>;
+
+        /// @brief Receives the paired feasibility function's upper bounds, so that backward labels
+        ///        are clamped, and start, where forward labels are rejected.
+        ///
+        /// Only threshold forms use it; add_resource calls it.
+        ///
+        /// @param ceiling_at The feasibility function's upper bound at a node, if it has one.
+        virtual void adopt_ceilings(CeilingSource /*ceiling_at*/) {}
 
         /// @brief Creates a polymorphic copy of this extension function.
         ///
@@ -83,6 +157,16 @@ class ExtensionFunction {
         virtual void preprocess(size_t origin_id, size_t destination_id) {}
 };
 
+/// @brief Thrown by a composed function whose backward members (@c extend_back and @c start_back
+///        here) are not overridden.
+///
+/// The bidirectional setup calls each once before searching, and turns this exception into a
+/// refusal that names the missing override.
+class NoBackwardExtension : public std::logic_error {
+    public:
+        using std::logic_error::logic_error;
+};
+
 /// @brief Specialization of @c ExtensionFunction for composed resource types.
 ///
 /// When @c ResourceType is a @c ResourceTypeComposition, the extension function
@@ -107,18 +191,47 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
-        /// @brief Extends a composed resource along an arc in the backward direction.
+        /// @brief Not read: a composition has no kind of its own. The bidirectional setup reads
+        ///        each component's @c backward_kind() instead.
         ///
-        /// Defaults to calling @c extend(). Override for asymmetric compositions.
+        /// @return @c BackwardKind::Unspecified unless overridden.
+        [[nodiscard]] virtual BackwardKind backward_kind() const {
+            return BackwardKind::Unspecified;
+        }
+
+        /// @brief Extends a composed resource backward.
+        ///
+        /// The default throws @c NoBackwardExtension, so a forward-only composition still compiles
+        /// and a bidirectional setup refuses it by name. @c CompositionExtensionFunction extends
+        /// each component.
         ///
         /// @param resource         The current accumulated composed resource.
         /// @param extender         The arc's extender carrying all component contributions.
         /// @param extended_resource Pointer to the result; must not be null.
+        /// @throws NoBackwardExtension unless overridden.
         virtual void extend_back(
-            const Resource<ResourceTypeComposition<ResourceTypes...>>& resource,
-            const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
-            Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) {
-            extend(resource, extender, extended_resource);
+            const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/,
+            const Extender<ResourceTypeComposition<ResourceTypes...>>& /*extender*/,
+            Resource<ResourceTypeComposition<ResourceTypes...>>* /*extended_resource*/) {
+            throw NoBackwardExtension(
+                "this composition extension function has no backward form: override "
+                "extend_back, as CompositionExtensionFunction does");
+        }
+
+        /// @brief Sets the values a backward label starts with at the arc's destination.
+        ///
+        /// Not pure, for the same reason as @c extend_back; the default throws.
+        /// @c CompositionExtensionFunction starts each component through its own extender.
+        ///
+        /// @param extender The arc's extender carrying all component contributions.
+        /// @param resource The backward label at the arc's destination.
+        /// @throws NoBackwardExtension unless overridden.
+        virtual void start_back(
+            const Extender<ResourceTypeComposition<ResourceTypes...>>& /*extender*/,
+            Resource<ResourceTypeComposition<ResourceTypes...>>* /*resource*/) {
+            throw NoBackwardExtension(
+                "this composition extension function has no backward start: override "
+                "start_back, as CompositionExtensionFunction does");
         }
 
         /// @brief Creates a polymorphic copy of this extension function.

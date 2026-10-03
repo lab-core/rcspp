@@ -60,6 +60,14 @@ class TimeWindowFeasibilityFunction_real(_FeasibilityFunction):
         self, tw_by_node: dict[int, tuple[float, float]], default_max_value: float = ...
     ) -> None: ...
 
+# Signed numerical resources only: the backward step subtracts.
+
+class CapacityExtensionFunction_real(_ExtensionFunction):
+    def __init__(self, max_by_node: dict[int, float] = ..., default_max: float = ...) -> None: ...
+
+class CapacityExtensionFunction_int(_ExtensionFunction):
+    def __init__(self, max_by_node: dict[int, int] = ..., default_max: int = ...) -> None: ...
+
 # ── Container resource functions (suffix: _bitset, _set) ─────────────────────
 
 class UnionExtensionFunction_bitset(_ExtensionFunction):
