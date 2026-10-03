@@ -92,7 +92,7 @@ class ExtensionFunction {
         ///  - @c Threshold: the most the prefix may reach at the origin. It must invert @c extend,
         ///    `extend(x, arc) <= b  <=>  x <= extend_back(b, arc)`, and clamp down to the origin's
         ///    bound;
-        ///  - @c ArcValue: the set seen on the suffix.
+        ///  - @c ArcValue, @c ArcEndpoints: the set seen on the suffix.
         ///
         /// @p extender_value is the arc's consumption, the same as going forward. Where the label
         /// starts, at the sink, is @c start_back's.

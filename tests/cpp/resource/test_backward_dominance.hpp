@@ -273,7 +273,7 @@ TEST(BackwardDominance, DerivationMatchesBackwardKind) {
         std::make_unique<CapacityExtensionFunction<RealResource>>());
     EXPECT_TRUE(capacity->is_backward_reversed());
 
-    // A set -> not reversed.
+    // ArcEndpoints -> not reversed.
     ResourceGraph<SetResource<int>> set_graph;
     std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
     auto memory = std::make_unique<InclusionDominanceFunction<SetResource<int>>>();
@@ -312,7 +312,9 @@ TEST(BackwardDominance, UnspecifiedDerivesUnreversed) {
 
     auto dominance = std::make_unique<ValueDominanceFunction<UIntResource>>();
     auto* borrowed = dominance.get();
-    auto extension = std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
+    // An unsigned time window reports Unspecified, which `add_resource` accepts (forward-only).
+    std::unique_ptr<ExtensionFunction<UIntResource>> extension =
+        std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
     ASSERT_EQ(extension->backward_kind(), BackwardKind::Unspecified);
 
     graph.add_resource<UIntResource>(std::move(extension),

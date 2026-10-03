@@ -788,6 +788,9 @@ class BidirectionalDominanceAlgorithm
         }
 
         /// @brief Records what, if anything, is wrong with one component's backward declarations.
+        ///
+        /// Runs the setup-time backward coherence checks (3 to 8 in backward_kind.hpp), which
+        /// every bidirectional solve reaches regardless of how the model was built.
         template <typename ComponentResource>
         static void describe_problem(const ComponentResource& component, BackwardKind kind,
                                      size_t index, std::vector<std::string>* problems) {
@@ -820,6 +823,21 @@ class BidirectionalDominanceAlgorithm
                     "value rather than against a bound; use a Threshold extension (e.g. "
                     "CapacityExtensionFunction) or declare JoinRule::Custom with a body that adds "
                     "the two halves");
+            }
+            // A feasibility function that tests "is this node in my memory" needs a memory read
+            // from the arc's endpoints; with an ArcValue one every backward label would be
+            // rejected.
+            if (component.requires_arc_endpoints() && kind != BackwardKind::ArcEndpoints) {
+                problems->push_back(
+                    label +
+                    ": its feasibility function forbids each node at itself, which only reads "
+                    "correctly backwards when the memory at a node excludes that node; its "
+                    "extension function does not declare BackwardKind::ArcEndpoints, so going "
+                    "backward the memory arrives already holding the node it sits on and every "
+                    "backward extension is rejected. Derive the extension function from "
+                    "ArcEndpointsForm -- NgPathExtensionFunction is the one this library ships, "
+                    "and "
+                    "presets::add_elementary_resource wires it up for an elementary path");
             }
         }
 

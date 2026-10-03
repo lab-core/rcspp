@@ -60,6 +60,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         virtual ~ResourceGraph() = default;
 
+        /// @brief Adds a resource: its extension, feasibility, cost and dominance functions.
+        ///
+        /// Backward coherence is not checked here, since forward-only models need not satisfy
+        /// it; bidirectional solves validate it at setup, and callers may assert
+        /// @c backward_coherent_v themselves.
+        ///
+        /// @tparam ResourceType The component's resource type.
+        /// @param extension_function   How an arc modifies the resource.
+        /// @param feasibility_function Whether a value is within bounds.
+        /// @param cost_function        The resource's contribution to the objective.
+        /// @param dominance_function   Whether one value makes another redundant.
         template <typename ResourceType>
         void add_resource(std::unique_ptr<ExtensionFunction<ResourceType>> extension_function,
                           std::unique_ptr<FeasibilityFunction<ResourceType>> feasibility_function,
