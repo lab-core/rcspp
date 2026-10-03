@@ -102,7 +102,7 @@ def test_capacity_resource_matches_the_hand_built_model():
         ValueDominanceFunction(),
     )
     by_hand.add_int_resource(
-        CapacityExtensionFunction(None, capacity),
+        CapacityExtensionFunction(capacity),
         MinMaxFeasibilityFunction(0, capacity),
         TrivialCostFunction(),
         ValueDominanceFunction(),

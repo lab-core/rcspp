@@ -270,7 +270,7 @@ TEST(BackwardDominance, DerivationMatchesBackwardKind) {
     // Threshold, the other one.
     auto* capacity = backward_dominance_test::add_real_resource(
         &graph,
-        std::make_unique<CapacityExtensionFunction<RealResource>>());
+        std::make_unique<CapacityExtensionFunction<RealResource>>(10.0));
     EXPECT_TRUE(capacity->is_backward_reversed());
 
     // ArcEndpoints -> not reversed.

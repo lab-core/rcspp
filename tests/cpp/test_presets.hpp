@@ -107,8 +107,8 @@ TEST(Presets, WindowResourceMatchesTheHandBuiltModel) {
         by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
 }
 
-// Hand-built with the correct pairing: CapacityExtensionFunction + MinMaxFeasibilityFunction(0,
-// cap, true), not AdditionExtensionFunction.
+// Hand-built with the correct pairing: CapacityExtensionFunction(cap) +
+// MinMaxFeasibilityFunction(0, cap), not AdditionExtensionFunction.
 TEST(Presets, CapacityResourceMatchesTheHandBuiltModel) {
     constexpr int kCapacity = 50;
 
@@ -118,8 +118,7 @@ TEST(Presets, CapacityResourceMatchesTheHandBuiltModel) {
 
     auto by_hand = std::make_unique<ResourceGraph<IntResource>>();
     by_hand->add_resource<IntResource>(
-        std::make_unique<CapacityExtensionFunction<IntResource>>(std::map<size_t, int>{},
-                                                                 kCapacity),
+        std::make_unique<CapacityExtensionFunction<IntResource>>(kCapacity),
         std::make_unique<MinMaxFeasibilityFunction<IntResource>>(0, kCapacity),
         std::make_unique<TrivialCostFunction<IntResource>>(),
         std::make_unique<ValueDominanceFunction<IntResource>>());
@@ -130,7 +129,7 @@ TEST(Presets, CapacityResourceMatchesTheHandBuiltModel) {
         by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
 }
 
-// Per-node caps go on the feasibility function; the extension takes its backward clamp from there.
+// Per-node caps: one NodeBounds, shared by the extension and the feasibility function.
 TEST(Presets, PerNodeCapacityMatchesTheHandBuiltModel) {
     auto by_preset = std::make_unique<ResourceGraph<RealResource>>();
     presets::add_cost_resource<RealResource>(*by_preset);
@@ -143,12 +142,12 @@ TEST(Presets, PerNodeCapacityMatchesTheHandBuiltModel) {
     for (const auto& [node_id, cap] : presets_test::per_node_caps()) {
         windows.emplace(node_id, std::pair<double, double>{0.0, cap});
     }
+    const auto caps = make_node_bounds(0.0, 100.0, std::move(windows));
     auto by_hand = std::make_unique<ResourceGraph<RealResource>>();
     presets::add_cost_resource<RealResource>(*by_hand);
     by_hand->add_resource<RealResource>(
-        std::make_unique<CapacityExtensionFunction<RealResource>>(std::map<size_t, double>{},
-                                                                  100.0),
-        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0, std::move(windows)),
+        std::make_unique<CapacityExtensionFunction<RealResource>>(caps),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(caps),
         std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
     presets_test::add_two_routes(by_hand.get());

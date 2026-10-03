@@ -847,7 +847,7 @@ class BidirectionalDominanceAlgorithm
         /// Per node, it observes the clamps (@ref observe_node_clamps) and checks each component
         /// against them (@ref check_component_clamps):
         ///  - the backward clamp, and at a sink the backward start, against the node's backward
-        ///    test (@ref check_ceiling);
+        ///    and forward tests (@ref check_ceiling);
         ///  - the lowest value a forward label can hold there against the node's backward test
         ///    (@ref check_floor).
         ///
@@ -1506,9 +1506,47 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
+        /// @brief A value just above @p value, beyond the tolerance the library's own comparisons
+        ///        allow (@c value_leq adds the type's epsilon), so that a test of a ceiling at
+        ///        @p value rejects it.
+        ///
+        /// @param value The value.
+        /// @return A few units in the last place above @p value for floating point, the next
+        ///         value for an integral type, and @p value itself at an integral type's maximum.
+        template <typename Scalar>
+        [[nodiscard]] static Scalar just_above(Scalar value) {
+            using Limits = std::numeric_limits<Scalar>;
+            if constexpr (std::is_floating_point_v<Scalar>) {
+                constexpr Scalar kSteps = 4;
+                return value + (kSteps * Limits::epsilon() * std::max(Scalar{1}, std::abs(value)));
+            } else {
+                return value == Limits::max() ? value : static_cast<Scalar>(value + 1);
+            }
+        }
+
         /// @brief Records a @c Threshold component whose backward clamp at @p node_id, or whose
-        ///        backward start at sink @p node_id, fails that node's own backward test, once per
-        ///        component.
+        ///        backward start at sink @p node_id, disagrees with that node's feasibility
+        ///        function, once per component.
+        ///
+        /// A backward value is a deadline: the latest value at which the rest of the path is still
+        /// feasible. At a node it can be no later than the largest value the node's forward test
+        /// admits, its ceiling, and it is that ceiling when nothing later lowers it. So the clamp
+        /// of a backward step arriving at the node, and the start of a backward label at a sink,
+        /// must both be the ceiling. Four disagreements:
+        ///  - none, where the forward test has a ceiling (it rejects a value beyond every bound):
+        ///    without a clamp, the backward search admits deadlines the forward search rejects;
+        ///    without a start, the label keeps the type default and rejects deadlines a forward
+        ///    path meets;
+        ///  - one the node's backward test rejects, so every backward label there is lost;
+        ///  - one the forward test rejects, above the ceiling: the backward search admits
+        ///    deadlines the forward search rejects, which a test on the floor alone (a time
+        ///    window's) cannot see;
+        ///  - one with a value just above it (@ref just_above) the forward test admits, below the
+        ///    ceiling: the backward search rejects deadlines a forward path meets.
+        ///
+        /// The forward test is asked, not read, so it must be exact at its ceiling: one admitting
+        /// values a little above it, beyond the library's own tolerance, is refused. Where the
+        /// forward test has no ceiling, only the backward test is asked.
         ///
         /// A clamp below the lowest value a forward label can hold at the node
         /// (@ref lowest_forward_value) is left alone: the node's window is empty, so it cannot be
@@ -1532,26 +1570,69 @@ class BidirectionalDominanceAlgorithm
                                   size_t component_index, size_t node_id, bool start,
                                   std::vector<bool>* ceiling_reported,
                                   std::vector<std::string>* problems) {
-            if (!ceiling || (*ceiling_reported)[component_index]) {
+            if ((*ceiling_reported)[component_index]) {
                 return;
             }
             using Value = std::decay_t<decltype(component.get_value())>;
             using Scalar = std::decay_t<decltype(std::declval<Value>().get_value())>;
+            const auto admits = [&component](Scalar scalar) {
+                Value value;
+                value.set_value(scalar);
+                return component.admits_value(value);
+            };
+            const bool has_ceiling =
+                !admits(beyond_bounds(Scalar{0}, /*backward=*/true, /*second=*/false));
+            const std::string subject = "component " + std::to_string(component_index) +
+                                        ": its backward labels at " + (start ? "sink " : "node ") +
+                                        std::to_string(node_id);
+            if (!ceiling) {
+                if (has_ceiling) {
+                    (*ceiling_reported)[component_index] = true;
+                    problems->push_back(
+                        subject +
+                        (start ? " start at the type default" : " are not clamped at all") +
+                        ", but its feasibility function rejects values above some bound there, so "
+                        "the backward search " +
+                        (start ? "rejects deadlines a forward path meets; start each backward "
+                                 "label at its sink's upper bound, as ThresholdForm::start_back "
+                                 "does"
+                               : "admits deadlines the forward search rejects; clamp each "
+                                 "backward label to its node's upper bound, as ThresholdForm "
+                                 "does") +
+                        ", built from the feasibility function's NodeBounds");
+                }
+                return;
+            }
             if (*ceiling < lowest_forward_value(forward_clamp)) {
                 return;
             }
+            const auto scalar = static_cast<Scalar>(*ceiling);
             Value value;
-            value.set_value(static_cast<Scalar>(*ceiling));
-            if (component.admits_back_value(value)) {
+            value.set_value(scalar);
+            std::string fault;
+            if (!component.admits_back_value(value)) {
+                fault =
+                    ", which its feasibility function rejects there, so every backward label at "
+                    "that node is lost";
+            } else if (!has_ceiling) {
+                return;
+            } else if (!admits(scalar)) {
+                fault =
+                    ", above the largest value its feasibility function admits there, so the "
+                    "backward search admits deadlines the forward search rejects";
+            } else if (const Scalar above = just_above(scalar); above != scalar && admits(above)) {
+                fault =
+                    ", below the largest value its feasibility function admits there, so the "
+                    "backward search rejects deadlines a forward path meets";
+            } else {
                 return;
             }
             (*ceiling_reported)[component_index] = true;
-            problems->push_back(
-                "component " + std::to_string(component_index) + ": its backward labels at " +
-                (start ? "sink " : "node ") + std::to_string(node_id) +
-                (start ? " start at " : " are clamped to ") + std::to_string(*ceiling) +
-                ", which its feasibility function rejects there, so every backward label at that "
-                "node is lost; make ceiling_at(node) return the node's own upper bound");
+            problems->push_back(subject + (start ? " start at " : " are clamped to ") +
+                                std::to_string(*ceiling) + fault +
+                                "; build the extension and the feasibility function from one "
+                                "NodeBounds (make_node_bounds, or the feasibility function's "
+                                "bounds())");
         }
 
         /// @brief The lowest value a forward label can hold at a node: the forward clamp observed

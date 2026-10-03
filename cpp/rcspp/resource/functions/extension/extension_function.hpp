@@ -4,10 +4,8 @@
 #pragma once
 
 #include <concepts>
-#include <functional>
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -121,18 +119,6 @@ class ExtensionFunction {
         ///
         /// @param resource The backward label's value at the arc's destination.
         virtual void start_back(ResourceType* /*resource*/) {}
-
-        /// @brief How a threshold extension asks the paired feasibility function for a node's upper
-        ///        bound.
-        using CeilingSource = std::function<std::optional<ResourceType>(size_t node_id)>;
-
-        /// @brief Receives the paired feasibility function's upper bounds, so that backward labels
-        ///        are clamped, and start, where forward labels are rejected.
-        ///
-        /// Only threshold forms use it; add_resource calls it.
-        ///
-        /// @param ceiling_at The feasibility function's upper bound at a node, if it has one.
-        virtual void adopt_ceilings(CeilingSource /*ceiling_at*/) {}
 
         /// @brief Creates a polymorphic copy of this extension function.
         ///

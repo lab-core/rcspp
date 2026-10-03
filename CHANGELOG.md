@@ -48,17 +48,28 @@ with a pointer to where they are documented.
   and logs a warning saying so. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
 - **`CapacityExtensionFunction`** (C++ and Python, signed types only): additive forward and a
   threshold backward, which is what a bounded accumulation such as a capacity needs in a
-  bidirectional solve.
+  bidirectional solve. It takes its capacity, `CapacityExtensionFunction(capacity)`, or in C++ the
+  per-node caps as a `NodeBounds` shared with its feasibility function.
+- **`NodeBounds`** (C++, `rcspp/resource/functions/node_bounds.hpp`): per-node `[lower, upper]`
+  bounds that a threshold extension and its feasibility function share, so the two cannot disagree.
+  Build one with `make_node_bounds`. `MinMaxFeasibilityFunction`, `TimeWindowFeasibilityFunction`
+  and `TimeWindowExtensionFunction` gain a constructor that takes one and a `bounds()` accessor;
+  their other constructors are unchanged. A bidirectional solve refuses a threshold extension whose
+  backward clamp at a node, or whose backward start at a sink, is not the largest value the
+  feasibility function admits there, or that does not clamp or start at all. The clamps are
+  observed, not declared: setup runs the extension on values beyond every bound, so a threshold
+  extension of your own is checked however it is written, and must accept any value of its type. A
+  feasibility function's floor is checked the same way, by asking its backward test.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
   code compiling: `ExtensionFunction::backward_kind()` and `start_back()`; on `FeasibilityFunction`
-  `join_rule()`, `ceiling_at()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A
-  composition `DominanceFunction` gains a `check_back_dominance()` whose default refuses, and a
-  composition `CostFunction` an `is_additive()` whose default refuses: the join adds the two halves'
-  costs, so a cost that reads a threshold's value is refused. An accumulation whose halves the join
-  adds, through its cost or its join test, must be a sum, which setup checks by running the
-  extension. A bidirectional solve refuses a model whose declarations are missing or incoherent
-  before the first label, and names the component. It also refuses constraints a backward label
-  cannot check exactly, such as per-node caps on `SizeFeasibilityFunction`; see the refusal table in
+  `join_rule()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition
+  `DominanceFunction` gains a `check_back_dominance()` whose default refuses, and a composition
+  `CostFunction` an `is_additive()` whose default refuses: the join adds the two halves' costs, so a
+  cost that reads a threshold's value is refused. An accumulation whose halves the join adds,
+  through its cost or its join test, must be a sum, which setup checks by running the extension. A
+  bidirectional solve refuses a model whose declarations are missing or incoherent before the first
+  label, and names the component. It also refuses constraints a backward label cannot check exactly,
+  such as per-node caps on `SizeFeasibilityFunction`; see the refusal table in
   `docs/advanced/algorithms.md`.
 - **`SolveResult` diagnostics**: `bounded_by_half_way`, `number_of_joined_paths` and
   `memory_pressure_triggered`.
