@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
 
             // ── Single CG solve ────────────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto [timers, lp_cost, proven_optimal] =
+            auto [timers, lp_cost, proven_optimal, iterations] =
                 vrp.solve<SimpleDominanceAlgorithm,
                           PushingDominanceAlgorithm,
                           PullingDominanceAlgorithm>(list_params,
