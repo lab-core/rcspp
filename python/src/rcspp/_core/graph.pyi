@@ -78,6 +78,50 @@ class SolveResult:
     def __bool__(self) -> bool: ...
     def __repr__(self) -> str: ...
 
+class HalfWayMove(Enum):
+    Unchanged: HalfWayMove
+    Skipped: HalfWayMove
+    Frozen: HalfWayMove
+    Down: HalfWayMove
+    Up: HalfWayMove
+    TowardCentre: HalfWayMove
+
+class HalfWayControllerParams:
+    dead_zone: float
+    initial_step: float
+    step_decay: float
+    min_step: float
+    min_fraction: float
+    max_fraction: float
+    def __init__(self) -> None: ...
+
+class HalfWayController:
+    """Moves the bidirectional half-way point between solves.
+
+    Keep one across a column-generation loop: set ``params.half_way_point = c.h``
+    before each bidirectional solve and call ``c.update(result)`` after it.
+    """
+
+    frozen: bool
+    def __init__(self, initial_h: float, params: HalfWayControllerParams = ...) -> None: ...
+    def update(self, result: SolveResult, truncated: bool = False) -> HalfWayMove: ...
+    def reset(self) -> None: ...
+    @property
+    def h(self) -> float: ...
+    @property
+    def initial_h(self) -> float: ...
+    @property
+    def range(self) -> float: ...
+    @property
+    def step(self) -> float: ...
+    @property
+    def last_move(self) -> HalfWayMove: ...
+    @property
+    def observations(self) -> int: ...
+    @property
+    def moves(self) -> int: ...
+    def __repr__(self) -> str: ...
+
 class AlgorithmParams:
     stop_after_X_solutions: int
     return_dominated_solutions: bool
