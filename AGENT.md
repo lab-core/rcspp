@@ -419,6 +419,8 @@ Test files:
 
 4. **`update_reduced_costs` does not rebuild the graph** — it only changes arc
    costs.  You do NOT need to rebuild nodes/arcs between CG iterations.
+   `set_ng_neighborhoods` is the exception that does: arcs cache the ng neighbourhoods they
+   read when they are built, so it re-creates every arc's ng component. Call it between solves.
 
 5. **`DiversificationSearch` requires `max_iterations`** — without a finite
    limit the outer loop never terminates.
