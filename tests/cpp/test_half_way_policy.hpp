@@ -13,6 +13,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <random>
 #include <utility>
 #include <vector>
 
@@ -258,4 +259,114 @@ TEST(HalfWayPolicy, RejectionDisablesRatherThanThrows) {
     // With the bound off, every label is kept.
     EXPECT_FALSE(policy.should_stop_forward(1e9));
     EXPECT_FALSE(policy.should_stop_backward(-1e9));
+}
+
+TEST(HalfWayPolicy, FixedAtIsInForceWhateverTheValue) {
+    const auto at_zero = HalfWayPolicy::fixed_at(0.0);
+    EXPECT_TRUE(at_zero.enabled());
+    EXPECT_EQ(at_zero.h(), 0.0);
+    EXPECT_TRUE(at_zero.should_stop_forward(0.5));
+    EXPECT_FALSE(at_zero.should_stop_forward(0.0));
+
+    const auto negative = HalfWayPolicy::fixed_at(-3.0);
+    EXPECT_TRUE(negative.enabled());
+    EXPECT_EQ(negative.h(), -3.0);
+}
+
+TEST(HalfWayBounds, StartOpen) {
+    const HalfWayBounds bounds;
+    EXPECT_EQ(bounds.forward_bound(), std::numeric_limits<double>::infinity());
+    EXPECT_EQ(bounds.backward_bound(), -std::numeric_limits<double>::infinity());
+    EXPECT_FALSE(bounds.should_stop_forward(1e300));
+    EXPECT_FALSE(bounds.should_stop_backward(-1e300));
+}
+
+TEST(HalfWayBounds, ForwardProgressRaisesTheBackwardBoundOnly) {
+    HalfWayBounds bounds;
+    bounds.after_forward(3.0);
+    EXPECT_EQ(bounds.backward_bound(), 3.0);
+    bounds.after_forward(1.0);  // never lowered
+    EXPECT_EQ(bounds.backward_bound(), 3.0);
+    EXPECT_EQ(bounds.forward_bound(), std::numeric_limits<double>::infinity());
+}
+
+TEST(HalfWayBounds, BackwardProgressLowersTheForwardBoundOnly) {
+    HalfWayBounds bounds;
+    bounds.after_backward(40.0);
+    EXPECT_EQ(bounds.forward_bound(), 40.0);
+    bounds.after_backward(50.0);  // never raised
+    EXPECT_EQ(bounds.forward_bound(), 40.0);
+    EXPECT_EQ(bounds.backward_bound(), -std::numeric_limits<double>::infinity());
+}
+
+TEST(HalfWayBounds, ABoundNeverCrossesTheOther) {
+    HalfWayBounds bounds;
+    bounds.after_backward(10.0);  // H_F = 10
+    bounds.after_forward(25.0);   // H_B = min(25, 10) = 10
+    EXPECT_EQ(bounds.backward_bound(), 10.0);
+    bounds.after_backward(5.0);  // H_F = max(5, 10) = 10
+    EXPECT_EQ(bounds.forward_bound(), 10.0);
+}
+
+TEST(HalfWayBounds, RandomUpdatesKeepTheOrderAndTheDirections) {
+    std::mt19937 generator(42);  // NOLINT(cert-msc51-cpp): deterministic on purpose
+    std::uniform_real_distribution<double> clock(0.0, 100.0);
+    std::bernoulli_distribution forward(0.5);
+    HalfWayBounds bounds;
+    for (int i = 0; i < 1000; ++i) {
+        const double before_forward = bounds.forward_bound();
+        const double before_backward = bounds.backward_bound();
+        if (forward(generator)) {
+            bounds.after_forward(clock(generator));
+        } else {
+            bounds.after_backward(clock(generator));
+        }
+        ASSERT_LE(bounds.backward_bound(), bounds.forward_bound()) << "step " << i;
+        ASSERT_LE(bounds.forward_bound(), before_forward) << "H_F rose at step " << i;
+        ASSERT_GE(bounds.backward_bound(), before_backward) << "H_B fell at step " << i;
+    }
+}
+
+TEST(HalfWayBounds, FinishingSnapsTheOtherBound) {
+    HalfWayBounds bounds;
+    bounds.after_forward(5.0);    // H_B = 5
+    bounds.after_backward(30.0);  // H_F = 30
+    bounds.forward_finished();
+    EXPECT_EQ(bounds.backward_bound(), 30.0);
+    EXPECT_EQ(bounds.forward_bound(), 30.0);
+    bounds.after_backward(12.0);  // max(12, 30) = 30: the snap holds
+    EXPECT_EQ(bounds.forward_bound(), 30.0);
+
+    HalfWayBounds other;
+    other.after_forward(5.0);
+    other.after_backward(30.0);
+    other.backward_finished();
+    EXPECT_EQ(other.forward_bound(), 5.0);
+    EXPECT_EQ(other.backward_bound(), 5.0);
+}
+
+TEST(HalfWayBounds, StopPredicatesAndTheJoinPoint) {
+    HalfWayBounds bounds;
+    bounds.after_forward(4.0);    // H_B = 4
+    bounds.after_backward(10.0);  // H_F = 10
+    EXPECT_FALSE(bounds.should_stop_forward(10.0));
+    EXPECT_TRUE(bounds.should_stop_forward(10.5));
+    EXPECT_TRUE(bounds.should_stop_backward(4.0));
+    EXPECT_FALSE(bounds.should_stop_backward(4.5));
+    EXPECT_EQ(bounds.join_point(), 4.0);
+}
+
+TEST(HalfWayBounds, AWindowStartsTheBoundsInsideIt) {
+    HalfWayBounds bounds(16.0, 24.0);
+    EXPECT_EQ(bounds.backward_bound(), 16.0);
+    EXPECT_EQ(bounds.forward_bound(), 24.0);
+    bounds.after_forward(10.0);  // below the window: H_B stays
+    EXPECT_EQ(bounds.backward_bound(), 16.0);
+    bounds.after_backward(40.0);  // above the window: H_F stays
+    EXPECT_EQ(bounds.forward_bound(), 24.0);
+    bounds.after_forward(20.0);
+    EXPECT_EQ(bounds.backward_bound(), 20.0);
+    EXPECT_TRUE(bounds.should_stop_forward(25.0));
+    EXPECT_TRUE(bounds.should_stop_backward(20.0));
+    EXPECT_FALSE(bounds.should_stop_backward(20.5));
 }

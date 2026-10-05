@@ -26,12 +26,15 @@
 // needs, and it is why this driver goes through the `algorithms` vector rather than the variadic
 // template parameter -- the latter constructs a fresh object every iteration.
 //
-// **Three pricers per instance**: forward, bidirectional with a static `H = R/2`, and
-// bidirectional with `dynamic_half_way` -- the same persistent object, with a `HalfWayController`
-// moving `H` between pricing calls. The `move` column is what the controller did after each solve
-// (blank for the static run). Each summary line ends with the imbalance the controller is meant to
-// shrink: the geometric mean over bounded iterations of `max(fwd, bwd) / min(fwd, bwd)`, and how
-// many iterations sat outside the controller's 20 % dead zone.
+// **Four pricers per instance**: forward, bidirectional with a static `H = R/2`, bidirectional
+// with `dynamic_half_way` -- the same persistent object, with a `HalfWayController` moving `H`
+// between pricing calls -- and bidirectional with `HalfWayMode::Meeting`, which places `H` where
+// the two searches meet inside every solve (Tilk et al. 2017). The `move` column is what the
+// controller did after each solve (blank for the other runs). Each summary line ends with the
+// imbalance the controller is meant to shrink: the geometric mean over bounded iterations of
+// `max(fwd, bwd) / min(fwd, bwd)`, and how many iterations sat outside the controller's 20 % dead
+// zone; then `H_cov`, the coefficient of variation of `H` over bounded iterations, which Tilk et
+// al. report (12-25 %) for the meeting point.
 //
 // Pass instance names to choose them (default `R101_25 R201_25`); `--summary` drops the
 // per-iteration tables.
@@ -42,6 +45,11 @@
 //   --pricing-timeout=S   timeout_s on every pricing solve, forward included
 //   --no-join-after-stop  join_after_early_stop = false: skip the join after a timeout, as before
 //   --no-forward          skip the forward pricer; the dynamic run is then checked against static
+//   --no-controller       skip the dynamic-H (between-solves controller) pricer
+//   --direction-rule=work the meeting pricer takes from the search that did less work, rather
+//                         than from the one with fewer labels waiting
+//   --warm-window=F       also run a meeting pricer whose bounds start within F times the
+//                         horizon of where the previous pricing solve met (experimental)
 // The `pairs` column is `join_pairs_tested`; a `J` after the move means the join was truncated.
 //
 // Needs Gurobi, like every other driver here. Works under any `kRouteRelaxation`: all three
@@ -93,7 +101,33 @@ struct JoinOptions {
         double timeout_s = std::numeric_limits<double>::infinity();  ///< --pricing-timeout=S
         bool join_after_stop = true;                                 ///< --no-join-after-stop
         bool run_forward = true;                                     ///< --no-forward
+        bool run_controller = true;                                  ///< --no-controller
+        HalfWayDirectionRule direction_rule =
+            HalfWayDirectionRule::FewestWaiting;  ///< --direction-rule=work
+        double warm_window = 0.0;                 ///< --warm-window=F; 0 skips the warm pricer
 };
+
+/// @brief How a bidirectional pricer places its half-way point.
+enum class Placement {
+    Fixed,        ///< `H = R/2` for every solve
+    Controller,   ///< `dynamic_half_way`: moved between solves by the controller
+    Meeting,      ///< `HalfWayMode::Meeting`: placed where the searches meet, inside every solve
+    MeetingWarm,  ///< `Meeting`, with the bounds starting near where the previous solve met
+};
+
+[[nodiscard]] const char* label_of(Placement placement) {
+    switch (placement) {
+        case Placement::Fixed:
+            return "static H     ";
+        case Placement::Controller:
+            return "dynamic H    ";
+        case Placement::Meeting:
+            return "meeting H    ";
+        case Placement::MeetingWarm:
+            return "meeting warm ";
+    }
+    return "?";
+}
 
 /// @brief Wraps an algorithm template and records one row per `solve()`.
 ///
@@ -196,7 +230,15 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
     size_t columns = 0;
     size_t timeouts = 0;
     size_t truncated_joins = 0;
+    double sum_h = 0.0;
+    double sum_h2 = 0.0;
+    size_t h_rows = 0;
     for (const auto& row : rows) {
+        if (row.bounded && std::isfinite(row.half_way_point)) {
+            sum_h += row.half_way_point;
+            sum_h2 += row.half_way_point * row.half_way_point;
+            ++h_rows;
+        }
         pricing_seconds += row.seconds;
         checks += row.dominance_checks;
         columns += row.solutions;
@@ -221,6 +263,14 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
         std::cout << "  imbalance=" << std::setprecision(2)
                   << std::exp(log_imbalance / static_cast<double>(measured)) << "x"
                   << "  outside_dead_zone=" << outside_dead_zone << "/" << measured;
+    }
+    if (h_rows > 1) {
+        const auto n = static_cast<double>(h_rows);
+        const double mean = sum_h / n;
+        if (mean != 0.0) {
+            std::cout << "  H_cov=" << std::setprecision(3)
+                      << std::sqrt(std::max(0.0, (sum_h2 / n) - (mean * mean))) / mean;
+        }
     }
     std::cout << (cg.proven_optimal ? "" : "  (NOT proven optimal)") << std::endl;
 }
@@ -250,13 +300,15 @@ CGSolveResult run_forward(const Instance& instance, const JoinOptions& options) 
 ///
 /// The clock is the time window, which the VRP example registers as the SECOND `RealResource`
 /// component -- slot 0 is the cost. `half_way_point` is half the depot's closing time, which is
-/// the clock's range; with @p dynamic it is only where the controller starts.
+/// the clock's range; with the controller it is only where the controller starts, and the
+/// meeting mode ignores it.
 ///
 /// @param instance      The instance.
-/// @param dynamic       Whether `H` adapts between pricing calls.
+/// @param placement     How `H` is placed: fixed, moved between solves, or where the searches
+///                      meet.
 /// @param per_iteration Whether to print the per-iteration table before the summary.
-/// @param options       The join's budgets and the pricing timeout.
-CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per_iteration,
+/// @param options       The join's budgets, the pricing timeout and the meeting direction rule.
+CGSolveResult run_bidirectional(const Instance& instance, Placement placement, bool per_iteration,
                                 const JoinOptions& options) {
     VRP vrp(instance);
     const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
@@ -264,7 +316,12 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
     AlgorithmParams<ListLC> params;
     params.critical_resource_index = 1;  // time
     params.half_way_point = horizon / 2.0;
-    params.dynamic_half_way = dynamic;
+    params.dynamic_half_way = placement == Placement::Controller;
+    const bool meeting = placement == Placement::Meeting || placement == Placement::MeetingWarm;
+    params.half_way_mode = meeting ? HalfWayMode::Meeting : HalfWayMode::Fixed;
+    params.half_way_meeting_window =
+        placement == Placement::MeetingWarm ? options.warm_window * horizon : 0.0;
+    params.half_way_direction_rule = options.direction_rule;
     params.join_column_budget = options.join_budget;
     params.max_join_pairs = options.max_pairs;
     params.timeout_s = options.timeout_s;
@@ -282,13 +339,13 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 
     if (per_iteration) {
-        std::cout << "  " << (dynamic ? "dynamic H" : "static H") << "\n";
+        std::cout << "  " << label_of(placement) << "\n";
         print_header();
         for (const auto& row : algo->rows()) {
             print_row(row);
         }
     }
-    print_summary(dynamic ? "dynamic H    " : "static H     ", cg, algo->rows(), wall);
+    print_summary(label_of(placement), cg, algo->rows(), wall);
     return cg;
 }
 
@@ -314,6 +371,12 @@ int main(int argc, char** argv) {
             options.join_after_stop = false;
         } else if (arg == "--no-forward") {
             options.run_forward = false;
+        } else if (arg == "--no-controller") {
+            options.run_controller = false;
+        } else if (arg == "--direction-rule=work") {
+            options.direction_rule = HalfWayDirectionRule::LeastWork;
+        } else if (arg.starts_with("--warm-window=")) {
+            options.warm_window = std::stod(value_of(arg));
         } else {
             names.push_back(arg);
         }
@@ -322,7 +385,8 @@ int main(int argc, char** argv) {
         names = {"R101_25", "R201_25"};
     }
 
-    std::cout << "[ CG ] forward, static-H and dynamic-H bidirectional, full column generation\n"
+    std::cout << "[ CG ] forward, static-H, dynamic-H and meeting-H bidirectional, full column "
+                 "generation\n"
               << "       fwd/bwd is the imbalance the dynamic half-way point drives towards 1.\n";
     // Every log states what it was run with.
     const auto limit = [](size_t value) {
@@ -333,7 +397,10 @@ int main(int argc, char** argv) {
               << (std::isfinite(options.timeout_s) ? std::to_string(options.timeout_s) + " s"
                                                    : std::string("none"))
               << "  join_after_early_stop=" << (options.join_after_stop ? "yes" : "no")
-              << "  forward=" << (options.run_forward ? "yes" : "no") << "\n"
+              << "  forward=" << (options.run_forward ? "yes" : "no")
+              << "  controller=" << (options.run_controller ? "yes" : "no") << "  direction_rule="
+              << (options.direction_rule == HalfWayDirectionRule::LeastWork ? "work" : "waiting")
+              << "  warm_window=" << options.warm_window << "\n"
               << std::endl;
 
     for (const auto& name : names) {
@@ -348,8 +415,17 @@ int main(int argc, char** argv) {
         if (options.run_forward) {
             forward = run_forward(instance, options);
         }
-        const auto fixed = run_bidirectional(instance, /*dynamic=*/false, per_iteration, options);
-        const auto adaptive = run_bidirectional(instance, /*dynamic=*/true, per_iteration, options);
+        const auto fixed = run_bidirectional(instance, Placement::Fixed, per_iteration, options);
+        std::optional<CGSolveResult> adaptive;
+        if (options.run_controller) {
+            adaptive = run_bidirectional(instance, Placement::Controller, per_iteration, options);
+        }
+        const auto meeting =
+            run_bidirectional(instance, Placement::Meeting, per_iteration, options);
+        std::optional<CGSolveResult> warm;
+        if (options.warm_window > 0.0) {
+            warm = run_bidirectional(instance, Placement::MeetingWarm, per_iteration, options);
+        }
 
         // The pricers must agree. A difference here is a bug in the algorithm, not in the
         // reporting, and is worth shouting about rather than leaving in a table to be squinted at.
@@ -360,7 +436,13 @@ int main(int argc, char** argv) {
         const std::pair<std::string, CGSolveResult> reference =
             forward ? std::pair{std::string("forward"), *forward}
                     : std::pair{std::string("static H"), fixed};
-        std::vector<std::pair<std::string, CGSolveResult>> others{{"dynamic H", adaptive}};
+        std::vector<std::pair<std::string, CGSolveResult>> others{{"meeting H", meeting}};
+        if (warm) {
+            others.emplace_back("meeting warm", *warm);
+        }
+        if (adaptive) {
+            others.insert(others.begin(), {"dynamic H", *adaptive});
+        }
         if (forward) {
             others.insert(others.begin(), {"static H", fixed});
         }

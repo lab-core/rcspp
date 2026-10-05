@@ -18,3 +18,4 @@
 #include "test_join_optimality.hpp"
 #include "test_label_frontier.hpp"
 #include "test_label_join.hpp"
+#include "test_meeting_half_way.hpp"

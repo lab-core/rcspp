@@ -94,6 +94,14 @@ void init_graph(py::module_& m) {
         .value("Interrupted", AlgorithmStatus::INTERRUPTED)
         .value("MemoryLimit", AlgorithmStatus::MEMORY_LIMIT);
 
+    py::enum_<HalfWayMode>(m, "HalfWayMode")
+        .value("Fixed", HalfWayMode::Fixed)
+        .value("Meeting", HalfWayMode::Meeting);
+
+    py::enum_<HalfWayDirectionRule>(m, "HalfWayDirectionRule")
+        .value("FewestWaiting", HalfWayDirectionRule::FewestWaiting)
+        .value("LeastWork", HalfWayDirectionRule::LeastWork);
+
     // ── SolveResult ───────────────────────────────────────────────────────────
 
     py::class_<SolveResult>(m, "SolveResult")
@@ -147,6 +155,16 @@ void init_graph(py::module_& m) {
                       "off. Not the same as the requested params.half_way_point: the bound "
                       "disables itself when the critical resource fails validation. Check "
                       "bounded_by_half_way to tell 'the bound was off' from 'H really was 0'.")
+        .def_readonly("half_way_forward_bound",
+                      &SolveResult::half_way_forward_bound,
+                      "The forward half-way bound when the solve ended: H with a fixed half-way "
+                      "point, the bound the backward search pushed down with a meeting one. 0.0 "
+                      "when the bound was off.")
+        .def_readonly("half_way_backward_bound",
+                      &SolveResult::half_way_backward_bound,
+                      "The backward half-way bound when the solve ended: H with a fixed half-way "
+                      "point, the bound the forward search pushed up with a meeting one, and the "
+                      "point the join used. 0.0 when the bound was off.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -346,6 +364,18 @@ void init_graph(py::module_& m) {
                        "the join considers every pair, which is correct but slower than a forward "
                        "solve rather than faster. Check result.bounded_by_half_way to see which "
                        "you got.")
+        .def_readwrite(
+            "half_way_mode",
+            &PyAlgorithmParams::half_way_mode,
+            "HalfWayMode.Fixed (default) uses half_way_point for the whole solve. "
+            "HalfWayMode.Meeting needs no half_way_point: it places the half-way point "
+            "where the two searches meet, inside every solve (Tilk et al. 2017), and "
+            "reports it as result.half_way_point_used. With num_labels_to_extend_by_node "
+            "set it falls back to Fixed.")
+        .def_readwrite("half_way_direction_rule",
+                       &PyAlgorithmParams::half_way_direction_rule,
+                       "Under HalfWayMode.Meeting, which search takes the next label: "
+                       "FewestWaiting (default) or LeastWork.")
         .def_readwrite("join_column_budget",
                        &PyAlgorithmParams::join_column_budget,
                        "Bidirectional only: the most paths the join returns, the cheapest kept. "

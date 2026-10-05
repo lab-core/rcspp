@@ -71,6 +71,10 @@ class SolveResult:
     @property
     def half_way_point_used(self) -> float: ...
     @property
+    def half_way_forward_bound(self) -> float: ...
+    @property
+    def half_way_backward_bound(self) -> float: ...
+    @property
     def join_pairs_tested(self) -> int: ...
     @property
     def join_truncated(self) -> bool: ...
@@ -89,6 +93,14 @@ class HalfWayMove(Enum):
     Down: HalfWayMove
     Up: HalfWayMove
     TowardCentre: HalfWayMove
+
+class HalfWayMode(Enum):
+    Fixed: HalfWayMode
+    Meeting: HalfWayMode
+
+class HalfWayDirectionRule(Enum):
+    FewestWaiting: HalfWayDirectionRule
+    LeastWork: HalfWayDirectionRule
 
 class HalfWayControllerParams:
     dead_zone: float
@@ -149,6 +161,8 @@ class AlgorithmParams:
     memory_pressure_max_labels_per_node: int
     critical_resource_index: int
     half_way_point: float
+    half_way_mode: HalfWayMode
+    half_way_direction_rule: HalfWayDirectionRule
     join_column_budget: int
     max_join_pairs: int
     join_after_early_stop: bool

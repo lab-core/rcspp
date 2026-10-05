@@ -113,6 +113,52 @@ TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) 
            "inspected only search output and this tier is not testing the join";
 }
 
+// The same tier with the half-way point placed where the two searches meet.
+TEST(Equivalence, NgPathBindsOnCyclicInstancesAndAMeetingSolveMatchesTheOracle) {
+    namespace eq = equivalence_test;
+
+    size_t joined = 0;
+    for (unsigned seed = 0; seed < 6; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 8;
+        config.density = 0.6;
+        config.back_arc_density = 0.3;   // cycles, so ng is load-bearing
+        config.mixed_sign_costs = true;  // otherwise no shortest path revisits a node
+        config.with_time_window = true;  // the horizon is what keeps a cyclic instance finite
+        config.with_ng_path = true;
+        config.seed = seed;
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const double oracle = test_util::ng_cyclic_optimum(config);
+
+        // The forward search is checked against the oracle too, not assumed correct.
+        const auto forward = eq::solve_forward_ng(config);
+        EXPECT_NEAR(forward.best_cost(), oracle, eq::kTolerance) << where;
+        EXPECT_EQ(eq::any_path_problem(forward), "") << where;
+
+        for (bool with_bound : {true}) {
+            const auto bidi = eq::solve_bidirectional_ng(config,
+                                                         with_bound,
+                                                         eq::kNonBindingUpperBound,
+                                                         HalfWayMode::Meeting);
+            EXPECT_EQ(bidi.repeated_joins, 0U);
+            EXPECT_NEAR(bidi.best_cost(), oracle, eq::kTolerance)
+                << "bound=" << with_bound << " " << where;
+            EXPECT_EQ(eq::any_path_problem(bidi), "")
+                << "a joined path violated ng-feasibility: " << where;
+            joined += bidi.result.number_of_joined_paths;
+        }
+    }
+
+    // `any_path_problem` can only inspect paths the join returned, so require that it returned
+    // some (see `equivalence_test::kNonBindingUpperBound`).
+    std::cout << "[ SWEEP ] ng cyclic meeting joins: " << joined << std::endl;
+    EXPECT_GT(joined, 0U)
+        << "the join produced no paths across the whole cyclic sweep, so any_path_problem "
+           "inspected only search output and this tier is not testing the join";
+}
+
 // Cyclic instances with interior sinks: a terminal node may not be strictly inside a path. Both
 // search directions and the oracle must apply this rule, or the answer depends on where H sits.
 TEST(Equivalence, CyclicOptimalityAtLargerSizes) {

@@ -65,6 +65,8 @@ struct RunT {
         std::unique_ptr<GraphType> graph;
         SolveResult result;
         bool bounded = false;
+        /// @brief Joined pairs that rebuilt a path an earlier pair of the same join had built.
+        size_t repeated_joins = 0;
 
         using Composition = ComposedType;
 
@@ -89,12 +91,45 @@ inline Run solve_forward(const test_util::InstanceConfig& config) {
     return run;
 }
 
+/// @brief How many joined pairs rebuilt a path an earlier pair of the same join had built.
+///
+/// Reruns the join on an algorithm's retained labels, which needs `release_after_solve = false`,
+/// at @p half_way_point. It runs with no incumbent cutoff and a non-binding bound, so every
+/// admissible pair is offered. The answer is 0 because no solve extends a forward label past its
+/// join point, and the join's exact crossing test would absorb one that did. Solutions are
+/// de-duplicated, so a non-zero answer is invisible to every other assertion.
+template <typename ComposedType, typename GraphType, typename AlgorithmType>
+size_t count_repeated_joins(const GraphType& graph, const AlgorithmType& algorithm,
+                            size_t clock_index, double half_way_point) {
+    Joiner<ComposedType, RealResource> joiner;
+    std::set<std::vector<size_t>> seen;
+    size_t repeats = 0;
+    double best = kNonBindingUpperBound;
+    joiner.join(graph,
+                algorithm.get_forward_labels_by_node_pos(),
+                algorithm.get_backward_labels_by_node_pos(),
+                HalfWayPolicy::fixed_at(half_way_point),
+                clock_index,
+                best,
+                /*prune_requested=*/false,
+                kNonBindingUpperBound,
+                [&](double /*cost*/, std::vector<size_t> arc_ids, size_t /*end_node_id*/) {
+                    if (!seen.insert(std::move(arc_ids)).second) {
+                        ++repeats;
+                    }
+                });
+    return repeats;
+}
+
 /// @brief The candidate: a bidirectional search.
 ///
 /// @param config       The instance to build.
 /// @param with_bound   When false the half-way point is 0 and the bound starts disabled, which
 ///                     separates bound bugs from join bugs.
-inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool with_bound) {
+/// @param mode         `Fixed` or `Meeting`. The meeting mode ignores @p with_bound's
+///                     `half_way_point`, so its bound is on whenever the clock validates.
+inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool with_bound,
+                               HalfWayMode mode = HalfWayMode::Fixed) {
     Run run;
     auto built = test_util::build_instance(config);
     run.graph = std::move(built.graph);
@@ -102,12 +137,19 @@ inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool wit
     AlgorithmParams<LabelList<Composed>> params;
     params.critical_resource_index = built.clock_index;
     params.half_way_point = with_bound ? built.clock_upper_bound / 2.0 : 0.0;
+    params.half_way_mode = mode;
     params.release_after_solve = false;
 
     auto algorithm =
         run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
     run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
     run.bounded = algorithm->bounded_by_half_way();
+    if (run.bounded) {
+        run.repeated_joins = count_repeated_joins<Composed>(*run.graph,
+                                                            *algorithm,
+                                                            built.clock_index,
+                                                            run.result.half_way_point_used);
+    }
     expect_consistent_ref_counts(algorithm->get_label_pool());
     return run;
 }
@@ -185,8 +227,10 @@ inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
 /// @param cost_upper_bound Defaults to @ref kNonBindingUpperBound. Pass infinity to turn the
 ///                   joiner's incumbent cutoff back on, e.g. when replaying every joined path
 ///                   would be too slow.
+/// @param mode       As in @c solve_bidirectional.
 inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound,
-                                    double cost_upper_bound = kNonBindingUpperBound) {
+                                    double cost_upper_bound = kNonBindingUpperBound,
+                                    HalfWayMode mode = HalfWayMode::Fixed) {
     NgRun run;
     auto built = test_util::build_ng_instance(config);
     run.graph = std::move(built.graph);
@@ -194,12 +238,19 @@ inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, boo
     AlgorithmParams<LabelList<NgComposed>> params;
     params.critical_resource_index = built.clock_index;
     params.half_way_point = with_bound ? built.clock_upper_bound / 2.0 : 0.0;
+    params.half_way_mode = mode;
     params.release_after_solve = false;
 
     auto algorithm =
         run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
     run.result = run.graph->solve(algorithm.get(), cost_upper_bound);
     run.bounded = algorithm->bounded_by_half_way();
+    if (run.bounded) {
+        run.repeated_joins = count_repeated_joins<NgComposed>(*run.graph,
+                                                              *algorithm,
+                                                              built.clock_index,
+                                                              run.result.half_way_point_used);
+    }
     expect_consistent_ref_counts(algorithm->get_label_pool());
     return run;
 }

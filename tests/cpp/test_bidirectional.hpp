@@ -1933,3 +1933,24 @@ TEST(BidirectionalDiagnostics, JoinedPathsCountsDistinctPaths) {
         << "the forward search recorded the only path at the sink before the join ran";
     EXPECT_LE(result.number_of_joined_paths, result.solutions.size());
 }
+
+/// @brief With a fixed H, both reported bounds are H; with the bound off, both are 0.
+TEST(Bidirectional, AFixedHReportsBothBoundsAtH) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+
+    auto bounded = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bt::params(3.0, bt::kClockIndex));
+    const SolveResult result = graph->solve(bounded.get());
+    ASSERT_TRUE(result.bounded_by_half_way);
+    EXPECT_EQ(result.half_way_forward_bound, 3.0);
+    EXPECT_EQ(result.half_way_backward_bound, 3.0);
+    EXPECT_EQ(result.half_way_point_used, 3.0);
+
+    auto off = graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(
+        bt::params(0.0, bt::kClockIndex));
+    const SolveResult off_result = graph->solve(off.get());
+    ASSERT_FALSE(off_result.bounded_by_half_way);
+    EXPECT_EQ(off_result.half_way_forward_bound, 0.0);
+    EXPECT_EQ(off_result.half_way_backward_bound, 0.0);
+}

@@ -57,6 +57,8 @@ class Fixture {
 
         [[nodiscard]] size_t nodes() const { return graph_->get_number_of_nodes(); }
 
+        [[nodiscard]] LabelPool<Composed>& pool() { return pool_; }
+
     private:
         std::unique_ptr<ResourceGraph<RealResource>> graph_;
         LabelPool<Composed> pool_;
@@ -131,4 +133,116 @@ TEST(LabelFrontier, ASweepWrapsRoundForLabelsBehindIt) {
     // Pushed while the sweep is past node 1: taken on the next round.
     frontier.push(fixture.label(1, 7.0));
     EXPECT_EQ(fixture.drain(&frontier, 10), (std::vector<double>{7.0}));
+}
+
+TEST(LabelFrontier, ClockOrderPopsTheSmallestClockFirst) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_clock_order(/*descending=*/false);
+    frontier.push(fixture.label(1, 50.0), 5.0);
+    frontier.push(fixture.label(2, 10.0), 1.0);
+    frontier.push(fixture.label(3, 30.0), 3.0);
+    EXPECT_TRUE(frontier.clock_ordered());
+    EXPECT_EQ(frontier.size(), 3U);
+    EXPECT_EQ(frontier.front_key(), 1.0);
+    EXPECT_EQ(fixture.drain(&frontier, 0), (std::vector<double>{10.0, 30.0, 50.0}));
+}
+
+TEST(LabelFrontier, DescendingClockOrderPopsTheLargestClockFirst) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_clock_order(/*descending=*/true);
+    frontier.push(fixture.label(1, 50.0), 5.0);
+    frontier.push(fixture.label(2, 10.0), 1.0);
+    frontier.push(fixture.label(3, 30.0), 3.0);
+    EXPECT_EQ(frontier.front_key(), 5.0);
+    EXPECT_EQ(fixture.drain(&frontier, 0), (std::vector<double>{50.0, 30.0, 10.0}));
+}
+
+TEST(LabelFrontier, ClockTiesPopInInsertionOrder) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    for (const bool descending : {false, true}) {
+        LabelFrontier<lf::Composed> frontier;
+        frontier.reset_clock_order(descending);
+        frontier.push(fixture.label(1, 10.0), 2.0);
+        frontier.push(fixture.label(2, 20.0), 2.0);
+        frontier.push(fixture.label(3, 30.0), 2.0);
+        EXPECT_EQ(fixture.drain(&frontier, 0), (std::vector<double>{10.0, 20.0, 30.0}))
+            << "descending=" << descending;
+    }
+}
+
+TEST(LabelFrontier, FrontKeyTracksEveryPop) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_clock_order(/*descending=*/false);
+    for (const double key : {4.0, 2.0, 8.0, 6.0}) {
+        frontier.push(fixture.label(1, key), key);
+    }
+    std::vector<double> fronts;
+    while (!frontier.empty()) {
+        fronts.push_back(frontier.front_key());
+        static_cast<void>(frontier.pop(0, &fixture.pool()));
+    }
+    EXPECT_EQ(fronts, (std::vector<double>{2.0, 4.0, 6.0, 8.0}));
+}
+
+TEST(LabelFrontier, SheddingInClockOrderKeepsTheCheapestAndTheOrder) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(3);
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_clock_order(/*descending=*/false);
+    // Clock 1..6 with the cost falling as the clock rises: the three cheapest are the latest.
+    for (int i = 1; i <= 6; ++i) {
+        frontier.push(fixture.label(1, 100.0 - i), static_cast<double>(i));
+    }
+    frontier.shed(/*per_node=*/1, /*num_nodes=*/3, &fixture.pool());
+    EXPECT_EQ(frontier.size(), 3U);
+    // Clocks 4, 5, 6 survive, still popped in clock order.
+    EXPECT_EQ(fixture.drain(&frontier, 0), (std::vector<double>{96.0, 95.0, 94.0}));
+}
+
+TEST(LabelFrontier, DiscardEmptiesEveryMode) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    LabelFrontier<lf::Composed> clock;
+    clock.reset_clock_order(/*descending=*/false);
+    clock.push(fixture.label(1, 1.0), 1.0);
+    clock.push(fixture.label(2, 2.0), 2.0);
+    clock.discard(&fixture.pool());
+    EXPECT_TRUE(clock.empty());
+    EXPECT_EQ(clock.size(), 0U);
+
+    LabelFrontier<lf::Composed> fifo;
+    fifo.reset_fifo();
+    fifo.push(fixture.label(1, 1.0));
+    fifo.discard(&fixture.pool());
+    EXPECT_TRUE(fifo.empty());
+}
+
+TEST(LabelFrontier, ResettingLeavesClockOrder) {
+    namespace lf = label_frontier_test;
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_clock_order(/*descending=*/false);
+    frontier.reset_fifo();
+    EXPECT_FALSE(frontier.clock_ordered());
+    frontier.reset_clock_order(/*descending=*/true);
+    frontier.reset_sweep(/*num_nodes=*/3, /*descending=*/false);
+    EXPECT_FALSE(frontier.clock_ordered());
+    EXPECT_TRUE(frontier.sweeping());
+}
+
+TEST(LabelFrontier, AKeyIsIgnoredOutsideClockOrder) {
+    namespace lf = label_frontier_test;
+    lf::Fixture fixture(5);
+    LabelFrontier<lf::Composed> frontier;
+    frontier.reset_fifo();
+    frontier.push(fixture.label(1, 5.0), 9.0);
+    frontier.push(fixture.label(2, 1.0), 0.0);
+    EXPECT_EQ(fixture.drain(&frontier, 0), (std::vector<double>{5.0, 1.0}))
+        << "FIFO keeps arrival order whatever the keys";
 }

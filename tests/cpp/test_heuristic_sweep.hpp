@@ -528,3 +528,39 @@ TEST(HeuristicSweep, DISABLED_S1_Truncation) {
         }
     }
 }
+
+/// @brief The meeting half-way point against the fixed one (Tilk et al. 2017).
+///
+/// On every dataset, without and with an ng-8 memory: the fixed-H bidirectional reference, then
+/// `HalfWayMode::Meeting` under both direction rules. All three are exact; the rows compare the
+/// work each placement of `H` costs.
+TEST(HeuristicSweep, DISABLED_S1_MeetingHalfWay) {
+    namespace hs = heuristic_sweep;
+    for (const auto& dataset : hs::all_datasets()) {
+        SCOPED_TRACE(dataset.name);
+        for (const auto relaxation : {heuristics::Relaxation::None, heuristics::Relaxation::Ng}) {
+            heuristics::PricingModel model(dataset.instance,
+                                           dataset.duals,
+                                           {.relaxation = relaxation});
+            const auto fixed = heuristics::bidirectional_params(model.horizon());
+            hs::measure(model,
+                        dataset.name,
+                        {.algorithm = "bidirectional", .extra = "fixed"},
+                        heuristics::make<hs::Bidirectional::Algo>(fixed));
+
+            auto meeting = fixed;
+            meeting.half_way_mode = HalfWayMode::Meeting;
+            hs::measure(model,
+                        dataset.name,
+                        {.algorithm = "bidirectional", .extra = "meeting"},
+                        heuristics::make<hs::Bidirectional::Algo>(meeting));
+
+            auto least_work = meeting;
+            least_work.half_way_direction_rule = HalfWayDirectionRule::LeastWork;
+            hs::measure(model,
+                        dataset.name,
+                        {.algorithm = "bidirectional", .extra = "meeting-least-work"},
+                        heuristics::make<hs::Bidirectional::Algo>(least_work));
+        }
+    }
+}

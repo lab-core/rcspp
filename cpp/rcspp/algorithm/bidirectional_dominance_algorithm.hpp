@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <list>
@@ -119,10 +120,32 @@ class BidirectionalDominanceAlgorithm
         /// @return The number of paths the join added, reset at the start of each solve.
         [[nodiscard]] size_t number_of_joined_paths() const { return joined_paths_; }
 
+        /// @brief Whether the last meeting solve had one search finish on its own, complete.
+        ///
+        /// That happens when a search runs out of labels before either search has stopped one at
+        /// its bound: it has then done a full one-directional search, so the other search was
+        /// stopped and the join skipped. Always false in the fixed mode.
+        [[nodiscard]] bool one_search_was_complete() const { return one_search_complete_; }
+
+        /// @brief Where the last exact meeting solve on this object met; empty before one.
+        ///
+        /// A positive `half_way_meeting_window` centres the next solve's bounds on it.
+        [[nodiscard]] std::optional<double> meeting_point() const { return meeting_point_; }
+
+        /// @brief Replaces the point the next meeting solve's window is centred on; empty resets
+        ///        it, so the next solve starts from the full range.
+        void set_meeting_point(std::optional<double> point) { meeting_point_ = point; }
+
         /// @brief Read-only access to the backward label sets, for diagnostics and tests.
         [[nodiscard]] const std::vector<BackwardContainer>& get_backward_labels_by_node_pos()
             const {
             return backward_labels_by_node_pos_;
+        }
+
+        /// @brief Read-only access to the forward label sets, for diagnostics and tests.
+        [[nodiscard]] const std::vector<LabelContainerType>& get_forward_labels_by_node_pos()
+            const {
+            return this->non_dominated_labels_by_node_pos_;
         }
 
         /// @brief Solves, then -- with `dynamic_half_way` set -- lets the controller learn from
@@ -139,6 +162,9 @@ class BidirectionalDominanceAlgorithm
         /// builds a fresh algorithm per call, so the learned `H` is discarded with it.
         SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             SolveResult result = Base::solve(graph, cost_upper_bound);
+            if (meeting_mode_) {
+                remember_meeting_point(result);
+            }
             if (this->params_.dynamic_half_way && half_way_controller_.seeded()) {
                 // A per-node extension quota is truncation the status cannot show: this
                 // algorithm's phase loop always runs once and reports COMPLETE. See step().
@@ -181,7 +207,24 @@ class BidirectionalDominanceAlgorithm
             backward_work_ = 0;
             // Under a per-node quota the frontiers sweep node by node, so the quota keeps each
             // node's cheapest labels; an exact search keeps arrival order.
-            if (this->params_.num_labels_to_extend_by_node < MAX_INT) {
+            const bool has_quota = this->params_.num_labels_to_extend_by_node < MAX_INT;
+            const bool meeting_requested = this->params_.half_way_mode == HalfWayMode::Meeting;
+            // The quota's node sweep and the meeting mode's clock order are two different
+            // processing orders; with a quota the fixed mode's sweep wins.
+            meeting_mode_ = meeting_requested && !has_quota;
+            if (meeting_requested && has_quota && first_report_of_meeting_fallback()) {
+                LOG_WARN(
+                    "BidirectionalDominanceAlgorithm: HalfWayMode::Meeting does not combine with "
+                    "num_labels_to_extend_by_node, so this solve uses a fixed half-way point "
+                    "(half_way_point). (Reported once per process.)\n");
+            }
+            forward_retired_ = false;
+            backward_retired_ = false;
+            one_search_complete_ = false;
+            if (meeting_mode_) {
+                forward_frontier_.reset_clock_order(/*descending=*/false);
+                backward_frontier_.reset_clock_order(/*descending=*/true);
+            } else if (has_quota) {
                 forward_frontier_.reset_sweep(num_nodes, /*descending=*/false);
                 backward_frontier_.reset_sweep(num_nodes, /*descending=*/true);
             } else {
@@ -203,6 +246,9 @@ class BidirectionalDominanceAlgorithm
             validate_backward_semantics(*graph);
 
             configure_half_way(*graph);
+            if (meeting_mode_ && half_way_.enabled()) {
+                warm_start_bounds();
+            }
             compute_completion_bounds(*graph);
         }
 
@@ -239,6 +285,10 @@ class BidirectionalDominanceAlgorithm
         /// Frontier size is no measure: the backward frontier holds a single seed until the
         /// backward search starts, so taking the larger frontier ran the whole forward half first.
         void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
+            if (meeting_mode_) {
+                meeting_main_loop();
+                return;
+            }
             size_t iteration = 0;
             while (number_of_labels() > 0 && !this->should_stop(iteration)) {
                 if (iteration > 0 && this->memory_limit_.effective_limit > 0 &&
@@ -297,8 +347,18 @@ class BidirectionalDominanceAlgorithm
             result->join_truncated = join_truncated_;
             // 0 when the bound is off, so a caller reading this without also reading
             // `bounded_by_half_way` gets the value that means "no bound" rather than a number
-            // that was never applied.
-            result->half_way_point_used = half_way_.enabled() ? half_way_.h() : 0.0;
+            // that was never applied. In the meeting mode it is the point the searches met.
+            result->half_way_point_used = half_way_.enabled() ? join_policy().h() : 0.0;
+            if (!half_way_.enabled()) {
+                result->half_way_forward_bound = 0.0;
+                result->half_way_backward_bound = 0.0;
+            } else if (meeting_mode_) {
+                result->half_way_forward_bound = bounds_.forward_bound();
+                result->half_way_backward_bound = bounds_.backward_bound();
+            } else {
+                result->half_way_forward_bound = half_way_.h();
+                result->half_way_backward_bound = half_way_.h();
+            }
 
             // The backward half. `Base::annotate` cannot see these containers; they belong to
             // this class.
@@ -344,10 +404,255 @@ class BidirectionalDominanceAlgorithm
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
             // Routed by step<Dir>() into the correct frontier; see extend_into().
-            pending_frontier_->push(label_iterator_pair);
+            pending_frontier_->push(label_iterator_pair, frontier_key(*label_iterator_pair.first));
         }
 
     private:
+        /// @brief Whether this process has not yet reported the meeting mode's quota fallback.
+        static bool first_report_of_meeting_fallback() {
+            static std::atomic<bool> reported{false};
+            return !reported.exchange(true);
+        }
+
+        /// @brief Whether this process has not yet reported `dynamic_half_way` being ignored.
+        static bool first_report_of_ignored_controller() {
+            static std::atomic<bool> reported{false};
+            return !reported.exchange(true);
+        }
+
+        /// @brief The key a frontier orders @p label by: its clock in the meeting mode, else 0
+        ///        (FIFO and sweep frontiers ignore it).
+        ///
+        /// A meeting solve whose bound failed validation keys every label at 0, so its frontiers
+        /// pop in arrival order and a clock index that names no component is never read.
+        [[nodiscard]] double frontier_key(const Label<ResourceType>& label) const {
+            return meeting_mode_ && half_way_.enabled() ? critical_value(label.get_resource())
+                                                        : 0.0;
+        }
+
+        /// @brief The meeting mode's loop: retire finished directions, take the next label from
+        ///        the direction the rule picks, until both are retired or a run-level stop fires.
+        void meeting_main_loop() {  // NOLINT(readability-function-cognitive-complexity)
+            size_t iteration = 0;
+            while (!this->should_stop(iteration)) {
+                if (iteration > 0 && this->memory_limit_.effective_limit > 0 &&
+                    iteration % this->params_.memory_check_interval == 0) {
+                    if (this->memory_limit_.is_exceeded()) {
+                        LOG_WARN("Memory limit exceeded. Stopping early.\n");
+                        break;
+                    }
+                    if (this->memory_limit_.is_under_pressure()) {
+                        this->on_memory_pressure();
+                    }
+                }
+                retire_finished_directions();
+                if (forward_retired_ && backward_retired_) {
+                    break;
+                }
+                ++iteration;
+
+                if (take_forward_next()) {
+                    step<ForwardDirection>(this->non_dominated_labels_by_node_pos_,
+                                           &forward_frontier_,
+                                           &forward_extended_per_node_);
+                } else {
+                    step<BackwardDirection>(backward_labels_by_node_pos_,
+                                            &backward_frontier_,
+                                            &backward_extended_per_node_);
+                }
+            }
+            // A stop can fire just as the search finishes; a direction whose remaining labels are
+            // all past its bound has finished, whatever stopped the loop.
+            retire_finished_directions();
+        }
+
+        /// @brief Retires every direction with nothing left to extend, snapping the other bound.
+        ///
+        /// A direction has finished when its frontier is empty, or when its next label is past its
+        /// bound. The frontier pops in clock order, so every label behind that one is past the
+        /// bound too, and the bound only tightens, so none of them will ever be extended.
+        /// Retiring discards the frontier, so `number_of_labels()` -- which the status and
+        /// `run_level_stop()` read -- sees a finished search. Retiring one direction snaps the
+        /// other bound, which can finish the other direction too, hence the loop.
+        ///
+        /// A direction whose frontier empties while the bounds are still apart has stopped no
+        /// label (a stop closes the gap), so its search was complete on its own: the other
+        /// direction is retired with it, and `run_join_pass` skips the join.
+        void retire_finished_directions() {
+            bool changed = true;
+            while (changed) {
+                changed = false;
+                if (!forward_retired_ && forward_has_finished()) {
+                    // Read BEFORE the snap below, which closes the gap.
+                    const bool complete = forward_frontier_.empty() && bounds_still_apart();
+                    forward_frontier_.discard(&this->label_pool_);
+                    if (half_way_.enabled()) {
+                        bounds_.forward_finished();
+                    }
+                    forward_retired_ = true;
+                    changed = true;
+                    if (complete) {
+                        one_search_complete_ = true;
+                        retire_backward_now();
+                    }
+                }
+                if (!backward_retired_ && backward_has_finished()) {
+                    const bool complete = backward_frontier_.empty() && bounds_still_apart();
+                    backward_frontier_.discard(&this->label_pool_);
+                    if (half_way_.enabled()) {
+                        bounds_.backward_finished();
+                    }
+                    backward_retired_ = true;
+                    changed = true;
+                    if (complete) {
+                        one_search_complete_ = true;
+                        retire_forward_now();
+                    }
+                }
+            }
+        }
+
+        /// @brief Whether the bounds are still apart, so neither search has stopped a label yet.
+        ///
+        /// Memory pressure drops labels without extending them, so after it no search is known to
+        /// be complete.
+        [[nodiscard]] bool bounds_still_apart() const {
+            return half_way_.enabled() && !this->memory_pressure_triggered_ &&
+                   bounds_.backward_bound() < bounds_.forward_bound();
+        }
+
+        /// @brief Retires the forward direction whatever its frontier holds (the backward search
+        ///        was complete).
+        void retire_forward_now() {
+            if (forward_retired_) {
+                return;
+            }
+            forward_frontier_.discard(&this->label_pool_);
+            bounds_.forward_finished();
+            forward_retired_ = true;
+        }
+
+        /// @brief Retires the backward direction whatever its frontier holds (the forward search
+        ///        was complete).
+        void retire_backward_now() {
+            if (backward_retired_) {
+                return;
+            }
+            backward_frontier_.discard(&this->label_pool_);
+            bounds_.backward_finished();
+            backward_retired_ = true;
+        }
+
+        [[nodiscard]] bool forward_has_finished() const {
+            return forward_frontier_.empty() ||
+                   (half_way_.enabled() &&
+                    bounds_.should_stop_forward(forward_frontier_.front_key()));
+        }
+
+        [[nodiscard]] bool backward_has_finished() const {
+            return backward_frontier_.empty() ||
+                   (half_way_.enabled() &&
+                    bounds_.should_stop_backward(backward_frontier_.front_key()));
+        }
+
+        /// @brief Whether the meeting mode's next label comes from the forward search.
+        ///
+        /// `FewestWaiting` takes from the direction with fewer labels waiting; on a tie, and always
+        /// under `LeastWork`, from the direction that has extended fewer arcs, forward on a tie.
+        [[nodiscard]] bool take_forward_next() const {
+            if (forward_retired_) {
+                return false;
+            }
+            if (backward_retired_) {
+                return true;
+            }
+            if (this->params_.half_way_direction_rule == HalfWayDirectionRule::FewestWaiting &&
+                forward_frontier_.size() != backward_frontier_.size()) {
+                return forward_frontier_.size() < backward_frontier_.size();
+            }
+            return forward_work_ <= backward_work_;
+        }
+
+        /// @brief The policy the join pairs the halves with.
+        ///
+        /// The fixed mode's `half_way_`, or, in the meeting mode, a policy at the point the
+        /// searches met. `fixed_at` is required: the constructor would turn a point <= 0 off.
+        [[nodiscard]] HalfWayPolicy join_policy() const {
+            if (meeting_mode_ && half_way_.enabled()) {
+                return HalfWayPolicy::fixed_at(bounds_.join_point());
+            }
+            return half_way_;
+        }
+
+        /// @brief The values the meeting mode probes the clock's monotonicity at.
+        ///
+        /// There is no `H` to probe at, so the range is read from the sinks' backward starts: under
+        /// a threshold a backward label starts at its sink's upper bound (see
+        /// `ThresholdForm::start_back`). The ceiling check has already required every sink to
+        /// state one.
+        [[nodiscard]] std::vector<double> meeting_probes(const Graph<ResourceType>& graph) const {
+            const double upper = clock_range(graph);
+            if (upper > 0.0) {
+                return {0.0, upper / 2.0, upper};
+            }
+            return {0.0};
+        }
+
+        /// @brief The clock's range, read from the sinks' backward starts; 0 when none sets one.
+        ///
+        /// Under a threshold a backward label starts at its sink's upper bound (see
+        /// `ThresholdForm::start_back`). The start is read off the arc the seed reads it from
+        /// (@c BackwardDirection::seed), as @ref sink_without_a_ceiling does.
+        [[nodiscard]] double clock_range(const Graph<ResourceType>& graph) const {
+            double upper = 0.0;
+            if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
+                const size_t index = this->params_.critical_resource_index;
+                for (const size_t sink_id : graph.get_sink_node_ids()) {
+                    const auto* sink = graph.get_node(sink_id);
+                    if (sink == nullptr || sink->resource == nullptr) {
+                        continue;
+                    }
+                    const auto in_arcs = graph.get_in_arcs(sink);
+                    const auto entering = std::ranges::find_if(in_arcs, [](const auto* arc) {
+                        return arc->extender != nullptr;
+                    });
+                    if (entering == in_arcs.end()) {
+                        continue;
+                    }
+                    auto scratch = sink->resource->template get_component<CriticalRC>(index);
+                    if (const auto start = observe_start(
+                            (*entering)->extender->template get_component<CriticalRC>(index),
+                            &scratch)) {
+                        upper = std::max(upper, *start);
+                    }
+                }
+            }
+            return upper;
+        }
+
+        /// @brief Starts the bounds in a window around the previous meeting point, when
+        ///        `half_way_meeting_window` asks for one and there is a point to centre it on.
+        void warm_start_bounds() {
+            const double half_width = this->params_.half_way_meeting_window;
+            if (!(half_width > 0.0) || !meeting_point_) {
+                return;
+            }
+            bounds_ = HalfWayBounds(*meeting_point_ - half_width, *meeting_point_ + half_width);
+        }
+
+        /// @brief Keeps where an exact meeting solve met, for the next solve's window.
+        ///
+        /// Only a finished, untrimmed solve in which the two searches met says where they meet.
+        /// After an early stop the bounds say how far each search got; after a search that was
+        /// complete on its own they were snapped to wherever the other one had reached.
+        void remember_meeting_point(const SolveResult& result) {
+            if (result.bounded_by_half_way && result.status == AlgorithmStatus::COMPLETE &&
+                !result.memory_pressure_triggered && !one_search_complete_ &&
+                std::isfinite(result.half_way_point_used)) {
+                meeting_point_ = result.half_way_point_used;
+            }
+        }
+
         /// @brief Creates the seed labels for one direction and puts them on its frontier.
         template <typename Dir, typename Container>
         void seed_direction(std::vector<Container>& containers,
@@ -357,7 +662,7 @@ class BidirectionalDominanceAlgorithm
                 auto& label = this->label_pool_.get_next_label(seed_node);
                 Dir::seed(*this->graph_, seed_node, label);
                 auto label_it = containers.at(seed_node->pos()).add_label(&label);
-                frontier->push(std::make_pair(&label, label_it));
+                frontier->push(std::make_pair(&label, label_it), frontier_key(label));
             }
         }
 
@@ -378,6 +683,17 @@ class BidirectionalDominanceAlgorithm
             if (label_ptr->dominated) {
                 this->label_pool_.release_with_ref_count(label_ptr);
                 return;
+            }
+
+            // The meeting mode: each processed label tightens the other search's bound.
+            const bool meeting = meeting_mode_ && half_way_.enabled();
+            const double meeting_clock = meeting ? critical_value(label_ptr->get_resource()) : 0.0;
+            if (meeting) {
+                if constexpr (Dir::backward) {
+                    bounds_.after_backward(meeting_clock);
+                } else {
+                    bounds_.after_forward(meeting_clock);
+                }
             }
 
             const size_t node_pos = label_ptr->get_end_node()->pos();
@@ -427,7 +743,17 @@ class BidirectionalDominanceAlgorithm
 
             // The half-way bound: forward labels stop above H, backward labels below it. With the
             // bound off the clock, and so its index, is never read.
-            if (half_way_.enabled()) {
+            if (meeting) {
+                if constexpr (Dir::backward) {
+                    if (bounds_.should_stop_backward(meeting_clock)) {
+                        return;
+                    }
+                } else {
+                    if (bounds_.should_stop_forward(meeting_clock)) {
+                        return;
+                    }
+                }
+            } else if (half_way_.enabled()) {
                 const double critical = critical_value(label_ptr->get_resource());
                 if constexpr (Dir::backward) {
                     if (half_way_.should_stop_backward(critical)) {
@@ -487,6 +813,14 @@ class BidirectionalDominanceAlgorithm
         /// the incumbent cutoff forced on. It is skipped after an interrupt, or after any run-level
         /// stop when `join_after_early_stop` is false.
         void run_join_pass() {
+            // One search was complete on its own (see retire_finished_directions): every path is
+            // already one of its terminal labels, so the join could only rebuild them.
+            if (meeting_mode_ && one_search_complete_) {
+                LOG_DEBUG(
+                    "BidirectionalDominanceAlgorithm: one search was complete, so the join is "
+                    "skipped.\n");
+                return;
+            }
             const RunLevelStop stop = run_level_stop();
             const bool stopped_early = stop != RunLevelStop::None;
             if (stopped_early && (!this->params_.join_after_early_stop || !join_runs_after(stop))) {
@@ -510,7 +844,7 @@ class BidirectionalDominanceAlgorithm
                 *this->graph_,
                 this->non_dominated_labels_by_node_pos_,
                 backward_labels_by_node_pos_,
-                half_way_,
+                join_policy(),
                 this->params_.critical_resource_index,
                 this->best_cost_upper_bound_,
                 // After an early stop, prune against the incumbent whatever the caller asked:
@@ -574,7 +908,21 @@ class BidirectionalDominanceAlgorithm
         /// `half_way_point`; everything after that -- the validation, and disabling on failure --
         /// is identical, because a learned `H` has to pass the same checks a static one does.
         void configure_half_way(const Graph<ResourceType>& graph) {
-            half_way_ = HalfWayPolicy(half_way_point_for_this_solve(), resource_upper_bound(graph));
+            bounds_ = HalfWayBounds{};
+            if (meeting_mode_) {
+                // In force until a check below turns it off. Its `h()` means nothing in this mode:
+                // the join point comes from `bounds_` (see join_policy()).
+                half_way_ = HalfWayPolicy::fixed_at(0.0);
+                if (this->params_.dynamic_half_way && first_report_of_ignored_controller()) {
+                    LOG_WARN(
+                        "BidirectionalDominanceAlgorithm: dynamic_half_way is ignored under "
+                        "HalfWayMode::Meeting, which places H inside every solve. (Reported once "
+                        "per process.)\n");
+                }
+            } else {
+                half_way_ =
+                    HalfWayPolicy(half_way_point_for_this_solve(), resource_upper_bound(graph));
+            }
             half_way_off_reason_.clear();
 
             if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
@@ -612,7 +960,8 @@ class BidirectionalDominanceAlgorithm
                                           "below H");
                     return;
                 }
-                const std::vector<double> probes{0.0, half_way_.h()};
+                const std::vector<double> probes =
+                    meeting_mode_ ? meeting_probes(graph) : std::vector<double>{0.0, half_way_.h()};
                 if (!critical_is_monotone(graph, probes)) {
                     turn_half_way_off(HalfWayOff::NotMonotone, clock + " is not monotone");
                     return;
@@ -1990,9 +2339,24 @@ class BidirectionalDominanceAlgorithm
         HalfWayPolicy half_way_{0.0, std::numeric_limits<double>::infinity()};
         std::string half_way_off_reason_;
 
+        /// @brief Whether this solve places `H` where the searches meet; set by `initialize`.
+        bool meeting_mode_ = false;
+        /// @brief The meeting mode's two bounds; unused in the fixed mode.
+        HalfWayBounds bounds_;
+        /// @brief Meeting mode: whether each direction has nothing left to extend.
+        bool forward_retired_ = false;
+        bool backward_retired_ = false;
+        /// @brief Meeting mode: whether one search ran out while the bounds were still apart, so
+        ///        it was complete on its own; the other was then stopped and the join skipped.
+        bool one_search_complete_ = false;
+
         /// @brief Survives across solves -- unlike everything above it, which `initialize`
         ///        rebuilds. That persistence is the whole of the dynamic half-way point.
         HalfWayController half_way_controller_;
+
+        /// @brief Survives across solves too: where the last exact meeting solve met, which a
+        ///        `half_way_meeting_window` centres the next one on.
+        std::optional<double> meeting_point_;
 
         size_t joined_paths_ = 0;
         size_t join_pairs_tested_ = 0;

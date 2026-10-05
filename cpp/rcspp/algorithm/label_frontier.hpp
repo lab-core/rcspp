@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <list>
 #include <utility>
@@ -16,7 +17,7 @@ namespace rcspp {
 
 /// @brief The labels one direction of a bidirectional search still has to extend.
 ///
-/// Two modes:
+/// Three modes:
 ///  - **FIFO** (the default): one queue, in arrival order. An exact search uses it.
 ///  - **Sweep**: one queue per node position, visited in position order -- ascending for the
 ///    forward search, descending for the backward one -- and wrapping round until every queue is
@@ -25,6 +26,9 @@ namespace rcspp {
 ///    search with a per-node quota uses it, so the quota keeps a node's *cheapest* labels rather
 ///    than the first to arrive: by the time the sweep reaches a node, most of its predecessors
 ///    have delivered their labels.
+///  - **Clock-ordered**: a binary heap on the label's clock, smallest first for the forward search
+///    and largest first for the backward one, ties in insertion order. A meeting half-way point
+///    uses it, so each direction's front is the clock value its search has reached.
 ///
 /// A label trimmed from a queue stays in its node's container, so the join can still pair it, but
 /// it is never extended. A trimmed label that was already dominated is released.
@@ -38,6 +42,7 @@ class LabelFrontier {
         /// @brief Empties the frontier and puts it in FIFO mode.
         void reset_fifo() {
             clear();
+            clock_ordered_ = false;
             sweeping_ = false;
         }
 
@@ -48,17 +53,34 @@ class LabelFrontier {
         ///                   search) rather than from the first up.
         void reset_sweep(size_t num_nodes, bool descending) {
             clear();
+            clock_ordered_ = false;
             sweeping_ = true;
             descending_ = descending;
             queues_.assign(num_nodes, {});
             started_ = false;  // the first advance lands on the sweep's first position
         }
 
+        /// @brief Empties the frontier and puts it in clock order.
+        ///
+        /// @param descending Whether the largest clock pops first (the backward search) rather than
+        ///                   the smallest (the forward search).
+        void reset_clock_order(bool descending) {
+            clear();
+            sweeping_ = false;
+            clock_ordered_ = true;
+            descending_ = descending;
+            next_sequence_ = 0;
+        }
+
+        /// @brief Whether the frontier is in clock order.
+        [[nodiscard]] bool clock_ordered() const { return clock_ordered_; }
+
         /// @brief Whether the frontier is in sweep mode.
         [[nodiscard]] bool sweeping() const { return sweeping_; }
 
         /// @brief Adds a label to be extended.
         void push(const Entry& entry) {
+            assert(!clock_ordered_ && "a clock-ordered frontier needs push(entry, key)");
             if (sweeping_) {
                 const size_t position = entry.first->get_end_node()->pos();
                 if (started_ && position == position_) {
@@ -72,6 +94,29 @@ class LabelFrontier {
             ++size_;
         }
 
+        /// @brief Adds a label to be extended, with its clock as the ordering key.
+        ///
+        /// FIFO and sweep modes ignore @p key.
+        void push(const Entry& entry, double key) {
+            if (!clock_ordered_) {
+                push(entry);
+                return;
+            }
+            heap_.push_back(Keyed{.key = descending_ ? -key : key,
+                                  .sequence = next_sequence_++,
+                                  .entry = entry});
+            std::ranges::push_heap(heap_, later);
+            ++size_;
+        }
+
+        /// @brief The clock of the label @ref pop will return next. The frontier must be
+        ///        clock-ordered and not empty.
+        [[nodiscard]] double front_key() const {
+            assert(clock_ordered_ && !heap_.empty());
+            const double key = heap_.front().key;
+            return descending_ ? -key : key;
+        }
+
         [[nodiscard]] bool empty() const { return size_ == 0; }
 
         /// @brief Labels waiting, trimmed ones excluded.
@@ -82,11 +127,24 @@ class LabelFrontier {
         /// In sweep mode, moving to a node's queue sorts it and trims it to @p quota, so the trims
         /// can empty the frontier before a label is found: with a quota of 0 they always do.
         ///
+        /// In clock order, the label with the smallest (forward) or largest (backward) clock; ties
+        /// in insertion order. @p quota is not read in clock order.
+        ///
         /// @param quota The per-node quota; read in sweep mode only.
         /// @param pool  Receives the dominated labels a trim drops.
         /// @return The label and its position in its node's container, or a null label when the
         ///         trims left nothing to take.
         Entry pop(size_t quota, LabelPool<ResourceType>* pool) {
+            if (clock_ordered_) {
+                if (heap_.empty()) {
+                    return {};
+                }
+                std::ranges::pop_heap(heap_, later);
+                Entry entry = heap_.back().entry;
+                heap_.pop_back();
+                --size_;
+                return entry;
+            }
             if (sweeping_) {
                 while (current_.empty()) {
                     if (size_ == 0) {
@@ -106,13 +164,17 @@ class LabelFrontier {
 
         /// @brief Sheds labels under memory pressure, keeping the cheapest.
         ///
-        /// FIFO mode keeps @p per_node times the number of nodes overall; sweep mode keeps
-        /// @p per_node in each node's queue.
+        /// FIFO and clock-ordered modes keep @p per_node times the number of nodes overall; sweep
+        /// mode keeps @p per_node in each node's queue.
         ///
         /// @param per_node  Labels to keep per node.
         /// @param num_nodes The number of nodes.
         /// @param pool      Receives the dominated labels dropped.
         void shed(size_t per_node, size_t num_nodes, LabelPool<ResourceType>* pool) {
+            if (clock_ordered_) {
+                shed_heap(per_node * num_nodes, pool);
+                return;
+            }
             if (!sweeping_) {
                 trim(&current_, per_node * num_nodes, pool);
                 return;
@@ -123,9 +185,36 @@ class LabelFrontier {
             }
         }
 
+        /// @brief Forgets every waiting label, releasing those already dominated.
+        ///
+        /// For a search that has finished: the labels stay in their node's containers, so the join
+        /// can still pair them, but they will never be extended.
+        ///
+        /// @param pool Receives the dominated labels dropped.
+        void discard(LabelPool<ResourceType>* pool) {
+            const auto release = [pool](const Entry& entry) {
+                if (pool != nullptr && entry.first != nullptr && entry.first->dominated) {
+                    pool->release_with_ref_count(entry.first);
+                }
+            };
+            for (const auto& keyed : heap_) {
+                release(keyed.entry);
+            }
+            for (const auto& entry : current_) {
+                release(entry);
+            }
+            for (const auto& queue : queues_) {
+                for (const auto& entry : queue) {
+                    release(entry);
+                }
+            }
+            clear();
+        }
+
         /// @brief Forgets every label, releasing none (the pool owns them).
         void clear() {
             current_.clear();
+            heap_.clear();
             for (auto& queue : queues_) {
                 queue.clear();
             }
@@ -134,6 +223,43 @@ class LabelFrontier {
         }
 
     private:
+        /// @brief One clock-ordered entry.
+        struct Keyed {
+                double key;       ///< The clock, negated when the frontier is descending.
+                size_t sequence;  ///< Insertion order, so ties pop first-in first-out.
+                Entry entry;
+        };
+
+        /// @brief Heap order: the smallest key, then the earliest insertion, on top.
+        static constexpr auto later = [](const Keyed& lhs, const Keyed& rhs) {
+            if (lhs.key != rhs.key) {
+                return lhs.key > rhs.key;
+            }
+            return lhs.sequence > rhs.sequence;
+        };
+
+        /// @brief Clock mode's @ref shed: keeps the @p keep best entries, then restores the heap.
+        void shed_heap(size_t keep, LabelPool<ResourceType>* pool) {
+            if (heap_.size() <= keep) {
+                return;
+            }
+            std::ranges::sort(heap_, [](const Keyed& lhs, const Keyed& rhs) {
+                if (lhs.entry.first->dominated != rhs.entry.first->dominated) {
+                    return !lhs.entry.first->dominated;
+                }
+                return lhs.entry.first->get_cost() < rhs.entry.first->get_cost();
+            });
+            while (heap_.size() > keep) {
+                auto* label = heap_.back().entry.first;
+                if (label->dominated && pool != nullptr) {
+                    pool->release_with_ref_count(label);
+                }
+                heap_.pop_back();
+                --size_;
+            }
+            std::ranges::make_heap(heap_, later);
+        }
+
         /// @brief Moves the sweep to the next position, wrapping round.
         void advance() {
             const size_t count = queues_.size();
@@ -171,6 +297,7 @@ class LabelFrontier {
         }
 
         bool sweeping_ = false;
+        bool clock_ordered_ = false;
         bool descending_ = false;
         bool started_ = false;
         size_t position_ = 0;
@@ -179,6 +306,9 @@ class LabelFrontier {
         std::list<Entry> current_;
         /// @brief Sweep mode: the waiting labels of every other node, by position.
         std::vector<std::list<Entry>> queues_;
+        size_t next_sequence_ = 0;
+        /// @brief Clock mode: the waiting labels, as a heap under @ref later.
+        std::vector<Keyed> heap_;
 };
 
 }  // namespace rcspp

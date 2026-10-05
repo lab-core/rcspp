@@ -66,6 +66,12 @@ with a pointer to where they are documented.
 
 ### Added
 
+- **A half-way point placed where the two searches meet** (C++ and Python).
+  `half_way_mode = HalfWayMode::Meeting` replaces the fixed `H` with two bounds that tighten during
+  the solve (Tilk et al. 2017), so the two searches balance themselves in every solve without a
+  `half_way_point`. `SolveResult` gains `half_way_forward_bound` and `half_way_backward_bound`. See
+  "A half-way point placed where the two searches meet" in `docs/advanced/algorithms.md`.
+
 - **Relaxing dominance for one solve** (C++). `dominance_ignored_components` names components that
   dominance leaves out, for that solve only, in every labeling algorithm and in both directions of
   a bidirectional one. Before, relaxing a resource's dominance meant a second graph built with a
@@ -119,6 +125,11 @@ with a pointer to where they are documented.
   the same coherence on their own pairings with `rcspp::backward_coherent_v<Ext, Feas>`.
 
 ### Fixed
+
+- **The bidirectional join recognises a crossing exactly.** A forward label counts as crossing the
+  half-way point only if its predecessor had not. No behaviour change in either half-way mode, whose
+  searches never extend a forward label past the join point; it guards a direct caller of `Joiner`
+  whose containers hold one, which would otherwise see the same path built several times.
 
 - **A solution budget of zero no longer reads an empty heap in the bidirectional join.** With
   `stop_after_X_solutions = 0` the join read the top of an empty heap (undefined behaviour; a

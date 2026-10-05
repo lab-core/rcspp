@@ -5,8 +5,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <span>
 #include <stdexcept>
@@ -56,7 +58,9 @@ inline bool first_report_of(HalfWayOff reason) {
 /// **`H` is fixed for the whole of one solve**: there is no setter, only @ref disable. Moving `H`
 /// mid-search would break the exactly-once crossing. A half-way point that adapts does so
 /// *between* solves (see @ref HalfWayController), and each solve builds a fresh policy from the
-/// controller's current value.
+/// controller's current value. The meeting mode (`HalfWayMode::Meeting`) does move the half-way
+/// point during a solve, safely, by replacing `H` with two bounds that only tighten
+/// (@ref HalfWayBounds).
 class HalfWayPolicy {
     public:
         /// @brief Constructs the policy, deriving `H` when it is not given explicitly.
@@ -78,6 +82,20 @@ class HalfWayPolicy {
                 h_ = 0.0;
                 enabled_ = false;
             }
+        }
+
+        /// @brief A policy in force at exactly @p h, whatever its value.
+        ///
+        /// The constructor derives `H` from its arguments and treats `H <= 0` as "off". The join of
+        /// a meeting solve needs an `H` that is simply where the two searches met, which can be 0
+        /// or, in a degenerate solve, infinite.
+        ///
+        /// @param h The half-way point.
+        /// @return An enabled policy with `h() == h`.
+        [[nodiscard]] static HalfWayPolicy fixed_at(double h) {
+            HalfWayPolicy policy(1.0, 0.0);
+            policy.h_ = h;
+            return policy;
         }
 
         /// @brief Whether a forward label has passed the half-way point and should be discarded.
@@ -110,6 +128,77 @@ class HalfWayPolicy {
     private:
         double h_ = 0.0;
         bool enabled_ = true;
+};
+
+/// @brief The two bounds of a half-way point placed where the searches meet (Tilk et al. 2017).
+///
+/// A forward bound `H_F` that only falls and a backward bound `H_B` that only rises, with
+/// `H_B <= H_F` at all times. The forward search stops extending labels with a clock above `H_F`,
+/// the backward search labels with a clock at or below `H_B`. Each processed forward label drags
+/// `H_B` up behind the forward search, and each processed backward label drags `H_F` down. Both
+/// moves only ever stop *more* labels, so a label stopped once never needs extending later: that
+/// is what makes the bounds safe to move during a solve, where a single `H` is not.
+///
+/// When a direction runs out of labels to extend, the other bound snaps to meet it, so a finished
+/// solve ends with `H_B == H_F`. Correctness needs only `H_B <= H_F`, for any processing order;
+/// processing forward labels in increasing and backward labels in decreasing clock order is what
+/// makes the bounds track the searches' actual fronts.
+class HalfWayBounds {
+    public:
+        /// @brief Bounds at the full range: `H_F = +inf`, `H_B = -inf`.
+        HalfWayBounds() = default;
+
+        /// @brief Bounds that start at `[backward, forward]` rather than at the full range.
+        ///
+        /// Any start with `backward <= forward` keeps the solve exact: the bounds still only
+        /// tighten. A start near where the searches meet saves the labels both would otherwise
+        /// extend before the bounds close in; a start far from it makes one search do most of the
+        /// work.
+        ///
+        /// @param backward The starting `H_B`.
+        /// @param forward  The starting `H_F`; at least @p backward.
+        HalfWayBounds(double backward, double forward) : forward_(forward), backward_(backward) {
+            assert(backward <= forward &&
+                   "the backward bound must not start above the forward one");
+        }
+
+        /// @brief Whether a forward label is past the forward bound and must not be extended.
+        [[nodiscard]] bool should_stop_forward(double clock) const { return clock > forward_; }
+
+        /// @brief Whether a backward label is at or below the backward bound and must not be
+        ///        extended.
+        [[nodiscard]] bool should_stop_backward(double clock) const { return clock <= backward_; }
+
+        /// @brief The forward search processed a label at @p clock: the backward search need not
+        ///        go below it.
+        void after_forward(double clock) {
+            backward_ = std::max(backward_, std::min(clock, forward_));
+        }
+
+        /// @brief The backward search processed a label at @p clock: the forward search need not
+        ///        go above it.
+        void after_backward(double clock) {
+            forward_ = std::min(forward_, std::max(clock, backward_));
+        }
+
+        /// @brief The forward search has nothing left to extend.
+        void forward_finished() { backward_ = forward_; }
+
+        /// @brief The backward search has nothing left to extend.
+        void backward_finished() { forward_ = backward_; }
+
+        /// @brief Where the join pairs the halves.
+        ///
+        /// `H_B`. After a finished solve it equals `H_F`. After an early stop it is where the
+        /// forward search got to, which is where the halves already held can still meet.
+        [[nodiscard]] double join_point() const { return backward_; }
+
+        [[nodiscard]] double forward_bound() const { return forward_; }
+        [[nodiscard]] double backward_bound() const { return backward_; }
+
+    private:
+        double forward_ = std::numeric_limits<double>::infinity();
+        double backward_ = -std::numeric_limits<double>::infinity();
 };
 
 /// @brief What one bidirectional solve reported, reduced to what @ref HalfWayController reads.

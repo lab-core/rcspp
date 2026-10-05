@@ -79,6 +79,36 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     return outcome;
 }
 
+/// @brief Solves one ng instance bidirectionally with the half-way point placed where the searches
+///        meet; otherwise as @ref solve_with.
+inline Outcome solve_meeting(const test_util::InstanceConfig& config) {
+    equivalence_test::NgRun run;
+    auto built = test_util::build_ng_instance(config);
+    run.graph = std::move(built.graph);
+
+    AlgorithmParams<LabelList<equivalence_test::NgComposed>> params;
+    params.critical_resource_index = built.clock_index;
+    params.half_way_mode = HalfWayMode::Meeting;
+    params.release_after_solve = false;
+
+    // Far above any cost this generator can produce, so it drops nothing.
+    constexpr double kNonBindingUpperBound = 1e9;
+
+    auto algorithm =
+        run.graph->create_algorithm<BidirectionalAlgoBound<RealResource>::Algo>(params);
+    run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
+    run.bounded = algorithm->bounded_by_half_way();
+
+    equivalence_test::expect_consistent_ref_counts(algorithm->get_label_pool());
+
+    Outcome outcome;
+    outcome.cost = run.best_cost();
+    outcome.joined_paths = run.result.number_of_joined_paths;
+    outcome.bounded = run.bounded;
+    outcome.problem = equivalence_test::any_path_problem(run);
+    return outcome;
+}
+
 /// @brief The forward reference on the ng pack, for the acyclic tier.
 inline double forward_optimum(const test_util::InstanceConfig& config) {
     return equivalence_test::solve_forward_ng(config).best_cost();
@@ -199,6 +229,10 @@ TEST(JoinOptimalityNg, TheJoinMatchesTheCyclicOracleAcrossTheCrossProduct) {
             }
             joined += outcome.joined_paths;
         }
+        const auto meeting = jo::solve_meeting(config);
+        EXPECT_NEAR(meeting.cost, truth, jo::kTolerance)
+            << "the meeting half-way point lost the optimum: " << where;
+        EXPECT_EQ(meeting.problem, "") << "a meeting join is not ng-feasible: " << where;
     }
     std::cout << "[ SWEEP ] " << pairs << " cyclic ng (instance, H) pairs, " << with_solutions
               << " with a finite optimum, " << joined << " joined paths" << std::endl;
