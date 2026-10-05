@@ -126,6 +126,13 @@ New features are summarised, with a pointer to where they are documented.
   the VRP example's ng drivers gain `--compare-fold` and `--fold-unreachable`. See "Folding
   unreachable ng-neighbours" in `docs/advanced/algorithms.md`.
 
+- **A half-way point placed where the two searches meet** (C++ and Python).
+  `half_way_mode = HalfWayMode::Meeting` replaces the fixed `H` with two bounds that tighten during
+  the solve (Tilk et al. 2017), so the two searches balance themselves in every solve without a
+  `half_way_point`. `BidirectionalStats` gains `half_way_forward_bound` and
+  `half_way_backward_bound`. See "A half-way point placed where the two searches meet" in
+  `docs/advanced/algorithms.md`.
+
 - **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
   join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
   unchanged. `max_join_pairs` caps the join's work in join-rule questions.
@@ -196,6 +203,11 @@ New features are summarised, with a pointer to where they are documented.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.
+
+- **The bidirectional join recognises a crossing exactly.** A forward label counts as crossing the
+  half-way point only if its predecessor had not. No behaviour change in either half-way mode, whose
+  searches never extend a forward label past the join point; it guards a direct caller of `Joiner`
+  whose containers hold one, which would otherwise see the same path built several times.
 - Memory pressure no longer loosens a per-node label quota the caller set tighter than
   `memory_pressure_max_labels_per_node`, in any labelling algorithm. It used to replace the quota
   outright, so under pressure a quota of 5 became 200.

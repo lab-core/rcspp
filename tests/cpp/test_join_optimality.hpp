@@ -63,6 +63,26 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     return outcome;
 }
 
+/// @brief Solves one instance bidirectionally with the half-way point placed where the searches
+///        meet.
+inline Outcome solve_meeting(const test_util::InstanceConfig& config) {
+    auto built = test_util::build_instance(config);
+    AlgorithmParams<LabelList<Composed>> params;
+    params.critical_resource_index = built.clock_index;
+    params.half_way_mode = HalfWayMode::Meeting;
+    auto algorithm =
+        built.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = built.graph->solve(algorithm.get());
+
+    Outcome outcome;
+    outcome.cost = result.solutions.empty() ? std::numeric_limits<double>::infinity()
+                                            : result.solutions.front().cost;
+    outcome.solutions = result.solutions.size();
+    outcome.joined_paths = result.bidirectional->number_of_joined_paths;
+    outcome.bounded = result.bidirectional->bounded_by_half_way;
+    return outcome;
+}
+
 /// @brief The forward reference, for instances too large to enumerate.
 inline double forward_optimum(const test_util::InstanceConfig& config) {
     auto built = test_util::build_instance(config);
@@ -144,6 +164,8 @@ TEST(JoinOptimality, TheJoinMatchesBruteForceAcrossTheCrossProduct) {
                 ++with_solutions;
             }
         }
+        EXPECT_NEAR(jo::solve_meeting(config).cost, truth, jo::kTolerance)
+            << "the meeting half-way point lost the optimum: " << where;
     }
     std::cout << "[ SWEEP ] " << instances << " (instance, H) pairs, " << with_solutions
               << " with a finite optimum" << std::endl;
@@ -169,6 +191,8 @@ TEST(JoinOptimality, TheJoinMatchesTheForwardSearchOnLargerInstances) {
                     << "the join disagrees with the forward search: " << where;
                 ++compared;
             }
+            EXPECT_NEAR(jo::solve_meeting(config).cost, reference, jo::kTolerance)
+                << "the meeting half-way point lost the optimum: " << where;
         }
     }
     std::cout << "[ SWEEP ] " << compared << " (instance, H) pairs against the forward search"

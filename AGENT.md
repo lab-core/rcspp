@@ -195,6 +195,7 @@ p.memory_limit_fraction   = 0.8
 # Bidirectional only
 p.critical_resource_index = 1      # the clock's slot within the cost resource type
 p.half_way_point          = 500.0  # H; the clock's range is taken as [0, 2H]
+p.half_way_mode           = HalfWayMode.Meeting  # or Fixed (default); Meeting needs no half_way_point
 ```
 
 ### `algorithm="bidirectional"`
@@ -469,6 +470,13 @@ Test files:
     A backward or bidirectional solve runs the model checks before any preprocessing and throws
     `ModelRefused` on a failing model, with `preprocess=false` too, and on a direct
     `Algorithm::solve`.
+
+12. **A meeting solve joins at `H_B`, not `H_F`.** Every forward label it extends has a clock at
+    or below `H_B`, so each path crosses the join point on one arc and is joined once; and after an
+    early stop `H_B` is where the halves already held can meet, while `H_F` can sit above every
+    forward label and join nothing. The join's exact crossing test (a crossing's predecessor is at
+    or below the join point) is a second guard, since de-duplication would hide a path built
+    twice. Keep both.
 
 ---
 

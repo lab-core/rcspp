@@ -462,6 +462,8 @@ timeout.  The library's own `timeout_s` stays infinite by default.
 | `timeout_s`, the memory limit | stop the search; whatever was found is returned. `Algorithm::set_timeout` overrides `timeout_s` on an existing algorithm object, between solves | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 | `join_column_budget` | ignored | the join keeps only its cheapest this many paths and never splices a pair that cannot enter them. Unlike `stop_after_X_solutions` it **never stops the search**, so `complete` still means exhaustive, and since the cheapest path is always kept the optimum is unchanged. The column *set* becomes "the K cheapest joined paths". The join uses the tighter of the two budgets |
+| `half_way_mode` | ignored | `Fixed` (the default) stops both searches at `half_way_point` for the whole solve; `Meeting` needs no `half_way_point` and places the half-way point where the two searches meet, inside every solve: see "A half-way point placed where the two searches meet". With `num_labels_to_extend_by_node` set, `Meeting` falls back to `Fixed` |
+| `half_way_direction_rule` | ignored | under `Meeting`, which search takes the next label: `FewestWaiting` (the default), the one with fewer labels waiting, or `LeastWork`, the one that has extended fewer arcs |
 | `max_join_pairs` | ignored | the join stops after this many join-rule questions (`join_pairs_tested`). What it found is returned, but the result is no longer a proof: `join_truncated` is set and `could_be_non_optimal()` is true |
 
 Why the last row depends on `upper_bound` being finite: a solve that supplies none has expressed no
@@ -644,6 +646,8 @@ solve's own are on `result.bidirectional`, which is `None` from every other algo
 | `backward_labels` | `bidirectional`, and a backward-only search | the same, backwards |
 | `dominance_checks` | as above | dominance comparisons performed, both directions |
 | `bidirectional.half_way_point_used` | `bidirectional` | the `H` actually applied; `0.0` when the bound was off |
+| `bidirectional.half_way_forward_bound` | `bidirectional` | the forward bound when the solve ended: `H` with a fixed half-way point, `H_F` with a meeting one; `0.0` when the bound was off |
+| `bidirectional.half_way_backward_bound` | `bidirectional` | the backward bound when the solve ended: `H`, or `H_B`, the point a meeting solve joined at; `0.0` when the bound was off |
 | `bidirectional.join_pairs_tested` | `bidirectional` | pairs the join tested; 0 when it did not run |
 | `bidirectional.join_truncated` | `bidirectional` | the join stopped at `max_join_pairs` with a pair left, so `complete` is not a proof |
 
@@ -783,6 +787,51 @@ the searches rarely hit the budget; count the `MAX_SOLUTIONS` solves before trus
 `join_column_budget` bounds it without stopping the searches: the join keeps only its cheapest that
 many paths, so the solve still ends `COMPLETE` and the controller keeps learning.  A join truncated
 by `max_join_pairs` is not learned from.
+
+### A half-way point placed where the two searches meet
+
+`half_way_mode = HalfWayMode::Meeting` places the half-way point inside every solve, as proposed by
+Tilk, Rothenbächer, Gschwind and Irnich (*Asymmetry matters*, EJOR 2017). It needs no
+`half_way_point`.
+
+A single `H` cannot move during a solve. It is both the forward search's stop and the backward
+search's stop. Lowering it would require extending backward labels that were already stopped;
+raising it, forward labels. The meeting mode keeps two bounds instead:
+
+- a forward bound `H_F`, which only falls: the forward search stops extending labels above it;
+- a backward bound `H_B`, which only rises: the backward search stops extending labels at or
+  below it.
+
+Labels are processed in clock order: forward labels earliest first, backward labels latest first.
+Each forward label processed raises `H_B` to its clock, and each backward label lowers `H_F`. Both
+moves only ever stop *more* labels, so a stopped label is never needed again. A direction finishes
+when its next label is past its bound, and the other bound then moves to meet it. The halves are
+joined at `H_B`, which `result.bidirectional` reports as `half_way_point_used`, together with
+`half_way_forward_bound` and `half_way_backward_bound` (equal after a finished solve). Every forward
+label the search extended sits at or below `H_B`, so each path crosses it on exactly one arc and is
+joined once, as with a fixed `H`.
+
+- The next label comes from the search with fewer labels waiting
+  (`half_way_direction_rule = FewestWaiting`, the default), or from the one that has extended fewer
+  arcs (`LeastWork`).
+- A search that runs out of labels before either search has stopped one was a complete search on
+  its own: every path is already one of its terminal labels, so the other search is stopped and
+  the join skipped. This happens on loose instances, where the two fronts pass each other.
+- After a timeout or the memory limit the join still runs, at `H_B`: that is where the halves both
+  searches already hold can meet.
+- It is exact, like the fixed mode, and works from Python's `rg.solve`: it needs no persistent
+  algorithm object, unlike `dynamic_half_way`, which it replaces and ignores.
+- With `num_labels_to_extend_by_node` set it falls back to the fixed mode.
+- The clock must pass the same checks as for a fixed `H`.
+
+The paper measured pricing 14–37 % faster than a static half-way point on three vehicle-routing
+problems, more on harder instances. Here, over whole column generations on Solomon instances
+(`examples/cpp/bidirectional_cg_main.cpp`, Release) with `join_column_budget` at 100 or 1000, it
+priced 20–30 % faster than the better of a fixed `H = R/2` and the between-solves controller on
+R202_25, R201_50 and RC201_50, and as fast or faster on R201_25. It performed 26–41 % fewer
+dominance checks, reached the same LP bound, and its `H` varied by 17–25 % across iterations.
+**Bound the join when using it.** Without a budget the join returns every admissible pair, and the
+meeting point produced up to 3.8 times as many as `R/2`, which made pricing up to twice as slow.
 
 ### One thing `status` cannot tell you
 

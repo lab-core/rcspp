@@ -90,7 +90,8 @@ struct BidirectionalStats {
         /// resource fails validation. With `dynamic_half_way`, the controller moves `H` between
         /// solves. Reporting what was used rather than what was asked for is
         /// what lets a caller feed the next value back. Read @ref bounded_by_half_way to tell "the
-        /// bound was off" from "`H` really was 0".
+        /// bound was off" from "`H` really was 0". Under `HalfWayMode::Meeting` it is the point
+        /// the two searches met.
         double half_way_point_used = 0.0;
 
         /// @brief How many distinct complete paths only the join pass produced.
@@ -111,6 +112,40 @@ struct BidirectionalStats {
         /// *search* may have been exhaustive, but with this set a `COMPLETE` status is not a
         /// proof. The pairs the join never tested may have held a cheaper path.
         bool join_truncated = false;
+
+        /// @brief Whether one search of a `HalfWayMode::Meeting` solve finished on its own,
+        ///        complete.
+        ///
+        /// That happens when a search runs out of labels before either search has stopped one at
+        /// its bound: it has then done a full one-directional search, so the other search was
+        /// stopped and the join skipped. Always false in the fixed mode.
+        bool one_search_complete = false;
+
+        /// @brief The forward half-way bound when the solve ended; 0 when the bound was off.
+        ///
+        /// With a fixed `H` this is `H`. With `HalfWayMode::Meeting` it is the bound `H_F` the
+        /// backward search pushed down; it equals @ref half_way_backward_bound after a finished
+        /// solve, and can be infinite in a degenerate one where the backward search never
+        /// processed a label.
+        double half_way_forward_bound = 0.0;
+
+        /// @brief The backward half-way bound when the solve ended; 0 when the bound was off.
+        ///
+        /// With a fixed `H` this is `H`. With `HalfWayMode::Meeting` it is the bound `H_B` the
+        /// forward search pushed up, and the point the join used.
+        double half_way_backward_bound = 0.0;
+};
+
+/// @brief How a bidirectional solve chooses its half-way point.
+enum class HalfWayMode {
+    Fixed,    ///< `half_way_point`, the same for the whole solve (the default).
+    Meeting,  ///< Placed where the two searches meet, during the solve (Tilk et al. 2017).
+};
+
+/// @brief Under @ref HalfWayMode::Meeting, which search takes the next label.
+enum class HalfWayDirectionRule {
+    FewestWaiting,  ///< the one with fewer labels waiting; ties to the one that did less work
+    LeastWork,      ///< the one that has extended fewer arcs so far
 };
 
 /// @brief Return value of Algorithm::solve().
@@ -371,6 +406,38 @@ struct AlgorithmBaseParams {
         /// Not exposed to Python, where `rg.solve(...)` builds a fresh algorithm each call; Python
         /// uses `rcspp.HalfWayController` directly and feeds its `h` into `half_way_point`.
         bool dynamic_half_way = false;
+
+        /// @brief How the half-way point is chosen; `Fixed` (the default) is @ref half_way_point.
+        ///
+        /// Bidirectional only. `Fixed`: forward labels stop above `half_way_point` and backward
+        /// labels below it, for the whole solve; @ref dynamic_half_way may move it between solves.
+        ///
+        /// `Meeting` (Tilk, Rothenbächer, Gschwind and Irnich, EJOR 2017) needs no `H`. It keeps a
+        /// forward bound that only falls and a backward bound that only rises. Labels are processed
+        /// in clock order, and each search's progress tightens the other's bound. The halves are
+        /// joined where the searches met, which the result reports as `half_way_point_used`. It
+        /// balances the two searches inside every solve and is exact, like the fixed mode.
+        /// `half_way_point` and `dynamic_half_way` are ignored. With a per-node quota
+        /// (@ref num_labels_to_extend_by_node) it falls back to `Fixed`, which then needs
+        /// `half_way_point`.
+        HalfWayMode half_way_mode = HalfWayMode::Fixed;
+
+        /// @brief Under `HalfWayMode::Meeting`, which search takes the next label.
+        ///
+        /// `FewestWaiting` (the default) was the best of three rules Tilk et al. compared.
+        /// `LeastWork` is the rule the fixed mode always uses.
+        HalfWayDirectionRule half_way_direction_rule = HalfWayDirectionRule::FewestWaiting;
+
+        /// @brief Under `HalfWayMode::Meeting`, the half-width of the window the two bounds start
+        ///        in, in the clock's units; 0 (the default) starts them at the full range.
+        ///
+        /// Experimental. The window is centred on the point where the previous exact meeting solve
+        /// on the same algorithm object met, so it needs a persistent object, as
+        /// @ref dynamic_half_way does. The first solve starts from the full range, and a solve that
+        /// did not finish exactly leaves the centre where it was. Any window keeps the solve
+        /// exact. It is given in the clock's units rather than as a fraction of its range because
+        /// a model need not state the range: a VRP's sink may carry no finite ceiling.
+        double half_way_meeting_window = 0.0;
 
         /// @brief Most pairs the join may test before it stops; `MAX_INT` (the default) is no cap.
         ///

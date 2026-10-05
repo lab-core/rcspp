@@ -95,6 +95,51 @@ TEST(Equivalence, TheHalfWayBoundDoesNotChangeTheAnswer) {
         << "no instance in the sweep actually ran with the bound enabled";
 }
 
+/// @brief A half-way point placed where the searches meet matches the forward search.
+///
+/// Also: no join rebuilds a path, both modes validate the clock the same way, and a finished
+/// meeting solve ends with its two bounds equal. Non-vacuity: some solve joins,
+/// and the meeting point is not always the fixed mode's R/2.
+TEST(Equivalence, AMeetingHalfWayPointMatchesTheForwardSearchAcrossTheSweep) {
+    namespace eq = equivalence_test;
+
+    size_t configs_that_join = 0;
+    size_t configs_where_h_differs = 0;
+    for (const auto& config : eq::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const eq::Run reference = eq::solve_forward(config);
+        const eq::Run fixed = eq::solve_bidirectional(config, /*with_bound=*/true);
+        const eq::Run meeting =
+            eq::solve_bidirectional(config, /*with_bound=*/true, HalfWayMode::Meeting);
+
+        EXPECT_EQ(reference.result.solutions.empty(), meeting.result.solutions.empty()) << where;
+        if (!reference.result.solutions.empty()) {
+            EXPECT_NEAR(meeting.best_cost(), reference.best_cost(), eq::kTolerance) << where;
+        }
+        EXPECT_EQ(eq::any_path_problem(meeting), "") << where;
+        EXPECT_EQ(meeting.repeated_joins, 0U) << "a meeting join built a path twice: " << where;
+        EXPECT_EQ(fixed.repeated_joins, 0U) << "a fixed join built a path twice: " << where;
+        EXPECT_EQ(meeting.bounded, fixed.bounded) << "the modes validated the clock differently";
+
+        if (meeting.bounded && meeting.result.status == AlgorithmStatus::COMPLETE) {
+            EXPECT_EQ(meeting.result.bidirectional->half_way_forward_bound,
+                      meeting.result.bidirectional->half_way_backward_bound)
+                << "the bounds must meet at the end of a finished solve: " << where;
+            if (std::abs(meeting.result.bidirectional->half_way_point_used -
+                         fixed.result.bidirectional->half_way_point_used) > eq::kTolerance) {
+                ++configs_where_h_differs;
+            }
+            if (meeting.result.bidirectional->number_of_joined_paths > 0) {
+                ++configs_that_join;
+            }
+        }
+    }
+    EXPECT_GT(configs_that_join, 0U) << "no meeting solve used the join";
+    EXPECT_GT(configs_where_h_differs, 0U) << "the meeting point always equalled R/2";
+}
+
 /// @brief On cost-only instances there is no clock, so the bound stays off.
 TEST(Equivalence, ACostOnlyInstanceRunsWithTheBoundOff) {
     namespace eq = equivalence_test;
@@ -303,6 +348,78 @@ TEST(Equivalence, BothMatchBruteForceOnSmallInstances) {
                     expected,
                     eq::kTolerance)
             << "bidirectional disagrees with enumeration: " << where;
+    }
+}
+
+/// @brief A warm-started meeting solve matches the forward search wherever its window sits.
+///
+/// The window is centred at 10 %, 50 % and 90 % of the clock's range, so most solves start it far
+/// from where the searches would meet. A window never makes the solve inexact.
+TEST(Equivalence, AWarmStartedMeetingSolveMatchesTheForwardSearchWhereverTheWindowSits) {
+    namespace eq = equivalence_test;
+
+    size_t bounded = 0;
+    for (const auto& config : eq::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+        const eq::Run reference = eq::solve_forward(config);
+        for (const double centre : {0.1, 0.5, 0.9}) {
+            auto built = test_util::build_instance(config);
+            AlgorithmParams<LabelList<eq::Composed>> params;
+            params.critical_resource_index = built.clock_index;
+            params.half_way_mode = HalfWayMode::Meeting;
+            params.half_way_meeting_window = 0.05 * built.clock_upper_bound;
+            auto algorithm = built.graph->create_algorithm<SimpleDominanceAlgorithm>(
+                test_util::bidirectional(params));
+            as_bidirectional(algorithm.get())->set_meeting_point(centre * built.clock_upper_bound);
+            const SolveResult result =
+                built.graph->solve(algorithm.get(), eq::kNonBindingUpperBound);
+
+            EXPECT_EQ(result.solutions.empty(), reference.result.solutions.empty())
+                << where << " centre " << centre;
+            if (!reference.result.solutions.empty() && !result.solutions.empty()) {
+                EXPECT_NEAR(result.solutions.front().cost, reference.best_cost(), eq::kTolerance)
+                    << where << " centre " << centre;
+            }
+            if (result.bidirectional->bounded_by_half_way) {
+                ++bounded;
+                EXPECT_EQ(result.bidirectional->half_way_forward_bound,
+                          result.bidirectional->half_way_backward_bound)
+                    << where;
+            }
+        }
+    }
+    EXPECT_GT(bounded, 0U) << "no warm-started solve ran with the bound in force";
+}
+
+/// @brief A meeting half-way point matches the same enumerator.
+TEST(Equivalence, AMeetingHalfWayPointMatchesBruteForceOnSmallInstances) {
+    namespace eq = equivalence_test;
+
+    const std::vector<test_util::InstanceConfig> configs{
+        {.num_nodes = 8, .density = 0.4, .seed = 21},
+        {.num_nodes = 9, .density = 0.3, .with_time_window = true, .window_slack = 0.3, .seed = 22},
+        {.num_nodes = 9, .density = 0.3, .with_capacity = true, .capacity_binds = true, .seed = 23},
+        {.num_nodes = 10, .density = 0.25, .mixed_sign_costs = true, .seed = 24},
+        {.num_nodes = 10,
+         .density = 0.25,
+         .with_time_window = true,
+         .window_slack = 0.4,
+         .with_capacity = true,
+         .capacity_binds = true,
+         .num_sinks = 2,
+         .seed = 25},
+    };
+
+    for (const auto& config : configs) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+        const double expected = test_util::brute_force_optimum(config);
+        EXPECT_NEAR(
+            eq::solve_bidirectional(config, /*with_bound=*/true, HalfWayMode::Meeting).best_cost(),
+            expected,
+            eq::kTolerance)
+            << "the meeting half-way point disagrees with enumeration: " << where;
     }
 }
 

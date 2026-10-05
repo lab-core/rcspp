@@ -63,11 +63,12 @@ struct JoinStats {
 /// @brief Pairs surviving forward and backward labels at the node they meet on to form complete
 ///        paths.
 ///
-/// Forward **boundary labels** -- labels whose own last arc crossed `H`, so they were stored but
-/// never extended -- are paired with the backward labels at the same node. Each complete path
-/// crosses `H` on exactly one arc, so it is produced once. Feasibility needs no test (infeasible
-/// labels are never stored); each pair is checked with `can_be_joined`, and its cost is the sum of
-/// the two halves (the join arc is inside the forward half). Runs after both searches finish.
+/// Forward **boundary labels** -- labels whose own last arc crossed `H`: their clock is above `H`
+/// and their predecessor's is not -- are paired with the backward labels at the same node. Each
+/// complete path crosses `H` on exactly one arc, so it is produced once. Feasibility needs no test
+/// (infeasible labels are never stored); each pair is checked with `can_be_joined`, and its cost is
+/// the sum of the two halves (the join arc is inside the forward half). Runs after both searches
+/// finish.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam CriticalRC   The critical resource's type -- the clock the half-way rule reads.
@@ -95,8 +96,9 @@ class Joiner {
         /// @param on_solution           Invoked once per accepted join.
         /// @return How many pairs were tested, and whether the pair budget cut the pass short.
         template <typename FwdContainer, typename BwdContainer, typename OnSolution>
-        JoinStats join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
-                       std::vector<BwdContainer>& backward_by_pos, const JoinOptions& options,
+        JoinStats join(const Graph<ResourceType>& graph,
+                       const std::vector<FwdContainer>& forward_by_pos,
+                       const std::vector<BwdContainer>& backward_by_pos, const JoinOptions& options,
                        double& best_cost_upper_bound, OnSolution&& on_solution) {
             JoinStats stats;
             const double cost_upper_bound = options.cost_upper_bound;
@@ -262,8 +264,8 @@ class Joiner {
         /// @brief The forward labels at a node that crossed `H` on their own last arc, cheapest
         ///        first.
         ///
-        /// A boundary label is a non-start label with `clock > H`; with the bound disabled, every
-        /// non-start label qualifies.
+        /// A boundary label is a non-start label with `clock > H` whose predecessor has
+        /// `clock <= H`; with the bound disabled, every non-start label qualifies.
         ///
         /// @tparam FwdContainer Per-node forward label container.
         /// @param container               The node's forward labels.
@@ -282,10 +284,23 @@ class Joiner {
                 }
                 assert(!label->get_in_arc()->origin->sink &&
                        "the forward search must never extend out of a sink");
-                if (half_way.enabled() &&
-                    critical_value<CriticalRC>(label->get_resource(), critical_resource_index) <=
-                        half_way.h()) {
-                    continue;
+                if (half_way.enabled()) {
+                    const double h = half_way.h();
+                    if (critical_value<CriticalRC>(label->get_resource(),
+                                                   critical_resource_index) <= h) {
+                        continue;
+                    }
+                    // Exact crossing: the label's own last arc crossed H, so its predecessor is
+                    // still at or below it. Both modes hand the join only such labels: a fixed H
+                    // never extends a label past H, and a meeting solve joins at H_B, which is at
+                    // least the clock of every forward label it extended. The test guards a caller
+                    // whose containers break that rule: the descendants of a label extended past H
+                    // would count as crossings again, building the same path once per node after
+                    // its real crossing.
+                    if (critical_value<CriticalRC>(label->prev_label->get_resource(),
+                                                   critical_resource_index) > h) {
+                        continue;
+                    }
                 }
                 labels.push_back(label);
             }

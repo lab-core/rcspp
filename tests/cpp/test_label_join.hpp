@@ -350,6 +350,39 @@ TEST(LabelJoin, CrossingRuleJoinsEachPathExactlyOnce) {
     EXPECT_EQ(recorded[0].end_node_id, 4U);
 }
 
+/// @brief A forward label past H whose predecessor was also past H is not a crossing.
+///
+/// A meeting solve can extend a forward label past the final `H`. Its child is then past `H`
+/// too, but the path crossed `H` one arc earlier. Counting the child as a crossing would build
+/// the same path twice; the incumbent cutoff is off so a duplicate would show up here.
+TEST(LabelJoin, ACrossingNeedsItsPredecessorAtOrBelowH) {
+    namespace ljt = label_join_test;
+    // Clock: 0, 1, 2, 3, 4, 5 at nodes 0..5; node 5 is the sink. With H = 2.5 the real crossing
+    // is the arc 2 -> 3. The forward chain also runs on to node 4, past H, as if a meeting solve
+    // had extended the label at 3.
+    const std::vector<double> values{1.0, 1.0, 1.0, 1.0, 1.0};
+    auto graph = ljt::line_graph(values);
+    ljt::JoinHarness harness(graph.get());
+
+    harness.add_forward_chain(*graph, /*num_arcs=*/4, values);
+
+    // A backward label at every node, chained from the sink.
+    Label<ljt::Composed>* backward_previous = nullptr;
+    for (size_t step = 0; step <= 5; ++step) {
+        const size_t node_id = 5 - step;
+        const Arc<ljt::Composed>* out_arc = node_id == 5 ? nullptr : graph->get_arc(node_id);
+        backward_previous = harness.add_backward(node_id, out_arc, backward_previous);
+        ljt::JoinHarness::set_value(backward_previous, static_cast<double>(5 - node_id));
+    }
+
+    const HalfWayPolicy policy(/*half_way_point=*/2.5, /*resource_upper_bound=*/10.0);
+    const auto recorded = harness.run(policy, /*upper_bound=*/100.0, /*prune_requested=*/false);
+
+    ASSERT_EQ(recorded.size(), 1U)
+        << "the label at node 4 is not a crossing: its predecessor is past H too";
+    EXPECT_EQ(recorded[0].arc_ids, (std::vector<size_t>{0, 1, 2, 3, 4}));
+}
+
 // ============================================================================
 // Each rejection step, for its own reason
 // ============================================================================

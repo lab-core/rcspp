@@ -138,6 +138,22 @@ void init_graph(py::module_& m) {
                       &BidirectionalStats::join_truncated,
                       "Whether the join stopped at max_join_pairs with a pair left to test. A "
                       "'complete' result with this set is not a proof.")
+        .def_readonly("one_search_complete",
+                      &BidirectionalStats::one_search_complete,
+                      "Whether one search of a HalfWayMode.Meeting solve finished on its own, "
+                      "complete, so the other was stopped and the join skipped. Always False "
+                      "with a fixed half-way point.")
+        .def_readonly("half_way_forward_bound",
+                      &BidirectionalStats::half_way_forward_bound,
+                      "The forward half-way bound when the solve ended: H with a fixed "
+                      "half-way point, the bound the backward search pushed down with a "
+                      "meeting one. 0.0 when the bound was off.")
+        .def_readonly("half_way_backward_bound",
+                      &BidirectionalStats::half_way_backward_bound,
+                      "The backward half-way bound when the solve ended: H with a fixed "
+                      "half-way point, the bound the forward search pushed up with a "
+                      "meeting one, and the point the join used. 0.0 when the bound was "
+                      "off.")
         .def("__repr__", [](const BidirectionalStats& s) {
             return "BidirectionalStats(bounded_by_half_way=" +
                    std::string(s.bounded_by_half_way ? "True" : "False") +
@@ -145,6 +161,14 @@ void init_graph(py::module_& m) {
                    ", joined=" + std::to_string(s.number_of_joined_paths) +
                    (s.join_truncated ? ", join_truncated=True" : "") + ")";
         });
+
+    py::enum_<HalfWayMode>(m, "HalfWayMode")
+        .value("Fixed", HalfWayMode::Fixed)
+        .value("Meeting", HalfWayMode::Meeting);
+
+    py::enum_<HalfWayDirectionRule>(m, "HalfWayDirectionRule")
+        .value("FewestWaiting", HalfWayDirectionRule::FewestWaiting)
+        .value("LeastWork", HalfWayDirectionRule::LeastWork);
 
     // ── SolveResult ───────────────────────────────────────────────────────────
 
@@ -399,6 +423,18 @@ void init_graph(py::module_& m) {
             "without the flag. The sinks must state the real horizon: a sentinel window "
             "such as [0, 1e300] derives an H beyond every label. Off by default, so that "
             "half_way_point = 0 keeps meaning 'no bound' (default False).")
+        .def_readwrite("half_way_mode",
+                       &PyAlgorithmParams::half_way_mode,
+                       "HalfWayMode.Fixed (default) uses half_way_point for the whole solve. "
+                       "HalfWayMode.Meeting needs no half_way_point: it places the half-way point "
+                       "where the two searches meet, inside every solve (Tilk et al. 2017), and "
+                       "reports it as result.bidirectional.half_way_point_used. With "
+                       "num_labels_to_extend_by_node "
+                       "set it falls back to Fixed.")
+        .def_readwrite("half_way_direction_rule",
+                       &PyAlgorithmParams::half_way_direction_rule,
+                       "Under HalfWayMode.Meeting, which search takes the next label: "
+                       "FewestWaiting (default) or LeastWork.")
         .def_readwrite("join_column_budget",
                        &PyAlgorithmParams::join_column_budget,
                        "Bidirectional only: the most paths the join returns, the cheapest kept. "

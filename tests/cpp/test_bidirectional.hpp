@@ -1970,3 +1970,167 @@ TEST(Bidirectional, BucketsHoldBothHalves) {
     solve(Buckets(/*range_buckets=*/5, bt::kClockIndex, kCost), "buckets on the clock");
     solve(Buckets(/*range_buckets=*/5, kCost, bt::kClockIndex), "buckets on the cost");
 }
+
+/// @brief With a fixed H, both reported bounds are H; with the bound off, both are 0.
+TEST(Bidirectional, AFixedHReportsBothBoundsAtH) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+
+    auto bounded = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
+    const SolveResult result = graph->solve(bounded.get());
+    ASSERT_TRUE(result.bidirectional->bounded_by_half_way);
+    EXPECT_EQ(result.bidirectional->half_way_forward_bound, 3.0);
+    EXPECT_EQ(result.bidirectional->half_way_backward_bound, 3.0);
+    EXPECT_EQ(result.bidirectional->half_way_point_used, 3.0);
+
+    auto off = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(bt::params(0.0, bt::kClockIndex)));
+    const SolveResult off_result = graph->solve(off.get());
+    ASSERT_FALSE(off_result.bidirectional->bounded_by_half_way);
+    EXPECT_EQ(off_result.bidirectional->half_way_forward_bound, 0.0);
+    EXPECT_EQ(off_result.bidirectional->half_way_backward_bound, 0.0);
+}
+
+/// @brief A cost-only model has no clock, so the meeting bound turns itself off, as the fixed one
+///        does, and the solve stays correct.
+TEST(MeetingHalfWay, ACostOnlyModelTurnsTheBoundOff) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::line_graph({1.0, 2.0, 3.0});
+    auto params = bt::params(/*half_way_point=*/0.0);
+    params.half_way_mode = HalfWayMode::Meeting;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const SolveResult result = graph->solve(algorithm.get());
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    EXPECT_FALSE(result.bidirectional->half_way_off_reason.empty());
+    EXPECT_EQ(result.bidirectional->half_way_point_used, 0.0);
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, bt::forward_optimum(graph.get()), bt::kTolerance);
+}
+
+/// @brief Memory pressure sheds a clock-ordered frontier without losing track of labels.
+TEST(MeetingHalfWay, MemoryPressureKeepsTheCountsConsistent) {
+    namespace bt = bidirectional_test;
+    auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
+    auto under_pressure = [](size_t max_labels_per_node) {
+        auto p = bt::params(0.0, bt::kClockIndex);
+        p.half_way_mode = HalfWayMode::Meeting;
+        constexpr double kHugeLimitGiB = 1e9;
+        p.max_memory_gb = kHugeLimitGiB;
+        p.memory_pressure_fraction = 0.0;
+        p.memory_check_interval = 1;
+        p.memory_pressure_max_labels_per_node = max_labels_per_node;
+        return p;
+    };
+
+    auto roomy = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(under_pressure(1000)));
+    SolveResult roomy_result;
+    EXPECT_NO_THROW({ roomy_result = graph->solve(roomy.get()); });
+    EXPECT_FALSE(roomy_result.solutions.empty());
+    EXPECT_TRUE(roomy->get_label_pool().check_ref_count_consistency());
+
+    auto squeezed = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(under_pressure(0)));
+    EXPECT_NO_THROW({ graph->solve(squeezed.get()); });
+    EXPECT_TRUE(squeezed->get_label_pool().check_ref_count_consistency());
+}
+
+/// @brief A non-monotone clock disables the bound, does not throw, and still finds the optimum.
+TEST(MeetingHalfWay, NonMonotoneClockDisablesTheBoundAndStillSolves) {
+    namespace bt = bidirectional_test;
+
+    // The first arc lifts the clock to 5 so the path stays feasible within [0, 20].
+    auto monotone = bt::clock_line_graph({{1.0, 5.0}, {2.0, 2.0}, {3.0, 3.0}}, /*capacity=*/20.0);
+
+    // The middle arc's -2 makes the clock non-monotone. A time window waits, so its clock may go
+    // down on an arc; a capacity may not, since a backward label cannot see it dip below 0.
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 20.0}},
+                                                              {1, {0.0, 20.0}},
+                                                              {2, {0.0, 20.0}},
+                                                              {3, {0.0, 20.0}}};
+    auto non_monotone = std::make_unique<ResourceGraph<RealResource>>();
+    non_monotone->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    non_monotone->add_resource<RealResource>(
+        std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
+        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < 4; ++node_id) {
+        non_monotone->add_node(node_id, node_id == 0, node_id == 3);
+    }
+    non_monotone->add_arc<RealResource, RealResource>({1.0, 5.0}, 0, 1, 1.0);
+    non_monotone->add_arc<RealResource, RealResource>({2.0, -2.0}, 1, 2, 2.0);
+    non_monotone->add_arc<RealResource, RealResource>({3.0, 3.0}, 2, 3, 3.0);
+
+    auto meeting = [] {
+        auto params = bt::params(3.0, bt::kClockIndex);
+        params.half_way_mode = HalfWayMode::Meeting;
+        return params;
+    };
+
+    auto monotone_algorithm =
+        monotone->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(meeting()));
+    const auto monotone_result = monotone->solve(monotone_algorithm.get());
+    ASSERT_FALSE(monotone_result.solutions.empty());
+    EXPECT_TRUE(monotone_result.bidirectional->bounded_by_half_way);
+
+    // Preprocessing off: it extends from default values, so the -2 would put node 2 below the
+    // clock's floor of 0 and remove its arcs.
+    auto algorithm = non_monotone->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(meeting()));
+    SolveResult result;
+    EXPECT_NO_THROW({
+        result = non_monotone->solve(algorithm.get(),
+                                     std::numeric_limits<double>::infinity(),
+                                     /*preprocess=*/false);
+    });
+
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way)
+        << "a non-monotone clock must disable the bound rather than be trusted";
+    ASSERT_FALSE(result.solutions.empty()) << "disabling the bound must not lose the optimum";
+    EXPECT_NEAR(result.solutions.front().cost, 6.0, bt::kTolerance);  // 1 + 2 + 3
+}
+
+/// @brief A clock that does not take part in dominance disables the bound, and the answer survives.
+///
+/// The bound needs the clock in the dominance order; otherwise a dominator above H could evict a
+/// label below it and silently lose a path.
+TEST(MeetingHalfWay, ATrivialDominanceOnTheClockDisablesTheBound) {
+    namespace bt = bidirectional_test;
+
+    // Same shape as clock_line_graph, but the clock slot carries a TrivialDominanceFunction.
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(
+        std::make_unique<CapacityExtensionFunction<RealResource>>(20.0),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 20.0),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
+        std::make_unique<TrivialDominanceFunction<RealResource>>());
+    for (size_t node_id = 0; node_id < 4; ++node_id) {
+        graph->add_node(node_id, node_id == 0, node_id == 3);
+    }
+    graph->add_arc<RealResource, RealResource>({1.0, 5.0}, 0, 1, 1.0);
+    graph->add_arc<RealResource, RealResource>({2.0, 2.0}, 1, 2, 2.0);
+    graph->add_arc<RealResource, RealResource>({3.0, 3.0}, 2, 3, 3.0);
+
+    auto params = bt::params(3.0, bt::kClockIndex);
+    params.half_way_mode = HalfWayMode::Meeting;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    SolveResult result;
+    EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
+
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way)
+        << "a clock outside the dominance order must not be trusted";
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, 6.0, bt::kTolerance);  // 1 + 2 + 3
+}

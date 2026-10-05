@@ -3,13 +3,16 @@
 
 #pragma once
 
+#include <optional>
+
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/half_way_policy.hpp"
 
 namespace rcspp {
 
-/// @brief What a caller can reach on a bidirectional search beyond @c Algorithm: the controller
-///        that moves its half-way point between solves.
+/// @brief What a caller can reach on a bidirectional search beyond @c Algorithm: the state it
+///        keeps between solves -- the controller that moves its half-way point, and where the
+///        last meeting solve met.
 ///
 /// The class that searches bidirectionally is internal; @ref as_bidirectional finds this
 /// interface on the algorithm @c ResourceGraph::create_algorithm returned.
@@ -25,6 +28,16 @@ class BidirectionalSearch {
 
         /// @brief Mutable access, to freeze the controller, reset what it learned, or tune it.
         [[nodiscard]] virtual HalfWayController& half_way_controller() = 0;
+
+        /// @brief Where the last exact `HalfWayMode::Meeting` solve on this object met; empty
+        ///        before one.
+        ///
+        /// A positive `half_way_meeting_window` centres the next solve's bounds on it.
+        [[nodiscard]] virtual std::optional<double> meeting_point() const = 0;
+
+        /// @brief Replaces the point the next meeting solve's window is centred on; empty resets
+        ///        it, so the next solve starts from the full range.
+        virtual void set_meeting_point(std::optional<double> point) = 0;
 };
 
 /// @brief The bidirectional interface of @p algorithm, or null when it is not a bidirectional

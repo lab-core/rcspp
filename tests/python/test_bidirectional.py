@@ -17,7 +17,7 @@ sys.path.insert(
 )
 
 import rcspp._core.resource as _resource  # noqa: E402
-from rcspp import HalfWayController, HalfWayMove  # noqa: E402
+from rcspp import HalfWayController, HalfWayDirectionRule, HalfWayMode, HalfWayMove  # noqa: E402
 from rcspp._core.graph import SolveResult  # noqa: E402
 from rcspp.graph import (  # noqa: E402
     ALGORITHMS,
@@ -645,3 +645,41 @@ def test_join_diagnostics_default_to_nothing():
     assert p.join_after_early_stop is True
     assert p.max_join_pairs > 10**6
     assert p.join_column_budget > 10**6
+
+
+# -- Meeting half-way point ------------------------------------------------------
+
+
+def test_meeting_mode_defaults_and_is_settable():
+    p = AlgorithmParams()
+    assert p.half_way_mode == HalfWayMode.Fixed
+    assert p.half_way_direction_rule == HalfWayDirectionRule.FewestWaiting
+    p.half_way_mode = HalfWayMode.Meeting
+    p.half_way_direction_rule = HalfWayDirectionRule.LeastWork
+    assert p.half_way_mode == HalfWayMode.Meeting
+    assert p.half_way_direction_rule == HalfWayDirectionRule.LeastWork
+
+
+def test_a_meeting_solve_needs_no_half_way_point_and_matches_simple():
+    """rg.solve builds a fresh algorithm per call, which is all the meeting mode
+    needs."""
+    expected = _diamond_window_graph().solve(algorithm="simple").solutions[0].cost
+
+    params = AlgorithmParams()
+    params.critical_resource_index = 1
+    params.half_way_mode = HalfWayMode.Meeting
+    result = _diamond_window_graph().solve(algorithm="bidirectional", params=params)
+
+    assert result.bidirectional.bounded_by_half_way is True
+    assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
+    assert (
+        result.bidirectional.half_way_forward_bound == result.bidirectional.half_way_backward_bound
+    )
+    assert result.bidirectional.half_way_point_used == result.bidirectional.half_way_backward_bound
+
+
+def test_a_fixed_solve_reports_both_bounds_at_h():
+    params = _bidirectional_params(20.0, critical_resource_index=1)
+    result = _diamond_window_graph().solve(algorithm="bidirectional", params=params)
+    assert result.bidirectional.half_way_forward_bound == 20.0
+    assert result.bidirectional.half_way_backward_bound == 20.0
