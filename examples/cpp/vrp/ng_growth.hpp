@@ -25,9 +25,12 @@ struct NgGrowthParams {
         size_t max_cycle_length = 8;            ///< CYCLE_SIZE: nodes strictly inside
         size_t max_ng_size = 16;                ///< MAX_NG_SIZE
         double tail_off = 0.5;                  ///< NGAugTailOff
-        double soft_time_factor = 1.0;          ///< NGAugTimeSoftThresholdFactor
-        double hard_time_factor = 2.0;          ///< NGAugTimeHardThresholdFactor
-        size_t max_rounds = 50;                 ///< not in RouteOpt; a runaway guard
+        // The two time brakes compare a round's seconds per pricing solve with round 1's (a round
+        // total depends on its iteration count). Untimed they never fired on any instance
+        // measured: a safety net for larger caps, not a tuned control.
+        double soft_time_factor = 1.0;  ///< NGAugTimeSoftThresholdFactor
+        double hard_time_factor = 2.0;  ///< NGAugTimeHardThresholdFactor
+        size_t max_rounds = 50;         ///< not in RouteOpt; a runaway guard
 };
 
 /// @brief A column of the LP solution: its value and its node sequence.

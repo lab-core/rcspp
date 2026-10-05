@@ -22,4 +22,5 @@
 #include "test_container_resources.hpp"
 #include "test_model_checks.hpp"
 #include "test_ng_growth.hpp"
+#include "test_pricing_budget.hpp"
 #include "test_resource_base.hpp"

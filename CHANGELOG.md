@@ -8,6 +8,12 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **The VRP example no longer takes a `complete` pricing solve as proof when its join was truncated
+  or its labels were trimmed.** `VRP::solve` read only the status, so a solve whose join stopped
+  at `max_join_pairs`, or that memory pressure trimmed, ended column generation "proven" and could
+  call the convergence hook on an LP that was not the optimum. It now applies
+  `proves_no_column(result)`: `complete`, no memory trim, no truncated join. The warning for an
+  unproven stop now says the LP value is an upper bound on the optimum, not "a valid bound".
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
@@ -82,6 +88,27 @@ New features are summarised, with a pointer to where they are documented.
   `heuristic_cost_index` is not read. What it reports about its
   bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
   other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
+- **A pricing budget that escalates** (VRP example, C++). `VRP::set_pricing_budget(PricingBudget)`
+  times every pricing solve; one that times out with no improving column is re-run on the same
+  duals with a larger budget, so column generation keeps the speed of a short timeout and still
+  ends proven. `CGSolveResult` reports `escalations`, `truncated_solves` and
+  `final_budget_seconds`. `rcspp-bidirectional-cg` and `rcspp-ng-dynamic-cg` price on a 0.05 s
+  budget by default (`--pricing-budget=S`, `--budget-reset`; `--pricing-timeout` is its cap, and
+  `--pricing-budget=inf` turns it off). See "A pricing budget that still ends proven" in
+  `docs/advanced/algorithms.md`.
+- **`Algorithm::set_timeout`** (C++): overrides `timeout_s` on an existing algorithm object between
+  solves, so a persistent pricer, and the half-way controller on it, can be re-run with another
+  budget. `timeout()` reports the one in force.
+- **`derive_half_way_point`** (C++ and Python, default off): reads the clock's range from the
+  sinks' ceilings; with `half_way_point = 0` the solve uses `H = R/2`, and a dynamic `H` is kept
+  inside that range. `HalfWayController::over_range(h, range)` starts a controller with a range of
+  its own. A bidirectional solve on a graph with no arcs turns the bound off as
+  `HalfWayOff::NoArcs`, at debug level only.
+- **`VRP(Instance, ng_table)`** (VRP example): builds the model from a given ng table, such as one
+  dynamic growth learned. The ng driver gains `--dynamic-h`, `--join-budget` and
+  `--max-join-pairs` for its bidirectional pricer; its `--reduce` round is a new baseline, its
+  time brakes compare pricing time per solve rather than per round, and its comparison ignores
+  unproven runs.
 
 - **Growing ng neighbourhoods on a built graph** (C++). `set_ng_neighborhoods<R>(graph, component,
   table)` replaces an ng-path resource's neighbourhoods between solves and rebuilds every arc's ng
