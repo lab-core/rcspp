@@ -128,14 +128,16 @@ int main(int argc, char* argv[]) {
 
             // ── Single CG solve ────────────────────────────────────────────────
             AlgorithmParams<LabelList<ResourceType>> list_params;
-            auto [timers, lp_cost, proven_optimal, iterations] =
-                vrp.solve<SimpleDominanceAlgorithm,
-                          PushingDominanceAlgorithm,
-                          PullingDominanceAlgorithm>(list_params,
-                                                     std::nullopt,
-                                                     list_algorithms,
-                                                     run_boost,
-                                                     extra_solvers);  // NOLINT
+            const CGSolveResult cg = vrp.solve<SimpleDominanceAlgorithm,
+                                               PushingDominanceAlgorithm,
+                                               PullingDominanceAlgorithm>(list_params,
+                                                                          std::nullopt,
+                                                                          list_algorithms,
+                                                                          run_boost,
+                                                                          extra_solvers);  // NOLINT
+            const auto& timers = cg.timers;
+            const double lp_cost = cg.lp_cost;
+            const bool proven_optimal = cg.proven_optimal;
             if (!proven_optimal) {
                 LOG_WARN("Instance ",
                          instance_name,

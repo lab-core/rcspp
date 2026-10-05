@@ -73,21 +73,39 @@ p.half_way_point          = 500.0 # H; the resource range is taken as [0, 2H]
 result = rg.solve(algorithm="bidirectional", params=p)
 ```
 
-`half_way_point` has no useful default: **0 turns the bound off**, it does not derive one.  The
-algorithm has no way to read a feasibility function's upper bound, so `H` is the only number it
-has to go on — it takes the range to be `[0, 2H]` rather than the other way round.  With the bound
-off both searches run to completion and the join considers every pair, which is correct but
-*slower* than a forward solve rather than faster, since it is a forward search plus a backward
-search plus a join.  That is the supported way to ask for an unbounded run, and
-`result.bidirectional.bounded_by_half_way` tells you which of the two you got.  A solve that wants
-the speed-up sets `H` explicitly, to roughly half the clock's range.
+`half_way_point` has no useful default: **0 turns the bound off**, it does not derive one, unless
+you ask it to.  With the bound off both searches run to completion and the join considers every
+pair, which is correct but *slower* than a forward solve rather than faster, since it is a forward
+search plus a backward search plus a join.  That is the supported way to ask for an unbounded run,
+and `result.bidirectional.bounded_by_half_way` tells you which of the two you got.  A solve that
+wants the speed-up sets `H` explicitly, to roughly half the clock's range; the algorithm then takes
+the range to be `[0, 2H]`.
+
+Or it lets the algorithm read the range: with `derive_half_way_point`, `R` is the largest backward
+start of the clock at a sink — under a threshold clock the sink's upper bound, where
+`ThresholdForm::start_back` starts a backward label and which setup checks is the ceiling the
+feasibility function states — and `half_way_point = 0` then means `H = R/2`.  With an explicit
+`half_way_point` the flag only supplies `R`, which a dynamic `H` (below) is kept inside.  It is
+opt-in because `0` means "off", and code relies on that to ask for an unbounded run.
+
+```python
+p.half_way_point        = 0.0   # derive it
+p.derive_half_way_point = True  # H = R / 2, R read from the sinks' ceilings
+```
+
+It reads what the model states, so the sinks have to state the real horizon.  A sink whose window
+is a sentinel derives an `H` beyond every label: the VRP example gives its sink `[0, max() / 2]`,
+and there the solve degenerates to a forward search plus an idle backward one, so its drivers set
+`H` by hand.  When `R` cannot be read at all — a sink with no ceiling, an index that names no
+component — the solve behaves as without the flag, and says why.
 
 Because the default gets you the slow case without asking for it, a solve that runs with the
 bound off — for this reason or any of those in the next section — logs a warning saying why.  It
 does so once per reason per process, since the Python bindings build a new algorithm for every
 solve and a pricing loop would otherwise repeat it on every iteration; later solves log the same
 sentence at debug level.  `result.bidirectional.half_way_off_reason` holds it for every solve,
-empty when the bound was in force.
+empty when the bound was in force.  One reason is never a warning: a graph with **no arcs** at
+all, live or removed, has nothing to bound, and says so at debug level only.
 
 ### The critical resource
 
@@ -359,6 +377,42 @@ bidirectional pricer can be used throughout.
 (`examples/cpp/vrp/ng_growth.hpp`) and brakes, applied on every proven convergence, against fixed
 sizes on the same instances.
 
+### A pricing budget that still ends proven
+
+Most of a column generation's pricing time goes into solves whose only job is to find *some*
+improving column, and a per-solve timeout cuts that dramatically: on RC201_50 the bidirectional
+pricer needs 27 s of pricing untimed and 1.2 s with a 50 ms timeout, and forward pricing on R202_25
+drops from 376 s to 0.5 s.  But a bare timeout is unsafe.  When the solve that should *end* column
+generation times out with nothing, the loop stops unproven, at an LP value above the optimum — on
+RC201_50, 1 857.55 under a 5 ms timeout against a true 535.29.  That value is an upper bound on the
+LP optimum, not a lower bound anything could prune with.
+
+The VRP example therefore times its pricing with a budget that **escalates**
+(`examples/cpp/vrp/pricing_budget.hpp`): when a solve timed out *and* returned no improving
+column, the same duals are priced again with ten times the budget, until a solve finds a column,
+proves there is none, or reaches the cap.  The cheap truncated solves stay where the time goes, and
+the last solve is complete, so the loop ends proven.  On RC201_50 a 5 ms budget ends at 535.2861,
+proven, with one escalation and 0.9 s of pricing.
+
+```cpp
+VRP vrp(instance);
+vrp.set_pricing_budget({.seconds = 0.05});   // growth = 10, max_seconds = inf, sticky
+auto result = vrp.solve<>(params, std::nullopt, algorithms);
+// result.escalations, result.truncated_solves, result.final_budget_seconds
+```
+
+Only a timeout escalates: a solve that failed to prove for any other reason — a join truncated by
+`max_join_pairs`, a memory trim, a solution cap — would fail the same way with more time.  "Proves"
+means `proves_no_column(result)`: `complete`, no memory trim, no truncated join (see
+"One thing `status` cannot tell you").  A persistent algorithm is re-run on the same object, through
+`Algorithm::set_timeout`, so a half-way controller on it keeps learning; the override is cleared
+when `VRP::solve` returns.  `sticky` (the default) carries an escalated budget into the next
+iteration; a convergence hook that changes the pricing model resets it.
+
+The two CG drivers price this way by default, at 0.05 s (`--pricing-budget=S`,
+`--budget-reset`); `--pricing-budget=inf` runs them as before, with `--pricing-timeout` then a bare
+timeout.  The library's own `timeout_s` stays infinite by default.
+
 ### Parameters that behave differently here
 
 | Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |
@@ -366,7 +420,7 @@ sizes on the same instances.
 | `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found.  Joined paths are **not** filtered by dominance at the sink, whatever the flag says: see below |
 | `stop_after_X_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `stop_after_X_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
 | `prune_based_on_upper_bound_` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
-| `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
+| `timeout_s`, the memory limit | stop the search; whatever was found is returned. `Algorithm::set_timeout` overrides `timeout_s` on an existing algorithm object, between solves | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 | `join_column_budget` | ignored | the join keeps only its cheapest this many paths and never splices a pair that cannot enter them. Unlike `stop_after_X_solutions` it **never stops the search**, so `complete` still means exhaustive, and since the cheapest path is always kept the optimum is unchanged. The column *set* becomes "the K cheapest joined paths". The join uses the tighter of the two budgets |
 | `max_join_pairs` | ignored | the join stops after this many join-rule questions (`join_pairs_tested`). What it found is returned, but the result is no longer a proof: `join_truncated` is set and `could_be_non_optimal()` is true |
@@ -599,14 +653,16 @@ search kept 2 to 10 times the backward search's labels at every iteration of a c
 solve it reads `forward_labels` and `backward_labels` and:
 
 1. **learns only from a trustworthy solve** — `complete`, untrimmed by memory pressure, not
-   truncated, with the bound in force.  Anything else is `Skipped`;
+   truncated, with the bound in force.  Anything else is `Skipped`, so under a tight pricing budget
+   it learns only from the solves that finished;
 2. **moves away from the heavier side** when `|f − b| / min(f, b)` exceeds a 20 % dead zone:
    `H × 0.8` when forward is heavier (so forward stops earlier), `H × 1.2` when backward is;
 3. **pulls `H` back toward the centre** when the counts are balanced but nothing was joined while
    solutions were still found — the answer then came from a search running all the way to a
    terminal, and the split bought nothing;
 4. **halves the step whenever the direction reverses**, down to a floor of 2.5 %, so `H` settles
-   instead of oscillating; and keeps `H` inside `[0.05, 0.95] × 2H₀`.
+   instead of oscillating; and keeps `H` inside `[0.05, 0.95] × R`, where `R = 2H₀` unless the
+   range was given (`HalfWayController::over_range`, or `derive_half_way_point`).
 
 **`H` never moves during a solve.** The half-way bound's correctness rests on each path crossing
 `H` exactly once, and a label discarded under one `H` cannot be recovered under another.  So a
@@ -652,9 +708,11 @@ bidirectional solve still reports `complete` then, so the status cannot say so. 
 zone, first step, decay, floor, clamp — are on `HalfWayControllerParams`, with RouteOpt's values as
 defaults.
 
-Two limits worth knowing.  `H₀` also fixes the range `R = 2H₀` the controller keeps `H` inside, so a
-badly chosen `H₀` cannot be corrected past `1.9 H₀`; start from roughly half the clock's real
-range, as for a static `H`.  And the signal is **surviving** labels, as RouteOpt's is: a forward
+Two limits worth knowing.  Unless the range is given, `H₀` also fixes the range `R = 2H₀` the
+controller keeps `H` inside, so a badly chosen `H₀` cannot be corrected past `1.9 H₀`; start from
+roughly half the clock's real range, as for a static `H`, or set `derive_half_way_point` so the
+controller is clamped to the range the model states.  And the signal is **surviving** labels, as
+RouteOpt's is: a forward
 label stopped past `H` is still stored as a join boundary, so on a small graph the counts can stay
 flat while `H` moves, and the controller then keeps stepping until the clamp.  That costs speed,
 not correctness.
@@ -703,8 +761,10 @@ if result.memory_pressure_triggered:
 ```
 
 Code that treats `complete` as proof of optimality — a column-generation loop deciding it has
-converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
-*parameters*, and memory pressure is a property of the run.
+converged, say — has to read this too, and `join_truncated` with it.  `could_be_non_optimal()`
+will not tell you: it reads the *parameters*, and memory pressure is a property of the run.  The
+VRP example's `proves_no_column(result)` (`examples/cpp/vrp/pricing_budget.hpp`) is the test a
+pricing loop should apply: `complete`, no memory trim, no truncated join.
 
 ## `Greedy`
 

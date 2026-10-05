@@ -1237,6 +1237,26 @@ TEST(BidirectionalValidation, BackwardStartsFollowThePairedExtension) {
     }
 }
 
+/// @brief Deriving `H` with a clock index that names no component neither throws nor derives.
+TEST(BidirectionalValidation, DeriveHalfWayPointOutOfRangeIndexStaysOff) {
+    namespace bv = bidirectional_validation_test;
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}},
+                                                              {1, {0.0, 100.0}},
+                                                              {2, {0.0, 100.0}}};
+    auto graph = bv::clocked_graph(windows, {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}});
+    auto params = bv::clocked_params(0.0);
+    params.critical_resource_index = 2;
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    SolveResult result;
+    ASSERT_NO_THROW(result = graph->solve(algorithm.get()));
+    EXPECT_NEAR(bv::best_cost(result), 2.0, bv::kTolerance);
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    EXPECT_NE(result.bidirectional->half_way_off_reason.find("does not exist"), std::string::npos)
+        << result.bidirectional->half_way_off_reason;
+}
+
 // ============================================================================
 // Out-of-range indices turn a bound off rather than throw
 // ============================================================================
@@ -1311,6 +1331,31 @@ TEST(BidirectionalValidation, RemovingEveryArcDoesNotHideTheClock) {
     EXPECT_TRUE(result.solutions.empty());
     EXPECT_TRUE(result.bidirectional->bounded_by_half_way)
         << result.bidirectional->half_way_off_reason;
+}
+
+/// @brief A graph with no arcs says so, rather than that the clock does not exist.
+///
+/// With no arc at all, live or removed, there is no declaration to count the clock's components
+/// from, and nothing to bound.
+TEST(BidirectionalValidation, AGraphWithNoArcsSaysSo) {
+    namespace bv = bidirectional_validation_test;
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}},
+                                                              {1, {0.0, 100.0}},
+                                                              {2, {0.0, 100.0}},
+                                                              {3, {0.0, 100.0}}};
+    auto graph = bv::clocked_graph(windows, {});
+    ASSERT_EQ(graph->get_arcs_size(), 0U);
+
+    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(bv::clocked_params(5.0)));
+    SolveResult result;
+    ASSERT_NO_THROW(result = graph->solve(algorithm.get()));
+    EXPECT_TRUE(result.solutions.empty());
+    ASSERT_TRUE(result.bidirectional.has_value());
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    const std::string& reason = result.bidirectional->half_way_off_reason;
+    EXPECT_NE(reason.find("no arcs"), std::string::npos) << reason;
+    EXPECT_EQ(reason.find("does not exist"), std::string::npos) << reason;
 }
 
 // ============================================================================
@@ -1556,4 +1601,27 @@ TEST(BidirectionalValidation, AClockWithoutABackwardStartTurnsTheBoundOff) {
     EXPECT_NE(result.bidirectional->half_way_off_reason.find("no ceiling at sink 4"),
               std::string::npos)
         << result.bidirectional->half_way_off_reason;
+}
+
+/// @brief Deriving `H` on a clock that sets no backward start at its sink says "no ceiling", not
+///        "no H given".
+///
+/// The clock's extension sets no start, so the sinks state no ceiling to read `R` from.
+TEST(BidirectionalValidation, DeriveHalfWayPointWithoutACeilingStaysOff) {
+    namespace bv = bidirectional_validation_test;
+    auto graph = bv::threshold_pairing_graph(
+        std::make_unique<bv::UnclampedThreshold>(),
+        std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+        5,
+        {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}, {1.0, 1.0, 2, 3}, {1.0, 1.0, 3, 4}});
+    auto params = bv::clocked_params(0.0);
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get());
+    EXPECT_NEAR(bv::best_cost(result), 4.0, bv::kTolerance);
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    const std::string& reason = result.bidirectional->half_way_off_reason;
+    EXPECT_NE(reason.find("no ceiling"), std::string::npos) << reason;
+    EXPECT_EQ(reason.find("no half_way_point"), std::string::npos) << reason;
 }

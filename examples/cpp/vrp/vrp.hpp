@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <limits>
 #include <map>
@@ -14,6 +15,7 @@
 #include "cg/mp_solution.hpp"
 #include "cg/path.hpp"
 #include "instance.hpp"
+#include "pricing_budget.hpp"
 #include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 
@@ -43,11 +45,18 @@ struct CGSolveResult {
         /// @brief Final LP relaxation cost from the master problem after column generation.
         double lp_cost = std::numeric_limits<double>::infinity();
         /// @brief False when CG stopped on "no improving column" but the final pricing solve did
-        /// not run to completion (timeout / memory / phase / solution cap) — the bound is then
-        /// valid but not proven optimal.
+        /// not prove it (timeout / memory / phase / solution cap / truncated join; see
+        /// `proves_no_column`) — `lp_cost` is then an upper bound on the LP optimum, not a lower
+        /// bound.
         bool proven_optimal = true;
         /// @brief Column-generation iterations run before convergence.
         int iterations = 0;
+        /// @brief Times a pricing solve was repeated on the same duals with a larger budget.
+        size_t escalations = 0;
+        /// @brief Pricing attempts, first pricer only, that did not prove their result.
+        size_t truncated_solves = 0;
+        /// @brief The budget of the last pricing attempt; infinity when no budget was set.
+        double final_budget_seconds = std::numeric_limits<double>::infinity();
 };
 
 /// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
@@ -78,6 +87,19 @@ class VRP {
         ///                             the memory but makes it inert. Used only under
         ///                             `RouteRelaxation::NgPath`.
         explicit VRP(Instance instance, size_t ng_neighborhood_size = 8);
+
+        /// @brief Builds the model with the ng neighbourhoods given, rather than the nearest-k.
+        ///
+        /// For a table learned earlier -- by dynamic ng growth, say -- so a later column
+        /// generation starts from it. Under `RouteRelaxation::None` the table is ignored, like the
+        /// size.
+        ///
+        /// @param instance The VRP instance.
+        /// @param ng_table The neighbourhood of every node, keyed as `ng_neighborhoods()` returns
+        ///                 them: every customer, the depot and the sink, each once. Members are
+        ///                 checked by the ng preset, as for any table.
+        /// @throws std::invalid_argument when the keys differ from the model's nodes.
+        VRP(Instance instance, std::map<size_t, std::set<size_t>> ng_table);
 
         VRP(Instance instance, std::string duals_directory, size_t ng_neighborhood_size = 8);
 
@@ -124,123 +146,191 @@ class VRP {
             std::vector<Timer> timers(num_total_algos);
             int nb_iter = 0;
             bool proven_optimal = true;
+
+            /// What one pricing pass found: the first RCSPP pricer's columns, and its verdict.
+            struct Priced {
+                    std::vector<Solution> first;
+                    AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+                    bool exhaustive = true;
+            };
+            double budget = pricing_budget_.seconds;  // infinity when no budget is set
+            size_t escalations = 0;
+            size_t truncated = 0;
             while (min_reduced_cost < -EPSILON) {
                 master_solution = master_problem.solve();
 
                 const auto dual_by_id =
                     calculate_dual(master_solution.dual_by_var_id, std::nullopt, nb_iter);
 
-                std::vector<Solution> solutions_boost;
+                // One pricing pass over every pricer, each RCSPP solve on a budget of `seconds`
+                // when a PricingBudget is set. Escalation may run it more than once on the same
+                // duals, so everything it collects is local to the pass. Boost and the extra
+                // solvers are not budgeted, and re-run with the rest, so the cross-checks still
+                // compare every pricer on the same duals.
+                const auto price = [&](double seconds) {
+                    AlgorithmParams<LabelContainerType> attempt_params = params;
+                    if (pricing_budget_.enabled()) {
+                        attempt_params.timeout_s = seconds;
+                    }
+
+                    std::vector<Solution> solutions_boost;
 #ifdef RCSPP_VRP_HAS_BOOST
-                if (run_boost) {
-                    timers.front().start();
-                    solutions_boost = solve_with_boost(dual_by_id);
-                    timers.front().stop();
-                }
+                    if (run_boost) {
+                        timers.front().start();
+                        solutions_boost = solve_with_boost(dual_by_id);
+                        timers.front().stop();
+                    }
 #endif
 
-                // Run RCSPP for each AlgorithmType and collect the first algorithm's solutions
-                std::vector<Solution> solutions_rcspp_any;
-                const size_t first_rcspp_idx = run_boost ? 1 : 0;
-                size_t algo_index = first_rcspp_idx;
-                // Exit status of the solve whose result drives min_reduced_cost (the first RCSPP
-                // algorithm). If that solve was cut short, a "no improving column" result does not
-                // prove optimality. (Extra solvers are type-erased and report no status.)
-                AlgorithmStatus first_rcspp_status = AlgorithmStatus::COMPLETE;
+                    // Run RCSPP for each AlgorithmType and collect the first algorithm's solutions
+                    std::vector<Solution> solutions_rcspp_any;
+                    const size_t first_rcspp_idx = run_boost ? 1 : 0;
+                    size_t algo_index = first_rcspp_idx;
+                    // Exit status of the solve whose result drives min_reduced_cost (the first
+                    // RCSPP algorithm), and whether it proves its result (see proves_no_column). If
+                    // it does not, a "no improving column" result does not prove optimality. (Extra
+                    // solvers are type-erased and report no status.)
+                    AlgorithmStatus first_rcspp_status = AlgorithmStatus::COMPLETE;
+                    bool first_rcspp_exhaustive = true;
 
-                auto collect_solutions = [&](std::vector<Solution>& sols, bool is_optimal) {
-                    bool non_optimal = !is_optimal;
-                    if (!solutions_boost.empty()) {
-                        if (!sols.empty()) {
-                            // RCSPP can be better as it uses int for some resources (e.g., load,
-                            // time)
-                            double diff = solutions_boost[0].cost - sols[0].cost;
-                            if ((non_optimal && diff > COST_COMPARISON_EPSILON) ||
-                                (!non_optimal && abs(diff) > COST_COMPARISON_EPSILON)) {
-                                LOG_ERROR("RCSPP solution is not coherent with BOOST (",
-                                          algo_index,
-                                          ") solution: ",
-                                          sols[0].cost,
-                                          " vs ",
-                                          solutions_boost[0].cost,
-                                          "\n");
-                            }
-                        } else if (solutions_boost[0].cost < -EPSILON) {
-                            if (!non_optimal) {
-                                LOG_ERROR("BOOST has a solution while RCSPP (",
-                                          algo_index,
-                                          ") not\n");
+                    auto collect_solutions = [&](std::vector<Solution>& sols, bool is_optimal) {
+                        bool non_optimal = !is_optimal;
+                        if (!solutions_boost.empty()) {
+                            if (!sols.empty()) {
+                                // RCSPP can be better as it uses int for some resources (e.g.,
+                                // load, time)
+                                double diff = solutions_boost[0].cost - sols[0].cost;
+                                if ((non_optimal && diff > COST_COMPARISON_EPSILON) ||
+                                    (!non_optimal && abs(diff) > COST_COMPARISON_EPSILON)) {
+                                    LOG_ERROR("RCSPP solution is not coherent with BOOST (",
+                                              algo_index,
+                                              ") solution: ",
+                                              sols[0].cost,
+                                              " vs ",
+                                              solutions_boost[0].cost,
+                                              "\n");
+                                }
+                            } else if (solutions_boost[0].cost < -EPSILON) {
+                                if (!non_optimal) {
+                                    LOG_ERROR("BOOST has a solution while RCSPP (",
+                                              algo_index,
+                                              ") not\n");
+                                }
                             }
                         }
-                    }
 
-                    if (!sols.empty()) {
-                        LOG_DEBUG("Solution RCSPP (algo ",
-                                  algo_index,
-                                  "): cost=",
-                                  sols[0].cost,
-                                  " | nb_solutions=",
-                                  sols.size(),
-                                  '\n');
-                        if (algo_index > first_rcspp_idx && !non_optimal &&
-                            !solutions_rcspp_any.empty()) {
-                            double diff = abs(sols[0].cost - solutions_rcspp_any[0].cost);
-                            if (diff > COST_COMPARISON_EPSILON) {
+                        if (!sols.empty()) {
+                            LOG_DEBUG("Solution RCSPP (algo ",
+                                      algo_index,
+                                      "): cost=",
+                                      sols[0].cost,
+                                      " | nb_solutions=",
+                                      sols.size(),
+                                      '\n');
+                            if (algo_index > first_rcspp_idx && !non_optimal &&
+                                !solutions_rcspp_any.empty()) {
+                                double diff = abs(sols[0].cost - solutions_rcspp_any[0].cost);
+                                if (diff > COST_COMPARISON_EPSILON) {
+                                    LOG_ERROR("RCSPP (algo ",
+                                              algo_index,
+                                              ") best cost differs from first algorithm: ",
+                                              sols[0].cost,
+                                              " vs ",
+                                              solutions_rcspp_any[0].cost,
+                                              "\n");
+                                }
+                            }
+                        } else {
+                            LOG_DEBUG("Solution RCSPP (algo ",
+                                      algo_index,
+                                      ") returned no solutions\n");
+                            if (algo_index > first_rcspp_idx && !non_optimal &&
+                                !solutions_rcspp_any.empty() &&
+                                solutions_rcspp_any[0].cost < -EPSILON) {
                                 LOG_ERROR("RCSPP (algo ",
                                           algo_index,
-                                          ") best cost differs from first algorithm: ",
-                                          sols[0].cost,
-                                          " vs ",
-                                          solutions_rcspp_any[0].cost,
-                                          "\n");
+                                          ") found no solution while first algorithm did\n");
                             }
                         }
-                    } else {
-                        LOG_DEBUG("Solution RCSPP (algo ", algo_index, ") returned no solutions\n");
-                        if (algo_index > first_rcspp_idx && !non_optimal &&
-                            !solutions_rcspp_any.empty() &&
-                            solutions_rcspp_any[0].cost < -EPSILON) {
-                            LOG_ERROR("RCSPP (algo ",
-                                      algo_index,
-                                      ") found no solution while first algorithm did\n");
+
+                        if (algo_index == first_rcspp_idx) {
+                            solutions_rcspp_any = std::move(sols);
                         }
+                        ++algo_index;
+                        return 0;
+                    };
+
+                    (void)std::initializer_list<int>{([&]() {
+                        timers[algo_index].start();
+                        AlgorithmStatus st = AlgorithmStatus::COMPLETE;
+                        bool exhaustive = true;
+                        auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id,
+                                                                     attempt_params,
+                                                                     &st,
+                                                                     &exhaustive);
+                        timers[algo_index].stop();
+                        if (algo_index == first_rcspp_idx) {
+                            first_rcspp_status = st;
+                            first_rcspp_exhaustive = exhaustive;
+                        }
+                        return collect_solutions(sols, !attempt_params.could_be_non_optimal());
+                    }())...};
+
+                    for (auto* algorithm : algorithms) {
+                        if (pricing_budget_.enabled()) {
+                            algorithm->set_timeout(seconds);
+                        }
+                        timers[algo_index].start();
+                        AlgorithmStatus st = AlgorithmStatus::COMPLETE;
+                        bool exhaustive = true;
+                        auto sols = solve_with_rcspp(dual_by_id, algorithm, &st, &exhaustive);
+                        timers[algo_index].stop();
+                        if (algo_index == first_rcspp_idx) {
+                            first_rcspp_status = st;
+                            first_rcspp_exhaustive = exhaustive;
+                        }
+                        collect_solutions(sols, algorithm->is_optimal());
                     }
 
-                    if (algo_index == first_rcspp_idx) {
-                        solutions_rcspp_any = std::move(sols);
+                    for (auto& extra : extra_solvers) {
+                        timers[algo_index].start();
+                        auto sols = extra.fn(dual_by_id);
+                        timers[algo_index].stop();
+                        collect_solutions(sols, extra.optimal);
                     }
-                    ++algo_index;
-                    return 0;
+
+                    return Priced{.first = std::move(solutions_rcspp_any),
+                                  .status = first_rcspp_status,
+                                  .exhaustive = first_rcspp_exhaustive};
                 };
 
-                (void)std::initializer_list<int>{([&]() {
-                    timers[algo_index].start();
-                    AlgorithmStatus st = AlgorithmStatus::COMPLETE;
-                    auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params, &st);
-                    timers[algo_index].stop();
-                    if (algo_index == first_rcspp_idx) {
-                        first_rcspp_status = st;
-                    }
-                    return collect_solutions(sols, !params.could_be_non_optimal());
-                }())...};
-
-                for (auto* algorithm : algorithms) {
-                    timers[algo_index].start();
-                    AlgorithmStatus st = AlgorithmStatus::COMPLETE;
-                    auto sols = solve_with_rcspp(dual_by_id, algorithm, &st);
-                    timers[algo_index].stop();
-                    if (algo_index == first_rcspp_idx) {
-                        first_rcspp_status = st;
-                    }
-                    collect_solutions(sols, algorithm->is_optimal());
+                Priced priced;
+                const auto [last_attempt, grew] =
+                    price_with_escalation(pricing_budget_, &budget, [&](double seconds) {
+                        priced = price(seconds);
+                        truncated += priced.exhaustive ? 0 : 1;
+                        const double threshold = -EPSILON;
+                        return PricingAttempt{
+                            .improving = std::ranges::any_of(
+                                priced.first,
+                                [threshold](const Solution& sol) { return sol.cost < threshold; }),
+                            .proof = priced.exhaustive,
+                            .timed_out = priced.status == AlgorithmStatus::TIMEOUT};
+                    });
+                (void)last_attempt;
+                if (grew > 0) {
+                    LOG_INFO("nb_iter=",
+                             nb_iter,
+                             " | pricing escalated ",
+                             grew,
+                             " time(s), to ",
+                             budget,
+                             " s per solve\n");
                 }
-
-                for (auto& extra : extra_solvers) {
-                    timers[algo_index].start();
-                    auto sols = extra.fn(dual_by_id);
-                    timers[algo_index].stop();
-                    collect_solutions(sols, extra.optimal);
-                }
+                escalations += grew;
+                const std::vector<Solution>& solutions_rcspp_any = priced.first;
+                const AlgorithmStatus first_rcspp_status = priced.status;
+                const bool first_rcspp_exhaustive = priced.exhaustive;
 
                 // Collect negative reduced cost solutions from the chosen RCSPP results
                 std::vector<Solution> negative_red_cost_solutions;
@@ -253,17 +343,19 @@ class VRP {
                 }
 
                 // No improving column this iteration -> CG is about to stop. If the pricing solve
-                // that produced this result was cut short, optimality is not proven.
-                if (min_reduced_cost >= -EPSILON &&
-                    first_rcspp_status != AlgorithmStatus::COMPLETE) {
+                // that produced this result did not prove it, optimality is not proven.
+                if (min_reduced_cost >= -EPSILON && !first_rcspp_exhaustive) {
                     proven_optimal = false;
                     LOG_WARN(
                         "Column generation stopped without proving optimality: the final "
                         "pricing subproblem exited with status '",
                         to_string(first_rcspp_status),
-                        "' (not complete). The LP objective ",
+                        "' (not complete, or complete with a truncated join or a memory trim). "
+                        "The LP objective ",
                         master_solution.cost,
-                        " is a valid bound but is NOT proven optimal.\n");
+                        " is an UPPER bound on this model's LP optimum, not a lower bound: do not "
+                        "prune with it. A PricingBudget re-solves such an iteration with more "
+                        "time.\n");
                 }
 
                 add_paths(&master_problem, negative_red_cost_solutions);
@@ -282,18 +374,45 @@ class VRP {
                          '\n');
                 LOG_DEBUG(std::string(45, '*'), '\n');
 
+                if (!pricing_budget_.sticky) {
+                    budget = pricing_budget_.seconds;
+                }
                 // Converged with a proof: the caller may change the pricing model and go on.
-                if (min_reduced_cost >= -EPSILON &&
-                    first_rcspp_status == AlgorithmStatus::COMPLETE && on_converged &&
+                if (min_reduced_cost >= -EPSILON && first_rcspp_exhaustive && on_converged &&
                     on_converged(master_problem, master_solution)) {
                     min_reduced_cost = -std::numeric_limits<double>::infinity();
+                    budget = pricing_budget_.seconds;  // a new pricing model starts cheap again
                 }
             }
 
-            return CGSolveResult{timers, master_solution.cost, proven_optimal, nb_iter};
+            if (pricing_budget_.enabled()) {
+                for (auto* algorithm : algorithms) {
+                    algorithm->set_timeout(std::nullopt);  // hand the caller's object back as built
+                }
+            }
+            return CGSolveResult{timers,
+                                 master_solution.cost,
+                                 proven_optimal,
+                                 nb_iter,
+                                 escalations,
+                                 truncated,
+                                 budget};
         }
 
         RGraph& get_graph() { return graph_; }
+
+        /// @brief Times every pricing solve of the following `solve()` calls; see
+        ///        `PricingBudget`. The default, an unset budget, leaves each algorithm's own
+        ///        `timeout_s` in charge, as before.
+        ///
+        /// @param budget The budget.
+        /// @throws std::invalid_argument when a field is out of range (`PricingBudget::check`).
+        void set_pricing_budget(PricingBudget budget) {
+            if (budget.enabled()) {
+                budget.check();
+            }
+            pricing_budget_ = budget;
+        }
 
         /// @brief Removes the columns @p drop selects from @p master and from this model's paths.
         ///
@@ -357,6 +476,7 @@ class VRP {
         // Resource graph. needs to be loaded after time windows and ng neighborhoods are
         // initialized
         RGraph graph_;
+        PricingBudget pricing_budget_;
 
         std::optional<SolutionOutput> solution_output_;
 
@@ -403,7 +523,7 @@ class VRP {
                   typename LabelContainerType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id, AlgorithmParams<LabelContainerType> params,
-            AlgorithmStatus* out_status = nullptr) {
+            AlgorithmStatus* out_status = nullptr, bool* out_exhaustive = nullptr) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
@@ -420,13 +540,16 @@ class VRP {
             if (out_status != nullptr) {
                 *out_status = result.status;
             }
+            if (out_exhaustive != nullptr) {
+                *out_exhaustive = proves_no_column(result);
+            }
             return std::move(result.solutions);
         }
 
         template <class AlgorithmType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id, AlgorithmType* algo,
-            AlgorithmStatus* out_status = nullptr) {
+            AlgorithmStatus* out_status = nullptr, bool* out_exhaustive = nullptr) {
             LOG_TRACE(__FUNCTION__, '\n');
 
             update_resource_graph(&graph_, &dual_by_id);
@@ -442,6 +565,9 @@ class VRP {
 
             if (out_status != nullptr) {
                 *out_status = result.status;
+            }
+            if (out_exhaustive != nullptr) {
+                *out_exhaustive = proves_no_column(result);
             }
             return std::move(result.solutions);
         }

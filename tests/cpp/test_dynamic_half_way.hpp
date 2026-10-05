@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -191,6 +192,78 @@ TEST(DynamicHalfWay, ATruncatedSearchTeachesNothing) {
     EXPECT_EQ(as_bidirectional(algorithm.get())->half_way_controller().last_move(),
               HalfWayMove::Skipped);
     EXPECT_EQ(as_bidirectional(algorithm.get())->half_way_controller().moves(), 0U);
+}
+
+/// @brief Lifting a timeout with `set_timeout` keeps the object's controller.
+///
+/// The property a pricing loop's escalation relies on: the timed-out solve teaches nothing, and the
+/// re-run on the same object -- same controller -- teaches it as an untimed solve would.
+TEST(DynamicHalfWay, SetTimeoutKeepsTheController) {
+    namespace dh = dynamic_half_way_test;
+
+    auto graph = dh::long_clock_line();
+    auto params = dh::dynamic_params(dh::kLowH);
+    params.timeout_s = 0.0;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+
+    const auto timed_out = graph->solve(algorithm.get());
+    ASSERT_EQ(timed_out.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(as_bidirectional(algorithm.get())->half_way_controller().last_move(),
+              HalfWayMove::Skipped);
+    EXPECT_DOUBLE_EQ(as_bidirectional(algorithm.get())->half_way_controller().h(), dh::kLowH);
+
+    algorithm->set_timeout(std::numeric_limits<double>::infinity());
+    const auto lifted = graph->solve(algorithm.get());
+    ASSERT_EQ(lifted.status, AlgorithmStatus::COMPLETE);
+    EXPECT_DOUBLE_EQ(lifted.bidirectional->half_way_point_used, dh::kLowH);
+    EXPECT_EQ(as_bidirectional(algorithm.get())->half_way_controller().observations(), 2U)
+        << "one controller saw both solves";
+    EXPECT_NE(as_bidirectional(algorithm.get())->half_way_controller().last_move(),
+              HalfWayMove::Skipped);
+    EXPECT_GT(as_bidirectional(algorithm.get())->half_way_controller().h(), dh::kLowH)
+        << "the complete solve is backward-heavy, as in the central test";
+}
+
+/// @brief With `derive_half_way_point`, the controller clamps `H` to the model's range.
+///
+/// `H0 = 1.5` on a clock of range 10: without the flag the controller assumes `R = 3` and stops at
+/// 2.85; with it, `R = 10` and `H` keeps rising on this backward-heavy line.
+TEST(DynamicHalfWay, DeriveHalfWayPointGivesTheControllerTheModelsRange) {
+    namespace dh = dynamic_half_way_test;
+
+    auto graph = dh::long_clock_line();
+    auto params = dh::dynamic_params(dh::kLowH);
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+
+    const auto hs = dh::hs_used(dh::solve_repeatedly(graph.get(), algorithm.get()));
+    EXPECT_DOUBLE_EQ(hs.front(), dh::kLowH) << "the explicit H0 still starts the controller";
+    EXPECT_DOUBLE_EQ(as_bidirectional(algorithm.get())->half_way_controller().range(),
+                     dh::kCapacity);
+    EXPECT_GT(hs.back(), 0.95 * 2.0 * dh::kLowH) << "past the clamp a derived R = 2 * H0 imposes";
+}
+
+/// @brief With `derive_half_way_point` and `H = 0`, the controller starts from `R / 2`.
+TEST(DynamicHalfWay, DeriveHalfWayPointStartsTheControllerAtHalfTheRange) {
+    namespace dh = dynamic_half_way_test;
+
+    auto graph = dh::long_clock_line();
+    auto params = dh::dynamic_params(0.0);
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+
+    const auto first = graph->solve(algorithm.get());
+    EXPECT_TRUE(first.bidirectional->bounded_by_half_way)
+        << first.bidirectional->half_way_off_reason;
+    EXPECT_DOUBLE_EQ(first.bidirectional->half_way_point_used, dh::kCapacity / 2.0);
+    ASSERT_TRUE(as_bidirectional(algorithm.get())->half_way_controller().has_initial_h());
+    EXPECT_DOUBLE_EQ(as_bidirectional(algorithm.get())->half_way_controller().initial_h(),
+                     dh::kCapacity / 2.0);
+    EXPECT_DOUBLE_EQ(as_bidirectional(algorithm.get())->half_way_controller().range(),
+                     dh::kCapacity);
 }
 
 /// @brief When the bound switches itself off, there is no `H` to learn about.

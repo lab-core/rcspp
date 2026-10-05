@@ -39,10 +39,20 @@
 // **The join's budgets**, for measuring what bounding the join's work buys:
 //   --join-budget=K       join_column_budget: the join keeps only its K cheapest paths
 //   --max-join-pairs=N    max_join_pairs: the join stops after N join-rule questions
-//   --pricing-timeout=S   timeout_s on every pricing solve, forward included
+//   --pricing-timeout=S   with no budget, a bare timeout_s on every pricing solve, forward
+//                         included; with a budget, the budget's cap (max_seconds)
 //   --no-join-after-stop  join_after_early_stop = false: skip the join after a timeout
 //   --no-forward          skip the forward pricer; the dynamic run is then checked against static
 // The `pairs` column is `join_pairs_tested`; a `J` after the move means the join was truncated.
+//
+// **The pricing budget** (vrp/pricing_budget.hpp), on by default:
+//   --pricing-budget=S    each pricing solve starts with S seconds (default 0.05); a solve that
+//                         times out with no improving column is re-run on the same duals with ten
+//                         times the budget, so column generation still ends proven
+//   --pricing-budget=inf  no budget: every command line of the earlier measurements, as run then
+//   --budget-reset        start each iteration from S again, rather than from the last budget
+// The tables count pricing *solves*, escalated repeats included; the `budget` column shows each
+// solve's budget, so a repeat reads as a row whose budget grew.
 //
 // Needs Gurobi, like every other driver here. Works under any `kRouteRelaxation`: all three
 // presets declare coherent backward forms, so the model checks accept the bidirectional solve.
@@ -86,16 +96,36 @@ struct PricingRow {
         std::string move;
         size_t join_pairs = 0;
         bool join_truncated = false;
+        /// The timeout the solve ran with: the pricing budget's attempt, or infinity.
+        double budget = std::numeric_limits<double>::infinity();
 };
 
-/// @brief What a run caps. Every default is "no cap", so an option left out changes nothing.
+/// @brief What a run caps. Every join default is "no cap"; the pricing budget is on (0.05 s),
+///        and `--pricing-budget=inf` turns it off.
 struct CgOptions {
         size_t join_budget = MAX_INT;                                ///< --join-budget=K
         size_t max_pairs = MAX_INT;                                  ///< --max-join-pairs=N
         double timeout_s = std::numeric_limits<double>::infinity();  ///< --pricing-timeout=S
         bool join_after_stop = true;                                 ///< --no-join-after-stop
         bool run_forward = true;                                     ///< --no-forward
+        double budget_s = 0.05;     ///< --pricing-budget=S; infinity for none
+        bool budget_sticky = true;  ///< false with --budget-reset
 };
+
+/// @brief Hands @p vrp the pricing budget @p options ask for, if any.
+///
+/// With a budget, the budget times every solve and `--pricing-timeout` becomes its cap, so the
+/// params' own timeout is lifted.
+template <typename Params>
+void apply_budget(VRP* vrp, Params* params, const CgOptions& options) {
+    if (!std::isfinite(options.budget_s)) {
+        return;
+    }
+    vrp->set_pricing_budget({.seconds = options.budget_s,
+                             .max_seconds = options.timeout_s,
+                             .sticky = options.budget_sticky});
+    params->timeout_s = std::numeric_limits<double>::infinity();
+}
 
 /// @brief Records one row per `solve()` of the algorithm it wraps.
 ///
@@ -103,14 +133,18 @@ struct CgOptions {
 /// class (the bidirectional one is internal), and `VRP::solve` takes `Algorithm` pointers, so the
 /// recorder is an `Algorithm` that hands every solve to the one it holds. The checks the wrapped
 /// algorithm's direction needs run in its own `solve()`.
+///
+/// The pricing budget sets its timeout on the recorder (`set_timeout` is not virtual); the recorder
+/// starts from the wrapped algorithm's own timeout and passes its current one on before each solve.
 class Recording : public Algorithm<ResourceType, ListLC> {
     public:
         Recording(ResourceFactory<ResourceType>* resource_factory,
                   std::unique_ptr<Algorithm<ResourceType, ListLC>> inner)
-            : Algorithm<ResourceType, ListLC>(resource_factory, AlgorithmParams<ListLC>{}),
+            : Algorithm<ResourceType, ListLC>(resource_factory, params_timed_as(*inner)),
               inner_(std::move(inner)) {}
 
         SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) override {
+            inner_->set_timeout(this->timeout());
             const auto started = std::chrono::steady_clock::now();
             SolveResult result = inner_->solve(graph, cost_upper_bound);
             const double seconds =
@@ -132,7 +166,8 @@ class Recording : public Algorithm<ResourceType, ListLC> {
                                        .off_reason = stats.half_way_off_reason,
                                        .move = {},
                                        .join_pairs = stats.join_pairs_tested,
-                                       .join_truncated = stats.join_truncated});
+                                       .join_truncated = stats.join_truncated,
+                                       .budget = inner_->timeout()});
             // Only the bidirectional search has a controller, and only a dynamic run starts it.
             if (const auto* bidirectional = as_bidirectional(inner_.get());
                 bidirectional != nullptr && bidirectional->half_way_controller().has_initial_h()) {
@@ -163,8 +198,8 @@ class Recording : public Algorithm<ResourceType, ListLC> {
 };
 
 void print_header() {
-    std::cout << "    iter  status     cols   fwd_lbl   bwd_lbl  fwd/bwd   dom_checks  joined"
-                 "       pairs        H      sec  move\n";
+    std::cout << "    solve status     cols   fwd_lbl   bwd_lbl  fwd/bwd   dom_checks  joined"
+                 "       pairs        H      sec   budget  move\n";
 }
 
 void print_row(const PricingRow& row) {
@@ -177,8 +212,8 @@ void print_row(const PricingRow& row) {
               << std::setw(9) << std::fixed << std::setprecision(2) << ratio << std::setw(13)
               << row.dominance_checks << std::setw(8) << row.joined_paths << std::setw(12)
               << row.join_pairs << std::setw(9) << std::setprecision(1) << row.half_way_point
-              << std::setw(9) << std::setprecision(3) << row.seconds << "  " << row.move
-              << (row.join_truncated ? " J" : "") << std::endl;
+              << std::setw(9) << std::setprecision(3) << row.seconds << std::setw(9) << row.budget
+              << "  " << row.move << (row.join_truncated ? " J" : "") << std::endl;
     if (!row.off_reason.empty()) {
         std::cout << "          bound off: " << row.off_reason << std::endl;
     }
@@ -225,7 +260,9 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
               << "  iterations=" << cg.iterations << "  dom_checks=" << checks
               << "  pricing=" << std::setprecision(2) << pricing_seconds << " s"
               << "  total=" << wall_seconds << " s" << "  cols=" << columns
-              << "  timeouts=" << timeouts << "  jtrunc=" << truncated_joins;
+              << "  timeouts=" << timeouts << "  jtrunc=" << truncated_joins
+              << "  solves=" << rows.size() << "  escalations=" << cg.escalations
+              << "  budget=" << std::setprecision(3) << cg.final_budget_seconds;
     if (measured > 0) {
         std::cout << "  imbalance=" << std::setprecision(2)
                   << std::exp(log_imbalance / static_cast<double>(measured)) << "x"
@@ -241,6 +278,7 @@ CGSolveResult run_forward(const Instance& instance, const CgOptions& options) {
     VRP vrp(instance);
     AlgorithmParams<ListLC> params;
     params.timeout_s = options.timeout_s;
+    apply_budget(&vrp, &params, options);
 
     Recording recorder(&vrp.get_graph().get_resource_factory(),
                        vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm>(params));
@@ -279,6 +317,7 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
     params.max_join_pairs = options.max_pairs;
     params.timeout_s = options.timeout_s;
     params.join_after_early_stop = options.join_after_stop;
+    apply_budget(&vrp, &params, options);
 
     Recording recorder(&vrp.get_graph().get_resource_factory(),
                        vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm>(params));
@@ -318,6 +357,10 @@ int main(int argc, char** argv) {
             options.max_pairs = std::stoull(value_of(arg));
         } else if (arg.starts_with("--pricing-timeout=")) {
             options.timeout_s = std::stod(value_of(arg));
+        } else if (arg.starts_with("--pricing-budget=")) {
+            options.budget_s = std::stod(value_of(arg));
+        } else if (arg == "--budget-reset") {
+            options.budget_sticky = false;
         } else if (arg == "--no-join-after-stop") {
             options.join_after_stop = false;
         } else if (arg == "--no-forward") {
@@ -342,6 +385,12 @@ int main(int argc, char** argv) {
                                                    : std::string("none"))
               << "  join_after_early_stop=" << (options.join_after_stop ? "yes" : "no")
               << "  forward=" << (options.run_forward ? "yes" : "no") << "\n"
+              << "       pricing_budget="
+              << (std::isfinite(options.budget_s)
+                      ? std::to_string(options.budget_s) + " s, x10 on an empty timeout" +
+                            (options.budget_sticky ? ", sticky" : ", reset each iteration")
+                      : std::string("none"))
+              << "\n"
               << std::endl;
 
     for (const auto& name : names) {
