@@ -350,18 +350,20 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
-            std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
+            // The Reduce stages that ran; each is undone after the search.
+            std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>> preprocessors;
             // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
             // function's exception must not delete arcs from the caller's graph. The graph then
             // stays marked modified, so the next solve re-runs its checks.
             struct RestoreRemovedArcs {
-                    std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
+                    std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>>* list;
                     ~RestoreRemovedArcs() {
                         for (auto& preprocessor : *list) {
-                            preprocessor->restore();
+                            preprocessor->undo();
                         }
                     }
             } restore_removed_arcs{&preprocessors};
+            SolveContext context{.upper_bound = upper_bound};
             if (preprocess) {
                 // if graph has been modified, try to remove some arcs based on feasibility
                 // initialize or update connectivity matrix
@@ -409,7 +411,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                             this,
                             upper_bound,
                             cost_index);
-                        preprocessor->preprocess();
+                        preprocessor->run(*this, context);
                         preprocessors.emplace_back(std::move(preprocessor));
                     }
                 }
@@ -430,7 +432,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // restore the removed arcs for the next resolution
             if (preprocess) {
                 for (auto& preprocessor : preprocessors) {
-                    preprocessor->restore();
+                    preprocessor->undo();
                 }
                 preprocessors.clear();
                 this->track_modifications();  // mark as unmodified after restoring arcs

@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include <cassert>
+#include <string_view>
 #include <vector>
 
 #include "rcspp/graph/graph.hpp"
+#include "rcspp/preprocessor/pre_solve_stage.hpp"
 
 namespace rcspp {
 
@@ -15,11 +18,13 @@ namespace rcspp {
 /// unnecessary by the concrete subclass's `remove_arc` predicate.  Removed arcs can be
 /// restored to their original state via `restore()`.
 ///
+/// It is the Reduce kind of pre-solve stage: @ref run preprocesses, @ref undo restores.
+///
 /// @tparam ResourceType The resource type used in the graph; must satisfy
 ///         `ResourceTypeConcept`.
 template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
-class Preprocessor {
+class Preprocessor : public PreSolveStage<ResourceType> {
     public:
         /// @brief Constructs a preprocessor attached to the given graph.
         ///
@@ -27,7 +32,25 @@ class Preprocessor {
         explicit Preprocessor(Graph<ResourceType>* graph) : graph_(graph) {}
 
         /// @brief Virtual destructor.
-        virtual ~Preprocessor() = default;
+        ~Preprocessor() override = default;
+
+        /// @brief A preprocessor reduces the graph.
+        [[nodiscard]] StageKind kind() const final { return StageKind::Reduce; }
+
+        /// @brief A short name, for messages.
+        [[nodiscard]] std::string_view name() const override { return "preprocessor"; }
+
+        /// @brief Runs @ref preprocess on the graph this preprocessor was built for.
+        ///
+        /// @param graph That graph.
+        void run(Graph<ResourceType>& graph, SolveContext& /*context*/) override {
+            assert(&graph == graph_);
+            static_cast<void>(graph);
+            preprocess();
+        }
+
+        /// @brief Runs @ref restore.
+        void undo() noexcept override { restore(); }
 
         /// @brief Removes arcs that are identified as unnecessary by `remove_arc`.
         ///
