@@ -5,6 +5,7 @@
 
 #include <map>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -58,6 +59,12 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
                 }
             }
         }
+
+        [[nodiscard]] std::string_view name() const override { return "feasibility"; }
+
+        /// @brief Keeps the arcs removed: an arc along which no feasible extension exists never
+        ///        becomes usable, so the removal is permanent.
+        void undo() noexcept override {}
 
     private:
         ResourceFactory<ResourceType>* resource_factory_;

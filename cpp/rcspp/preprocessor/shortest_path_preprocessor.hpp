@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string_view>
 #include <unordered_map>
 
 #include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
@@ -72,6 +73,8 @@ class ShortestPathPreprocessor final
                 }
             }
         }
+
+        [[nodiscard]] std::string_view name() const override { return "shortest path"; }
 
     private:
         Distance dist_from_sources_, dist_to_sinks_;

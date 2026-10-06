@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Tests for ShortestPathPreprocessor, FeasibilityPreprocessor, and
-// BellmanFordAlgorithm.  Each test builds a small ResourceGraph<RealResource>
+// Tests for ShortestPathPreprocessor, FeasibilityPreprocessor, BellmanFordAlgorithm and
+// PreSolveScope.  Each test builds a small ResourceGraph<RealResource>
 // directly and inspects which arcs survive after preprocessing.
 
 #include <gtest/gtest.h>
@@ -12,6 +12,11 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 
@@ -462,4 +467,117 @@ TEST(FeasibilityPreprocessor, NoRemovalWhenAllArcsFeasible) {
 
     EXPECT_FALSE(removed_any);
     EXPECT_EQ(count_arcs(*g), 2U);
+}
+
+// ============================================================================
+// PreSolveScope tests
+// ============================================================================
+
+namespace {
+
+/// @brief A Reduce stage that records, in a shared log, when it runs and when it is undone.
+class RecordingStage : public PreSolveStage<Comp> {
+    public:
+        RecordingStage(std::string label, std::vector<std::string>* log)
+            : label_(std::move(label)), log_(log) {}
+
+        [[nodiscard]] StageKind kind() const override { return StageKind::Reduce; }
+        [[nodiscard]] std::string_view name() const override { return label_; }
+        void run(Graph<Comp>& /*graph*/, SolveContext& /*context*/) override {
+            log_->push_back("run " + label_);
+        }
+        void undo() noexcept override { log_->push_back("undo " + label_); }
+
+    private:
+        std::string label_;
+        std::vector<std::string>* log_;
+};
+
+/// @brief A Reduce stage that removes one arc and then throws, like a user's function failing
+///        part-way through a reduction.
+class RemoveThenThrowStage : public PreSolveStage<Comp> {
+    public:
+        explicit RemoveThenThrowStage(size_t arc_id) : arc_id_(arc_id) {}
+
+        [[nodiscard]] StageKind kind() const override { return StageKind::Reduce; }
+        [[nodiscard]] std::string_view name() const override { return "remove then throw"; }
+        void run(Graph<Comp>& graph, SolveContext& /*context*/) override {
+            graph_ = &graph;
+            graph.remove_arc(arc_id_);
+            throw std::runtime_error("stage failed");
+        }
+        void undo() noexcept override {
+            if (graph_ != nullptr) {
+                graph_->restore_arc(arc_id_);
+            }
+        }
+
+    private:
+        size_t arc_id_;
+        Graph<Comp>* graph_ = nullptr;
+};
+
+/// @brief source(0) --> node(1) --> sink(2).
+inline std::unique_ptr<ResourceGraph<RealResource>> make_path_graph() {
+    auto g = make_graph();
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, /*cost=*/1.0);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 1, 2, /*cost=*/1.0);
+    return g;
+}
+
+}  // namespace
+
+/// @brief A scope undoes the stages it ran in reverse order, each once.
+TEST(PreSolveScope, UndoesInReverseOrder) {
+    auto g = make_path_graph();
+    SolveContext context;
+    std::vector<std::string> log;
+    {
+        PreSolveScope<Comp> scope(*g, context);
+        scope.run(std::make_unique<RecordingStage>("first", &log));
+        scope.run(std::make_unique<RecordingStage>("second", &log));
+        scope.undo_all();
+        EXPECT_EQ(
+            log,
+            (std::vector<std::string>{"run first", "run second", "undo second", "undo first"}));
+    }
+    EXPECT_EQ(log.size(), 4U) << "the destructor undid a stage a second time";
+}
+
+/// @brief A stage that throws part-way is undone when the scope unwinds, and so is every stage
+///        that ran before it: no arc stays removed.
+TEST(PreSolveScope, UndoesWhenUnwinding) {
+    auto g = make_path_graph();
+    SolveContext context;
+    std::vector<std::string> log;
+    try {
+        PreSolveScope<Comp> scope(*g, context);
+        scope.run(std::make_unique<RecordingStage>("before", &log));
+        scope.run(std::make_unique<RemoveThenThrowStage>(0));
+        FAIL() << "the stage should have thrown";
+    } catch (const std::runtime_error&) {
+    }
+    EXPECT_NE(g->get_arc(0), nullptr) << "the arc removed before the throw stayed removed";
+    EXPECT_EQ(count_arcs(*g), 2U);
+    EXPECT_EQ(log, (std::vector<std::string>{"run before", "undo before"}));
+}
+
+/// @brief The feasibility reduction's removals are permanent: undoing the scope keeps them.
+TEST(FeasibilityPreprocessor, RemovalsOutliveTheScope) {
+    auto g = make_graph(/*max_val=*/kLooseBound);
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(kTwoHundredVal), 0, 1, /*cost=*/kTwoHundredVal);
+    SolveContext context;
+    {
+        PreSolveScope<Comp> scope(*g, context);
+        scope.run(
+            std::make_unique<FeasibilityPreprocessor<Comp>>(&g->get_resource_factory(), g.get()));
+        EXPECT_EQ(count_arcs(*g), 0U);
+        scope.undo_all();
+    }
+    EXPECT_EQ(count_arcs(*g), 0U);
 }

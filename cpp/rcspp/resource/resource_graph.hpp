@@ -350,23 +350,20 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
-            std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
-            // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
-            // function's exception must not delete arcs from the caller's graph. The graph then
-            // stays marked modified, so the next solve re-runs its checks.
-            struct RestoreRemovedArcs {
-                    std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
-                    ~RestoreRemovedArcs() {
-                        for (auto& preprocessor : *list) {
-                            preprocessor->restore();
-                        }
-                    }
-            } restore_removed_arcs{&preprocessors};
+            SolveContext context{.upper_bound = upper_bound};
+            // The Reduce stages of this solve, undone however it ends: a bidirectional refusal or
+            // a user function's exception must not delete arcs from the caller's graph. The graph
+            // then stays marked modified, so the next solve re-runs its checks.
+            PreSolveScope<ResourceCompositionType> reductions(*this, context);
             if (preprocess) {
                 // if graph has been modified, try to remove some arcs based on feasibility
-                // initialize or update connectivity matrix
+                // (for good: its undo keeps them removed); initialize or update connectivity
+                // matrix
                 if (this->is_modified()) {
-                    process_feasibility();
+                    reductions.run(
+                        std::make_unique<FeasibilityPreprocessor<ResourceCompositionType>>(
+                            &resource_factory_,
+                            this));
                     connectivityMatrix_.compute_bitmatrix();
                 }
 
@@ -404,13 +401,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
                         // remove some arcs before solving the problem
                         // the deleted arcs will be restored after the solve
-                        auto preprocessor = std::make_unique<
-                            ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
-                            this,
-                            upper_bound,
-                            cost_index);
-                        preprocessor->preprocess();
-                        preprocessors.emplace_back(std::move(preprocessor));
+                        reductions.run(
+                            std::make_unique<
+                                ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
+                                this,
+                                upper_bound,
+                                cost_index));
                     }
                 }
             }
@@ -428,11 +424,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             SolveResult result = algorithm->solve(this, upper_bound);
 
             // restore the removed arcs for the next resolution
+            reductions.undo_all();
             if (preprocess) {
-                for (auto& preprocessor : preprocessors) {
-                    preprocessor->restore();
-                }
-                preprocessors.clear();
                 this->track_modifications();  // mark as unmodified after restoring arcs
             }
 
