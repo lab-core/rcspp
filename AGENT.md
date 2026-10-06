@@ -359,6 +359,13 @@ Test files:
     (`BackwardExtensionCheck`, `JoinCheck`) without solving, and lists every problem.
     A forward-only model may fail them: a forward search reads none of it.
 
+11. **The search direction is a parameter** — `params.direction =
+    SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward; every
+    other algorithm throws `std::invalid_argument`. `create_algorithm<Strategy>(params)`
+    therefore returns `std::unique_ptr<Algorithm<R, LC>>`. A backward solve runs the
+    model checks before any preprocessing and throws `ModelRefused` on a failing model,
+    with `preprocess=false` too, and on a direct `Algorithm::solve`.
+
 ---
 
 ## Extending the library

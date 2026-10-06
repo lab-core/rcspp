@@ -379,6 +379,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
+            // The checks the search's direction needs, on the whole model, before any
+            // preprocessing: a reduction must not hide a problem, nor run for a refused search.
+            enforce_checks(*this, algorithm->direction());
+            algorithm->mark_model_checked(this);
+
             // The Reduce stages that ran; each is undone after the search.
             std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>> preprocessors;
             // Restores the removed arcs however the solve ends: a bidirectional refusal or a user

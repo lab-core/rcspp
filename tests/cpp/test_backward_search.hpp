@@ -124,6 +124,9 @@ inline std::map<size_t, std::pair<double, double>> time_windows() {
 }
 
 /// @brief Builds the time-window instance above as a single-component time resource.
+///
+/// The time costs nothing: a backward label's time is a deadline, not a cost, so a model that
+/// prices it is refused for a backward search.
 inline std::unique_ptr<ResourceGraph<RealResource>> time_window_graph() {
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     const auto windows = time_windows();
@@ -131,7 +134,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> time_window_graph() {
     graph->add_resource<RealResource>(
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
         std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
-        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
     graph->add_node(kNodeS, /*source=*/true, /*sink=*/false);

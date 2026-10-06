@@ -30,6 +30,7 @@
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
+#include "rcspp/validation/solve_checks.hpp"
 
 namespace rcspp {
 
@@ -343,6 +344,11 @@ class Algorithm {
 
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             require_supported_direction();
+            // ResourceGraph::solve checks before it preprocesses; any other caller is checked here.
+            if (checked_graph_ != graph) {
+                enforce_checks(*graph, direction());
+            }
+            checked_graph_ = nullptr;
 
             // initialization
             Timer timer(true);
@@ -451,6 +457,15 @@ class Algorithm {
         [[nodiscard]] virtual std::vector<SearchDirection> supported_directions() const {
             return {SearchDirection::Forward};
         }
+
+        /// @brief Records that @p graph passed the model checks of this algorithm's direction, so
+        ///        the next solve() on it does not run them again.
+        ///
+        /// For @c ResourceGraph::solve, which runs the checks before it preprocesses. The mark
+        /// covers one solve only.
+        ///
+        /// @param graph The graph that was checked.
+        void mark_model_checked(const Graph<ResourceType>* graph) { checked_graph_ = graph; }
 
         [[nodiscard]] bool is_interrupted() const {
             return params_.should_stop && params_.should_stop();
@@ -669,5 +684,8 @@ class Algorithm {
 
         bool timed_out_ = false;
         const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().
+
+        /// @brief The graph @ref mark_model_checked recorded for the next solve(), or null.
+        const Graph<ResourceType>* checked_graph_ = nullptr;
 };
 }  // namespace rcspp

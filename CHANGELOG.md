@@ -23,6 +23,10 @@ Each entry says what an existing model or caller sees differently.
   `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
   `auto`, or build the algorithm directly. With constructor arguments beyond the params,
   `create_algorithm` still returns the type it names.
+- **`preprocess` only says whether a solve may reduce the graph.** A backward search runs the
+  model checks its direction needs before any preprocessing, whatever `preprocess` says, and also
+  when `Algorithm::solve` is called directly; a model that fails them is refused with
+  `ModelRefused`. Forward solves are unchanged: they need no check.
 
 ### Added
 
