@@ -20,33 +20,42 @@ namespace rcspp {
 ///
 /// @tparam ResourceType The resource type used in the graph.
 template <typename ResourceType>
-class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
+class FeasibilityPreprocessor : public Preprocessor<ResourceType> {
     public:
-        /// @brief Constructs the preprocessor and pre-computes per-node initial resources.
-        ///
-        /// Source nodes receive the default resource provided by the factory.  For all
-        /// other nodes, feasible initial resources are obtained by extending the default
-        /// resource of each predecessor through its incoming arc.
+        /// @brief Constructs the preprocessor; the work happens in @ref preprocess.
         ///
         /// @param resource_factory Factory used to create and copy resource objects.
         /// @param graph            Non-owning pointer to the graph to preprocess.
         FeasibilityPreprocessor(ResourceFactory<ResourceType>* resource_factory,
                                 Graph<ResourceType>* graph)
-            : Preprocessor<ResourceType>(graph), resource_factory_(resource_factory) {
-            for (size_t node_id : graph->get_node_ids()) {
+            : Preprocessor<ResourceType>(graph),
+              resource_factory_(resource_factory),
+              graph_(graph) {}
+
+        /// @brief Computes the per-node initial resources, then removes the arcs along which none
+        ///        of them extends feasibly.
+        ///
+        /// Source nodes receive the default resource provided by the factory.  For all
+        /// other nodes, feasible initial resources are obtained by extending the default
+        /// resource of each predecessor through its incoming arc.
+        ///
+        /// @return `true` if at least one arc was removed, `false` otherwise.
+        bool preprocess() override {
+            initial_resources_by_node_id_.clear();
+            for (size_t node_id : graph_->get_node_ids()) {
                 // Create an initial resource by extending a resource to this node
-                const auto* node = graph->get_node(node_id);
+                const auto* node = graph_->get_node(node_id);
                 // if source, add default resource
                 if (node->source) {
                     initial_resources_by_node_id_[node_id].emplace_back(
-                        resource_factory->copy_resource(*node));
+                        resource_factory_->copy_resource(*node));
                     continue;
                 }
                 // loop through the in arcs to find all feasible initial resource
                 auto& initial_resources = initial_resources_by_node_id_[node_id];
                 for (auto* arc : node->in_arcs) {
-                    auto previous_resource = resource_factory->copy_resource(*arc->origin);
-                    auto new_resource = resource_factory->copy_resource(*node);
+                    auto previous_resource = resource_factory_->copy_resource(*arc->origin);
+                    auto new_resource = resource_factory_->copy_resource(*node);
                     arc->extender->extend(*previous_resource, new_resource.get());
 
                     // find the smallest feasible resource
@@ -57,10 +66,12 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
                     }
                 }
             }
+            return Preprocessor<ResourceType>::preprocess();
         }
 
     private:
         ResourceFactory<ResourceType>* resource_factory_;
+        Graph<ResourceType>* graph_;
         std::map<size_t, std::vector<std::unique_ptr<Resource<ResourceType>>>>
             initial_resources_by_node_id_;
         bool remove_arc(const Arc<ResourceType>& arc) override {
