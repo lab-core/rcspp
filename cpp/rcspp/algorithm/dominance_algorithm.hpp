@@ -145,8 +145,18 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
+        /// @brief Extends @p label_ptr along @p arc_ptr, keeping the result if it is feasible and
+        ///        not dominated.
+        ///
+        /// A path starts at a source and ends at a sink, with neither strictly inside it -- the
+        /// rule every algorithm in the library applies. The main loop never extends a label at a
+        /// sink; here, no extension lands on a source.
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
+            // Before the pool draw, so no label is drawn only to be abandoned.
+            if (arc_ptr->destination->source) {
+                return;
+            }
             // check if arc is not reachable
             if (!label_ptr->is_reachable(arc_ptr->destination->id)) {
                 return;

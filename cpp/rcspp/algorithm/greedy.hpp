@@ -130,10 +130,22 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
         bool extend_label(Label<ResourceType>* label) {
-            // create all possible extensions
+            // A path starts at a source and ends at a sink, with neither strictly inside it -- the
+            // rule every algorithm in the library applies (see DominanceAlgorithm::extend_label). A
+            // label at a sink is therefore finished: main_loop has already recorded it, and
+            // continuing past the sink would produce a path through it.
             auto* end_node = label->get_end_node();
+            if (end_node->sink) {
+                return false;
+            }
+            // create all possible extensions
             std::list<Label<ResourceType>*> all_labels;
             for (auto* arc : this->graph_->get_out_arcs(end_node)) {
+                // ...and no extension lands on a source. Checked before the pool draw, so no label
+                // is drawn only to be abandoned.
+                if (arc->destination->source) {
+                    continue;
+                }
                 // check if can reach this destination node
                 if (!label->is_reachable(arc->destination->id)) {
                     continue;

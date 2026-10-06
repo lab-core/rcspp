@@ -49,7 +49,10 @@ class Preprocessor {
         /// @brief Restores all arcs that were removed by previous calls to `preprocess`.
         ///
         /// After this call the graph is in the same state it was before any preprocessing
-        /// was applied.
+        /// was applied. A second call does nothing.
+        ///
+        /// Must not throw: @c ResourceGraph::solve also calls it from a destructor, when the
+        /// solve throws.
         virtual void restore() {
             for (const auto& arc_id : removed_arcs_by_id_) {
                 graph_->restore_arc(arc_id);

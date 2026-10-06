@@ -16,6 +16,48 @@ title: Algorithms
 | `Tabu` | ✗ | medium | Metaheuristic diversity |
 | `Diversification` | ✗ | configurable | Generate a diverse pool of solutions |
 
+## What every algorithm returns
+
+A path starts at a **source** and ends at a **sink**, with **neither a source nor a sink strictly
+inside it**. The graph refuses an arc that no path could use: `add_arc` throws
+`std::invalid_argument` for an arc into a source or out of a sink (in Python, a `ValueError` when the
+buffered arcs are sent to the graph). The algorithms keep the rule as well: none continues past a
+sink it reaches, and none extends a path into a source. A walk that returns to the depot and leaves
+again is two routes; priced as one column, with the vehicle-count row counted once, a
+set-partitioning master would buy it and be wrong.
+
+:::{admonition} Changed
+:class: note
+
+The rule used to hold only in part. Every algorithm could pass through a *source*, and `pulling`
+and `greedy` -- with the tabu and diversification searches built on the same dive -- could also
+continue past a sink. With sources `0` and `1`, sink `2`, and arcs `0 → 1` (−5), `1 → 2` (−1),
+`0 → 2` (0), the optimum was −6 through `0 1 2`. That graph is now refused when it is built, at
+`0 → 1`; without that arc the optimum is −1 through `1 2`. A route that genuinely continues through
+a depot is two routes: give the depot separate source and sink copies, which is what the VRP example
+does.
+:::
+
+### One thing `status` cannot tell you
+
+Every labelling algorithm prunes its label queues when RSS crosses
+`memory_pressure_fraction ×` the effective limit, and tightens the per-node extension quota along
+with it (never loosening one you set tighter).  Labels that were never extended are abandoned, so
+the answer may no longer be optimal — but `status` still reads `complete`, because the label sets
+really were exhausted *of what survived the trim*.  There is no status value for "exhausted but
+lossy", and reusing `memory_limit` would conflate a hard stop with a soft trim, so it is reported as
+a flag:
+
+```python
+result = rg.solve(algorithm="simple", params=p)
+if result.memory_pressure_triggered:
+    print("memory pressure trimmed this solve; the answer is not a proof")
+```
+
+Code that treats `complete` as proof of optimality — a column-generation loop deciding it has
+converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
+*parameters*, and memory pressure is a property of the run.
+
 ## `Simple` (default)
 
 Classic forward label-setting.  Processes nodes in topological order and

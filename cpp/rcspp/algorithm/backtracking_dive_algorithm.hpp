@@ -108,9 +108,21 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
         /// asks @ref select_children for the chosen ordered subset (with rejects),
         /// and pushes the chosen list as a new depth in @c path_. Returns true
         /// iff a new depth was pushed.
+        ///
+        /// A path starts at a source and ends at a sink, with neither strictly inside it -- the
+        /// rule every algorithm in the library applies (see
+        /// DominanceAlgorithm::extend_label). So a label at a sink is never extended,
+        /// and no extension lands on a source.
         bool extend_label(Label<ResourceType>* label) {
+            if (label->get_end_node()->sink) {
+                return false;
+            }
             std::list<Label<ResourceType>*> feasible;
             for (auto* arc : label->get_end_node()->out_arcs) {
+                // Before the pool draw, so no label is drawn only to be abandoned.
+                if (arc->destination->source) {
+                    continue;
+                }
                 if (!label->is_reachable(arc->destination->id)) {
                     continue;
                 }

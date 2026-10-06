@@ -69,6 +69,13 @@ struct SolveResult {
         std::vector<Solution> solutions;
         AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
+        /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
+        ///
+        /// Status can still be @c AlgorithmStatus::COMPLETE after a trim, so a caller treating
+        /// @c COMPLETE as a proof of optimality must check this too. Same value as
+        /// @c Algorithm::memory_pressure_was_triggered().
+        bool memory_pressure_triggered = false;
+
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
 };
@@ -320,6 +327,7 @@ class Algorithm {
             best_cost_upper_bound_ = cost_upper_bound;
             label_pool_.clear();
             solutions_.clear();
+            num_extended_labels_ = 0;
             effective_max_labels_per_node_ = params_.num_labels_to_extend_by_node;
             memory_pressure_triggered_ = false;
         }
@@ -418,7 +426,9 @@ class Algorithm {
                 release_label_memory();
             }
 
-            return {.solutions = std::move(solutions), .status = status};
+            SolveResult result{.solutions = std::move(solutions), .status = status};
+            annotate(&result);
+            return result;
         }
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
@@ -430,8 +440,32 @@ class Algorithm {
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
+        /// @brief How many labels the last solve extended; a machine-independent work measure.
+        ///
+        /// @return The number of label extensions performed.
+        [[nodiscard]] size_t get_number_of_extended_labels() const { return num_extended_labels_; }
+
+        /// @brief Whether memory pressure fired at least once during the last solve.
+        ///
+        /// If so, the result may not be optimal; `could_be_non_optimal()` reads params only and
+        /// does not reflect this.
+        ///
+        /// @return `true` when `on_memory_pressure()` was called during the last solve.
+        [[nodiscard]] bool memory_pressure_was_triggered() const {
+            return memory_pressure_triggered_;
+        }
+
     protected:
         bool print_{false};
+
+        /// @brief Adds diagnostics to the result, just before it is returned.
+        ///
+        /// The base reports memory pressure; overrides must call `Base::annotate(result)`.
+        ///
+        /// @param result The result about to be returned; never null.
+        virtual void annotate(SolveResult* result) const {
+            result->memory_pressure_triggered = memory_pressure_triggered_;
+        }
 
         /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
         ///
@@ -491,12 +525,18 @@ class Algorithm {
                 return;
             }
 
+            // Its hash reads the arc ids only, so a duplicate is caught before the column is built.
+            auto sol = Solution(end_label.get_cost(), {}, std::move(path_arc_ids));
+            if (solutions_.contains(sol)) {
+                return;
+            }
+
             // Build column: sum original arc costs and aggregate constraint coefficients
             Column column;
             std::unordered_map<size_t, long double> row_map;
             std::vector<size_t> path_node_ids;
-            path_node_ids.reserve(path_arc_ids.size() + 1);
-            for (size_t arc_id : path_arc_ids) {
+            path_node_ids.reserve(sol.path_arc_ids.size() + 1);
+            for (size_t arc_id : sol.path_arc_ids) {
                 const auto* arc = this->graph_->get_arc(arc_id);
                 path_node_ids.push_back(arc->origin->id);
                 column.cost += arc->cost;
@@ -513,16 +553,8 @@ class Algorithm {
                 return a.index < b.index;
             });
 
-            auto sol = Solution(end_label.get_cost(),
-                                std::move(path_node_ids),
-                                std::move(path_arc_ids),
-                                std::move(column));
-
-            // solution already extracted
-            if (solutions_.contains(sol)) {
-                return;
-            }
-
+            sol.path_node_ids = std::move(path_node_ids);
+            sol.column = std::move(column);
             solutions_.insert(std::move(sol));
         }
 

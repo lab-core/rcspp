@@ -305,6 +305,10 @@ class ResourceGraph:
         The arc is not sent to C++ immediately; call :meth:`update` or any read
         operation to flush the buffer.  Arc resource normalization happens at flush
         time so resources must be registered before :meth:`update` is called.
+
+        An arc into a source or out of a sink is refused when the buffer is flushed,
+        with a ``ValueError``: a path starts at a source and ends at a sink, so no path
+        could use it.
         """
         rows = self._normalize_rows(rows)
         arc_id = self._next_arc_id
@@ -557,6 +561,12 @@ class ResourceGraph:
         Returns:
             :class:`SolveResult` with a ``solutions`` list and an
             ``AlgorithmStatus`` indicating why the solver stopped.
+
+            A ``complete`` status does not on its own mean the answer is optimal:
+            if memory pressure trimmed the run, the label sets were exhausted only
+            of what survived the trim. ``result.memory_pressure_triggered`` reports
+            that, and no status value can -- see :doc:`the algorithms guide
+            </advanced/algorithms>`.
         """
         if cost_index < 0:
             raise ValueError(f"cost_index must be non-negative, got {cost_index}")
