@@ -30,13 +30,11 @@ namespace rcspp {
 /// @tparam ResourceTypes    Remaining resource types that form the composition.
 template <typename CostResourceType = RealResource, typename... ResourceTypes>
     requires is_numerical_resource_v<CostResourceType>
-class ShortestPathPreprocessor final
-    : public Preprocessor<ResourceTypeComposition<ResourceTypes...>> {
+class ShortestPathPreprocessor : public Preprocessor<ResourceTypeComposition<ResourceTypes...>> {
     public:
-        /// @brief Constructs the preprocessor and runs Bellman-Ford in both directions.
+        /// @brief Constructs the preprocessor; the work happens in @ref preprocess.
         ///
-        /// If `upper_bound` is infinite, preprocessing is disabled.  If Bellman-Ford
-        /// detects a negative cycle, preprocessing is also disabled.
+        /// If `upper_bound` is infinite, preprocessing is disabled.
         ///
         /// @param graph       Non-owning pointer to the graph to preprocess.
         /// @param upper_bound Known upper bound on the total path cost.  Arcs that
@@ -53,24 +51,35 @@ class ShortestPathPreprocessor final
             if (std::isinf(upper_bound)) {
                 Preprocessor<ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ =
                     true;
-            } else {
+            }
+        }
+
+        /// @brief Runs Bellman-Ford in both directions, then removes the arcs no path under the
+        ///        bound can use.
+        ///
+        /// If Bellman-Ford detects a negative cycle, preprocessing is disabled.
+        ///
+        /// @return `true` if at least one arc was removed, `false` otherwise.
+        bool preprocess() override {
+            using Base = Preprocessor<ResourceTypeComposition<ResourceTypes...>>;
+            if (!Base::disable_preprocessing_) {
                 try {
                     dist_from_sources_ =
                         BellmanFordAlgorithm::solve<CostResourceType, ResourceTypes...>(
-                            *graph,
-                            graph->get_source_node_ids(),
-                            cost_index);
+                            *graph_,
+                            graph_->get_source_node_ids(),
+                            cost_index_);
                     dist_to_sinks_ =
                         BellmanFordAlgorithm::solve<CostResourceType, ResourceTypes...>(
-                            *graph,
-                            graph->get_sink_node_ids(),
-                            cost_index,
+                            *graph_,
+                            graph_->get_sink_node_ids(),
+                            cost_index_,
                             false);
                 } catch (const std::runtime_error&) {
-                    Preprocessor<
-                        ResourceTypeComposition<ResourceTypes...>>::disable_preprocessing_ = true;
+                    Base::disable_preprocessing_ = true;
                 }
             }
+            return Base::preprocess();
         }
 
     private:
