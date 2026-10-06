@@ -144,8 +144,8 @@ class LabelList {
 /// @tparam ResourceType    Full composite resource type of the labels.
 /// @tparam Dir             The direction policy supplying the dominance order.
 ///
-/// @note A backward bucket container is supported but not yet used: the bidirectional algorithm
-///       uses @ref LabelList for its backward side.
+/// @note A backward bucket container compiles, but no search uses one: a backward search keeps
+///       its labels in a @ref LabelList (see @c detail::rebind_direction).
 template <typename BucketResource, typename SortResource, typename ResourceType,
           typename Dir = ForwardDirection>
 class LabelBuckets : public LabelList<ResourceType, Dir> {

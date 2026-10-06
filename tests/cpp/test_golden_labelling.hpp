@@ -7,7 +7,7 @@
 #pragma once
 
 #define GOLDEN_LEVEL 1  // 0: G0 (#32); 1: + backward (#33 on); 2: + bidirectional (#35 on); 3: #43
-#define GOLDEN_API 1    // 0: captures (old API); 1: rebuilt #33; 2: from the direction PR on
+#define GOLDEN_API 2    // 0: captures (old API); 1: rebuilt #33; 2: from the direction PR on
 
 #include <gtest/gtest.h>
 
