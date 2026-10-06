@@ -136,8 +136,8 @@ class DominanceFunction {
 /// @brief Thrown by a composed function whose backward member (@c check_back_dominance here) is not
 ///        overridden.
 ///
-/// The bidirectional setup calls it once before searching, and turns this exception into a refusal
-/// that names the missing override.
+/// @c BackwardExtensionCheck calls it once before any search, and turns this exception into a
+/// refusal that names the missing override.
 class NoBackwardDominance : public std::logic_error {
     public:
         using std::logic_error::logic_error;
@@ -169,7 +169,7 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Whether a composed backward label dominates another.
         ///
         /// The default throws @c NoBackwardDominance, so a forward-only composition still compiles
-        /// and a bidirectional setup refuses it; @c CompositionDominanceFunction compares component
+        /// and the model checks refuse it; @c CompositionDominanceFunction compares component
         /// by component.
         ///
         /// @param lhs_resource The label being tested for dominance.

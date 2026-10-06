@@ -390,6 +390,21 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             feasibility_preprocessor.preprocess();
         }
 
+        /// @brief Runs the model checks a search in @p direction needs, without solving.
+        ///
+        /// A forward search needs none. A backward search needs the model's backward semantics
+        /// (@c BackwardExtensionCheck); a bidirectional one also needs its join
+        /// (@c JoinCheck). The checks read the whole model, arcs that preprocessing removed
+        /// included.
+        ///
+        /// @param direction The search's direction.
+        /// @return One line per problem; empty when the model is ready for that search.
+        [[nodiscard]] ModelReport check_model(SearchDirection direction) const {
+            SolveContext context;
+            PreSolvePlan<ResourceCompositionType>(direction).inspect(*this, context);
+            return std::move(context.report);
+        }
+
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
             if (this->is_modified()) {
                 connectivityMatrix_.compute_bitmatrix();
