@@ -42,7 +42,7 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
 /// @tparam Strategy           The algorithm template the caller names.
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container of the params.
-/// @tparam CostResourceType   The cost resource type (read by the bidirectional search).
+/// @tparam CostResourceType   The cost resource type.
 /// @param resource_factory The graph's resource factory.
 /// @param params           The algorithm's params; their direction picks the class.
 /// @return The algorithm, behind its base class.

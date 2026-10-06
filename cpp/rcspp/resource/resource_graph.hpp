@@ -379,15 +379,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
-            // The stages run before the search, in order; here, the reductions, when the solve may
-            // reduce the graph. A stage that ran is undone however the solve ends: an exception
-            // out of a user's function must not delete arcs from the caller's graph. The graph
-            // then stays marked modified, so the next solve preprocesses it afresh.
-            PreSolvePlan<ResourceCompositionType> stages;
+            // Checks first, then (with preprocess) the reductions. PreSolvePlan inspects every
+            // stage before running any, and undoes the ones that ran however the solve ends. After
+            // an exception the graph stays marked modified, so the next solve preprocesses it
+            // afresh.
+            PreSolvePlan<ResourceCompositionType> stages(algorithm->direction());
             if (preprocess) {
                 add_reductions<CostResourceType>(&stages, upper_bound, cost_index);
             }
             SolveContext context{.upper_bound = upper_bound};
+            stages.enforce(*this, context);
             stages.run(*this, context);
 
             // if not sorted, use default sort (by id)
