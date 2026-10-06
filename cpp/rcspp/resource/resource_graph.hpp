@@ -25,6 +25,7 @@
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/validation/solve_checks.hpp"
 
 namespace rcspp {
 
@@ -446,6 +447,19 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 &resource_factory_,
                 this);
             feasibility_preprocessor.preprocess();
+        }
+
+        /// @brief Runs the model checks a search in @p direction needs, without solving.
+        ///
+        /// A forward search needs none. A backward search needs the model's backward semantics
+        /// (@c BackwardExtensionCheck); a bidirectional one also needs its join
+        /// (@c JoinCheck). The checks read the whole model, arcs that preprocessing removed
+        /// included.
+        ///
+        /// @param direction The search's direction.
+        /// @return One line per problem; empty when the model is ready for that search.
+        [[nodiscard]] ModelReport check_model(SearchDirection direction) const {
+            return run_checks<ResourceCompositionType>(*this, direction);
         }
 
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
