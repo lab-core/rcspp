@@ -1208,6 +1208,12 @@ inline std::unique_ptr<ResourceGraph<RealResource>> accumulating_load_graph(
     return graph;
 }
 
+inline AlgorithmBaseParams searching(SearchDirection direction) {
+    AlgorithmBaseParams params;
+    params.direction = direction;
+    return params;
+}
+
 }  // namespace model_checks_test
 
 /// @brief A per-node window on an accumulating load bounds what the path has loaded up to the
@@ -1234,6 +1240,10 @@ TEST(ModelChecks, APerNodeWindowOnAnAccumulationIsRefusedForABackwardSearch) {
                       std::string::npos)
                 << where << ", " << to_string(direction);
         }
+        EXPECT_THROW(
+            (void)graph->solve<SimpleDominanceAlgorithm>(mc::searching(SearchDirection::Backward)),
+            ModelRefused)
+            << where;
         EXPECT_NEAR(mc::best_cost(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
                     forward_optimum,
                     mc::kTolerance)
@@ -1242,11 +1252,14 @@ TEST(ModelChecks, APerNodeWindowOnAnAccumulationIsRefusedForABackwardSearch) {
 }
 
 /// @brief One window `[0, max]` for every node is exact on a suffix with non-negative loads, so a
-///        backward search still accepts it.
+///        backward search still accepts it and agrees with the forward one.
 TEST(ModelChecks, AUniformWindowOnAnAccumulationStillSearchesBackward) {
     namespace mc = model_checks_test;
     auto graph = mc::accumulating_load_graph({});
     EXPECT_EQ(mc::problems(*graph, SearchDirection::Backward), "");
+    const auto backward =
+        graph->solve<SimpleDominanceAlgorithm>(mc::searching(SearchDirection::Backward));
+    EXPECT_NEAR(mc::best_cost(backward), -10.0, mc::kTolerance);
 }
 
 /// @brief A source whose window opens after the value a forward label starts with: the forward
@@ -1263,12 +1276,19 @@ TEST(ModelChecks, ASourceWindowOpeningAfterTheStartIsRefusedForABackwardSearch) 
     EXPECT_NE(backward.find("component 1: a forward label leaves source 0 at 0.000000"),
               std::string::npos)
         << backward;
+    EXPECT_THROW(
+        (void)late->solve<SimpleDominanceAlgorithm>(mc::searching(SearchDirection::Backward)),
+        ModelRefused);
     EXPECT_EQ(mc::problems(*late, SearchDirection::Bidirectional), "");
     EXPECT_NEAR(mc::best_cost(late->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
                 -10.0,
                 mc::kTolerance);
 
-    // Opened at the start value, the source passes.
+    // Opened at the start value, the source passes, and the backward search finds the path.
     auto open = mc::clocked_graph({{0, {0.0, 100.0}}, {1, {0.0, 100.0}}, {2, {0.0, 3.0}}}, arcs);
     EXPECT_EQ(mc::problems(*open, SearchDirection::Backward), "");
+    EXPECT_NEAR(mc::best_cost(open->solve<SimpleDominanceAlgorithm>(
+                    mc::searching(SearchDirection::Backward))),
+                -10.0,
+                mc::kTolerance);
 }

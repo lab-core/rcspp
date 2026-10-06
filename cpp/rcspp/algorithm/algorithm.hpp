@@ -30,6 +30,7 @@
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
+#include "rcspp/validation/pre_solve_plan.hpp"
 
 namespace rcspp {
 
@@ -343,6 +344,11 @@ class Algorithm {
 
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             require_supported_direction();
+            // The checks this direction needs, whoever calls: ResourceGraph::solve ran them
+            // already, before preprocessing, but a direct call or an algorithm running another
+            // inside it did not.
+            SolveContext context{.upper_bound = cost_upper_bound};
+            PreSolvePlan<ResourceType>(direction()).enforce(*graph, context);
 
             // initialization
             Timer timer(true);
