@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <list>
 #include <sstream>
 #include <string>
@@ -119,10 +120,8 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
             }
             std::list<Label<ResourceType>*> feasible;
             for (auto* arc : label->get_end_node()->out_arcs) {
-                // Before the pool draw, so no label is drawn only to be abandoned.
-                if (arc->destination->source) {
-                    continue;
-                }
+                // The graph refuses an arc that enters a source.
+                assert(!arc->destination->source && "an arc enters a source");
                 if (!label->is_reachable(arc->destination->id)) {
                     continue;
                 }

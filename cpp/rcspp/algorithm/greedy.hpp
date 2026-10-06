@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <list>
 #include <sstream>
 #include <string>
@@ -141,11 +142,8 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             // create all possible extensions
             std::list<Label<ResourceType>*> all_labels;
             for (auto* arc : this->graph_->get_out_arcs(end_node)) {
-                // ...and no extension lands on a source. Checked before the pool draw, so no label
-                // is drawn only to be abandoned.
-                if (arc->destination->source) {
-                    continue;
-                }
+                // ...and no extension lands on a source: the graph refuses an arc that enters one.
+                assert(!arc->destination->source && "an arc enters a source");
                 // check if can reach this destination node
                 if (!label->is_reachable(arc->destination->id)) {
                     continue;
