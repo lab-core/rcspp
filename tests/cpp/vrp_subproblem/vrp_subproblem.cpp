@@ -110,7 +110,9 @@ void VRPSubproblem::add_all_arcs_to_graph(RGraph* resource_graph,
     size_t arc_id = 0;
     for (const auto& [customer_orig_id, customer_orig] : customers_by_id) {
         for (const auto& [customer_dest_id, customer_dest] : customers_by_id) {
-            if (customer_orig_id != customer_dest_id) {
+            // No arc enters the depot's source: the return to the depot is the arc to the sink
+            // below.
+            if (customer_orig_id != customer_dest_id && !customer_dest.depot) {
                 add_arc_to_graph(resource_graph,
                                  customer_orig_id,
                                  customer_dest_id,

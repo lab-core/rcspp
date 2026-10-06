@@ -10,6 +10,7 @@
 #include <memory>
 #include <ranges>  // NOLINT(build/include_order)
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -56,12 +57,18 @@ class Graph {
             return *nodes_by_id_[node_id];
         }
 
+        /// @brief Adds an arc from @p origin_node to @p destination_node.
+        ///
+        /// @throws std::invalid_argument when the arc would enter a source or leave a sink. A path
+        ///         starts at a source and ends at a sink with neither inside it, so no path could
+        ///         use such an arc. Nothing is added.
         virtual Arc<ResourceType>& add_arc(Node<ResourceType>* origin_node,
                                            Node<ResourceType>* destination_node, double cost = 0.0,
                                            std::vector<Row> rows = {}) {
             return add_arc_at(origin_node, destination_node, cost, rows, next_arc_id_);
         }
 
+        /// @brief Adds an arc between the nodes with these ids; see the overload above.
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
                                            double cost = 0.0, std::vector<Row> rows = {}) {
             auto& origin_node = nodes_by_id_.at(origin_node_id);
@@ -206,6 +213,19 @@ class Graph {
                 }
             }
             return restored_arc_ids;
+        }
+
+        /// @brief Throws what @ref add_arc would throw for an arc between these nodes, without
+        ///        adding it.
+        ///
+        /// Lets a caller adding many arcs check them all first, so that a refused arc leaves the
+        /// graph unchanged rather than half-built.
+        ///
+        /// @throws std::out_of_range when either node does not exist.
+        /// @throws std::invalid_argument when the arc would enter a source or leave a sink.
+        void check_new_arc(size_t origin_node_id, size_t destination_node_id) const {
+            check_arc_endpoints(*nodes_by_id_.at(origin_node_id),
+                                *nodes_by_id_.at(destination_node_id));
         }
 
         [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
@@ -509,10 +529,33 @@ class Graph {
         mutable std::vector<Arc<ResourceType>*> csr_in_arcs_;
         mutable bool csr_valid_ = false;
 
+        /// @brief Throws `std::invalid_argument` if no path could use an arc from @p origin_node to
+        ///        @p destination_node: one that enters a source or leaves a sink.
+        static void check_arc_endpoints(const Node<ResourceType>& origin_node,
+                                        const Node<ResourceType>& destination_node) {
+            if (destination_node.source) {
+                throw std::invalid_argument(
+                    "arc " + std::to_string(origin_node.id) + " -> " +
+                    std::to_string(destination_node.id) + " enters source " +
+                    std::to_string(destination_node.id) +
+                    ": a path starts at a source, so no arc may enter one (a depot that a route "
+                    "passes through needs separate source and sink nodes)");
+            }
+            if (origin_node.sink) {
+                throw std::invalid_argument(
+                    "arc " + std::to_string(origin_node.id) + " -> " +
+                    std::to_string(destination_node.id) + " leaves sink " +
+                    std::to_string(origin_node.id) +
+                    ": a path ends at a sink, so no arc may leave one (a depot that a route "
+                    "passes through needs separate source and sink nodes)");
+            }
+        }
+
         // Internal helper: insert an arc at a specific slot (used by clone()).
         Arc<ResourceType>& add_arc_at(Node<ResourceType>* origin_node,
                                       Node<ResourceType>* destination_node, double cost,
                                       std::vector<Row> rows, size_t arc_id) {
+            check_arc_endpoints(*origin_node, *destination_node);
             next_arc_id_ = std::max(next_arc_id_, arc_id + 1);
             if (arc_id >= arcs_.size()) {
                 arcs_.resize(arc_id + 1);

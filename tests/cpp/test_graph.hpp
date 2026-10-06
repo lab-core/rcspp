@@ -21,7 +21,7 @@ std::unique_ptr<Graph<RealResource>> make_diamond() {
     auto g = std::make_unique<Graph<RealResource>>();
     g->add_node(0, /*source=*/true);
     g->add_node(1);
-    g->add_node(2, /*sink=*/true);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
     g->add_arc(0, 1);  // id=0
     g->add_arc(0, 2);  // id=1
     g->add_arc(1, 2);  // id=2
@@ -97,7 +97,7 @@ TEST(Graph, ForceArcNonexistent) {
 TEST(Graph, ForceArcAlreadyUnique) {
     auto g = std::make_unique<Graph<RealResource>>();
     g->add_node(0, /*source=*/true);
-    g->add_node(1, /*sink=*/true);
+    g->add_node(1, /*source=*/false, /*sink=*/true);
     g->add_arc(0, 1);
     auto removed = g->force_arc(0);
     EXPECT_TRUE(removed.empty());
@@ -109,7 +109,7 @@ TEST(Graph, ForceArcAlreadyUnique) {
 TEST(Graph, ForceArcParallelDedup) {
     auto g = std::make_unique<Graph<RealResource>>();
     g->add_node(0, /*source=*/true);
-    g->add_node(1, /*sink=*/true);
+    g->add_node(1, /*source=*/false, /*sink=*/true);
     g->add_arc(0, 1);  // id=0
     g->add_arc(0, 1);  // id=1 (parallel)
     auto removed = g->force_arc(0);

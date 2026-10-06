@@ -350,8 +350,9 @@ Test files:
 
 9. **No source or sink inside a path** — every algorithm returns paths that start at
    a source and end at a sink with neither in between: a search never continues past
-   a sink and never extends into a source. Model a depot a route passes through as
-   separate source and sink nodes.
+   a sink and never extends into a source. `add_arc` refuses an arc into a source or
+   out of a sink (`std::invalid_argument`; `ValueError` in Python). Model a depot a
+   route passes through as separate source and sink nodes.
 
 ---
 
