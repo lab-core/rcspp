@@ -95,6 +95,10 @@ class ExtensionFunction {
         /// @p extender_value is the arc's consumption, the same as going forward. Where the label
         /// starts, at the sink, is @c start_back's.
         ///
+        /// A @c Threshold must accept any value of its type: @c BackwardExtensionCheck reads its
+        /// clamps by extending values beyond every bound (the infinities, or an integral type's
+        /// extremes), forward and backward, and checks them against the feasibility function.
+        ///
         /// @param resource        The current accumulated resource value.
         /// @param extender_value  The arc's contribution to the resource.
         /// @param extended_resource Pointer to the result; must not be null.
@@ -146,7 +150,7 @@ class ExtensionFunction {
 /// @brief Thrown by a composed function whose backward members (@c extend_back and @c start_back
 ///        here) are not overridden.
 ///
-/// The bidirectional setup calls each once before searching, and turns this exception into a
+/// @c BackwardExtensionCheck calls each once before any search, and turns this exception into a
 /// refusal that names the missing override.
 class NoBackwardExtension : public std::logic_error {
     public:
@@ -177,7 +181,7 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Extender<ResourceTypeComposition<ResourceTypes...>>& extender,
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
-        /// @brief Not read: a composition has no kind of its own. The bidirectional setup reads
+        /// @brief Not read: a composition has no kind of its own. The model checks read
         ///        each component's @c backward_kind() instead.
         ///
         /// @return @c BackwardKind::Unspecified unless overridden.
@@ -188,7 +192,7 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Extends a composed resource backward.
         ///
         /// The default throws @c NoBackwardExtension, so a forward-only composition still compiles
-        /// and a bidirectional setup refuses it by name. @c CompositionExtensionFunction extends
+        /// and the model checks refuse it by name. @c CompositionExtensionFunction extends
         /// each component.
         ///
         /// @param resource         The current accumulated composed resource.

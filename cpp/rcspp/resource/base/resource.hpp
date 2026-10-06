@@ -174,8 +174,7 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         /// cost plus the backward half's. True for a zero cost, and for a cost equal to the value
         /// under an accumulating extension, where the backward value is the suffix's own share.
         /// Any other backward value (a deadline, say) is not a share of the path's cost. That an
-        /// accumulation is a sum is not declared: a bidirectional setup checks it by running the
-        /// extension.
+        /// accumulation is a sum is not declared: @c JoinCheck checks it by running the extension.
         ///
         /// @return `true` when the join may add this component's two costs.
         [[nodiscard]] auto is_cost_additive() const -> bool {
@@ -191,7 +190,7 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
 
         /// @brief What this resource's cost function computes.
         ///
-        /// Used by setup-time checks: the accumulation check runs only for a component whose cost
+        /// Read by the model checks: the accumulation check runs only for a component whose cost
         /// is its value.
         ///
         /// @return See @c CostFunction::cost_form.
@@ -233,7 +232,7 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                     if constexpr (is_numerical_resource_v<ResourceType>) {
                         return this->value_.leq(back_resource.value_);
                     } else {
-                        // Refused at setup (describe_problem), so a solve never gets here.
+                        // JoinCheck refuses this model before a solve, so none gets here.
                         throw std::logic_error(
                             "JoinRule::ValueOrder compares two scalar values, and this "
                             "resource has none; its feasibility function must declare "
@@ -249,15 +248,15 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
 
         /// @brief The join rule this resource uses, cached from its feasibility function.
         ///
-        /// The bidirectional setup reads it to refuse @c Unspecified, naming the component.
+        /// @c JoinCheck reads it to refuse @c Unspecified, naming the component.
         ///
         /// @return The declared @ref JoinRule.
         [[nodiscard]] auto join_rule() const -> JoinRule { return this->join_rule_; }
 
         /// @brief Whether this resource's join test needs a running sum that no arc lowers.
         ///
-        /// The bidirectional setup then scans every arc for a negative consumption, and checks that
-        /// the extension adds.
+        /// The model checks then scan every arc for a negative consumption, and check that the
+        /// extension adds.
         ///
         /// @return See @c FeasibilityFunction::requires_nondecreasing.
         [[nodiscard]] auto requires_nondecreasing() const -> bool {
@@ -266,7 +265,7 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
 
         /// @brief Whether this node's forward test accepts @p value.
         ///
-        /// Lets the bidirectional setup ask the test about chosen values (one above every bound,
+        /// Lets the model checks ask the test about chosen values (one above every bound,
         /// each clamp and start, the value just above it) without building a label.
         ///
         /// @param value A forward value.
@@ -277,7 +276,7 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
 
         /// @brief Whether this node's backward test accepts @p value.
         ///
-        /// Lets the bidirectional setup ask the test about chosen values (a clamp, a value below
+        /// Lets the model checks ask the test about chosen values (a clamp, a value below
         /// every bound) without building a label.
         ///
         /// @param value A backward value.

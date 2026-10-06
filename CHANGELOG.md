@@ -20,6 +20,15 @@ Each entry says what an existing model or caller sees differently.
 
 ### Added
 
+- **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
+  `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
+  missing or incoherent before any label exists. They read the whole model, removed arcs included.
+  `ResourceGraph::check_model(direction)` runs the checks a search in that direction needs without
+  solving and returns every problem. A `PreSolvePlan` built from a direction holds the checks that
+  direction needs; its `enforce()` refuses a failing model with `ModelRefused` (a
+  `std::runtime_error`) listing them.
+  `Preprocessor` is now the Reduce kind of `PreSolveStage`; a check is the Check kind. See "Model
+  checks" in `docs/advanced/algorithms.md`.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.

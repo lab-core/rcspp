@@ -25,7 +25,8 @@ namespace rcspp {
 /// the half-way clock, which an addition cannot.
 ///
 /// The per-node capacities must be the ones the paired feasibility function enforces forward, or
-/// the two searches solve different models (a bidirectional solve refuses the mismatch). Build
+/// the two directions solve different models (a backward or bidirectional solve refuses the
+/// mismatch). Build
 /// both from one @ref SharedNodeBounds:
 ///
 /// @code

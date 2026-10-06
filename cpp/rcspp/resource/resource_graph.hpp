@@ -25,6 +25,7 @@
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/validation/pre_solve_plan.hpp"
 
 namespace rcspp {
 
@@ -351,9 +352,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             }
 
             SolveContext context{.upper_bound = upper_bound};
-            // The Reduce stages of this solve, undone however it ends: a bidirectional refusal or
-            // a user function's exception must not delete arcs from the caller's graph. The graph
-            // then stays marked modified, so the next solve re-runs its checks.
+            // The Reduce stages of this solve, undone however it ends: an exception out of a user's
+            // function must not delete arcs from the caller's graph. The graph then stays marked
+            // modified, so the next solve preprocesses it afresh.
             PreSolveScope<ResourceCompositionType> reductions(*this, context);
             if (preprocess) {
                 // if graph has been modified, try to remove some arcs based on feasibility
@@ -437,6 +438,21 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 &resource_factory_,
                 this);
             feasibility_preprocessor.preprocess();
+        }
+
+        /// @brief Runs the model checks a search in @p direction needs, without solving.
+        ///
+        /// A forward search needs none. A backward search needs the model's backward semantics
+        /// (@c BackwardExtensionCheck); a bidirectional one also needs its join
+        /// (@c JoinCheck). The checks read the whole model, arcs that preprocessing removed
+        /// included.
+        ///
+        /// @param direction The search's direction.
+        /// @return One line per problem; empty when the model is ready for that search.
+        [[nodiscard]] ModelReport check_model(SearchDirection direction) const {
+            SolveContext context;
+            PreSolvePlan<ResourceCompositionType>(direction).inspect(*this, context);
+            return std::move(context.report);
         }
 
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {

@@ -44,8 +44,8 @@ class FeasibilityFunction {
 
         /// @brief Returns whether the given resource value is feasible in the forward direction.
         ///
-        /// Must handle any value of its type, the infinities included: a bidirectional setup asks
-        /// it about a value above every bound, and about each value the extension clamps a
+        /// Must handle any value of its type, the infinities included: the model checks ask it
+        /// about a value above every bound, and about each value the extension clamps a
         /// backward label to or starts one at, and the value just above it.
         ///
         /// @param resource The accumulated resource value to test.
@@ -58,6 +58,10 @@ class FeasibilityFunction {
         /// Defaults to @c is_feasible, which suits a backward value that reads like a forward one
         /// (a sum). A threshold's backward value is a limit, so override it: a time window tests
         /// only the opening time, since the clamp already enforces the closing time.
+        ///
+        /// Must handle any value of its type, the infinities included: @c BackwardExtensionCheck
+        /// asks it about a value below every bound, to learn whether it tests a floor, and about
+        /// the lowest value a forward label can hold at the node, to check that floor.
         ///
         /// @param resource The accumulated resource value to test.
         /// @return @c true if the resource satisfies the backward feasibility constraint.
@@ -109,9 +113,9 @@ class FeasibilityFunction {
         ///        that no arc lowers.
         ///
         /// True for a test that adds the two halves: their sum bounds the path's largest value only
-        /// if the value never decreases, and is the path's value only if the extension is a sum. A
-        /// bidirectional setup then refuses a negative consumption on any arc of this resource, and
-        /// an accumulating extension that does not add.
+        /// if the value never decreases, and is the path's value only if the extension is a sum.
+        /// The model checks then refuse a negative consumption on any arc of this resource, and an
+        /// accumulating extension that does not add.
         ///
         /// @return @c true if the backward reading needs non-negative consumptions.
         [[nodiscard]] virtual auto requires_nondecreasing() const -> bool { return false; }
@@ -164,8 +168,8 @@ class FeasibilityFunction {
 /// @brief Thrown by a composed function whose backward members (@c is_back_feasible and
 ///        @c can_be_joined here) are not overridden.
 ///
-/// The bidirectional setup calls each once before searching, and turns this exception into a
-/// refusal that names the missing override.
+/// The model checks call each once before any search, and turn this exception into a refusal
+/// that names the missing override.
 class NoBackwardFeasibility : public std::logic_error {
     public:
         using std::logic_error::logic_error;
@@ -194,7 +198,7 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Whether a composed backward label is feasible.
         ///
         /// The default throws @c NoBackwardFeasibility, so a forward-only composition still
-        /// compiles and a bidirectional setup refuses it; @c CompositionFeasibilityFunction tests
+        /// compiles and the model checks refuse it; @c CompositionFeasibilityFunction tests
         /// each component.
         ///
         /// @param resource The current label holding all component resource values.
@@ -224,7 +228,7 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
                 "can_be_joined, as CompositionFeasibilityFunction does");
         };
 
-        /// @brief Not read: a composition has no rule of its own. The bidirectional setup reads
+        /// @brief Not read: a composition has no rule of its own. @c JoinCheck reads
         ///        each component's @c join_rule() instead.
         ///
         /// @return @c JoinRule::Unspecified unless overridden.
