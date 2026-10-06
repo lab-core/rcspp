@@ -380,6 +380,17 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             }
 
             SolveContext context{.upper_bound = upper_bound};
+            // The checks the search's direction needs, on the whole model, before any
+            // preprocessing: a reduction must not hide a problem, nor run for a refused search.
+            PreSolvePlan<ResourceCompositionType>(algorithm->direction()).enforce(*this, context);
+            // Tells the algorithm the checks ran, for this solve only. Cleared however the solve
+            // ends, so a throw before the search can't let a later direct solve skip them.
+            algorithm->mark_model_checked(this);
+            struct ClearCheckedMark {
+                    AlgorithmType* algorithm;
+                    ~ClearCheckedMark() { algorithm->mark_model_checked(nullptr); }
+            } clear_checked_mark{algorithm};
+
             // The Reduce stages of this solve, undone however it ends: an exception out of a user's
             // function must not delete arcs from the caller's graph. The graph then stays marked
             // modified, so the next solve preprocesses it afresh.
