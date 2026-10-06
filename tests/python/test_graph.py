@@ -401,6 +401,33 @@ def test_add_arc_id_survives_remove_restore():
     assert rg.get_arc(id2) is not None
 
 
+# ── arcs no path could use ────────────────────────────────────────────────────
+
+
+def test_add_arc_into_a_source_is_refused():
+    """An arc into a source is on no path, so flushing it raises ValueError."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, source=True)
+    rg.add_node(2, sink=True)
+    rg.add_arc(-5.0, 0, 1, cost=-5.0)
+
+    with pytest.raises(ValueError, match="arc 0 -> 1 enters source 1"):
+        rg.update()
+
+
+def test_add_arc_out_of_a_sink_is_refused():
+    """An arc out of a sink is on no path, so flushing it raises ValueError."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_node(2)
+    rg.add_arc(-10.0, 1, 2, cost=-10.0)
+
+    with pytest.raises(ValueError, match="arc 1 -> 2 leaves sink 1"):
+        rg.update()
+
+
 # ── Arc.rows binding (P-1: live references kept alive by the arc) ──────────────
 
 

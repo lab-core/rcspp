@@ -10,9 +10,13 @@ Each entry says what an existing model or caller sees differently.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
-  searches) could extend one out of a sink. On a graph with several sources, an arc into a source
-  or an arc out of a sink, answers can change: in the example in the docs, -6 via `0 1 2` becomes
-  -1 via `1 2`. See "What every algorithm returns" in `docs/advanced/algorithms.md`.
+  searches) could extend one out of a sink. On a graph with several sources, answers can change.
+  See "What every algorithm returns" in `docs/advanced/algorithms.md`.
+- **`add_arc` refuses an arc into a source or out of a sink**, which no path could use:
+  `std::invalid_argument` in C++ (`Graph::add_arc`, and so `ResourceGraph::add_arc`), `ValueError`
+  in Python when the buffered arcs are sent to the graph. A model with such an arc used to build,
+  and now fails when it is built. Model a depot that a route passes through as separate source and
+  sink nodes, as the VRP example does.
 
 ### Added
 

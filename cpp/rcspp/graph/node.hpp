@@ -67,12 +67,14 @@ class Node {
 
         /// @brief True if this node is a source (labels may start here).
         ///
-        /// A source is never *inside* a path: no algorithm extends a label into one.
+        /// A source is never *inside* a path: `Graph::add_arc` refuses an arc into one, and no
+        /// algorithm extends a label into one.
         const bool source;
 
         /// @brief True if this node is a sink (labels may terminate here).
         ///
-        /// A sink is never *inside* a path either: a label that reaches one is finished.
+        /// A sink is never *inside* a path either: `Graph::add_arc` refuses an arc out of one, and
+        /// a label that reaches one is finished.
         const bool sink;
 
         /// @brief Returns the topological position of this node in the sorted graph.
