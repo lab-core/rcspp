@@ -143,6 +143,8 @@ class SimpleFrontier : public Base {
 };
 
 /// @brief The backward search of @ref SimpleDominanceAlgorithm.
+///
+/// @c create_algorithm<SimpleDominanceAlgorithm> builds it for @c SearchDirection::Backward.
 template <typename ResourceType, typename LabelContainerType>
 using BackwardSimple = SimpleFrontier<
     DirectionalDominanceAlgorithm<ResourceType, LabelContainerType, BackwardDirection>>;
@@ -150,6 +152,9 @@ using BackwardSimple = SimpleFrontier<
 }  // namespace detail
 
 /// @brief Processes labels first in, first out, node quota permitting.
+///
+/// Searches forward, or backward when its params ask for it (through
+/// @c ResourceGraph::create_algorithm or @c ResourceGraph::solve).
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
 class SimpleDominanceAlgorithm

@@ -19,6 +19,7 @@ namespace test_util {
 /// The backward search of `SimpleDominanceAlgorithm` (`rcspp::detail::BackwardSimple`): it seeds
 /// at the sinks and runs backward to completion, with no half-way bound and no join. It adds
 /// accessors to its labels.
+/// Its constructor sets `direction = Backward`.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container; defaults to a *backward* label list, since a
@@ -33,7 +34,7 @@ class BackwardOnlyAlgorithm
     public:
         BackwardOnlyAlgorithm(rcspp::ResourceFactory<ResourceType>* resource_factory,
                               rcspp::AlgorithmParams<LabelContainerType> params)
-            : Base(resource_factory, std::move(params)) {}
+            : Base(resource_factory, backward(std::move(params))) {}
 
         ~BackwardOnlyAlgorithm() override = default;
 
@@ -58,6 +59,13 @@ class BackwardOnlyAlgorithm
                 best = std::min(best, label->get_cost());
             }
             return best;
+        }
+
+    private:
+        static rcspp::AlgorithmParams<LabelContainerType> backward(
+            rcspp::AlgorithmParams<LabelContainerType> params) {
+            params.direction = rcspp::SearchDirection::Backward;
+            return params;
         }
 };
 

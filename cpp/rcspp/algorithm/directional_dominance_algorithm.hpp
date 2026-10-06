@@ -46,6 +46,11 @@ struct rebind_direction<LabelList<R, D>, BackwardDirection> {
 template <typename LC, typename Dir>
 using rebind_direction_t = typename rebind_direction<LC, Dir>::type;
 
+/// @brief Whether a search in @p Dir can keep its labels in @p LC's rebinding.
+template <typename LC, typename Dir>
+inline constexpr bool can_rebind_direction_v =
+    requires { typename rebind_direction<LC, Dir>::type; };  // NOLINT(whitespace/newline)
+
 /// @brief The labeling loop, written once against a direction policy.
 ///
 /// The templated helpers take their direction and container set as parameters, so a
@@ -75,6 +80,10 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
         DirectionalDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
                                       AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
+
+        [[nodiscard]] std::vector<SearchDirection> supported_directions() const override {
+            return {Dir::backward ? SearchDirection::Backward : SearchDirection::Forward};
+        }
 
     protected:
         /// @brief Release label memory and clear the non-dominated label containers.

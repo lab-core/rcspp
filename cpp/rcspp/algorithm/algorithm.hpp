@@ -15,6 +15,7 @@
 #include <memory>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -22,6 +23,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/label_buckets.hpp"
+#include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label_pool.hpp"
@@ -158,6 +160,13 @@ struct AlgorithmBaseParams {
 
         // numerical tolerance used for cost comparisons
         double tolerance = 1e-9;  // NOLINT(readability-magic-numbers)
+
+        /// @brief Which way the search runs. Forward by default.
+        ///
+        /// Backward and Bidirectional need the model's backward semantics, which are checked
+        /// before the solve; an algorithm that does not support the direction throws
+        /// std::invalid_argument when it is created or solves.
+        SearchDirection direction = SearchDirection::Forward;
 
         /// @brief If true (default), release all label memory at the end of solve().
         ///
@@ -333,6 +342,8 @@ class Algorithm {
         }
 
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
+            require_supported_direction();
+
             // initialization
             Timer timer(true);
             timed_out_ = false;
@@ -433,6 +444,14 @@ class Algorithm {
 
         [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
 
+        /// @brief The direction this algorithm searches in, as its params set it.
+        [[nodiscard]] SearchDirection direction() const { return params_.direction; }
+
+        /// @brief The directions this algorithm can search in. Forward only by default.
+        [[nodiscard]] virtual std::vector<SearchDirection> supported_directions() const {
+            return {SearchDirection::Forward};
+        }
+
         [[nodiscard]] bool is_interrupted() const {
             return params_.should_stop && params_.should_stop();
         }
@@ -457,6 +476,27 @@ class Algorithm {
 
     protected:
         bool print_{false};
+
+        /// @brief Throws unless this algorithm supports the direction its params ask for.
+        ///
+        /// @throws std::invalid_argument when @ref direction() is not one of
+        ///         @ref supported_directions().
+        void require_supported_direction() const {
+            const auto supported = supported_directions();
+            if (std::ranges::find(supported, direction()) != supported.end()) {
+                return;
+            }
+            std::string list;
+            for (const auto supported_direction : supported) {
+                if (!list.empty()) {
+                    list += ", ";
+                }
+                list += to_string(supported_direction);
+            }
+            throw std::invalid_argument("this algorithm does not support the " +
+                                        std::string(to_string(direction())) +
+                                        " direction (it supports: " + list + ")");
+        }
 
         /// @brief Adds diagnostics to the result, just before it is returned.
         ///
