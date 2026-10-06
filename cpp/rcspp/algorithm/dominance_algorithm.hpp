@@ -49,6 +49,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                            AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
+        [[nodiscard]] std::vector<SearchDirection> supported_directions() const override {
+            return {Dir::backward ? SearchDirection::Backward : SearchDirection::Forward};
+        }
+
     protected:
         /// @brief Release label memory and clear the non-dominated label containers.
         ///
