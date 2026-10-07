@@ -354,6 +354,11 @@ Test files:
    out of a sink (`std::invalid_argument`; `ValueError` in Python). Model a depot a
    route passes through as separate source and sink nodes.
 
+10. **Backward semantics are checked, not trusted** — `graph.check_model(direction)`
+    runs the model checks a backward or bidirectional search needs
+    (`BackwardExtensionCheck`, `JoinCheck`) without solving, and lists every problem.
+    A forward-only model may fail them: a forward search reads none of it.
+
 ---
 
 ## Extending the library

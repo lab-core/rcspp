@@ -20,6 +20,10 @@ Each entry says what an existing model or caller sees differently.
 
 ### Added
 
+- **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
+  `BackwardExtensionCheck` and `JoinCheck`, and `ResourceGraph::check_model(direction)`, which
+  runs the checks a search in that direction needs without solving and returns every problem
+  found. `Preprocessor` is now the Reduce kind of `PreSolveStage`; a check is the Check kind.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.

@@ -25,6 +25,7 @@
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/validation/solve_checks.hpp"
 
 namespace rcspp {
 
@@ -350,18 +351,20 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
-            std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
+            // The Reduce stages that ran; each is undone after the search.
+            std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>> preprocessors;
             // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
             // function's exception must not delete arcs from the caller's graph. The graph then
             // stays marked modified, so the next solve re-runs its checks.
             struct RestoreRemovedArcs {
-                    std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
+                    std::vector<std::unique_ptr<PreSolveStage<ResourceCompositionType>>>* list;
                     ~RestoreRemovedArcs() {
                         for (auto& preprocessor : *list) {
-                            preprocessor->restore();
+                            preprocessor->undo();
                         }
                     }
             } restore_removed_arcs{&preprocessors};
+            SolveContext context{.upper_bound = upper_bound};
             if (preprocess) {
                 // if graph has been modified, try to remove some arcs based on feasibility
                 // initialize or update connectivity matrix
@@ -409,7 +412,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                             this,
                             upper_bound,
                             cost_index);
-                        preprocessor->preprocess();
+                        preprocessor->run(*this, context);
                         preprocessors.emplace_back(std::move(preprocessor));
                     }
                 }
@@ -430,7 +433,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // restore the removed arcs for the next resolution
             if (preprocess) {
                 for (auto& preprocessor : preprocessors) {
-                    preprocessor->restore();
+                    preprocessor->undo();
                 }
                 preprocessors.clear();
                 this->track_modifications();  // mark as unmodified after restoring arcs
@@ -444,6 +447,19 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 &resource_factory_,
                 this);
             feasibility_preprocessor.preprocess();
+        }
+
+        /// @brief Runs the model checks a search in @p direction needs, without solving.
+        ///
+        /// A forward search needs none. A backward search needs the model's backward semantics
+        /// (@c BackwardExtensionCheck); a bidirectional one also needs its join
+        /// (@c JoinCheck). The checks read the whole model, arcs that preprocessing removed
+        /// included.
+        ///
+        /// @param direction The search's direction.
+        /// @return One line per problem; empty when the model is ready for that search.
+        [[nodiscard]] ModelReport check_model(SearchDirection direction) const {
+            return run_checks<ResourceCompositionType>(*this, direction);
         }
 
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {

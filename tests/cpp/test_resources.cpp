@@ -16,4 +16,5 @@
 #include "resource/test_node_bounds.hpp"
 #include "resource/test_threshold_form.hpp"
 #include "test_container_resources.hpp"
+#include "test_model_checks.hpp"
 #include "test_resource_base.hpp"

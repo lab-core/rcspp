@@ -5,6 +5,7 @@
 
 #include <map>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -58,6 +59,8 @@ class FeasibilityPreprocessor final : public Preprocessor<ResourceType> {
                 }
             }
         }
+
+        [[nodiscard]] std::string_view name() const override { return "feasibility"; }
 
     private:
         ResourceFactory<ResourceType>* resource_factory_;
