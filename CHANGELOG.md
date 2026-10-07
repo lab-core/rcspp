@@ -28,6 +28,18 @@ with a pointer to where they are documented.
   search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
   says, and also when `Algorithm::solve` is called directly; a model that fails them is refused
   with `ModelRefused`. Forward solves are unchanged: they need no check.
+- **`NgPathExtensionFunction` reads the node it adds from the arc's endpoints, and ignores the
+  arc's value. This is a breaking change outside the ng-route case.** Before, it added the arc's
+  value, normally `{origin}`, to the memory. It also stores the memory already narrowed by the node
+  arrived at, which makes dominance stronger: on R101 with ng(8) the forward search extends 34 475
+  labels instead of 190 339.
+  - For the ng-route condition (`forbidden(v) = {v}` on `IntersectionFeasibilityFunction`) with
+    arcs carrying `{origin}`, the optimum is unchanged. The set of columns a forward ng pricing
+    solve returns can differ.
+  - Otherwise results can change. An arc value other than `{origin}` is now ignored, including an
+    empty one, which used to leave the memory empty and ng inert. A forbidden set other than `{v}`
+    now tests a memory already narrowed by the node arrived at, so a node forgotten on arrival no
+    longer counts: in the example in `tests/cpp/test_ng_forward.hpp`, -1 becomes -10.
 - **`MinMaxFeasibilityFunction(min, max, merge_by_increasing_value)` is removed.** The flag only
   chose the direction of `can_be_merged`, which no algorithm called before this release; the join
   test now follows the extension the function is paired with. Drop the third argument:
@@ -94,6 +106,13 @@ with a pointer to where they are documented.
   `SizeFeasibilityFunction`. See "Model checks" in `docs/advanced/algorithms.md`.
 - **`SolveResult` diagnostics of a bidirectional solve** (C++ and Python): `bounded_by_half_way`,
   `half_way_off_reason` and `number_of_joined_paths`.
+- **ng-path in bidirectional solves.** `NgPathExtensionFunction` joins exactly with an
+  `IntersectionFeasibilityFunction` that forbids `{v}` at each node; a visited set built with
+  `UnionExtensionFunction` is refused by the model checks, naming the fix.
+- **Presets**, one call per resource kind, each a coherent quadruple (`rcspp/resource/presets.hpp`):
+  `add_cost_resource`, `add_window_resource`, `add_capacity_resource`, `add_ng_path_resource` and
+  `add_elementary_resource`. Python has the first three, in `rcspp.presets`. C++ callers can assert
+  the same coherence on their own pairings with `rcspp::backward_coherent_v<Ext, Feas>`.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.

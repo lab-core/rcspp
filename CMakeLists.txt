@@ -29,6 +29,11 @@ if(USE_COVERAGE)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(rcspp_coverage INTERFACE -fprofile-update=atomic)
   endif()
+  # Coverage instrumentation can exceed the default COFF section limit; MinGW's equivalent of
+  # MSVC's /bigobj.
+  if(MINGW)
+    target_compile_options(rcspp_coverage INTERFACE -Wa,-mbig-obj)
+  endif()
 endif()
 
 if (POLICY CMP0141)

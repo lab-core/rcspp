@@ -8,6 +8,7 @@
 // The join pairs forward boundary labels (stored but not extended past `H`) with backward labels
 // at the same node; boundary labels are dominance-filtered. These tests compare against brute
 // force and the forward search over the generator's full cross product and several values of `H`.
+// This file covers the single-slot pack; the ng model is in `test_join_optimality_ng.hpp`.
 
 #include <gtest/gtest.h>
 
