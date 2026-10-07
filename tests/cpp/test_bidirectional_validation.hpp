@@ -292,12 +292,37 @@ inline std::unique_ptr<ResourceGraph<RealResource>> join_only_graph() {
         {{1.0, 10.0, 0, 1}, {1.0, 10.0, 1, 2}, {1.0, 10.0, 2, 3}, {1.0, 10.0, 3, 4}});
 }
 
+/// @brief Two routes that only the join can complete: 0-1-3-4-6 (cost 2) and 0-1-3-5-6 (cost 3).
+///
+/// With H = 20, forward labels cross H on the arcs into 4 and 5 (t = 25) and stop there as boundary
+/// labels. Backward labels seeded at 6 reach 4 and 5 (deadline 25), then 3 with deadline 10 < H,
+/// where they stop. So neither search reaches a terminal, and the join pairs at 4 and at 5. The
+/// route via 2 is dominated at 3 by the route via 1.
+inline std::unique_ptr<ResourceGraph<RealResource>> two_join_graph() {
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 0.0}},
+                                                              {1, {0.0, 60.0}},
+                                                              {2, {0.0, 60.0}},
+                                                              {3, {0.0, 60.0}},
+                                                              {4, {0.0, 25.0}},
+                                                              {5, {0.0, 25.0}},
+                                                              {6, {0.0, 60.0}}};
+    return clocked_graph(windows,
+                         {{1.0, 5.0, 0, 1},
+                          {2.0, 5.0, 0, 2},
+                          {0.0, 5.0, 1, 3},
+                          {0.0, 5.0, 2, 3},
+                          {1.0, 15.0, 3, 4},
+                          {2.0, 15.0, 3, 5},
+                          {0.0, 5.0, 4, 6},
+                          {0.0, 5.0, 5, 6}});
+}
+
 }  // namespace bidirectional_validation_test
 
 /// @brief An interrupted solve does not then run the join.
 ///
-/// The join is expensive and should not run after a timeout, stop callback or memory limit. The
-/// stop callback is used here since it is deterministic and reaches the same guard.
+/// An interrupt means stop now, so it is the one run-level stop after which the join does not run;
+/// a timeout or the memory limit still joins (see ASolveStoppedByTheMemoryLimitStillJoins).
 TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     namespace bv = bidirectional_validation_test;
 
@@ -331,6 +356,54 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
         << "skipping the join must not change what the pool owns";
 }
 
+/// @brief Which run-level stops still run the join.
+TEST(BidirectionalValidation, OnlyAnInterruptSkipsTheJoin) {
+    static_assert(detail::join_runs_after(detail::RunLevelStop::None));
+    static_assert(detail::join_runs_after(detail::RunLevelStop::Timeout));
+    static_assert(detail::join_runs_after(detail::RunLevelStop::MemoryLimit));
+    static_assert(!detail::join_runs_after(detail::RunLevelStop::Interrupted));
+    SUCCEED();
+}
+
+/// @brief A solve stopped by the memory limit still joins what its halves hold.
+///
+/// A timeout cannot be placed mid-search deterministically; the memory limit can, because
+/// `main_loop` checks it only every `memory_check_interval` iterations, and a limit this small is
+/// always exceeded. Five steps on join_only_graph: forward 0->1, 1->2, 2->3 (t = 30 > H, a
+/// boundary label), pops that label and drops it at H, then backward 4->3 (deadline 30). The check
+/// before step six stops the loop with the backward label still on its frontier, so the stop is
+/// run-level. Node 3 then holds both halves of the only path. Timeout and memory limit share every
+/// line of `run_join_pass` after the policy check, which OnlyAnInterruptSkipsTheJoin covers.
+TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
+    namespace bv = bidirectional_validation_test;
+
+    const auto run = [](bool join_after_early_stop) {
+        auto graph = bv::join_only_graph();
+        auto params = bv::clocked_params(20.0);
+        params.max_memory_gb = 1e-9;  // always exceeded
+        params.memory_check_interval = 5;
+        params.join_after_early_stop = join_after_early_stop;
+        params.release_after_solve = false;
+        auto algorithm =
+            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        const SolveResult result = graph->solve(algorithm.get());
+        EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
+        return result;
+    };
+
+    const SolveResult joined = run(/*join_after_early_stop=*/true);
+    ASSERT_EQ(joined.status, AlgorithmStatus::MEMORY_LIMIT)
+        << "the limit did not stop the search, so this test proves nothing";
+    ASSERT_EQ(joined.number_of_joined_paths, 1U);
+    ASSERT_FALSE(joined.solutions.empty());
+    EXPECT_NEAR(joined.solutions.front().cost, 4.0, bv::kTolerance);
+    EXPECT_EQ(joined.solutions.front().path_arc_ids, (std::vector<size_t>{0, 1, 2, 3}));
+
+    const SolveResult skipped = run(/*join_after_early_stop=*/false);
+    ASSERT_EQ(skipped.status, AlgorithmStatus::MEMORY_LIMIT);
+    EXPECT_EQ(skipped.number_of_joined_paths, 0U) << "the opt-out must restore the old behaviour";
+}
+
 /// @brief `stop_after_X_solutions` deliberately does NOT skip the join.
 ///
 /// A solution budget caps what is returned, not the search, so skipping the join would change the
@@ -350,6 +423,71 @@ TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
         << "a solution budget caps the returned set, not the search";
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions.front().cost, 4.0, bv::kTolerance);
+}
+
+/// @brief A pair budget truncates the join, says so, and marks the params as inexact.
+TEST(BidirectionalValidation, APairBudgetTruncatesTheJoinAndFlagsIt) {
+    namespace bv = bidirectional_validation_test;
+
+    // Control: no cap. The join tests pairs and is not truncated.
+    {
+        auto graph = bv::join_only_graph();
+        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+            test_util::bidirectional(bv::clocked_params(20.0)));
+        const SolveResult result = graph->solve(algorithm.get());
+        ASSERT_GT(result.number_of_joined_paths, 0U);
+        EXPECT_GT(result.join_pairs_tested, 0U);
+        EXPECT_FALSE(result.join_truncated);
+    }
+
+    auto graph = bv::join_only_graph();
+    auto params = bv::clocked_params(20.0);
+    params.max_join_pairs = 0;
+    EXPECT_TRUE(params.could_be_non_optimal());
+
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const SolveResult result = graph->solve(algorithm.get());
+
+    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE) << "the search itself was exhaustive";
+    EXPECT_TRUE(result.join_truncated);
+    EXPECT_EQ(result.join_pairs_tested, 0U);
+    EXPECT_EQ(result.number_of_joined_paths, 0U) << "the only path here comes from the join";
+}
+
+/// @brief A join column budget keeps the cheapest joined path, and leaves the search exhaustive.
+///
+/// A finite cost bound with pruning off asks for every column below it. Without a finite bound, the
+/// join's incumbent cutoff would already drop the dearer path, and the budget would prove nothing.
+TEST(BidirectionalValidation, AJoinColumnBudgetKeepsTheCheapestAndTheSearchExhaustive) {
+    namespace bv = bidirectional_validation_test;
+    constexpr double kBound = 100.0;
+
+    // Control: both joined paths.
+    {
+        auto graph = bv::two_join_graph();
+        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+            test_util::bidirectional(bv::clocked_params(20.0)));
+        const SolveResult result = graph->solve(algorithm.get(), kBound);
+        ASSERT_TRUE(result.bounded_by_half_way);
+        ASSERT_EQ(result.number_of_joined_paths, 2U) << "the control must join both routes";
+        ASSERT_EQ(result.solutions.size(), 2U) << "and neither search may complete one itself";
+    }
+
+    auto graph = bv::two_join_graph();
+    auto params = bv::clocked_params(20.0);
+    params.join_column_budget = 1;
+    EXPECT_FALSE(params.could_be_non_optimal()) << "the budget never drops the optimum";
+
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const SolveResult result = graph->solve(algorithm.get(), kBound);
+
+    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE) << "a join budget does not stop the search";
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions.front().cost, 2.0, bv::kTolerance)
+        << "the cheapest is the one kept";
+    EXPECT_EQ(result.number_of_joined_paths, 1U);
 }
 
 /// @brief The joiner never rejects a half on the half's own cost.

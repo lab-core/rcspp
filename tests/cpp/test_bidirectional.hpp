@@ -1699,6 +1699,28 @@ TEST(MemoryPressure, NeverLoosensTheBidirectionalQuota) {
     EXPECT_EQ(mpq::extended_labels(true), mpq::extended_labels(false));
 }
 
+/// @brief The two searches interleave: a search stopped early has built part of both halves.
+///
+/// The scheduler used to take the larger frontier. The backward frontier holds a single seed until
+/// the backward search starts, so the whole forward half always ran first, and a timeout or
+/// `max_iterations` stop left a partial forward half and nothing to join.
+TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
+    auto graph = memory_pressure_quota_test::fan();
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.critical_resource_index = 1;
+    params.half_way_point = 6.0;
+    params.max_iterations = 8;  // a handful of pops: neither half can finish
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get());
+
+    ASSERT_NE(result.status, AlgorithmStatus::COMPLETE) << "the stop must land mid-search";
+    EXPECT_TRUE(result.bounded_by_half_way);
+    EXPECT_GT(result.forward_labels, 1U);
+    EXPECT_GT(result.backward_labels, 1U)
+        << "the backward search never started: the forward half is being run first";
+}
+
 // ============================================================================
 // Per-solve diagnostics
 // ============================================================================
