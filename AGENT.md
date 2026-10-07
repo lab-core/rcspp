@@ -240,6 +240,25 @@ SearchDirection::Bidirectional`; the class behind it is internal
 last template parameter and defaults to the cost's. `SolveResult` reports
 `bounded_by_half_way`, `half_way_off_reason` and `number_of_joined_paths`.
 
+**A half-way point that adapts across a pricing loop.** `H` never moves *during* a solve,
+but a `HalfWayController` can move it *between* solves, away from whichever direction
+kept more labels. From Python, keep one across the loop — `rg.solve` builds a fresh
+algorithm every call, so there is no `dynamic_half_way` parameter:
+
+```python
+from rcspp import HalfWayController
+
+controller = HalfWayController(500.0)        # H0; also fixes the range [0, 2 * H0]
+for _ in range(iterations):
+    p.half_way_point = controller.h
+    result = rg.solve(algorithm="bidirectional", params=p)
+    controller.update(result)
+```
+
+From C++, set `params.dynamic_half_way = true` on an algorithm object you keep alive
+(`create_algorithm` + `solve(algorithm.get(), ...)`);
+`as_bidirectional(algorithm.get())->half_way_controller()` reads, freezes or resets it.
+
 See `docs/advanced/algorithms.md` for the full description.
 
 ---
