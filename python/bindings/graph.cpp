@@ -81,7 +81,15 @@ void init_graph(py::module_& m) {
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu)
-        .value("AStar", SolverAlgorithm::AStar);
+        .value("AStar", SolverAlgorithm::AStar)
+        .value("Bidirectional", SolverAlgorithm::Bidirectional);
+
+    // ── SearchDirection enum ──────────────────────────────────────────────────
+
+    py::enum_<SearchDirection>(m, "SearchDirection")
+        .value("Forward", SearchDirection::Forward)
+        .value("Backward", SearchDirection::Backward)
+        .value("Bidirectional", SearchDirection::Bidirectional);
 
     // ── AlgorithmStatus enum ──────────────────────────────────────────────────
 
@@ -99,6 +107,21 @@ void init_graph(py::module_& m) {
         .def(py::init<>())
         .def_readwrite("solutions", &SolveResult::solutions)
         .def_readwrite("status", &SolveResult::status)
+        .def_readonly("bounded_by_half_way",
+                      &SolveResult::bounded_by_half_way,
+                      "Whether the bidirectional half-way bound was in force. False from every "
+                      "other algorithm. A bidirectional solve whose clock fails validation is "
+                      "slower than a forward one, not merely un-accelerated, so this is worth "
+                      "checking rather than assuming.")
+        .def_readonly("half_way_off_reason",
+                      &SolveResult::half_way_off_reason,
+                      "Why the bidirectional half-way bound was off for this solve; empty when it "
+                      "was in force, and from every other algorithm.")
+        .def_readonly("number_of_joined_paths",
+                      &SolveResult::number_of_joined_paths,
+                      "How many distinct complete paths only the bidirectional join pass produced. "
+                      "0 from every other algorithm. Zero with a correct answer means the answer "
+                      "came from a search reaching a terminal, not from the join.")
         .def_readonly("memory_pressure_triggered",
                       &SolveResult::memory_pressure_triggered,
                       "Whether memory pressure trimmed this solve, in which case the result may "
@@ -129,8 +152,18 @@ void init_graph(py::module_& m) {
             py::return_value_policy::reference_internal)
         .def("__bool__", [](const SolveResult& r) { return !r.solutions.empty(); })
         .def("__repr__", [](const SolveResult& r) {
-            return "SolveResult(status=" + r.status_string() +
-                   ", solutions=" + std::to_string(r.solutions.size()) + ")";
+            std::string text = "SolveResult(status=" + r.status_string() +
+                               ", solutions=" + std::to_string(r.solutions.size());
+            if (r.bounded_by_half_way || r.number_of_joined_paths > 0) {
+                text += ", bounded_by_half_way=" +
+                        std::string(r.bounded_by_half_way ? "True" : "False") +
+                        ", joined=" + std::to_string(r.number_of_joined_paths);
+            }
+            // Shown only when set, so it stands out.
+            if (r.memory_pressure_triggered) {
+                text += ", memory_pressure_triggered=True";
+            }
+            return text + ")";
         });
 
     // ── Shared scalar types ───────────────────────────────────────────────────
@@ -195,7 +228,32 @@ void init_graph(py::module_& m) {
                        "RSS/limit fraction that triggers queue pruning (default 0.8).")
         .def_readwrite("memory_pressure_max_labels_per_node",
                        &PyAlgorithmParams::memory_pressure_max_labels_per_node,
-                       "Max labels per node when under memory pressure (default 200).");
+                       "Max labels per node when under memory pressure (default 200).")
+        .def_readwrite("direction",
+                       &PyAlgorithmParams::direction,
+                       "Which way the search runs: SearchDirection.Forward (default), Backward or "
+                       "Bidirectional. Only the simple algorithm searches backward or "
+                       "bidirectionally; the others raise ValueError. ResourceGraph.solve sets it "
+                       "from its `direction` argument.")
+        // -- Bidirectional parameters ------------------------------------
+        .def_readwrite("critical_resource_index",
+                       &PyAlgorithmParams::critical_resource_index,
+                       "Index, within the cost resource type's slot, of the resource used as the "
+                       "bidirectional clock. It must be monotone (never decreasing along an arc) "
+                       "and extend backwards as a threshold -- a time window or a capacity, not a "
+                       "plain additive resource and never the cost. When it is neither, the "
+                       "half-way bound switches itself off: the solve stays correct, just slower. "
+                       "Ignored by every other algorithm (default 0).")
+        .def_readwrite("half_way_point",
+                       &PyAlgorithmParams::half_way_point,
+                       "Value H at which each direction's search stops on the critical resource: "
+                       "forward discards labels above H, backward discards labels below it, and "
+                       "the join pairs what is left. The resource's range is taken as [0, 2H], so "
+                       "set H to about half the clock's range. 0 (the default) TURNS THE BOUND "
+                       "OFF -- it does not derive one: both searches then run to completion and "
+                       "the join considers every pair, which is correct but slower than a forward "
+                       "solve rather than faster. Check result.bounded_by_half_way to see which "
+                       "you got.");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

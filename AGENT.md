@@ -123,7 +123,10 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
                   upper_bound=-1e-9,         # prune cost ≥ this
                   params=AlgorithmParams(),
                   preprocess=True,
-                  cost_index=0)
+                  cost_index=0,
+                  direction=None)            # or "forward", "backward",
+                                             # "bidirectional" (simple only)
+problems = rg.check_model("backward")        # the model checks, without solving
 ```
 
 ### SolveResult
@@ -404,13 +407,14 @@ Test files:
     (`BackwardExtensionCheck`, `JoinCheck`) without solving, and lists every problem.
     A forward-only model may fail them: a forward search reads none of it.
 
-11. **The search direction is a parameter** — `params.direction =
-    SearchDirection::Backward` (or `Bidirectional`) makes `SimpleDominanceAlgorithm`
-    search backward (or both ways); every other algorithm throws
-    `std::invalid_argument`. `create_algorithm<Strategy>(params)` therefore returns
-    `std::unique_ptr<Algorithm<R, LC>>`. A backward solve runs the model checks before
-    any preprocessing and throws `ModelRefused` on a failing model, with
-    `preprocess=false` too, and on a direct `Algorithm::solve`.
+11. **The search direction is a parameter** — `solve(direction=...)` in Python,
+    `params.direction` in C++. `SearchDirection::Backward` (or `Bidirectional`) makes
+    `SimpleDominanceAlgorithm` search backward (or both ways); every other algorithm
+    throws `std::invalid_argument` (`ValueError` in Python), so
+    `create_algorithm<Strategy>(params)` returns `std::unique_ptr<Algorithm<R, LC>>`.
+    A backward or bidirectional solve runs the model checks before any preprocessing
+    and throws `ModelRefused` on a failing model, with `preprocess=false` too, and on
+    a direct `Algorithm::solve`.
 
 ---
 
