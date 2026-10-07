@@ -281,7 +281,7 @@ TEST(JoinRules, CustomSizeRuleUnionsAgainstTheCap) {
 
 /// @brief An undeclared rule throws rather than guessing.
 ///
-/// A backstop: setup validation normally names the offending component before any label exists.
+/// A backstop: the model checks normally name the offending component before any label exists.
 TEST(JoinRules, UnspecifiedThrows) {
     auto forward = join_rules_test::make_real_resource(
         (1.0),
@@ -389,7 +389,7 @@ TEST(JoinRules, EveryConcreteFunctionDeclaresARule) {
 /// @brief The rule is ValueOrder under a threshold pairing, Custom under an accumulating one,
 ///        and Unspecified when the function has not been paired at all.
 TEST(JoinRules, MinMaxRuleFollowsTheBackwardKind) {
-    // Unpaired: no kind yet, so Unspecified and a bidirectional solve refuses at setup.
+    // Unpaired: no kind yet, so Unspecified, which the model checks refuse.
     EXPECT_EQ((MinMaxFeasibilityFunction<RealResource>{0.0, 100.0}.join_rule()),
               JoinRule::Unspecified);
 

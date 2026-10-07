@@ -36,8 +36,9 @@ Each entry says what an existing model or caller sees differently.
   forward order; `create_algorithm` and `solve` build the class that does it. The other
   algorithms search forward only (`Algorithm::supported_directions()`), and throw
   `std::invalid_argument` when created or solved with another direction; so does a backward
-  search with `LabelBuckets`, which has no backward form. No algorithm searches bidirectionally
-  yet.
+  search with `LabelBuckets`, which has no backward form. `SimpleDominanceAlgorithm` also searches
+  bidirectionally (`Bidirectional`); in C++ the clock's type is the last template parameter of
+  `solve` and `create_algorithm`, after the cost's, and defaults to it.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, and `ResourceGraph::check_model(direction)`, which

@@ -15,12 +15,13 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Resource;
 
-/// @brief What a cost function computes, as far as the bidirectional join needs to know.
+/// @brief What a cost function computes, as far as a backward search and the join need to know.
 ///
-/// The join adds a forward and a backward label's costs, which is right only for an additive cost:
-/// one that sums over arcs. The form lets setup check that without evaluating the function.
+/// A backward label's cost, and the join of a forward and a backward label's costs, are right only
+/// for an additive cost: one that sums over arcs. The form lets @c BackwardExtensionCheck check
+/// that without evaluating the function.
 enum class CostForm {
-    Unspecified,  ///< not declared: a bidirectional solve refuses a cost that reads this component
+    Unspecified,  ///< not declared: a backward or bidirectional solve refuses a cost that reads it
     Zero,         ///< always zero, so additive
     Value,        ///< the resource's value, additive only under an accumulation that is a sum
 };
@@ -43,10 +44,10 @@ class CostFunction {
         /// @return The scalar cost for this resource.
         [[nodiscard]] virtual auto get_cost(const ResourceType& resource) const -> double = 0;
 
-        /// @brief What this function computes, for the bidirectional setup's cost check.
+        /// @brief What this function computes, for the cost check of @c BackwardExtensionCheck.
         ///
-        /// Defaults to @c Unspecified, on which a bidirectional solve refuses a cost that reads
-        /// this component.
+        /// Defaults to @c Unspecified, on which a backward or bidirectional solve refuses a cost
+        /// that reads this component.
         ///
         /// @return The form declared by this cost function.
         [[nodiscard]] virtual CostForm cost_form() const { return CostForm::Unspecified; }
@@ -104,10 +105,10 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Whether this function's cost is additive: the cost of a path is the sum of
         ///        the costs of its two halves, wherever it is split.
         ///
-        /// The bidirectional join and its pruning add the two halves' costs, so a bidirectional
-        /// solve refuses a cost that is not additive. It is if every component this function
-        /// reads has an additive cost (@c Resource::is_cost_additive). Defaults to @c false, on
-        /// which a bidirectional solve refuses.
+        /// A backward label's cost is its suffix's, and the bidirectional join and its pruning add
+        /// the two halves' costs, so a backward or bidirectional solve refuses a cost that is not
+        /// additive. It is if every component this function reads has an additive cost
+        /// (@c Resource::is_cost_additive). Defaults to @c false, on which those solves refuse.
         ///
         /// @param resource Any node's resource, to read the components' declarations from.
         /// @return @c true if the cost is additive.

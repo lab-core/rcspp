@@ -3,16 +3,10 @@
 
 #pragma once
 
-// What a path is, asserted across every algorithm at once.
-//
-// A path starts at a source and ends at a sink, with neither a source nor a sink strictly inside
-// it. The graph enforces it first: Graph::add_arc refuses an arc into a source or out of a sink, so
-// no path could even try. The algorithms keep the rule too: the dominance algorithms in
-// DominanceAlgorithm::extend_label (no extension INTO a source) and in their main loops (a label at
-// a sink is terminal), the dive heuristics in their own extend_label. It lives here rather than
-// beside any one algorithm because the failure it guards against is a *disagreement between*
-// algorithms: the dominance algorithms used to be the only ones applying it, so `greedy` could
-// return a better "path" than `simple` on the same graph by passing through a second source.
+// What a path is, asserted across every algorithm at once: it starts at a source, ends at a sink,
+// and has neither a source nor a sink strictly inside it. The graph refuses an arc into a source or
+// out of a sink, so no path can even try. Checking all algorithms together catches them disagreeing
+// on this rule.
 
 #include <gtest/gtest.h>
 
@@ -26,6 +20,7 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/bidirectional_test_util.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
@@ -103,6 +98,12 @@ inline std::vector<Run> every_algorithm() {
          true,
          [](auto* g) {
              return g->template solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
+         }},
+        {"bidirectional",
+         true,
+         [](auto* g) {
+             return g->template solve<SimpleDominanceAlgorithm>(
+                 test_util::bidirectional(AlgorithmBaseParams{}));
          }},
         {"greedy",
          false,

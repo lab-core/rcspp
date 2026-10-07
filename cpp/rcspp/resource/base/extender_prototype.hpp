@@ -111,8 +111,8 @@ class ExtenderPrototype {
 
         /// @brief The backward kind of this arc's extension function.
         ///
-        /// Every arc carries the same functions, so the bidirectional setup reads each component's
-        /// kind from any arc.
+        /// Every arc carries the same functions, so the model checks read each component's kind
+        /// from any arc.
         ///
         /// @return The declared @ref BackwardKind, or @c Unspecified if no function is bound.
         [[nodiscard]] BackwardKind backward_kind() const {
