@@ -23,6 +23,7 @@
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/directional_dominance_algorithm.hpp"
+#include "rcspp/algorithm/directional_implementations.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 #include "rcspp/algorithm/greedy.hpp"

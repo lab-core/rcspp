@@ -16,6 +16,41 @@
 
 namespace rcspp::detail {
 
+/// @brief The container a search in @p Dir keeps, given the container type @p LC its params hold.
+///
+/// Forward keeps @p LC. Backward needs a container that compares labels backward; only
+/// @ref LabelList has one, so @c rebind_direction<LabelBuckets<...>, BackwardDirection> is left
+/// undefined and a backward search with buckets is refused when it is created.
+///
+/// @tparam LC  The container type of the algorithm's params.
+/// @tparam Dir The search's direction policy.
+template <typename LC, typename Dir>
+struct rebind_direction;
+
+template <typename LC>
+struct rebind_direction<LC, ForwardDirection> {
+        using type = LC;
+
+        /// @brief An empty container configured as @p prototype.
+        static LC convert(const LC& prototype) { return prototype.copy(); }
+};
+
+template <typename R, typename D>
+struct rebind_direction<LabelList<R, D>, BackwardDirection> {
+        using type = LabelList<R, BackwardDirection>;
+
+        /// @brief An empty backward list (a list has no configuration to carry over).
+        static type convert(const LabelList<R, D>& /*prototype*/) { return type{}; }
+};
+
+template <typename LC, typename Dir>
+using rebind_direction_t = typename rebind_direction<LC, Dir>::type;
+
+/// @brief Whether a search in @p Dir can keep its labels in @p LC's rebinding.
+template <typename LC, typename Dir>
+inline constexpr bool can_rebind_direction_v =
+    requires { typename rebind_direction<LC, Dir>::type; };  // NOLINT(whitespace/newline)
+
 /// @brief The labeling loop, written once against a direction policy.
 ///
 /// The templated helpers take their direction and container set as parameters, so a
@@ -24,7 +59,8 @@ namespace rcspp::detail {
 /// Internal: the public algorithms derive from it through @ref DominanceAlgorithm.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
-/// @tparam LabelContainerType The per-node non-dominated label container.
+/// @tparam LabelContainerType The per-node non-dominated label container its params hold; a
+///                            backward search keeps it rebound (@ref rebind_direction).
 /// @tparam Dir                The direction policy: @ref ForwardDirection or
 ///                            @ref BackwardDirection.
 template <typename ResourceType, typename LabelContainerType, typename Dir>
@@ -34,9 +70,20 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
                       "Dir does not satisfy DirectionPolicy for this ResourceType");
 
     public:
+        using resource_type = ResourceType;
+        using label_container_type = LabelContainerType;
+
+        /// @brief The per-node container this search keeps: @c LabelContainerType rebound to
+        ///        @c Dir.
+        using DirectedContainer = rebind_direction_t<LabelContainerType, Dir>;
+
         DirectionalDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
                                       AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
+
+        [[nodiscard]] std::vector<SearchDirection> supported_directions() const override {
+            return {Dir::backward ? SearchDirection::Backward : SearchDirection::Forward};
+        }
 
     protected:
         /// @brief Release label memory and clear the non-dominated label containers.
@@ -59,7 +106,8 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
             non_dominated_labels_by_node_pos_.clear();
             non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
-                non_dominated_labels_by_node_pos_.emplace_back(this->params_.labels.copy());
+                non_dominated_labels_by_node_pos_.emplace_back(
+                    rebind_direction<LabelContainerType, Dir>::convert(this->params_.labels));
             }
 
             for (auto seed_node_id : Dir::seeds(*this->graph_)) {
@@ -287,7 +335,7 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
         bool dispatch_update_non_dominated_labels(const Label<ResourceType>& label,
                                                   std::vector<Container>& containers) {
             if constexpr (std::is_same_v<Dir2, Dir> &&
-                          std::is_same_v<Container, LabelContainerType>) {
+                          std::is_same_v<Container, DirectedContainer>) {
                 if (&containers == &non_dominated_labels_by_node_pos_) {
                     return update_non_dominated_labels(label);
                 }
@@ -387,7 +435,7 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
         virtual void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
-        std::vector<LabelContainerType> non_dominated_labels_by_node_pos_;
+        std::vector<DirectedContainer> non_dominated_labels_by_node_pos_;
 
         Timer total_extend_time_;
         Timer total_update_non_dom_time_;

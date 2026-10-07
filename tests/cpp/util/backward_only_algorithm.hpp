@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <limits>
 #include <list>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -15,8 +16,9 @@ namespace test_util {
 
 /// @brief A backward-only labeling algorithm, for testing the backward machinery in isolation.
 ///
-/// Seeds at the sinks and runs backward to completion, with no half-way bound and no join. The
-/// frontier is `SimpleDominanceAlgorithm`'s; nothing in it is direction-specific.
+/// The backward search of `SimpleDominanceAlgorithm` (`rcspp::detail::BackwardSimple`): it seeds
+/// at the sinks and runs backward to completion, with no half-way bound and no join. Its
+/// constructor sets `direction = Backward`, and it adds accessors to its labels.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container; defaults to a *backward* label list, since a
@@ -25,20 +27,19 @@ template <typename ResourceType,
           typename LabelContainerType = rcspp::LabelList<ResourceType, rcspp::BackwardDirection>>
     requires rcspp::ResourceTypeConcept<ResourceType>
 class BackwardOnlyAlgorithm
-    : public rcspp::detail::DirectionalDominanceAlgorithm<ResourceType, LabelContainerType,
-                                                          rcspp::BackwardDirection> {
-        using Base = rcspp::detail::DirectionalDominanceAlgorithm<ResourceType, LabelContainerType,
-                                                                  rcspp::BackwardDirection>;
+    : public rcspp::detail::BackwardSimple<ResourceType, LabelContainerType> {
+        using Base = rcspp::detail::BackwardSimple<ResourceType, LabelContainerType>;
 
     public:
         BackwardOnlyAlgorithm(rcspp::ResourceFactory<ResourceType>* resource_factory,
                               rcspp::AlgorithmParams<LabelContainerType> params)
-            : Base(resource_factory, std::move(params)) {}
+            : Base(resource_factory, backward(std::move(params))) {}
 
         ~BackwardOnlyAlgorithm() override = default;
 
         /// @brief Read-only access to the per-node backward label sets, for assertions on values.
-        [[nodiscard]] const std::vector<LabelContainerType>& get_labels_by_node_pos() const {
+        [[nodiscard]] const std::vector<typename Base::DirectedContainer>& get_labels_by_node_pos()
+            const {
             return this->non_dominated_labels_by_node_pos_;
         }
 
@@ -60,61 +61,27 @@ class BackwardOnlyAlgorithm
         }
 
     private:
-        void initialize(const rcspp::Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Base::initialize(graph, cost_upper_bound);
-            number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
+        static rcspp::AlgorithmParams<LabelContainerType> backward(
+            rcspp::AlgorithmParams<LabelContainerType> params) {
+            params.direction = rcspp::SearchDirection::Backward;
+            return params;
         }
-
-        rcspp::LabelIteratorPair<ResourceType> next_label_iterator() override {
-            rcspp::LabelIteratorPair<ResourceType> label_iterator_pair;
-            while (!unprocessed_labels_.empty()) {
-                label_iterator_pair = unprocessed_labels_.front();
-                unprocessed_labels_.pop_front();
-
-                if (label_iterator_pair.first->dominated) {
-                    this->label_pool_.release_with_ref_count(label_iterator_pair.first);
-                } else {
-                    size_t& num_extended_labels_for_node = number_of_extended_labels_per_node_.at(
-                        label_iterator_pair.first->get_end_node()->pos());
-                    if (num_extended_labels_for_node < this->effective_max_labels_per_node_) {
-                        ++num_extended_labels_for_node;
-                        break;
-                    }
-                    unprocessed_truncated_labels_.push_back(label_iterator_pair);
-                }
-            }
-
-            return label_iterator_pair;
-        }
-
-        [[nodiscard]] size_t number_of_labels() const override {
-            return unprocessed_labels_.size();
-        }
-
-        void add_new_unprocessed_label(
-            const rcspp::LabelIteratorPair<ResourceType>& label_iterator_pair) override {
-            unprocessed_labels_.push_back(label_iterator_pair);
-        }
-
-        void prepareNextPhase() override {
-            std::ranges::fill(number_of_extended_labels_per_node_.begin(),
-                              number_of_extended_labels_per_node_.end(),
-                              0);
-            unprocessed_labels_.splice(unprocessed_labels_.end(), unprocessed_truncated_labels_);
-        }
-
-        void release_label_memory() override {
-            Base::release_label_memory();
-            unprocessed_labels_.clear();
-            unprocessed_truncated_labels_.clear();
-            std::ranges::fill(number_of_extended_labels_per_node_.begin(),
-                              number_of_extended_labels_per_node_.end(),
-                              0);
-        }
-
-        std::list<rcspp::LabelIteratorPair<ResourceType>> unprocessed_labels_;
-        std::list<rcspp::LabelIteratorPair<ResourceType>> unprocessed_truncated_labels_;
-        std::vector<size_t> number_of_extended_labels_per_node_;
 };
+
+/// @brief Builds a `BackwardOnlyAlgorithm` on @p graph's resources.
+///
+/// `ResourceGraph::create_algorithm` returns an `Algorithm` pointer, which hides the accessors.
+///
+/// @param graph  The graph whose resource factory the algorithm uses.
+/// @param params The algorithm's params; the direction is set to backward.
+/// @return The algorithm, with its concrete type.
+template <typename LabelContainerType, typename... ResourceTypes>
+[[nodiscard]] auto make_backward_only(rcspp::ResourceGraph<ResourceTypes...>* graph,
+                                      rcspp::AlgorithmParams<LabelContainerType> params) {
+    using ResourceType = rcspp::ResourceTypeComposition<ResourceTypes...>;
+    return std::make_unique<BackwardOnlyAlgorithm<ResourceType, LabelContainerType>>(
+        &graph->get_resource_factory(),
+        std::move(params));
+}
 
 }  // namespace test_util

@@ -11,16 +11,22 @@
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 
 namespace rcspp {
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
-    requires ResourceTypeConcept<ResourceType>
-class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType> {
-    public:
-        SimpleDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                 AlgorithmParams<LabelContainerType> params)
-            : DominanceAlgorithm<ResourceType, LabelContainerType>(resource_factory,
-                                                                   std::move(params)) {}
 
-        ~SimpleDominanceAlgorithm() override = default;
+namespace detail {
+
+/// @brief The FIFO frontier of @ref SimpleDominanceAlgorithm, over any directional base.
+///
+/// @tparam Base The labeling loop: @ref DominanceAlgorithm going forward, or
+///              @ref DirectionalDominanceAlgorithm with @ref BackwardDirection.
+template <typename Base>
+class SimpleFrontier : public Base {
+        using ResourceType = typename Base::resource_type;
+        using LabelContainerType = typename Base::label_container_type;
+
+    public:
+        using Base::Base;
+
+        ~SimpleFrontier() override = default;
 
     private:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
@@ -123,7 +129,7 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
 
         /// @brief Release label memory and clear all unprocessed label lists.
         void release_label_memory() override {
-            DominanceAlgorithm<ResourceType, LabelContainerType>::release_label_memory();
+            Base::release_label_memory();
             unprocessed_labels_.clear();
             unprocessed_truncated_labels_.clear();
             std::ranges::fill(number_of_extended_labels_per_node_.begin(),
@@ -134,5 +140,26 @@ class SimpleDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCo
         std::list<LabelIteratorPair<ResourceType>> unprocessed_labels_;
         std::list<LabelIteratorPair<ResourceType>> unprocessed_truncated_labels_;
         std::vector<size_t> number_of_extended_labels_per_node_;
+};
+
+/// @brief The backward search of @ref SimpleDominanceAlgorithm, which
+///        @c create_algorithm<SimpleDominanceAlgorithm> builds for @c SearchDirection::Backward.
+template <typename ResourceType, typename LabelContainerType>
+using BackwardSimple = SimpleFrontier<
+    DirectionalDominanceAlgorithm<ResourceType, LabelContainerType, BackwardDirection>>;
+
+}  // namespace detail
+
+/// @brief Processes labels first in, first out, node quota permitting.
+///
+/// Searches forward, or backward when its params ask for it (through
+/// @c ResourceGraph::create_algorithm or @c ResourceGraph::solve).
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+    requires ResourceTypeConcept<ResourceType>
+class SimpleDominanceAlgorithm
+    : public detail::SimpleFrontier<DominanceAlgorithm<ResourceType, LabelContainerType>> {
+    public:
+        using detail::SimpleFrontier<
+            DominanceAlgorithm<ResourceType, LabelContainerType>>::SimpleFrontier;
 };
 }  // namespace rcspp

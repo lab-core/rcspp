@@ -57,8 +57,7 @@ inline AlgorithmParams<BackwardList> inspectable_params() {
 
 /// @brief The cheapest backward path, read from the labels at the backward terminals.
 inline double backward_optimum(ResourceGraph<RealResource>* graph) {
-    auto algorithm = graph->create_algorithm<test_util::BackwardOnlyAlgorithm, BackwardList>(
-        inspectable_params());
+    auto algorithm = test_util::make_backward_only(graph, inspectable_params());
     graph->solve(algorithm.get());
     return algorithm->best_terminal_cost();
 }
@@ -125,6 +124,9 @@ inline std::map<size_t, std::pair<double, double>> time_windows() {
 }
 
 /// @brief Builds the time-window instance above as a single-component time resource.
+///
+/// The time costs nothing: a backward label's time is a deadline, not a cost, so a model that
+/// prices it is refused for a backward search.
 inline std::unique_ptr<ResourceGraph<RealResource>> time_window_graph() {
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     const auto windows = time_windows();
@@ -132,7 +134,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> time_window_graph() {
     graph->add_resource<RealResource>(
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
         std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
-        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
         std::make_unique<ValueDominanceFunction<RealResource>>());
 
     graph->add_node(kNodeS, /*source=*/true, /*sink=*/false);
@@ -276,9 +278,8 @@ TEST(BackwardSearch, SolveReturnsCompletePaths) {
         auto backward_graph = test_util::build_additive_graph(instance, /*reversed=*/false);
         const double forward = bst::forward_optimum(forward_graph.get());
 
-        auto algorithm =
-            backward_graph->create_algorithm<test_util::BackwardOnlyAlgorithm, bst::BackwardList>(
-                AlgorithmParams<bst::BackwardList>{});
+        auto algorithm = test_util::make_backward_only(backward_graph.get(),
+                                                       AlgorithmParams<bst::BackwardList>{});
         const auto result = backward_graph->solve(algorithm.get());
 
         ASSERT_FALSE(result.solutions.empty());
@@ -314,8 +315,7 @@ TEST(BackwardSearch, TimeWindowBackwardLabelsMatchHandComputation) {
     namespace bst = backward_search_test;
     auto graph = bst::time_window_graph();
 
-    auto algorithm = graph->create_algorithm<test_util::BackwardOnlyAlgorithm, bst::BackwardList>(
-        bst::inspectable_params());
+    auto algorithm = test_util::make_backward_only(graph.get(), bst::inspectable_params());
     graph->solve(algorithm.get(), std::numeric_limits<double>::infinity(), /*preprocess=*/false);
 
     // b(t) = 100: the seed, straight from the sink's closing time.
@@ -346,8 +346,7 @@ TEST(BackwardSearch, NodeClosingTimeCapsTheBackwardValue) {
     namespace bst = backward_search_test;
     auto graph = bst::time_window_graph();
 
-    auto algorithm = graph->create_algorithm<test_util::BackwardOnlyAlgorithm, bst::BackwardList>(
-        bst::inspectable_params());
+    auto algorithm = test_util::make_backward_only(graph.get(), bst::inspectable_params());
     graph->solve(algorithm.get(), std::numeric_limits<double>::infinity(), /*preprocess=*/false);
 
     const auto at_b = bst::backward_value_at(*algorithm, *graph, bst::kNodeB);
@@ -414,8 +413,7 @@ TEST(BackwardSearch, LaterDeadlineSurvivesBackwardDominance) {
     graph->add_arc<RealResource>(std::make_tuple(20.0), 1, 2);  // via 2:  b(1) = 50
     graph->add_arc<RealResource>(std::make_tuple(30.0), 2, 3);
 
-    auto algorithm = graph->create_algorithm<test_util::BackwardOnlyAlgorithm, bst::BackwardList>(
-        bst::inspectable_params());
+    auto algorithm = test_util::make_backward_only(graph.get(), bst::inspectable_params());
     graph->solve(algorithm.get(), std::numeric_limits<double>::infinity(), /*preprocess=*/false);
 
     const auto* node = graph->get_node(1);
