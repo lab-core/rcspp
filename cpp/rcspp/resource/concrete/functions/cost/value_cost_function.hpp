@@ -28,5 +28,8 @@ class ValueCostFunction
         [[nodiscard]] auto get_cost(const ResourceType& num_resource) const -> double override {
             return num_resource.get_value();
         }
+
+        /// @return @c CostForm::Value: the cost is the value, additive under an accumulation.
+        [[nodiscard]] CostForm cost_form() const override { return CostForm::Value; }
 };
 }  // namespace rcspp
