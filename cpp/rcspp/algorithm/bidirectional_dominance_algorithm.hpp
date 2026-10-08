@@ -9,7 +9,6 @@
 #include <list>
 #include <memory>
 #include <optional>
-#include <span>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -422,7 +421,8 @@ class BidirectionalDominanceAlgorithm
             // The half-way bound: forward labels stop above H, backward labels below it. With the
             // bound off the clock, and so its index, is never read.
             if (half_way_.enabled()) {
-                const double critical = critical_value(label_ptr->get_resource());
+                const double critical = critical_value<CriticalRC>(
+                    label_ptr->get_resource(), this->params_.critical_resource_index);
                 if constexpr (Dir::backward) {
                     if (half_way_.should_stop_backward(critical)) {
                         return;
@@ -519,17 +519,6 @@ class BidirectionalDominanceAlgorithm
             join_truncated_ = stats.truncated;
         }
 
-        /// @brief The critical resource's scalar value, or 0 when the type is absent.
-        [[nodiscard]] double critical_value(const Resource<ResourceType>& resource) const {
-            if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
-                const auto& component = resource.template get_component<CriticalRC>(
-                    this->params_.critical_resource_index);
-                return static_cast<double>(component.get_value().get_value());
-            } else {
-                return 0.0;
-            }
-        }
-
         /// @brief The remaining cost a half still has to pay before it is a complete path.
         template <typename Dir>
         [[nodiscard]] double completion_bound(size_t node_pos) const {
@@ -586,11 +575,13 @@ class BidirectionalDominanceAlgorithm
                     return;
                 }
                 const std::vector<double> probes{0.0, half_way_.h()};
-                if (!critical_is_monotone(graph, probes)) {
+                if (!critical_resource_is_monotone<CriticalRC>(
+                        graph, this->params_.critical_resource_index, probes)) {
                     turn_half_way_off(HalfWayOff::NotMonotone, clock + " is not monotone");
                     return;
                 }
-                if (!critical_dominance_is_increasing(graph)) {
+                if (!critical_resource_dominance_is_increasing<CriticalRC>(
+                        graph, this->params_.critical_resource_index)) {
                     turn_half_way_off(HalfWayOff::NotIncreasing,
                                       clock +
                                           " does not take part in the dominance order as an "
@@ -684,17 +675,13 @@ class BidirectionalDominanceAlgorithm
                 if (sink == nullptr || sink->resource == nullptr) {
                     continue;
                 }
-                const auto in_arcs = graph.get_in_arcs(sink);
-                const auto entering = std::ranges::find_if(in_arcs, [](const auto* arc) {
-                    return arc->extender != nullptr;
-                });
-                if (entering == in_arcs.end()) {
+                const auto* entering = BackwardDirection::seed_arc(graph, sink);
+                if (entering == nullptr) {
                     continue;
                 }
                 auto scratch = sink->resource->template get_component<CriticalRC>(index);
                 if (!threshold_probe::observe_start(
-                        (*entering)->extender->template get_component<CriticalRC>(index),
-                        &scratch)) {
+                        entering->extender->template get_component<CriticalRC>(index), &scratch)) {
                     return sink_id;
                 }
             }
@@ -731,31 +718,6 @@ class BidirectionalDominanceAlgorithm
                 }
             }
             return std::nullopt;
-        }
-
-        /// @brief Dispatches the monotonicity probe, which needs the graph's resource pack.
-        template <typename... Ts>
-        [[nodiscard]] static bool monotone_impl(const Graph<ResourceTypeComposition<Ts...>>& graph,
-                                                size_t index, std::span<const double> probes) {
-            return critical_resource_is_monotone<CriticalRC, Ts...>(graph, index, probes);
-        }
-
-        [[nodiscard]] bool critical_is_monotone(const Graph<ResourceType>& graph,
-                                                const std::vector<double>& probes) const {
-            return monotone_impl(graph, this->params_.critical_resource_index, probes);
-        }
-
-        /// @brief Dispatches the dominance probe, which needs the graph's resource pack.
-        template <typename... Ts>
-        [[nodiscard]] static bool dominance_increasing_impl(
-            const Graph<ResourceTypeComposition<Ts...>>& graph, size_t index) {
-            return critical_resource_dominance_is_increasing<CriticalRC, Ts...>(graph, index);
-        }
-
-        /// @brief Whether the clock's dominance order is the increasing one.
-        [[nodiscard]] bool critical_dominance_is_increasing(
-            const Graph<ResourceType>& graph) const {
-            return dominance_increasing_impl(graph, this->params_.critical_resource_index);
         }
 
         /// @brief `R`, derived as `2H` when `H` is given and infinity otherwise.

@@ -131,18 +131,33 @@ struct BackwardDirection {
         }
 
         /// @brief Applies the starting value of a seed label at sink @p node: the one the
-        ///        extension of an arc entering it sets (see @c ExtensionFunction::start_back).
+        ///        extension of its @ref seed_arc sets (see @c ExtensionFunction::start_back).
         ///
         /// A sink no live arc enters keeps the type default, as no backward step leaves it.
         template <typename ResourceType>
         static void seed(const Graph<ResourceType>& graph, const Node<ResourceType>* node,
                          Label<ResourceType>& label) {
+            if (const auto* arc = seed_arc(graph, node); arc != nullptr) {
+                arc->extender->start_back(&label.get_resource());
+            }
+        }
+
+        /// @brief The arc a backward seed at sink @p node reads its start from: the first live
+        ///        arc entering it that carries an extender.
+        ///
+        /// Every arc carries the same functions, so any one sets the same start. Whoever checks
+        /// that start (the half-way validation) reads it from this arc too.
+        ///
+        /// @return The arc, or @c nullptr when no live arc with an extender enters @p node.
+        template <typename ResourceType>
+        static auto seed_arc(const Graph<ResourceType>& graph,
+                             const Node<ResourceType>* node) -> const Arc<ResourceType>* {
             for (const auto* arc : graph.get_in_arcs(node)) {
                 if (arc->extender != nullptr) {
-                    arc->extender->start_back(&label.get_resource());
-                    return;
+                    return arc;
                 }
             }
+            return nullptr;
         }
 
         /// @brief The nodes a backward search starts from: the sinks.

@@ -263,8 +263,9 @@ class Joiner {
                 }
                 assert(!label->get_in_arc()->origin->sink &&
                        "the forward search must never extend out of a sink");
-                if (half_way.enabled() && critical_value(label->get_resource(),
-                                                         critical_resource_index) <= half_way.h()) {
+                if (half_way.enabled() &&
+                    critical_value<CriticalRC>(label->get_resource(), critical_resource_index) <=
+                        half_way.h()) {
                     continue;
                 }
                 labels.push_back(label);
@@ -311,21 +312,6 @@ class Joiner {
             append_suffix_arc_ids(backward, &arc_ids);
             assert(is_contiguous(graph, arc_ids) && "joined path is not contiguous");
             return arc_ids;
-        }
-
-        /// @brief Reads the critical resource's scalar value out of a composed resource.
-        ///
-        /// Returns 0.0 when the type is absent from the pack (the bound is then disabled); the
-        /// guard keeps that case compiling.
-        [[nodiscard]] static double critical_value(const Resource<ResourceType>& resource,
-                                                   size_t critical_resource_index) {
-            if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
-                const auto& component =
-                    resource.template get_component<CriticalRC>(critical_resource_index);
-                return static_cast<double>(component.get_value().get_value());
-            } else {
-                return 0.0;
-            }
         }
 
     public:

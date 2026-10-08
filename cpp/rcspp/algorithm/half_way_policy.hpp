@@ -417,6 +417,26 @@ class HalfWayController {
         size_t moves_ = 0;
 };
 
+/// @brief The critical resource's scalar value in @p resource: the clock the half-way bound reads.
+///
+/// @tparam CriticalRC   The critical resource's type.
+/// @tparam ResourceType The resource type carried by labels.
+/// @param resource                The label's resource.
+/// @param critical_resource_index Position of the critical resource within its type slot.
+/// @return The value, or 0 when @p CriticalRC is not in the composition (the bound is then off;
+///         the guard keeps that case compiling).
+template <typename CriticalRC, typename ResourceType>
+[[nodiscard]] double critical_value(const Resource<ResourceType>& resource,
+                                    size_t critical_resource_index) {
+    if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
+        const auto& component =
+            resource.template get_component<CriticalRC>(critical_resource_index);
+        return static_cast<double>(component.get_value().get_value());
+    } else {
+        return 0.0;
+    }
+}
+
 /// @brief Checks that the chosen critical resource really is monotone along every arc.
 ///
 /// For each arc and probe value `x`, extends a resource whose critical component is `x` and
