@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include <chrono>
 #include <cmath>
+#include <iostream>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -16,6 +19,47 @@
 // may be included by only one translation unit, and more than one benchmark uses them.
 
 namespace bidirectional_benchmark {
+
+/// @brief One run's outcome on a VRP subproblem, and what it cost to get there.
+///
+/// @tparam Subproblem `VRPSubproblem` or `VRPSubproblemNg`.
+template <typename Subproblem>
+struct Timed {
+        typename Subproblem::RunMeasurement measurement;
+        double seconds = 0.0;
+};
+
+/// @brief Runs @p subproblem once and times it.
+///
+/// @tparam AlgorithmType The algorithm template to run.
+/// @param subproblem The subproblem to solve.
+/// @param duals      The duals, by customer id.
+/// @param params     Algorithm parameters.
+/// @return The measurement and the wall clock.
+template <template <typename, typename> class AlgorithmType, typename Subproblem>
+Timed<Subproblem> measure(Subproblem* subproblem, const std::map<size_t, double>& duals,
+                          rcspp::AlgorithmBaseParams params) {
+    const auto started = std::chrono::steady_clock::now();
+    Timed<Subproblem> timed;
+    timed.measurement =
+        subproblem->template solve_and_measure<AlgorithmType>(duals, std::move(params));
+    timed.seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    return timed;
+}
+
+/// @brief Prints one row of a comparison, to stdout so a test run records it.
+template <typename Subproblem>
+void report(const std::string& name, const Timed<Subproblem>& timed) {
+    std::cout << "  " << name << ": cost=" << timed.measurement.cost
+              << " solutions=" << timed.measurement.solutions
+              << " extended_labels=" << timed.measurement.extended_labels
+              << " pooled_labels=" << timed.measurement.pooled_labels
+              << " status=" << rcspp::to_string(timed.measurement.status)
+              << " bounded=" << timed.measurement.bounded_by_half_way
+              << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
+              << std::endl;
+}
 
 constexpr double kTolerance = 1e-9;
 constexpr double kOptimal = -319.87786809696524415;

@@ -27,38 +27,9 @@ using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
 namespace bidirectional_benchmark {
 
-/// @brief One run's outcome and what it cost to get there.
-struct Timed {
-        VRPSubproblem::RunMeasurement measurement;
-        double seconds = 0.0;
-};
-
-/// @brief Runs @p subproblem once and times it.
-template <template <typename, typename> class AlgorithmType>
-Timed measure(VRPSubproblem* subproblem, const std::map<size_t, double>& duals,
-              AlgorithmBaseParams params) {
-    const auto started = std::chrono::steady_clock::now();
-    Timed timed;
-    timed.measurement = subproblem->solve_and_measure<AlgorithmType>(duals, std::move(params));
-    timed.seconds =
-        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-    return timed;
-}
-
-/// @brief Prints one row of the comparison, to stdout so a test run records it.
-inline void report(const std::string& name, const Timed& timed) {
-    std::cout << "  " << name << ": cost=" << timed.measurement.cost
-              << " solutions=" << timed.measurement.solutions
-              << " extended_labels=" << timed.measurement.extended_labels
-              << " pooled_labels=" << timed.measurement.pooled_labels
-              << " status=" << to_string(timed.measurement.status)
-              << " bounded=" << timed.measurement.bounded_by_half_way
-              << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
-              << std::endl;
-}
-
 /// @brief Prints the extended-label ratio, or says why there is not one.
-inline void report_ratio(const Timed& forward, const Timed& bidirectional) {
+inline void report_ratio(const Timed<VRPSubproblem>& forward,
+                         const Timed<VRPSubproblem>& bidirectional) {
     if (bidirectional.measurement.extended_labels == 0) {
         std::cout << "    ratio: n/a (bidirectional extended no labels)" << std::endl;
         return;
@@ -69,8 +40,8 @@ inline void report_ratio(const Timed& forward, const Timed& bidirectional) {
               << std::endl;
 }
 
-// `synthetic_duals`, `load`, `bidirectional_params` and `forward_params` live in
-// util/benchmark_constants.hpp, so another benchmark can share them.
+// `Timed`, `measure`, `report`, `synthetic_duals`, `load`, `bidirectional_params` and
+// `forward_params` live in util/benchmark_constants.hpp, so the ng benchmark shares them.
 
 }  // namespace bidirectional_benchmark
 

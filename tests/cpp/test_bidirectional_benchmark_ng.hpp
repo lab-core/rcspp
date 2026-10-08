@@ -39,42 +39,6 @@ constexpr size_t kNgNeighborhoodSize = 8;
 constexpr size_t kMaxForwardExtensions = 50000;
 constexpr size_t kMaxBidirectionalExtensions = 50000;
 
-/// @brief One ng run's outcome and what it cost.
-struct TimedNg {
-        VRPSubproblemNg::RunMeasurement measurement;
-        double seconds = 0.0;
-};
-
-/// @brief Runs @p subproblem once and times it.
-///
-/// @tparam AlgorithmType The algorithm template to run.
-/// @param subproblem The ng subproblem to solve.
-/// @param duals      The duals, by customer id.
-/// @param params     Algorithm parameters.
-/// @return The measurement and the wall clock.
-template <template <typename, typename> class AlgorithmType>
-TimedNg measure_ng(VRPSubproblemNg* subproblem, const std::map<size_t, double>& duals,
-                   AlgorithmBaseParams params) {
-    const auto started = std::chrono::steady_clock::now();
-    TimedNg timed;
-    timed.measurement = subproblem->solve_and_measure<AlgorithmType>(duals, std::move(params));
-    timed.seconds =
-        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-    return timed;
-}
-
-/// @brief Prints one row, to stdout so a test run records it.
-inline void report_ng(const std::string& name, const TimedNg& timed) {
-    std::cout << "  " << name << ": cost=" << timed.measurement.cost
-              << " solutions=" << timed.measurement.solutions
-              << " extended_labels=" << timed.measurement.extended_labels
-              << " pooled_labels=" << timed.measurement.pooled_labels
-              << " status=" << to_string(timed.measurement.status)
-              << " bounded=" << timed.measurement.bounded_by_half_way
-              << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
-              << std::endl;
-}
-
 }  // namespace bidirectional_benchmark_ng
 
 /// @brief The ng model on R101, iteration-0 duals: forward against bidirectional.
@@ -98,21 +62,23 @@ TEST(BidirectionalBenchmarkNg, NgForwardVersusBidirectionalOnVrptw) {
 
     VRPSubproblemNg forward_subproblem(instance, ng::kNgNeighborhoodSize);
     const auto forward =
-        ng::measure_ng<SimpleDominanceAlgorithm>(&forward_subproblem, duals, AlgorithmBaseParams{});
+        bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                                   duals,
+                                                                   AlgorithmBaseParams{});
 
     AlgorithmBaseParams bounded;
     bounded.critical_resource_index = 1;  // time
     bounded.half_way_point = horizon / 2.0;
     VRPSubproblemNg bidirectional_subproblem(instance, ng::kNgNeighborhoodSize);
-    const auto bidirectional =
-        ng::measure_ng<SimpleDominanceAlgorithm>(&bidirectional_subproblem,
-                                                 duals,
-                                                 test_util::bidirectional(bounded));
+    const auto bidirectional = bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(
+        &bidirectional_subproblem,
+        duals,
+        test_util::bidirectional(bounded));
 
     std::cout << "[ BENCHMARK ] " << instance_name << " + ng(" << ng::kNgNeighborhoodSize
               << "), iteration-0 duals, H = " << horizon / 2.0 << std::endl;
-    ng::report_ng("ng forward      ", forward);
-    ng::report_ng("ng bidirectional", bidirectional);
+    bidirectional_benchmark::report("ng forward      ", forward);
+    bidirectional_benchmark::report("ng bidirectional", bidirectional);
     if (bidirectional.measurement.extended_labels > 0) {
         std::cout << "  extended-label ratio (forward / bidirectional): "
                   << static_cast<double>(forward.measurement.extended_labels) /
@@ -166,22 +132,23 @@ TEST(BidirectionalBenchmarkNg, DISABLED_NgPayoffComparedToTheInertModel) {
 
     for (const size_t ng_size : {size_t{0}, ng::kNgNeighborhoodSize}) {
         VRPSubproblemNg forward_subproblem(instance, ng_size);
-        const auto forward = ng::measure_ng<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                                      duals,
-                                                                      AlgorithmBaseParams{});
+        const auto forward =
+            bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                                       duals,
+                                                                       AlgorithmBaseParams{});
 
         AlgorithmBaseParams bounded;
         bounded.critical_resource_index = 1;
         bounded.half_way_point = horizon / 2.0;
         VRPSubproblemNg bidirectional_subproblem(instance, ng_size);
-        const auto bidirectional =
-            ng::measure_ng<SimpleDominanceAlgorithm>(&bidirectional_subproblem,
-                                                     duals,
-                                                     test_util::bidirectional(bounded));
+        const auto bidirectional = bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(
+            &bidirectional_subproblem,
+            duals,
+            test_util::bidirectional(bounded));
 
         std::cout << "  ng_neighborhood_size = " << ng_size << std::endl;
-        ng::report_ng("  forward      ", forward);
-        ng::report_ng("  bidirectional", bidirectional);
+        bidirectional_benchmark::report("  forward      ", forward);
+        bidirectional_benchmark::report("  bidirectional", bidirectional);
         if (bidirectional.measurement.extended_labels > 0) {
             std::cout << "    ratio (forward / bidirectional extended labels): "
                       << static_cast<double>(forward.measurement.extended_labels) /
@@ -225,17 +192,18 @@ TEST(BidirectionalBenchmarkNg, DISABLED_NgExactComparisonAt75Customers) {
         VRPSubproblemNg forward_subproblem(instance, ng::kNgNeighborhoodSize);
         VRPSubproblemNg bidirectional_subproblem(instance, ng::kNgNeighborhoodSize);
 
-        const auto forward = ng::measure_ng<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                                      duals,
-                                                                      bb::forward_params(kBudget));
-        const auto bidirectional = ng::measure_ng<SimpleDominanceAlgorithm>(
+        const auto forward =
+            bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(&forward_subproblem,
+                                                                       duals,
+                                                                       bb::forward_params(kBudget));
+        const auto bidirectional = bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(
             &bidirectional_subproblem,
             duals,
             test_util::bidirectional(bb::bidirectional_params(horizon, kBudget)));
 
         std::cout << "  " << name << " (horizon " << horizon << ")" << std::endl;
-        ng::report_ng("    ng forward      ", forward);
-        ng::report_ng("    ng bidirectional", bidirectional);
+        bidirectional_benchmark::report("    ng forward      ", forward);
+        bidirectional_benchmark::report("    ng bidirectional", bidirectional);
         if (bidirectional.measurement.extended_labels > 0) {
             std::cout << "    ratio (forward / bidirectional extended labels): "
                       << static_cast<double>(forward.measurement.extended_labels) /
@@ -296,18 +264,18 @@ TEST(BidirectionalBenchmarkNg, DISABLED_NgPayoffAt75Customers) {
             VRPSubproblemNg forward_subproblem(instance, ng_size);
             VRPSubproblemNg bidirectional_subproblem(instance, ng_size);
 
-            const auto forward =
-                ng::measure_ng<SimpleDominanceAlgorithm>(&forward_subproblem,
-                                                         duals,
-                                                         bb::forward_params(kBudget));
-            const auto bidirectional = ng::measure_ng<SimpleDominanceAlgorithm>(
+            const auto forward = bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(
+                &forward_subproblem,
+                duals,
+                bb::forward_params(kBudget));
+            const auto bidirectional = bidirectional_benchmark::measure<SimpleDominanceAlgorithm>(
                 &bidirectional_subproblem,
                 duals,
                 test_util::bidirectional(bb::bidirectional_params(horizon, kBudget)));
 
             std::cout << "    ng_neighborhood_size = " << ng_size << std::endl;
-            ng::report_ng("      forward      ", forward);
-            ng::report_ng("      bidirectional", bidirectional);
+            bidirectional_benchmark::report("      forward      ", forward);
+            bidirectional_benchmark::report("      bidirectional", bidirectional);
             if (bidirectional.measurement.extended_labels > 0) {
                 ratio_by_setting[index] =
                     static_cast<double>(forward.measurement.extended_labels) /

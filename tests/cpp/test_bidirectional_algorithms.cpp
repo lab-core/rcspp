@@ -11,7 +11,6 @@
 
 #include "test_backward_search.hpp"
 #include "test_bidirectional.hpp"
-#include "test_bidirectional_benchmark.hpp"
 #include "test_bidirectional_validation.hpp"
 #include "test_dynamic_half_way.hpp"
 #include "test_instruments.hpp"
