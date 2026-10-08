@@ -89,7 +89,7 @@ struct PricingRow {
 };
 
 /// @brief What a run caps. Every default is "no cap", so an option left out changes nothing.
-struct JoinOptions {
+struct CgOptions {
         size_t join_budget = MAX_INT;                                ///< --join-budget=K
         size_t max_pairs = MAX_INT;                                  ///< --max-join-pairs=N
         double timeout_s = std::numeric_limits<double>::infinity();  ///< --pricing-timeout=S
@@ -235,7 +235,7 @@ void print_summary(const std::string& label, const CGSolveResult& cg,
 /// @brief One full column generation with the forward pricer.
 ///
 /// Only the pricing timeout applies: the join budgets have nothing to cap in a forward search.
-CGSolveResult run_forward(const Instance& instance, const JoinOptions& options) {
+CGSolveResult run_forward(const Instance& instance, const CgOptions& options) {
     VRP vrp(instance);
     AlgorithmParams<ListLC> params;
     params.timeout_s = options.timeout_s;
@@ -264,7 +264,7 @@ CGSolveResult run_forward(const Instance& instance, const JoinOptions& options) 
 /// @param per_iteration Whether to print the per-iteration table before the summary.
 /// @param options       The join's budgets and the pricing timeout.
 CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per_iteration,
-                                const JoinOptions& options) {
+                                const CgOptions& options) {
     VRP vrp(instance);
     const double horizon = static_cast<double>(instance.get_depot_customer().due_time);
 
@@ -303,7 +303,7 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
 int main(int argc, char** argv) {
     std::vector<std::string> names;
     bool per_iteration = true;
-    JoinOptions options;
+    CgOptions options;
     // The value after `=` in an option spelled `--name=value`.
     const auto value_of = [](const std::string& arg) { return arg.substr(arg.find('=') + 1); };
     for (int i = 1; i < argc; ++i) {

@@ -13,12 +13,40 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/half_way_policy.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp {
+
+/// @brief What one join pass may pair, keep and spend.
+///
+/// A budget at or above @c MAX_INT, the params' "no limit", is no budget.
+struct JoinOptions {
+        /// @brief The half-way policy; consulted only when enabled. Off by default: every stored
+        ///        non-seed forward label is then paired.
+        HalfWayPolicy half_way{0.0, std::numeric_limits<double>::infinity()};
+
+        /// @brief Index of the critical resource within its type slot.
+        size_t critical_resource_index = 0;
+
+        /// @brief Whether to drop pairs no better than the incumbent. The incumbent cutoff also
+        ///        applies when @ref cost_upper_bound is infinite.
+        bool prune_requested = true;
+
+        /// @brief The caller's fixed bound. Always applied.
+        double cost_upper_bound = std::numeric_limits<double>::infinity();
+
+        /// @brief When set, only the cheapest this many distinct joined paths are handed on, after
+        ///        the pass; pairs that cannot be among them are never spliced.
+        size_t max_solutions = MAX_INT;
+
+        /// @brief When set, the pass stops after this many join-rule questions and reports
+        ///        `truncated`; what it had kept is still handed on.
+        size_t max_pairs = MAX_INT;
+};
 
 /// @brief What one join pass did.
 struct JoinStats {
@@ -54,41 +82,31 @@ class Joiner {
         /// @tparam BwdContainer Per-node backward label container.
         /// @tparam OnSolution   Callable `(double cost, std::vector<size_t> arc_ids,
         ///                      size_t end_node_id)`.
-        /// @param graph                   The model.
-        /// @param forward_by_pos          Forward labels, indexed by node position.
-        /// @param backward_by_pos         Backward labels, indexed by node position.
-        /// @param half_way                The half-way policy; consulted only when enabled.
-        /// @param critical_resource_index Index of the critical resource within its type slot.
-        /// @param best_cost_upper_bound   The incumbent, tightened in place as solutions are found.
-        /// @param prune_requested         Whether to drop pairs no better than the incumbent. The
-        ///                                incumbent cutoff also applies when @p cost_upper_bound
-        ///                                is infinite.
-        /// @param cost_upper_bound        The caller's fixed bound. Always applied.
-        /// @param on_solution             Invoked once per accepted join.
-        /// @param max_solutions           When finite, only the cheapest this many distinct
-        ///                                joined paths reach @p on_solution, after the pass;
-        ///                                pairs that cannot be among them are never spliced.
-        /// @param max_pairs               When finite, the pass stops after this many join-rule
-        ///                                questions and reports `truncated`; what it had kept is
-        ///                                still handed to @p on_solution.
-        /// @return How many pairs were tested, and whether @p max_pairs cut the pass short.
+        /// @param graph                 The model.
+        /// @param forward_by_pos        Forward labels, indexed by node position.
+        /// @param backward_by_pos       Backward labels, indexed by node position.
+        /// @param options               What the pass may pair, keep and spend.
+        /// @param best_cost_upper_bound The incumbent, tightened in place as solutions are found.
+        /// @param on_solution           Invoked once per accepted join.
+        /// @return How many pairs were tested, and whether the pair budget cut the pass short.
         template <typename FwdContainer, typename BwdContainer, typename OnSolution>
         JoinStats join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
-                       std::vector<BwdContainer>& backward_by_pos, const HalfWayPolicy& half_way,
-                       size_t critical_resource_index, double& best_cost_upper_bound,
-                       bool prune_requested, double cost_upper_bound, OnSolution&& on_solution,
-                       size_t max_solutions = std::numeric_limits<size_t>::max(),
-                       size_t max_pairs = std::numeric_limits<size_t>::max()) {
+                       std::vector<BwdContainer>& backward_by_pos, const JoinOptions& options,
+                       double& best_cost_upper_bound, OnSolution&& on_solution) {
             JoinStats stats;
+            const double cost_upper_bound = options.cost_upper_bound;
             // Prune against the incumbent when asked, or when there is no fixed bound: otherwise a
             // default solve would return every admissible pair. A finite bound with no request
             // means "every column below this bound".
             const bool prune_against_incumbent =
-                prune_requested || !std::isfinite(cost_upper_bound);
-            const bool capped = max_solutions != std::numeric_limits<size_t>::max();
-            Cheapest cheapest(max_solutions);
+                options.prune_requested || !std::isfinite(cost_upper_bound);
+            const bool capped = options.max_solutions < MAX_INT;
+            const size_t max_pairs = options.max_pairs < MAX_INT
+                                         ? options.max_pairs
+                                         : std::numeric_limits<size_t>::max();
+            Cheapest cheapest(options.max_solutions);
             // A budget of zero keeps nothing; stop before `out_of_range` reads an empty heap.
-            if (capped && max_solutions == 0) {
+            if (capped && options.max_solutions == 0) {
                 return stats;
             }
             // A pair at or above this cannot be among the cheapest kept, so is not worth splicing.
@@ -112,8 +130,8 @@ class Joiner {
                     continue;
                 }
                 const auto boundary = boundary_labels_by_cost(forward_by_pos.at(node->pos()),
-                                                              half_way,
-                                                              critical_resource_index);
+                                                              options.half_way,
+                                                              options.critical_resource_index);
                 if (boundary.empty()) {
                     continue;
                 }
@@ -196,7 +214,8 @@ class Joiner {
 
                 /// @brief Keeps a path if it is new and among the cheapest.
                 void offer(double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
-                    if (capacity_ == 0 || kept_.contains(arc_ids)) {
+                    // `join` never offers to a zero capacity: it returns before the pass.
+                    if (kept_.contains(arc_ids)) {
                         return;
                     }
                     if (full()) {

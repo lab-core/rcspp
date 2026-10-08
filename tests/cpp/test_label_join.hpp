@@ -142,20 +142,21 @@ class JoinHarness {
             std::vector<Recorded> recorded;
             Joiner<Composed, RealResource> joiner;
             double best = upper_bound;
-            const JoinStats result = joiner.join(
-                *graph_,
-                forward_,
-                backward_,
-                policy,
-                /*critical_resource_index=*/0,
-                best,
-                prune_requested,
-                upper_bound,
-                [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
-                    recorded.push_back({cost, std::move(arc_ids), end_node_id});
-                },
-                max_solutions,
-                max_pairs);
+            const JoinOptions options{.half_way = policy,
+                                      .critical_resource_index = 0,
+                                      .prune_requested = prune_requested,
+                                      .cost_upper_bound = upper_bound,
+                                      .max_solutions = max_solutions,
+                                      .max_pairs = max_pairs};
+            const JoinStats result =
+                joiner.join(*graph_,
+                            forward_,
+                            backward_,
+                            options,
+                            best,
+                            [&](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
+                                recorded.push_back({cost, std::move(arc_ids), end_node_id});
+                            });
             if (stats != nullptr) {
                 *stats = result;
             }
