@@ -185,7 +185,7 @@ inline std::vector<size_t> surviving_ids(const Container& container) {
 
 /// @brief A route whose clock never reaches H is found, and the join is not what found it.
 ///
-/// The key assertion is `number_of_joined_paths() == 0`: the path must come from a search
+/// The key assertion is `number_of_joined_paths == 0`: the path must come from a search
 /// reaching a terminal.
 TEST(BidirectionalValidation, ShortPathIsFoundByTerminalCollectionNotByTheJoin) {
     namespace bv = bidirectional_validation_test;
@@ -554,12 +554,12 @@ TEST(BidirectionalValidation, ReverseGraphOracleAgreesOnAdditiveInstances) {
         // Everything accumulates, so there is no clock and the bound switches itself off.
         auto algorithm = candidate_graph->create_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(params));
-        const double candidate = bv::best_cost(candidate_graph->solve(algorithm.get()));
+        const auto candidate_result = candidate_graph->solve(algorithm.get());
+        const double candidate = bv::best_cost(candidate_result);
 
         EXPECT_NEAR(oracle, reference, bv::kTolerance) << "the reversed graph disagrees";
         EXPECT_NEAR(candidate, reference, bv::kTolerance) << "bidirectional disagrees";
-        EXPECT_FALSE(
-            test_util::bidirectional_impl<bv::Bidir>(algorithm.get())->bounded_by_half_way())
+        EXPECT_FALSE(candidate_result.bounded_by_half_way)
             << "an additive-only model has no clock, so the bound must be off";
         EXPECT_GT(algorithm->get_label_pool().get_nb_total_labels(), 0U);
         EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
@@ -1555,11 +1555,9 @@ TEST(BidirectionalValidation, AClockWithoutABackwardStartTurnsTheBoundOff) {
     auto graph = build();
     auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(2.0)));
-    EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
-    EXPECT_FALSE(test_util::bidirectional_impl<bv::Bidir>(algorithm.get())->bounded_by_half_way());
-    EXPECT_NE(test_util::bidirectional_impl<bv::Bidir>(algorithm.get())
-                  ->half_way_off_reason()
-                  .find("no ceiling at sink 4"),
-              std::string::npos)
-        << test_util::bidirectional_impl<bv::Bidir>(algorithm.get())->half_way_off_reason();
+    const auto result = graph->solve(algorithm.get());
+    EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);
+    EXPECT_FALSE(result.bounded_by_half_way);
+    EXPECT_NE(result.half_way_off_reason.find("no ceiling at sink 4"), std::string::npos)
+        << result.half_way_off_reason;
 }

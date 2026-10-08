@@ -94,26 +94,6 @@ class BidirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelCont
         /// @brief The order both searches take their labels in.
         [[nodiscard]] FrontierOrder frontier_order() const { return order_; }
 
-        /// @brief Whether the half-way bound was in force for the last solve.
-        ///
-        /// A disabled bound costs speed, not optimality, so it does not set
-        /// `could_be_non_optimal()`.
-        [[nodiscard]] bool bounded_by_half_way() const { return half_way_.enabled(); }
-
-        /// @brief Why the half-way bound was off for the last solve; empty when it was in force.
-        [[nodiscard]] const std::string& half_way_off_reason() const {
-            return half_way_off_reason_;
-        }
-
-        /// @brief How many distinct complete paths only the join pass produced during the last
-        ///        solve.
-        ///
-        /// A path the join produced at several nodes, or that a search also reached on its own,
-        /// counts once or not at all.
-        ///
-        /// @return The number of paths the join added, reset at the start of each solve.
-        [[nodiscard]] size_t number_of_joined_paths() const { return joined_paths_; }
-
         /// @brief Read-only access to the backward label sets, for diagnostics and tests.
         [[nodiscard]] const std::vector<BackwardContainer>& get_backward_labels_by_node_pos()
             const {

@@ -708,7 +708,7 @@ bucket or sort resource weakens the relaxation, since the buckets' early exits a
 resources order dominance. The dives have no dominance and ignore it.
 
 In a bidirectional solve, naming the clock turns the half-way bound off, as a clock outside the
-dominance order does, and `half_way_off_reason()` says so. A relaxed solve does not teach the
+dominance order does, and `half_way_off_reason` says so. A relaxed solve does not teach the
 dynamic half-way controller, whose label counts would not be the exact search's.
 
 ## `Greedy`

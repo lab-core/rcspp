@@ -1300,10 +1300,9 @@ TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
 // Diagnostics on the result
 // ============================================================================
 
-/// @brief The result carries the diagnostics, not just the algorithm object.
+/// @brief The result carries the diagnostics.
 ///
-/// Python callers never hold the algorithm, so diagnostics must be on `SolveResult` and match the
-/// accessors.
+/// Python callers never hold the algorithm, so the diagnostics are on `SolveResult`.
 TEST(Bidirectional, SolveResultCarriesTheDiagnostics) {
     namespace bt = bidirectional_test;
 
@@ -1313,10 +1312,7 @@ TEST(Bidirectional, SolveResultCarriesTheDiagnostics) {
         test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
     const auto bounded = clocked->solve(with_clock.get());
     EXPECT_TRUE(bounded.bounded_by_half_way);
-    EXPECT_EQ(bounded.bounded_by_half_way,
-              test_util::bidirectional_impl<bt::Bidir>(with_clock.get())->bounded_by_half_way());
-    EXPECT_EQ(bounded.number_of_joined_paths,
-              test_util::bidirectional_impl<bt::Bidir>(with_clock.get())->number_of_joined_paths());
+    EXPECT_TRUE(bounded.half_way_off_reason.empty()) << bounded.half_way_off_reason;
 
     // A cost-only model has no clock, so the bound refuses to engage.
     auto cost_only = bt::line_graph({1.0, 2.0, 3.0});
@@ -1526,41 +1522,34 @@ TEST(Bidirectional, ANegativeCycleTurnsTheCompletionPruneOffRatherThanZeroingIt)
 
 /// @brief A solve that runs with the bound off says why.
 ///
-/// Checked through `half_way_off_reason()`; the one-time WARN log is not observable reliably.
+/// Checked through `SolveResult::half_way_off_reason`; the one-time WARN log is not observable
+/// reliably.
 TEST(Bidirectional, TheReasonTheBoundIsOffIsReported) {
     namespace bt = bidirectional_test;
 
     auto unbounded_graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}}, /*capacity=*/20.0);
     auto unbounded = unbounded_graph->create_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bt::params(0.0, bt::kClockIndex)));
-    static_cast<void>(unbounded_graph->solve(unbounded.get()));
-    EXPECT_FALSE(test_util::bidirectional_impl<bt::Bidir>(unbounded.get())->bounded_by_half_way());
-    EXPECT_NE(test_util::bidirectional_impl<bt::Bidir>(unbounded.get())
-                  ->half_way_off_reason()
-                  .find("no half_way_point"),
-              std::string::npos)
-        << test_util::bidirectional_impl<bt::Bidir>(unbounded.get())->half_way_off_reason();
+    const auto off = unbounded_graph->solve(unbounded.get());
+    EXPECT_FALSE(off.bounded_by_half_way);
+    EXPECT_NE(off.half_way_off_reason.find("no half_way_point"), std::string::npos)
+        << off.half_way_off_reason;
 
     auto bounded_graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}}, /*capacity=*/20.0);
     auto bounded = bounded_graph->create_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bt::params(1.5, bt::kClockIndex)));
-    static_cast<void>(bounded_graph->solve(bounded.get()));
-    EXPECT_TRUE(test_util::bidirectional_impl<bt::Bidir>(bounded.get())->bounded_by_half_way());
-    EXPECT_TRUE(
-        test_util::bidirectional_impl<bt::Bidir>(bounded.get())->half_way_off_reason().empty())
-        << test_util::bidirectional_impl<bt::Bidir>(bounded.get())->half_way_off_reason();
+    const auto on = bounded_graph->solve(bounded.get());
+    EXPECT_TRUE(on.bounded_by_half_way);
+    EXPECT_TRUE(on.half_way_off_reason.empty()) << on.half_way_off_reason;
 
     // The cost is an accumulation, not a clock: an explicit H does not rescue it.
     auto cost_graph = bt::line_graph({1.0, 2.0});
     auto cost_clock = cost_graph->create_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bt::params(1.5)));
-    static_cast<void>(cost_graph->solve(cost_clock.get()));
-    EXPECT_FALSE(test_util::bidirectional_impl<bt::Bidir>(cost_clock.get())->bounded_by_half_way());
-    EXPECT_NE(test_util::bidirectional_impl<bt::Bidir>(cost_clock.get())
-                  ->half_way_off_reason()
-                  .find("threshold"),
-              std::string::npos)
-        << test_util::bidirectional_impl<bt::Bidir>(cost_clock.get())->half_way_off_reason();
+    const auto cost_result = cost_graph->solve(cost_clock.get());
+    EXPECT_FALSE(cost_result.bounded_by_half_way);
+    EXPECT_NE(cost_result.half_way_off_reason.find("threshold"), std::string::npos)
+        << cost_result.half_way_off_reason;
 }
 
 // ============================================================================
