@@ -9,6 +9,7 @@
 #include <concepts>  // NOLINT(build/include_order)
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <list>
 #include <map>
@@ -162,6 +163,39 @@ using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
+
+/// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
+///        meaning non-dominated first, then cheaper first.
+///
+/// What happens to the entries cut is the caller's: a dominated one is usually released, a
+/// non-dominated one kept aside for a later phase or dropped.
+///
+/// @param queue The queue; sorted, best first, when anything is cut (and @p sort is set).
+/// @param keep  How many entries stay.
+/// @param sort  Whether to sort first; without it the queue's own order decides what stays.
+/// @return The entries cut, best first; empty when @p queue held at most @p keep.
+template <typename ResourceType>
+std::list<LabelIteratorPair<ResourceType>> split_off_excess_labels(
+    std::list<LabelIteratorPair<ResourceType>>* queue, size_t keep, bool sort = true) {
+    std::list<LabelIteratorPair<ResourceType>> excess;
+    if (queue->size() <= keep) {
+        return excess;
+    }
+    if (sort) {
+        queue->sort([](const LabelIteratorPair<ResourceType>& lhs,
+                       const LabelIteratorPair<ResourceType>& rhs) {
+            if (lhs.first->dominated != rhs.first->dominated) {
+                return !lhs.first->dominated;  // non-dominated first
+            }
+            return lhs.first->get_cost() < rhs.first->get_cost();  // then cheaper first
+        });
+    }
+    excess.splice(excess.end(),
+                  *queue,
+                  std::next(queue->begin(), static_cast<std::ptrdiff_t>(keep)),
+                  queue->end());
+    return excess;
+}
 
 constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 

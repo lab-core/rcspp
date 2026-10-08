@@ -160,23 +160,14 @@ class LabelFrontier {
 
         /// @brief Keeps the @p keep best entries of @p queue: non-dominated first, then cheapest.
         void trim(std::list<Entry>* queue, size_t keep, LabelPool<ResourceType>* pool) {
-            if (queue->size() <= keep) {
-                return;
-            }
-            queue->sort([](const Entry& lhs, const Entry& rhs) {
-                if (lhs.first->dominated != rhs.first->dominated) {
-                    return !lhs.first->dominated;
+            const auto excess = split_off_excess_labels(queue, keep);
+            // Worst first, as they come off the back of the queue.
+            for (auto it = excess.rbegin(); it != excess.rend(); ++it) {
+                if (it->first->dominated && pool != nullptr) {
+                    pool->release_with_ref_count(it->first);
                 }
-                return lhs.first->get_cost() < rhs.first->get_cost();
-            });
-            while (queue->size() > keep) {
-                auto* label = queue->back().first;
-                if (label->dominated && pool != nullptr) {
-                    pool->release_with_ref_count(label);
-                }
-                queue->pop_back();
-                --size_;
             }
+            size_ -= excess.size();
         }
 
         size_t size_ = 0;

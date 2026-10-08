@@ -105,25 +105,14 @@ class SimpleFrontier : public Base {
             this->memory_pressure_triggered_ = true;
 
             const size_t max_total = limit * this->graph_->get_number_of_nodes();
-            if (unprocessed_labels_.size() <= max_total) {
-                return;
-            }
-            unprocessed_labels_.sort([](const LabelIteratorPair<ResourceType>& a,
-                                        const LabelIteratorPair<ResourceType>& b) {
-                // Non-dominated first; among equal dominance, cheaper first.
-                if (a.first->dominated != b.first->dominated) {
-                    return !a.first->dominated;
-                }
-                return a.first->get_cost() < b.first->get_cost();
-            });
-            while (unprocessed_labels_.size() > max_total) {
-                auto& p = unprocessed_labels_.back();
-                if (p.first->dominated) {
-                    this->label_pool_.release_with_ref_count(p.first);
+            auto excess = split_off_excess_labels(&unprocessed_labels_, max_total);
+            // Worst first, as they come off the back of the queue.
+            for (auto it = excess.rbegin(); it != excess.rend(); ++it) {
+                if (it->first->dominated) {
+                    this->label_pool_.release_with_ref_count(it->first);
                 } else {
-                    unprocessed_truncated_labels_.push_back(std::move(p));
+                    unprocessed_truncated_labels_.push_back(*it);
                 }
-                unprocessed_labels_.pop_back();
             }
         }
 
