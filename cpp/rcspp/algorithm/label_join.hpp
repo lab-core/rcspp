@@ -154,10 +154,12 @@ class Joiner {
                         }
 
                         auto arc_ids = joined_path(graph, *forward, *backward);
+                        // The backward chain ends at the sink its seed sat on.
+                        const size_t end_node_id = graph.get_arc(arc_ids.back())->destination->id;
                         if (capped) {
-                            cheapest.offer(cost, std::move(arc_ids), terminal_node_id(*backward));
+                            cheapest.offer(cost, std::move(arc_ids), end_node_id);
                         } else {
-                            on_solution(cost, std::move(arc_ids), terminal_node_id(*backward));
+                            on_solution(cost, std::move(arc_ids), end_node_id);
                         }
                         best_cost_upper_bound = std::min(best_cost_upper_bound, cost);
                     }
@@ -305,21 +307,8 @@ class Joiner {
         [[nodiscard]] static std::vector<size_t> joined_path(const GraphType& graph,
                                                              const Label<ResourceType>& forward,
                                                              const Label<ResourceType>& backward) {
-            std::vector<size_t> arc_ids;
-            for (const Label<ResourceType>* current = &forward;
-                 current != nullptr && current->get_in_arc() != nullptr;
-                 current = current->prev_label) {
-                arc_ids.push_back(current->get_in_arc()->id);
-            }
-            std::ranges::reverse(arc_ids);
-
-            // Already in forward order.
-            for (const Label<ResourceType>* current = &backward;
-                 current != nullptr && current->get_out_arc() != nullptr;
-                 current = current->prev_label) {
-                arc_ids.push_back(current->get_out_arc()->id);
-            }
-
+            std::vector<size_t> arc_ids = prefix_arc_ids(forward);
+            append_suffix_arc_ids(backward, &arc_ids);
             assert(is_contiguous(graph, arc_ids) && "joined path is not contiguous");
             return arc_ids;
         }
@@ -337,15 +326,6 @@ class Joiner {
             } else {
                 return 0.0;
             }
-        }
-
-        /// @brief The node a joined path ends at: where the backward chain runs out, i.e. a sink.
-        [[nodiscard]] static size_t terminal_node_id(const Label<ResourceType>& backward) {
-            const Label<ResourceType>* current = &backward;
-            while (current->prev_label != nullptr) {
-                current = current->prev_label;
-            }
-            return current->get_end_node()->id;
         }
 
     public:

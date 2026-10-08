@@ -390,31 +390,20 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
             return path_arc_ids<Dir>(label);
         }
 
-        /// @brief The arc ids of the path @p label ends, in forward order.
-        ///
-        /// Reconstructed by following prev_label pointers, in O(hops): every accepted label
-        /// stores a pointer to its predecessor, kept alive via @ref ref_count until this label is
-        /// released. Forward, the in-arc chain is reversed; backward, the out-arc chain is already
-        /// in forward order.
+        /// @brief The arc ids of the path @p label ends, in forward order: its prefix going
+        ///        forward (@ref prefix_arc_ids), its suffix going backward
+        ///        (@ref append_suffix_arc_ids).
         ///
         /// @tparam Dir2 The direction @p label was extended in.
         template <typename Dir2>
         [[nodiscard]] std::vector<size_t> path_arc_ids(const Label<ResourceType>& label) const {
-            std::vector<size_t> arc_ids;
-            const Label<ResourceType>* cur = &label;
             if constexpr (Dir2::backward) {
-                while (cur != nullptr && cur->get_out_arc() != nullptr) {
-                    arc_ids.push_back(cur->get_out_arc()->id);
-                    cur = cur->prev_label;
-                }
+                std::vector<size_t> arc_ids;
+                append_suffix_arc_ids(label, &arc_ids);
+                return arc_ids;
             } else {
-                while (cur != nullptr && cur->get_in_arc() != nullptr) {
-                    arc_ids.push_back(cur->get_in_arc()->id);
-                    cur = cur->prev_label;
-                }
-                std::ranges::reverse(arc_ids);
+                return prefix_arc_ids(label);
             }
-            return arc_ids;
         }
 
         using Algorithm<ResourceType, LabelContainerType>::extract_solution;
