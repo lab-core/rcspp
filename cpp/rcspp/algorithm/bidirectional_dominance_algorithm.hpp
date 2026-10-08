@@ -625,15 +625,16 @@ class BidirectionalDominanceAlgorithm
 
         /// @brief How many components of type @p T the model has, read off any arc's extender.
         ///
+        /// Read where the model checks read the declarations (@c threshold_probe::model_arc), so a
+        /// bound that removed every live arc does not hide them.
+        ///
         /// @param graph The graph whose arcs carry the extenders.
         /// @return The count, or 0 when @p T is not in the model or no arc carries an extender.
         template <typename T>
         [[nodiscard]] static size_t components_of(const Graph<ResourceType>& graph) {
             if constexpr (is_cost_in_composition_v<T, ResourceType>) {
-                const auto* arc = graph.first_arc();
-                return arc == nullptr || arc->extender == nullptr
-                           ? 0
-                           : arc->extender->template get_components<T>().size();
+                const auto* arc = threshold_probe::model_arc(graph);
+                return arc == nullptr ? 0 : arc->extender->template get_components<T>().size();
             } else {
                 return 0;
             }
@@ -649,9 +650,10 @@ class BidirectionalDominanceAlgorithm
         /// @return The critical component's declared backward kind, or `Unspecified` when the
         ///         graph has no arc carrying an extender.
         [[nodiscard]] BackwardKind critical_backward_kind(const Graph<ResourceType>& graph) const {
-            // One arc suffices: all extenders share a factory, hence a layout (not enforced).
-            const auto* arc = graph.first_arc();
-            if (arc == nullptr || arc->extender == nullptr) {
+            // One arc suffices: all extenders share a factory, hence a layout (not enforced). The
+            // same arc the model checks read, removed or not.
+            const auto* arc = threshold_probe::model_arc(graph);
+            if (arc == nullptr) {
                 return BackwardKind::Unspecified;
             }
             return arc->extender

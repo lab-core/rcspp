@@ -1293,6 +1293,30 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);
 }
 
+/// @brief With every arc removed, the clock is still found: the half-way validation reads the
+///        declarations where the model checks do, removed arcs included.
+///
+/// It used to read them off the first live arc only, so a model with none reported a clock index
+/// that "does not exist" and turned the bound off.
+TEST(BidirectionalValidation, RemovingEveryArcDoesNotHideTheClock) {
+    namespace bv = bidirectional_validation_test;
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}},
+                                                              {1, {0.0, 100.0}},
+                                                              {2, {0.0, 100.0}}};
+    // {cost, time, origin, destination}
+    const std::vector<std::tuple<double, double, size_t, size_t>> arcs{{1.0, 1.0, 0, 1},
+                                                                       {1.0, 1.0, 1, 2}};
+    auto graph = bv::clocked_graph(windows, arcs);
+    for (size_t arc_id = 0; arc_id < arcs.size(); ++arc_id) {
+        ASSERT_TRUE(graph->remove_arc(arc_id));
+    }
+    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        test_util::bidirectional(bv::clocked_params(5.0)));
+    const auto result = graph->solve(algorithm.get());
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_TRUE(result.bounded_by_half_way) << result.half_way_off_reason;
+}
+
 // ============================================================================
 // The join builds no more than the caller will keep
 // ============================================================================
