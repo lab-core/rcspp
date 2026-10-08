@@ -170,25 +170,8 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
         void main_loop() override {  // NOLINT
             size_t i = 0;
             while (this->number_of_labels() > 0 && !this->should_stop(i)) {
-                // Periodic memory check (skip i == 0 to avoid cost on every first iteration).
-                if (i > 0 && this->memory_limit_.effective_limit > 0 &&
-                    i % this->params_.memory_check_interval == 0) {
-                    if (this->memory_limit_.is_exceeded()) {
-                        LOG_WARN("Memory limit (",
-                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
-                                 " MB) exceeded (current: ",
-                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
-                                 " MB). Stopping early.\n");
-                        break;
-                    }
-                    if (this->memory_limit_.is_under_pressure()) {
-                        LOG_INFO("Memory pressure: ",
-                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
-                                 " MB / ",
-                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
-                                 " MB. Trimming label queues.\n");
-                        this->on_memory_pressure();
-                    }
+                if (this->memory_says_stop(i)) {
+                    break;
                 }
 
                 ++i;

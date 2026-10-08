@@ -237,15 +237,8 @@ class BidirectionalDominanceAlgorithm
         void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
             size_t iteration = 0;
             while (number_of_labels() > 0 && !this->should_stop(iteration)) {
-                if (iteration > 0 && this->memory_limit_.effective_limit > 0 &&
-                    iteration % this->params_.memory_check_interval == 0) {
-                    if (this->memory_limit_.is_exceeded()) {
-                        LOG_WARN("Memory limit exceeded. Stopping early.\n");
-                        break;
-                    }
-                    if (this->memory_limit_.is_under_pressure()) {
-                        this->on_memory_pressure();
-                    }
+                if (this->memory_says_stop(iteration)) {
+                    break;
                 }
                 ++iteration;
 
@@ -421,8 +414,9 @@ class BidirectionalDominanceAlgorithm
             // The half-way bound: forward labels stop above H, backward labels below it. With the
             // bound off the clock, and so its index, is never read.
             if (half_way_.enabled()) {
-                const double critical = critical_value<CriticalRC>(
-                    label_ptr->get_resource(), this->params_.critical_resource_index);
+                const double critical =
+                    critical_value<CriticalRC>(label_ptr->get_resource(),
+                                               this->params_.critical_resource_index);
                 if constexpr (Dir::backward) {
                     if (half_way_.should_stop_backward(critical)) {
                         return;
@@ -576,12 +570,15 @@ class BidirectionalDominanceAlgorithm
                 }
                 const std::vector<double> probes{0.0, half_way_.h()};
                 if (!critical_resource_is_monotone<CriticalRC>(
-                        graph, this->params_.critical_resource_index, probes)) {
+                        graph,
+                        this->params_.critical_resource_index,
+                        probes)) {
                     turn_half_way_off(HalfWayOff::NotMonotone, clock + " is not monotone");
                     return;
                 }
                 if (!critical_resource_dominance_is_increasing<CriticalRC>(
-                        graph, this->params_.critical_resource_index)) {
+                        graph,
+                        this->params_.critical_resource_index)) {
                     turn_half_way_off(HalfWayOff::NotIncreasing,
                                       clock +
                                           " does not take part in the dominance order as an "
@@ -683,7 +680,8 @@ class BidirectionalDominanceAlgorithm
                 }
                 auto scratch = sink->resource->template get_component<CriticalRC>(index);
                 if (!threshold_probe::observe_start(
-                        entering->extender->template get_component<CriticalRC>(index), &scratch)) {
+                        entering->extender->template get_component<CriticalRC>(index),
+                        &scratch)) {
                     return sink_id;
                 }
             }

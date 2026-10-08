@@ -858,6 +858,39 @@ class Algorithm {
                    is_interrupted();
         }
 
+        /// @brief The periodic memory check of a main loop.
+        ///
+        /// Every @c memory_check_interval iterations (never the first, to keep its cost off every
+        /// short solve), and only under a memory limit: past the hard limit the loop must stop;
+        /// close to it, @ref on_memory_pressure trims the label queues.
+        ///
+        /// @param iteration The loop's iteration count so far.
+        /// @return @c true when the hard limit is exceeded and the loop must stop.
+        bool memory_says_stop(size_t iteration) {
+            if (iteration == 0 || memory_limit_.effective_limit == 0 ||
+                iteration % params_.memory_check_interval != 0) {
+                return false;
+            }
+            constexpr size_t kMiB = 1024ULL * 1024ULL;
+            if (memory_limit_.is_exceeded()) {
+                LOG_WARN("Memory limit (",
+                         memory_limit_.effective_limit / kMiB,
+                         " MB) exceeded (current: ",
+                         MemoryInfo::process_bytes() / kMiB,
+                         " MB). Stopping early.\n");
+                return true;
+            }
+            if (memory_limit_.is_under_pressure()) {
+                LOG_INFO("Memory pressure: ",
+                         MemoryInfo::process_bytes() / kMiB,
+                         " MB / ",
+                         memory_limit_.effective_limit / kMiB,
+                         " MB. Trimming label queues.\n");
+                on_memory_pressure();
+            }
+            return false;
+        }
+
         LabelPool<ResourceType> label_pool_;
         const Graph<ResourceType>* graph_;
         const AlgorithmParams<LabelContainerType> params_;
