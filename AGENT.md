@@ -259,7 +259,7 @@ for _ in range(iterations):
 ```
 
 From C++, set `params.dynamic_half_way = true` on an algorithm object you keep alive
-(`create_algorithm` + `solve(algorithm.get(), ...)`);
+(`make_algorithm` + `solve(algorithm.get(), ...)`);
 `as_bidirectional(algorithm.get())->half_way_controller()` reads, freezes or resets it.
 
 See `docs/advanced/algorithms.md` for the full description.
@@ -464,8 +464,9 @@ Test files:
     `SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward.
     `SearchDirection::Bidirectional` makes it search both ways.
     `PushingDominanceAlgorithm` searches both ways too, sweeping the nodes.
-    An algorithm asked for a direction it does not search throws `std::invalid_argument`, so
-    `create_algorithm<Strategy>(params)` returns `std::unique_ptr<Algorithm<R, LC>>`.
+    An algorithm asked for a direction it does not search throws `std::invalid_argument`.
+    `make_algorithm<Strategy>(params)` builds the class that searches in `params.direction` and
+    returns `std::unique_ptr<Algorithm<R, LC>>`; `create_algorithm` returns the type it names.
     A backward or bidirectional solve runs the model checks before any preprocessing and throws
     `ModelRefused` on a failing model, with `preprocess=false` too, and on a direct
     `Algorithm::solve`.

@@ -102,7 +102,7 @@ TEST(DynamicHalfWay, ABackwardHeavySplitRaisesHBetweenSolves) {
 
     auto graph = dh::long_clock_line();
     const double optimum = bt::forward_optimum(graph.get());
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(dh::kLowH)));
 
     const auto results = dh::solve_repeatedly(graph.get(), algorithm.get());
@@ -136,7 +136,7 @@ TEST(DynamicHalfWay, TheNextSolveUsesTheControllersH) {
     namespace dh = dynamic_half_way_test;
 
     auto graph = dh::long_clock_line();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(dh::kLowH)));
 
     for (int i = 0; i < dh::kSolves; ++i) {
@@ -153,7 +153,7 @@ TEST(DynamicHalfWay, WithoutTheFlagHStaysPut) {
     namespace dh = dynamic_half_way_test;
 
     auto graph = dh::long_clock_line();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(dh::kLowH, /*dynamic=*/false)));
 
     for (const double h : dh::hs_used(dh::solve_repeatedly(graph.get(), algorithm.get()))) {
@@ -178,7 +178,7 @@ TEST(DynamicHalfWay, ATruncatedSearchTeachesNothing) {
     auto params = dh::dynamic_params(dh::kLowH);
     params.num_labels_to_extend_by_node = 1000;  // never binds here, but the promise is gone
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
 
     const auto results = dh::solve_repeatedly(graph.get(), algorithm.get());
     ASSERT_EQ(results.front().status, AlgorithmStatus::COMPLETE)
@@ -204,7 +204,7 @@ TEST(DynamicHalfWay, ASolveWithTheBoundOffTeachesNothing) {
     params.half_way_point = 5.0;
     params.dynamic_half_way = true;
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
 
     for (int i = 0; i < 3; ++i) {
         const auto result = graph->solve(algorithm.get());
@@ -228,7 +228,7 @@ TEST(DynamicHalfWay, NoHalfWayPointLeavesTheFlagInert) {
 
     auto graph = dh::long_clock_line();
     const double optimum = bt::forward_optimum(graph.get());
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(/*half_way_point=*/0.0)));
 
     for (const auto& result : dh::solve_repeatedly(graph.get(), algorithm.get(), 2)) {
@@ -251,7 +251,7 @@ TEST(DynamicHalfWay, FreezingHoldsHForLaterSolves) {
     namespace dh = dynamic_half_way_test;
 
     auto graph = dh::long_clock_line();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(dh::kLowH)));
 
     graph->solve(algorithm.get());  // seeds, then moves H once
@@ -271,7 +271,7 @@ TEST(DynamicHalfWay, ResetSendsTheNextSolveBackToTheInitialH) {
     namespace dh = dynamic_half_way_test;
 
     auto graph = dh::long_clock_line();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(dh::kLowH)));
 
     dh::solve_repeatedly(graph.get(), algorithm.get(), 3);
@@ -289,7 +289,7 @@ TEST(DynamicHalfWay, AnAssignedControllerIsUsedWithItsOwnKnobs) {
     namespace dh = dynamic_half_way_test;
 
     auto graph = dh::long_clock_line();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(dh::dynamic_params(dh::kLowH)));
 
     HalfWayControllerParams knobs;

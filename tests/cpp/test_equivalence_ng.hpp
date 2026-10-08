@@ -317,7 +317,7 @@ TEST(Equivalence, TheJoinAcceptsARevisitTheModelPermits) {
         params.critical_resource_index = 1;  // the time slot
         params.half_way_point = half_way;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         const auto result = graph->solve(algorithm.get());
 
         ASSERT_FALSE(result.solutions.empty()) << "half_way_point = " << half_way;

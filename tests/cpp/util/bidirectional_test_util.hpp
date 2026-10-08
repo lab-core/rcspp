@@ -20,7 +20,7 @@ template <typename Params>
 ///        internals.
 ///
 /// @tparam Impl The internal type, a `rcspp::detail::BidirectionalDominanceAlgorithm`.
-/// @param algorithm An algorithm `create_algorithm` built with `direction = Bidirectional`.
+/// @param algorithm An algorithm `make_algorithm` built with `direction = Bidirectional`.
 /// @return @p algorithm as @p Impl.
 /// @throws std::logic_error when @p algorithm is not an @p Impl.
 template <typename Impl, typename R, typename LC>

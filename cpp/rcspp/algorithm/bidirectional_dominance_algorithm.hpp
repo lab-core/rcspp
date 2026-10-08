@@ -767,7 +767,7 @@ class BidirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelCont
                             "BidirectionalDominanceAlgorithm: heuristic_cost_index names the "
                             "critical resource, so the completion bound is off. Give the clock "
                             "its own type (ClockRC, the last template parameter of "
-                            "ResourceGraph::solve and create_algorithm), e.g. IntResource beside a "
+                            "ResourceGraph::solve and make_algorithm), e.g. IntResource beside a "
                             "RealResource cost.\n");
                         std::ranges::fill(to_sink, -std::numeric_limits<double>::infinity());
                         std::ranges::fill(from_source, -std::numeric_limits<double>::infinity());

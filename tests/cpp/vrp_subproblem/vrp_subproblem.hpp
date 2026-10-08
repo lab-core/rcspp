@@ -51,8 +51,7 @@ class VRPSubproblem {
             } else {
                 update_resource_graph(&graph_, &dual_by_id);
             }
-            auto algorithm =
-                graph_.create_algorithm<AlgorithmType>(AlgorithmParams<LabelList<RC>>());
+            auto algorithm = graph_.make_algorithm<AlgorithmType>(AlgorithmParams<LabelList<RC>>());
             auto result = graph_.solve(algorithm.get());
             if (out_cost != nullptr && !result.solutions.empty()) {
                 *out_cost = result.solutions[0].cost;
@@ -87,7 +86,7 @@ class VRPSubproblem {
             // Keep labels so the pool size reflects the peak rather than zero after release.
             params.release_after_solve = false;
             auto algorithm =
-                graph_.create_algorithm<AlgorithmType>(params.with_container(LabelList<RC>()));
+                graph_.make_algorithm<AlgorithmType>(params.with_container(LabelList<RC>()));
             const auto result = graph_.solve(algorithm.get());
 
             RunMeasurement measurement;

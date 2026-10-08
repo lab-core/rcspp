@@ -171,7 +171,7 @@ inline rcspp::AlgorithmBaseParams bidirectional_params(double horizon) {
 template <template <typename, typename> class Algo>
 AlgorithmMaker make(rcspp::AlgorithmBaseParams params) {
     return [params](PricingGraph& graph) -> AlgorithmPtr {
-        return graph.create_algorithm<Algo>(params.with_container(PricingLC()));
+        return graph.make_algorithm<Algo>(params.with_container(PricingLC()));
     };
 }
 

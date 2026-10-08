@@ -283,43 +283,51 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
-        /// @brief Builds an algorithm on this graph's resources.
+        /// @brief Builds @p AlgorithmType on this graph's resources.
         ///
-        /// Given only its params, the algorithm searches in `params.direction`: this returns the
-        /// class that does, behind its base class. Given other constructor arguments, it returns
-        /// @p AlgorithmType itself, as before.
+        /// Returns the type it names, which searches forward. For a backward or bidirectional
+        /// search, whose class is not the one named, use @ref make_algorithm.
+        ///
+        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam LabelContainerType The per-node label container.
+        /// @param args The constructor arguments after the resource factory.
+        /// @return The algorithm.
+        template <template <typename, typename> class AlgorithmType,
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename... Args>
+        std::unique_ptr<AlgorithmType<ResourceCompositionType, LabelContainerType>>
+        create_algorithm(Args&&... args) {
+            return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
+                &resource_factory_,
+                std::forward<Args>(args)...);
+        }
+
+        /// @brief Builds the algorithm that searches in `params.direction` for @p AlgorithmType.
+        ///
+        /// Forward, that is @p AlgorithmType itself; backward or bidirectionally, the class that
+        /// searches that way for it. Either way it comes behind its base class.
         ///
         /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
         /// @tparam LabelContainerType The per-node label container.
         /// @tparam CostResourceType   The cost resource type.
         /// @tparam ClockResourceType  The type of a bidirectional search's clock; defaults to the
         ///                            cost's.
-        /// @param args The constructor arguments after the resource factory.
-        /// @return The algorithm: a @c std::unique_ptr<Algorithm<R, LabelContainerType>> when
-        ///         @p args is the params alone.
-        /// @throws std::invalid_argument when @p AlgorithmType cannot search in the direction the
-        ///         params ask for.
+        /// @param params The algorithm's params; their direction picks the class.
+        /// @return The algorithm.
+        /// @throws std::invalid_argument when @p AlgorithmType cannot search in that direction, or
+        ///         a backward search is asked for with a container that has no backward form.
         template <template <typename, typename> class AlgorithmType,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
-                  typename ClockResourceType = CostResourceType, typename... Args>
-        auto create_algorithm(Args&&... args) {
-            if constexpr (sizeof...(Args) == 1 &&
-                          (std::is_same_v<std::remove_cvref_t<Args>,
-                                          AlgorithmParams<LabelContainerType>> &&
-                           ...)) {
-                return detail::make_directional_algorithm<AlgorithmType,
-                                                          ResourceCompositionType,
-                                                          LabelContainerType,
-                                                          CostResourceType,
-                                                          ClockResourceType>(
-                    &resource_factory_,
-                    std::forward<Args>(args)...);
-            } else {
-                return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
-                    &resource_factory_,
-                    std::forward<Args>(args)...);
-            }
+                  typename ClockResourceType = CostResourceType>
+        std::unique_ptr<Algorithm<ResourceCompositionType, LabelContainerType>> make_algorithm(
+            AlgorithmParams<LabelContainerType> params) {
+            return detail::make_directional_algorithm<AlgorithmType,
+                                                      ResourceCompositionType,
+                                                      LabelContainerType,
+                                                      CostResourceType,
+                                                      ClockResourceType>(&resource_factory_,
+                                                                         std::move(params));
         }
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
@@ -331,10 +339,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
-            auto algorithm = create_algorithm<AlgorithmType,
-                                              LabelContainerType,
-                                              CostResourceType,
-                                              ClockResourceType>(std::move(params));
+            auto algorithm = make_algorithm<AlgorithmType,
+                                            LabelContainerType,
+                                            CostResourceType,
+                                            ClockResourceType>(std::move(params));
             return solve<Algorithm<ResourceCompositionType, LabelContainerType>, CostResourceType>(
                 algorithm.get(),
                 upper_bound,

@@ -184,7 +184,7 @@ TEST(Presets, PerNodeCapacitiesBindInBothDirections) {
         params.critical_resource_index = 1;
         params.half_way_point = half_way_point;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         const auto result = graph->solve(algorithm.get());
         ASSERT_FALSE(result.solutions.empty()) << "H = " << half_way_point;
         EXPECT_DOUBLE_EQ(result.solutions.front().cost, -1.0) << "H = " << half_way_point;
@@ -325,7 +325,7 @@ TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
     params.critical_resource_index = 1;
     params.half_way_point = 50.0;
     auto algorithm =
-        by_preset->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        by_preset->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const auto result = by_preset->solve(algorithm.get());
     EXPECT_FALSE(result.solutions.empty())
         << "a preset-built model must be solvable bidirectionally; if the derived reversal were "
@@ -353,7 +353,7 @@ TEST(Presets, CapacityPresetDeclaresThreshold) {
     params.critical_resource_index = 0;
     params.half_way_point = 0.0;
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
     EXPECT_FALSE(result.solutions.empty())
         << "a capacity preset must be coherent backwards; finding nothing means the backward "

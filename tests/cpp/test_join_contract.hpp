@@ -199,7 +199,7 @@ inline void expect_refused(ResourceGraph<RealResource, SizeTBitsetResource>* gra
     params.critical_resource_index = 1;
     params.half_way_point = half_way_point;
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     try {
         graph->solve(algorithm.get());
         ADD_FAILURE() << "the model has no backward reading and must be refused at H = "
@@ -307,7 +307,7 @@ TEST(JoinContract, ContainerConstraintsWithoutABackwardReadingAreRefused) {
         params.critical_resource_index = 1;
         params.half_way_point = 5.0;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         SolveResult result;
         EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
         ASSERT_FALSE(result.solutions.empty());
@@ -344,7 +344,7 @@ TEST(JoinContract, PerNodeSizeCapsAreRefused) {
     params.critical_resource_index = 1;
     params.half_way_point = 2.0;
     auto algorithm =
-        uniform->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        uniform->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const auto bidirectional = uniform->solve(algorithm.get());
     ASSERT_FALSE(bidirectional.solutions.empty());
     EXPECT_NEAR(bidirectional.solutions.front().cost, 4.0, 1e-9);
@@ -416,7 +416,7 @@ TEST(JoinContract, ARevisitableNgNodeDoesNotBlockTheJoin) {
             params.critical_resource_index = 1;
             params.half_way_point = half_way_point;
             auto algorithm =
-                graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+                graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
             const auto result = graph->solve(algorithm.get());
             ASSERT_FALSE(result.solutions.empty());
             EXPECT_DOUBLE_EQ(result.solutions.front().cost, -40.0)

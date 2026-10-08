@@ -87,8 +87,8 @@ inline void expect_refused_bidirectionally(ResourceGraph<ResourceTypes...>* grap
                                            const std::string& component,
                                            const std::string& reason) {
     AlgorithmParams<LabelList<ResourceTypeComposition<ResourceTypes...>>> params;
-    auto algorithm = graph->template create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(params));
+    auto algorithm =
+        graph->template make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     try {
         graph->solve(algorithm.get());
         FAIL() << "a bidirectional solve must refuse this model before it starts";

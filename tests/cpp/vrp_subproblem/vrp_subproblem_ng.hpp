@@ -86,7 +86,7 @@ class VRPSubproblemNg {
             }
             params.release_after_solve = false;
             auto algorithm =
-                graph_.create_algorithm<AlgorithmType>(params.with_container(LabelList<RCNg>()));
+                graph_.make_algorithm<AlgorithmType>(params.with_container(LabelList<RCNg>()));
             const auto result = graph_.solve(algorithm.get());
 
             RunMeasurement measurement;

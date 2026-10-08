@@ -45,7 +45,7 @@ struct Outcome {
 
 template <template <typename, typename> class Algo>
 Outcome solve(PricingModel& model, AlgorithmBaseParams params) {
-    auto algorithm = model.graph().create_algorithm<Algo>(params.with_container(PricingLC()));
+    auto algorithm = model.graph().make_algorithm<Algo>(params.with_container(PricingLC()));
     const auto result = model.graph().solve(algorithm.get(), -1e-6);
     Outcome outcome;
     outcome.extended = algorithm->get_number_of_extended_labels();
@@ -185,7 +185,7 @@ TEST(DominanceRelaxation, RelaxingTheClockTurnsTheHalfWayBoundOff) {
 
     auto params = dr::bidirectional(model.horizon());
     params.dominance_ignored_components = {dr::kTime};
-    auto algorithm = model.graph().create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = model.graph().make_algorithm<SimpleDominanceAlgorithm>(
         params.with_container(dr::PricingLC()));
     const auto result = model.graph().solve(algorithm.get(), -1e-6);
 
@@ -195,7 +195,7 @@ TEST(DominanceRelaxation, RelaxingTheClockTurnsTheHalfWayBoundOff) {
 
     // Relaxing another component leaves the bound on.
     params.dominance_ignored_components = {dr::kLoad};
-    auto other = model.graph().create_algorithm<SimpleDominanceAlgorithm>(
+    auto other = model.graph().make_algorithm<SimpleDominanceAlgorithm>(
         params.with_container(dr::PricingLC()));
     EXPECT_TRUE(model.graph().solve(other.get(), -1e-6).bounded_by_half_way);
 }
@@ -210,14 +210,14 @@ TEST(DominanceRelaxation, AComponentTheModelDoesNotHaveIsRefused) {
 
     AlgorithmBaseParams params;
     params.dominance_ignored_components = {dr::kNgMemory};
-    auto simple = model.graph().create_algorithm<SimpleDominanceAlgorithm>(
+    auto simple = model.graph().make_algorithm<SimpleDominanceAlgorithm>(
         params.with_container(dr::PricingLC()));
     EXPECT_THROW(static_cast<void>(model.graph().solve(simple.get(), -1e-6)),
                  std::invalid_argument);
 
     auto bidirectional_params = dr::bidirectional(model.horizon());
     bidirectional_params.dominance_ignored_components = {dr::kNgMemory};
-    auto bidirectional = model.graph().create_algorithm<SimpleDominanceAlgorithm>(
+    auto bidirectional = model.graph().make_algorithm<SimpleDominanceAlgorithm>(
         bidirectional_params.with_container(dr::PricingLC()));
     EXPECT_THROW(static_cast<void>(model.graph().solve(bidirectional.get(), -1e-6)),
                  std::invalid_argument);

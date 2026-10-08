@@ -131,8 +131,8 @@ TEST(Equivalence, ADynamicHalfWayPointNeverChangesTheAnswer) {
         params.critical_resource_index = built.clock_index;
         params.half_way_point = built.clock_upper_bound / 2.0;
         params.dynamic_half_way = true;
-        auto algorithm = built.graph->create_algorithm<SimpleDominanceAlgorithm>(
-            test_util::bidirectional(params));
+        auto algorithm =
+            built.graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
 
         for (int solve = 0; solve < kSolvesPerInstance; ++solve) {
             const SolveResult result =

@@ -255,7 +255,7 @@ TEST(BackwardChecks, ADirectSolveRefusesToo) {
     for (const auto& model : bc::refused_models()) {
         SCOPED_TRACE(model.name);
         auto graph = model.build();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(bc::backward());
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(bc::backward());
         bc::expect_refused([&] { return algorithm->solve(graph.get(), bc::kInf); }, model.problem);
     }
 }
@@ -265,7 +265,7 @@ TEST(BackwardChecks, ADirectSolveRefusesToo) {
 TEST(BackwardChecks, DiversificationSearchCannotBypass) {
     namespace bc = backward_checks_test;
     auto graph = bc::non_additive_cost();
-    auto inner = graph->create_algorithm<SimpleDominanceAlgorithm>(bc::backward());
+    auto inner = graph->make_algorithm<SimpleDominanceAlgorithm>(bc::backward());
     AlgorithmParams<bc::List> params;
     params.max_iterations = 3;
     auto outer = graph->create_algorithm<DiversificationSearch>(params, std::move(inner));
@@ -346,7 +346,7 @@ inline std::unique_ptr<Model> throwing_load_model() {
 TEST(BackwardChecks, AFailedSolveDoesNotMarkTheModelChecked) {
     namespace bc = backward_checks_test;
     auto graph = bc::throwing_load_model();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(bc::backward());
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(bc::backward());
 
     bc::ThrowOnCallAddition::calls = 0;
     ASSERT_TRUE(graph->check_model(SearchDirection::Backward).ok());

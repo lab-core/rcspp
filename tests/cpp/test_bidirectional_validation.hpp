@@ -34,7 +34,7 @@ using namespace rcspp;  // NOLINT(google-build-using-namespace)
 namespace bidirectional_validation_test {
 
 using Composed = ResourceTypeComposition<RealResource>;
-/// The bidirectional search `create_algorithm` builds for these graphs.
+/// The bidirectional search `make_algorithm` builds for these graphs.
 using Bidir = rcspp::detail::BidirectionalDominanceAlgorithm<Composed, LabelList<Composed>,
                                                              RealResource, RealResource>;
 
@@ -196,7 +196,7 @@ TEST(BidirectionalValidation, ShortPathIsFoundByTerminalCollectionNotByTheJoin) 
     auto graph = bv::clocked_graph(windows, {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}});
 
     // Total clock along the only route is 2, against H = 50: no arc crosses the middle.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(50.0)));
     const auto result = graph->solve(algorithm.get());
 
@@ -228,7 +228,7 @@ TEST(BidirectionalValidation, ALongRouteIsJoinedOnItsCrossingArc) {
 
     // Clock runs 0, 10, 20, 30, 40 and H = 20, so the crossing arc is 2 -> 3. Forward stops
     // extending at node 3 and backward stops at node 2, so neither reaches a terminal.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(20.0)));
     const auto result = graph->solve(algorithm.get());
 
@@ -263,7 +263,7 @@ TEST(BidirectionalValidation, APathThatCrossesHOnItsLastArcIsNotJoined) {
     graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 0, 1, 1.0);
     graph->add_arc<RealResource, RealResource>({1.0, 10.0}, 1, 2, 1.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(5.0)));
     const auto result = graph->solve(algorithm.get(), /*upper_bound=*/100.0, /*preprocess=*/false);
 
@@ -329,7 +329,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     // Control: uninterrupted, the optimum comes from the join.
     {
         auto graph = bv::join_only_graph();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(20.0)));
         const SolveResult result = graph->solve(algorithm.get());
         ASSERT_EQ(result.status, AlgorithmStatus::COMPLETE);
@@ -345,7 +345,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     params.release_after_solve = false;  // so the pool still holds what the check reads
 
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
     ASSERT_EQ(result.status, AlgorithmStatus::INTERRUPTED)
@@ -385,7 +385,7 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
         params.join_after_early_stop = join_after_early_stop;
         params.release_after_solve = false;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         const SolveResult result = graph->solve(algorithm.get());
         EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
         return result;
@@ -416,7 +416,7 @@ TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
     params.stop_after_X_solutions = 1;
 
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
     EXPECT_GT(result.number_of_joined_paths, 0U)
@@ -432,7 +432,7 @@ TEST(BidirectionalValidation, APairBudgetTruncatesTheJoinAndFlagsIt) {
     // Control: no cap. The join tests pairs and is not truncated.
     {
         auto graph = bv::join_only_graph();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(20.0)));
         const SolveResult result = graph->solve(algorithm.get());
         ASSERT_GT(result.number_of_joined_paths, 0U);
@@ -446,7 +446,7 @@ TEST(BidirectionalValidation, APairBudgetTruncatesTheJoinAndFlagsIt) {
     EXPECT_TRUE(params.could_be_non_optimal());
 
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
     EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE) << "the search itself was exhaustive";
@@ -466,7 +466,7 @@ TEST(BidirectionalValidation, AJoinColumnBudgetKeepsTheCheapestAndTheSearchExhau
     // Control: both joined paths.
     {
         auto graph = bv::two_join_graph();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(20.0)));
         const SolveResult result = graph->solve(algorithm.get(), kBound);
         ASSERT_TRUE(result.bounded_by_half_way);
@@ -480,7 +480,7 @@ TEST(BidirectionalValidation, AJoinColumnBudgetKeepsTheCheapestAndTheSearchExhau
     EXPECT_FALSE(params.could_be_non_optimal()) << "the budget never drops the optimum";
 
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get(), kBound);
 
     EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE) << "a join budget does not stop the search";
@@ -512,7 +512,7 @@ TEST(BidirectionalValidation, TheJoinerDoesNotPruneAHalfOnItsOwnCost) {
 
     // Forward keeps labels to t = 20, so it stops at node 2 (t = 30); backward keeps deadlines from
     // 20 up, so it stops at node 1 (deadline 15). The crossing arc is 1 -> 2.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(20.0)));
     const auto result = graph->solve(algorithm.get());
 
@@ -552,7 +552,7 @@ TEST(BidirectionalValidation, ReverseGraphOracleAgreesOnAdditiveInstances) {
         AlgorithmParams<LabelList<bv::Composed>> params;
         params.release_after_solve = false;  // so the pool still holds what the check reads
         // Everything accumulates, so there is no clock and the bound switches itself off.
-        auto algorithm = candidate_graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = candidate_graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(params));
         const auto candidate_result = candidate_graph->solve(algorithm.get());
         const double candidate = bv::best_cost(candidate_result);
@@ -618,8 +618,8 @@ TEST(BidirectionalValidation, AccumulatingCapacityJoinsOnlyWithinTheCap) {
 
     auto candidate_graph = build();
     AlgorithmParams<LabelList<bv::Composed>> params;
-    auto algorithm = candidate_graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(params));
+    auto algorithm =
+        candidate_graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = candidate_graph->solve(algorithm.get());
 
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance)
@@ -754,7 +754,7 @@ TEST(BidirectionalValidation, ArcsSurviveARefusedBidirectionalSolve) {
                                      std::make_unique<bv::CapWithoutAJoinRule>());
     ASSERT_EQ(graph->get_arcs_size(), 4U);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(1.0)));
     try {
         static_cast<void>(graph->solve(algorithm.get(), /*upper_bound=*/5.0));
@@ -854,7 +854,7 @@ TEST(BidirectionalValidation, AnAdditiveCostOverAThresholdClockSolves) {
         ASSERT_NEAR(reference, 2.0, bv::kTolerance) << "route A's distance is 2";
         for (const double half_way_point : {0.0, 5.0}) {
             auto graph = build();
-            auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+            auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
                 test_util::bidirectional(bv::clocked_params(half_way_point)));
             EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance)
                 << "H = " << half_way_point;
@@ -929,7 +929,7 @@ TEST(BidirectionalValidation, ABottleneckNothingAddsSolves) {
     ASSERT_NEAR(reference, 2.0, bv::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(0.0)));
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
@@ -994,7 +994,7 @@ TEST(BidirectionalValidation, ADeadlineBelowTheOpeningTimeIsUnmeetable) {
         ASSERT_TRUE(forward.solutions.empty()) << "the sink is reached at 9 > 8";
         for (const double half_way_point : {0.0, 3.0}) {
             auto graph = build();
-            auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+            auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
                 test_util::bidirectional(bv::clocked_params(half_way_point)));
             const auto result =
                 graph->solve(algorithm.get(), std::numeric_limits<double>::infinity(), preprocess);
@@ -1038,7 +1038,7 @@ TEST(BidirectionalValidation, AnArcOfInfiniteTimeIsNotProbedForAClamp) {
         ASSERT_NEAR(reference, 2.0, bv::kTolerance) << "preprocess = " << preprocess;
 
         auto graph = build();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(1.0)));
         SolveResult result;
         ASSERT_NO_THROW(
@@ -1112,7 +1112,7 @@ TEST(BidirectionalValidation, TheLibraryCompositionFunctionsSolve) {
     ASSERT_NEAR(reference, 3.0, bv::kTolerance);
     for (const double half_way_point : {0.0, 5.0}) {
         auto graph = build();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(half_way_point)));
         EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance)
             << "H = " << half_way_point;
@@ -1229,7 +1229,7 @@ TEST(BidirectionalValidation, BackwardStartsFollowThePairedExtension) {
         ASSERT_NEAR(reference, 4.0, bv::kTolerance) << "case " << label;
 
         auto graph = bv::start_case_graph(start_case);
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(2.0)));
         const auto result = graph->solve(algorithm.get());
         EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance) << "case " << label;
@@ -1271,7 +1271,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
         auto params = bv::clocked_params(half_way_point);
         params.critical_resource_index = 2;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         SolveResult result;
         ASSERT_NO_THROW(result = graph->solve(algorithm.get())) << "H = " << half_way_point;
         EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance) << "H = " << half_way_point;
@@ -1287,7 +1287,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
     params.heuristic_cost_index = 5;
     params.prune_based_on_upper_bound_ = true;
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     SolveResult result;
     ASSERT_NO_THROW(result = graph->solve(algorithm.get()));
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);
@@ -1310,7 +1310,7 @@ TEST(BidirectionalValidation, RemovingEveryArcDoesNotHideTheClock) {
     for (size_t arc_id = 0; arc_id < arcs.size(); ++arc_id) {
         ASSERT_TRUE(graph->remove_arc(arc_id));
     }
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(5.0)));
     const auto result = graph->solve(algorithm.get());
     EXPECT_TRUE(result.solutions.empty());
@@ -1352,7 +1352,7 @@ TEST(BidirectionalValidation, TheJoinBuildsAtMostStopAfterXSolutions) {
         auto params = bv::clocked_params(1.0);
         params.stop_after_X_solutions = budget;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         // A finite bound with the prune off asks for every column under it.
         return graph->solve(algorithm.get(), 1e9);
     };
@@ -1430,7 +1430,7 @@ TEST(BidirectionalValidation, ACustomPerNodeCapSharedWithTheCapacityBindsAtEachN
     ASSERT_NEAR(reference, 3.0, bv::kTolerance);
 
     auto graph = bv::cached_cap_line(caps);
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(1.5)));
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
@@ -1529,7 +1529,7 @@ TEST(BidirectionalValidation, AHandWrittenThresholdThatMatchesItsWindowsSolves) 
     ASSERT_NEAR(reference, -2.0, bv::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(1.5)));
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
@@ -1553,7 +1553,7 @@ TEST(BidirectionalValidation, AClockWithoutABackwardStartTurnsTheBoundOff) {
     ASSERT_NEAR(reference, 4.0, bv::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(2.0)));
     const auto result = graph->solve(algorithm.get());
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);

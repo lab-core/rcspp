@@ -99,7 +99,7 @@ struct CgOptions {
 
 /// @brief Records one row per `solve()` of the algorithm it wraps.
 ///
-/// A decorator rather than a subclass: `create_algorithm` returns the algorithm behind its base
+/// A decorator rather than a subclass: `make_algorithm` returns the algorithm behind its base
 /// class (the bidirectional one is internal), and `VRP::solve` takes `Algorithm` pointers, so the
 /// recorder is an `Algorithm` that hands every solve to the one it holds. The checks the wrapped
 /// algorithm's direction needs run in its own `solve()`.
@@ -241,7 +241,7 @@ CGSolveResult run_forward(const Instance& instance, const CgOptions& options) {
     params.timeout_s = options.timeout_s;
 
     Recording recorder(&vrp.get_graph().get_resource_factory(),
-                       vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm>(params));
+                       vrp.get_graph().make_algorithm<SimpleDominanceAlgorithm>(params));
     std::vector<Algorithm<ResourceType, ListLC>*> algorithms{&recorder};
 
     const auto started = std::chrono::steady_clock::now();
@@ -279,7 +279,7 @@ CGSolveResult run_bidirectional(const Instance& instance, bool dynamic, bool per
     params.join_after_early_stop = options.join_after_stop;
 
     Recording recorder(&vrp.get_graph().get_resource_factory(),
-                       vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm>(params));
+                       vrp.get_graph().make_algorithm<SimpleDominanceAlgorithm>(params));
     std::vector<Algorithm<ResourceType, ListLC>*> algorithms{&recorder};
 
     const auto started = std::chrono::steady_clock::now();

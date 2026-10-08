@@ -109,7 +109,7 @@ TEST(Instruments, BidirectionalSolveReportsBothSidesAndItsH) {
     namespace it = instruments_test;
 
     auto graph = it::bounded_graph();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/false)));
     const auto result = graph->solve(algorithm.get());
 
@@ -129,7 +129,7 @@ TEST(Instruments, DominanceChecksNeedLabelsThatActuallyCompete) {
     namespace it = instruments_test;
 
     auto line = it::bounded_graph();
-    auto line_algo = line->create_algorithm<SimpleDominanceAlgorithm>(
+    auto line_algo = line->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/false)));
     const auto on_a_line = line->solve(line_algo.get());
     EXPECT_GT(on_a_line.forward_labels, 0U) << "labels were stored";
@@ -137,7 +137,7 @@ TEST(Instruments, DominanceChecksNeedLabelsThatActuallyCompete) {
         << "one label per node per direction, and the container is consulted before the insert";
 
     auto diamond = it::clock_diamond_graph();
-    auto diamond_algo = diamond->create_algorithm<SimpleDominanceAlgorithm>(
+    auto diamond_algo = diamond->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/false)));
     const auto on_a_diamond = diamond->solve(diamond_algo.get());
     ASSERT_TRUE(on_a_diamond.bounded_by_half_way);
@@ -156,8 +156,8 @@ TEST(Instruments, HalfWayPointUsedIsZeroWhenTheBoundIsOff) {
     namespace bt = bidirectional_test;
 
     auto graph = bt::line_graph({1.0, 2.0, 3.0, 4.0});
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(5.0)));
+    auto algorithm =
+        graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(bt::params(5.0)));
     const auto result = graph->solve(algorithm.get());
 
     EXPECT_FALSE(result.bounded_by_half_way);
@@ -173,12 +173,12 @@ TEST(Instruments, StatisticsSurviveTheDefaultRelease) {
     namespace it = instruments_test;
 
     auto retained_graph = it::bounded_graph();
-    auto retained_algo = retained_graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto retained_algo = retained_graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/false)));
     const auto retained = retained_graph->solve(retained_algo.get());
 
     auto released_graph = it::bounded_graph();
-    auto released_algo = released_graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto released_algo = released_graph->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/true)));
     const auto released = released_graph->solve(released_algo.get());
 

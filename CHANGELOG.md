@@ -18,12 +18,10 @@ New features are summarised, with a pointer to where they are documented.
   in Python when the buffered arcs are sent to the graph. A model with such an arc used to build,
   and now fails when it is built. Model a depot that a route passes through as separate source and
   sink nodes, as the VRP example does.
-- **Breaking: `ResourceGraph::create_algorithm<Strategy>(params)` returns
-  `std::unique_ptr<Algorithm<R, LC>>`**, not `std::unique_ptr<Strategy<R, LC>>`: the class that
-  searches in `params.direction` is not always `Strategy` itself. Code that stored the result in a
-  `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
-  `auto`, or build the algorithm directly. With constructor arguments beyond the params,
-  `create_algorithm` still returns the type it names.
+- **`ResourceGraph::make_algorithm<Strategy>(params)`** builds the class that searches in
+  `params.direction` for `Strategy`, and returns it as a `std::unique_ptr<Algorithm<R, LC>>`: that
+  class is not always `Strategy` itself. `create_algorithm` still returns the type it names, which
+  searches forward.
 - **`preprocess` only says whether a solve may reduce the graph.** A backward or bidirectional
   search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
   says, and also when `Algorithm::solve` is called directly; a model that fails them is refused
@@ -58,7 +56,7 @@ New features are summarised, with a pointer to where they are documented.
 
 - **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
-  `SimpleDominanceAlgorithm` searches backward, from the sinks; `create_algorithm` and `solve`
+  `SimpleDominanceAlgorithm` searches backward, from the sinks; `make_algorithm` and `solve`
   build the class that does it.
   `PushingDominanceAlgorithm` searches bidirectionally too.
   In Python, `solve(direction="forward" | "backward" | "bidirectional")`; an unsupported
@@ -69,7 +67,7 @@ New features are summarised, with a pointer to where they are documented.
   forward order. See "Search directions" in `docs/advanced/algorithms.md`.
 - **Bidirectional labelling**: `SimpleDominanceAlgorithm` with
   `direction = SearchDirection::Bidirectional`, the clock's type being the last template parameter
-  of `solve` and `create_algorithm`, after the cost's, and defaulting to it.
+  of `solve` and `make_algorithm`, after the cost's, and defaulting to it.
   In Python, `algorithm="bidirectional"`, the same as `simple` with `direction="bidirectional"`.
   Give it a `critical_resource_index` and a `half_way_point`: with the default `half_way_point = 0`
   the half-way bound is off, and the solve does more work than a forward one and logs a warning

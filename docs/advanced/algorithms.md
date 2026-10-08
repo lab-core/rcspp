@@ -127,7 +127,7 @@ report `complete`.
 the clock must share that type (a real-valued time alongside a real-valued cost is
 the usual case).  A model whose clock is an `int` resource while its cost is
 `real` needs the C++ API, where the clock's type is the last template parameter of `solve` and
-`create_algorithm`, after the cost's, and defaults to it:
+`make_algorithm`, after the cost's, and defaults to it:
 
 ```cpp
 using Comp = rcspp::ResourceTypeComposition<rcspp::RealResource, rcspp::IntResource>;
@@ -592,7 +592,7 @@ params.critical_resource_index = 1;
 params.half_way_point = 500.0;      // H0: where the controller starts, and R = 2 * H0
 params.dynamic_half_way = true;
 
-auto algorithm = graph.create_algorithm<SimpleDominanceAlgorithm>(params);
+auto algorithm = graph.make_algorithm<SimpleDominanceAlgorithm>(params);
 auto* bidirectional = as_bidirectional(algorithm.get());  // the controller lives behind it
 for (/* each pricing iteration */) {
     // ... update reduced costs ...
@@ -792,11 +792,12 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 | Bidirectional | `Simple`, `Pushing` |
 
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
-`ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
+`ResourceGraph::make_algorithm` builds it, or, for one you constructed yourself, when it solves
 (`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels
 in a `LabelList` that compares them backward; `LabelBuckets` has no backward form, so a backward
 search with buckets is refused. Since the class that searches backward is not the one you name,
-`create_algorithm<Strategy>(params)` returns a `std::unique_ptr<Algorithm<R, LC>>`.
+`make_algorithm<Strategy>(params)` returns a `std::unique_ptr<Algorithm<R, LC>>`;
+`create_algorithm<Strategy>(...)` returns the `Strategy` it names, which searches forward.
 
 **The model checks run first, always.** A backward or bidirectional solve runs the checks its
 direction needs ([Model checks](#model-checks)) on the whole model before anything else: before any

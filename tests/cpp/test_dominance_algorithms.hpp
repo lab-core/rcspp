@@ -295,7 +295,7 @@ size_t extended_labels(bool pressure) {
         put_under_pressure(&params);
         params.memory_pressure_max_labels_per_node = 200;
     }
-    auto algorithm = graph->template create_algorithm<Algorithm>(params);
+    auto algorithm = graph->template make_algorithm<Algorithm>(params);
     const auto result = graph->solve(algorithm.get());
     EXPECT_EQ(result.memory_pressure_triggered, pressure);
     return algorithm->get_number_of_extended_labels();
@@ -334,7 +334,7 @@ TEST(MemoryPressure, IsReportedOnTheResult) {
 TEST(DominanceAlgorithms, ExtendedLabelCountIsPerSolve) {
     namespace mp = memory_pressure_test;
     auto graph = mp::fan();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->make_algorithm<SimpleDominanceAlgorithm>(
         AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{});
     static_cast<void>(graph->solve(algorithm.get()));
     const size_t first = algorithm->get_number_of_extended_labels();

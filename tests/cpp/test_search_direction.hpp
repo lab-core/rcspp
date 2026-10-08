@@ -4,7 +4,7 @@
 #pragma once
 
 // The search direction as a parameter: which algorithm searches in which direction, and what
-// create_algorithm and solve build from it.
+// make_algorithm and solve build from it.
 
 #include <gtest/gtest.h>
 
@@ -59,7 +59,7 @@ inline AlgorithmParams<List> params(SearchDirection direction) {
 template <template <typename, typename> class Strategy>
 void expect_backward_refused(const char* name) {
     auto g = graph();
-    EXPECT_THROW((void)g->template create_algorithm<Strategy>(params(SearchDirection::Backward)),
+    EXPECT_THROW((void)g->template make_algorithm<Strategy>(params(SearchDirection::Backward)),
                  std::invalid_argument)
         << name;
     EXPECT_THROW((void)g->template solve<Strategy>(params(SearchDirection::Backward)),
@@ -75,13 +75,13 @@ TEST(SearchDirection, DefaultIsForward) {
     EXPECT_EQ(AlgorithmBaseParams{}.direction, SearchDirection::Forward);
 
     auto g = sdt::graph();
-    auto forward = g->create_algorithm<SimpleDominanceAlgorithm>(AlgorithmParams<sdt::List>{});
+    auto forward = g->make_algorithm<SimpleDominanceAlgorithm>(AlgorithmParams<sdt::List>{});
     EXPECT_EQ(forward->direction(), SearchDirection::Forward);
     EXPECT_EQ(forward->supported_directions(),
               std::vector<SearchDirection>{SearchDirection::Forward});
 
     auto backward =
-        g->create_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Backward));
+        g->make_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Backward));
     EXPECT_EQ(backward->direction(), SearchDirection::Backward);
     EXPECT_EQ(backward->supported_directions(),
               std::vector<SearchDirection>{SearchDirection::Backward});
@@ -150,14 +150,14 @@ TEST(SearchDirection, BackwardNeedsALabelList) {
     auto g = sdt::graph();
     AlgorithmParams<sdt::Buckets> params(sdt::Buckets(1, 0, 0));
     params.direction = SearchDirection::Backward;
-    EXPECT_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)),
+    EXPECT_THROW((void)(g->make_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)),
                  std::invalid_argument);
 
     params.direction = SearchDirection::Forward;
-    EXPECT_NO_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)));
+    EXPECT_NO_THROW((void)(g->make_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)));
 }
 
-/// @brief An algorithm built without create_algorithm still refuses a direction it does not
+/// @brief An algorithm built without make_algorithm still refuses a direction it does not
 ///        support, when it solves.
 TEST(SearchDirection, AConstructedAlgorithmChecksItsDirection) {
     namespace sdt = search_direction_test;
@@ -170,12 +170,17 @@ TEST(SearchDirection, AConstructedAlgorithmChecksItsDirection) {
                  std::invalid_argument);
 }
 
-/// @brief With params alone, create_algorithm returns the base class; with other constructor
-///        arguments, the type it names.
-TEST(SearchDirection, CreateAlgorithmStillAcceptsOtherArguments) {
+/// @brief make_algorithm returns the base class, since the class that searches in the params'
+///        direction is not always the one named; create_algorithm returns the type it names,
+///        whatever its arguments.
+TEST(SearchDirection, CreateAlgorithmReturnsTheTypeItNames) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
-    auto inner = g->create_algorithm<GreedyAlgorithm>(AlgorithmParams<sdt::List>{});
+    auto named = g->create_algorithm<GreedyAlgorithm>(AlgorithmParams<sdt::List>{});
+    static_assert(std::is_same_v<decltype(named),
+                                 std::unique_ptr<GreedyAlgorithm<sdt::Composed, sdt::List>>>);
+
+    auto inner = g->make_algorithm<GreedyAlgorithm>(AlgorithmParams<sdt::List>{});
     static_assert(
         std::is_same_v<decltype(inner), std::unique_ptr<Algorithm<sdt::Composed, sdt::List>>>);
 
@@ -197,7 +202,7 @@ TEST(BidirectionalSelection, SimpleBuildsTheBidirectionalSearch) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
     auto algorithm =
-        g->create_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
+        g->make_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
     EXPECT_NO_THROW((void)test_util::bidirectional_impl<sdt::Bidir<RealResource>>(algorithm.get()));
     EXPECT_EQ(algorithm->direction(), SearchDirection::Bidirectional);
     EXPECT_EQ(algorithm->supported_directions(),
@@ -210,7 +215,7 @@ TEST(BidirectionalSelection, AnIntClockSelectsTheIntInstantiation) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
     auto algorithm =
-        g->create_algorithm<SimpleDominanceAlgorithm, sdt::List, RealResource, IntResource>(
+        g->make_algorithm<SimpleDominanceAlgorithm, sdt::List, RealResource, IntResource>(
             sdt::params(SearchDirection::Bidirectional));
     EXPECT_NO_THROW((void)test_util::bidirectional_impl<sdt::Bidir<IntResource>>(algorithm.get()));
     EXPECT_THROW((void)test_util::bidirectional_impl<sdt::Bidir<RealResource>>(algorithm.get()),
@@ -221,10 +226,10 @@ TEST(BidirectionalSelection, AnIntClockSelectsTheIntInstantiation) {
 TEST(BidirectionalSelection, PullingAndAStarRefuseBidirectional) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
-    EXPECT_THROW((void)g->create_algorithm<PullingDominanceAlgorithm>(
+    EXPECT_THROW((void)g->make_algorithm<PullingDominanceAlgorithm>(
                      sdt::params(SearchDirection::Bidirectional)),
                  std::invalid_argument);
-    EXPECT_THROW((void)g->create_algorithm<AStarAlgoBound<RealResource>::Algo>(
+    EXPECT_THROW((void)g->make_algorithm<AStarAlgoBound<RealResource>::Algo>(
                      sdt::params(SearchDirection::Bidirectional)),
                  std::invalid_argument);
 }
@@ -238,9 +243,9 @@ TEST(BidirectionalSelection, PushingSearchesBidirectionallyBySweeping) {
                                .solutions.front()
                                .cost;
     auto pushing =
-        g->create_algorithm<PushingDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
+        g->make_algorithm<PushingDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
     auto simple =
-        g->create_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
+        g->make_algorithm<SimpleDominanceAlgorithm>(sdt::params(SearchDirection::Bidirectional));
     EXPECT_EQ(
         test_util::bidirectional_impl<sdt::Bidir<RealResource>>(pushing.get())->frontier_order(),
         detail::FrontierOrder::Sweep);
@@ -261,7 +266,7 @@ TEST(BidirectionalSelection, MorePhasesAreWarnedAbout) {
     auto params = sdt::params(SearchDirection::Bidirectional);
     params.num_max_phases = 2;
     testing::internal::CaptureStdout();
-    auto algorithm = g->create_algorithm<SimpleDominanceAlgorithm>(params);
+    auto algorithm = g->make_algorithm<SimpleDominanceAlgorithm>(params);
     const std::string output = testing::internal::GetCapturedStdout();
     EXPECT_NE(output.find("num_max_phases > 1 has no effect on a bidirectional search"),
               std::string::npos)

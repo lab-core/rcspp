@@ -180,8 +180,7 @@ class StageFactory {
 
         template <template <typename, typename> class Algo>
         AlgoPtr make(const AlgorithmBaseParams& params) {
-            return vrp_->get_graph().create_algorithm<Algo, ListLC>(
-                params.with_container(ListLC()));
+            return vrp_->get_graph().make_algorithm<Algo, ListLC>(params.with_container(ListLC()));
         }
 
         PricingStage keep(std::string name, AlgoPtr algorithm, bool exact) {

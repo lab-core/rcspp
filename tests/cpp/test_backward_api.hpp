@@ -212,7 +212,7 @@ TEST(BackwardApi, LabelBackFeasibleAndBackDominates) {
 /// @brief The path-taking overload reproduces exactly the Solution the label form recorded.
 TEST(BackwardApi, ExtractSolutionOverloadsAgree) {
     auto graph = make_backward_api_graph();
-    // Built directly: create_algorithm returns the base class, which hides the probe's members.
+    // Built directly: make_algorithm returns the base class, which hides the probe's members.
     using Composed = ResourceTypeComposition<RealResource>;
     auto algorithm =
         std::make_unique<SolutionProbeAlgorithm<Composed>>(&graph->get_resource_factory(),
@@ -231,7 +231,7 @@ TEST(BackwardApi, ExtractSolutionOverloadsAgree) {
 /// @brief The path-taking overload drops an empty path instead of recording a degenerate one.
 TEST(BackwardApi, ExtractSolutionIgnoresEmptyPath) {
     auto graph = make_backward_api_graph();
-    // Built directly: create_algorithm returns the base class, which hides the probe's members.
+    // Built directly: make_algorithm returns the base class, which hides the probe's members.
     using Composed = ResourceTypeComposition<RealResource>;
     auto algorithm =
         std::make_unique<SolutionProbeAlgorithm<Composed>>(&graph->get_resource_factory(),

@@ -52,7 +52,7 @@ struct Configurations {
         template <template <typename, typename> class Algo>
         static Maker make(AlgorithmBaseParams params) {
             return [params](Graph& graph) -> Ptr {
-                return graph.template create_algorithm<Algo>(params.with_container(LC()));
+                return graph.template make_algorithm<Algo>(params.with_container(LC()));
             };
         }
 

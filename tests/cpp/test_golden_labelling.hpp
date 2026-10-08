@@ -283,7 +283,7 @@ Outcome bidirectional_outcome(AlgorithmParams<ForwardList> p, const Variant& v,
     p.critical_resource_index = 1;
     p.half_way_point = 25.0;
     p.direction = SearchDirection::Bidirectional;
-    auto a = g->create_algorithm<Strategy>(p);
+    auto a = g->make_algorithm<Strategy>(p);
     const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
     Outcome o = summarise(r, a->get_number_of_extended_labels());
     o.joined = r.number_of_joined_paths;
@@ -301,19 +301,19 @@ inline Outcome run(Kind k, const Variant& v, ResourceGraph<RealResource>* g) {
     auto p = params_for<AlgorithmParams<ForwardList>>(v);
     switch (k) {
         case Kind::Simple: {
-            auto a = g->create_algorithm<SimpleDominanceAlgorithm>(p);
+            auto a = g->make_algorithm<SimpleDominanceAlgorithm>(p);
             return finish(a, g, v);
         }
         case Kind::Pushing: {
-            auto a = g->create_algorithm<PushingDominanceAlgorithm>(p);
+            auto a = g->make_algorithm<PushingDominanceAlgorithm>(p);
             return finish(a, g, v);
         }
         case Kind::Pulling: {
-            auto a = g->create_algorithm<PullingDominanceAlgorithm>(p);
+            auto a = g->make_algorithm<PullingDominanceAlgorithm>(p);
             return finish(a, g, v);
         }
         case Kind::AStar: {
-            auto a = g->create_algorithm<AStarAlgoBound<RealResource>::Algo>(p);
+            auto a = g->make_algorithm<AStarAlgoBound<RealResource>::Algo>(p);
             return finish(a, g, v);
         }
         case Kind::Backward: {
