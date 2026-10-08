@@ -342,12 +342,15 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
         template <typename Dir2, typename Container>
         void extend_label(Label<ResourceType>* label_ptr, const Arc<ResourceType>* arc_ptr,
                           std::vector<Container>& containers) {
-            // check if arc is not reachable
-            if (!label_ptr->is_reachable(Dir2::guard_node_id(*arc_ptr))) {
+            auto* head_node = Dir2::head(*arc_ptr);
+
+            // The reachability look-ahead, on the node the extension lands on. Both directions
+            // share one @c is_reachable, which is only valid if it is a predicate on the node id;
+            // one that reads the label's own collected set must declare @c JoinRule::Unspecified,
+            // as @c ReachableFeasibilityFunction does.
+            if (!label_ptr->is_reachable(head_node->id)) {
                 return;
             }
-
-            auto* head_node = Dir2::head(*arc_ptr);
 
             // Sources and sinks stay out of a path's interior: the graph refuses an arc that
             // enters a source or leaves a sink (Graph::add_arc), so no extension lands on a node

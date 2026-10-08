@@ -35,16 +35,6 @@ struct ForwardDirection {
             return arc.destination;
         }
 
-        /// @brief The node id passed to the reachability look-ahead (the arc's destination).
-        ///
-        /// Both directions share one @c is_reachable, which is only valid if it is a predicate on
-        /// the node id. One that reads the label's own collected set must declare
-        /// @c JoinRule::Unspecified, as @c ReachableFeasibilityFunction does.
-        template <typename ResourceType>
-        static auto guard_node_id(const Arc<ResourceType>& arc) -> size_t {
-            return arc.destination->id;
-        }
-
         /// @brief Extends @p label along @p arc into @p extended_label.
         template <typename ResourceType>
         static void extend(const Label<ResourceType>& label, const Arc<ResourceType>& arc,
@@ -116,12 +106,6 @@ struct BackwardDirection {
         template <typename ResourceType>
         static auto head(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
             return arc.origin;
-        }
-
-        /// @brief The node id passed to the reachability look-ahead (the arc's origin).
-        template <typename ResourceType>
-        static auto guard_node_id(const Arc<ResourceType>& arc) -> size_t {
-            return arc.origin->id;
         }
 
         /// @brief Extends @p label backward along @p arc into @p extended_label.
@@ -199,7 +183,6 @@ concept DirectionPolicy =
             Dir::template arcs<ResourceType>(graph, node)
         } -> std::same_as<std::span<Arc<ResourceType>*>>;
         { Dir::template head<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
-        { Dir::template guard_node_id<ResourceType>(arc) } -> std::same_as<size_t>;
         Dir::template extend<ResourceType>(label, arc, extended_label);
         { Dir::template feasible<ResourceType>(label) } -> std::same_as<bool>;
         { Dir::template dominates<ResourceType>(label, label) } -> std::same_as<bool>;
