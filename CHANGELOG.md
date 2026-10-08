@@ -94,9 +94,9 @@ New features are summarised, with a pointer to where they are documented.
 
 - **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
   join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
-  unchanged. `max_join_pairs` caps the join's work in join-rule questions. `SolveResult` reports
-  `join_pairs_tested` and `join_truncated`, and the half-way controller does not learn from a
-  truncated join.
+  unchanged. `max_join_pairs` caps the join's work in join-rule questions.
+  `SolveResult::bidirectional` reports `join_pairs_tested` and `join_truncated`, and the half-way
+  controller does not learn from a truncated join.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
@@ -134,8 +134,10 @@ New features are summarised, with a pointer to where they are documented.
   declarations are missing or incoherent, naming the component; a bidirectional search is also
   refused constraints a backward label cannot check exactly, such as per-node caps on
   `SizeFeasibilityFunction`. See "Model checks" in `docs/advanced/algorithms.md`.
-- **`SolveResult` diagnostics of a bidirectional solve** (C++ and Python): `bounded_by_half_way`,
-  `half_way_off_reason` and `number_of_joined_paths`.
+- **`SolveResult::bidirectional`, the diagnostics of a bidirectional solve** (C++ and Python): a
+  `BidirectionalStats` with `bounded_by_half_way`, `half_way_off_reason`, `half_way_point_used`,
+  `number_of_joined_paths`, `join_pairs_tested` and `join_truncated`; empty (`None` in Python)
+  from every other algorithm.
 - **ng-path in bidirectional solves.** `NgPathExtensionFunction` joins exactly with an
   `IntersectionFeasibilityFunction` that forbids `{v}` at each node; a visited set built with
   `UnionExtensionFunction` is refused by the model checks, naming the fix.

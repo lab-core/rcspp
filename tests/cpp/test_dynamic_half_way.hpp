@@ -80,7 +80,7 @@ inline std::vector<double> hs_used(const std::vector<SolveResult>& results) {
     std::vector<double> hs;
     hs.reserve(results.size());
     for (const auto& result : results) {
-        hs.push_back(result.half_way_point_used);
+        hs.push_back(result.bidirectional->half_way_point_used);
     }
     return hs;
 }
@@ -108,7 +108,8 @@ TEST(DynamicHalfWay, ABackwardHeavySplitRaisesHBetweenSolves) {
     const auto results = dh::solve_repeatedly(graph.get(), algorithm.get());
     const auto hs = dh::hs_used(results);
 
-    ASSERT_TRUE(results.front().bounded_by_half_way) << "the rest is about a bound in force";
+    ASSERT_TRUE(results.front().bidirectional->bounded_by_half_way)
+        << "the rest is about a bound in force";
     ASSERT_GT(results.front().backward_labels, results.front().forward_labels)
         << "the model is supposed to be backward-heavy at H0";
 
@@ -144,7 +145,7 @@ TEST(DynamicHalfWay, TheNextSolveUsesTheControllersH) {
         const double promised =
             seeded ? as_bidirectional(algorithm.get())->half_way_controller().h() : dh::kLowH;
         const auto result = graph->solve(algorithm.get());
-        EXPECT_DOUBLE_EQ(result.half_way_point_used, promised) << "solve " << i;
+        EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, promised) << "solve " << i;
     }
 }
 
@@ -208,7 +209,7 @@ TEST(DynamicHalfWay, ASolveWithTheBoundOffTeachesNothing) {
 
     for (int i = 0; i < 3; ++i) {
         const auto result = graph->solve(algorithm.get());
-        EXPECT_FALSE(result.bounded_by_half_way);
+        EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, 10.0, bt::kTolerance);
     }
@@ -232,8 +233,8 @@ TEST(DynamicHalfWay, NoHalfWayPointLeavesTheFlagInert) {
         test_util::bidirectional(dh::dynamic_params(/*half_way_point=*/0.0)));
 
     for (const auto& result : dh::solve_repeatedly(graph.get(), algorithm.get(), 2)) {
-        EXPECT_FALSE(result.bounded_by_half_way);
-        EXPECT_DOUBLE_EQ(result.half_way_point_used, 0.0);
+        EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+        EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, 0.0);
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, optimum, bt::kTolerance);
     }
@@ -278,7 +279,7 @@ TEST(DynamicHalfWay, ResetSendsTheNextSolveBackToTheInitialH) {
     ASSERT_GT(as_bidirectional(algorithm.get())->half_way_controller().h(), dh::kLowH);
 
     as_bidirectional(algorithm.get())->half_way_controller().reset();
-    EXPECT_DOUBLE_EQ(graph->solve(algorithm.get()).half_way_point_used, dh::kLowH);
+    EXPECT_DOUBLE_EQ(graph->solve(algorithm.get()).bidirectional->half_way_point_used, dh::kLowH);
 }
 
 /// @brief A controller assigned before the first solve is kept, knobs and all.
@@ -311,9 +312,9 @@ TEST(DynamicHalfWay, TheObservationReadsTheResult) {
     SolveResult result;
     result.forward_labels = 7;
     result.backward_labels = 11;
-    result.number_of_joined_paths = 3;
+    result.bidirectional =
+        BidirectionalStats{.bounded_by_half_way = true, .number_of_joined_paths = 3};
     result.solutions.resize(2);
-    result.bounded_by_half_way = true;
     result.status = AlgorithmStatus::COMPLETE;
 
     auto observation = half_way_observation(result);
@@ -341,11 +342,11 @@ TEST(DynamicHalfWay, TheObservationReadsTheResult) {
 TEST(DynamicHalfWay, ATruncatedJoinIsNotAnExactObservation) {
     SolveResult result;
     result.status = AlgorithmStatus::COMPLETE;
-    result.bounded_by_half_way = true;
+    result.bidirectional = BidirectionalStats{.bounded_by_half_way = true};
     result.forward_labels = 10;
     result.backward_labels = 1;
     ASSERT_TRUE(half_way_observation(result).exact) << "the control must be exact";
 
-    result.join_truncated = true;
+    result.bidirectional->join_truncated = true;
     EXPECT_FALSE(half_way_observation(result).exact);
 }

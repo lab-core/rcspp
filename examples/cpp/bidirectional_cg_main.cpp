@@ -116,21 +116,26 @@ class Recording : public Algorithm<ResourceType, ListLC> {
             const double seconds =
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 
-            rows_.push_back(PricingRow{.iteration = static_cast<int>(rows_.size()),
-                                       .status = result.status,
-                                       .solutions = result.solutions.size(),
-                                       .forward_labels = result.forward_labels,
-                                       .backward_labels = result.backward_labels,
-                                       .dominance_checks = result.dominance_checks,
-                                       .joined_paths = result.number_of_joined_paths,
-                                       .bounded = result.bounded_by_half_way,
-                                       .half_way_point = result.half_way_point_used,
-                                       .seconds = seconds,
-                                       // Empty from the forward pricer, which has no bound.
-                                       .off_reason = result.half_way_off_reason,
-                                       .move = {},
-                                       .join_pairs = result.join_pairs_tested,
-                                       .join_truncated = result.join_truncated});
+            rows_.push_back(PricingRow{
+                .iteration = static_cast<int>(rows_.size()),
+                .status = result.status,
+                .solutions = result.solutions.size(),
+                .forward_labels = result.forward_labels,
+                .backward_labels = result.backward_labels,
+                .dominance_checks = result.dominance_checks,
+                .joined_paths =
+                    result.bidirectional.value_or(BidirectionalStats{}).number_of_joined_paths,
+                .bounded = result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way,
+                .half_way_point =
+                    result.bidirectional.value_or(BidirectionalStats{}).half_way_point_used,
+                .seconds = seconds,
+                // Empty from the forward pricer, which has no bound.
+                .off_reason =
+                    result.bidirectional.value_or(BidirectionalStats{}).half_way_off_reason,
+                .move = {},
+                .join_pairs = result.bidirectional.value_or(BidirectionalStats{}).join_pairs_tested,
+                .join_truncated =
+                    result.bidirectional.value_or(BidirectionalStats{}).join_truncated});
             // Only the bidirectional search has a controller, and only a dynamic run seeds it.
             if (const auto* bidirectional = as_bidirectional(inner_.get());
                 bidirectional != nullptr && bidirectional->half_way_controller().seeded()) {

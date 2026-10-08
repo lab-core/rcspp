@@ -14,6 +14,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -68,26 +69,51 @@ enum class AlgorithmStatus {
     return "unknown";
 }
 
-/// @brief Return value of Algorithm::solve().
-struct SolveResult {
-        std::vector<Solution> solutions;
-        AlgorithmStatus status = AlgorithmStatus::COMPLETE;
-
+/// @brief What a bidirectional solve reports about its half-way bound and its join.
+///
+/// On @c SolveResult::bidirectional, which only a bidirectional search fills.
+struct BidirectionalStats {
         /// @brief Whether the half-way bound was in force for this solve.
         ///
-        /// Bidirectional only; `false` from every other algorithm. Without the bound, a
-        /// bidirectional solve does more work than a forward search alone.
+        /// Without the bound, a bidirectional solve does more work than a forward search alone.
         bool bounded_by_half_way = false;
 
-        /// @brief Why the half-way bound was off for this solve; empty when it was in force, and
-        ///        from every other algorithm.
+        /// @brief Why the half-way bound was off for this solve; empty when it was in force.
         std::string half_way_off_reason;
+
+        /// @brief The half-way point `H` this solve actually used; 0 when the bound was off.
+        ///
+        /// It is not simply `params.half_way_point`: the bound disables itself when the critical
+        /// resource fails validation. With `dynamic_half_way`, the controller moves `H` between
+        /// solves. Reporting what was used rather than what was asked for is what lets a caller
+        /// feed the next value back. Read @ref bounded_by_half_way to tell "the bound was off"
+        /// from "`H` really was 0".
+        double half_way_point_used = 0.0;
 
         /// @brief How many distinct complete paths only the join pass produced.
         ///
         /// A path the join produced at several nodes counts once, and one a search also reached
-        /// on its own not at all. Bidirectional only; `0` from every other algorithm.
+        /// on its own not at all.
         size_t number_of_joined_paths = 0;
+
+        /// @brief Pairs the join tested; 0 when the join did not run.
+        ///
+        /// The join's work, in the unit @c AlgorithmBaseParams::max_join_pairs caps.
+        size_t join_pairs_tested = 0;
+
+        /// @brief Whether the join stopped at @c AlgorithmBaseParams::max_join_pairs with a pair
+        ///        left to test.
+        ///
+        /// Like @c SolveResult::memory_pressure_triggered, a flag rather than a status: the
+        /// *search* may have been exhaustive, but with this set a `COMPLETE` status is not a
+        /// proof. The pairs the join never tested may have held a cheaper path.
+        bool join_truncated = false;
+};
+
+/// @brief Return value of Algorithm::solve().
+struct SolveResult {
+        std::vector<Solution> solutions;
+        AlgorithmStatus status = AlgorithmStatus::COMPLETE;
 
         /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
         ///
@@ -125,29 +151,9 @@ struct SolveResult {
         /// dominance change has to move to be worth having.
         size_t dominance_checks = 0;
 
-        /// @brief The half-way point `H` this solve actually used; 0 when the bound was off.
-        ///
-        /// Bidirectional only. It is not simply `params.half_way_point`: the bound disables itself
-        /// when the critical resource fails validation.
-        /// With `dynamic_half_way`, the controller moves `H` between solves.
-        /// Reporting what was used rather than what was asked for is what lets a caller feed the
-        /// next value back. Read @ref bounded_by_half_way to tell "the bound was off" from "`H`
-        /// really was 0".
-        double half_way_point_used = 0.0;
-
-        /// @brief Pairs the join tested; 0 when the join did not run.
-        ///
-        /// Bidirectional only. The join's work, in the unit
-        /// @c AlgorithmBaseParams::max_join_pairs caps.
-        size_t join_pairs_tested = 0;
-
-        /// @brief Whether the join stopped at @c AlgorithmBaseParams::max_join_pairs with a pair
-        ///        left to test.
-        ///
-        /// Like @ref memory_pressure_triggered, a flag rather than a status: the *search* may have
-        /// been exhaustive, but with this set a `COMPLETE` status is not a proof. The pairs the
-        /// join never tested may have held a cheaper path.
-        bool join_truncated = false;
+        /// @brief The bidirectional search's half-way bound and join; empty from every other
+        ///        algorithm.
+        std::optional<BidirectionalStats> bidirectional;
 
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }

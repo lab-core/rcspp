@@ -248,11 +248,11 @@ inline RunRow run(PricingModel& model, const std::string& dataset, RunConfig con
     row.forward_labels = result.forward_labels;
     row.backward_labels = result.backward_labels;
     row.dominance_checks = result.dominance_checks;
-    row.join_pairs = result.join_pairs_tested;
-    row.joined_paths = result.number_of_joined_paths;
-    row.join_truncated = result.join_truncated;
-    row.bounded = result.bounded_by_half_way;
-    row.h_used = result.half_way_point_used;
+    row.join_pairs = result.bidirectional.value_or(BidirectionalStats{}).join_pairs_tested;
+    row.joined_paths = result.bidirectional.value_or(BidirectionalStats{}).number_of_joined_paths;
+    row.join_truncated = result.bidirectional.value_or(BidirectionalStats{}).join_truncated;
+    row.bounded = result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way;
+    row.h_used = result.bidirectional.value_or(BidirectionalStats{}).half_way_point_used;
     row.memory_pressure = result.memory_pressure_triggered;
     score(result.solutions, &row);
 

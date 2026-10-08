@@ -124,10 +124,10 @@ def test_the_python_loop_raises_h_and_keeps_the_answer():
     used = []
     for _ in range(5):
         result = rg.solve(algorithm="bidirectional", params=_params(controller.h))
-        assert result.bounded_by_half_way is True
+        assert result.bidirectional.bounded_by_half_way is True
         assert len(result.solutions) > 0
         assert result.solutions[0].cost == pytest.approx(float(ARCS), abs=1e-9)
-        used.append(result.half_way_point_used)
+        used.append(result.bidirectional.half_way_point_used)
         controller.update(result)
 
     assert used[0] == LOW_H

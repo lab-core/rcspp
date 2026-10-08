@@ -101,7 +101,7 @@ TEST(Instruments, ForwardSolveReportsOnlyTheForwardSide) {
     EXPECT_GT(result.forward_labels, 0U) << "the forward containers held survivors";
     EXPECT_EQ(result.backward_labels, 0U) << "a forward algorithm has no backward containers";
     EXPECT_GT(result.dominance_checks, 0U);
-    EXPECT_DOUBLE_EQ(result.half_way_point_used, 0.0) << "no half-way bound outside bidirectional";
+    EXPECT_FALSE(result.bidirectional.has_value()) << "no half-way bound outside bidirectional";
 }
 
 /// @brief A bounded bidirectional solve reports both sides and the H it used.
@@ -113,10 +113,11 @@ TEST(Instruments, BidirectionalSolveReportsBothSidesAndItsH) {
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/false)));
     const auto result = graph->solve(algorithm.get());
 
-    ASSERT_TRUE(result.bounded_by_half_way) << "the rest of this test is about a bound in force";
+    ASSERT_TRUE(result.bidirectional->bounded_by_half_way)
+        << "the rest of this test is about a bound in force";
     EXPECT_GT(result.forward_labels, 0U);
     EXPECT_GT(result.backward_labels, 0U) << "the backward search must have kept something";
-    EXPECT_DOUBLE_EQ(result.half_way_point_used, it::kHalfWay);
+    EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, it::kHalfWay);
 }
 
 /// @brief A line performs no dominance comparisons; a diamond performs some.
@@ -140,7 +141,7 @@ TEST(Instruments, DominanceChecksNeedLabelsThatActuallyCompete) {
     auto diamond_algo = diamond->make_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(it::bounded_params(/*release_after_solve=*/false)));
     const auto on_a_diamond = diamond->solve(diamond_algo.get());
-    ASSERT_TRUE(on_a_diamond.bounded_by_half_way);
+    ASSERT_TRUE(on_a_diamond.bidirectional->bounded_by_half_way);
     EXPECT_GT(on_a_diamond.forward_labels, 0U);
     EXPECT_GT(on_a_diamond.backward_labels, 0U);
     EXPECT_GT(on_a_diamond.dominance_checks, 0U)
@@ -160,8 +161,8 @@ TEST(Instruments, HalfWayPointUsedIsZeroWhenTheBoundIsOff) {
         graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(bt::params(5.0)));
     const auto result = graph->solve(algorithm.get());
 
-    EXPECT_FALSE(result.bounded_by_half_way);
-    EXPECT_DOUBLE_EQ(result.half_way_point_used, 0.0);
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, 0.0);
 }
 
 /// @brief The statistics are the same whether or not label memory is released after the solve.
@@ -186,5 +187,6 @@ TEST(Instruments, StatisticsSurviveTheDefaultRelease) {
     EXPECT_EQ(released.forward_labels, retained.forward_labels);
     EXPECT_EQ(released.backward_labels, retained.backward_labels);
     EXPECT_EQ(released.dominance_checks, retained.dominance_checks);
-    EXPECT_DOUBLE_EQ(released.half_way_point_used, retained.half_way_point_used);
+    EXPECT_DOUBLE_EQ(released.bidirectional->half_way_point_used,
+                     retained.bidirectional->half_way_point_used);
 }

@@ -108,7 +108,7 @@ inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool wit
     auto algorithm =
         run.graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
-    run.bounded = run.result.bounded_by_half_way;
+    run.bounded = run.result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way;
     expect_consistent_ref_counts(algorithm->get_label_pool());
     return run;
 }
@@ -162,7 +162,7 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
     auto algorithm =
         run.graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), options.upper_bound, options.preprocess);
-    run.bounded = run.result.bounded_by_half_way;
+    run.bounded = run.result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way;
     expect_consistent_ref_counts(algorithm->get_label_pool());
     return run;
 }
@@ -200,7 +200,7 @@ inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, boo
     auto algorithm =
         run.graph->make_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), cost_upper_bound);
-    run.bounded = run.result.bounded_by_half_way;
+    run.bounded = run.result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way;
     expect_consistent_ref_counts(algorithm->get_label_pool());
     return run;
 }

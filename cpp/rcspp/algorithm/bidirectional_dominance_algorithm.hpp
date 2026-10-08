@@ -242,15 +242,17 @@ class BidirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelCont
             Base::annotate(result);
             forward_.half.accumulate_stats(&result->forward_labels, &result->dominance_checks);
             backward_.half.accumulate_stats(&result->backward_labels, &result->dominance_checks);
-            result->bounded_by_half_way = half_way_.enabled();
-            result->half_way_off_reason = half_way_off_reason_;
-            result->number_of_joined_paths = joined_paths_;
-            result->join_pairs_tested = join_pairs_tested_;
-            result->join_truncated = join_truncated_;
-            // 0 when the bound is off, so a caller reading this without also reading
-            // `bounded_by_half_way` gets the value that means "no bound" rather than a number
-            // that was never applied.
-            result->half_way_point_used = half_way_.enabled() ? half_way_.h() : 0.0;
+            result->bidirectional = BidirectionalStats{
+                .bounded_by_half_way = half_way_.enabled(),
+                .half_way_off_reason = half_way_off_reason_,
+                // 0 when the bound is off, so a caller reading this without also reading
+                // `bounded_by_half_way` gets the value that means "no bound" rather than a number
+                // that was never applied.
+                .half_way_point_used = half_way_.enabled() ? half_way_.h() : 0.0,
+                .number_of_joined_paths = joined_paths_,
+                .join_pairs_tested = join_pairs_tested_,
+                .join_truncated = join_truncated_,
+            };
         }
 
         /// @brief Trims both frontiers and tightens the per-node quota, never loosening one the

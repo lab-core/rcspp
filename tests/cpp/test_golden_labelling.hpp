@@ -286,14 +286,15 @@ Outcome bidirectional_outcome(AlgorithmParams<ForwardList> p, const Variant& v,
     auto a = g->make_algorithm<Strategy>(p);
     const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
     Outcome o = summarise(r, a->get_number_of_extended_labels());
-    o.joined = r.number_of_joined_paths;
-    o.bounded = r.bounded_by_half_way ? 1 : 0;
+    const BidirectionalStats& stats = r.bidirectional.value();
+    o.joined = stats.number_of_joined_paths;
+    o.bounded = stats.bounded_by_half_way ? 1 : 0;
     o.status = static_cast<size_t>(r.status);
     o.forward_labels = r.forward_labels;
     o.backward_labels = r.backward_labels;
     o.dominance_checks = r.dominance_checks;
-    o.join_pairs_tested = r.join_pairs_tested;
-    o.join_truncated = r.join_truncated ? 1 : 0;
+    o.join_pairs_tested = stats.join_pairs_tested;
+    o.join_truncated = stats.join_truncated ? 1 : 0;
     return o;
 }
 

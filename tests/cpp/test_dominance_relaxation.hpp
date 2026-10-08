@@ -49,7 +49,7 @@ Outcome solve(PricingModel& model, AlgorithmBaseParams params) {
     const auto result = model.graph().solve(algorithm.get(), -1e-6);
     Outcome outcome;
     outcome.extended = algorithm->get_number_of_extended_labels();
-    outcome.bounded = result.bounded_by_half_way;
+    outcome.bounded = result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way;
     for (const auto& solution : result.solutions) {
         outcome.columns.emplace(solution.path_arc_ids, solution.cost);
     }
@@ -189,15 +189,16 @@ TEST(DominanceRelaxation, RelaxingTheClockTurnsTheHalfWayBoundOff) {
         params.with_container(dr::PricingLC()));
     const auto result = model.graph().solve(algorithm.get(), -1e-6);
 
-    EXPECT_FALSE(result.bounded_by_half_way);
-    EXPECT_NE(result.half_way_off_reason.find("dominance_ignored_components"), std::string::npos)
-        << result.half_way_off_reason;
+    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    EXPECT_NE(result.bidirectional->half_way_off_reason.find("dominance_ignored_components"),
+              std::string::npos)
+        << result.bidirectional->half_way_off_reason;
 
     // Relaxing another component leaves the bound on.
     params.dominance_ignored_components = {dr::kLoad};
     auto other = model.graph().make_algorithm<SimpleDominanceAlgorithm>(
         params.with_container(dr::PricingLC()));
-    EXPECT_TRUE(model.graph().solve(other.get(), -1e-6).bounded_by_half_way);
+    EXPECT_TRUE(model.graph().solve(other.get(), -1e-6).bidirectional->bounded_by_half_way);
 }
 
 /// @brief A component the model does not have is refused, not silently ignored.

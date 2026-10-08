@@ -100,8 +100,10 @@ class VRPSubproblem {
             measurement.ref_counts_consistent =
                 algorithm->get_label_pool().check_ref_count_consistency();
             // A bidirectional search's diagnostics; false and 0 from every other algorithm.
-            measurement.bounded_by_half_way = result.bounded_by_half_way;
-            measurement.joined_paths = result.number_of_joined_paths;
+            measurement.bounded_by_half_way =
+                result.bidirectional.value_or(BidirectionalStats{}).bounded_by_half_way;
+            measurement.joined_paths =
+                result.bidirectional.value_or(BidirectionalStats{}).number_of_joined_paths;
             return measurement;
         }
 

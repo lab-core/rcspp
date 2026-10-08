@@ -58,6 +58,7 @@ from . import graph, logger, presets, resource  # noqa: E402
 from ._core import available_memory_bytes, process_memory_bytes  # noqa: E402
 from ._core.graph import (  # noqa: E402
     AlgorithmStatus,
+    BidirectionalStats,
     HalfWayController,
     HalfWayControllerParams,
     HalfWayMove,
@@ -69,6 +70,7 @@ from .logger import LogLevel, get_log_level, init_logger, set_log_level  # noqa:
 
 __all__ = [
     "AlgorithmStatus",
+    "BidirectionalStats",
     "HalfWayController",
     "HalfWayControllerParams",
     "HalfWayMove",

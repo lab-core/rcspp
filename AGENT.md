@@ -238,8 +238,10 @@ In C++, a bidirectional search is `SimpleDominanceAlgorithm` with `params.direct
 SearchDirection::Bidirectional`; the class behind it is internal
 (`rcspp::detail::BidirectionalDominanceAlgorithm`). An int clock beside a real cost is
 `solve<SimpleDominanceAlgorithm, RealResource, LC, IntResource>`: the clock's type is the
-last template parameter and defaults to the cost's. `SolveResult` reports
-`bounded_by_half_way`, `half_way_off_reason` and `number_of_joined_paths`.
+last template parameter and defaults to the cost's. `SolveResult::bidirectional` (a
+`BidirectionalStats`, empty from every other algorithm) reports the half-way bound and the join:
+`bounded_by_half_way`, `half_way_off_reason`, `half_way_point_used`, `number_of_joined_paths`,
+`join_pairs_tested`, `join_truncated`.
 `PushingDominanceAlgorithm` with the same direction searches both ways too: its two searches
 sweep the nodes, so a per-node quota keeps each node's cheapest labels.
 

@@ -410,7 +410,7 @@ class VRP {
             }
             stats->successes += improving ? 1 : 0;
             return solve.status == AlgorithmStatus::COMPLETE && !solve.memory_pressure_triggered &&
-                   !solve.join_truncated;
+                   !solve.bidirectional.value_or(BidirectionalStats{}).join_truncated;
         }
 
     public:

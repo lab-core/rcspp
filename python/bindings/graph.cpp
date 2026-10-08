@@ -101,27 +101,53 @@ void init_graph(py::module_& m) {
         .value("Interrupted", AlgorithmStatus::INTERRUPTED)
         .value("MemoryLimit", AlgorithmStatus::MEMORY_LIMIT);
 
+    // ── BidirectionalStats ────────────────────────────────────────────────────
+
+    py::class_<BidirectionalStats>(m, "BidirectionalStats")
+        .def_readonly("bounded_by_half_way",
+                      &BidirectionalStats::bounded_by_half_way,
+                      "Whether the half-way bound was in force. A bidirectional solve whose clock "
+                      "fails validation is slower than a forward one, not merely un-accelerated, "
+                      "so this is worth checking rather than assuming.")
+        .def_readonly("half_way_off_reason",
+                      &BidirectionalStats::half_way_off_reason,
+                      "Why the half-way bound was off for this solve; empty when it was in force.")
+        .def_readonly("half_way_point_used",
+                      &BidirectionalStats::half_way_point_used,
+                      "The half-way point H this solve actually used; 0.0 when the bound was "
+                      "off. Not the same as the requested params.half_way_point: the bound "
+                      "disables itself when the critical resource fails validation. Check "
+                      "bounded_by_half_way to tell 'the bound was off' from 'H really was 0'.")
+        .def_readonly("number_of_joined_paths",
+                      &BidirectionalStats::number_of_joined_paths,
+                      "How many distinct complete paths only the join pass produced. Zero with a "
+                      "correct answer means the answer came from a search reaching a terminal, "
+                      "not from the join.")
+        .def_readonly("join_pairs_tested",
+                      &BidirectionalStats::join_pairs_tested,
+                      "Pairs the join tested; 0 when it did not run.")
+        .def_readonly("join_truncated",
+                      &BidirectionalStats::join_truncated,
+                      "Whether the join stopped at max_join_pairs with a pair left to test. A "
+                      "'complete' result with this set is not a proof.")
+        .def("__repr__", [](const BidirectionalStats& s) {
+            return "BidirectionalStats(bounded_by_half_way=" +
+                   std::string(s.bounded_by_half_way ? "True" : "False") +
+                   ", half_way_point_used=" + std::to_string(s.half_way_point_used) +
+                   ", joined=" + std::to_string(s.number_of_joined_paths) +
+                   (s.join_truncated ? ", join_truncated=True" : "") + ")";
+        });
+
     // ── SolveResult ───────────────────────────────────────────────────────────
 
     py::class_<SolveResult>(m, "SolveResult")
         .def(py::init<>())
         .def_readwrite("solutions", &SolveResult::solutions)
         .def_readwrite("status", &SolveResult::status)
-        .def_readonly("bounded_by_half_way",
-                      &SolveResult::bounded_by_half_way,
-                      "Whether the bidirectional half-way bound was in force. False from every "
-                      "other algorithm. A bidirectional solve whose clock fails validation is "
-                      "slower than a forward one, not merely un-accelerated, so this is worth "
-                      "checking rather than assuming.")
-        .def_readonly("half_way_off_reason",
-                      &SolveResult::half_way_off_reason,
-                      "Why the bidirectional half-way bound was off for this solve; empty when it "
-                      "was in force, and from every other algorithm.")
-        .def_readonly("number_of_joined_paths",
-                      &SolveResult::number_of_joined_paths,
-                      "How many distinct complete paths only the bidirectional join pass produced. "
-                      "0 from every other algorithm. Zero with a correct answer means the answer "
-                      "came from a search reaching a terminal, not from the join.")
+        .def_readonly("bidirectional",
+                      &SolveResult::bidirectional,
+                      "The bidirectional search's half-way bound and join (a BidirectionalStats); "
+                      "None from every other algorithm.")
         .def_readonly("memory_pressure_triggered",
                       &SolveResult::memory_pressure_triggered,
                       "Whether memory pressure trimmed this solve, in which case the result may "
@@ -145,19 +171,6 @@ void init_graph(py::module_& m) {
                       "Dominance comparisons performed across every label container, both "
                       "directions. Divided by the surviving label count it is the cost of the "
                       "dominance rule per label kept.")
-        .def_readonly("join_pairs_tested",
-                      &SolveResult::join_pairs_tested,
-                      "Pairs the join tested; 0 when it did not run.")
-        .def_readonly("join_truncated",
-                      &SolveResult::join_truncated,
-                      "Whether the join stopped at max_join_pairs with a pair left to test. A "
-                      "'complete' result with this set is not a proof.")
-        .def_readonly("half_way_point_used",
-                      &SolveResult::half_way_point_used,
-                      "The half-way point H this solve actually used; 0.0 when the bound was "
-                      "off. Not the same as the requested params.half_way_point: the bound "
-                      "disables itself when the critical resource fails validation. Check "
-                      "bounded_by_half_way to tell 'the bound was off' from 'H really was 0'.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -183,10 +196,10 @@ void init_graph(py::module_& m) {
         .def("__repr__", [](const SolveResult& r) {
             std::string text = "SolveResult(status=" + r.status_string() +
                                ", solutions=" + std::to_string(r.solutions.size());
-            if (r.bounded_by_half_way || r.number_of_joined_paths > 0) {
+            if (r.bidirectional) {
                 text += ", bounded_by_half_way=" +
-                        std::string(r.bounded_by_half_way ? "True" : "False") +
-                        ", joined=" + std::to_string(r.number_of_joined_paths);
+                        std::string(r.bidirectional->bounded_by_half_way ? "True" : "False") +
+                        ", joined=" + std::to_string(r.bidirectional->number_of_joined_paths);
             }
             // Shown only when set, so it stands out.
             if (r.memory_pressure_triggered) {
@@ -353,26 +366,28 @@ void init_graph(py::module_& m) {
                        "plain additive resource and never the cost. When it is neither, the "
                        "half-way bound switches itself off: the solve stays correct, just slower. "
                        "Ignored by every other algorithm (default 0).")
-        .def_readwrite("half_way_point",
-                       &PyAlgorithmParams::half_way_point,
-                       "Value H at which each direction's search stops on the critical resource: "
-                       "forward discards labels above H, backward discards labels below it, and "
-                       "the join pairs what is left. The resource's range is taken as [0, 2H], so "
-                       "set H to about half the clock's range. 0 (the default) TURNS THE BOUND "
-                       "OFF -- it does not derive one: both searches then run to completion and "
-                       "the join considers every pair, which is correct but slower than a forward "
-                       "solve rather than faster. Check result.bounded_by_half_way to see which "
-                       "you got.")
+        .def_readwrite(
+            "half_way_point",
+            &PyAlgorithmParams::half_way_point,
+            "Value H at which each direction's search stops on the critical resource: "
+            "forward discards labels above H, backward discards labels below it, and "
+            "the join pairs what is left. The resource's range is taken as [0, 2H], so "
+            "set H to about half the clock's range. 0 (the default) TURNS THE BOUND "
+            "OFF -- it does not derive one: both searches then run to completion and "
+            "the join considers every pair, which is correct but slower than a forward "
+            "solve rather than faster. Check result.bidirectional.bounded_by_half_way to see which "
+            "you got.")
         .def_readwrite("join_column_budget",
                        &PyAlgorithmParams::join_column_budget,
                        "Bidirectional only: the most paths the join returns, the cheapest kept. "
                        "Never stops the search, so a 'complete' status still means exhaustive, and "
                        "the optimum is always kept. Default: no budget.")
-        .def_readwrite("max_join_pairs",
-                       &PyAlgorithmParams::max_join_pairs,
-                       "Bidirectional only: the most pairs the join may test before it stops. When "
-                       "it binds, result.join_truncated is set and the result is not a proof. "
-                       "Default: no cap.")
+        .def_readwrite(
+            "max_join_pairs",
+            &PyAlgorithmParams::max_join_pairs,
+            "Bidirectional only: the most pairs the join may test before it stops. When "
+            "it binds, result.bidirectional.join_truncated is set and the result is not a proof. "
+            "Default: no cap.")
         .def_readwrite("join_after_early_stop",
                        &PyAlgorithmParams::join_after_early_stop,
                        "Bidirectional only: whether the join still runs after a timeout or the "

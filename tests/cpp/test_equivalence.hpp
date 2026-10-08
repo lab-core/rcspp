@@ -47,7 +47,7 @@ TEST(Equivalence, MatchesTheForwardSearchAcrossTheSweep) {
         const eq::Run reference = eq::solve_forward(config);
         const eq::Run bounded = eq::solve_bidirectional(config, /*with_bound=*/true);
         const eq::Run unbounded = eq::solve_bidirectional(config, /*with_bound=*/false);
-        if (bounded.bounded && bounded.result.number_of_joined_paths > 0) {
+        if (bounded.bounded && bounded.result.bidirectional->number_of_joined_paths > 0) {
             ++configs_that_join;
         }
 
@@ -141,7 +141,7 @@ TEST(Equivalence, ADynamicHalfWayPointNeverChangesTheAnswer) {
                 << "solve " << solve;
             if (!reference.result.solutions.empty() && !result.solutions.empty()) {
                 EXPECT_NEAR(result.solutions.front().cost, reference.best_cost(), eq::kTolerance)
-                    << "solve " << solve << " at H = " << result.half_way_point_used;
+                    << "solve " << solve << " at H = " << result.bidirectional->half_way_point_used;
             }
             for (const auto& solution : result.solutions) {
                 EXPECT_EQ(eq::path_problem<eq::Composed>(*built.graph, solution), "")

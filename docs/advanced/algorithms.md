@@ -79,14 +79,14 @@ has to go on — it takes the range to be `[0, 2H]` rather than the other way ro
 off both searches run to completion and the join considers every pair, which is correct but
 *slower* than a forward solve rather than faster, since it is a forward search plus a backward
 search plus a join.  That is the supported way to ask for an unbounded run, and
-`result.bounded_by_half_way` tells you which of the two you got.  A solve that wants the speed-up
+`result.bidirectional.bounded_by_half_way` tells you which of the two you got.  A solve that wants the speed-up
 sets `H` explicitly, to roughly half the clock's range.
 
 Because the default gets you the slow case without asking for it, a solve that runs with the
 bound off — for this reason or any of those in the next section — logs a warning saying why.  It
 does so once per reason per process, since the Python bindings build a new algorithm for every
 solve and a pricing loop would otherwise repeat it on every iteration; later solves log the same
-sentence at debug level.  From C++, `SolveResult::half_way_off_reason` holds it for every solve,
+sentence at debug level.  `result.bidirectional.half_way_off_reason` holds it for every solve,
 empty when the bound was in force.
 
 ### The critical resource
@@ -328,7 +328,7 @@ under-rejecting quietly.
 | `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 | `join_column_budget` | ignored | the join keeps only its cheapest this many paths and never splices a pair that cannot enter them. Unlike `stop_after_X_solutions` it **never stops the search**, so `complete` still means exhaustive, and since the cheapest path is always kept the optimum is unchanged. The column *set* becomes "the K cheapest joined paths". The join uses the tighter of the two budgets |
-| `max_join_pairs` | ignored | the join stops after this many join-rule questions (`join_pairs_tested`). What it found is returned, but the result is no longer a proof: `join_truncated` is set and `could_be_non_optimal()` is true |
+| `max_join_pairs` | ignored | the join stops after this many join-rule questions (`bidirectional.join_pairs_tested`). What it found is returned, but the result is no longer a proof: `bidirectional.join_truncated` is set and `could_be_non_optimal()` is true |
 
 Why the last row depends on `upper_bound` being finite: a solve that supplies none has expressed no
 filter, and returning every admissible pair there is nobody's question.  Measured on the full C201
@@ -497,9 +497,9 @@ So it is **not a default**.  It does not pay when:
 
   ```python
   result = rg.solve(algorithm="bidirectional", params=p)
-  if not result.bounded_by_half_way:
+  if not result.bidirectional.bounded_by_half_way:
       print("the clock was rejected; this solve was slower than a forward one")
-  print(result.number_of_joined_paths, "paths came from the join")
+  print(result.bidirectional.number_of_joined_paths, "paths came from the join")
   ```
 
   `bounded_by_half_way` is worth checking rather than assuming. `number_of_joined_paths`
@@ -514,14 +514,21 @@ Beyond `status`, every `SolveResult` carries diagnostics the status cannot expre
 | Field | Reported by | What it says |
 |---|---|---|
 | `memory_pressure_triggered` | every algorithm | the run was trimmed, so `complete` is not a proof |
-| `bounded_by_half_way` | `bidirectional` | whether the half-way bound was in force |
-| `number_of_joined_paths` | `bidirectional` | how many complete paths the join produced |
 | `forward_labels` | the four exact forward algorithms, and `bidirectional` | labels surviving dominance in the forward containers |
 | `backward_labels` | `bidirectional`, and a backward-only search | the same, backwards |
 | `dominance_checks` | as above | dominance comparisons performed, both directions |
-| `half_way_point_used` | `bidirectional` | the `H` actually applied; `0.0` when the bound was off |
-| `join_pairs_tested` | `bidirectional` | pairs the join tested; 0 when it did not run |
-| `join_truncated` | `bidirectional` | the join stopped at `max_join_pairs` with a pair left, so `complete` is not a proof |
+| `bidirectional` | `bidirectional`; `None` (an empty `std::optional`) from every other algorithm | the half-way bound and the join, below |
+
+`result.bidirectional` (a `BidirectionalStats`) holds:
+
+| Field | What it says |
+|---|---|
+| `bounded_by_half_way` | whether the half-way bound was in force |
+| `half_way_off_reason` | why it was off; empty when it was in force |
+| `half_way_point_used` | the `H` actually applied; `0.0` when the bound was off |
+| `number_of_joined_paths` | how many complete paths the join produced |
+| `join_pairs_tested` | pairs the join tested; 0 when it did not run |
+| `join_truncated` | the join stopped at `max_join_pairs` with a pair left, so `complete` is not a proof |
 
 The heuristics — `greedy`, the tabu searches, `diversification`, `backtracking_dive` — derive from
 `Algorithm` directly rather than from the directional base, so they leave the label and check

@@ -53,19 +53,20 @@ template <typename ResourceType, typename LabelContainerType>
 /// `join_truncated` counts as inexact too: the zero-join guard reads `joined_paths`, which a
 /// capped join understates.
 ///
-/// @param result    A bidirectional solve's result.
+/// @param result    A bidirectional solve's result; any other is an observation without a bound.
 /// @param truncated Whether the caller capped the search in a way the status does not show.
 /// @return The observation.
 [[nodiscard]] inline HalfWayObservation half_way_observation(const SolveResult& result,
                                                              bool truncated = false) {
+    const BidirectionalStats stats = result.bidirectional.value_or(BidirectionalStats{});
     return HalfWayObservation{
         .forward_labels = result.forward_labels,
         .backward_labels = result.backward_labels,
-        .joined_paths = result.number_of_joined_paths,
+        .joined_paths = stats.number_of_joined_paths,
         .solutions = result.solutions.size(),
-        .bounded = result.bounded_by_half_way,
+        .bounded = stats.bounded_by_half_way,
         .exact = result.status == AlgorithmStatus::COMPLETE && !result.memory_pressure_triggered &&
-                 !result.join_truncated && !truncated,
+                 !stats.join_truncated && !truncated,
     };
 }
 

@@ -201,8 +201,8 @@ def test_result_reports_whether_the_bound_was_in_force():
         algorithm="bidirectional",
         params=_bidirectional_params(20.0, critical_resource_index=1),
     )
-    assert result.bounded_by_half_way is True
-    assert result.number_of_joined_paths >= 0
+    assert result.bidirectional.bounded_by_half_way is True
+    assert result.bidirectional.number_of_joined_paths >= 0
 
 
 def test_a_cost_only_model_reports_the_bound_off():
@@ -212,15 +212,13 @@ def test_a_cost_only_model_reports_the_bound_off():
         algorithm="bidirectional",
         params=_bidirectional_params(3.0),
     )
-    assert result.bounded_by_half_way is False
+    assert result.bidirectional.bounded_by_half_way is False
 
 
 def test_a_forward_solve_leaves_the_diagnostics_at_their_defaults():
-    """The fields are bidirectional-only; other algorithms leave them at their
-    defaults."""
+    """The stats are bidirectional-only; other algorithms leave them out."""
     result = _cost_only_graph([1.0, 2.0, 3.0]).solve(algorithm="simple")
-    assert result.bounded_by_half_way is False
-    assert result.number_of_joined_paths == 0
+    assert result.bidirectional is None
 
 
 def test_half_way_point_reaches_the_algorithm():
@@ -475,9 +473,9 @@ def test_the_alias_is_simple_bidirectional():
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
     assert [s.cost for s in alias.solutions] == [s.cost for s in simple.solutions]
-    assert alias.bounded_by_half_way == simple.bounded_by_half_way
-    assert alias.number_of_joined_paths == simple.number_of_joined_paths
-    assert alias.half_way_off_reason == simple.half_way_off_reason
+    assert alias.bidirectional.bounded_by_half_way == simple.bidirectional.bounded_by_half_way
+    assert alias.bidirectional.number_of_joined_paths == simple.bidirectional.number_of_joined_paths
+    assert alias.bidirectional.half_way_off_reason == simple.bidirectional.half_way_off_reason
 
 
 # -- The model checks, and why the bound was off ---------------------------------
@@ -510,17 +508,17 @@ def test_half_way_off_reason():
     off = _cost_only_graph([1.0, 2.0]).solve(
         algorithm="bidirectional", params=_bidirectional_params(0.0)
     )
-    assert off.bounded_by_half_way is False
-    assert "no half_way_point" in off.half_way_off_reason
+    assert off.bidirectional.bounded_by_half_way is False
+    assert "no half_way_point" in off.bidirectional.half_way_off_reason
 
     on = _time_window_graph(_WINDOWS, _ARCS).solve(
         algorithm="bidirectional",
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
-    assert on.bounded_by_half_way is True
-    assert on.half_way_off_reason == ""
+    assert on.bidirectional.bounded_by_half_way is True
+    assert on.bidirectional.half_way_off_reason == ""
 
-    assert _cost_only_graph([1.0]).solve(algorithm="simple").half_way_off_reason == ""
+    assert _cost_only_graph([1.0]).solve(algorithm="simple").bidirectional is None
 
 
 def test_join_after_early_stop_defaults_to_joining():
@@ -553,25 +551,25 @@ def test_result_reports_the_label_counts_and_dominance_checks():
     params = _bidirectional_params(20.0, critical_resource_index=1)
     result = _diamond_window_graph().solve(algorithm="bidirectional", params=params)
 
-    assert result.bounded_by_half_way is True
+    assert result.bidirectional.bounded_by_half_way is True
     assert result.forward_labels > 0
     assert result.backward_labels > 0
     assert result.dominance_checks > 0
-    assert result.half_way_point_used == params.half_way_point
+    assert result.bidirectional.half_way_point_used == params.half_way_point
 
 
 def test_the_reported_half_way_point_is_the_one_applied_not_the_one_asked_for():
     """Cost is never a clock, so the bound switches itself off and H is reported as 0.
 
-    Paired with ``bounded_by_half_way`` this is what tells a caller that the 0 means
+    Paired with ``bidirectional.bounded_by_half_way`` this is what tells a caller that the 0 means
     "no bound" rather than "H really was 0" -- the params still say 3.0.
     """
     result = _cost_only_graph([1.0, 2.0, 3.0]).solve(
         algorithm="bidirectional",
         params=_bidirectional_params(3.0),
     )
-    assert result.bounded_by_half_way is False
-    assert result.half_way_point_used == 0.0
+    assert result.bidirectional.bounded_by_half_way is False
+    assert result.bidirectional.half_way_point_used == 0.0
 
 
 def test_a_forward_solve_leaves_the_backward_diagnostics_at_zero():
@@ -581,7 +579,7 @@ def test_a_forward_solve_leaves_the_backward_diagnostics_at_zero():
     assert result.forward_labels > 0
     assert result.backward_labels == 0
     assert result.dominance_checks > 0
-    assert result.half_way_point_used == 0.0
+    assert result.bidirectional is None
 
 
 # -- Join budgets --------------------------------------------------------------
@@ -620,7 +618,7 @@ def test_join_column_budget_keeps_the_cheapest_joined_path():
     cheapest."""
     p = _bidirectional_params(20.0, critical_resource_index=1)
     both = _two_join_graph().solve(algorithm="bidirectional", upper_bound=100.0, params=p)
-    assert both.number_of_joined_paths == 2
+    assert both.bidirectional.number_of_joined_paths == 2
 
     p.join_column_budget = 1
     one = _two_join_graph().solve(algorithm="bidirectional", upper_bound=100.0, params=p)
@@ -634,18 +632,17 @@ def test_a_pair_budget_is_reported_and_not_learned_from():
     p = _bidirectional_params(20.0, critical_resource_index=1)
     p.max_join_pairs = 0
     result = _two_join_graph().solve(algorithm="bidirectional", upper_bound=100.0, params=p)
-    assert result.join_truncated is True
-    assert result.join_pairs_tested == 0
+    assert result.bidirectional.join_truncated is True
+    assert result.bidirectional.join_pairs_tested == 0
 
     controller = HalfWayController(20.0)
     assert controller.update(result) == HalfWayMove.Skipped
 
 
 def test_join_diagnostics_default_to_nothing():
-    """A fresh result reports no join work, and the params default to no budget."""
+    """A fresh result reports no bidirectional stats, and the params default to no budget."""
     result = SolveResult()
-    assert result.join_pairs_tested == 0
-    assert result.join_truncated is False
+    assert result.bidirectional is None
     p = AlgorithmParams()
     assert p.join_after_early_stop is True
     assert p.max_join_pairs > 10**6
