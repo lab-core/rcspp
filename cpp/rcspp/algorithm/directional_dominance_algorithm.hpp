@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <list>
 #include <stdexcept>
 #include <string>
@@ -348,11 +349,10 @@ class DirectionalDominanceAlgorithm : public Algorithm<ResourceType, LabelContai
 
             auto* head_node = Dir2::head(*arc_ptr);
 
-            // Never extend into a node this direction starts from, so sources and sinks stay out
-            // of a path's interior. Checked before the pool draw to avoid leaking a label.
-            if (Dir2::is_seed(head_node)) {
-                return;
-            }
+            // Sources and sinks stay out of a path's interior: the graph refuses an arc that
+            // enters a source or leaves a sink (Graph::add_arc), so no extension lands on a node
+            // this direction starts from.
+            assert(!Dir2::is_seed(head_node) && "an arc enters a source or leaves a sink");
 
             auto& new_label = this->label_pool_.get_next_label(head_node);
             Dir2::extend(*label_ptr, *arc_ptr, &new_label);
