@@ -164,6 +164,14 @@ template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
+/// @brief How one extension of a label along an arc ended.
+enum class ExtensionOutcome {
+    Unreachable,  ///< the look-ahead ruled the arc out; no label was drawn
+    Infeasible,   ///< the extended label failed its feasibility test and was released
+    Dominated,    ///< the extended label was dominated and released
+    Accepted,     ///< the extended label was stored and handed on to be extended in turn
+};
+
 /// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
 ///        meaning non-dominated first, then cheaper first.
 ///
@@ -774,6 +782,90 @@ class Algorithm {
 
         virtual std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
+        /// @brief Counts one extension, and logs progress every 100000.
+        ///
+        /// Every extension that drew a label counts towards @ref get_number_of_extended_labels.
+        ///
+        /// @param outcome How the extension ended.
+        void record_extension(ExtensionOutcome outcome) {
+            if (outcome == ExtensionOutcome::Unreachable) {
+                return;
+            }
+            if (++num_extended_labels_ % 100000 == 0) {  // NOLINT
+                print_labels();
+                LOG_DEBUG("Processed ", num_extended_labels_, " labels so far...\n");
+            }
+            if (outcome == ExtensionOutcome::Infeasible) {
+                ++nb_infeasible_labels_;
+            } else if (outcome == ExtensionOutcome::Dominated) {
+                ++nb_dominated_labels_;
+            }
+        }
+
+        /// @brief Records the path a label extended **backward** starts.
+        ///
+        /// Such a label ends at a source, and its path ends at the sink its chain started from:
+        /// the head of its last arc.
+        ///
+        /// @param label A backward label at a source.
+        void extract_suffix_solution(const Label<ResourceType>& label) {
+            std::vector<size_t> arc_ids;
+            append_suffix_arc_ids(label, &arc_ids);
+            if (arc_ids.empty()) {
+                return;
+            }
+            const size_t end_node_id = graph_->get_arc(arc_ids.back())->destination->id;
+            extract_solution(label.get_cost(), std::move(arc_ids), end_node_id);
+        }
+
+        /// @brief One flag per component, `true` for those
+        ///        @c AlgorithmBaseParams::dominance_ignored_components leaves out of dominance.
+        ///
+        /// @return The flags in composition order, or empty when nothing is left out.
+        /// @throws std::invalid_argument when the set names a component the model does not have.
+        [[nodiscard]] std::vector<bool> dominance_mask() const {
+            const auto& ignored = params_.dominance_ignored_components;
+            if (ignored.empty()) {
+                return {};
+            }
+            const size_t count = component_count(*graph_);
+            if (*ignored.rbegin() >= count) {
+                throw std::invalid_argument(
+                    "dominance_ignored_components names component " +
+                    std::to_string(*ignored.rbegin()) + ", but the model has " +
+                    std::to_string(count) +
+                    " component(s), numbered from 0 in the order of the ResourceGraph's type "
+                    "parameters, then registration order within a type");
+            }
+            std::vector<bool> mask(count, false);
+            for (const size_t component : ignored) {
+                mask[component] = true;
+            }
+            return mask;
+        }
+
+        /// @brief How many components a resource of @p graph has, read off any node's resource.
+        ///
+        /// @param graph The graph.
+        /// @return The component count; 1 for a resource that is not a composition, 0 when no
+        ///         node carries a resource.
+        [[nodiscard]] static size_t component_count(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node == nullptr || node->resource == nullptr) {
+                    continue;
+                }
+                if constexpr (requires { node->resource->get_components(); }) {
+                    size_t count = 0;
+                    node->resource->for_each_component([&count](const auto&) { ++count; });
+                    return count;
+                } else {
+                    return 1;
+                }
+            }
+            return 0;
+        }
+
         virtual void extract_solution(const Label<ResourceType>& end_label) {
             if (end_label.get_cost() >= cost_upper_bound_) {
                 return;
@@ -916,6 +1008,7 @@ class Algorithm {
         std::unordered_set<Solution> solutions_;
 
         size_t nb_dominated_labels_{0};
+        size_t nb_infeasible_labels_ = 0;
         size_t num_extended_labels_ = 0;
         Timer total_full_extend_time_;
 
