@@ -32,6 +32,7 @@ jobs:
       (github.event.issue.pull_request != null &&
        contains(github.event.comment.body, '/run-ci'))
     runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 45 || 30 }}
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +102,7 @@ jobs:
     name: Wheels / ${{ matrix.os }}
     needs: [coverage, test]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -127,6 +129,7 @@ jobs:
     name: Build sdist
     needs: [coverage, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4

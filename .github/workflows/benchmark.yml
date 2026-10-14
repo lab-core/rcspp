@@ -31,6 +31,7 @@ jobs:
     # NOTE: Gurobi must be installed on the runner and GUROBI_HOME must be set.
     # Use a self-hosted runner with Gurobi, or adjust the "Install Gurobi" step.
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
