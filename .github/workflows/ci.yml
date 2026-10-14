@@ -8,6 +8,12 @@ on:
   workflow_dispatch:
   workflow_call:  # allows ci-full.yml to call this as a reusable sub-workflow
 
+# A newer push to the same pull request cancels the run in progress. Other events (pushes to main,
+# manual runs, calls from ci-full.yml) each get a group of their own, so they never cancel.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
