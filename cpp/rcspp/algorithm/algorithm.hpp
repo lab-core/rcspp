@@ -96,6 +96,19 @@ struct BidirectionalStats {
         /// A path the join produced at several nodes counts once; a path that one of the two
         /// searches also reached on its own does not count.
         size_t number_of_joined_paths = 0;
+
+        /// @brief Pairs the join tested; 0 when the join did not run.
+        ///
+        /// The join's work, in the unit @c AlgorithmBaseParams::max_join_pairs caps.
+        size_t join_pairs_tested = 0;
+
+        /// @brief Whether the join stopped at @c AlgorithmBaseParams::max_join_pairs with a pair
+        ///        left to test.
+        ///
+        /// Like @c SolveResult::memory_pressure_triggered, a flag rather than a status: the
+        /// *search* may have been exhaustive, but with this set a `COMPLETE` status is not a
+        /// proof. The pairs the join never tested may have held a cheaper path.
+        bool join_truncated = false;
 };
 
 /// @brief Return value of Algorithm::solve().
@@ -230,7 +243,8 @@ struct AlgorithmBaseParams {
 
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((stop_after_X_solutions < MAX_INT) ||
-                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s));
+                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s) ||
+                    (max_join_pairs < MAX_INT));
         }
 
         // stop after finding X solutions (not going to optimality)
@@ -333,6 +347,26 @@ struct AlgorithmBaseParams {
         /// Not exposed to Python, where `rg.solve(...)` builds a fresh algorithm each call; Python
         /// uses `rcspp.HalfWayController` directly and feeds its `h` into `half_way_point`.
         bool dynamic_half_way = false;
+
+        /// @brief Most pairs the join may test before it stops; `MAX_INT` (the default) is no cap.
+        ///
+        /// Bidirectional only. A work cap counted in join-rule questions
+        /// (@c BidirectionalStats::join_pairs_tested). When it binds the join **stops rather than
+        /// being skipped**: every path it produced is real, but the result is no longer a proof,
+        /// so @c BidirectionalStats::join_truncated is set and @ref could_be_non_optimal is true.
+        size_t max_join_pairs = MAX_INT;
+
+        /// @brief Most paths the join returns, the cheapest kept; `MAX_INT` (the default) is no
+        ///        budget.
+        ///
+        /// Bidirectional only. Caps what the **join** splices, and nothing else. Unlike
+        /// @ref stop_after_X_solutions it never stops the search, so the status still describes the
+        /// search. Once the join holds this many paths it prunes every pair that cannot displace
+        /// the dearest of them. The cheapest joined path is always kept, so the optimum, and with
+        /// it `COMPLETE` as a proof of the minimum, is unchanged. What changes is the column *set*:
+        /// "the K cheapest joined paths", not "every admissible pair". Paths a search reaches on
+        /// its own do not count against it.
+        size_t join_column_budget = MAX_INT;
 
         /// @brief Whether the join still runs after a timeout or the memory limit (default true).
         ///
