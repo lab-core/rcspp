@@ -48,7 +48,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DUSE_VRP=ON \
             -DUSE_PYTHON=OFF \
-            -DUSE_TESTS=OFF
+            -DUSE_TESTS=OFF \
+            "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build small benchmark
         run: cmake --build build --target rcspp-vrp-benchmark --parallel 4
