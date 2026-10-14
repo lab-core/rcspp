@@ -1,6 +1,6 @@
 name: CI Full
 
-# Full test matrix (all OS × build types × Python versions) plus wheel/sdist builds.
+# Test matrix on Linux, macOS and Windows (see the test job), plus wheel/sdist builds.
 # Triggered manually ("Run workflow") or by posting `/run-ci` in any PR comment.
 # The coverage gate also runs automatically on push/PR to main (ci.yml).
 on:
@@ -26,7 +26,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   test:
-    name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}
+    name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}${{ matrix.suites == 'python' && ' / Python only' || '' }}
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.issue.pull_request != null &&
@@ -35,18 +35,20 @@ jobs:
     timeout-minutes: ${{ matrix.os == 'macos-latest' && 45 || 30 }}
     strategy:
       fail-fast: false
+      # Per OS: the C++ and Python suites on the newest Python, and the Python suite alone on the
+      # oldest supported one (a failure specific to one Python version shows at either end
+      # first); the C++ executable does not depend on the Python version, so it is built once.
+      # Plus the C++ suite in Debug on Windows, where MSVC's checked iterators catch what the
+      # other standard libraries do not. The coverage gate already runs the asserts on Linux.
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        build-type: [Debug, Release]
-        python-version: ['3.11', '3.12', '3.13', '3.14']
-        exclude:
-          # Debug builds don't run Python tests — only one Python version needed
-          - build-type: Debug
-            python-version: '3.11'
-          - build-type: Debug
-            python-version: '3.12'
-          - build-type: Debug
-            python-version: '3.14'
+        include:
+          - {os: ubuntu-latest, build-type: Release, python-version: '3.14', suites: all}
+          - {os: ubuntu-latest, build-type: Release, python-version: '3.11', suites: python}
+          - {os: macos-latest, build-type: Release, python-version: '3.14', suites: all}
+          - {os: macos-latest, build-type: Release, python-version: '3.11', suites: python}
+          - {os: windows-latest, build-type: Release, python-version: '3.14', suites: all}
+          - {os: windows-latest, build-type: Release, python-version: '3.11', suites: python}
+          - {os: windows-latest, build-type: Debug, python-version: '3.14', suites: cpp}
 
     steps:
       - uses: actions/checkout@v4
@@ -78,8 +80,8 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
-            -DUSE_PYTHON=ON \
-            -DUSE_TESTS=ON \
+            -DUSE_PYTHON=${{ matrix.suites != 'cpp' && 'ON' || 'OFF' }} \
+            -DUSE_TESTS=${{ matrix.suites != 'python' && 'ON' || 'OFF' }} \
             "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
@@ -88,15 +90,16 @@ jobs:
         run: cmake --build build --config ${{ matrix.build-type }} --parallel ${{ runner.os == 'macOS' && 3 || 4 }}
 
       - name: C++ tests
+        if: matrix.suites != 'python'
         # Each test is its own process; four at a time fill the runner's cores.
         run: ctest --test-dir build -C ${{ matrix.build-type }} --output-on-failure --parallel 4
 
       - name: Install Python test dependencies
-        if: matrix.build-type == 'Release'
+        if: matrix.suites != 'cpp'
         run: pip install pytest -r tests/python/requirements.txt
 
       - name: Python tests
-        if: matrix.build-type == 'Release'
+        if: matrix.suites != 'cpp'
         working-directory: tests/python
         run: pytest -v --tb=short
 
