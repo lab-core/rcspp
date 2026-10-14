@@ -120,6 +120,17 @@ class ExtenderPrototype {
                                                   : BackwardKind::Unspecified;
         }
 
+        /// @brief Replaces this arc's extension function, keeping its value and arc id.
+        ///
+        /// Callers pass a function already created for this arc (`prototype.create(arc)`), so any
+        /// arc-specific cache in it is fresh.
+        ///
+        /// @param extension_function The new function.
+        void replace_extension_function(
+            std::unique_ptr<ExtensionFunction<ResourceType>> extension_function) {
+            extension_function_ = std::move(extension_function);
+        }
+
     protected:
         ResourceType value_;
         std::unique_ptr<ExtensionFunction<ResourceType>> extension_function_;
