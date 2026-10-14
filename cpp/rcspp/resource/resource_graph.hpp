@@ -280,6 +280,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
         /// @tparam LabelContainerType The per-node label container.
         /// @tparam CostResourceType   The cost resource type.
+        /// @tparam ClockResourceType  The resource type whose value decides where a bidirectional
+        ///                            search's two halves stop (its half-way point); defaults to
+        ///                            @p CostResourceType.
         /// @param args The constructor arguments after the resource factory.
         /// @return The algorithm: a @c std::unique_ptr<Algorithm<R, LabelContainerType>> when
         ///         @p args is the params alone.
@@ -287,7 +290,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///         params ask for.
         template <template <typename, typename> class AlgorithmType,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename CostResourceType = RealResource, typename... Args>
+                  typename CostResourceType = RealResource,
+                  typename ClockResourceType = CostResourceType, typename... Args>
         auto create_algorithm(Args&&... args) {
             if constexpr (sizeof...(Args) == 1 &&
                           (std::is_same_v<std::remove_cvref_t<Args>,
@@ -296,7 +300,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return detail::make_directional_algorithm<AlgorithmType,
                                                           ResourceCompositionType,
                                                           LabelContainerType,
-                                                          CostResourceType>(
+                                                          CostResourceType,
+                                                          ClockResourceType>(
                     &resource_factory_,
                     std::forward<Args>(args)...);
             } else {
@@ -306,16 +311,38 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             }
         }
 
+        /// @brief Builds an @p AlgorithmType algorithm and solves the graph with it.
+        ///
+        /// The search runs in `params.direction`. A backward or bidirectional search first runs
+        /// the model checks (see @ref check_model).
+        ///
+        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam CostResourceType   The numerical resource type holding the cost slot.
+        /// @tparam LabelContainerType The per-node label container.
+        /// @tparam ClockResourceType  The resource type whose value decides where a bidirectional
+        ///                            search's two halves stop (its half-way point); defaults to
+        ///                            @p CostResourceType.
+        /// @param upper_bound Cost upper bound; solutions above it are discarded.
+        /// @param params      The algorithm's parameters, including the search direction.
+        /// @param preprocess  Whether to reduce the graph before solving.
+        /// @param cost_index  Index of the cost component to use.
+        /// @return The solutions found and the search's status; empty if the graph has no source
+        ///         or no sink, or another solve is running.
+        /// @throws std::invalid_argument when @p AlgorithmType cannot search in `params.direction`.
+        /// @throws ModelRefused when the model checks find a problem; the graph is left unchanged.
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename ClockResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
-            auto algorithm = create_algorithm<AlgorithmType, LabelContainerType, CostResourceType>(
-                std::move(params));
+            auto algorithm = create_algorithm<AlgorithmType,
+                                              LabelContainerType,
+                                              CostResourceType,
+                                              ClockResourceType>(std::move(params));
             return solve<Algorithm<ResourceCompositionType, LabelContainerType>, CostResourceType>(
                 algorithm.get(),
                 upper_bound,
@@ -323,13 +350,15 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 cost_index);
         }
 
+        /// @brief The solve above, with no cost upper bound.
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename ClockResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
                           size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
                 std::numeric_limits<double>::infinity(),
                 std::move(params),
                 preprocess,
@@ -348,12 +377,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @param cost_index     Index of the cost component to use.
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
-                  typename LabelContainerType = LabelList<ResourceCompositionType>>
+                  typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename ClockResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmBaseParams base_params,
                           double upper_bound = std::numeric_limits<double>::infinity(),
                           bool preprocess = true, size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
                 upper_bound,
                 AlgorithmParams<LabelContainerType>(std::move(base_params)),
                 preprocess,

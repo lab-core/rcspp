@@ -1283,6 +1283,10 @@ TEST(ModelChecks, ASourceWindowOpeningAfterTheStartIsRefusedForABackwardSearch) 
     EXPECT_NEAR(mc::best_cost(late->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
                 -10.0,
                 mc::kTolerance);
+    EXPECT_NEAR(mc::best_cost(late->solve<SimpleDominanceAlgorithm>(
+                    mc::searching(SearchDirection::Bidirectional))),
+                -10.0,
+                mc::kTolerance);
 
     // Opened at the start value, the source passes, and the backward search finds the path.
     auto open = mc::clocked_graph({{0, {0.0, 100.0}}, {1, {0.0, 100.0}}, {2, {0.0, 3.0}}}, arcs);

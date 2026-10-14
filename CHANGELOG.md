@@ -39,6 +39,20 @@ Each entry says what an existing model or caller sees differently.
   throws `std::invalid_argument` when it is created or solved, as does a backward search with
   `LabelBuckets`, which has no backward form. A backward search returns complete paths in
   forward order. See "Search directions" in `docs/advanced/algorithms.md`.
+- **Bidirectional labelling**: `SimpleDominanceAlgorithm` with
+  `direction = SearchDirection::Bidirectional`, the clock's type being the last template parameter
+  of `solve` and `create_algorithm`, after the cost's, and defaulting to it.
+  Give it a `critical_resource_index` and a `half_way_point`: with the default `half_way_point = 0`
+  the half-way bound is off, and the solve does more work than a forward one and logs a warning
+  saying so. A bidirectional search runs one phase, and its two searches interleave: the next label
+  comes from whichever has extended fewer arcs. After a timeout or the memory limit it still runs
+  its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
+  `join_after_early_stop = false` skips it, and so does an interrupt. With
+  `prune_based_on_upper_bound_`, it prunes on lower bounds of the cost still to come, computed from
+  the cost function itself, so they hold whichever components the objective reads;
+  `heuristic_cost_index` is not read. What it reports about its
+  bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
+  other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
