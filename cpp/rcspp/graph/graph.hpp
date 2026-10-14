@@ -356,6 +356,14 @@ class Graph {
             });
         }
 
+        /// @brief Order the nodes by @p comp, the same way with every standard library.
+        ///
+        /// @p comp need not be a strict weak ordering: ShortestPathConnectivitySort's heuristic
+        /// is not one. std::stable_sort would then give an order that depends on its
+        /// implementation (and on the hash map's iteration order, which it starts from), so the
+        /// labelling algorithms extended labels in a different order on each platform. Here the
+        /// nodes start in id order and go through the merge sort below, whose comparisons are
+        /// fixed: the same graph gives the same order everywhere.
         template <class Compare>
         void sort_nodes(Compare comp) {
             sorted_nodes_.clear();
@@ -363,7 +371,8 @@ class Graph {
             for (auto& [node_id, node_ptr] : nodes_by_id_) {
                 sorted_nodes_.push_back(node_ptr.get());
             }
-            std::stable_sort(sorted_nodes_.begin(), sorted_nodes_.end(), comp);
+            std::ranges::sort(sorted_nodes_, {}, &Node<ResourceType>::id);
+            merge_sort(sorted_nodes_, comp);
             size_t i = 0;
             for (const auto& node_ptr : sorted_nodes_) {
                 node_ptr->pos_ = i++;
@@ -507,6 +516,38 @@ class Graph {
         }
 
     private:
+        /// @brief Stable bottom-up merge sort of @p nodes by @p comp.
+        ///
+        /// Unlike std::stable_sort, the comparisons it makes depend only on the size of the input,
+        /// so the result is the same with every standard library even when @p comp is not a
+        /// strict weak ordering.
+        template <class Compare>
+        static void merge_sort(std::vector<Node<ResourceType>*>& nodes, Compare& comp) {
+            const size_t n = nodes.size();
+            std::vector<Node<ResourceType>*> merged(n);
+            for (size_t width = 1; width < n; width *= 2) {
+                for (size_t lo = 0; lo < n; lo += 2 * width) {
+                    const size_t mid = std::min(lo + width, n);
+                    const size_t hi = std::min(lo + (2 * width), n);
+                    size_t left = lo;
+                    size_t right = mid;
+                    size_t out = lo;
+                    while (left < mid && right < hi) {
+                        // Take from the right only when it comes strictly first: stable.
+                        merged[out++] =
+                            comp(nodes[right], nodes[left]) ? nodes[right++] : nodes[left++];
+                    }
+                    while (left < mid) {
+                        merged[out++] = nodes[left++];
+                    }
+                    while (right < hi) {
+                        merged[out++] = nodes[right++];
+                    }
+                }
+                nodes.swap(merged);
+            }
+        }
+
         using ArcMap = std::unordered_map<size_t, std::unique_ptr<Arc<ResourceType>>>;
         using NodeMap = std::unordered_map<size_t, std::unique_ptr<Node<ResourceType>>>;
 
