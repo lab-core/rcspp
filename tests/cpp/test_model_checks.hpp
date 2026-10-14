@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -1176,6 +1177,54 @@ TEST(PreSolvePlan, InspectsAConstGraph) {
 }
 
 // ============================================================================
+// A memory read off the arc's endpoints
+// ============================================================================
+
+/// @brief A feasibility function that forbids each node at itself, beside an extension that fills
+///        the memory from the arc's value, is refused for a backward search: the backward memory
+///        arrives holding the node it sits on, so every backward extension would be rejected.
+TEST(ModelChecks, ASelfForbiddingMemoryUnderAnArcValueExtensionIsRefused) {
+    auto graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    std::map<size_t, std::set<size_t>> forbidden;
+    for (size_t node_id = 0; node_id < 3; ++node_id) {
+        forbidden[node_id] = {node_id};
+    }
+    graph->add_resource<SizeTBitsetResource>(
+        std::make_unique<UnionExtensionFunction<SizeTBitsetResource>>(),
+        std::make_unique<IntersectionFeasibilityFunction<SizeTBitsetResource>>(forbidden,
+                                                                               /*forbidden=*/true),
+        std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
+        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2, /*source=*/false, /*sink=*/true);
+    for (const auto& [origin, destination] :
+         std::vector<std::pair<size_t, size_t>>{{0, 1}, {1, 2}}) {
+        graph->add_arc<RealResource, SizeTBitsetResource>(
+            std::make_tuple(std::make_tuple(1.0), std::make_tuple(std::set<size_t>{destination})),
+            origin,
+            destination,
+            1.0);
+    }
+
+    for (const auto direction : {SearchDirection::Backward, SearchDirection::Bidirectional}) {
+        std::string message;
+        for (const auto& problem : graph->check_model(direction).problems) {
+            message += problem + "\n";
+        }
+        EXPECT_NE(message.find("component 1: its feasibility function forbids each node at itself"),
+                  std::string::npos)
+            << to_string(direction) << ": " << message;
+        EXPECT_NE(message.find("ArcEndpointsForm"), std::string::npos) << message;
+    }
+    EXPECT_TRUE(graph->check_model(SearchDirection::Forward).ok());
+}
+
+// ============================================================================
 // Backward tests that read what the prefix collected
 // ============================================================================
 
@@ -1265,7 +1314,7 @@ TEST(ModelChecks, AUniformWindowOnAnAccumulationStillSearchesBackward) {
 /// @brief A source whose window opens after the value a forward label starts with: the forward
 ///        search departs at the start value, and a backward search would call the deadlines in
 ///        between unmeetable, missing the path. Refused for a backward search; a bidirectional
-///        one is not refused, since it finds such paths through its forward half and the join.
+///        one is not refused and finds the forward answer through its join.
 TEST(ModelChecks, ASourceWindowOpeningAfterTheStartIsRefusedForABackwardSearch) {
     namespace mc = model_checks_test;
     // {cost, time, origin, destination}: 0 -> 1 -> 2, one time unit each, the sink closing at 3.

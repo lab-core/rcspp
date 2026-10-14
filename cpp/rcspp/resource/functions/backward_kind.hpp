@@ -14,11 +14,12 @@ namespace rcspp {
 /// function; a backward or bidirectional solve refuses a component left @c Unspecified
 /// (@c BackwardExtensionCheck), and forward solves never read it.
 enum class BackwardKind {
-    Unspecified,  ///< no backward meaning declared; a backward or bidirectional solve refuses it
-    Accumulate,   ///< a sum along the path (e.g. cost); backward sums the suffix, same formula
-    Threshold,    ///< a bounded scalar (time, capacity); backward holds the most the prefix
-                  ///< may reach at the node, so extend_back inverts extend
-    ArcValue,     ///< a set filled from the arc's value, the same in both directions
+    Unspecified,   ///< no backward meaning declared; a backward or bidirectional solve refuses it
+    Accumulate,    ///< a sum along the path (e.g. cost); backward sums the suffix, same formula
+    Threshold,     ///< a bounded scalar (time, capacity); backward holds the most the prefix
+                   ///< may reach at the node, so extend_back inverts extend
+    ArcValue,      ///< a set filled from the arc's value, the same in both directions
+    ArcEndpoints,  ///< a set filled from the arc's endpoints; backward swaps origin and destination
 };
 
 /// @brief Whether backward dominance under @p kind is the forward comparison, swapped.
@@ -32,5 +33,20 @@ enum class BackwardKind {
 [[nodiscard]] constexpr bool reverses_back_dominance(BackwardKind kind) {
     return kind == BackwardKind::Threshold;
 }
+
+// Where the backward declarations are checked. A kind is declared only by the extension's
+// `backward_kind()`; `ResourceGraph::add_resource` passes it to the feasibility function, and
+// tells the dominance function whether backward dominance reverses.
+//  - At compile time, `declares_backward_kind_v<Ext>` requires a declared kind (not
+//    `Unspecified`). Every preset asserts this; other code may.
+//  - Before every backward or bidirectional solve, `BackwardExtensionCheck` checks how the model
+//    reads backward: a declared kind, threshold clamps and starts that match the feasibility
+//    function, no negative arc consumption where the backward reading assumes none, a
+//    feasibility function that `requires_arc_endpoints()` paired with `ArcEndpoints`, an
+//    additive cost, and backward forms for the composition's functions.
+//  - Before a bidirectional solve, `JoinCheck` also checks the join: a declared `join_rule()`
+//    that fits the component; accumulations that really add and start backward at the type
+//    default, where the join adds their two halves; and a join test for the composition.
+// The class comments of the two checks list every problem they refuse.
 
 }  // namespace rcspp

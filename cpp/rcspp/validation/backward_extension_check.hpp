@@ -153,6 +153,22 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             if (kind == BackwardKind::Unspecified) {
                 problems->push_back(label + ": its extension function declares no backward_kind()");
             }
+            // A feasibility function that forbids a node already in the label's memory (an
+            // ng-path) needs BackwardKind::ArcEndpoints, which reads the memory at the arc's
+            // endpoints. Under any other kind, the memory arrives holding the node it sits on,
+            // so every backward label is rejected.
+            if (component.requires_arc_endpoints() && kind != BackwardKind::ArcEndpoints) {
+                problems->push_back(
+                    label +
+                    ": its feasibility function forbids each node at itself, which only reads "
+                    "correctly backwards when the memory at a node excludes that node; its "
+                    "extension function does not declare BackwardKind::ArcEndpoints, so going "
+                    "backward the memory arrives already holding the node it sits on and every "
+                    "backward extension is rejected. Derive the extension function from "
+                    "ArcEndpointsForm -- NgPathExtensionFunction is the one this library ships, "
+                    "and "
+                    "presets::add_elementary_resource wires it up for an elementary path");
+            }
             // A feasibility function that cannot say how two halves join has a test about what the
             // path has collected up to a node. A threshold's backward value is a limit, which the
             // clamp checks below cover; any other backward value is what the suffix collected, and
