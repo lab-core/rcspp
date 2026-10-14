@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# A newer push to the same pull request cancels the run in progress. A push to main gets a group
+# of its own, so it never cancels.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -15,6 +21,7 @@ permissions:
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       # -------------------------
@@ -22,6 +29,9 @@ jobs:
       # -------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The whole history, so pre-commit can diff the pull request against its base.
+          fetch-depth: 0
 
       # -------------------------
       # Setup Python (for Python hooks)
@@ -44,4 +54,8 @@ jobs:
       # -------------------------
       # use pre-commit action to run the hooks
       # -------------------------
+      # A pull request checks the files it changes; a push to main checks every file, so a hook
+      # upgrade that flags untouched code still shows up there.
       - uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: ${{ github.event_name == 'pull_request' && format('--from-ref {0} --to-ref {1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '--all-files' }}
