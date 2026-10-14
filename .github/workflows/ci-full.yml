@@ -75,6 +75,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+          # The C++-only job installs nothing with pip, and an empty pip cache fails the save.
+          cache: ${{ matrix.suites != 'cpp' && 'pip' || '' }}
+          cache-dependency-path: tests/python/requirements.txt
 
       - name: Configure
         run: |
