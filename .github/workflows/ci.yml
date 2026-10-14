@@ -55,7 +55,8 @@ jobs:
         run: cmake --build build --parallel
 
       - name: C++ tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        # Each test is its own process; four at a time fill the runner's cores.
+        run: ctest --test-dir build -C Release --output-on-failure --parallel 4
 
       - name: Python tests (coverage gate)
         working-directory: tests/python
