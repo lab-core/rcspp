@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Tests for ShortestPathPreprocessor, FeasibilityPreprocessor, and
-// BellmanFordAlgorithm.  Each test builds a small ResourceGraph<RealResource>
+// Tests for ShortestPathPreprocessor, FeasibilityPreprocessor, BellmanFordAlgorithm and
+// PreSolvePlan.  Each test builds a small ResourceGraph<RealResource>
 // directly and inspects which arcs survive after preprocessing.
 
 #include <gtest/gtest.h>
@@ -12,6 +12,10 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 
@@ -462,4 +466,114 @@ TEST(FeasibilityPreprocessor, NoRemovalWhenAllArcsFeasible) {
 
     EXPECT_FALSE(removed_any);
     EXPECT_EQ(count_arcs(*g), 2U);
+}
+
+// ============================================================================
+// PreSolvePlan tests
+// ============================================================================
+
+namespace {
+
+/// @brief A stage that records, in a shared log, when it runs and when it is undone.
+class RecordingStage : public PreSolveStage<Comp> {
+    public:
+        RecordingStage(std::string label, std::vector<std::string>* log)
+            : label_(std::move(label)), log_(log) {}
+
+        void run(Graph<Comp>& /*graph*/, SolveContext& /*context*/) override {
+            log_->push_back("run " + label_);
+        }
+        void undo() noexcept override { log_->push_back("undo " + label_); }
+
+    private:
+        std::string label_;
+        std::vector<std::string>* log_;
+};
+
+/// @brief A stage that removes one arc and then throws, like a user's function failing
+///        part-way through a reduction.
+class RemoveThenThrowStage : public PreSolveStage<Comp> {
+    public:
+        explicit RemoveThenThrowStage(size_t arc_id) : arc_id_(arc_id) {}
+
+        void run(Graph<Comp>& graph, SolveContext& /*context*/) override {
+            graph_ = &graph;
+            graph.remove_arc(arc_id_);
+            throw std::runtime_error("stage failed");
+        }
+        void undo() noexcept override {
+            if (graph_ != nullptr) {
+                graph_->restore_arc(arc_id_);
+            }
+        }
+
+    private:
+        size_t arc_id_;
+        Graph<Comp>* graph_ = nullptr;
+};
+
+/// @brief source(0) --> node(1) --> sink(2).
+inline std::unique_ptr<ResourceGraph<RealResource>> make_path_graph() {
+    auto g = make_graph();
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, /*cost=*/1.0);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 1, 2, /*cost=*/1.0);
+    return g;
+}
+
+}  // namespace
+
+/// @brief A plan runs its stages in order and undoes them in reverse order, each once.
+TEST(PreSolvePlan, UndoesInReverseOrder) {
+    auto g = make_path_graph();
+    SolveContext context;
+    std::vector<std::string> log;
+    {
+        PreSolvePlan<Comp> plan;
+        plan.add(std::make_unique<RecordingStage>("first", &log));
+        plan.add(std::make_unique<RecordingStage>("second", &log));
+        plan.run(*g, context);
+        plan.undo();
+        EXPECT_EQ(
+            log,
+            (std::vector<std::string>{"run first", "run second", "undo second", "undo first"}));
+    }
+    EXPECT_EQ(log.size(), 4U) << "the destructor undid a stage a second time";
+}
+
+/// @brief A stage that throws part-way is undone when the plan goes out of scope, and so is every
+///        stage that ran before it: no arc stays removed.
+TEST(PreSolvePlan, UndoesWhenUnwinding) {
+    auto g = make_path_graph();
+    SolveContext context;
+    std::vector<std::string> log;
+    try {
+        PreSolvePlan<Comp> plan;
+        plan.add(std::make_unique<RecordingStage>("before", &log));
+        plan.add(std::make_unique<RemoveThenThrowStage>(0));
+        plan.run(*g, context);
+        FAIL() << "the stage should have thrown";
+    } catch (const std::runtime_error&) {
+    }
+    EXPECT_NE(g->get_arc(0), nullptr) << "the arc removed before the throw stayed removed";
+    EXPECT_EQ(count_arcs(*g), 2U);
+    EXPECT_EQ(log, (std::vector<std::string>{"run before", "undo before"}));
+}
+
+/// @brief A solve keeps the feasibility reduction's removals: an arc no feasible extension uses
+///        stays removed after the solve, while the shortest-path reduction's arcs come back.
+TEST(ResourceGraph, FeasibilityRemovalsOutliveTheSolve) {
+    auto g = make_graph(/*max_val=*/kLooseBound);
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(kFiftyVal), 0, 1, /*cost=*/kFiftyVal);
+    g->add_arc<RealResource>(std::make_tuple(kTwoHundredVal), 0, 1, /*cost=*/kTwoHundredVal);
+    ASSERT_EQ(count_arcs(*g), 2U);
+
+    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}, kTwoHundredVal);
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_EQ(count_arcs(*g), 1U) << "the infeasible arc came back";
+    EXPECT_NE(g->get_arc(0), nullptr) << "the feasible arc stayed removed";
 }

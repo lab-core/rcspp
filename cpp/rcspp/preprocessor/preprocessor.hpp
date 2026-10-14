@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include <cassert>
 #include <vector>
 
 #include "rcspp/graph/graph.hpp"
+#include "rcspp/preprocessor/pre_solve_stage.hpp"
 
 namespace rcspp {
 
@@ -15,11 +17,13 @@ namespace rcspp {
 /// unnecessary by the concrete subclass's `remove_arc` predicate.  Removed arcs can be
 /// restored to their original state via `restore()`.
 ///
+/// It is a pre-solve stage that reduces the graph: @ref run preprocesses, @ref undo restores.
+///
 /// @tparam ResourceType The resource type used in the graph; must satisfy
 ///         `ResourceTypeConcept`.
 template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
-class Preprocessor {
+class Preprocessor : public PreSolveStage<ResourceType> {
     public:
         /// @brief Constructs a preprocessor attached to the given graph.
         ///
@@ -27,7 +31,19 @@ class Preprocessor {
         explicit Preprocessor(Graph<ResourceType>* graph) : graph_(graph) {}
 
         /// @brief Virtual destructor.
-        virtual ~Preprocessor() = default;
+        ~Preprocessor() override = default;
+
+        /// @brief Runs @ref preprocess on the graph this preprocessor was built for.
+        ///
+        /// @param graph That graph.
+        void run(Graph<ResourceType>& graph, SolveContext& /*context*/) override {
+            assert(&graph == graph_);
+            static_cast<void>(graph);
+            preprocess();
+        }
+
+        /// @brief Runs @ref restore.
+        void undo() noexcept override { restore(); }
 
         /// @brief Removes arcs that are identified as unnecessary by `remove_arc`.
         ///
@@ -51,8 +67,8 @@ class Preprocessor {
         /// After this call the graph is in the same state it was before any preprocessing
         /// was applied. A second call does nothing.
         ///
-        /// Must not throw: @c ResourceGraph::solve also calls it from a destructor, when the
-        /// solve throws.
+        /// Must not throw: as a pre-solve stage it is undone from a destructor, when the solve
+        /// throws.
         virtual void restore() {
             for (const auto& arc_id : removed_arcs_by_id_) {
                 graph_->restore_arc(arc_id);

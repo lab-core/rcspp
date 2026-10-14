@@ -23,22 +23,28 @@ namespace rcspp {
 ///
 /// A derived class gives the forward step and its inverse (@c forward_value, @c backward_value) and
 /// the per-node bounds (@c lower_bound_at, @c upper_bound_at). This class applies the bounds:
-/// forward values are raised to the lower bound (waiting); backward values are lowered to the upper
-/// bound, and become @c unmeetable below the lower one; a backward label starts at its sink's upper
-/// bound (@c start_back), the one bound no backward step applies. The bounds must be the paired
-/// feasibility function's, or the two searches solve different models (the concrete forms take a
-/// @c SharedNodeBounds for that); a bidirectional setup refuses a clamp or a start that is not the
-/// largest value the feasibility function admits there.
+///  - forward values are raised to the lower bound (waiting);
+///  - backward values are lowered to the upper bound, and become @c unmeetable below the lower one;
+///  - a backward label starts at its sink's upper bound (@c start_back), since no backward step
+///    arrives at a sink.
+///
+/// The bounds must be the paired feasibility function's, or the two searches solve different
+/// models; the concrete forms take a @c SharedNodeBounds that the feasibility function can share.
+/// The model checks refuse a clamp or a start that is not the largest value the feasibility
+/// function admits there.
 ///
 /// The formulas must satisfy `extend(x, arc) <= b  <==>  x <= extend_back(b, arc)` wherever neither
-/// clamp binds.
+/// clamp binds. @c BackwardExtensionCheck observes the clamps and the start by running the
+/// extension on values beyond every bound, so the formulas must accept any value of @p V (the
+/// infinities included).
 ///
 /// Backward kind: @c Threshold if the value type is signed, @c Unspecified if it is unsigned.
 /// Going backward, a deadline can become impossible to meet: a deadline of 3 before an arc that
 /// takes 5 means leaving at -2. The form marks such a label with the type's lowest value. For a
 /// signed type that is a large negative number that no real value reaches. For an unsigned type
 /// it is 0, which is also a real value, so an impossible label could not be told apart from a
-/// valid one; such a resource is left @c Unspecified, and a bidirectional solve refuses it.
+/// valid one; such a resource is left @c Unspecified, and a backward or bidirectional solve
+/// refuses it.
 ///
 /// @note Use as the middle argument of a three-argument @c Clonable:
 ///       `Clonable<Derived, ThresholdForm<R, ExtensionFunction<R>>, ExtensionFunction<R>>`.

@@ -79,7 +79,7 @@ TEST(BackwardKindDeclared, CompositionWrapperStaysUnspecified) {
     EXPECT_EQ(composition.backward_kind(), BackwardKind::Unspecified);
 }
 
-// The base-class default stays Unspecified, so an undeclared component fails loudly at setup.
+// The base-class default stays Unspecified, so the model checks refuse an undeclared component.
 TEST(BackwardKindDeclared, BaseDefaultRemainsUnspecified) {
     class UndeclaredExtensionFunction
         : public Clonable<UndeclaredExtensionFunction, ExtensionFunction<RealResource>> {
