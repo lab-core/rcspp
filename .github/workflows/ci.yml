@@ -45,19 +45,44 @@ jobs:
           submodules: recursive
           lfs: true
 
+      # A tree that already passed this job is not tested again: the same content under new
+      # commits, after a rebase or a re-signed history. Only pull requests look, and only on a
+      # first attempt, so a manual re-run always runs. On a pull request HEAD is the merge into
+      # the base, so its tree changes whenever either side's content does.
+      - name: Tree hash
+        id: tree
+        run: echo "hash=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+
+      - name: Look for an earlier pass of this tree
+        id: tested
+        if: github.event_name == 'pull_request' && github.run_attempt == '1'
+        uses: actions/cache/restore@v4
+        with:
+          path: .tested
+          key: tested-${{ github.job }}-${{ steps.tree.outputs.hash }}
+          lookup-only: true
+
+      - name: Skip (tree already tested)
+        if: steps.tested.outputs.cache-hit == 'true'
+        run: echo "::notice::Tree ${{ steps.tree.outputs.hash }} already passed this job; not testing it again."
+
       - name: Install system dependencies
+        if: steps.tested.outputs.cache-hit != 'true'
         run: sudo apt-get update -q && sudo apt-get install -y build-essential cmake
 
       - uses: actions/setup-python@v5
+        if: steps.tested.outputs.cache-hit != 'true'
         with:
           python-version: '3.14'
           cache: pip
           cache-dependency-path: tests/python/requirements.txt
 
       - name: Install Python dependencies
+        if: steps.tested.outputs.cache-hit != 'true'
         run: pip install gcovr pytest -r tests/python/requirements.txt
 
       - name: Configure
+        if: steps.tested.outputs.cache-hit != 'true'
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
@@ -68,15 +93,18 @@ jobs:
             "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
+        if: steps.tested.outputs.cache-hit != 'true'
         # One compile per core. A bare --parallel lets make start every translation unit at
         # once; on the 3-core, 7 GB macOS runners the heavy template TUs then fight for memory.
         run: cmake --build build --parallel 4
 
       - name: C++ tests
+        if: steps.tested.outputs.cache-hit != 'true'
         # Each test is its own process; four at a time fill the runner's cores.
         run: ctest --test-dir build -C Release --output-on-failure --parallel 4
 
       - name: Python tests (coverage gate)
+        if: steps.tested.outputs.cache-hit != 'true'
         working-directory: tests/python
         run: |
           pytest -v --tb=short \
@@ -84,15 +112,27 @@ jobs:
             --cov-report=term-missing --cov-fail-under=90
 
       - name: C++ coverage gate
+        if: steps.tested.outputs.cache-hit != 'true'
         run: |
           mkdir -p coverage
           gcovr --config gcovr.cfg --merge-mode-functions=merge-use-line-min build
           python3 scripts/check_cpp_coverage.py
 
       - name: Upload coverage reports
-        if: always()
+        if: always() && steps.tested.outputs.cache-hit != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
           path: coverage/
           retention-days: 7
+
+      - name: Record this tree as tested
+        if: steps.tested.outputs.cache-hit != 'true'
+        run: mkdir -p .tested && echo "${{ steps.tree.outputs.hash }}" > .tested/tree
+
+      - name: Save the record
+        if: steps.tested.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .tested
+          key: tested-${{ github.job }}-${{ steps.tree.outputs.hash }}
