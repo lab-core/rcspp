@@ -25,6 +25,9 @@ defaults:
     shell: bash
 
 jobs:
+  # The gate builds Release without NDEBUG: the library's asserts run along with the coverage
+  # counters (USE_COVERAGE already forces -O0). The job keeps its name, which the main ruleset
+  # requires as a status check.
   coverage-gate:
     name: Coverage gate (ubuntu / Release / py3.14)
     # Draft pull requests skip the gate (pre-commit still runs on them); the run-ci label of
@@ -58,6 +61,7 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
+            "-DCMAKE_CXX_FLAGS_RELEASE=" \
             -DUSE_PYTHON=ON \
             -DUSE_TESTS=ON \
             -DUSE_COVERAGE=ON \
