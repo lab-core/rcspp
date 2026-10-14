@@ -164,21 +164,45 @@ while True:
 
 ---
 
-## Set-based resource (NG-paths)
+## Set-based resource
 
 ```python
+from rcspp.graph import ResourceGraph
 from rcspp.resource import (
-    NGPathExtensionFunction, SizeFeasibilityFunction,
+    AdditionExtensionFunction, TrivialFeasibilityFunction,
+    ValueCostFunction, ValueDominanceFunction,
+    UnionExtensionFunction, SizeFeasibilityFunction,
     TrivialCostFunction, InclusionDominanceFunction,
 )
 
 rg = ResourceGraph()
 
+# The first resource must be a real cost resource — every model starts here.
+rg.add_real_resource(
+    AdditionExtensionFunction(),
+    TrivialFeasibilityFunction(),
+    ValueCostFunction(),
+    ValueDominanceFunction(),
+)
+
 # Track visited nodes (set); no two paths that visit the same node dominate
 rg.add_int_set_resource(
-    NGPathExtensionFunction(),
-    SizeFeasibilityFunction(0, 10),     # path length ≤ 10 nodes
+    UnionExtensionFunction(),            # each arc carries the set it adds
+    SizeFeasibilityFunction(0, 10),      # path length ≤ 10 nodes
     TrivialCostFunction(),
     InclusionDominanceFunction(),        # L1 dominates L2 if visited(L1) ⊆ visited(L2)
 )
+
+# Arcs now carry one value per resource, in registration order:
+#   rg.add_arc((cost, {node_ids_added}), origin, dest, cost=...)
 ```
+
+:::{admonition} ng-paths are C++-only
+:class: note
+
+This example used to show `NGPathExtensionFunction`, which has never been exposed to
+Python — neither it nor `IntersectionFeasibilityFunction` has a descriptor, so an
+ng-path or elementary-path model cannot be assembled from Python at all. Build those
+with the C++ API and `rcspp::presets::add_ng_path_resource` /
+`add_elementary_resource`; see [Algorithms](../advanced/algorithms.md).
+:::

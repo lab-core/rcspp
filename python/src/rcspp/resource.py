@@ -222,16 +222,18 @@ class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
 
 
 class CapacityExtensionFunction(_GenericFunctionDescriptor):
-    """A capacity: a sum along the path that must stay under a cap, readable backward.
+    """A capacity: a load summed along the path that must stay within a cap.
 
-    Forward it adds like :class:`AdditionExtensionFunction`; backward a label carries how
-    much the prefix may still have consumed at the node, and starts at the cap, so it works
-    in a bidirectional solve and can be its half-way clock. Signed types (``"real"``,
-    ``"int"``) only, since the backward step subtracts.
+    It also supports backward search. Forward, it adds each arc's load, like
+    :class:`AdditionExtensionFunction`. Backward, a label starts at the cap and subtracts
+    each load, so it holds how much load the rest of the path, back to the source, may
+    still use. This lets it be used in a backward or bidirectional solve, and as the
+    bidirectional clock. Only signed types (``"real"``, ``"int"``) are supported, since the
+    backward step subtracts.
 
-    Pair it with ``MinMaxFeasibilityFunction(0, capacity)``, the same capacity: a
-    bidirectional solve refuses a capacity that differs from its feasibility function's
-    maximum.
+    Pair it with ``MinMaxFeasibilityFunction(0, capacity)`` using the same capacity: a
+    backward or bidirectional solve refuses a cap that differs from the feasibility
+    function's maximum. :func:`rcspp.presets.add_capacity_resource` registers the pair.
     """
 
     def __init__(self, capacity):
