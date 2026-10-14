@@ -117,6 +117,31 @@ TEST(Graph, ForceArcParallelDedup) {
     EXPECT_TRUE(contains(removed, 1u));
 }
 
+// sort_nodes() with a comparator that is not a strict weak ordering (ShortestPathConnectivitySort's
+// heuristic is not one) gives the same order whatever order the nodes were added in: the order
+// must not come from the node map's iteration order, which differs between standard libraries.
+TEST(Graph, SortNodesDoesNotDependOnTheInsertionOrder) {
+    // a before b when b's id is one step after a's around 0 -> 1 -> 2 -> 0 (mod 3): a cycle, so
+    // not a strict weak ordering.
+    const auto cyclic = [](const Node<RealResource>* a, const Node<RealResource>* b) {
+        return b->id % 3 == (a->id + 1) % 3;
+    };
+    constexpr size_t kNodes = 12;
+    const auto sorted_ids = [&](bool ascending) {
+        Graph<RealResource> g;
+        for (size_t k = 0; k < kNodes; ++k) {
+            g.add_node(ascending ? k : kNodes - 1 - k);
+        }
+        g.sort_nodes(cyclic);
+        std::vector<size_t> ids;
+        for (const auto* node : g.get_sorted_nodes()) {
+            ids.push_back(node->id);
+        }
+        return ids;
+    };
+    EXPECT_EQ(sorted_ids(true), sorted_ids(false));
+}
+
 // ============================================================================
 // A throwing solve leaves the caller's graph whole
 // ============================================================================
