@@ -18,8 +18,27 @@ Each entry says what an existing model or caller sees differently.
   buffered with it and keeps later arc ids matching. A model with such an arc used to build,
   and now fails when it is built. Model a depot that a route passes through as separate source and
   sink nodes, as the VRP example does.
+- **Breaking: `ResourceGraph::create_algorithm<Strategy>(params)` returns
+  `std::unique_ptr<Algorithm<R, LC>>`**, not `std::unique_ptr<Strategy<R, LC>>`: the class that
+  searches in `params.direction` is not always `Strategy` itself. Code that stored the result in a
+  `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
+  `auto`, or build the algorithm directly. With constructor arguments beyond the params,
+  `create_algorithm` still returns the type it names.
+- **`preprocess` only says whether a solve may reduce the graph.** A backward or bidirectional
+  search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
+  says, and also when `Algorithm::solve` is called directly; a model that fails them is refused
+  with `ModelRefused`. Forward solves are unchanged: they need no check.
 
 ### Added
+
+- **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
+  default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
+  `SimpleDominanceAlgorithm` searches backward, from the sinks; `create_algorithm` and `solve`
+  build the class that does it.
+  An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
+  throws `std::invalid_argument` when it is created or solved, as does a backward search with
+  `LabelBuckets`, which has no backward form. A backward search returns complete paths in
+  forward order. See "Search directions" in `docs/advanced/algorithms.md`.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
