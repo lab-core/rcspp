@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # ready_for_review: draft pull requests skip the gate (see below), so it runs when one leaves
+    # draft.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
   workflow_call:  # allows ci-full.yml to call this as a reusable sub-workflow
 
@@ -24,6 +27,12 @@ defaults:
 jobs:
   coverage-gate:
     name: Coverage gate (ubuntu / Release / py3.14)
+    # Draft pull requests skip the gate (pre-commit still runs on them); the run-ci label of
+    # ci-full.yml runs it anyway.
+    if: >-
+      github.event_name != 'pull_request' ||
+      !github.event.pull_request.draft ||
+      github.event.action == 'labeled'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
