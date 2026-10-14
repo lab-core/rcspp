@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <list>
 #include <utility>
 #include <vector>
@@ -145,8 +146,15 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
+        /// @brief Extends @p label_ptr along @p arc_ptr, keeping the result if it is feasible and
+        ///        not dominated.
+        ///
+        /// A path starts at a source and ends at a sink, with neither strictly inside it -- the
+        /// rule every algorithm in the library applies. The main loop never extends a label at a
+        /// sink, and the graph refuses an arc that enters a source, so no extension lands on one.
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
+            assert(!arc_ptr->destination->source && "an arc enters a source");
             // check if arc is not reachable
             if (!label_ptr->is_reachable(arc_ptr->destination->id)) {
                 return;

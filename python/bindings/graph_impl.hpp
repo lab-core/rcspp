@@ -540,6 +540,11 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
            const std::vector<size_t>& dests,
            const std::vector<double>& costs,
            const std::vector<std::vector<Row>>& rows) {
+            // Check every arc before adding any, so a refused arc leaves the graph unchanged
+            // instead of holding the arcs before it.
+            for (size_t i = 0; i < consumptions.size(); ++i) {
+                rg.check_new_arc(origins[i], dests[i]);
+            }
             for (size_t i = 0; i < consumptions.size(); ++i) {
                 rg.add_arc(consumptions[i], origins[i], dests[i], costs[i], rows[i]);
             }

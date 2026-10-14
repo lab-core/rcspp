@@ -351,15 +351,17 @@ TEST(BellmanFordAlgorithm, NulloptCostIndexFallsBackToArcCost) {
     EXPECT_DOUBLE_EQ(dist_nullopt.at(2), dist_arc.at(2));
 }
 
-/// @brief BellmanFordAlgorithm::solve throws on a negative-weight cycle.
+/// @brief BellmanFordAlgorithm::solve throws on a negative-weight cycle (1 -> 2 -> 1).
 TEST(BellmanFordAlgorithm, ThrowsOnNegativeCycle) {
     auto g = make_graph();
     g->add_node(0, /*source=*/true, /*sink=*/false);
     g->add_node(1, /*source=*/false, /*sink=*/false);
-    g->add_node(2, /*source=*/false, /*sink=*/true);
-    g->add_arc<RealResource>(std::make_tuple(kNegCycleCost), 0, 1, /*cost=*/kNegCycleCost);
-    g->add_arc<RealResource>(std::make_tuple(1.0), 1, 0, /*cost=*/1.0);
-    g->add_arc<RealResource>(std::make_tuple(1.0), 1, 2, /*cost=*/1.0);
+    g->add_node(2, /*source=*/false, /*sink=*/false);
+    g->add_node(3, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, /*cost=*/1.0);
+    g->add_arc<RealResource>(std::make_tuple(kNegCycleCost), 1, 2, /*cost=*/kNegCycleCost);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 2, 1, /*cost=*/1.0);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 2, 3, /*cost=*/1.0);
 
     EXPECT_THROW(
         (BellmanFordAlgorithm::solve<RealResource>(*g, g->get_source_node_ids(), /*forward=*/true)),
