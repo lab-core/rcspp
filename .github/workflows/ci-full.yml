@@ -1,12 +1,13 @@
 name: CI Full
 
 # Test matrix on Linux, macOS and Windows (see the test job), plus wheel/sdist builds.
-# Triggered manually ("Run workflow") or by posting `/run-ci` in any PR comment.
-# The coverage gate also runs automatically on push/PR to main (ci.yml).
+# Triggered manually ("Run workflow") or by adding the `run-ci` label to a pull request (remove
+# and add it again to re-run). The coverage gate also runs automatically on push/PR to main
+# (ci.yml).
 on:
   workflow_dispatch:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [labeled]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -19,18 +20,12 @@ jobs:
   # ── Coverage gate (reuses ci.yml definition — no duplication) ─────────────
   coverage:
     name: Coverage Gate
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '/run-ci'))
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     uses: ./.github/workflows/ci.yml
 
   test:
     name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}${{ matrix.suites == 'python' && ' / Python only' || '' }}
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '/run-ci'))
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.os == 'macos-latest' && 45 || 30 }}
     strategy:
@@ -55,8 +50,6 @@ jobs:
         with:
           submodules: recursive
           lfs: true
-          # When triggered by a PR comment, check out the PR head branch
-          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.sha }}
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
