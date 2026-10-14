@@ -53,7 +53,9 @@ jobs:
             "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
-        run: cmake --build build --parallel
+        # One compile per core. A bare --parallel lets make start every translation unit at
+        # once; on the 3-core, 7 GB macOS runners the heavy template TUs then fight for memory.
+        run: cmake --build build --parallel 4
 
       - name: C++ tests
         # Each test is its own process; four at a time fill the runner's cores.

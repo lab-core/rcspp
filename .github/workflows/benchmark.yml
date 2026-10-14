@@ -51,11 +51,11 @@ jobs:
             -DUSE_TESTS=OFF
 
       - name: Build small benchmark
-        run: cmake --build build --target rcspp-vrp-benchmark --parallel
+        run: cmake --build build --target rcspp-vrp-benchmark --parallel 4
 
       - name: Build large benchmark
         if: inputs.run_large
-        run: cmake --build build --target rcspp-vrp-benchmark-large --parallel
+        run: cmake --build build --target rcspp-vrp-benchmark-large --parallel 4
 
       - name: Run small benchmark (C1/R1/RC1)
         run: |
