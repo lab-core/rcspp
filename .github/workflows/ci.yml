@@ -3,8 +3,8 @@ name: Coverage Gate
 on:
   push:
     branches: [main]
+  # Every base branch, so a PR stacked on another feature branch is tested too.
   pull_request:
-    branches: [main]
     # ready_for_review: draft pull requests skip the gate (see below), so it runs when one leaves
     # draft.
     types: [opened, synchronize, reopened, ready_for_review]

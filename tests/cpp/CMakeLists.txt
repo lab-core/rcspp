@@ -13,9 +13,9 @@ FetchContent_MakeAvailable(googletest)
 set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_CLANG_TIDY "")
 
 # Sources ---------------------------------------------------------------------
-file(GLOB_RECURSE TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_connectivity.cpp")
-file(GLOB_RECURSE LIB_SOURCES "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
 
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
 # The vrp_subproblem test reuses a few VRP data classes from the VRP example.
@@ -28,6 +28,15 @@ list(APPEND SOURCE_FILES
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 if(MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
+endif()
+# MinGW writes COFF objects, whose limits the larger test TUs exceed. -mbig-obj (MinGW's /bigobj)
+# lifts the section count, but every out-of-line template instantiation still adds a long-named
+# section (.text$<mangled>, and .debug_frame$<mangled> with debug info) to a string table that
+# cannot pass 10 MB. Unoptimised, nothing is inlined and several TUs overflow it; so on MinGW the
+# tests build with -O1 and without debug info, whatever the build type. NDEBUG is not touched, so a
+# Debug build still runs every assert.
+if(MINGW)
+  target_compile_options(${PROJECT_NAME} PRIVATE -Wa,-mbig-obj -O1 -g0)
 endif()
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
