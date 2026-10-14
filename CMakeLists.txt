@@ -51,7 +51,9 @@ list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/usr/local/include")
 # Clang-Tidy & compile_commands ------------------------------------------------
 # Skipped under USE_COVERAGE: the coverage gate doesn't need linting (pre-commit
 # handles that) and clang-tidy roughly doubles build time on the template headers.
-if(NOT SKBUILD AND NOT USE_COVERAGE)
+# A -DCMAKE_CXX_CLANG_TIDY=... on the command line wins; the CI workflows pass an empty one to
+# turn it off. A plain set() would shadow that cache entry, so only set it when there is none.
+if(NOT SKBUILD AND NOT USE_COVERAGE AND NOT DEFINED CACHE{CMAKE_CXX_CLANG_TIDY})
   set(CMAKE_CXX_CLANG_TIDY
       "clang-tidy;-config-file=${CMAKE_SOURCE_DIR}/.clang-tidy"
   )
