@@ -12,9 +12,9 @@ namespace rcspp {
 
 /// @brief Extension function that propagates a composed resource by extending each component.
 ///
-/// Both forward (`extend`) and backward (`extend_back`) extension iterate over all
-/// constituent sub-resource components and delegate to the corresponding per-component
-/// extender.
+/// Both forward (`extend`) and backward (`extend_back`) extension, and the backward start
+/// (`start_back`), iterate over all constituent sub-resource components and delegate to the
+/// corresponding per-component extender.
 ///
 /// @tparam ResourceTypes The individual resource types forming the composition.
 template <typename... ResourceTypes>
@@ -57,6 +57,18 @@ class CompositionExtensionFunction
                 [](auto& ext_res, const auto& res, const auto& exp) {
                     exp.extend_back(res, &ext_res);
                 });
+        }
+
+        /// @brief Starts each component of @p resource through its own extender.
+        ///
+        /// For each component pair `(res, exp)` calls `exp->start_back(&res)`.
+        ///
+        /// @param extender The composed extender of an arc entering the sink.
+        /// @param resource The backward label at the sink.
+        void start_back(const Extender<ResourceType>& extender,
+                        Resource<ResourceType>* resource) override {
+            resource->for_each_component(extender,
+                                         [](auto& res, const auto& exp) { exp->start_back(&res); });
         }
 };
 }  // namespace rcspp

@@ -244,11 +244,28 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->dominance_function_->check_dominance(*this, rhs_resource);
         }
 
+        /// @brief Whether this composed backward label dominates @p rhs_resource, by the dominance
+        ///        function's backward rule.
+        ///
+        /// @param rhs_resource The resource to compare against.
+        /// @return `true` if this resource backward-dominates @p rhs_resource.
+        [[nodiscard]] auto back_dominates(const Resource& rhs_resource) const -> bool {
+            return this->dominance_function_->check_back_dominance(*this, rhs_resource);
+        }
+
         /// @brief Returns the total cost of this composed resource.
         ///
         /// @return The cost value computed by the cost function.
         [[nodiscard]] auto get_cost() const -> double {
             return this->cost_function_->get_cost(*this);
+        }
+
+        /// @brief Whether the cost is additive: the cost of a path is the sum of its two halves'
+        ///        costs, wherever it is split.
+        ///
+        /// @return Result of the cost function's `is_additive` check.
+        [[nodiscard]] auto is_cost_additive() const -> bool {
+            return this->cost_function_->is_additive(*this);
         }
 
         /// @brief Returns `true` if this resource satisfies all forward-direction constraints.
@@ -265,12 +282,13 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             return this->feasibility_function_->is_back_feasible(*this);
         }
 
-        /// @brief Returns `true` if this (forward) resource can be merged with @p back_resource.
+        /// @brief Whether this forward label and @p back_resource fit together: every component
+        ///        must accept the pair.
         ///
-        /// @param back_resource The backward resource to merge with.
-        /// @return Result of the feasibility function's `can_be_merged` check.
-        [[nodiscard]] auto can_be_merged(const Resource& back_resource) const -> bool {
-            return this->feasibility_function_->can_be_merged(*this, back_resource);
+        /// @param back_resource The backward resource to join with.
+        /// @return Result of the feasibility function's `can_be_joined` check.
+        [[nodiscard]] auto can_be_joined(const Resource& back_resource) const -> bool {
+            return this->feasibility_function_->can_be_joined(*this, back_resource);
         }
 
         /// @brief Returns `true` if this resource can reach the given destination node.
