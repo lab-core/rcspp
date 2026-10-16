@@ -26,6 +26,7 @@
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/resource/ng_unreachable_fold.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 #include "rcspp/validation/pre_solve_plan.hpp"
 
@@ -238,6 +239,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             Graph<ResourceCompositionType>::clone_topology_into(*new_rg,
                                                                 include_rows,
                                                                 clone_removed_arcs);
+            if (ng_unreachable_fold_ != nullptr) {
+                new_rg->ng_unreachable_fold_ = ng_unreachable_fold_->clone();
+            }
             return new_rg;
         }
 
@@ -443,6 +447,22 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // Also ensure that the arcs are sorted, use default sort (by id)
             this->build_csr();
 
+            // The fold reads the arcs this solve searches, so it is prepared after the reductions;
+            // it is removed from the algorithm however the solve ends.
+            struct StrengtheningReset {
+                    explicit StrengtheningReset(AlgorithmType* owner) : algorithm(owner) {}
+                    StrengtheningReset(const StrengtheningReset&) = delete;
+                    StrengtheningReset& operator=(const StrengtheningReset&) = delete;
+                    ~StrengtheningReset() { algorithm->set_label_strengthening(nullptr); }
+                    AlgorithmType* algorithm;
+            };
+            std::optional<StrengtheningReset> strengthening_reset;
+            if (ng_unreachable_fold_ != nullptr) {
+                ng_unreachable_fold_->prepare(*this, resource_factory_);
+                algorithm->set_label_strengthening(ng_unreachable_fold_.get());
+                strengthening_reset.emplace(algorithm);
+            }
+
             // solve the rcspp
             SolveResult result = algorithm->solve(this, upper_bound);
 
@@ -460,6 +480,39 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 &resource_factory_,
                 this);
             feasibility_preprocessor.preprocess();
+        }
+
+        /// @brief Folds into each forward label's ng memory the ng-neighbours it can no longer
+        ///        reach, from the next solve on (see @ref NgUnreachableFold).
+        ///
+        /// The solutions are unchanged; dominance discards more labels. Threshold resources (time
+        /// windows, capacities) decide reachability, from the least consumption of any path, so
+        /// the arcs need not satisfy the triangle inequality. Applied by @ref solve, to forward
+        /// labels only. A threshold's upper bound must be its feasibility function's, as the
+        /// presets build them.
+        ///
+        /// @tparam R The container resource type of the ng memory.
+        /// @tparam E The element type of its neighbourhood sets.
+        /// @param component_index Which component of type @p R is the ng memory (0 for the first).
+        /// @throws std::out_of_range     when there is no such component.
+        /// @throws std::invalid_argument when it is not an ng-path resource.
+        template <typename R, typename E = typename R::ValueType>
+        void enable_ng_unreachable_fold(size_t component_index = 0) {
+            (void)NgUnreachableFold<R, E, ResourceTypes...>::ng_prototype(resource_factory_,
+                                                                          component_index);
+            ng_unreachable_fold_ =
+                std::make_unique<NgUnreachableFold<R, E, ResourceTypes...>>(component_index);
+        }
+
+        /// @brief Stops folding; the next solve runs as if the fold had never been enabled.
+        void disable_ng_unreachable_fold() { ng_unreachable_fold_.reset(); }
+
+        /// @brief Whether solves fold unreachable ng-neighbours.
+        ///
+        /// @return @c true after @ref enable_ng_unreachable_fold, until
+        ///         @ref disable_ng_unreachable_fold.
+        [[nodiscard]] bool is_ng_unreachable_fold_enabled() const {
+            return ng_unreachable_fold_ != nullptr;
         }
 
         /// @brief Runs the model checks a search in @p direction needs, without solving.
@@ -649,6 +702,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         }
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
+        /// @brief The fold @ref solve applies, or none; see @ref enable_ng_unreachable_fold.
+        std::unique_ptr<NgUnreachableFoldBase<ResourceTypes...>> ng_unreachable_fold_;
         ConnectivityMatrix<ResourceCompositionType> connectivityMatrix_;
         std::mutex mutex_;
 };

@@ -14,7 +14,8 @@
 //   test_bidirectional_validation.cpp    its setup validation, and its benchmark
 //   test_join_contract.cpp               the join-rule contract (uses a second resource pack)
 //   test_presets.cpp                     the presets (one resource pack per preset)
-//   test_equivalence_ng.cpp              ng-path equivalence (two-slot pack)
+//   test_equivalence_ng.cpp              ng-path equivalence and the unreachable fold (two-slot
+//                                        pack)
 //   test_join_optimality_ng.cpp          ng tier of the join-optimality sweep (two-slot pack)
 //   test_bidirectional_benchmark_ng.cpp  ng benchmark (three-slot pack)
 //   test_path_semantics.cpp              what every algorithm returns

@@ -7,3 +7,5 @@
 #include "test_equivalence_ng.hpp"
 
 #include <gtest/gtest.h>
+
+#include "test_ng_unreachable_fold.hpp"
