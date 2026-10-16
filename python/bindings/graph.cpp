@@ -381,9 +381,20 @@ void init_graph(py::module_& m) {
                        "critical_resource_index). The forward search drops labels whose clock is "
                        "above H, the backward search drops those below H, and the join combines "
                        "the rest. Set H to about half the clock's largest value. 0 (the default) "
-                       "turns this bound off; it does not choose one. Both searches then run in "
-                       "full, which is correct but slower than a forward solve. "
-                       "result.bidirectional.bounded_by_half_way says whether it was in force.")
+                       "turns this bound off unless derive_half_way_point is set; it does not "
+                       "choose one. Both searches then run in full, which is correct but slower "
+                       "than a forward solve. result.bidirectional.bounded_by_half_way says "
+                       "whether it was in force.")
+        .def_readwrite(
+            "derive_half_way_point",
+            &PyAlgorithmParams::derive_half_way_point,
+            "Read the clock's range R from the model -- the largest ceiling its "
+            "feasibility function states at a sink -- and, when half_way_point is 0, "
+            "use H = R / 2. With an explicit half_way_point, R only bounds a dynamic H. "
+            "When R cannot be read (a sink without a ceiling), the solve behaves as "
+            "without the flag. The sinks must state the real horizon: a sentinel window "
+            "such as [0, 1e300] derives an H beyond every label. Off by default, so that "
+            "half_way_point = 0 keeps meaning 'no bound' (default False).")
         .def_readwrite("join_column_budget",
                        &PyAlgorithmParams::join_column_budget,
                        "Bidirectional only: the most paths the join returns, the cheapest kept. "

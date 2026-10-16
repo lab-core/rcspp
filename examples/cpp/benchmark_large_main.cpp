@@ -184,8 +184,10 @@ int main(int argc, char* argv[]) {  // NOLINT
         for (const auto& name : instance_names) {
             std::string path = inst_dir + name + ".txt";
             LOG_INFO("Instance: ", path, '\n');
-            auto [timers, lp_cost, proven_optimal, iterations] =
-                run_vrp(path, run_boost, run_astar);
+            const CGSolveResult cg = run_vrp(path, run_boost, run_astar);
+            const auto& timers = cg.timers;
+            const double lp_cost = cg.lp_cost;
+            const bool proven_optimal = cg.proven_optimal;
             if (!proven_optimal) {
                 LOG_WARN("Instance ",
                          name,
@@ -207,8 +209,10 @@ int main(int argc, char* argv[]) {  // NOLINT
         for (const auto& path : gh_instance_paths) {
             std::string name = fs::path(path).stem().string();
             LOG_INFO("Instance: ", path, '\n');
-            auto [timers, lp_cost, proven_optimal, iterations] =
-                run_vrp(path, run_boost, run_astar);
+            const CGSolveResult cg = run_vrp(path, run_boost, run_astar);
+            const auto& timers = cg.timers;
+            const double lp_cost = cg.lp_cost;
+            const bool proven_optimal = cg.proven_optimal;
             if (!proven_optimal) {
                 LOG_WARN("Instance ",
                          name,

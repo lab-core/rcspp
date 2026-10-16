@@ -400,3 +400,44 @@ TEST(HalfWayController, EveryMoveHasAName) {
     EXPECT_EQ(to_string(HalfWayMove::Up), "up");
     EXPECT_EQ(to_string(HalfWayMove::TowardCentre), "toward_centre");
 }
+
+// ============================================================================
+// A range given separately from the initial H
+// ============================================================================
+
+/// @brief `over_range` keeps the range it is given; the constructor still derives `2 * H0`.
+TEST(HalfWayController, OverRangeKeepsTheGivenRange) {
+    const auto given = HalfWayController::over_range(200.0, 1000.0);
+    EXPECT_TRUE(given.has_initial_h());
+    EXPECT_DOUBLE_EQ(given.h(), 200.0);
+    EXPECT_DOUBLE_EQ(given.initial_h(), 200.0);
+    EXPECT_DOUBLE_EQ(given.range(), 1000.0);
+    EXPECT_DOUBLE_EQ(HalfWayController(200.0).range(), 400.0);
+}
+
+/// @brief With the real range, `H` may climb past the `0.95 * 2 * H0` a derived range stops it at.
+TEST(HalfWayController, OverRangeClampsToTheGivenRange) {
+    namespace hc = half_way_controller_test;
+
+    auto given = HalfWayController::over_range(200.0, 1000.0);
+    HalfWayController derived(200.0);
+    for (int i = 0; i < 40; ++i) {  // backward-heavy every time: H only rises
+        given.update(hc::backward_heavy());
+        derived.update(hc::backward_heavy());
+    }
+    EXPECT_DOUBLE_EQ(derived.h(), 0.95 * 400.0);
+    EXPECT_GT(given.h(), 0.95 * 400.0);
+    EXPECT_DOUBLE_EQ(given.h(), 0.95 * 1000.0);
+}
+
+/// @brief A range that is not finite, or an `H0` outside it, is refused.
+TEST(HalfWayController, OverRangeRefusesABadRange) {
+    EXPECT_THROW(
+        (void)HalfWayController::over_range(200.0, std::numeric_limits<double>::infinity()),
+        std::invalid_argument);
+    EXPECT_THROW((void)HalfWayController::over_range(0.0, 1000.0), std::invalid_argument);
+    EXPECT_THROW((void)HalfWayController::over_range(1000.0, 1000.0), std::invalid_argument);
+    EXPECT_THROW((void)HalfWayController::over_range(1200.0, 1000.0), std::invalid_argument);
+    // The (h, {}) spelling still means "H0 with default knobs", not a zero range.
+    EXPECT_DOUBLE_EQ(HalfWayController(1.0, {}).range(), 2.0);
+}

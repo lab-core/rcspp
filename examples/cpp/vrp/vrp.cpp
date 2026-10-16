@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <limits>
 #include <ranges>
+#include <stdexcept>
+#include <string>
 
 #include "cg/master_problem.hpp"
 #include "cg/mp_solution.hpp"
@@ -25,6 +27,29 @@ VRP::VRP(Instance instance, size_t ng_neighborhood_size)
       ng_neighborhood_customer_id_(initialize_ng_neighborhoods(ng_neighborhood_size)),
       solution_output_(std::nullopt) {
     LOG_TRACE("VRP::VRP\n");
+    construct_resource_graph(&graph_);
+}
+
+VRP::VRP(Instance instance, std::map<size_t, std::set<size_t>> ng_table)
+    : instance_(std::move(instance)),
+      time_window_by_customer_id_(initialize_time_windows()),
+      ng_neighborhood_customer_id_(std::move(ng_table)),
+      solution_output_(std::nullopt) {
+    LOG_TRACE("VRP::VRP\n");
+    // The same keys the nearest-k constructor would produce: every node of the model, once.
+    const auto expected = initialize_ng_neighborhoods(0);
+    for (const auto& [node_id, members] : expected) {
+        if (!ng_neighborhood_customer_id_.contains(node_id)) {
+            throw std::invalid_argument("VRP: the ng table has no entry for node " +
+                                        std::to_string(node_id));
+        }
+    }
+    for (const auto& [node_id, members] : ng_neighborhood_customer_id_) {
+        if (!expected.contains(node_id)) {
+            throw std::invalid_argument("VRP: the ng table names node " + std::to_string(node_id) +
+                                        ", which the model does not have");
+        }
+    }
     construct_resource_graph(&graph_);
 }
 
@@ -182,7 +207,9 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         total_subproblem_time_.start();
         AlgorithmParams<LabelList<ResourceType>> params;
         AlgorithmStatus pricing_status = AlgorithmStatus::COMPLETE;
-        solutions_rcspp = solve_with_rcspp(dual_by_id, params, &pricing_status);
+        bool pricing_exhaustive = true;
+        solutions_rcspp =
+            solve_with_rcspp(dual_by_id, params, &pricing_status, &pricing_exhaustive);
         // solutions_rcspp = solve_with_rcspp<PushingDominanceAlgorithmIterators>(dual_by_id);
         // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
         total_subproblem_time_.stop();
@@ -262,19 +289,19 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
 
         if (min_reduced_cost >= -EPSILON) {
             final_dual_by_id = master_solution.dual_by_var_id;
-            // CG is about to stop. If the final pricing solve was cut short, a "no improving
-            // column" result does not prove optimality of the master LP.
-            if (pricing_status != AlgorithmStatus::COMPLETE) {
+            // CG is about to stop. If the final pricing solve did not prove its result, a "no
+            // improving column" result does not prove optimality of the master LP.
+            if (!pricing_exhaustive) {
                 proven_optimal = false;
                 LOG_WARN(
                     "Column generation stopped without proving optimality: the final pricing "
                     "subproblem exited with status '",
                     to_string(pricing_status),
-                    "' (not complete), so an improving column may have been missed. The master "
-                    "objective ",
+                    "' (not complete, or complete with a truncated join or a memory trim), so an "
+                    "improving column may have been missed. The master objective ",
                     master_solution.cost,
-                    " is a valid bound but is NOT proven optimal. Increase the subproblem "
-                    "timeout / memory / phase limits to converge.\n");
+                    " is an UPPER bound on the LP optimum, not a lower bound. Increase the "
+                    "subproblem timeout / memory / phase limits to converge.\n");
             }
         }
 

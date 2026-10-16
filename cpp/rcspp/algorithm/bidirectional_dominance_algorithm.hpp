@@ -39,6 +39,13 @@ enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 /// cheaper than the best one found so far, which keeps its output small. An interrupt means
 /// "stop now", so the join is skipped.
 ///
+/// Why the forced cutoff does not honour a looser caller bound instead: the incumbent starts at the
+/// caller's bound (`best_cost_upper_bound_ = cost_upper_bound`) and tightens only once a path is
+/// found. When a stopped search found nothing improving -- the solve that stalls a pricing loop --
+/// the forced cutoff *is* the caller's bound, so the two rules run the same join. What ends that
+/// stall is re-solving with a larger budget (the VRP example's `PricingBudget`), not a different
+/// cutoff.
+///
 /// @param stop Why the search stopped.
 /// @return @c true unless the search was interrupted.
 [[nodiscard]] constexpr bool join_runs_after(RunLevelStop stop) {
@@ -499,7 +506,8 @@ class BidirectionalDominanceAlgorithm
         /// `half_way_point`; everything after that -- the validation, and disabling on failure --
         /// is identical, because a learned `H` has to pass the same checks a static one does.
         void configure_half_way(const Graph<ResourceType>& graph) {
-            half_way_ = HalfWayPolicy(half_way_point_for_this_solve(), resource_upper_bound(graph));
+            const double range = resource_upper_bound(graph);
+            half_way_ = HalfWayPolicy(half_way_point_for_this_solve(range), range);
             half_way_off_reason_.clear();
 
             if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
@@ -508,10 +516,18 @@ class BidirectionalDominanceAlgorithm
             } else {
                 const std::string clock =
                     "critical resource " + std::to_string(this->params_.critical_resource_index);
-                if (!half_way_.enabled()) {
+                // Deriving H: a derivation that failed says why below, not "no H given".
+                const bool deriving =
+                    this->params_.derive_half_way_point && !(this->params_.half_way_point > 0.0);
+                if (!half_way_.enabled() && !deriving) {
                     turn_half_way_off(HalfWayOff::NoHalfWayPoint,
                                       "no half_way_point was given; set it to about half the "
                                       "critical resource's range");
+                    return;
+                }
+                if (threshold_probe::model_arc(graph) == nullptr) {
+                    turn_half_way_off(HalfWayOff::NoArcs,
+                                      "the graph has no arcs, so there is nothing to bound");
                     return;
                 }
                 const size_t clocks = components_of<CriticalRC>(graph);
@@ -537,6 +553,13 @@ class BidirectionalDominanceAlgorithm
                                           "below H");
                     return;
                 }
+                if (!half_way_.enabled()) {
+                    turn_half_way_off(HalfWayOff::NoHalfWayPoint,
+                                      "derive_half_way_point is set, but " + clock +
+                                          " states no positive ceiling at the sinks to derive H "
+                                          "from");
+                    return;
+                }
                 const std::vector<double> probes{0.0, half_way_.h()};
                 if (!critical_resource_is_monotone<CriticalRC>(
                         graph,
@@ -559,7 +582,8 @@ class BidirectionalDominanceAlgorithm
 
         /// @brief Turns the half-way bound off for this solve, and says why.
         ///
-        /// Logs at WARN the first time @p reason occurs in this process, at DEBUG after that.
+        /// Logs at WARN the first time @p reason occurs in this process, at DEBUG after that;
+        /// `NoArcs` only ever at DEBUG, since an empty graph is not a configuration problem.
         ///
         /// @param reason Why, as a category.
         /// @param why    Why, as a sentence; also kept for
@@ -567,7 +591,7 @@ class BidirectionalDominanceAlgorithm
         void turn_half_way_off(HalfWayOff reason, std::string why) {
             half_way_.disable();
             half_way_off_reason_ = std::move(why);
-            if (first_report_of(reason)) {
+            if (reason != HalfWayOff::NoArcs && first_report_of(reason)) {
                 LOG_WARN(
                     "BidirectionalDominanceAlgorithm: the half-way bound is off because ",
                     half_way_off_reason_,
@@ -649,14 +673,67 @@ class BidirectionalDominanceAlgorithm
             return std::nullopt;
         }
 
-        /// @brief The clock's upper end `R` given to @ref HalfWayPolicy: twice `half_way_point`
-        ///        when that is set, infinity otherwise.
+        /// @brief The clock's upper end `R` given to @ref HalfWayPolicy: read off the model
+        ///        under `derive_half_way_point`, else twice `half_way_point` when that is set, and
+        ///        infinity otherwise.
         ///
-        /// With an infinite `R` the policy derives no `H`, so `half_way_point = 0` always turns
-        /// the bound off.
-        [[nodiscard]] double resource_upper_bound(const Graph<ResourceType>& /*graph*/) const {
+        /// With an infinite `R` the policy derives no `H`, so `half_way_point = 0` turns the bound
+        /// off unless `derive_half_way_point` is set.
+        [[nodiscard]] double resource_upper_bound(const Graph<ResourceType>& graph) const {
+            if (this->params_.derive_half_way_point) {
+                if (const auto range = read_resource_upper_bound(graph)) {
+                    return *range;
+                }
+            }
             return this->params_.half_way_point > 0.0 ? this->params_.half_way_point * 2.0
                                                       : std::numeric_limits<double>::infinity();
+        }
+
+        /// @brief `R` read off the model: the largest backward start of the clock at any sink.
+        ///
+        /// Under a threshold clock a backward label starts at its sink's upper bound (see
+        /// `ThresholdForm::start_back`). The start is read off the arc
+        /// @c BackwardDirection::start_arc returns, as @ref sink_without_a_ceiling does; a sink no
+        /// live arc enters starts no backward search, and is skipped.
+        ///
+        /// @param graph The graph.
+        /// @return `std::nullopt` when the clock type is absent, the index names no component (a
+        ///         graph with no arcs included), a sink sets no start, or the largest is not
+        ///         positive and finite.
+        [[nodiscard]] std::optional<double> read_resource_upper_bound(
+            const Graph<ResourceType>& graph) const {
+            if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
+                return std::nullopt;
+            } else {
+                const size_t index = this->params_.critical_resource_index;
+                // Before touching a sink's components: get_component on a bad index is unsafe.
+                if (index >= components_of<CriticalRC>(graph)) {
+                    return std::nullopt;
+                }
+                double largest = -std::numeric_limits<double>::infinity();
+                for (const size_t sink_id : graph.get_sink_node_ids()) {
+                    const auto* sink = graph.get_node(sink_id);
+                    if (sink == nullptr || sink->resource == nullptr) {
+                        continue;
+                    }
+                    const auto* entering = BackwardDirection::start_arc(graph, sink);
+                    if (entering == nullptr) {
+                        continue;
+                    }
+                    auto scratch = sink->resource->template get_component<CriticalRC>(index);
+                    const auto start = threshold_probe::observe_start(
+                        entering->extender->template get_component<CriticalRC>(index),
+                        &scratch);
+                    if (!start) {
+                        return std::nullopt;
+                    }
+                    largest = std::max(largest, *start);
+                }
+                if (!std::isfinite(largest) || !(largest > 0.0)) {
+                    return std::nullopt;
+                }
+                return largest;
+            }
         }
 
         /// @brief The `H` this solve starts from: the controller's when it adapts, else the
@@ -668,14 +745,26 @@ class BidirectionalDominanceAlgorithm
         /// @ref configure_half_way reports it once per process (`HalfWayOff::NoHalfWayPoint`).
         ///
         /// `R` (see @ref resource_upper_bound) stays `2 * half_way_point` however far the
-        /// controller moves `H`; the controller clamps `H` inside that same range.
-        [[nodiscard]] double half_way_point_for_this_solve() {
-            const double requested = this->params_.half_way_point;
+        /// controller moves `H`, unless `derive_half_way_point` supplied it; the controller clamps
+        /// `H` inside that same range. Under `derive_half_way_point` with `half_way_point = 0`, the
+        /// controller starts from `R / 2`, the `H` the policy would derive.
+        ///
+        /// @param range `R` for this solve, as @ref resource_upper_bound computed it.
+        [[nodiscard]] double half_way_point_for_this_solve(double range) {
+            const bool derived_range =
+                this->params_.derive_half_way_point && std::isfinite(range) && range > 0.0;
+            double requested = this->params_.half_way_point;
+            if (!(requested > 0.0) && derived_range) {
+                requested = range / 2.0;
+            }
             if (!this->params_.dynamic_half_way || !(requested > 0.0)) {
-                return requested;
+                // HalfWayPolicy derives H from R itself, if at all.
+                return this->params_.half_way_point;
             }
             if (!half_way_controller_.has_initial_h()) {
-                half_way_controller_ = HalfWayController(requested);
+                half_way_controller_ = derived_range && requested < range
+                                           ? HalfWayController::over_range(requested, range)
+                                           : HalfWayController(requested);
             }
             return half_way_controller_.h();
         }

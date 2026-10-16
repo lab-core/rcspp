@@ -746,6 +746,86 @@ TEST(Bidirectional, AZeroHalfWayPointTurnsTheBoundOff) {
                 bt::kTolerance);
 }
 
+/// @brief With `derive_half_way_point`, `H = 0` derives `R / 2` from the sink's ceiling.
+///
+/// The clock is a capacity of 20, so a backward label starts at 20 at the sink and `H` is 10: the
+/// derived value the drivers used to compute by hand.
+TEST(Bidirectional, DeriveHalfWayPointReadsTheSinkCeiling) {
+    namespace bt = bidirectional_test;
+
+    const auto arcs = std::vector<std::pair<double, double>>{{1.0, 5.0}, {2.0, 2.0}, {3.0, 3.0}};
+    auto graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
+    auto params = bt::params(0.0, bt::kClockIndex);
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get());
+
+    EXPECT_TRUE(result.bidirectional->bounded_by_half_way)
+        << result.bidirectional->half_way_off_reason;
+    EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, 10.0);
+    auto reference_graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost,
+                bt::forward_optimum(reference_graph.get()),
+                bt::kTolerance);
+}
+
+/// @brief With two sinks, `R` is the larger ceiling.
+TEST(Bidirectional, DeriveHalfWayPointTakesTheLargestSinkCeiling) {
+    namespace bt = bidirectional_test;
+
+    // 0 -> 1 -> {2, 3}; sinks 2 and 3 close at 60 and 80.
+    const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}},
+                                                              {1, {0.0, 100.0}},
+                                                              {2, {0.0, 60.0}},
+                                                              {3, {0.0, 80.0}}};
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(
+        std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
+        std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
+        std::make_unique<TrivialCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, true, false);
+    graph->add_node(1, false, false);
+    graph->add_node(2, false, true);
+    graph->add_node(3, false, true);
+    graph->add_arc<RealResource, RealResource>({1.0, 10.0}, 0, 1, 1.0);
+    graph->add_arc<RealResource, RealResource>({2.0, 10.0}, 1, 2, 2.0);
+    graph->add_arc<RealResource, RealResource>({1.0, 10.0}, 1, 3, 1.0);
+
+    auto params = bt::params(0.0, bt::kClockIndex);
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get());
+
+    EXPECT_TRUE(result.bidirectional->bounded_by_half_way)
+        << result.bidirectional->half_way_off_reason;
+    EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, 40.0);
+    ASSERT_FALSE(result.solutions.empty());
+    EXPECT_NEAR(result.solutions.front().cost, 2.0, bt::kTolerance);
+}
+
+/// @brief An explicit `H` wins over the derived one; the flag then only supplies `R`.
+TEST(Bidirectional, DeriveHalfWayPointYieldsToAnExplicitH) {
+    namespace bt = bidirectional_test;
+
+    auto graph = bt::clock_line_graph({{1.0, 5.0}, {2.0, 2.0}, {3.0, 3.0}}, /*capacity=*/20.0);
+    auto params = bt::params(6.0, bt::kClockIndex);
+    params.derive_half_way_point = true;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get());
+
+    EXPECT_TRUE(result.bidirectional->bounded_by_half_way);
+    EXPECT_DOUBLE_EQ(result.bidirectional->half_way_point_used, 6.0);
+}
+
 /// @brief A non-monotone clock disables the bound, does not throw, and still finds the optimum.
 TEST(Bidirectional, NonMonotoneClockDisablesTheBoundAndStillSolves) {
     namespace bt = bidirectional_test;
