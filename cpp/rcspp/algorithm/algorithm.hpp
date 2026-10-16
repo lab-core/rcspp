@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/label_buckets.hpp"
+#include "rcspp/algorithm/label_strengthening.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -152,6 +153,10 @@ struct SolveResult {
         /// cost of the dominance rule per label kept, which is the quantity a container or
         /// dominance change has to move to be worth having.
         size_t dominance_checks = 0;
+
+        /// @brief Nodes the ng unreachable fold added to forward labels' memories during this
+        ///        solve (see `ResourceGraph::enable_ng_unreachable_fold`); 0 when it is off.
+        size_t unreachable_folds = 0;
 
         /// @brief The bidirectional search's half-way bound and join; empty from every other
         ///        algorithm.
@@ -544,6 +549,15 @@ class Algorithm {
             return timeout_override_.value_or(params_.timeout_s);
         }
 
+        /// @brief Sets the strengthening applied to forward labels before dominance, or none.
+        ///
+        /// `ResourceGraph::solve` sets it for one solve and clears it afterwards.
+        ///
+        /// @param strengthening The strengthening, owned by the caller; @c nullptr for none.
+        void set_label_strengthening(LabelStrengthening<ResourceType>* strengthening) {
+            label_strengthening_ = strengthening;
+        }
+
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
                 LOG_FATAL(
@@ -560,6 +574,7 @@ class Algorithm {
             label_pool_.clear();
             solutions_.clear();
             num_extended_labels_ = 0;
+            unreachable_folds_ = 0;
             effective_max_labels_per_node_ = params_.num_labels_to_extend_by_node;
             memory_pressure_triggered_ = false;
         }
@@ -744,6 +759,7 @@ class Algorithm {
         /// @param result The result about to be returned; never null.
         virtual void annotate(SolveResult* result) const {
             result->memory_pressure_triggered = memory_pressure_triggered_;
+            result->unreachable_folds = unreachable_folds_;
         }
 
         /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
@@ -938,6 +954,11 @@ class Algorithm {
         size_t nb_dominated_labels_{0};
         size_t num_extended_labels_ = 0;
         Timer total_full_extend_time_;
+
+        /// @brief Applied to forward labels before dominance; see @ref set_label_strengthening.
+        LabelStrengthening<ResourceType>* label_strengthening_ = nullptr;
+        /// @brief Changes @ref label_strengthening_ made during this solve.
+        size_t unreachable_folds_ = 0;
 
         bool timed_out_ = false;
         const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().

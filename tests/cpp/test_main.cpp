@@ -8,7 +8,8 @@
 //
 //   test_main.cpp                        graph, label, and utility tests
 //   test_resources.cpp                   resource types and their function objects
-//   test_algorithms.cpp                  the forward labelling algorithms and the VRP subproblem
+//   test_algorithms.cpp                  the forward labelling algorithms, the VRP subproblem and
+//                                        the label strengthening hook
 //   test_bidirectional_algorithms.cpp    the bidirectional algorithm and its oracles
 //   test_bidirectional_validation.cpp    its setup validation, and its benchmark
 //   test_join_contract.cpp               the join-rule contract (uses a second resource pack)

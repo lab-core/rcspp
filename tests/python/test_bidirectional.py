@@ -534,6 +534,7 @@ def test_result_reports_the_label_counts_and_dominance_checks():
     assert result.forward_labels > 0
     assert result.backward_labels > 0
     assert result.dominance_checks > 0
+    assert result.unreachable_folds == 0
     assert result.bidirectional.half_way_point_used == params.half_way_point
 
 
@@ -575,6 +576,7 @@ def test_a_forward_solve_leaves_the_backward_diagnostics_at_zero():
     assert result.forward_labels > 0
     assert result.backward_labels == 0
     assert result.dominance_checks > 0
+    assert result.unreachable_folds == 0
     assert result.bidirectional is None
 
 
