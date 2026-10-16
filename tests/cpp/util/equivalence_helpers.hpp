@@ -170,11 +170,20 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
 /// @brief The reference, on the ng model.
 ///
 /// The clock is still a `RealResource`, the cost's type, so the default clock type applies.
-inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
+///
+/// @tparam Algorithm       The forward labelling algorithm.
+/// @param config           The instance to build.
+/// @param fold_unreachable Whether the graph folds unreachable ng-neighbours.
+template <template <typename, typename> class Algorithm = SimpleDominanceAlgorithm>
+inline NgRun solve_forward_ng(const test_util::InstanceConfig& config,
+                              bool fold_unreachable = false) {
     NgRun run;
     auto built = test_util::build_ng_instance(config);
     run.graph = std::move(built.graph);
-    run.result = run.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    if (fold_unreachable) {
+        run.graph->enable_ng_unreachable_fold<SizeTBitsetResource>(0);
+    }
+    run.result = run.graph->solve<Algorithm>(AlgorithmBaseParams{});
     return run;
 }
 
@@ -186,11 +195,16 @@ inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
 /// @param cost_upper_bound Defaults to @ref kNonBindingUpperBound. Pass infinity to turn the
 ///                   joiner's incumbent cutoff back on, e.g. when replaying every joined path
 ///                   would be too slow.
+/// @param fold_unreachable Whether the graph folds unreachable ng-neighbours.
 inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, bool with_bound,
-                                    double cost_upper_bound = kNonBindingUpperBound) {
+                                    double cost_upper_bound = kNonBindingUpperBound,
+                                    bool fold_unreachable = false) {
     NgRun run;
     auto built = test_util::build_ng_instance(config);
     run.graph = std::move(built.graph);
+    if (fold_unreachable) {
+        run.graph->enable_ng_unreachable_fold<SizeTBitsetResource>(0);
+    }
 
     AlgorithmParams<LabelList<NgComposed>> params;
     params.critical_resource_index = built.clock_index;
