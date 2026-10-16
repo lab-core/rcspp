@@ -295,6 +295,67 @@ TEST(Presets, NgPathPresetForbidsEveryNodeItsNeighborhoodsMention) {
     EXPECT_EQ(result.solutions.front().path_arc_ids, (std::vector<size_t>{0, 3}));
 }
 
+// The ng preset turns the unreachable fold on when asked, and only then. Node 1 closes at 1, so a
+// label that reaches node 2 at 1 can no longer reach it, and the fold remembers it.
+TEST(Presets, NgPathCanFoldUnreachable) {
+    std::map<size_t, std::pair<double, double>> windows;
+    for (size_t node = 0; node < 4; ++node) {
+        windows[node] = {0.0, node == 1 ? 1.0 : 10.0};
+    }
+    const auto build = [&](presets::NgPathOptions options) {
+        auto graph = std::make_unique<ResourceGraph<RealResource, SizeTBitsetResource>>();
+        presets::add_cost_resource<RealResource>(*graph);
+        presets::add_window_resource<RealResource>(*graph, windows);
+        presets::add_ng_path_resource<SizeTBitsetResource>(*graph,
+                                                           {{1, {1, 2}}, {2, {1, 2}}},
+                                                           options);
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        graph->add_node(1);
+        graph->add_node(2);
+        graph->add_node(3, /*source=*/false, /*sink=*/true);
+        // {cost, time, ng payload}; the payload is ignored, the memory reads the arc's endpoints.
+        const std::set<size_t> none;
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-1.0, 1.0, none},
+                                                                        0,
+                                                                        1,
+                                                                        -1.0);
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-1.0, 1.0, none},
+                                                                        0,
+                                                                        2,
+                                                                        -1.0);
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-1.0, 1.0, none},
+                                                                        1,
+                                                                        2,
+                                                                        -1.0);
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-1.0, 1.0, none},
+                                                                        2,
+                                                                        1,
+                                                                        -1.0);
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-1.0, 1.0, none},
+                                                                        1,
+                                                                        3,
+                                                                        -1.0);
+        graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-1.0, 1.0, none},
+                                                                        2,
+                                                                        3,
+                                                                        -1.0);
+        return graph;
+    };
+
+    auto plain = build({});
+    EXPECT_FALSE(plain->is_ng_unreachable_fold_enabled());
+    auto folding = build({.fold_unreachable = true});
+    ASSERT_TRUE(folding->is_ng_unreachable_fold_enabled());
+
+    const auto plain_result = plain->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto folding_result = folding->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    EXPECT_EQ(plain_result.unreachable_folds, 0U);
+    EXPECT_GT(folding_result.unreachable_folds, 0U);
+    ASSERT_FALSE(plain_result.solutions.empty());
+    ASSERT_FALSE(folding_result.solutions.empty());
+    EXPECT_DOUBLE_EQ(folding_result.solutions.front().cost, plain_result.solutions.front().cost);
+}
+
 // The derived dominance reversal. A preset owns its objects, so its half is checked indirectly:
 // a wrong reversal would make the bidirectional solve find nothing.
 TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
