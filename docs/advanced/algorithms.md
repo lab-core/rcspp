@@ -377,6 +377,45 @@ bidirectional pricer can be used throughout.
 (`examples/cpp/vrp/ng_growth.hpp`) and brakes, applied on every proven convergence, against fixed
 sizes on the same instances.
 
+### Folding unreachable ng-neighbours
+
+A forward label may still remember a neighbour it can never visit again: the time window there has
+closed, or the vehicle is too full. Remembering such a node changes nothing for the label itself,
+but it lets dominance discard more labels, since inclusion of memories is part of dominance.
+`enable_ng_unreachable_fold` does this for every forward label that passes its feasibility test,
+before dominance compares it:
+
+```cpp
+presets::add_ng_path_resource<SizeTBitsetResource>(graph, neighbourhoods,
+                                                   {.fold_unreachable = true});
+// or, on a graph already built:
+graph.enable_ng_unreachable_fold<SizeTBitsetResource>(/*component=*/0);
+```
+
+A neighbour `x` of the label's node `j` is folded into its memory when, for some threshold resource,
+the label's value plus the **least consumption of any path** from `j` to `x` exceeds the resource's
+upper bound at `x`. A threshold resource is a component whose extension function is a
+`TranslationThresholdForm` (time windows and capacities): its forward value only grows along a path
+and is raised, never lowered, at each node, so arriving at `x` costs at least that much. The bound is
+the form's own (`ThresholdForm::node_upper_bound`), which is the paired feasibility function's.
+
+**The solutions do not change.** A label with `x` folded has no feasible completion through `x`, so
+forbidding `x` forbids nothing feasible. Dominance stays valid, since a dominating label has no
+larger threshold values and so no more unreachable nodes. A bidirectional join stays exact too: a
+backward label whose suffix visits `x` has a deadline at `j` below the folded label's value, so the
+threshold test at the meeting point already rejects the pair. The labels that survive dominance
+are fewer, and so may be the columns returned at a sink.
+
+The least consumptions are shortest paths over the arcs the solve searches, recomputed before each
+solve. So the test holds without assuming the triangle inequality, and it follows
+`set_ng_neighborhoods`, clones and arcs removed by preprocessing. A threshold resource with a
+negative arc consumption is ignored for that solve, since a longer path could then consume less.
+
+Applied to forward labels only, by `ResourceGraph::solve`: a backward search, and a direct
+`Algorithm::solve` call, run without it. `SolveResult::unreachable_folds` counts the nodes folded.
+It costs one shortest-path search per node and threshold resource before each solve, then a few
+comparisons per label.
+
 ### A pricing budget that still ends proven
 
 Most of a column generation's pricing time goes into solves whose only job is to find *some*

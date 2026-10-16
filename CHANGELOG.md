@@ -118,6 +118,14 @@ New features are summarised, with a pointer to where they are documented.
   solution and remove the master columns it makes infeasible. See "Growing ng neighbourhoods
   between solves" in `docs/advanced/algorithms.md`.
 
+- **Folding unreachable ng-neighbours** (C++). `ResourceGraph::enable_ng_unreachable_fold<R>`, or
+  `presets::add_ng_path_resource(..., {.fold_unreachable = true})`, adds to each forward label's ng
+  memory the neighbours that no path lets it reach within a time window or capacity, so dominance
+  discards more labels while the solutions stay the same. `SolveResult::unreachable_folds` (also in
+  Python) counts them, `ThresholdForm::node_upper_bound` exposes the bound it tests against, and
+  the VRP example's ng drivers gain `--compare-fold` and `--fold-unreachable`. See "Folding
+  unreachable ng-neighbours" in `docs/advanced/algorithms.md`.
+
 - **Budgets on the bidirectional join** (C++ and Python). `join_column_budget` keeps only the
   join's cheapest K paths without stopping the search, so the optimum and a `complete` status are
   unchanged. `max_join_pairs` caps the join's work in join-rule questions.
