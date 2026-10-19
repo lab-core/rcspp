@@ -81,8 +81,15 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             }
 
             auto* problems = &report->problems;
+            std::vector<std::string> extension_names;
+            model.arc->extender->for_each_component([&](const auto& component) {
+                extension_names.push_back(component.extension_function_name());
+            });
             model.for_each_component([&](const auto& component, BackwardKind kind, size_t index) {
-                describe_problem(component, kind, index, problems);
+                const std::string extension_name = index < extension_names.size()
+                                                       ? extension_names[index]
+                                                       : "no extension function";
+                describe_problem(component, kind, index, extension_name, problems);
             });
             const auto needs_scan = check_threshold_clamps(graph, model.kinds, problems);
             if (backward_labels_end_paths_) {
@@ -93,10 +100,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             // The composition dominance function must also have a backward form.
             try {
                 static_cast<void>(node->resource->back_dominates(*node->resource));
-            } catch (const NoBackwardDominance&) {
-                problems->emplace_back(
-                    "the model's composition dominance function has no backward form; override "
-                    "check_back_dominance (CompositionDominanceFunction, the default, has one)");
+            } catch (const NoBackwardDominance& error) {
+                problems->emplace_back(error.what());
             }
 
             // So must the composition extension and feasibility functions: probed once, before
@@ -104,25 +109,19 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             try {
                 Resource<ResourceType> probe(*node->resource);
                 model.arc->extender->extend_back(*node->resource, &probe);
-            } catch (const NoBackwardExtension&) {
-                problems->emplace_back(
-                    "the model's composition extension function has no backward form; override "
-                    "extend_back (CompositionExtensionFunction, the default, has one)");
+            } catch (const NoBackwardExtension& error) {
+                problems->emplace_back(error.what());
             }
             try {
                 Resource<ResourceType> probe(*node->resource);
                 model.arc->extender->start_back(&probe);
-            } catch (const NoBackwardExtension&) {
-                problems->emplace_back(
-                    "the model's composition extension function has no backward start; override "
-                    "start_back (CompositionExtensionFunction, the default, has one)");
+            } catch (const NoBackwardExtension& error) {
+                problems->emplace_back(error.what());
             }
             try {
                 static_cast<void>(node->resource->is_back_feasible());
-            } catch (const NoBackwardFeasibility&) {
-                problems->emplace_back(
-                    "the model's composition feasibility function has no backward form; override "
-                    "is_back_feasible (CompositionFeasibilityFunction, the default, has one)");
+            } catch (const NoBackwardFeasibility& error) {
+                problems->emplace_back(error.what());
             }
 
             // A backward label's cost must be the forward cost of its part of the path: the join
@@ -148,10 +147,13 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         /// @brief Records what, if anything, is wrong with one component's backward declarations.
         template <typename ComponentResource>
         static void describe_problem(const ComponentResource& component, BackwardKind kind,
-                                     size_t index, std::vector<std::string>* problems) {
+                                     size_t index, const std::string& extension_name,
+                                     std::vector<std::string>* problems) {
             const std::string label = "component " + std::to_string(index);
             if (kind == BackwardKind::Unspecified) {
-                problems->push_back(label + ": its extension function declares no backward_kind()");
+                problems->push_back(label +
+                                    ": its extension function declares no backward_kind() (" +
+                                    extension_name + ")");
             }
             // A feasibility function that cannot say how two halves join has a test about what the
             // path has collected up to a node. A threshold's backward value is a limit, which the

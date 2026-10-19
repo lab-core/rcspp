@@ -587,6 +587,9 @@ TEST(ModelChecks, AnUndeclaredComponentIsNamed) {
     EXPECT_NE(both.find("component 0: its feasibility function declares no join_rule()"),
               std::string::npos)
         << both;
+    // Each names the class to fix.
+    EXPECT_NE(both.find("UndeclaredExtensionFunction"), std::string::npos) << both;
+    EXPECT_NE(both.find("UndeclaredFeasibilityFunction"), std::string::npos) << both;
     const std::string backward = mc::problems(*graph, SearchDirection::Backward);
     EXPECT_NE(backward.find("backward_kind"), std::string::npos) << backward;
     EXPECT_EQ(backward.find("join_rule"), std::string::npos) << backward;
@@ -694,6 +697,8 @@ TEST(ModelChecks, AForwardOnlyCompositionDominanceIsRefused) {
         const std::string message = mc::problems(*graph, direction);
         EXPECT_NE(message.find("check_back_dominance"), std::string::npos)
             << to_string(direction) << ": " << message;
+        EXPECT_NE(message.find("CostOnlyDominance"), std::string::npos)
+            << to_string(direction) << ": " << message;
     }
     EXPECT_TRUE(graph->check_model(SearchDirection::Forward).ok());
 }
@@ -713,6 +718,8 @@ TEST(ModelChecks, CompositionFunctionsWithoutABackwardFormAreRefused) {
     const std::string extension_message =
         mc::problems(*extension_only, SearchDirection::Bidirectional);
     EXPECT_NE(extension_message.find("extend_back"), std::string::npos) << extension_message;
+    EXPECT_NE(extension_message.find("ForwardOnlyCompositionExtension"), std::string::npos)
+        << extension_message;
     EXPECT_NE(mc::problems(*extension_only, SearchDirection::Backward).find("extend_back"),
               std::string::npos);
 
@@ -722,6 +729,8 @@ TEST(ModelChecks, CompositionFunctionsWithoutABackwardFormAreRefused) {
     const std::string both = mc::problems(*feasibility_only, SearchDirection::Bidirectional);
     EXPECT_NE(both.find("is_back_feasible"), std::string::npos) << both;
     EXPECT_NE(both.find("can_be_joined"), std::string::npos) << both;
+    EXPECT_NE(both.find("ForwardOnlyCompositionFeasibility"), std::string::npos) << both;
+    EXPECT_EQ(both.find("rcspp::"), std::string::npos) << both;
     EXPECT_EQ(both.find("not implemented"), std::string::npos) << both;
     const std::string backward = mc::problems(*feasibility_only, SearchDirection::Backward);
     EXPECT_NE(backward.find("is_back_feasible"), std::string::npos) << backward;

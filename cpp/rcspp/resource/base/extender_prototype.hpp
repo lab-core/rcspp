@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -13,6 +14,7 @@
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/utils/logger.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
 
@@ -118,6 +120,15 @@ class ExtenderPrototype {
         [[nodiscard]] BackwardKind backward_kind() const {
             return extension_function_ != nullptr ? extension_function_->backward_kind()
                                                   : BackwardKind::Unspecified;
+        }
+
+        /// @brief The class name of this arc's extension function, for the model checks' messages.
+        ///
+        /// @return Its demangled dynamic type, without the `rcspp::` qualifiers, or
+        ///         `"no extension function"` when none is bound.
+        [[nodiscard]] std::string extension_function_name() const {
+            return extension_function_ != nullptr ? short_type_name(*extension_function_)
+                                                  : "no extension function";
         }
 
     protected:

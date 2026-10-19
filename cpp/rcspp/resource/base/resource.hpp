@@ -5,11 +5,13 @@
 
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include "rcspp/resource/base/resource_prototype.hpp"
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
 
@@ -255,6 +257,17 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         ///
         /// @return The declared @ref JoinRule.
         [[nodiscard]] auto join_rule() const -> JoinRule { return this->join_rule_; }
+
+        /// @brief The class name of this resource's feasibility function, for the model checks'
+        ///        messages.
+        ///
+        /// @return Its demangled dynamic type, without the `rcspp::` qualifiers, or
+        ///         `"no feasibility function"` when none is bound.
+        [[nodiscard]] auto feasibility_function_name() const -> std::string {
+            return this->feasibility_function_ != nullptr
+                       ? short_type_name(*this->feasibility_function_)
+                       : "no feasibility function";
+        }
 
         /// @brief Whether this resource's join test needs a running sum that no arc lowers.
         ///

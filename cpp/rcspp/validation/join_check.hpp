@@ -61,10 +61,8 @@ class JoinCheck final : public ModelCheck<ResourceType> {
             if (problems->size() == reported_before) {
                 try {
                     static_cast<void>(node->resource->can_be_joined(*node->resource));
-                } catch (const NoBackwardFeasibility&) {
-                    problems->emplace_back(
-                        "the model's composition feasibility function has no join test; override "
-                        "can_be_joined (CompositionFeasibilityFunction, the default, has one)");
+                } catch (const NoBackwardFeasibility& error) {
+                    problems->emplace_back(error.what());
                 }
             }
         }
@@ -81,7 +79,8 @@ class JoinCheck final : public ModelCheck<ResourceType> {
             const std::string label = "component " + std::to_string(index);
 
             if (rule == JoinRule::Unspecified) {
-                problems->push_back(label + ": its feasibility function declares no join_rule()");
+                problems->push_back(label + ": its feasibility function declares no join_rule() (" +
+                                    component.feasibility_function_name() + ")");
             }
             if constexpr (!is_numerical_resource_v<ComponentValue>) {
                 if (rule == JoinRule::ValueOrder) {
