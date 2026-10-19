@@ -13,6 +13,7 @@
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
 
@@ -200,9 +201,10 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/,
             const Extender<ResourceTypeComposition<ResourceTypes...>>& /*extender*/,
             Resource<ResourceTypeComposition<ResourceTypes...>>* /*extended_resource*/) {
-            throw NoBackwardExtension(
-                "this composition extension function has no backward form: override "
-                "extend_back, as CompositionExtensionFunction does");
+            throw NoBackwardExtension("the composition extension function " +
+                                      short_type_name(*this) +
+                                      " has no backward form: override extend_back, as "
+                                      "CompositionExtensionFunction does");
         }
 
         /// @brief Sets the values a backward label starts with at the arc's destination.
@@ -216,9 +218,10 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
         virtual void start_back(
             const Extender<ResourceTypeComposition<ResourceTypes...>>& /*extender*/,
             Resource<ResourceTypeComposition<ResourceTypes...>>* /*resource*/) {
-            throw NoBackwardExtension(
-                "this composition extension function has no backward start: override "
-                "start_back, as CompositionExtensionFunction does");
+            throw NoBackwardExtension("the composition extension function " +
+                                      short_type_name(*this) +
+                                      " has no backward start: override start_back, as "
+                                      "CompositionExtensionFunction does");
         }
 
         /// @brief Creates a polymorphic copy of this extension function.

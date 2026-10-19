@@ -10,6 +10,7 @@
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
 
@@ -203,9 +204,10 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         /// @throws NoBackwardFeasibility unless overridden.
         [[nodiscard]] virtual auto is_back_feasible(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/) -> bool {
-            throw NoBackwardFeasibility(
-                "this composition feasibility function has no backward form: override "
-                "is_back_feasible, as CompositionFeasibilityFunction does");
+            throw NoBackwardFeasibility("the composition feasibility function " +
+                                        short_type_name(*this) +
+                                        " has no backward form: override is_back_feasible, as "
+                                        "CompositionFeasibilityFunction does");
         }
 
         /// @brief Whether a forward and a backward composed label fit together.
@@ -220,9 +222,10 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto can_be_joined(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*back_resource*/) -> bool {
-            throw NoBackwardFeasibility(
-                "this composition feasibility function has no join test: override "
-                "can_be_joined, as CompositionFeasibilityFunction does");
+            throw NoBackwardFeasibility("the composition feasibility function " +
+                                        short_type_name(*this) +
+                                        " has no join test: override can_be_joined, as "
+                                        "CompositionFeasibilityFunction does");
         };
 
         /// @brief Not read: a composition has no rule of its own. The bidirectional setup reads

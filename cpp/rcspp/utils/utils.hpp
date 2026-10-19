@@ -5,6 +5,7 @@
 
 #include <cstdlib>
 #include <string>
+#include <string_view>
 #include <typeinfo>
 
 #if defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER))
@@ -50,5 +51,23 @@ inline std::string demangle(const std::type_info& ti) {
 template <typename T>
 inline std::string demangle(const T& obj) {
     return demangle(typeid(obj));
+}
+
+/// @brief Returns the demangled dynamic type name of @p obj, without its `rcspp::` qualifiers.
+///
+/// Error messages name the user's class this way: the library namespace only adds noise.
+///
+/// @tparam T   Type of the object (deduced).
+/// @param  obj Object whose dynamic type name to return.
+/// @return     Demangled type name, e.g. `"TimeWindowFeasibilityFunction<RealResource>"`.
+template <typename T>
+inline std::string short_type_name(const T& obj) {
+    constexpr std::string_view kNamespace = "rcspp::";
+    std::string name = demangle(obj);
+    for (auto pos = name.find(kNamespace); pos != std::string::npos;
+         pos = name.find(kNamespace, pos)) {
+        name.erase(pos, kNamespace.size());
+    }
+    return name;
 }
 }  // namespace rcspp

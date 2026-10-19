@@ -9,6 +9,7 @@
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
 
@@ -179,9 +180,10 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         [[nodiscard]] virtual auto check_back_dominance(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*lhs_resource*/,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*rhs_resource*/) -> bool {
-            throw NoBackwardDominance(
-                "this composition dominance function has no backward form: override "
-                "check_back_dominance, as CompositionDominanceFunction does");
+            throw NoBackwardDominance("the composition dominance function " +
+                                      short_type_name(*this) +
+                                      " has no backward form: override check_back_dominance, as "
+                                      "CompositionDominanceFunction does");
         }
 
         /// @brief Creates a polymorphic copy of this dominance function.
