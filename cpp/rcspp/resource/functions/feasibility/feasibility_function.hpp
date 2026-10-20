@@ -26,7 +26,8 @@ class Resource;
 enum class JoinRule {
     Unspecified,  ///< no join test: a bidirectional solve refuses the resource
     AlwaysTrue,   ///< never blocks a join (a cost, an unconstrained set)
-    ValueOrder,   ///< the forward value is at most the backward one: `f <= b`
+    ValueOrder,   ///< the forward value is at most the backward one, `f <= b`, compared by value,
+                  ///< not by the dominance function
     Custom,       ///< the feasibility function's own can_be_joined decides
 };
 

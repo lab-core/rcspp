@@ -73,7 +73,9 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
         /// @brief Backward step: @c backward_value, lowered to the origin's upper bound.
         ///
         /// Never raised: a value below that node's lower bound is a deadline no forward label can
-        /// meet, and becomes @c unmeetable.
+        /// meet, and becomes @c unmeetable. The extension marks it itself: a forward label waits
+        /// at the node, so no arrival meets a deadline below the opening time, and the
+        /// feasibility function may not check that.
         ///
         /// @param resource           Current resource of the backward label.
         /// @param extender_value     Arc's consumption.
@@ -81,6 +83,9 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
         ///                           `lowest()` when that is below the origin's lower bound.
         void extend_back(const R& resource, const R& extender_value, R* extended_resource) final {
             if constexpr (std::is_signed_v<V>) {
+                // Already unmeetable: keep it so. The feasibility function may not reject it
+                // (MinMaxFeasibilityFunction(0, close) does not), and lowest() - arc would
+                // overflow.
                 if (resource.get_value() == unmeetable) {
                     extended_resource->set_value(unmeetable);
                     return;
