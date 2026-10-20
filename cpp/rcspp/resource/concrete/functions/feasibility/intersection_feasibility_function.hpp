@@ -19,7 +19,7 @@ namespace rcspp {
 
 /// @brief Whether an element of the memory can be compared against a node id.
 ///
-/// Used by @c IntersectionFeasibilityFunction to detect the ng-route condition
+/// Used by @c IntersectionFeasibilityFunction to detect the self-forbidden condition
 /// (`forbidden(v) = {v}`); element types failing this are treated as not holding node ids.
 template <typename ValueType>
 concept ComparableToNodeId = requires(const ValueType& element, size_t node_id) {
@@ -35,9 +35,9 @@ concept ComparableToNodeId = requires(const ValueType& element, size_t node_id) 
 /// avoided).  When @p forbidden is `false`, the label is feasible only if the
 /// intersection is non-empty (i.e., the set contains values that must be present).
 ///
-/// Bidirectional use requires the ng-route condition, `forbidden(v) = {v}` at every node that has
-/// an entry (see @c presets::add_ng_path_resource); the checks refuse other entries. A node with
-/// no entry may be revisited, and the join test lets two halves share it. Forward-only use is
+/// Bidirectional use requires the **self-forbidden condition**: every node with a non-empty entry
+/// forbids exactly itself, `forbidden(v) = {v}`. The checks refuse other entries. A node with no
+/// entry may be revisited, and the join test lets two halves share it. Forward-only use is
 /// unrestricted.
 ///
 /// @tparam ContainerResourceType The resource type whose value is a container
@@ -71,7 +71,7 @@ class IntersectionFeasibilityFunction
                 return !entry.second.empty();
             });
 
-            // Whether every constraining entry is the node's own singleton (the ng-route
+            // Whether every constraining entry is the node's own singleton (the self-forbidden
             // condition). Conservatively false for element types not comparable to node ids.
             if constexpr (ComparableToNodeId<ValueType>) {
                 self_forbidden_only_ =
@@ -96,7 +96,7 @@ class IntersectionFeasibilityFunction
         ///        itself.
         ///
         /// Plain disjointness would also refuse a node both halves remember but that has no
-        /// forbidden entry, which the model lets a path revisit. Exact under the ng-route
+        /// forbidden entry, which the model lets a path revisit. Exact under the self-forbidden
         /// condition, the only configuration whose join rule is @c Custom.
         ///
         /// @param resource      The forward label's value.
@@ -131,8 +131,8 @@ class IntersectionFeasibilityFunction
             return resource.intersects(values_.get_value()) ^ forbidden_;
         }
 
-        /// @brief How the join tests this function: @c Custom under the ng-route condition (each
-        ///        node forbids only itself), @c AlwaysTrue when it constrains nothing,
+        /// @brief How the join tests this function: @c Custom under the self-forbidden condition
+        ///        (each node forbids only itself), @c AlwaysTrue when it constrains nothing,
         ///        @c Unspecified otherwise, since a backward label cannot check a condition on the
         ///        path before it.
         ///
@@ -150,8 +150,8 @@ class IntersectionFeasibilityFunction
             return self_forbidden_only_ ? JoinRule::Custom : JoinRule::Unspecified;
         }
 
-        /// @brief Whether this function carries the ng-route condition, whose backward reading
-        ///        needs a memory at `v` that excludes `v` (@c BackwardKind::ArcEndpoints).
+        /// @brief Whether this function carries the self-forbidden condition, whose backward
+        ///        reading needs a memory at `v` that excludes `v` (@c BackwardKind::ArcEndpoints).
         ///
         /// @return @c true exactly when @ref join_rule answers @c Custom.
         [[nodiscard]] bool requires_arc_endpoints() const override {
@@ -170,7 +170,7 @@ class IntersectionFeasibilityFunction
         ///        reports the same join rule.
         bool constrains_something_ = false;
 
-        /// @brief Whether every constraining entry forbids exactly its own node (the ng-route
+        /// @brief Whether every constraining entry forbids exactly its own node (the self-forbidden
         ///        condition). Whole-function, not per node; see @ref join_rule.
         bool self_forbidden_only_ = false;
 

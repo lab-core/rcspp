@@ -18,6 +18,12 @@ namespace rcspp {
 /// forward side (leave the origin, arrive at the destination) and the backward side (the
 /// reverse) from the arc's endpoints, so the swap is written once. The arc's value is not used.
 ///
+/// Why it exists: a memory adds "the node the label leaves". Going backward over arc (u, v), the
+/// label leaves v, not u. A memory filled from the arc's value (`{u}`) would add u in both
+/// directions, so a backward label at u would hold u itself and be rejected at once. This form
+/// reads the node from the arc's ends instead, and swaps them for the backward direction.
+/// @c NgPathExtensionFunction is built on it.
+///
 /// Because the set is filtered on arrival, a forward and a backward label meeting at a node both
 /// hold sets filtered by that node, and the join can compare them directly.
 ///
