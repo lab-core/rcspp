@@ -170,10 +170,17 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief Collects terminal labels from BOTH directions, then runs the join pass.
+        /// @brief Collects the complete paths, from three places.
         ///
-        /// A path whose clock never crosses `H` is found only by a search reaching a terminal, not
-        /// by the join. Duplicates across the sources are absorbed by `Solution`'s hash.
+        ///  1. Forward labels at a sink: paths the forward search finished on its own.
+        ///  2. Backward labels at a source: paths the backward search finished on its own, turned
+        ///     into forward order.
+        ///  3. The join: a forward label that crossed `H` on its last arc, paired with a backward
+        ///     label at the same node.
+        ///
+        /// 1 and 2 are needed because the join only sees paths that cross `H`. They run first, so
+        /// the join prunes against the best path found so far. A path found twice is kept once.
+        /// The join is skipped after an interrupt.
         void extract_remaining_solutions() override {
             for (const auto* label : this->template get_labels_at_terminals<ForwardDirection>(
                      this->non_dominated_labels_by_node_pos_)) {
