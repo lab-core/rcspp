@@ -149,15 +149,8 @@ class BidirectionalDominanceAlgorithm
         void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
             size_t iteration = 0;
             while (number_of_labels() > 0 && !this->should_stop(iteration)) {
-                if (iteration > 0 && this->memory_limit_.effective_limit > 0 &&
-                    iteration % this->params_.memory_check_interval == 0) {
-                    if (this->memory_limit_.is_exceeded()) {
-                        LOG_WARN("Memory limit exceeded. Stopping early.\n");
-                        break;
-                    }
-                    if (this->memory_limit_.is_under_pressure()) {
-                        this->on_memory_pressure();
-                    }
+                if (this->memory_limit_reached(iteration)) {
+                    break;
                 }
                 ++iteration;
 

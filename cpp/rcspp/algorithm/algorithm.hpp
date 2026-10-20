@@ -449,7 +449,8 @@ class Algorithm {
                                   params_.limit_to_available_ram,
                                   params_.limit_to_total_ram,
                                   params_.memory_limit_fraction,
-                                  params_.memory_pressure_fraction);
+                                  params_.memory_pressure_fraction,
+                                  params_.memory_check_interval);
             initialize(graph, cost_upper_bound);
 
             // initialize labels
@@ -611,6 +612,36 @@ class Algorithm {
         /// this to trim those queues, slowing further RSS growth before the
         /// hard limit is hit.
         virtual void on_memory_pressure() {}
+
+        /// @brief A main loop's periodic memory check: logs, trims the queues under pressure
+        ///        (@ref on_memory_pressure), and says whether the loop must stop.
+        ///
+        /// The memory is read every @c memory_check_interval iterations only, never at 0.
+        ///
+        /// @param iteration The main loop's iteration count.
+        /// @return @c true when the memory limit is exceeded.
+        bool memory_limit_reached(size_t iteration) {
+            switch (memory_limit_.check(iteration)) {
+                case MemoryState::Exceeded:
+                    LOG_WARN("Memory limit (",
+                             memory_limit_.effective_limit / kMB,
+                             " MB) exceeded (current: ",
+                             MemoryInfo::process_bytes() / kMB,
+                             " MB). Stopping early.\n");
+                    return true;
+                case MemoryState::UnderPressure:
+                    LOG_INFO("Memory pressure: ",
+                             MemoryInfo::process_bytes() / kMB,
+                             " MB / ",
+                             memory_limit_.effective_limit / kMB,
+                             " MB. Trimming label queues.\n");
+                    on_memory_pressure();
+                    return false;
+                case MemoryState::Ok:
+                    return false;
+            }
+            return false;
+        }
 
         /// @brief Release all label memory held by the pool and label containers.
         ///

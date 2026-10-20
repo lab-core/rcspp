@@ -35,25 +35,9 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void main_loop() override {  // NOLINT
             size_t i = 0;
             while (number_of_labels() > 0 && !this->should_stop(i)) {
-                // Periodic memory check (pulling: each iteration processes one node).
-                if (i > 0 && this->memory_limit_.effective_limit > 0 &&
-                    i % this->params_.memory_check_interval == 0) {
-                    if (this->memory_limit_.is_exceeded()) {
-                        LOG_WARN("Memory limit (",
-                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
-                                 " MB) exceeded (current: ",
-                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
-                                 " MB). Stopping early.\n");
-                        break;
-                    }
-                    if (this->memory_limit_.is_under_pressure()) {
-                        LOG_INFO("Memory pressure: ",
-                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
-                                 " MB / ",
-                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
-                                 " MB. Trimming label queues.\n");
-                        this->on_memory_pressure();
-                    }
+                // Pulling: each iteration processes one node.
+                if (this->memory_limit_reached(i)) {
+                    break;
                 }
 
                 ++i;
