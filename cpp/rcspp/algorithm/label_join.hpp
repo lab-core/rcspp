@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <unordered_set>
 #include <utility>
@@ -192,18 +193,18 @@ class Joiner {
                         if (cost >= worst()) {
                             return;
                         }
-                        std::ranges::pop_heap(heap_, by_cost);
+                        std::ranges::pop_heap(heap_, std::less{}, &Path::cost);
                         kept_.erase(heap_.back().arc_ids);
                         heap_.pop_back();
                     }
                     kept_.insert(arc_ids);
                     heap_.push_back({cost, std::move(arc_ids), end_node_id});
-                    std::ranges::push_heap(heap_, by_cost);
+                    std::ranges::push_heap(heap_, std::less{}, &Path::cost);
                 }
 
                 /// @brief The kept paths, cheapest first; empties the heap.
                 [[nodiscard]] std::vector<Path> take() {
-                    std::ranges::sort_heap(heap_, by_cost);
+                    std::ranges::sort_heap(heap_, std::less{}, &Path::cost);
                     kept_.clear();
                     return std::move(heap_);
                 }
@@ -218,10 +219,6 @@ class Joiner {
                             }
                             return static_cast<size_t>(hash);
                         }
-                };
-
-                static constexpr auto by_cost = [](const Path& lhs, const Path& rhs) {
-                    return lhs.cost < rhs.cost;
                 };
 
                 size_t capacity_;
@@ -259,10 +256,7 @@ class Joiner {
                 }
                 labels.push_back(label);
             }
-            std::ranges::sort(labels, [](const auto* lhs, const auto* rhs) {
-                return lhs->get_cost() < rhs->get_cost();
-            });
-            return labels;
+            return cheapest_first(std::move(labels));
         }
 
         /// @brief A node's labels, cheapest first.
@@ -275,11 +269,19 @@ class Joiner {
         template <typename Container>
         [[nodiscard]] static std::vector<Label<ResourceType>*> sorted_by_cost(
             const Container& container) {
-            std::vector<Label<ResourceType>*> labels(container.get_labels().begin(),
-                                                     container.get_labels().end());
-            std::ranges::sort(labels, [](const auto* lhs, const auto* rhs) {
-                return lhs->get_cost() < rhs->get_cost();
-            });
+            return cheapest_first({container.get_labels().begin(), container.get_labels().end()});
+        }
+
+        /// @brief @p labels, cheapest first.
+        ///
+        /// A strict order, as sorting requires: labels of equal cost keep no particular order,
+        /// which the join's early exits (`cost >= bound`) do not depend on.
+        ///
+        /// @param labels The labels to sort.
+        /// @return @p labels, sorted by cost.
+        [[nodiscard]] static std::vector<Label<ResourceType>*> cheapest_first(
+            std::vector<Label<ResourceType>*> labels) {
+            std::ranges::sort(labels, std::less{}, &Label<ResourceType>::get_cost);
             return labels;
         }
 
