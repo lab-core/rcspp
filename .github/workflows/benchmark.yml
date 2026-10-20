@@ -31,6 +31,7 @@ jobs:
     # NOTE: Gurobi must be installed on the runner and GUROBI_HOME must be set.
     # Use a self-hosted runner with Gurobi, or adjust the "Install Gurobi" step.
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
@@ -47,14 +48,15 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DUSE_VRP=ON \
             -DUSE_PYTHON=OFF \
-            -DUSE_TESTS=OFF
+            -DUSE_TESTS=OFF \
+            "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build small benchmark
-        run: cmake --build build --target rcspp-vrp-benchmark --parallel
+        run: cmake --build build --target rcspp-vrp-benchmark --parallel 4
 
       - name: Build large benchmark
         if: inputs.run_large
-        run: cmake --build build --target rcspp-vrp-benchmark-large --parallel
+        run: cmake --build build --target rcspp-vrp-benchmark-large --parallel 4
 
       - name: Run small benchmark (C1/R1/RC1)
         run: |

@@ -1,12 +1,13 @@
 name: CI Full
 
-# Full test matrix (all OS × build types × Python versions) plus wheel/sdist builds.
-# Triggered manually ("Run workflow") or by posting `/run-ci` in any PR comment.
-# The coverage gate also runs automatically on push/PR to main (ci.yml).
+# Test matrix on Linux, macOS and Windows (see the test job), plus wheel/sdist builds.
+# Triggered manually ("Run workflow") or by adding the `run-ci` label to a pull request (remove
+# and add it again to re-run). The coverage gate also runs automatically on push/PR to main
+# (ci.yml).
 on:
   workflow_dispatch:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [labeled]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -19,41 +20,36 @@ jobs:
   # ── Coverage gate (reuses ci.yml definition — no duplication) ─────────────
   coverage:
     name: Coverage Gate
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '/run-ci'))
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     uses: ./.github/workflows/ci.yml
 
   test:
-    name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '/run-ci'))
+    name: Test / ${{ matrix.os }} / ${{ matrix.build-type }} / py${{ matrix.python-version }}${{ matrix.suites == 'python' && ' / Python only' || '' }}
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-ci'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 45 || 30 }}
     strategy:
       fail-fast: false
+      # Per OS: the C++ and Python suites on the newest Python, and the Python suite alone on the
+      # oldest supported one (a failure specific to one Python version shows at either end
+      # first); the C++ executable does not depend on the Python version, so it is built once.
+      # Plus the C++ suite in Debug on Windows, where MSVC's checked iterators catch what the
+      # other standard libraries do not. The coverage gate already runs the asserts on Linux.
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        build-type: [Debug, Release]
-        python-version: ['3.11', '3.12', '3.13', '3.14']
-        exclude:
-          # Debug builds don't run Python tests — only one Python version needed
-          - build-type: Debug
-            python-version: '3.11'
-          - build-type: Debug
-            python-version: '3.12'
-          - build-type: Debug
-            python-version: '3.14'
+        include:
+          - {os: ubuntu-latest, build-type: Release, python-version: '3.14', suites: all}
+          - {os: ubuntu-latest, build-type: Release, python-version: '3.11', suites: python}
+          - {os: macos-latest, build-type: Release, python-version: '3.14', suites: all}
+          - {os: macos-latest, build-type: Release, python-version: '3.11', suites: python}
+          - {os: windows-latest, build-type: Release, python-version: '3.14', suites: all}
+          - {os: windows-latest, build-type: Release, python-version: '3.11', suites: python}
+          - {os: windows-latest, build-type: Debug, python-version: '3.14', suites: cpp}
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: true
-          # When triggered by a PR comment, check out the PR head branch
-          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.sha }}
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -72,27 +68,34 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+          # The C++-only job installs nothing with pip, and an empty pip cache fails the save.
+          cache: ${{ matrix.suites != 'cpp' && 'pip' || '' }}
+          cache-dependency-path: tests/python/requirements.txt
 
       - name: Configure
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
-            -DUSE_PYTHON=ON \
-            -DUSE_TESTS=ON \
+            -DUSE_PYTHON=${{ matrix.suites != 'cpp' && 'ON' || 'OFF' }} \
+            -DUSE_TESTS=${{ matrix.suites != 'python' && 'ON' || 'OFF' }} \
             "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build-type }} --parallel
+        # One compile per core. A bare --parallel lets make start every translation unit at
+        # once; on the 3-core, 7 GB macOS runners the heavy template TUs then fight for memory.
+        run: cmake --build build --config ${{ matrix.build-type }} --parallel ${{ runner.os == 'macOS' && 3 || 4 }}
 
       - name: C++ tests
-        run: ctest --test-dir build -C ${{ matrix.build-type }} --output-on-failure
+        if: matrix.suites != 'python'
+        # Each test is its own process; four at a time fill the runner's cores.
+        run: ctest --test-dir build -C ${{ matrix.build-type }} --output-on-failure --parallel 4
 
       - name: Install Python test dependencies
-        if: matrix.build-type == 'Release'
+        if: matrix.suites != 'cpp'
         run: pip install pytest -r tests/python/requirements.txt
 
       - name: Python tests
-        if: matrix.build-type == 'Release'
+        if: matrix.suites != 'cpp'
         working-directory: tests/python
         run: pytest -v --tb=short
 
@@ -100,6 +103,7 @@ jobs:
     name: Wheels / ${{ matrix.os }}
     needs: [coverage, test]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +130,7 @@ jobs:
     name: Build sdist
     needs: [coverage, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4

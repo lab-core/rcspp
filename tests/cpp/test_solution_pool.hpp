@@ -1098,6 +1098,14 @@ TEST(SolutionPoolConcurrency, ConcurrentNewFilterDuringAddsRespectsFilter) {
             while (!go.load()) {
             }
             for (int i = 0; i < kPerWriter; ++i) {
+                if (i == kPerWriter - 1) {
+                    // Hold the last add until a view exists, so at least one view is built while
+                    // adds are pending however the threads are scheduled (on a loaded machine the
+                    // adds could otherwise all finish before the constructor thread runs).
+                    while (views_built.load() == 0) {
+                        std::this_thread::yield();
+                    }
+                }
                 const size_t arc = next_arc.fetch_add(1);
                 w.add(make_pool_solution(static_cast<double>(arc), {{0, 1.0L}}, {arc}));
             }
