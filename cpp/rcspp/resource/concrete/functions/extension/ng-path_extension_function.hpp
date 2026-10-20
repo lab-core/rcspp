@@ -47,6 +47,9 @@ inline bool first_report_of_arc_value() {
 /// destination per direction. The arc's extender value is ignored; the node added to the memory
 /// comes from the arc's endpoints.
 ///
+/// @c extend and @c extend_back come from @c ArcEndpointsForm: both call @ref apply, with the
+/// arc's ends in forward or reverse order. This class only gives the formula and its sets.
+///
 /// @tparam ResourceType A ContainerResource-compatible type supporting `get_intersection()`,
 ///                      `get_union()`, `set_value()`, and `reset()`.
 /// @tparam ValueType    Element type stored in the neighborhood sets.  Defaults to
@@ -74,7 +77,8 @@ class NgPathExtensionFunction
         // `Side` lives in a dependent base, so it must be named explicitly.
         using Side = typename ArcEndpointsForm<ResourceType, ExtensionFunction<ResourceType>>::Side;
 
-        /// @brief The ng-path formula, shared by both directions.
+        /// @brief The ng-path formula, shared by both directions. Called by
+        ///        @c ArcEndpointsForm::extend and @c extend_back.
         ///
         /// Adds the node just left, then keeps only the members of the arrival node's neighborhood.
         ///
