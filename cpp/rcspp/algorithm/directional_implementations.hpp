@@ -15,6 +15,7 @@
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
+#include "rcspp/utils/utils.hpp"
 
 namespace rcspp::detail {
 
@@ -82,9 +83,10 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                         std::move(params));
                 } else {
                     throw std::invalid_argument(
-                        "a backward search keeps its labels in the container its params hold, "
-                        "turned backward, and this container has no backward form: it must declare "
-                        "its own with_direction<D>(), as LabelList and LabelBuckets do");
+                        template_name<LabelContainerType>() +
+                        " has no backward form: a backward search keeps its labels in the "
+                        "container its params hold, turned backward, so the container must "
+                        "declare its own with_direction<D>()");
                 }
             }
             break;
@@ -100,16 +102,17 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                         std::move(params));
                 } else {
                     throw std::invalid_argument(
-                        "a bidirectional search keeps its backward labels in the container its "
-                        "params hold, turned backward, and this container has no backward form: "
-                        "it must declare its own with_direction<D>(), as LabelList and "
-                        "LabelBuckets do");
+                        template_name<LabelContainerType>() +
+                        " has no backward form: a bidirectional search keeps its backward labels "
+                        "in the container its params hold, turned backward, so the container "
+                        "must declare its own with_direction<D>()");
                 }
             }
             break;
     }
-    throw std::invalid_argument("this algorithm does not support the " +
-                                std::string(to_string(direction)) + " direction");
+    throw std::invalid_argument(template_name<Strategy<ResourceType, LabelContainerType>>() +
+                                " does not support the " + std::string(to_string(direction)) +
+                                " direction (see Algorithm::supported_directions())");
 }
 
 }  // namespace rcspp::detail

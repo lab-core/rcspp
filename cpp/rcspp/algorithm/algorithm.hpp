@@ -32,6 +32,7 @@
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
+#include "rcspp/utils/utils.hpp"
 #include "rcspp/validation/pre_solve_plan.hpp"
 
 namespace rcspp {
@@ -591,7 +592,7 @@ class Algorithm {
                 }
                 list += to_string(supported_direction);
             }
-            throw std::invalid_argument("this algorithm does not support the " +
+            throw std::invalid_argument(template_name(*this) + " does not support the " +
                                         std::string(to_string(direction())) +
                                         " direction (it supports: " + list + ")");
         }

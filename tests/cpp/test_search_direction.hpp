@@ -171,6 +171,48 @@ TEST(SearchDirection, BackwardNeedsAContainerThatTurnsBackward) {
         (void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own)));
 }
 
+/// @brief A refusal names the class refused: the algorithm that does not search in a direction, or
+///        the container that cannot turn backward.
+TEST(SearchDirection, RefusalsNameTheClass) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    const auto message = [](auto&& action) -> std::string {
+        try {
+            action();
+        } catch (const std::invalid_argument& error) {
+            return error.what();
+        }
+        return "";
+    };
+
+    const std::string pulling = message([&] {
+        (void)g->create_algorithm<PullingDominanceAlgorithm>(
+            sdt::params(SearchDirection::Backward));
+    });
+    EXPECT_NE(pulling.find("PullingDominanceAlgorithm does not support the backward direction"),
+              std::string::npos)
+        << pulling;
+
+    PushingDominanceAlgorithm<sdt::Composed, sdt::List> pushing(
+        &g->get_resource_factory(),
+        sdt::params(SearchDirection::Backward));
+    const std::string constructed =
+        message([&] { (void)pushing.solve(g.get(), std::numeric_limits<double>::infinity()); });
+    EXPECT_NE(constructed.find("PushingDominanceAlgorithm does not support the backward direction"),
+              std::string::npos)
+        << constructed;
+
+    for (const auto direction : {SearchDirection::Backward, SearchDirection::Bidirectional}) {
+        AlgorithmParams<sdt::InheritsListOnly> own;
+        own.direction = direction;
+        const std::string container = message([&] {
+            (void)g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own);
+        });
+        EXPECT_NE(container.find("InheritsListOnly has no backward form"), std::string::npos)
+            << container;
+    }
+}
+
 /// @brief An algorithm built without create_algorithm still refuses a direction it does not
 ///        support, when it solves.
 TEST(SearchDirection, AConstructedAlgorithmChecksItsDirection) {
