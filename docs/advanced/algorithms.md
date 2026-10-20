@@ -112,6 +112,42 @@ result = rg.solve(algorithm="greedy", params=params)
 # In C++, use DiversificationSearch<Comp> explicitly to wrap any inner algorithm
 ```
 
+## Search directions
+
+A labelling search runs **forward** by default: from the sources, along each node's out-arcs, until
+its labels reach a sink. It can also run **backward**, from the sinks along in-arcs until its labels
+reach a source, or **bidirectionally**, a forward and a backward half joined where they meet. In
+C++, the direction is a parameter, `AlgorithmBaseParams::direction`:
+
+```cpp
+rcspp::AlgorithmBaseParams params;
+params.direction = rcspp::SearchDirection::Backward;
+const rcspp::SolveResult result = graph.solve<rcspp::SimpleDominanceAlgorithm>(params);
+```
+
+Whatever its direction, a search returns the same kind of paths, in forward order: each starts at a
+source and ends at a sink.
+
+| Direction | Searched by |
+|---|---|
+| Forward | every algorithm |
+| Backward | `Simple` |
+
+An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
+`ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
+(`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels
+in the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
+`with_direction<D>()`, an empty copy of themselves that compares in direction `D`. A container of
+your own that does not declare it is refused for a backward search. Since the class that searches
+backward is not the one you name,
+`create_algorithm<Strategy>(params)` returns a `std::unique_ptr<Algorithm<R, LC>>`.
+
+**The model checks run first, always.** A backward or bidirectional solve runs the checks its
+direction needs ([Model checks](#model-checks)) on the whole model before anything else: before any
+preprocessing, whatever `preprocess` says, and also when `Algorithm::solve` is called directly, or by
+an algorithm such as `Diversification` that runs another one inside it. So `preprocess` only says
+whether the solve may reduce the graph; it never skips a check. A forward search needs no check.
+
 ## Model checks
 
 A forward search reads nothing but the forward functions. A search that also extends labels
@@ -138,6 +174,8 @@ for (const auto& problem : report.problems) {
 
 The checks read the whole model, arcs that preprocessing removed included, so a verdict never
 depends on what one solve's bound happened to remove. They never change the graph.
+A backward or bidirectional solve runs them itself, before any preprocessing and whatever
+`preprocess` says.
 A model that fails them is refused with a `ModelRefused` (a `std::runtime_error`, so Python sees a
 `RuntimeError`):
 

@@ -10,9 +10,11 @@
 #include <optional>
 #include <stdexcept>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/directional_implementations.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -269,14 +271,41 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
+        /// @brief Builds an algorithm on this graph's resources.
+        ///
+        /// Given only its params, the algorithm searches in `params.direction`: this returns the
+        /// class that does, behind its base class. Given other constructor arguments, it returns
+        /// @p AlgorithmType itself.
+        ///
+        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam LabelContainerType The per-node label container.
+        /// @tparam CostResourceType   The cost resource type.
+        /// @param args The constructor arguments after the resource factory.
+        /// @return The algorithm: a @c std::unique_ptr<Algorithm<R, LabelContainerType>> when
+        ///         @p args is the params alone.
+        /// @throws std::invalid_argument when @p AlgorithmType cannot search in the direction the
+        ///         params ask for.
         template <template <typename, typename> class AlgorithmType,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename... Args>
-        std::unique_ptr<AlgorithmType<ResourceCompositionType, LabelContainerType>>
-        create_algorithm(Args&&... args) {
-            return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
-                &resource_factory_,
-                std::forward<Args>(args)...);
+                  typename CostResourceType = RealResource, typename... Args>
+        auto create_algorithm(Args&&... args) {
+            if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
+                // Only the params: the class to build depends on params.direction, known at run
+                // time (forward builds AlgorithmType; backward and bidirectional build other
+                // classes), so this returns their common base, Algorithm<R, LC>.
+                return detail::make_directional_algorithm<AlgorithmType,
+                                                          ResourceCompositionType,
+                                                          LabelContainerType,
+                                                          CostResourceType>(
+                    &resource_factory_,
+                    std::forward<Args>(args)...);
+            } else {
+                // Extra constructor arguments, which only AlgorithmType takes: build it directly,
+                // and return its own type.
+                return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
+                    &resource_factory_,
+                    std::forward<Args>(args)...);
+            }
         }
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
@@ -287,10 +316,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
-            AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
-                                                                                 params);
-            return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
-                         CostResourceType>(&algorithm, upper_bound, preprocess, cost_index);
+            auto algorithm = create_algorithm<AlgorithmType, LabelContainerType, CostResourceType>(
+                std::move(params));
+            return solve<Algorithm<ResourceCompositionType, LabelContainerType>, CostResourceType>(
+                algorithm.get(),
+                upper_bound,
+                preprocess,
+                cost_index);
         }
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
@@ -299,13 +331,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
                           size_t cost_index = 0) {
-            AlgorithmType<ResourceCompositionType, LabelContainerType> algorithm(&resource_factory_,
-                                                                                 params);
-            return solve<AlgorithmType<ResourceCompositionType, LabelContainerType>,
-                         CostResourceType>(&algorithm,
-                                           std::numeric_limits<double>::infinity(),
-                                           preprocess,
-                                           cost_index);
+            return solve<AlgorithmType, CostResourceType, LabelContainerType>(
+                std::numeric_limits<double>::infinity(),
+                std::move(params),
+                preprocess,
+                cost_index);
         }
 
         /// @brief Solve using base algorithm parameters (without explicit container type).
@@ -351,15 +381,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
-            // The stages run before the search, in order; here, the reductions, when the solve may
-            // reduce the graph. A stage that ran is undone however the solve ends: an exception
-            // out of a user's function must not delete arcs from the caller's graph. The graph
-            // then stays marked modified, so the next solve preprocesses it afresh.
-            PreSolvePlan<ResourceCompositionType> stages;
+            // Checks first, then (with preprocess) the reductions. PreSolvePlan inspects every
+            // stage before running any, and undoes the ones that ran however the solve ends. After
+            // an exception the graph stays marked modified, so the next solve preprocesses it
+            // afresh.
+            PreSolvePlan<ResourceCompositionType> stages(algorithm->direction());
             if (preprocess) {
                 add_reductions<CostResourceType>(&stages, upper_bound, cost_index);
             }
             SolveContext context{.upper_bound = upper_bound};
+            stages.enforce(*this, context);
             stages.run(*this, context);
 
             // if not sorted, use default sort (by id)
