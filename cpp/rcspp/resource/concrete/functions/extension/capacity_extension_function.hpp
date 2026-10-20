@@ -27,8 +27,8 @@ namespace rcspp {
 /// which an @c AdditionExtensionFunction cannot.
 ///
 /// The per-node capacities must be the ones the paired feasibility function enforces forward, or
-/// the two searches solve different models (a bidirectional solve refuses the mismatch). Build
-/// both from one @ref SharedNodeBounds:
+/// the two directions solve different models; a backward or bidirectional solve refuses such a
+/// mismatch. Build both from one @ref SharedNodeBounds:
 ///
 /// @code
 /// auto caps = make_node_bounds(0, capacity, per_node_caps);

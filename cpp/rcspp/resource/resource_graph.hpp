@@ -25,6 +25,7 @@
 #include "rcspp/resource/composition/resource_type_composition.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/validation/pre_solve_plan.hpp"
 
 namespace rcspp {
 
@@ -350,70 +351,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 return {};
             }
 
-            std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>> preprocessors;
-            // Restores the removed arcs however the solve ends: a bidirectional refusal or a user
-            // function's exception must not delete arcs from the caller's graph. The graph then
-            // stays marked modified, so the next solve re-runs its checks.
-            struct RestoreRemovedArcs {
-                    std::vector<std::unique_ptr<Preprocessor<ResourceCompositionType>>>* list;
-                    ~RestoreRemovedArcs() {
-                        for (auto& preprocessor : *list) {
-                            preprocessor->restore();
-                        }
-                    }
-            } restore_removed_arcs{&preprocessors};
+            // The stages run before the search, in order; here, the reductions, when the solve may
+            // reduce the graph. A stage that ran is undone however the solve ends: an exception
+            // out of a user's function must not delete arcs from the caller's graph. The graph
+            // then stays marked modified, so the next solve preprocesses it afresh.
+            PreSolvePlan<ResourceCompositionType> stages;
             if (preprocess) {
-                // if graph has been modified, try to remove some arcs based on feasibility
-                // initialize or update connectivity matrix
-                if (this->is_modified()) {
-                    process_feasibility();
-                    connectivityMatrix_.compute_bitmatrix();
-                }
-
-                // shortest-path preprocessing requires a numerical cost resource in the pack.
-                // Use ComponentTypeIndex<...>::value rather than the _v alias: the _v alias is
-                // a constrained variable template that is undeclared when the type isn't in the
-                // pack, which would make this condition ill-formed (even inside if constexpr).
-                if constexpr (is_numerical_resource_v<CostResourceType> &&
-                              ComponentTypeIndex<CostResourceType, ResourceTypes...>::value != -1) {
-                    // check if the cost index is correct (size_t -> no negative case)
-                    if (cost_index >=
-                        resource_factory_.template get_num_resource_type<CostResourceType>()) {
-                        // check if not the default value
-                        if (cost_index > 0) {
-                            LOG_WARN(
-                                "ResourceGraph::solve: cost_index is out of bounds for the number "
-                                "of extender components of the cost resource. ",
-                                cost_index,
-                                " for a length of ",
-                                resource_factory_
-                                    .template get_num_resource_type<CostResourceType>());
-                        }
-                    } else {
-                        // if not sorted, use default sort by connectivity. Forward
-                        // cost_index so the sort's Bellman-Ford distances read the same
-                        // extender cost component the preprocessor (and the labeling
-                        // algorithm) will use. Without this, the sort silently falls back
-                        // to arc.cost and can disagree with the preprocessor whenever the
-                        // chosen cost slot differs from the base arc cost -- e.g. after
-                        // update_reduced_costs has rewritten extender slot cost_index.
-                        if (!this->are_nodes_sorted()) {
-                            this->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
-                                                                      CostResourceType>(cost_index);
-                        }
-
-                        // remove some arcs before solving the problem
-                        // the deleted arcs will be restored after the solve
-                        auto preprocessor = std::make_unique<
-                            ShortestPathPreprocessor<CostResourceType, ResourceTypes...>>(
-                            this,
-                            upper_bound,
-                            cost_index);
-                        preprocessor->preprocess();
-                        preprocessors.emplace_back(std::move(preprocessor));
-                    }
-                }
+                add_reductions<CostResourceType>(&stages, upper_bound, cost_index);
             }
+            SolveContext context{.upper_bound = upper_bound};
+            stages.run(*this, context);
 
             // if not sorted, use default sort (by id)
             if (!this->are_nodes_sorted()) {
@@ -428,11 +375,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             SolveResult result = algorithm->solve(this, upper_bound);
 
             // restore the removed arcs for the next resolution
+            stages.undo();
             if (preprocess) {
-                for (auto& preprocessor : preprocessors) {
-                    preprocessor->restore();
-                }
-                preprocessors.clear();
                 this->track_modifications();  // mark as unmodified after restoring arcs
             }
 
@@ -444,6 +388,21 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 &resource_factory_,
                 this);
             feasibility_preprocessor.preprocess();
+        }
+
+        /// @brief Runs the model checks a search in @p direction needs, without solving.
+        ///
+        /// A forward search needs none. A backward search needs the model's backward semantics
+        /// (@c BackwardExtensionCheck); a bidirectional one also needs its join
+        /// (@c JoinCheck). The checks read the whole model, arcs that preprocessing removed
+        /// included.
+        ///
+        /// @param direction The search's direction.
+        /// @return One line per problem; empty when the model is ready for that search.
+        [[nodiscard]] ModelReport check_model(SearchDirection direction) const {
+            SolveContext context;
+            PreSolvePlan<ResourceCompositionType>(direction).inspect(*this, context);
+            return std::move(context.report);
         }
 
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
@@ -522,6 +481,99 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             const BackwardKind kind = extension_function.backward_kind();
             dominance_function->set_backward_reversed(reverses_back_dominance(kind));
             feasibility_function->set_backward_kind(kind);
+        }
+
+        /// @brief The feasibility preprocessor as a solve runs it: its removals are kept for good,
+        ///        and the connectivity matrix is brought up to date after them.
+        ///
+        /// Nothing to undo: an arc that no feasible extension uses never becomes usable.
+        class FeasibilityReduction final : public FeasibilityPreprocessor<ResourceCompositionType> {
+            public:
+                explicit FeasibilityReduction(ResourceGraph* graph)
+                    : FeasibilityPreprocessor<ResourceCompositionType>(&graph->resource_factory_,
+                                                                       graph),
+                      graph_(graph) {}
+
+                void run(Graph<ResourceCompositionType>& graph, SolveContext& context) override {
+                    FeasibilityPreprocessor<ResourceCompositionType>::run(graph, context);
+                    graph_->connectivityMatrix_.compute_bitmatrix();
+                }
+
+                void undo() noexcept override {}
+
+            private:
+                ResourceGraph* graph_;
+        };
+
+        /// @brief The shortest-path preprocessor of the graph's resources.
+        template <typename CostResourceType>
+        using ShortestPathBase = ShortestPathPreprocessor<CostResourceType, ResourceTypes...>;
+
+        /// @brief The shortest-path preprocessor as a solve runs it: the nodes are sorted by
+        ///        connectivity first if they are not sorted yet; its removals are undone after the
+        ///        search.
+        ///
+        /// @tparam CostResourceType The numerical resource type holding the cost slot.
+        template <typename CostResourceType>
+        class ShortestPathReduction final : public ShortestPathBase<CostResourceType> {
+            public:
+                ShortestPathReduction(ResourceGraph* graph, double upper_bound, size_t cost_index)
+                    : ShortestPathBase<CostResourceType>(graph, upper_bound, cost_index),
+                      graph_(graph),
+                      cost_index_(cost_index) {}
+
+                void run(Graph<ResourceCompositionType>& graph, SolveContext& context) override {
+                    // Sort on cost slot cost_index, which the preprocessor and the search read,
+                    // not on arc.cost: the two differ once update_reduced_costs has rewritten
+                    // that slot.
+                    if (!graph_->are_nodes_sorted()) {
+                        graph_->template sort_nodes_by_connectivity<ShortestPathConnectivitySort,
+                                                                    CostResourceType>(cost_index_);
+                    }
+                    ShortestPathBase<CostResourceType>::run(graph, context);
+                }
+
+            private:
+                ResourceGraph* graph_;
+                size_t cost_index_;
+        };
+
+        /// @brief Adds to @p stages the reductions a solve that may reduce the graph runs: the
+        ///        feasibility reduction when the graph was modified, and the shortest-path
+        ///        reduction when the cost slot exists.
+        ///
+        /// @tparam CostResourceType The numerical resource type holding the cost slot.
+        /// @param stages      The solve's stages.
+        /// @param upper_bound The solve's cost upper bound.
+        /// @param cost_index  The cost slot, within @p CostResourceType's components.
+        template <typename CostResourceType>
+        void add_reductions(PreSolvePlan<ResourceCompositionType>* stages, double upper_bound,
+                            size_t cost_index) {
+            if (this->is_modified()) {
+                stages->add(std::make_unique<FeasibilityReduction>(this));
+            }
+            // shortest-path preprocessing requires a numerical cost resource in the pack.
+            // Use ComponentTypeIndex<...>::value rather than the _v alias: the _v alias is
+            // a constrained variable template that is undeclared when the type isn't in the
+            // pack, which would make this condition ill-formed (even inside if constexpr).
+            if constexpr (is_numerical_resource_v<CostResourceType> &&
+                          ComponentTypeIndex<CostResourceType, ResourceTypes...>::value != -1) {
+                const size_t slots =
+                    resource_factory_.template get_num_resource_type<CostResourceType>();
+                if (cost_index < slots) {
+                    stages->add(
+                        std::make_unique<ShortestPathReduction<CostResourceType>>(this,
+                                                                                  upper_bound,
+                                                                                  cost_index));
+                } else if (cost_index > 0) {
+                    LOG_WARN(
+                        "ResourceGraph::solve: cost_index is out of bounds for the number of "
+                        "extender components of the cost resource. ",
+                        cost_index,
+                        " for a length of ",
+                        slots);
+                }
+            }
         }
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
