@@ -16,8 +16,8 @@ namespace detail {
 
 /// @brief The FIFO frontier of @ref SimpleDominanceAlgorithm, over any directional base.
 ///
-/// @tparam Base The labeling loop: @ref DominanceAlgorithm going forward, or
-///              @ref DirectionalDominanceAlgorithm with @ref BackwardDirection.
+/// @tparam Base The labeling loop, @ref DominanceAlgorithm, going forward or with
+///              @ref BackwardDirection.
 template <typename Base>
 class SimpleFrontier : public Base {
         using ResourceType = typename Base::resource_type;
@@ -144,8 +144,8 @@ class SimpleFrontier : public Base {
 
 /// @brief The backward search of @ref SimpleDominanceAlgorithm.
 template <typename ResourceType, typename LabelContainerType>
-using BackwardSimple = SimpleFrontier<
-    DirectionalDominanceAlgorithm<ResourceType, LabelContainerType, BackwardDirection>>;
+using BackwardSimple =
+    SimpleFrontier<DominanceAlgorithm<ResourceType, LabelContainerType, BackwardDirection>>;
 
 }  // namespace detail
 
