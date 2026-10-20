@@ -95,25 +95,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         void main_loop() override {  // NOLINT
             size_t i = 0;
             while (this->number_of_labels() > 0 && !this->should_stop(i)) {
-                // Periodic memory check (skip i == 0 to avoid cost on every first iteration).
-                if (i > 0 && this->memory_limit_.effective_limit > 0 &&
-                    i % this->params_.memory_check_interval == 0) {
-                    if (this->memory_limit_.is_exceeded()) {
-                        LOG_WARN("Memory limit (",
-                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
-                                 " MB) exceeded (current: ",
-                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
-                                 " MB). Stopping early.\n");
-                        break;
-                    }
-                    if (this->memory_limit_.is_under_pressure()) {
-                        LOG_INFO("Memory pressure: ",
-                                 MemoryInfo::process_bytes() / (1024ULL * 1024ULL),
-                                 " MB / ",
-                                 this->memory_limit_.effective_limit / (1024ULL * 1024ULL),
-                                 " MB. Trimming label queues.\n");
-                        this->on_memory_pressure();
-                    }
+                if (this->memory_limit_reached(i)) {
+                    break;
                 }
 
                 ++i;
@@ -463,39 +446,21 @@ struct NodeUnprocessedLabelsManager {
         void resize_unprocessed_labels(
             std::list<LabelIteratorPair<ResourceType>>* unprocessed_labels, size_t new_size,
             LabelPool<ResourceType>* label_pool, bool sort) {
-            if (unprocessed_labels->size() <= new_size) {
+            auto excess = split_off_excess_labels(unprocessed_labels, new_size, sort);
+            if (excess.empty()) {
                 return;
-            }
-            size_t num_exceeding_labels = unprocessed_labels->size() - new_size;
-
-            if (sort) {
-                // sort labels by cost (ascending)
-                unprocessed_labels->sort([](const LabelIteratorPair<ResourceType>& p1,
-                                            const LabelIteratorPair<ResourceType>& p2) {
-                    // either both dominated or both non-dominated
-                    if (p1.first->dominated == p2.first->dominated) {
-                        return p1.first->get_cost() < p2.first->get_cost();  // lower cost first
-                    }
-                    return !p1.first->dominated;  // non-dominated first
-                });
             }
 
             // release the exceeding labels
-            size_t i = 0;
-            for (auto& p : *unprocessed_labels) {
-                if (i++ >= new_size) {
-                    if (p.first->dominated && label_pool) {
-                        label_pool->release_with_ref_count(p.first);
-                        p.first = nullptr;
-                    } else {
-                        store_truncated_unprocessed_label(p);
-                    }
+            for (auto& p : excess) {
+                if (p.first->dominated && label_pool) {
+                    label_pool->release_with_ref_count(p.first);
+                } else {
+                    store_truncated_unprocessed_label(p);
                 }
             }
 
-            // update unprocessed labels count and resize
-            num_unprocessed_labels_ -= num_exceeding_labels;
-            unprocessed_labels->resize(new_size);
+            num_unprocessed_labels_ -= excess.size();
             assert(check_number_of_unprocessed_labels());
         }
 

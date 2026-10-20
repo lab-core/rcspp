@@ -9,10 +9,12 @@
 #include <concepts>  // NOLINT(build/include_order)
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -30,6 +32,7 @@
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
+#include "rcspp/utils/utils.hpp"
 #include "rcspp/validation/pre_solve_plan.hpp"
 
 namespace rcspp {
@@ -67,6 +70,26 @@ enum class AlgorithmStatus {
     return "unknown";
 }
 
+/// @brief What a bidirectional solve reports about its half-way bound and its join.
+///
+/// On @c SolveResult::bidirectional, which only a bidirectional search fills.
+struct BidirectionalStats {
+        /// @brief Whether the half-way bound was in force for this solve.
+        ///
+        /// Without the bound, a bidirectional solve does more work than a forward search alone.
+        /// A disabled bound costs speed, not optimality.
+        bool bounded_by_half_way = false;
+
+        /// @brief Why the half-way bound was off for this solve; empty when it was in force.
+        std::string half_way_off_reason;
+
+        /// @brief How many distinct complete paths only the join pass produced.
+        ///
+        /// A path the join produced at several nodes counts once; a path that one of the two
+        /// searches also reached on its own does not count.
+        size_t number_of_joined_paths = 0;
+};
+
 /// @brief Return value of Algorithm::solve().
 struct SolveResult {
         std::vector<Solution> solutions;
@@ -78,6 +101,10 @@ struct SolveResult {
         /// @c COMPLETE as a proof of optimality must check this too. Same value as
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
+
+        /// @brief The bidirectional search's half-way bound and join; empty from every other
+        ///        algorithm.
+        std::optional<BidirectionalStats> bidirectional;
 
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }
@@ -93,6 +120,39 @@ using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
+
+/// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
+///        meaning non-dominated first, then cheaper first.
+///
+/// What happens to the entries cut is the caller's: a dominated one is usually released, a
+/// non-dominated one kept aside for a later phase or dropped.
+///
+/// @param queue The queue; sorted, best first, when anything is cut (and @p sort is set).
+/// @param keep  How many entries stay.
+/// @param sort  Whether to sort first; without it the queue's own order decides what stays.
+/// @return The entries cut, best first; empty when @p queue held at most @p keep.
+template <typename ResourceType>
+std::list<LabelIteratorPair<ResourceType>> split_off_excess_labels(
+    std::list<LabelIteratorPair<ResourceType>>* queue, size_t keep, bool sort = true) {
+    std::list<LabelIteratorPair<ResourceType>> excess;
+    if (queue->size() <= keep) {
+        return excess;
+    }
+    if (sort) {
+        queue->sort([](const LabelIteratorPair<ResourceType>& lhs,
+                       const LabelIteratorPair<ResourceType>& rhs) {
+            if (lhs.first->dominated != rhs.first->dominated) {
+                return !lhs.first->dominated;  // non-dominated first
+            }
+            return lhs.first->get_cost() < rhs.first->get_cost();  // then cheaper first
+        });
+    }
+    excess.splice(excess.end(),
+                  *queue,
+                  std::next(queue->begin(), static_cast<std::ptrdiff_t>(keep)),
+                  queue->end());
+    return excess;
+}
 
 constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
@@ -117,6 +177,11 @@ struct AlgorithmBaseParams {
                     "AlgorithmParams: stop_after_X_solutions == MAX and num_max_phases > 1. "
                     "num_max_phases will not have any effects, set stop_after_X_solutions to a "
                     "lower value.\n");
+            }
+            if (direction == SearchDirection::Bidirectional && num_max_phases > 1) {
+                LOG_WARN(
+                    "AlgorithmParams: num_max_phases > 1 has no effect on a bidirectional search, "
+                    "which runs one phase.\n");
             }
             if (return_dominated_solutions && stop_after_X_solutions >= MAX_INT) {
                 LOG_WARN(
@@ -190,12 +255,39 @@ struct AlgorithmBaseParams {
 
         int seed = 0;
 
-        /// @brief Index of the cost resource component used to compute the A* heuristic.
+        /// @brief Index of the cost component, within its resource type, on which the lower
+        ///        bounds on the remaining cost are computed.
         ///
-        /// Injected by the dispatch layer (see AStarAlgoEntry in graph_impl.hpp) so that
-        /// AStarDominanceAlgorithm::initialize() runs Bellman–Ford on the same cost slot
-        /// as the labeling algorithm itself.  Ignored by all other algorithm types.
+        /// Read by @c AStarDominanceAlgorithm only; ignored otherwise. The Python bindings set it
+        /// to the solve's cost index for A*; @c ResourceGraph::solve does not, so C++ callers
+        /// set it themselves. The bidirectional search does not read it: its completion bound is
+        /// computed from the cost function itself.
         size_t heuristic_cost_index = 0;
+
+        /// @brief Index of the critical resource: the "clock" on which the bidirectional search
+        ///        sets its half-way point.
+        ///
+        /// The clock must never decrease along an arc (e.g. time or load). The index counts only
+        /// the components of the clock's resource type, which is a template parameter of the
+        /// algorithm.
+        size_t critical_resource_index = 0;
+
+        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**.
+        ///
+        /// Forward labels stop above `H`, backward labels below it. Set it to about half the
+        /// clock's range. With 0, both searches run unbounded: correct but slower.
+        /// @c BidirectionalStats::bounded_by_half_way, in @c SolveResult::bidirectional, reports
+        /// which happened.
+        double half_way_point = 0.0;
+
+        /// @brief Whether the join still runs after a timeout or the memory limit (default true).
+        ///
+        /// Bidirectional only. With the half-way bound in force, few forward labels reach a sink,
+        /// so an early stop without the join returns almost nothing. With this set, the join
+        /// still runs and keeps only paths cheaper than the best one found so far. An interrupt
+        /// (`should_stop`) always skips the join. Set false to skip the join after a timeout or
+        /// the memory limit as well.
+        bool join_after_early_stop = true;
 
         // ── Memory-limit parameters ─────────────────────────────────────────
 
@@ -358,7 +450,8 @@ class Algorithm {
                                   params_.limit_to_available_ram,
                                   params_.limit_to_total_ram,
                                   params_.memory_limit_fraction,
-                                  params_.memory_pressure_fraction);
+                                  params_.memory_pressure_fraction,
+                                  params_.memory_check_interval);
             initialize(graph, cost_upper_bound);
 
             // initialize labels
@@ -499,7 +592,7 @@ class Algorithm {
                 }
                 list += to_string(supported_direction);
             }
-            throw std::invalid_argument("this algorithm does not support the " +
+            throw std::invalid_argument(template_name(*this) + " does not support the " +
                                         std::string(to_string(direction())) +
                                         " direction (it supports: " + list + ")");
         }
@@ -521,6 +614,36 @@ class Algorithm {
         /// hard limit is hit.
         virtual void on_memory_pressure() {}
 
+        /// @brief A main loop's periodic memory check: logs, trims the queues under pressure
+        ///        (@ref on_memory_pressure), and says whether the loop must stop.
+        ///
+        /// The memory is read every @c memory_check_interval iterations only, never at 0.
+        ///
+        /// @param iteration The main loop's iteration count.
+        /// @return @c true when the memory limit is exceeded.
+        bool memory_limit_reached(size_t iteration) {
+            switch (memory_limit_.check(iteration)) {
+                case MemoryState::Exceeded:
+                    LOG_WARN("Memory limit (",
+                             memory_limit_.effective_limit / kMB,
+                             " MB) exceeded (current: ",
+                             MemoryInfo::process_bytes() / kMB,
+                             " MB). Stopping early.\n");
+                    return true;
+                case MemoryState::UnderPressure:
+                    LOG_INFO("Memory pressure: ",
+                             MemoryInfo::process_bytes() / kMB,
+                             " MB / ",
+                             memory_limit_.effective_limit / kMB,
+                             " MB. Trimming label queues.\n");
+                    on_memory_pressure();
+                    return false;
+                case MemoryState::Ok:
+                    return false;
+            }
+            return false;
+        }
+
         /// @brief Release all label memory held by the pool and label containers.
         ///
         /// Called at the end of solve() so that RSS is reclaimed as soon as the
@@ -539,7 +662,10 @@ class Algorithm {
 
         virtual void main_loop() = 0;
 
-        void extract_remaining_solutions() {
+        /// @brief Records the solutions still sitting at terminal nodes when the loop ends.
+        ///
+        /// Virtual so a bidirectional search can add backward and joined paths.
+        virtual void extract_remaining_solutions() {
             auto labels_at_sinks = this->get_labels_at_sinks();
             for (const auto* sink_label : labels_at_sinks) {
                 this->extract_solution(*sink_label);

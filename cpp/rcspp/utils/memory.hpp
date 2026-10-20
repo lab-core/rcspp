@@ -208,11 +208,18 @@ struct MemoryInfo {
 
 // ── MemoryLimitHelper ─────────────────────────────────────────────────────────
 
+/// @brief What a periodic memory check found.
+enum class MemoryState {
+    Ok,             ///< below the pressure threshold, or not checked on this iteration
+    UnderPressure,  ///< at or above the pressure threshold, below the limit
+    Exceeded,       ///< at or above the limit
+};
+
 /// @brief Encapsulates memory-limit state and checks for a single solve pass.
 ///
 /// Call @ref resolve() once at the start of solve() with the relevant
-/// configuration values.  Then query @ref is_exceeded() and
-/// @ref is_under_pressure() inside the main loop.
+/// configuration values.  Then call @ref check() on each iteration of the main loop; it reads
+/// the process's memory only every @ref check_interval iterations.
 struct MemoryLimitHelper {
         /// @brief Derive and store the effective byte limit from plain configuration values.
         ///
@@ -231,9 +238,13 @@ struct MemoryLimitHelper {
         /// @param limit_to_total_ram      Derive limit from total physical RAM.
         /// @param memory_limit_fraction   Fraction to apply in the RAM-relative modes.
         /// @param pressure_fraction_in    RSS fraction that triggers pressure pruning.
+        /// @param check_interval_in       Iterations between two checks by @ref check(); 0 means
+        ///                                @ref check() never reads the memory.
         void resolve(double max_memory_gb, bool limit_to_available_ram, bool limit_to_total_ram,
-                     double memory_limit_fraction, double pressure_fraction_in) {
+                     double memory_limit_fraction, double pressure_fraction_in,
+                     size_t check_interval_in = 0) {
             pressure_fraction = pressure_fraction_in;
+            check_interval = check_interval_in;
             if (max_memory_gb > 0.0) {
                 effective_limit = static_cast<size_t>(max_memory_gb * kGB);
                 // LOG_TRACE: resolve() is called on every G.solve() invocation,
@@ -295,9 +306,26 @@ struct MemoryLimitHelper {
             if (effective_limit == 0) {
                 return false;
             }
-            const auto threshold =
-                static_cast<size_t>(static_cast<double>(effective_limit) * pressure_fraction);
-            return MemoryInfo::process_bytes() >= threshold;
+            return MemoryInfo::process_bytes() >= pressure_threshold();
+        }
+
+        /// @brief The memory state at main-loop iteration @p iteration.
+        ///
+        /// Reads the process's memory once, and only every @ref check_interval iterations, never
+        /// at iteration 0. Otherwise, and when there is no limit, the answer is @c Ok.
+        ///
+        /// @param iteration The main loop's iteration count.
+        /// @return What the check found.
+        [[nodiscard]] MemoryState check(size_t iteration) const noexcept {
+            if (effective_limit == 0 || check_interval == 0 || iteration == 0 ||
+                iteration % check_interval != 0) {
+                return MemoryState::Ok;
+            }
+            const size_t bytes = MemoryInfo::process_bytes();
+            if (bytes >= effective_limit) {
+                return MemoryState::Exceeded;
+            }
+            return bytes >= pressure_threshold() ? MemoryState::UnderPressure : MemoryState::Ok;
         }
 
         /// @brief Effective byte cap; 0 means unlimited.
@@ -305,6 +333,15 @@ struct MemoryLimitHelper {
 
         /// @brief Fraction of @ref effective_limit that triggers pressure pruning.
         double pressure_fraction = kDefaultMemoryPressureFraction;
+
+        /// @brief Iterations between two reads by @ref check(); 0 means it never reads.
+        size_t check_interval = 0;
+
+    private:
+        /// @brief The byte count at which pressure pruning starts.
+        [[nodiscard]] size_t pressure_threshold() const noexcept {
+            return static_cast<size_t>(static_cast<double>(effective_limit) * pressure_fraction);
+        }
 };
 
 }  // namespace rcspp
