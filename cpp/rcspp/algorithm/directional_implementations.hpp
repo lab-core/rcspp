@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "rcspp/algorithm/algorithm.hpp"
@@ -36,6 +37,12 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
         using Backward = BackwardSimple<ResourceType, LabelContainerType>;
         static constexpr bool has_bidirectional = false;
 };
+
+/// @brief Whether constructor arguments @p Args are exactly one @c AlgorithmParams<LC>: then
+///        @c ResourceGraph::create_algorithm picks the class from the params' direction.
+template <typename LC, typename... Args>
+inline constexpr bool is_params_only_v =
+    sizeof...(Args) == 1 && (std::is_same_v<std::remove_cvref_t<Args>, AlgorithmParams<LC>> && ...);
 
 /// @brief Builds the class that searches in `params.direction` for @p Strategy.
 ///

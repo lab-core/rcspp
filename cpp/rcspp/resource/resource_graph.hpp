@@ -289,10 +289,10 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
                   typename CostResourceType = RealResource, typename... Args>
         auto create_algorithm(Args&&... args) {
-            if constexpr (sizeof...(Args) == 1 &&
-                          (std::is_same_v<std::remove_cvref_t<Args>,
-                                          AlgorithmParams<LabelContainerType>> &&
-                           ...)) {
+            if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
+                // Only the params: the class to build depends on params.direction, known at run
+                // time (forward builds AlgorithmType; backward and bidirectional build other
+                // classes), so this returns their common base, Algorithm<R, LC>.
                 return detail::make_directional_algorithm<AlgorithmType,
                                                           ResourceCompositionType,
                                                           LabelContainerType,
@@ -300,6 +300,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                     &resource_factory_,
                     std::forward<Args>(args)...);
             } else {
+                // Extra constructor arguments, which only AlgorithmType takes: build it directly,
+                // and return its own type.
                 return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
                     &resource_factory_,
                     std::forward<Args>(args)...);
