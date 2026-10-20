@@ -60,7 +60,8 @@ inline constexpr bool is_params_only_v =
 /// @param params           The algorithm's params; their direction picks the class.
 /// @return The algorithm, behind its base class.
 /// @throws std::invalid_argument when @p Strategy cannot search in that direction, or a
-///         backward search is asked for with a container that has no backward form.
+///         backward or bidirectional search is asked for with a container that has no backward
+///         form.
 template <template <typename, typename> class Strategy, typename ResourceType,
           typename LabelContainerType, typename CostResourceType = RealResource,
           typename ClockResourceType = CostResourceType>
@@ -89,11 +90,21 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
             break;
         case SearchDirection::Bidirectional:
             if constexpr (Impl::has_bidirectional) {
-                return std::make_unique<typename Impl::template Bidirectional<ResourceType,
-                                                                              LabelContainerType,
-                                                                              ClockResourceType>>(
-                    resource_factory,
-                    std::move(params));
+                // The backward half keeps its labels in the same container, turned backward.
+                if constexpr (can_rebind_direction_v<LabelContainerType, BackwardDirection>) {
+                    return std::make_unique<
+                        typename Impl::template Bidirectional<ResourceType,
+                                                              LabelContainerType,
+                                                              ClockResourceType>>(
+                        resource_factory,
+                        std::move(params));
+                } else {
+                    throw std::invalid_argument(
+                        "a bidirectional search keeps its backward labels in the container its "
+                        "params hold, turned backward, and this container has no backward form: "
+                        "it must declare its own with_direction<D>(), as LabelList and "
+                        "LabelBuckets do");
+                }
             }
             break;
     }

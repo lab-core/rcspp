@@ -1434,3 +1434,86 @@ TEST(BidirectionalDiagnostics, JoinedPathsCountsDistinctPaths) {
         << "the forward search recorded the only path at the sink before the join ran";
     EXPECT_LE(result.bidirectional->number_of_joined_paths, result.solutions.size());
 }
+
+// ============================================================================
+// Bucket containers in both halves
+// ============================================================================
+
+/// @brief With buckets, both halves keep their labels in buckets (the backward half's turned
+///        backward), and the solve finds the forward optimum, through the join.
+///
+/// Cost and a time window on 0 -> {1, 2} -> 3 -> 4. The cheapest route, 0-1-3-4 (-13), reaches
+/// node 3 at 20, after it closes at 18; the optimum is 0-1-2-3-4 (-11). Along it the forward
+/// clock is 10, 11, 14 at nodes 1, 2, 3 and the backward deadline 12, 13, 16, so with H = 13.5 the
+/// forward search stops at node 3 and the backward one at node 2: neither completes the route, and
+/// only the join at node 3 can. Both bucket layouts are tried: on the clock, which reverses
+/// backward, and on the cost.
+TEST(Bidirectional, BucketsHoldBothHalves) {
+    namespace bt = bidirectional_test;
+    using Buckets = LabelBuckets<RealResource, RealResource, bt::Composed>;
+    using BucketBidir =
+        rcspp::detail::BidirectionalDominanceAlgorithm<bt::Composed, Buckets, RealResource>;
+    static_assert(
+        std::is_same_v<
+            typename std::decay_t<decltype(std::declval<const BucketBidir&>()
+                                               .get_backward_labels_by_node_pos())>::value_type,
+            LabelBuckets<RealResource, RealResource, bt::Composed, BackwardDirection>>,
+        "the backward half keeps the caller's buckets, turned backward");
+    constexpr double kOptimum = -11.0;
+    constexpr size_t kCost = 0;
+
+    const auto build = [] {
+        const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 0.0}},
+                                                                  {1, {0.0, 50.0}},
+                                                                  {2, {5.0, 50.0}},
+                                                                  {3, {0.0, 18.0}},
+                                                                  {4, {0.0, 21.0}}};
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(
+            std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
+            std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        for (size_t node_id = 1; node_id <= 3; ++node_id) {
+            graph->add_node(node_id);
+        }
+        graph->add_node(4, /*source=*/false, /*sink=*/true);
+        // {cost, time}, origin, destination, cost.
+        graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 0, 1, -5.0);
+        graph->add_arc<RealResource, RealResource>({-1.0, 2.0}, 0, 2, -1.0);
+        graph->add_arc<RealResource, RealResource>({-1.0, 1.0}, 1, 2, -1.0);
+        graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 1, 3, -5.0);
+        graph->add_arc<RealResource, RealResource>({0.0, 5.0}, 1, 4, 0.0);
+        graph->add_arc<RealResource, RealResource>({-2.0, 3.0}, 2, 3, -2.0);
+        graph->add_arc<RealResource, RealResource>({-1.0, 30.0}, 2, 4, -1.0);
+        graph->add_arc<RealResource, RealResource>({-3.0, 5.0}, 3, 4, -3.0);
+        return graph;
+    };
+
+    auto forward_graph = build();
+    ASSERT_NEAR(bt::forward_optimum(forward_graph.get()), kOptimum, bt::kTolerance);
+
+    const auto solve = [&](Buckets buckets, const char* layout) {
+        AlgorithmParams<Buckets> params(std::move(buckets));
+        params.direction = SearchDirection::Bidirectional;
+        params.half_way_point = 13.5;
+        params.critical_resource_index = bt::kClockIndex;
+        auto graph = build();
+        const auto result =
+            graph->solve<SimpleDominanceAlgorithm, RealResource, Buckets>(std::move(params));
+        ASSERT_TRUE(result.bidirectional.has_value()) << layout;
+        EXPECT_TRUE(result.bidirectional->bounded_by_half_way) << layout;
+        ASSERT_FALSE(result.solutions.empty()) << layout;
+        EXPECT_NEAR(result.solutions.front().cost, kOptimum, bt::kTolerance) << layout;
+        EXPECT_GE(result.bidirectional->number_of_joined_paths, 1U)
+            << layout << ": the optimum crosses H, so it comes from the join";
+    };
+    solve(Buckets(/*range_buckets=*/5, bt::kClockIndex, kCost), "buckets on the clock");
+    solve(Buckets(/*range_buckets=*/5, kCost, bt::kClockIndex), "buckets on the cost");
+}

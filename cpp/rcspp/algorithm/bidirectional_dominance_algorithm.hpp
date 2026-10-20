@@ -65,8 +65,9 @@ class BidirectionalDominanceAlgorithm
     : public DominanceAlgorithm<ResourceType, LabelContainerType, ForwardDirection> {
         using Base = DominanceAlgorithm<ResourceType, LabelContainerType, ForwardDirection>;
 
-        /// @brief The backward container, fixed because `LabelBuckets` is forward-only.
-        using BackwardContainer = LabelList<ResourceType, BackwardDirection>;
+        /// @brief The backward container: the caller's container, turned backward (see
+        ///        @ref rebind_direction).
+        using BackwardContainer = rebind_direction_t<LabelContainerType, BackwardDirection>;
 
     public:
         BidirectionalDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
@@ -100,7 +101,9 @@ class BidirectionalDominanceAlgorithm
             backward_labels_by_node_pos_.clear();
             backward_labels_by_node_pos_.reserve(num_nodes);
             for (size_t i = 0; i < num_nodes; ++i) {
-                backward_labels_by_node_pos_.emplace_back(BackwardContainer{});
+                backward_labels_by_node_pos_.emplace_back(
+                    rebind_direction<LabelContainerType, BackwardDirection>::convert(
+                        this->params_.labels));
             }
 
             joined_paths_ = 0;

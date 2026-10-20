@@ -256,3 +256,18 @@ TEST(BidirectionalSelection, MorePhasesAreWarnedAbout) {
               std::string::npos)
         << output;
 }
+
+/// @brief The backward half keeps its labels in the caller's container, turned backward: buckets
+///        can be, and a container that declares no with_direction of its own is refused.
+TEST(BidirectionalSelection, TheBackwardHalfNeedsAContainerThatTurnsBackward) {
+    namespace sdt = search_direction_test;
+    auto g = sdt::graph();
+    AlgorithmParams<sdt::Buckets> buckets(sdt::Buckets(1, 0, 0));
+    buckets.direction = SearchDirection::Bidirectional;
+    EXPECT_NO_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(buckets)));
+
+    AlgorithmParams<sdt::InheritsListOnly> own;
+    own.direction = SearchDirection::Bidirectional;
+    EXPECT_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own)),
+                 std::invalid_argument);
+}
