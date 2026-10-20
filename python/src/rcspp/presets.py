@@ -3,19 +3,20 @@
 Each preset is sugar over the four-object ``add_<type>_resource`` form and documents what it
 expands to. :func:`add_cost_resource` must be called first, since ``ResourceGraph`` requires the
 first resource to be a ``"real"`` cost resource.
-
-There is no ng-path preset: its extension and feasibility functions have no Python descriptors.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Literal
 
 from .resource import (
     AdditionExtensionFunction,
     CapacityExtensionFunction,
+    InclusionDominanceFunction,
+    IntersectionFeasibilityFunction,
     MinMaxFeasibilityFunction,
+    NgPathExtensionFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
     TrivialCostFunction,
@@ -30,12 +31,17 @@ if TYPE_CHECKING:
 __all__ = [
     "add_capacity_resource",
     "add_cost_resource",
+    "add_elementary_resource",
+    "add_ng_path_resource",
     "add_window_resource",
 ]
 
 #: The resource types a threshold preset accepts: backward extension subtracts, so it needs a
 #: signed type.
 SignedResourceType = Literal["real", "int"]
+
+#: The resource types a memory preset accepts: a container. ``"bitset"`` is the compact one.
+ContainerResourceType = Literal["bitset", "int_set", "real_set"]
 
 
 def add_cost_resource(graph: ResourceGraph, resource_type: Literal["real"] = "real") -> None:
@@ -127,3 +133,61 @@ def add_capacity_resource(
         TrivialCostFunction(),
         ValueDominanceFunction(),
     )
+
+
+def add_ng_path_resource(
+    graph: ResourceGraph,
+    resource_type: ContainerResourceType,
+    neighborhoods: Mapping[int, Iterable[int]],
+) -> None:
+    """Register an ng-path memory: a path may not revisit a node it still remembers.
+
+    Expands to ``graph.add_<resource_type>_resource(NgPathExtensionFunction(neighborhoods),
+    IntersectionFeasibilityFunction({v: {v}}), TrivialCostFunction(),
+    InclusionDominanceFunction())``, the forbidden set ``{v}`` being derived for every node the
+    neighbourhoods mention, as a key or a member.
+
+    The memory is read from the arcs' endpoints, so each arc's value for this resource is ignored:
+    pass an empty set.
+
+    Call :func:`add_cost_resource` before this one.
+
+    Args:
+        graph: The graph to register on.
+        resource_type: A container resource type; ``"bitset"`` is the compact one.
+        neighborhoods: ``{node_id: ng-neighbourhood}``. A node absent from the map forgets every
+            previously visited node on arrival, so give every node a neighbourhood.
+    """
+    forbidden: dict[int, set[int]] = {}
+    for node_id, neighborhood in neighborhoods.items():
+        forbidden[node_id] = {node_id}
+        for member in neighborhood:
+            forbidden[member] = {member}
+    add = getattr(graph, f"add_{resource_type}_resource")
+    add(
+        NgPathExtensionFunction(neighborhoods),
+        IntersectionFeasibilityFunction(forbidden, forbidden=True),
+        TrivialCostFunction(),
+        InclusionDominanceFunction(),
+    )
+
+
+def add_elementary_resource(
+    graph: ResourceGraph,
+    resource_type: ContainerResourceType,
+    node_ids: Iterable[int],
+) -> None:
+    """Register an elementary-path memory: no node may be visited twice.
+
+    Expands to :func:`add_ng_path_resource` with every node's neighbourhood set to every node.
+
+    Call :func:`add_cost_resource` before this one.
+
+    Args:
+        graph: The graph to register on.
+        resource_type: A container resource type; ``"bitset"`` is the compact one.
+        node_ids: Every node id of the model. A node left out gets no neighbourhood, and
+            elementarity stops holding through it.
+    """
+    nodes = set(node_ids)
+    add_ng_path_resource(graph, resource_type, dict.fromkeys(nodes, nodes))

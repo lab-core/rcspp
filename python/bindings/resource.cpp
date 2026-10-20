@@ -7,6 +7,7 @@
 
 #include <limits>
 #include <map>
+#include <set>
 
 #include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
@@ -99,39 +100,49 @@ void init_resource(py::module_& m) {
 
     // ── Concrete functions for container resources ────────────────────────────
 
-#define BIND_CONTAINER_FUNCTIONS(name, scalar, RT)                                          \
-    py::class_<TrivialCostFunction<RT>, CostFunction<RT>, py::smart_holder>(                \
-        m,                                                                                  \
-        "TrivialCostFunction_" #name)                                                       \
-        .def(py::init<>());                                                                 \
-    py::class_<TrivialFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(  \
-        m,                                                                                  \
-        "TrivialFeasibilityFunction_" #name)                                                \
-        .def(py::init<>());                                                                 \
-    py::class_<InclusionDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(    \
-        m,                                                                                  \
-        "InclusionDominanceFunction_" #name)                                                \
-        .def(py::init<>());                                                                 \
-    py::class_<ContainDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(      \
-        m,                                                                                  \
-        "ContainDominanceFunction_" #name)                                                  \
-        .def(py::init<>());                                                                 \
-    py::class_<UnionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(        \
-        m,                                                                                  \
-        "UnionExtensionFunction_" #name)                                                    \
-        .def(py::init<>());                                                                 \
-    py::class_<IntersectionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>( \
-        m,                                                                                  \
-        "IntersectionExtensionFunction_" #name)                                             \
-        .def(py::init<>());                                                                 \
-    py::class_<SubtractExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(     \
-        m,                                                                                  \
-        "SubtractExtensionFunction_" #name)                                                 \
-        .def(py::init<>());                                                                 \
-    py::class_<SizeFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(     \
-        m,                                                                                  \
-        "SizeFeasibilityFunction_" #name)                                                   \
-        .def(py::init<size_t, size_t>(), py::arg("min_size"), py::arg("max_size"));
+#define BIND_CONTAINER_FUNCTIONS(name, scalar, RT)                                              \
+    py::class_<TrivialCostFunction<RT>, CostFunction<RT>, py::smart_holder>(                    \
+        m,                                                                                      \
+        "TrivialCostFunction_" #name)                                                           \
+        .def(py::init<>());                                                                     \
+    py::class_<TrivialFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(      \
+        m,                                                                                      \
+        "TrivialFeasibilityFunction_" #name)                                                    \
+        .def(py::init<>());                                                                     \
+    py::class_<InclusionDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(        \
+        m,                                                                                      \
+        "InclusionDominanceFunction_" #name)                                                    \
+        .def(py::init<>());                                                                     \
+    py::class_<ContainDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(          \
+        m,                                                                                      \
+        "ContainDominanceFunction_" #name)                                                      \
+        .def(py::init<>());                                                                     \
+    py::class_<UnionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(            \
+        m,                                                                                      \
+        "UnionExtensionFunction_" #name)                                                        \
+        .def(py::init<>());                                                                     \
+    py::class_<IntersectionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(     \
+        m,                                                                                      \
+        "IntersectionExtensionFunction_" #name)                                                 \
+        .def(py::init<>());                                                                     \
+    py::class_<SubtractExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(         \
+        m,                                                                                      \
+        "SubtractExtensionFunction_" #name)                                                     \
+        .def(py::init<>());                                                                     \
+    py::class_<SizeFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(         \
+        m,                                                                                      \
+        "SizeFeasibilityFunction_" #name)                                                       \
+        .def(py::init<size_t, size_t>(), py::arg("min_size"), py::arg("max_size"));             \
+    py::class_<NgPathExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(           \
+        m,                                                                                      \
+        "NgPathExtensionFunction_" #name)                                                       \
+        .def(py::init<std::map<size_t, std::set<scalar>>>(), py::arg("neighborhoods"));         \
+    py::class_<IntersectionFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>( \
+        m,                                                                                      \
+        "IntersectionFeasibilityFunction_" #name)                                               \
+        .def(py::init<std::map<size_t, std::set<scalar>>, bool>(),                              \
+             py::arg("values_by_node"),                                                         \
+             py::arg("forbidden") = true);
     RCSPP_CONTAINER_RESOURCES(BIND_CONTAINER_FUNCTIONS)
 #undef BIND_CONTAINER_FUNCTIONS
 }

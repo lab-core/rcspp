@@ -235,10 +235,9 @@ void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborho
 /// rather than a `UnionExtensionFunction` visited set, which is incoherent backward (each backward
 /// label would contain its own node and be rejected immediately).
 ///
-/// @note The shared neighborhood map totals `O(n^2)` elements, but each arc's extension caches
-///       both endpoints' neighborhoods, every node under this preset, so `O(n^3)` in total. Use a
-///       bitset memory such as `SizeTBitsetResource`, which stores each cached set in `n` bits
-///       rather than one tree node per element.
+/// @note Every node's neighborhood holds every node, `O(n^2)` elements in total, kept once per
+///       node and shared by the arcs. Use a bitset memory such as `SizeTBitsetResource`, which
+///       stores each set in `n` bits rather than one tree node per element.
 ///
 /// @tparam R     The container resource type.
 /// @tparam Graph The graph type, deduced.

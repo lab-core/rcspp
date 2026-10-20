@@ -197,12 +197,23 @@ rg.add_int_set_resource(
 #   rg.add_arc((cost, {node_ids_added}), origin, dest, cost=...)
 ```
 
-:::{admonition} ng-paths are C++-only
+:::{admonition} ng-paths and elementary paths
 :class: note
 
-This example used to show `NGPathExtensionFunction`, which has never been exposed to
-Python — neither it nor `IntersectionFeasibilityFunction` has a descriptor, so an
-ng-path or elementary-path model cannot be assembled from Python at all. Build those
-with the C++ API and `rcspp::presets::add_ng_path_resource` /
-`add_elementary_resource`; see [Algorithms](../advanced/algorithms.md).
+A visited set built from the arcs' values, as above, cannot be searched backward. For an
+ng-path or an elementary-path memory, use the presets, which read the memory from the arcs'
+endpoints and work in every direction:
+
+```python
+from rcspp import presets
+
+presets.add_cost_resource(rg)
+presets.add_ng_path_resource(rg, "bitset", {1: {1, 2}, 2: {1, 2}, 3: {3}})
+# or: presets.add_elementary_resource(rg, "bitset", [0, 1, 2, 3])
+
+# The memory ignores each arc's value for it: pass an empty set.
+#   rg.add_arc((cost, set()), origin, dest, cost=...)
+```
+
+See [Algorithms](../advanced/algorithms.md) for what the ng-path memory requires.
 :::
