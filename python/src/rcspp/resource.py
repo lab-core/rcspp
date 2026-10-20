@@ -9,6 +9,8 @@ C++ classes are registered as ``FunctionName_<resource_type>``
 (e.g. ``ValueCostFunction_real``, ``UnionExtensionFunction_real_set``).
 """
 
+from collections.abc import Iterable, Mapping
+
 from . import _core as _ext
 
 # ── Generic resource-function descriptors ─────────────────────────────────────
@@ -222,16 +224,18 @@ class TimeWindowExtensionFunction(_GenericFunctionDescriptor):
 
 
 class CapacityExtensionFunction(_GenericFunctionDescriptor):
-    """A capacity: a sum along the path that must stay under a cap, readable backward.
+    """A capacity: a load summed along the path that must stay within a cap.
 
-    Forward it adds like :class:`AdditionExtensionFunction`; backward a label carries how
-    much the prefix may still have consumed at the node, and starts at the cap, so it works
-    in a bidirectional solve and can be its half-way clock. Signed types (``"real"``,
-    ``"int"``) only, since the backward step subtracts.
+    It also supports backward search. Forward, it adds each arc's load, like
+    :class:`AdditionExtensionFunction`. Backward, a label starts at the cap and subtracts
+    each load, so it holds how much load the rest of the path, back to the source, may
+    still use. This lets it be used in a backward or bidirectional solve, and as the
+    bidirectional clock. Only signed types (``"real"``, ``"int"``) are supported, since the
+    backward step subtracts.
 
-    Pair it with ``MinMaxFeasibilityFunction(0, capacity)``, the same capacity: a
-    bidirectional solve refuses a capacity that differs from its feasibility function's
-    maximum.
+    Pair it with ``MinMaxFeasibilityFunction(0, capacity)`` using the same capacity: a
+    backward or bidirectional solve refuses a cap that differs from the feasibility
+    function's maximum. :func:`rcspp.presets.add_capacity_resource` registers the pair.
     """
 
     def __init__(self, capacity):
@@ -425,6 +429,70 @@ class SizeFeasibilityFunction(_GenericFunctionDescriptor):
         return _get_fn("SizeFeasibilityFunction", resource_type)(self.min_size, self.max_size)
 
 
+class NgPathExtensionFunction(_GenericFunctionDescriptor):
+    """Extension function of the ng-path memory.
+
+    Along an arc, adds the node the label leaves to its set, then keeps only the members
+    of the arrival node's neighbourhood. The node comes from the arc's endpoints, not
+    its value, so the same formula works backward. Applicable to container resource
+    types only.
+    """
+
+    def __init__(self, neighborhoods: Mapping[int, Iterable[int]]):
+        """Initialize the ng-neighbourhoods.
+
+        Args:
+            neighborhoods: ``{node_id: ng-neighbourhood}``. A node absent from the map forgets
+                the whole memory on arrival.
+        """
+        self.neighborhoods = {node: set(members) for node, members in neighborhoods.items()}
+
+    def create(self, resource_type: str):
+        """Instantiate an NgPathExtensionFunction for *resource_type*.
+
+        Args:
+            resource_type: Container resource type string
+                (e.g. ``"real_set"``, ``"int_set"``, ``"bitset"``).
+
+        Returns:
+            A typed C++ NgPathExtensionFunction instance.
+        """
+        return _get_fn("NgPathExtensionFunction", resource_type)(self.neighborhoods)
+
+
+class IntersectionFeasibilityFunction(_GenericFunctionDescriptor):
+    """Feasibility function testing the resource set against per-node values.
+
+    With ``forbidden=True`` (the default), a label is infeasible at a node when its set meets the
+    node's values; with ``forbidden=False``, when it does not. Applicable to container resource
+    types only.
+    """
+
+    def __init__(self, values_by_node: Mapping[int, Iterable[int]], forbidden: bool = True):
+        """Initialize the per-node values.
+
+        Args:
+            values_by_node: ``{node_id: values}``; a node absent from the map is not tested.
+            forbidden: Whether the values are forbidden (``True``) or required (``False``).
+        """
+        self.values_by_node = {node: set(values) for node, values in values_by_node.items()}
+        self.forbidden = forbidden
+
+    def create(self, resource_type: str):
+        """Instantiate an IntersectionFeasibilityFunction for *resource_type*.
+
+        Args:
+            resource_type: Container resource type string
+                (e.g. ``"real_set"``, ``"int_set"``, ``"bitset"``).
+
+        Returns:
+            A typed C++ IntersectionFeasibilityFunction instance.
+        """
+        return _get_fn("IntersectionFeasibilityFunction", resource_type)(
+            self.values_by_node, self.forbidden
+        )
+
+
 # ── Re-export typed C++ names from the resource submodule ────────────────────
 # Names overridden above with generic Python wrappers are excluded.
 
@@ -444,6 +512,8 @@ _overridden = {
     "InclusionDominanceFunction",
     "ContainDominanceFunction",
     "SizeFeasibilityFunction",
+    "NgPathExtensionFunction",
+    "IntersectionFeasibilityFunction",
 }
 
 for _k in dir(_ext.resource):

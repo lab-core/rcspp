@@ -164,21 +164,56 @@ while True:
 
 ---
 
-## Set-based resource (NG-paths)
+## Set-based resource
 
 ```python
+from rcspp.graph import ResourceGraph
 from rcspp.resource import (
-    NGPathExtensionFunction, SizeFeasibilityFunction,
+    AdditionExtensionFunction, TrivialFeasibilityFunction,
+    ValueCostFunction, ValueDominanceFunction,
+    UnionExtensionFunction, SizeFeasibilityFunction,
     TrivialCostFunction, InclusionDominanceFunction,
 )
 
 rg = ResourceGraph()
 
+# The first resource must be a real cost resource — every model starts here.
+rg.add_real_resource(
+    AdditionExtensionFunction(),
+    TrivialFeasibilityFunction(),
+    ValueCostFunction(),
+    ValueDominanceFunction(),
+)
+
 # Track visited nodes (set); no two paths that visit the same node dominate
 rg.add_int_set_resource(
-    NGPathExtensionFunction(),
-    SizeFeasibilityFunction(0, 10),     # path length ≤ 10 nodes
+    UnionExtensionFunction(),            # each arc carries the set it adds
+    SizeFeasibilityFunction(0, 10),      # path length ≤ 10 nodes
     TrivialCostFunction(),
     InclusionDominanceFunction(),        # L1 dominates L2 if visited(L1) ⊆ visited(L2)
 )
+
+# Arcs now carry one value per resource, in registration order:
+#   rg.add_arc((cost, {node_ids_added}), origin, dest, cost=...)
 ```
+
+:::{admonition} ng-paths and elementary paths
+:class: note
+
+A visited set built from the arcs' values, as above, cannot be searched backward. For an
+ng-path or an elementary-path memory, use the presets, which read the memory from the arcs'
+endpoints and work in every direction:
+
+```python
+from rcspp import presets
+
+presets.add_cost_resource(rg)
+presets.add_ng_path_resource(rg, "bitset", {1: {1, 2}, 2: {1, 2}, 3: {3}})
+# or: presets.add_elementary_resource(rg, "bitset", [0, 1, 2, 3])
+
+# The memory ignores each arc's value for it: pass an empty set.
+#   rg.add_arc((cost, set()), origin, dest, cost=...)
+```
+
+See [Algorithms](../advanced/algorithms.md) for what the ng-path memory requires.
+:::
