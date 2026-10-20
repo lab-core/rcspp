@@ -132,8 +132,8 @@ New features are summarised, with a pointer to where they are documented.
   `UnionExtensionFunction` is refused by the model checks, naming the fix.
 - **Presets**, one call per resource kind, each building its four function objects so that they
   agree (`rcspp/resource/presets.hpp`): `add_cost_resource`, `add_window_resource`,
-  `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`. Python has the
-  first three, in `rcspp.presets`. Only the cost preset prices its resource; a window or a
+  `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`, also in Python,
+  in `rcspp.presets`. Only the cost preset prices its resource; a window or a
   capacity costs nothing. Each asserts at compile time that its extension declares a
   backward kind; C++ callers can assert the same of their own extensions with
   `rcspp::declares_backward_kind_v<Ext>`. The rest of a pairing is checked by the model checks.
