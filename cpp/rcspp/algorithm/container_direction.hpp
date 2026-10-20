@@ -48,6 +48,9 @@ struct rebind_direction<LC, ForwardDirection> {
         static LC convert(const LC& prototype) { return prototype.copy(); }
 };
 
+// Hidden from Doxygen: Sphinx's C++ domain cannot parse a partial specialization with a requires
+// clause, and crashes on the page Exhale makes for it, which fails the GitHub Pages build.
+/// @cond
 template <typename LC, typename Dir>
     requires(!std::is_same_v<Dir, ForwardDirection> && RebindsDirection<LC, Dir>)
 struct rebind_direction<LC, Dir> {
@@ -58,6 +61,7 @@ struct rebind_direction<LC, Dir> {
             return prototype.template with_direction<Dir>();
         }
 };
+/// @endcond
 
 template <typename LC, typename Dir>
 using rebind_direction_t = typename rebind_direction<LC, Dir>::type;
