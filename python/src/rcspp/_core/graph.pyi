@@ -11,6 +11,19 @@ class Algorithm(Enum):
     Pulling: Algorithm
     Greedy: Algorithm
     Tabu: Algorithm
+    AStar: Algorithm
+    Bidirectional: Algorithm
+
+class SearchDirection(Enum):
+    """Which way a search runs: Forward from the sources, Backward from the sinks, or
+    Bidirectional (both at once, joined in the middle).
+
+    Only the simple algorithm supports Backward and Bidirectional.
+    """
+
+    Forward: SearchDirection
+    Backward: SearchDirection
+    Bidirectional: SearchDirection
 
 class AlgorithmStatus(Enum):
     Complete: AlgorithmStatus
@@ -45,6 +58,21 @@ class Solution:
         np.ndarray[Any, np.dtype[np.float64]],
     ]: ...
 
+class BidirectionalStats:
+    """What a bidirectional solve reports: whether the half-way bound was in force, why it was
+    off if it was, and how many paths the join produced.
+
+    Read it from SolveResult.bidirectional.
+    """
+
+    @property
+    def bounded_by_half_way(self) -> bool: ...
+    @property
+    def half_way_off_reason(self) -> str: ...
+    @property
+    def number_of_joined_paths(self) -> int: ...
+    def __repr__(self) -> str: ...
+
 class SolveResult:
     """Result of a solve() call.
 
@@ -54,6 +82,8 @@ class SolveResult:
 
     solutions: list[Solution]
     status: AlgorithmStatus
+    @property
+    def bidirectional(self) -> BidirectionalStats | None: ...
     @property
     def memory_pressure_triggered(self) -> bool: ...
     def __init__(self) -> None: ...
@@ -85,6 +115,10 @@ class AlgorithmParams:
     memory_check_interval: int
     memory_pressure_fraction: float
     memory_pressure_max_labels_per_node: int
+    direction: SearchDirection
+    critical_resource_index: int
+    half_way_point: float
+    join_after_early_stop: bool
     def __init__(self) -> None: ...
     def check(self) -> None: ...
     def could_be_non_optimal(self) -> bool: ...
