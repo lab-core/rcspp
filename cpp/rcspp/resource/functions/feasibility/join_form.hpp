@@ -15,6 +15,8 @@ namespace rcspp {
 /// memory that never forgets, or one already narrowed on arrival). Otherwise the join is stricter
 /// than the search and results depend on the half-way point, so declare it only where that holds.
 ///
+/// @note @c override, not @c final: @c IntersectionFeasibilityFunction narrows @c join_rule().
+///
 /// @tparam R    The container resource type. Must expose `intersects()`.
 /// @tparam Base The base to insert above, normally @c FeasibilityFunction<R>.
 template <typename R, typename Base>
