@@ -204,8 +204,9 @@ class Logger {
             std::ostringstream ss;
             std::tm tm_buf;
             std::tm* tm_ptr = nullptr;
-#if defined(_MSC_VER)
-            // MSVC: use thread-safe localtime_s
+#if defined(_MSC_VER) || defined(MINGW_HAS_SECURE_API)
+            // MSVC and MinGW-w64: use thread-safe localtime_s. MinGW hides localtime_r
+            // without _POSIX_C_SOURCE, which strict -std=c++23 does not define.
             localtime_s(&tm_buf, &t);
             tm_ptr = &tm_buf;
 #else
