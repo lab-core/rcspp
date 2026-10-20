@@ -10,6 +10,7 @@
 #include <memory>
 #include <ranges>  // NOLINT(build/include_order)
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -56,12 +57,18 @@ class Graph {
             return *nodes_by_id_[node_id];
         }
 
+        /// @brief Adds an arc from @p origin_node to @p destination_node.
+        ///
+        /// @throws std::invalid_argument when the arc would enter a source or leave a sink. A path
+        ///         starts at a source and ends at a sink with neither inside it, so no path could
+        ///         use such an arc. Nothing is added.
         virtual Arc<ResourceType>& add_arc(Node<ResourceType>* origin_node,
                                            Node<ResourceType>* destination_node, double cost = 0.0,
                                            std::vector<Row> rows = {}) {
             return add_arc_at(origin_node, destination_node, cost, rows, next_arc_id_);
         }
 
+        /// @brief Adds an arc between the nodes with these ids; see the overload above.
         virtual Arc<ResourceType>& add_arc(size_t origin_node_id, size_t destination_node_id,
                                            double cost = 0.0, std::vector<Row> rows = {}) {
             auto& origin_node = nodes_by_id_.at(origin_node_id);
@@ -208,6 +215,19 @@ class Graph {
             return restored_arc_ids;
         }
 
+        /// @brief Throws what @ref add_arc would throw for an arc between these nodes, without
+        ///        adding it.
+        ///
+        /// Lets a caller adding many arcs check them all first, so that a refused arc leaves the
+        /// graph unchanged rather than half-built.
+        ///
+        /// @throws std::out_of_range when either node does not exist.
+        /// @throws std::invalid_argument when the arc would enter a source or leave a sink.
+        void check_new_arc(size_t origin_node_id, size_t destination_node_id) const {
+            check_arc_endpoints(*nodes_by_id_.at(origin_node_id),
+                                *nodes_by_id_.at(destination_node_id));
+        }
+
         [[nodiscard]] Node<ResourceType>* get_node(size_t node_id) const {
             auto it = nodes_by_id_.find(node_id);
             if (it == nodes_by_id_.end()) {
@@ -336,6 +356,14 @@ class Graph {
             });
         }
 
+        /// @brief Order the nodes by @p comp, the same way with every standard library.
+        ///
+        /// @p comp need not be a strict weak ordering: ShortestPathConnectivitySort's heuristic
+        /// is not one. std::stable_sort would then give an order that depends on its
+        /// implementation (and on the hash map's iteration order, which it starts from), so the
+        /// labelling algorithms extended labels in a different order on each platform. Here the
+        /// nodes start in id order and go through the merge sort below, whose comparisons are
+        /// fixed: the same graph gives the same order everywhere.
         template <class Compare>
         void sort_nodes(Compare comp) {
             sorted_nodes_.clear();
@@ -343,7 +371,8 @@ class Graph {
             for (auto& [node_id, node_ptr] : nodes_by_id_) {
                 sorted_nodes_.push_back(node_ptr.get());
             }
-            std::stable_sort(sorted_nodes_.begin(), sorted_nodes_.end(), comp);
+            std::ranges::sort(sorted_nodes_, {}, &Node<ResourceType>::id);
+            merge_sort(sorted_nodes_, comp);
             size_t i = 0;
             for (const auto& node_ptr : sorted_nodes_) {
                 node_ptr->pos_ = i++;
@@ -487,6 +516,38 @@ class Graph {
         }
 
     private:
+        /// @brief Stable bottom-up merge sort of @p nodes by @p comp.
+        ///
+        /// Unlike std::stable_sort, the comparisons it makes depend only on the size of the input,
+        /// so the result is the same with every standard library even when @p comp is not a
+        /// strict weak ordering.
+        template <class Compare>
+        static void merge_sort(std::vector<Node<ResourceType>*>& nodes, Compare& comp) {
+            const size_t n = nodes.size();
+            std::vector<Node<ResourceType>*> merged(n);
+            for (size_t width = 1; width < n; width *= 2) {
+                for (size_t lo = 0; lo < n; lo += 2 * width) {
+                    const size_t mid = std::min(lo + width, n);
+                    const size_t hi = std::min(lo + (2 * width), n);
+                    size_t left = lo;
+                    size_t right = mid;
+                    size_t out = lo;
+                    while (left < mid && right < hi) {
+                        // Take from the right only when it comes strictly first: stable.
+                        merged[out++] =
+                            comp(nodes[right], nodes[left]) ? nodes[right++] : nodes[left++];
+                    }
+                    while (left < mid) {
+                        merged[out++] = nodes[left++];
+                    }
+                    while (right < hi) {
+                        merged[out++] = nodes[right++];
+                    }
+                }
+                nodes.swap(merged);
+            }
+        }
+
         using ArcMap = std::unordered_map<size_t, std::unique_ptr<Arc<ResourceType>>>;
         using NodeMap = std::unordered_map<size_t, std::unique_ptr<Node<ResourceType>>>;
 
@@ -509,10 +570,33 @@ class Graph {
         mutable std::vector<Arc<ResourceType>*> csr_in_arcs_;
         mutable bool csr_valid_ = false;
 
+        /// @brief Throws `std::invalid_argument` if no path could use an arc from @p origin_node to
+        ///        @p destination_node: one that enters a source or leaves a sink.
+        static void check_arc_endpoints(const Node<ResourceType>& origin_node,
+                                        const Node<ResourceType>& destination_node) {
+            if (destination_node.source) {
+                throw std::invalid_argument(
+                    "arc " + std::to_string(origin_node.id) + " -> " +
+                    std::to_string(destination_node.id) + " enters source " +
+                    std::to_string(destination_node.id) +
+                    ": a path starts at a source, so no arc may enter one (a depot that a route "
+                    "passes through needs separate source and sink nodes)");
+            }
+            if (origin_node.sink) {
+                throw std::invalid_argument(
+                    "arc " + std::to_string(origin_node.id) + " -> " +
+                    std::to_string(destination_node.id) + " leaves sink " +
+                    std::to_string(origin_node.id) +
+                    ": a path ends at a sink, so no arc may leave one (a depot that a route "
+                    "passes through needs separate source and sink nodes)");
+            }
+        }
+
         // Internal helper: insert an arc at a specific slot (used by clone()).
         Arc<ResourceType>& add_arc_at(Node<ResourceType>* origin_node,
                                       Node<ResourceType>* destination_node, double cost,
                                       std::vector<Row> rows, size_t arc_id) {
+            check_arc_endpoints(*origin_node, *destination_node);
             next_arc_id_ = std::max(next_arc_id_, arc_id + 1);
             if (arc_id >= arcs_.size()) {
                 arcs_.resize(arc_id + 1);

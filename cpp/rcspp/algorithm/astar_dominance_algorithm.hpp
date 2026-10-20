@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <queue>
 #include <utility>
@@ -64,11 +65,18 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
     private:
         // ─── Comparator ──────────────────────────────────────────────────────────
 
-        /// @brief Min-heap comparator: lower f-value = higher priority.
+        /// @brief Min-heap comparator: lower f-value = higher priority; among equal f-values,
+        ///        the older label (smaller id) first.
         ///
         /// Stores a pointer to the outer object's @ref h_to_sink_ vector so that
         /// the comparator always reflects the current heuristic values without
         /// copying the vector.
+        ///
+        /// The id tie-break makes the order total. Without it, which of two labels with the same
+        /// f-value comes out first depends on the standard library's heap algorithm (libc++'s
+        /// differs from libstdc++'s), and so did the labels A* extended and, under a truncation,
+        /// the solutions it returned. Label ids come from the pool's counter, so they are unique
+        /// and follow creation order.
         struct LabelFValueComparator {
                 const std::vector<double>* h;
 
@@ -77,7 +85,10 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                     double fa = a.first->get_cost() + h->at(a.first->get_end_node()->pos());
                     double fb = b.first->get_cost() + h->at(b.first->get_end_node()->pos());
                     // std::priority_queue is a max-heap; invert comparison for min-heap.
-                    return fa > fb;
+                    if (fa != fb) {
+                        return fa > fb;
+                    }
+                    return a.first->id > b.first->id;
                 }
         };
 
@@ -215,7 +226,8 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// excess in @ref unprocessed_truncated_labels_ for the next phase.
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
-            this->effective_max_labels_per_node_ = limit;
+            this->effective_max_labels_per_node_ =
+                std::min(this->effective_max_labels_per_node_, limit);
 
             if (this->memory_pressure_triggered_) {
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
