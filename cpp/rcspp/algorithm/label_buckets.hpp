@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "rcspp/algorithm/direction.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp {
@@ -16,7 +17,13 @@ namespace rcspp {
 ///
 /// Used as the default label container in dominance algorithms.  Every
 /// add / erase / dominance-check is O(N) in the number of stored labels.
-template <class ResourceType>
+///
+/// Dominance is checked here, so a backward search must use a backward container; a forward one
+/// would discard the better labels.
+///
+/// @tparam ResourceType The resource type carried by labels.
+/// @tparam Dir          The direction policy supplying the dominance order.
+template <class ResourceType, class Dir = ForwardDirection>
 class LabelList {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
 
@@ -25,7 +32,21 @@ class LabelList {
         virtual ~LabelList() = default;
 
         /// @brief Returns an empty container with the same configuration.
+        ///
+        /// Inside the class, `LabelList` names this exact instantiation, so the copy keeps
+        /// @c Dir.
         [[nodiscard]] LabelList copy() const { return LabelList(); }
+
+        /// @brief Returns an empty list that compares labels in direction @p D.
+        ///
+        /// A search in another direction keeps its labels in this copy (see
+        /// @c detail::rebind_direction).
+        ///
+        /// @tparam D The direction policy of the copy.
+        template <class D>
+        [[nodiscard]] LabelList<ResourceType, D> with_direction() const {
+            return LabelList<ResourceType, D>();
+        }
 
         /// @brief Read-only access to the underlying label list.
         [[nodiscard]] const std::list<Label<ResourceType>*>& get_labels() const { return labels_; }
@@ -53,7 +74,8 @@ class LabelList {
             size_t removed = 0;
             for (auto non_dominated_label_it = labels_.begin();
                  non_dominated_label_it != labels_.end();) {
-                if (&label != *non_dominated_label_it && label <= *(*non_dominated_label_it)) {
+                if (&label != *non_dominated_label_it &&
+                    dominates(label, *(*non_dominated_label_it))) {
                     (*non_dominated_label_it)->dominated = true;
                     non_dominated_label_it = labels_.erase(non_dominated_label_it);
                     ++removed;
@@ -70,7 +92,7 @@ class LabelList {
                 if (&label == non_dominated_label_ptr) {
                     continue;
                 }
-                if ((*non_dominated_label_ptr) <= label) {
+                if (dominates(*non_dominated_label_ptr, label)) {
                     return true;
                 }
             }
@@ -78,6 +100,17 @@ class LabelList {
         }
 
     protected:
+        /// @brief Direction-aware dominance: forward uses `operator<=`, backward uses
+        ///        `back_dominates`.
+        ///
+        /// @param lhs The candidate dominating label.
+        /// @param rhs The label being tested.
+        /// @return `true` when @p lhs dominates @p rhs in this container's direction.
+        [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
+                                            const Label<ResourceType>& rhs) {
+            return Dir::template dominates<ResourceType>(lhs, rhs);
+        }
+
         std::list<Label<ResourceType>*> labels_;
 };
 
@@ -121,8 +154,13 @@ class LabelList {
 /// @tparam BucketResource  Resource type used to partition labels into buckets.
 /// @tparam SortResource    Resource type used to sort labels within a bucket.
 /// @tparam ResourceType    Full composite resource type of the labels.
-template <typename BucketResource, typename SortResource, typename ResourceType>
-class LabelBuckets : public LabelList<ResourceType> {
+/// @tparam Dir             The direction policy supplying the dominance order.
+///
+/// @note A backward search with buckets keeps its labels in `with_direction<BackwardDirection>()`:
+///       the same buckets, comparing backward (see @c detail::rebind_direction).
+template <typename BucketResource, typename SortResource, typename ResourceType,
+          typename Dir = ForwardDirection>
+class LabelBuckets : public LabelList<ResourceType, Dir> {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
         using BucketIdx = size_t;
 
@@ -137,12 +175,12 @@ class LabelBuckets : public LabelList<ResourceType> {
 
                 /// @brief True when @p value is strictly before this bucket's range.
                 [[nodiscard]] bool is_before_bucket(const RType& value) const {
-                    return !begin_value->is_lower(value);
+                    return !Dir::is_lower(*begin_value, value);
                 }
 
                 /// @brief True when @p value is strictly after this bucket's range.
                 [[nodiscard]] bool is_after_bucket(const RType& value) const {
-                    return begin_value->is_lower(value, -range);
+                    return Dir::is_lower(*begin_value, value, -range);
                 }
 
                 /// @brief True when @p value falls within [begin_value, begin_value + range].
@@ -174,6 +212,22 @@ class LabelBuckets : public LabelList<ResourceType> {
             return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
         }
 
+        /// @brief Returns an empty container with the same configuration that compares labels in
+        ///        direction @p D.
+        ///
+        /// A search in another direction keeps its labels in this copy (see
+        /// @c detail::rebind_direction).
+        ///
+        /// @tparam D The direction policy of the copy.
+        template <class D>
+        [[nodiscard]] LabelBuckets<BucketResource, SortResource, ResourceType, D> with_direction()
+            const {
+            return LabelBuckets<BucketResource, SortResource, ResourceType, D>(
+                range_buckets_,
+                bucket_resource_index_,
+                sort_resource_index_);
+        }
+
         /// @brief Inserts @p label into the appropriate bucket (creating one if needed).
         ///
         /// The correct bucket is located in O(log B) via binary search; the label is
@@ -202,7 +256,8 @@ class LabelBuckets : public LabelList<ResourceType> {
                 const auto& lsr = get_sort_resource(*label);
                 auto it = buckets_[idx].begin;
                 const auto bucket_end = buckets_[idx].end;
-                while (it != bucket_end && get_sort_resource(**it) <= lsr) {
+                while (it != bucket_end &&
+                       Dir::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
                     ++it;
                 }
                 auto pos = this->labels_.insert(it, label);
@@ -277,7 +332,7 @@ class LabelBuckets : public LabelList<ResourceType> {
                     --label_it;
                     reached_begin = (label_it == buckets_[idx].begin);
                     auto* current = *label_it;
-                    if (&label != current && label <= *current) {
+                    if (&label != current && this->dominates(label, *current)) {
                         current->dominated = true;
                         // Capture the begin pointer BEFORE erasing: the erase
                         // invalidates the stored bucket begin iterator.
@@ -291,7 +346,9 @@ class LabelBuckets : public LabelList<ResourceType> {
                             }
                             update_bucket_begin(idx, label_it, begin_before_erase);
                         }
-                    } else if (!(lsr <= get_sort_resource(*current))) {
+                    } else if (!Dir::template dominates<SortResource>(
+                                   lsr,
+                                   get_sort_resource(*current))) {
                         // Sort-resource pruning: remaining labels cannot be dominated.
                         break;
                     }
@@ -324,10 +381,10 @@ class LabelBuckets : public LabelList<ResourceType> {
                     if (&label == *it) {
                         continue;
                     }
-                    if (**it <= label) {
+                    if (this->dominates(**it, label)) {
                         return true;
                     }
-                    if (!(get_sort_resource(**it) <= lsr)) {
+                    if (!Dir::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
                         break;
                     }
                 }
@@ -338,7 +395,7 @@ class LabelBuckets : public LabelList<ResourceType> {
 
         /// @brief Logs label list and bucket-efficiency statistics at TRACE level.
         void print_labels() const override {
-            LabelList<ResourceType>::print_labels();
+            LabelList<ResourceType, Dir>::print_labels();
             const double rm_ratio =
                 num_rm_labels_ == 0 ? 0.0 : static_cast<double>(num_rm_visited_) / num_rm_labels_;
             const double dom_ratio = num_dom_labels_ == 0

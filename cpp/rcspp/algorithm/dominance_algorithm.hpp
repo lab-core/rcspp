@@ -6,19 +6,45 @@
 #include <algorithm>
 #include <cassert>
 #include <list>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/container_direction.hpp"
+#include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/label/label_pool.hpp"
 
 namespace rcspp {
 
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+/// @brief The labeling loop, written once for both search directions.
+///
+/// Every forward algorithm derives from it with the default direction; a backward search uses it
+/// with @ref BackwardDirection. Wherever the two directions differ, the loop asks @p Dir. The
+/// templated helpers take their direction and container set as parameters, so a bidirectional
+/// algorithm can drive a second container set through the same code.
+///
+/// @tparam ResourceType       The resource type carried by labels.
+/// @tparam LabelContainerType The per-node non-dominated label container its params hold; a
+///                            backward search keeps it rebound (@c detail::rebind_direction).
+/// @tparam Dir                The direction policy: @ref ForwardDirection (the default) or
+///                            @ref BackwardDirection.
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
+          typename Dir = ForwardDirection>
     requires ResourceTypeConcept<ResourceType>
 class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
+        static_assert(DirectionPolicy<Dir, ResourceType>,
+                      "Dir does not satisfy DirectionPolicy for this ResourceType");
+
     public:
+        using resource_type = ResourceType;
+        using label_container_type = LabelContainerType;
+
+        /// @brief The per-node container this search keeps: @c LabelContainerType rebound to
+        ///        @c Dir.
+        using DirectedContainer = detail::rebind_direction_t<LabelContainerType, Dir>;
+
         DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
                            AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
@@ -44,14 +70,18 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             non_dominated_labels_by_node_pos_.clear();
             non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
-                non_dominated_labels_by_node_pos_.emplace_back(this->params_.labels.copy());
+                non_dominated_labels_by_node_pos_.emplace_back(
+                    detail::rebind_direction<LabelContainerType, Dir>::convert(
+                        this->params_.labels));
             }
 
-            for (auto source_node_id : this->graph_->get_source_node_ids()) {
-                auto* source_node = this->graph_->get_node(source_node_id);
-                auto& label = this->label_pool_.get_next_label(source_node);
+            for (auto start_node_id : Dir::start_nodes(*this->graph_)) {
+                auto* start_node = this->graph_->get_node(start_node_id);
+                auto& label = this->label_pool_.get_next_label(start_node);
+                // Only start labels need starting values; extension overwrites all others.
+                Dir::apply_start(*this->graph_, start_node, label);
 
-                auto& buckets = non_dominated_labels_by_node_pos_.at(source_node->pos());
+                auto& buckets = non_dominated_labels_by_node_pos_.at(start_node->pos());
                 // it points to the newly inserted element
                 auto label_it = buckets.add_label(&label);
                 add_new_unprocessed_label(std::make_pair(&label, label_it));
@@ -111,7 +141,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 assert(label.get_end_node());
 
                 // check if we can update the best label or extend
-                if (label.get_end_node()->sink) {
+                if (Dir::is_terminal(label.get_end_node())) {
                     if (label.get_cost() < this->cost_upper_bound_) {
                         if (label.get_cost() < this->best_cost_upper_bound_) {
                             this->best_cost_upper_bound_ = label.get_cost();
@@ -137,45 +167,64 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
+        /// @brief The next label to process and its position in its node's container; a null
+        ///        label when none is left. Each subclass decides the order.
         virtual LabelIteratorPair<ResourceType> next_label_iterator() = 0;
 
+        /// @brief Extends @p label_ptr along every arc its direction walks from its node.
         virtual void extend(Label<ResourceType>* label_ptr) {
             const auto& current_node = label_ptr->get_end_node();
-            for (auto arc_ptr : this->graph_->get_out_arcs(current_node)) {
+            for (auto arc_ptr : Dir::arcs(*this->graph_, current_node)) {
                 extend_label(label_ptr, arc_ptr);
             }
         }
 
-        /// @brief Extends @p label_ptr along @p arc_ptr, keeping the result if it is feasible and
-        ///        not dominated.
-        ///
-        /// A path starts at a source and ends at a sink, with neither strictly inside it -- the
-        /// rule every algorithm in the library applies. The main loop never extends a label at a
-        /// sink, and the graph refuses an arc that enters a source, so no extension lands on one.
+        /// @brief Extends @p label_ptr along @p arc_ptr into this search's own containers.
         virtual void extend_label(Label<ResourceType>* label_ptr,
                                   const Arc<ResourceType>* arc_ptr) {
-            assert(!arc_ptr->destination->source && "an arc enters a source");
-            // check if arc is not reachable
-            if (!label_ptr->is_reachable(arc_ptr->destination->id)) {
+            extend_label<Dir>(label_ptr, arc_ptr, non_dominated_labels_by_node_pos_);
+        }
+
+        /// @brief Extends @p label_ptr along @p arc_ptr into an explicit container set.
+        ///
+        /// @tparam Dir2      The direction to extend in.
+        /// @tparam Container The per-node non-dominated label container type.
+        /// @param label_ptr  The label to extend.
+        /// @param arc_ptr    The arc to extend along.
+        /// @param containers The per-node containers to insert the result into.
+        template <typename Dir2, typename Container>
+        void extend_label(Label<ResourceType>* label_ptr, const Arc<ResourceType>* arc_ptr,
+                          std::vector<Container>& containers) {
+            auto* head_node = Dir2::head(*arc_ptr);
+
+            // Skip the arc when the label can no longer reach the node it lands on. Both
+            // directions call the same `is_reachable`, which is correct only when it depends on
+            // the node id alone. A resource whose check reads the label's visited set must declare
+            // `JoinRule::Unspecified` (as `ReachableFeasibilityFunction` does), so the pre-solve
+            // checks refuse a bidirectional search on it.
+            if (!label_ptr->is_reachable(head_node->id)) {
                 return;
             }
 
-            auto& new_label = this->label_pool_.get_next_label(arc_ptr->destination);
-            label_ptr->extend(*arc_ptr, &new_label);
+            // Sources and sinks stay out of a path's interior: the graph refuses an arc that
+            // enters a source or leaves a sink (Graph::add_arc), so no extension lands on a node
+            // this direction starts from.
+            assert(!Dir2::is_start_node(head_node) && "an arc enters a source or leaves a sink");
+
+            auto& new_label = this->label_pool_.get_next_label(head_node);
+            Dir2::extend(*label_ptr, *arc_ptr, &new_label);
 
             if (++this->num_extended_labels_ % 100000 == 0) {  // NOLINT
                 print_labels();
                 LOG_DEBUG("Processed ", this->num_extended_labels_, " labels so far...\n");
             }
 
-            bool feasible = new_label.is_feasible();
-            if (feasible && update_non_dominated_labels(new_label)) {
-                // Add to unprocessed_labels_ and non_dominated_labels_by_node_id_ only if
-                // feasible and non dominated.
-                // points to the newly inserted element
+            bool feasible = Dir2::feasible(new_label);
+            if (feasible && dispatch_update_non_dominated_labels<Dir2>(new_label, containers)) {
+                // Keep the label only if it is feasible and not dominated: store it at its node
+                // and queue it for extension.
                 auto new_label_it =
-                    non_dominated_labels_by_node_pos_.at(new_label.get_end_node()->pos())
-                        .add_label(&new_label);
+                    containers.at(new_label.get_end_node()->pos()).add_label(&new_label);
                 add_new_unprocessed_label(std::make_pair(&new_label, new_label_it));
                 // Pin predecessor: keep it alive until this label is released.
                 new_label.set_prev_label(label_ptr);
@@ -190,28 +239,100 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
-        /// @brief Reconstruct the path by following prev_label pointers.
-        ///
-        /// O(hops): every accepted label stores a pointer to its predecessor,
-        /// kept alive via @ref ref_count until this label is released.
         std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) override {
-            std::vector<size_t> path_arc_ids;
-            const Label<ResourceType>* cur = &label;
-            while (cur != nullptr && cur->get_in_arc() != nullptr) {
-                path_arc_ids.push_back(cur->get_in_arc()->id);
-                cur = cur->prev_label;
-            }
-            std::ranges::reverse(path_arc_ids);
-            return path_arc_ids;
+            return path_arc_ids<Dir>(label);
         }
 
+        /// @brief The arc ids of the path @p label ends, in forward order.
+        ///
+        /// Reconstructed by following prev_label pointers, in O(hops): every accepted label
+        /// stores a pointer to its predecessor, kept alive via @ref ref_count until this label is
+        /// released. Forward, the in-arc chain is reversed; backward, the out-arc chain is already
+        /// in forward order.
+        ///
+        /// @tparam Dir2 The direction @p label was extended in.
+        template <typename Dir2>
+        [[nodiscard]] std::vector<size_t> path_arc_ids(const Label<ResourceType>& label) const {
+            std::vector<size_t> arc_ids;
+            const Label<ResourceType>* cur = &label;
+            if constexpr (Dir2::backward) {
+                while (cur != nullptr && cur->get_out_arc() != nullptr) {
+                    arc_ids.push_back(cur->get_out_arc()->id);
+                    cur = cur->prev_label;
+                }
+            } else {
+                while (cur != nullptr && cur->get_in_arc() != nullptr) {
+                    arc_ids.push_back(cur->get_in_arc()->id);
+                    cur = cur->prev_label;
+                }
+                std::ranges::reverse(arc_ids);
+            }
+            return arc_ids;
+        }
+
+        using Algorithm<ResourceType, LabelContainerType>::extract_solution;
+
+        void extract_solution(const Label<ResourceType>& label) override {
+            extract_path_solution<Dir>(label);
+        }
+
+        /// @brief Records the path @p label ends.
+        ///
+        /// Going backward, a label ends at a source, so the path's last node is the head of its
+        /// last arc: the sink the chain started from.
+        ///
+        /// @tparam Dir2 The direction @p label was extended in.
+        template <typename Dir2>
+        void extract_path_solution(const Label<ResourceType>& label) {
+            if constexpr (Dir2::backward) {
+                auto arc_ids = path_arc_ids<Dir2>(label);
+                if (arc_ids.empty()) {
+                    return;
+                }
+                const size_t end_node_id = this->graph_->get_arc(arc_ids.back())->destination->id;
+                this->extract_solution(label.get_cost(), std::move(arc_ids), end_node_id);
+            } else {
+                Algorithm<ResourceType, LabelContainerType>::extract_solution(label);
+            }
+        }
+
+        /// @brief Updates @p containers with @p label, through the virtual overload when they are
+        ///        this search's own set, so a subclass override runs.
+        ///
+        /// The backward set of a bidirectional search has another container type, so a forward
+        /// override could not apply to it anyway.
+        template <typename Dir2, typename Container>
+        bool dispatch_update_non_dominated_labels(const Label<ResourceType>& label,
+                                                  std::vector<Container>& containers) {
+            if constexpr (std::is_same_v<Dir2, Dir> &&
+                          std::is_same_v<Container, DirectedContainer>) {
+                if (&containers == &non_dominated_labels_by_node_pos_) {
+                    return update_non_dominated_labels(label);
+                }
+            }
+            return update_non_dominated_labels<Dir2>(label, containers);
+        }
+
+        /// @brief Updates this search's own non-dominated set with @p label.
         virtual bool update_non_dominated_labels(const Label<ResourceType>& label) {
+            return update_non_dominated_labels<Dir>(label, non_dominated_labels_by_node_pos_);
+        }
+
+        /// @brief Updates an explicit non-dominated set with @p label.
+        ///
+        /// @tparam Dir2      The direction whose dominance order applies.
+        /// @tparam Container The per-node non-dominated label container type.
+        /// @param label      The candidate label.
+        /// @param containers The per-node containers to test against and prune.
+        /// @return @c true when @p label is not dominated and should be kept.
+        template <typename Dir2, typename Container>
+        bool update_non_dominated_labels(const Label<ResourceType>& label,
+                                         std::vector<Container>& containers) {
             total_update_non_dom_time_.start();
             ++nb_update_non_dom_iter_;
 
             auto current_node_pos = label.get_end_node()->pos();
-            auto& non_dominated_labels_list =
-                non_dominated_labels_by_node_pos_.at(current_node_pos);
+            auto& non_dominated_labels_list = containers.at(current_node_pos);
 
             // First, check if label is dominated by any existing non-dominated label
             bool label_dominated = non_dominated_labels_list.is_dominated(label);
@@ -228,23 +349,47 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return true;
         }
 
+        /// @brief Removes @p label_iterator from this search's own containers.
         virtual void remove_label(const std::list<Label<ResourceType>*>::iterator& label_iterator) {
+            remove_label<Dir>(label_iterator, non_dominated_labels_by_node_pos_);
+        }
+
+        /// @brief Removes @p label_iterator from an explicit container set.
+        ///
+        /// @tparam Dir2      The direction the containers belong to.
+        /// @tparam Container The per-node non-dominated label container type.
+        /// @param label_iterator Iterator into the container holding the label.
+        /// @param containers The per-node containers to erase from.
+        template <typename Dir2, typename Container>
+        void remove_label(const std::list<Label<ResourceType>*>::iterator& label_iterator,
+                          std::vector<Container>& containers) {
             auto current_node_pos = (*label_iterator)->get_end_node()->pos();
-            non_dominated_labels_by_node_pos_.at(current_node_pos).erase_label(label_iterator);
+            containers.at(current_node_pos).erase_label(label_iterator);
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
-            std::list<Label<ResourceType>*> labels_at_sinks;
-            for (auto sink_node_id : this->graph_->get_sink_node_ids()) {
-                auto node_pos = this->graph_->get_node(sink_node_id)->pos();
-                const auto& labels_at_current_sink =
-                    non_dominated_labels_by_node_pos_.at(node_pos).get_labels();
-                labels_at_sinks.insert(labels_at_sinks.end(),
-                                       labels_at_current_sink.begin(),
-                                       labels_at_current_sink.end());
+            return get_labels_at_terminals<Dir>(non_dominated_labels_by_node_pos_);
+        }
+
+        /// @brief Collects the labels at this direction's terminal nodes.
+        ///
+        /// @tparam Dir2      The direction whose terminals to sweep.
+        /// @tparam Container The per-node non-dominated label container type.
+        /// @param containers The per-node containers to read.
+        /// @return Every label held at a terminal node of @c Dir2.
+        template <typename Dir2, typename Container>
+        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals(
+            const std::vector<Container>& containers) const {
+            std::list<Label<ResourceType>*> labels_at_terminals;
+            for (auto terminal_node_id : Dir2::terminals(*this->graph_)) {
+                auto node_pos = this->graph_->get_node(terminal_node_id)->pos();
+                const auto& labels_at_current_terminal = containers.at(node_pos).get_labels();
+                labels_at_terminals.insert(labels_at_terminals.end(),
+                                           labels_at_current_terminal.begin(),
+                                           labels_at_current_terminal.end());
             }
 
-            return labels_at_sinks;
+            return labels_at_terminals;
         }
 
         void print_labels() const override {
@@ -257,10 +402,13 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
+        /// @brief Queues a newly stored label for extension, in the subclass's own order.
         virtual void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) = 0;
 
-        std::vector<LabelContainerType> non_dominated_labels_by_node_pos_;
+        /// @brief This search's non-dominated labels: one container per node, indexed by node
+        ///        position.
+        std::vector<DirectedContainer> non_dominated_labels_by_node_pos_;
 
         Timer total_extend_time_;
         Timer total_update_non_dom_time_;
