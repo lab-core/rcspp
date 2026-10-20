@@ -26,6 +26,12 @@ using Composed = ResourceTypeComposition<RealResource>;
 using List = LabelList<Composed>;
 using Buckets = LabelBuckets<RealResource, RealResource, Composed>;
 
+/// @brief A user's container derived from LabelList that declares no with_direction of its own.
+class InheritsListOnly : public LabelList<Composed> {
+    public:
+        [[nodiscard]] InheritsListOnly copy() const { return {}; }
+};
+
 constexpr double kTolerance = 1e-9;
 
 /// @brief Two routes to the sink, with a capacity that rules the cheaper one out: -4 wins.
@@ -115,17 +121,25 @@ TEST(SearchDirection, OtherAlgorithmsRefuseBackward) {
     sdt::expect_backward_refused<TabuSearchAlgorithm>("Tabu");
 }
 
-/// @brief A backward search compares labels backward, which only a LabelList can.
-TEST(SearchDirection, BackwardNeedsALabelList) {
+/// @brief A backward search keeps the caller's container, turned backward: buckets can be, and a
+///        container that declares no with_direction of its own is refused.
+TEST(SearchDirection, BackwardNeedsAContainerThatTurnsBackward) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
     AlgorithmParams<sdt::Buckets> params(sdt::Buckets(1, 0, 0));
     params.direction = SearchDirection::Backward;
-    EXPECT_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)),
-                 std::invalid_argument);
+    EXPECT_NO_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)));
 
     params.direction = SearchDirection::Forward;
     EXPECT_NO_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::Buckets>(params)));
+
+    AlgorithmParams<sdt::InheritsListOnly> own;
+    own.direction = SearchDirection::Backward;
+    EXPECT_THROW((void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own)),
+                 std::invalid_argument);
+    own.direction = SearchDirection::Forward;
+    EXPECT_NO_THROW(
+        (void)(g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own)));
 }
 
 /// @brief An algorithm built without create_algorithm still refuses a direction it does not

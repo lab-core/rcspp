@@ -36,9 +36,10 @@ Each entry says what an existing model or caller sees differently.
   `SimpleDominanceAlgorithm` searches backward, from the sinks; `create_algorithm` and `solve`
   build the class that does it.
   An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
-  throws `std::invalid_argument` when it is created or solved, as does a backward search with
-  `LabelBuckets`, which has no backward form. A backward search returns complete paths in
-  forward order. See "Search directions" in `docs/advanced/algorithms.md`.
+  throws `std::invalid_argument` when it is created or solved, as does a backward search with a
+  label container that declares no `with_direction<D>()` (`LabelList` and `LabelBuckets` both do).
+  A backward search returns complete paths in forward order. See "Search directions" in
+  `docs/advanced/algorithms.md`.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are

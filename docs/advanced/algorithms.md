@@ -136,8 +136,10 @@ source and ends at a sink.
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
 (`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels
-in a `LabelList` that compares them backward; `LabelBuckets` has no backward form, so a backward
-search with buckets is refused. Since the class that searches backward is not the one you name,
+in the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
+`with_direction<D>()`, an empty copy of themselves that compares in direction `D`. A container of
+your own that does not declare it is refused for a backward search. Since the class that searches
+backward is not the one you name,
 `create_algorithm<Strategy>(params)` returns a `std::unique_ptr<Algorithm<R, LC>>`.
 
 **The model checks run first, always.** A backward or bidirectional solve runs the checks its

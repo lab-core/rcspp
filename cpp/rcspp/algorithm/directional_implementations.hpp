@@ -67,8 +67,9 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                         std::move(params));
                 } else {
                     throw std::invalid_argument(
-                        "a backward search needs a LabelList container: this one has no backward "
-                        "form");
+                        "a backward search keeps its labels in the container its params hold, "
+                        "turned backward, and this container has no backward form: it must declare "
+                        "its own with_direction<D>(), as LabelList and LabelBuckets do");
                 }
             }
             break;
