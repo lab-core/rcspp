@@ -173,30 +173,14 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                 const RType* begin_value;
                 double range;
 
-                /// @brief Direction-aware fast dominance check.
-                ///
-                /// @param lhs   The left-hand resource.
-                /// @param rhs   The right-hand resource.
-                /// @param delta Relaxation tolerance.
-                /// @return `true` when @p lhs is (approximately) dominated by @p rhs in this
-                ///         container's direction.
-                [[nodiscard]] static bool is_lower_dir(const RType& lhs, const RType& rhs,
-                                                       double delta = 0) {
-                    if constexpr (Dir::backward) {
-                        return lhs.is_back_lower(rhs, delta);
-                    } else {
-                        return lhs.is_lower(rhs, delta);
-                    }
-                }
-
                 /// @brief True when @p value is strictly before this bucket's range.
                 [[nodiscard]] bool is_before_bucket(const RType& value) const {
-                    return !is_lower_dir(*begin_value, value);
+                    return !Dir::is_lower(*begin_value, value);
                 }
 
                 /// @brief True when @p value is strictly after this bucket's range.
                 [[nodiscard]] bool is_after_bucket(const RType& value) const {
-                    return is_lower_dir(*begin_value, value, -range);
+                    return Dir::is_lower(*begin_value, value, -range);
                 }
 
                 /// @brief True when @p value falls within [begin_value, begin_value + range].
@@ -272,7 +256,8 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                 const auto& lsr = get_sort_resource(*label);
                 auto it = buckets_[idx].begin;
                 const auto bucket_end = buckets_[idx].end;
-                while (it != bucket_end && sort_dominates(get_sort_resource(**it), lsr)) {
+                while (it != bucket_end &&
+                       Dir::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
                     ++it;
                 }
                 auto pos = this->labels_.insert(it, label);
@@ -361,7 +346,9 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                             }
                             update_bucket_begin(idx, label_it, begin_before_erase);
                         }
-                    } else if (!sort_dominates(lsr, get_sort_resource(*current))) {
+                    } else if (!Dir::template dominates<SortResource>(
+                                   lsr,
+                                   get_sort_resource(*current))) {
                         // Sort-resource pruning: remaining labels cannot be dominated.
                         break;
                     }
@@ -397,7 +384,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                     if (this->dominates(**it, label)) {
                         return true;
                     }
-                    if (!sort_dominates(get_sort_resource(**it), lsr)) {
+                    if (!Dir::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
                         break;
                     }
                 }
@@ -470,23 +457,6 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
         [[nodiscard]] const Resource<SortResource>& get_sort_resource(
             const Label<ResourceType>& label) const {
             return get_resource<SortResource>(label, sort_resource_index_);
-        }
-
-        /// @brief Direction-aware comparison on the SORT resource.
-        ///
-        /// `Resource::operator<=` is the forward order; a threshold sort resource reverses
-        /// backward, which the sorted insert and early exits rely on.
-        ///
-        /// @param lhs The left-hand sort resource.
-        /// @param rhs The right-hand sort resource.
-        /// @return `true` when @p lhs dominates @p rhs in this container's direction.
-        [[nodiscard]] static bool sort_dominates(const Resource<SortResource>& lhs,
-                                                 const Resource<SortResource>& rhs) {
-            if constexpr (Dir::backward) {
-                return lhs.back_dominates(rhs);
-            } else {
-                return lhs <= rhs;
-            }
         }
 
         template <class RType>

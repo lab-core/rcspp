@@ -55,6 +55,21 @@ struct ForwardDirection {
             return lhs <= rhs;
         }
 
+        /// @brief Whether resource @p lhs dominates @p rhs in this direction.
+        template <typename ResourceType>
+        static auto dominates(const Resource<ResourceType>& lhs,
+                              const Resource<ResourceType>& rhs) -> bool {
+            return lhs <= rhs;
+        }
+
+        /// @brief Whether resource @p lhs is lower than @p rhs, within @p delta, in this
+        ///        direction.
+        template <typename ResourceType>
+        static auto is_lower(const Resource<ResourceType>& lhs, const Resource<ResourceType>& rhs,
+                             double delta = 0) -> bool {
+            return lhs.is_lower(rhs, delta);
+        }
+
         /// @brief Gives a start label its starting value (no-op going forward).
         template <typename ResourceType>
         static void apply_start(const Graph<ResourceType>& /*graph*/,
@@ -129,6 +144,20 @@ struct BackwardDirection {
         static auto dominates(const Label<ResourceType>& lhs,
                               const Label<ResourceType>& rhs) -> bool {
             return lhs.back_dominates(rhs);
+        }
+
+        /// @brief Whether resource @p lhs dominates @p rhs going backward.
+        template <typename ResourceType>
+        static auto dominates(const Resource<ResourceType>& lhs,
+                              const Resource<ResourceType>& rhs) -> bool {
+            return lhs.back_dominates(rhs);
+        }
+
+        /// @brief Whether resource @p lhs is lower than @p rhs, within @p delta, going backward.
+        template <typename ResourceType>
+        static auto is_lower(const Resource<ResourceType>& lhs, const Resource<ResourceType>& rhs,
+                             double delta = 0) -> bool {
+            return lhs.is_back_lower(rhs, delta);
         }
 
         /// @brief Gives a start label at sink @p node its starting value: the one the
