@@ -421,3 +421,78 @@ TEST(BackwardSearch, LaterDeadlineSurvivesBackwardDominance) {
     ASSERT_EQ(labels.size(), 1U) << "the two labels should have resolved to one by dominance";
     EXPECT_NEAR(bst::component_value(*labels.front()), 90.0, bst::kTolerance);
 }
+
+// ============================================================================
+// Bucket containers, rebound backward
+// ============================================================================
+
+/// @brief A backward search keeps its labels in the caller's buckets, rebound backward, and finds
+///        the optimum a backward list and the forward search find.
+///
+/// Cost and a time window on 0 -> {1, 2} -> 3 -> 4. The cheapest route, 0-1-3-4 (-13), reaches
+/// node 3 at 20, after it closes at 18; the optimum is 0-1-2-3-4 (-11). Both bucket layouts are
+/// tried: on the deadline, which reverses backward, and on the cost.
+TEST(BackwardSearch, BucketsFindWhatAListFinds) {
+    namespace bst = backward_search_test;
+    using Buckets = LabelBuckets<RealResource, RealResource, bst::Composed>;
+    constexpr double kOptimum = -11.0;
+    constexpr size_t kCost = 0;
+    constexpr size_t kTime = 1;
+
+    const auto build = [] {
+        const std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 0.0}},
+                                                                  {1, {0.0, 50.0}},
+                                                                  {2, {5.0, 50.0}},
+                                                                  {3, {0.0, 18.0}},
+                                                                  {4, {0.0, 40.0}}};
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        graph->add_resource<RealResource>(
+            std::make_unique<AdditionExtensionFunction<RealResource>>(),
+            std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+            std::make_unique<ValueCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_resource<RealResource>(
+            std::make_unique<TimeWindowExtensionFunction<RealResource>>(windows),
+            std::make_unique<TimeWindowFeasibilityFunction<RealResource>>(windows),
+            std::make_unique<TrivialCostFunction<RealResource>>(),
+            std::make_unique<ValueDominanceFunction<RealResource>>());
+        graph->add_node(0, /*source=*/true, /*sink=*/false);
+        for (size_t node_id = 1; node_id <= 3; ++node_id) {
+            graph->add_node(node_id);
+        }
+        graph->add_node(4, /*source=*/false, /*sink=*/true);
+        // {cost, time}, origin, destination, cost.
+        graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 0, 1, -5.0);
+        graph->add_arc<RealResource, RealResource>({-1.0, 2.0}, 0, 2, -1.0);
+        graph->add_arc<RealResource, RealResource>({-1.0, 1.0}, 1, 2, -1.0);
+        graph->add_arc<RealResource, RealResource>({-5.0, 10.0}, 1, 3, -5.0);
+        graph->add_arc<RealResource, RealResource>({0.0, 5.0}, 1, 4, 0.0);
+        graph->add_arc<RealResource, RealResource>({-2.0, 3.0}, 2, 3, -2.0);
+        graph->add_arc<RealResource, RealResource>({-1.0, 30.0}, 2, 4, -1.0);
+        graph->add_arc<RealResource, RealResource>({-3.0, 5.0}, 3, 4, -3.0);
+        return graph;
+    };
+
+    const auto backward_optimum = [&](auto labels) {
+        AlgorithmParams<decltype(labels)> params(std::move(labels));
+        params.release_after_solve = false;
+        auto graph = build();
+        auto algorithm = test_util::make_backward_only(graph.get(), std::move(params));
+        graph->solve(algorithm.get(),
+                     std::numeric_limits<double>::infinity(),
+                     /*preprocess=*/false);
+        return algorithm->best_terminal_cost();
+    };
+
+    auto graph = build();
+    EXPECT_NEAR(bst::forward_optimum(graph.get()), kOptimum, bst::kTolerance);
+    EXPECT_NEAR(backward_optimum(bst::BackwardList()), kOptimum, bst::kTolerance);
+    EXPECT_NEAR(backward_optimum(Buckets(/*range_buckets=*/5, kTime, kCost)),
+                kOptimum,
+                bst::kTolerance)
+        << "buckets on the deadline, sorted by cost";
+    EXPECT_NEAR(backward_optimum(Buckets(/*range_buckets=*/5, kCost, kTime)),
+                kOptimum,
+                bst::kTolerance)
+        << "buckets on the cost, sorted by the deadline";
+}

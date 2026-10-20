@@ -37,6 +37,17 @@ class LabelList {
         /// @c Dir.
         [[nodiscard]] LabelList copy() const { return LabelList(); }
 
+        /// @brief Returns an empty list that compares labels in direction @p D.
+        ///
+        /// A search in another direction keeps its labels in this copy (see
+        /// @c detail::rebind_direction).
+        ///
+        /// @tparam D The direction policy of the copy.
+        template <class D>
+        [[nodiscard]] LabelList<ResourceType, D> with_direction() const {
+            return LabelList<ResourceType, D>();
+        }
+
         /// @brief Read-only access to the underlying label list.
         [[nodiscard]] const std::list<Label<ResourceType>*>& get_labels() const { return labels_; }
 
@@ -145,8 +156,8 @@ class LabelList {
 /// @tparam ResourceType    Full composite resource type of the labels.
 /// @tparam Dir             The direction policy supplying the dominance order.
 ///
-/// @note A backward bucket container compiles, but no search uses one: a backward search keeps
-///       its labels in a @ref LabelList (see @c detail::rebind_direction).
+/// @note A backward search with buckets keeps its labels in `with_direction<BackwardDirection>()`:
+///       the same buckets, comparing backward (see @c detail::rebind_direction).
 template <typename BucketResource, typename SortResource, typename ResourceType,
           typename Dir = ForwardDirection>
 class LabelBuckets : public LabelList<ResourceType, Dir> {
@@ -215,6 +226,22 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
         /// @brief Returns an empty container with the same configuration.
         [[nodiscard]] LabelBuckets copy() const {
             return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
+        }
+
+        /// @brief Returns an empty container with the same configuration that compares labels in
+        ///        direction @p D.
+        ///
+        /// A search in another direction keeps its labels in this copy (see
+        /// @c detail::rebind_direction).
+        ///
+        /// @tparam D The direction policy of the copy.
+        template <class D>
+        [[nodiscard]] LabelBuckets<BucketResource, SortResource, ResourceType, D> with_direction()
+            const {
+            return LabelBuckets<BucketResource, SortResource, ResourceType, D>(
+                range_buckets_,
+                bucket_resource_index_,
+                sort_resource_index_);
         }
 
         /// @brief Inserts @p label into the appropriate bucket (creating one if needed).

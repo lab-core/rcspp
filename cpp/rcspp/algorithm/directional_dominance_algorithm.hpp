@@ -11,41 +11,11 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
-#include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/label/label_pool.hpp"
 
 namespace rcspp::detail {
-
-/// @brief The container a search in @p Dir keeps, given the container type @p LC its params hold.
-///
-/// Forward keeps @p LC. Backward needs a container that compares labels backward; only
-/// @ref LabelList has one, so @c rebind_direction<LabelBuckets<...>, BackwardDirection> is left
-/// undefined and a backward search with buckets is refused when it is created.
-///
-/// @tparam LC  The container type of the algorithm's params.
-/// @tparam Dir The search's direction policy.
-template <typename LC, typename Dir>
-struct rebind_direction;
-
-template <typename LC>
-struct rebind_direction<LC, ForwardDirection> {
-        using type = LC;
-
-        /// @brief An empty container configured as @p prototype.
-        static LC convert(const LC& prototype) { return prototype.copy(); }
-};
-
-template <typename R, typename D>
-struct rebind_direction<LabelList<R, D>, BackwardDirection> {
-        using type = LabelList<R, BackwardDirection>;
-
-        /// @brief An empty backward list (a list has no configuration to carry over).
-        static type convert(const LabelList<R, D>& /*prototype*/) { return type{}; }
-};
-
-template <typename LC, typename Dir>
-using rebind_direction_t = typename rebind_direction<LC, Dir>::type;
 
 /// @brief The labeling loop, written once against a direction policy.
 ///
