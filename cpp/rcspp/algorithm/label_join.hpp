@@ -22,7 +22,7 @@
 
 namespace rcspp {
 
-/// @brief What one join pass may pair and keep.
+/// @brief What one join pass may pair, keep and spend.
 ///
 /// A @ref max_solutions at or above @c MAX_INT (the params' "no limit") means no cap.
 struct JoinOptions {
@@ -45,6 +45,19 @@ struct JoinOptions {
         ///        hand them on at the end of the pass. A pair too expensive to be among them is
         ///        skipped before its path is built.
         size_t max_solutions = MAX_INT;
+
+        /// @brief When set, the pass stops after this many join-rule questions and reports
+        ///        `truncated`; what it had kept is still handed on.
+        size_t max_pairs = MAX_INT;
+};
+
+/// @brief What one join pass did.
+struct JoinStats {
+        /// @brief Pairs the join rule was asked about: one per `can_be_joined` call.
+        size_t pairs_tested = 0;
+        /// @brief Whether the pass stopped at its pair budget with an in-range pair still
+        ///        untested.
+        bool truncated = false;
 };
 
 /// @brief Pairs surviving forward and backward labels at the node they meet on to form complete
@@ -76,14 +89,16 @@ class Joiner {
         /// @param graph                 The model.
         /// @param forward_by_pos        Forward labels, indexed by node position.
         /// @param backward_by_pos       Backward labels, indexed by node position.
-        /// @param options               What the pass may pair and keep.
+        /// @param options               What the pass may pair, keep and spend.
         /// @param best_cost_upper_bound The cost of the cheapest complete path found so far;
         ///                              lowered in place as cheaper joins are found.
         /// @param on_solution           Invoked once per accepted join.
+        /// @return How many pairs were tested, and whether the pair budget cut the pass short.
         template <typename FwdContainer, typename BwdContainer, typename OnSolution>
-        void join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
-                  std::vector<BwdContainer>& backward_by_pos, const JoinOptions& options,
-                  double& best_cost_upper_bound, OnSolution&& on_solution) {
+        JoinStats join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
+                       std::vector<BwdContainer>& backward_by_pos, const JoinOptions& options,
+                       double& best_cost_upper_bound, OnSolution&& on_solution) {
+            JoinStats stats;
             const double cost_upper_bound = options.cost_upper_bound;
             // Prune against the incumbent when asked, or when there is no fixed bound: otherwise a
             // default solve would return every admissible pair. A finite bound with no request
@@ -91,10 +106,13 @@ class Joiner {
             const bool prune_against_incumbent =
                 options.prune_requested || !std::isfinite(cost_upper_bound);
             const bool capped = options.max_solutions < MAX_INT;
+            const size_t max_pairs = options.max_pairs < MAX_INT
+                                         ? options.max_pairs
+                                         : std::numeric_limits<size_t>::max();
             Cheapest cheapest(options.max_solutions);
             // A budget of zero keeps nothing; stop before `out_of_range` reads an empty heap.
             if (capped && options.max_solutions == 0) {
-                return;
+                return stats;
             }
             // A pair at or above this cannot be among the cheapest kept, so is not worth splicing.
             const auto out_of_range = [&](double cost) {
@@ -104,6 +122,9 @@ class Joiner {
             };
 
             for (const size_t node_id : graph.get_node_ids()) {
+                if (stats.truncated) {
+                    break;
+                }
                 const auto* node = graph.get_node(node_id);
                 // Paths ending at a sink were already recorded by the forward search.
                 if (node == nullptr || node->sink) {
@@ -124,6 +145,9 @@ class Joiner {
                 const double cheapest_backward = backward_sorted.front()->get_cost();
 
                 for (const auto* forward : boundary) {
+                    if (stats.truncated) {
+                        break;
+                    }
                     // Boundary labels are cost-sorted, so every later one is worse too.
                     if (out_of_range(forward->get_cost() + cheapest_backward)) {
                         break;
@@ -139,6 +163,14 @@ class Joiner {
                         if (out_of_range(cost)) {
                             break;
                         }
+                        // The budget binds only on a pair that would really be tested, so
+                        // `truncated` means "an in-range pair was left", never "the budget was
+                        // exactly used up".
+                        if (stats.pairs_tested >= max_pairs) {
+                            stats.truncated = true;
+                            break;
+                        }
+                        ++stats.pairs_tested;
                         // can_be_joined is an exact test: a refused pair cannot form a feasible
                         // path.
                         if (!forward->get_resource().can_be_joined(backward->get_resource())) {
@@ -159,6 +191,7 @@ class Joiner {
             for (auto& path : cheapest.take()) {
                 on_solution(path.cost, std::move(path.arc_ids), path.end_node_id);
             }
+            return stats;
         }
 
     private:

@@ -131,11 +131,19 @@ void init_graph(py::module_& m) {
                       "How many distinct complete paths came only from the join, that is, paths "
                       "neither search completed on its own. Zero means every solution came from "
                       "the forward search reaching a sink or the backward one reaching a source.")
+        .def_readonly("join_pairs_tested",
+                      &BidirectionalStats::join_pairs_tested,
+                      "Pairs the join tested; 0 when it did not run.")
+        .def_readonly("join_truncated",
+                      &BidirectionalStats::join_truncated,
+                      "Whether the join stopped at max_join_pairs with a pair left to test. A "
+                      "'complete' result with this set is not a proof.")
         .def("__repr__", [](const BidirectionalStats& s) {
             return "BidirectionalStats(bounded_by_half_way=" +
                    std::string(s.bounded_by_half_way ? "True" : "False") +
                    ", half_way_point_used=" + std::to_string(s.half_way_point_used) +
-                   ", joined=" + std::to_string(s.number_of_joined_paths) + ")";
+                   ", joined=" + std::to_string(s.number_of_joined_paths) +
+                   (s.join_truncated ? ", join_truncated=True" : "") + ")";
         });
 
     // ── SolveResult ───────────────────────────────────────────────────────────
@@ -376,6 +384,16 @@ void init_graph(py::module_& m) {
                        "turns this bound off; it does not choose one. Both searches then run in "
                        "full, which is correct but slower than a forward solve. "
                        "result.bidirectional.bounded_by_half_way says whether it was in force.")
+        .def_readwrite("join_column_budget",
+                       &PyAlgorithmParams::join_column_budget,
+                       "Bidirectional only: the most paths the join returns, the cheapest kept. "
+                       "Never stops the search, so a 'complete' status still means exhaustive, and "
+                       "the optimum is always kept. Default: no budget.")
+        .def_readwrite("max_join_pairs",
+                       &PyAlgorithmParams::max_join_pairs,
+                       "Bidirectional only: the most pairs the join may test before it stops. When "
+                       "it binds, result.bidirectional.join_truncated is set and the result is not "
+                       "a proof. Default: no cap.")
         .def_readwrite("join_after_early_stop",
                        &PyAlgorithmParams::join_after_early_stop,
                        "Bidirectional only: whether the join still runs after a timeout or the "
