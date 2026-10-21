@@ -182,7 +182,7 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*rhs_resource*/) -> bool {
             throw NoBackwardDominance("the composition dominance function " +
                                       short_type_name(*this) +
-                                      " has no backward form: override check_back_dominance, as "
+                                      " cannot be read backward: override check_back_dominance, as "
                                       "CompositionDominanceFunction does");
         }
 

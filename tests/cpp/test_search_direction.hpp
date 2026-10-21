@@ -208,7 +208,7 @@ TEST(SearchDirection, RefusalsNameTheClass) {
         const std::string container = message([&] {
             (void)g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own);
         });
-        EXPECT_NE(container.find("InheritsListOnly has no backward form"), std::string::npos)
+        EXPECT_NE(container.find("InheritsListOnly cannot compare backward"), std::string::npos)
             << container;
     }
 }

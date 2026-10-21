@@ -25,7 +25,7 @@
 namespace rcspp {
 
 /// @brief Checks that a backward search can run on the model: every component, and the
-///        composition, has a backward form, and the bounds a backward label carries match the
+///        composition, can be read backward, and the bounds a backward label carries match the
 ///        ones the forward search enforces.
 ///
 /// A backward or bidirectional search needs it. Its problems, in order:
@@ -45,7 +45,7 @@ namespace rcspp {
 ///    (@ref check_source_start);
 ///  - an arc with a negative consumption on a component whose backward test assumes values
 ///    never decrease (@ref scan_negative_loads);
-///  - a composition dominance, extension or feasibility function with no backward form;
+///  - a composition dominance, extension or feasibility function that cannot be read backward;
 ///  - a cost that is not additive: a backward label reaching a source is a complete path, so its
 ///    cost must be what the forward search would compute.
 ///
@@ -99,7 +99,7 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             }
             scan_negative_loads(graph, needs_scan, problems);
 
-            // The composition dominance function must also have a backward form.
+            // The composition dominance function must also be readable backward.
             try {
                 static_cast<void>(node->resource->back_dominates(*node->resource));
             } catch (const NoBackwardDominance& error) {

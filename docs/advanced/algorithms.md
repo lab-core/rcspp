@@ -96,7 +96,7 @@ One resource acts as the **clock** that says where "half-way" is.  It must be:
 - **monotone** — never decreasing along an arc, so its value crosses `H` exactly
   once along any path;
 - **bounded**, with a known finite range;
-- **a threshold backwards** — its backward form must carry a *ceiling* on the
+- **a threshold backwards** — read backward, it must carry a *ceiling* on the
   forward scale (the latest arrival still admissible here), not the consumption
   from here to the sink.  `TimeWindowExtensionFunction` and
   `CapacityExtensionFunction` are thresholds; `AdditionExtensionFunction` is not.
@@ -656,8 +656,8 @@ refuses: a backward search is refused for sixteen of them, a bidirectional searc
 | `its feasibility function declares no join_rule()` | Return a `JoinRule` from `join_rule()` — `AlwaysTrue` if the resource genuinely cannot block a join, and say why. | bidirectional |
 | `its feasibility function's test cannot be read backward` | The component is not a threshold, and its feasibility function declares no `join_rule()`: in the library that means a test of what the path has collected *up to* a node (the table below), which a backward label, holding what the rest of the path collects, cannot answer.  A backward search would lose feasible paths or return infeasible ones.  The fixes are the ones in the table below. | both |
 | `its feasibility function declares JoinRule::ValueOrder … on a resource that has none` | `ValueOrder` is `forward <= backward` on two scalar values.  A container resource has no such order: declare `JoinRule::Custom` and write the test. | bidirectional |
-| `the model's composition dominance function has no backward form` | A composition dominance function you passed to `ResourceGraph`'s constructor overrides `check_dominance` only, which is all a forward solve needs.  Override `check_back_dominance` too, or keep the default `CompositionDominanceFunction`. | both |
-| `the model's composition extension function has no backward form`, `… has no backward start`, `… feasibility function has no backward form` | The same for a composition extension or feasibility function: one that overrides only `extend` or `is_feasible` compiles and solves forward, but has no `extend_back`, `start_back` or `is_back_feasible`.  Override those too, or keep the defaults `CompositionExtensionFunction` and `CompositionFeasibilityFunction`. | both |
+| `the model's composition dominance function cannot be read backward` | A composition dominance function you passed to `ResourceGraph`'s constructor overrides `check_dominance` only, which is all a forward solve needs.  Override `check_back_dominance` too, or keep the default `CompositionDominanceFunction`. | both |
+| `the model's composition extension function cannot be read backward`, `… has no backward start`, `… feasibility function cannot be read backward` | The same for a composition extension or feasibility function: one that overrides only `extend` or `is_feasible` compiles and solves forward, but has no `extend_back`, `start_back` or `is_back_feasible`.  Override those too, or keep the defaults `CompositionExtensionFunction` and `CompositionFeasibilityFunction`. | both |
 | `the model's composition feasibility function has no join test` | The same for `can_be_joined`.  A `can_be_joined` of your own must be exact, like a component's: no check can tell one that refuses too much. | bidirectional |
 | `the model's cost function is not additive` | A backward label that reaches a source is a complete path, and the join prices a path as the forward half's cost plus the backward half's.  That is exact only when every component the cost reads has a zero cost (`TrivialCostFunction`) or a value cost (`ValueCostFunction`) under an accumulating extension.  A threshold's backward value is a deadline or a remaining capacity, not a cost, so a `CompositionCostFunction` over a time window with a `ValueCostFunction` is refused.  Give that component a `TrivialCostFunction`, or keep the default cost function, which reads component 0 only. | both |
 
@@ -673,7 +673,7 @@ all with a `complete` status, so they are refused instead:
 
 | Component | When it refuses | What to do instead |
 |---|---|---|
-| `IntersectionFeasibilityFunction` | **required** values (`forbidden = false`) | Model the requirement on the whole path, not per node: there is no backward form of "collected one of these already". |
+| `IntersectionFeasibilityFunction` | **required** values (`forbidden = false`) | Model the requirement on the whole path, not per node: there is no backward reading of "collected one of these already". |
 | `IntersectionFeasibilityFunction` | **forbidden** values that are not `{v}` at node `v` | Use the ng-route condition, `forbidden_by_node[v] = {v}`, with `NgPathExtensionFunction`: see "One rule the join imposes" under [`Bidirectional`](#bidirectional). |
 | `SizeFeasibilityFunction` | a non-zero **minimum** size anywhere, or a **per-node cap** that differs from the default | Use one cap for every node, or solve forward.  A single cap is suffix-safe: a backward label that reaches a source holds the whole set, and every set along the path is a subset of it.  A floor or a per-node cap bounds what the path has collected *up to* a node, which a suffix cannot see. |
 | `MinMaxFeasibilityFunction` | a non-zero **minimum** anywhere, default or per node, under a threshold extension (`CapacityExtensionFunction`, `TimeWindowExtensionFunction`) | The same fix, for the same reason: a backward label carries only a *ceiling*, so neither the join nor a backward label that reaches a source can tell whether the forward value got as high as the floor. |

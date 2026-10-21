@@ -71,7 +71,7 @@ inline std::unique_ptr<Model> undeclared_component() {
     return graph;
 }
 
-/// @brief 0 -> 1 under a composition dominance that compares cost only and has no backward form.
+/// @brief 0 -> 1 under a composition dominance that compares cost only and cannot be read backward.
 inline std::unique_ptr<Model> forward_only_dominance() {
     auto graph =
         std::make_unique<Model>(std::make_unique<CompositionExtensionFunction<RealResource>>(),

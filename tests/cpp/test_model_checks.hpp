@@ -676,7 +676,7 @@ TEST(ModelChecks, AccumulatingExtensionWithAValueOrderJoinIsRefused) {
 }
 
 // ============================================================================
-// Composition functions without a backward form
+// Composition functions that only go forward
 // ============================================================================
 
 /// @brief A forward-only composition dominance function solves forward, and is refused for a
@@ -717,7 +717,7 @@ TEST(ModelChecks, AForwardOnlyCompositionDominanceIsRefused) {
 /// On a line arriving at 9 against a sink closing at 8, the forward-only extension would return
 /// cost 3, status complete, and the forward-only feasibility function would throw from the join
 /// after both searches had run.
-TEST(ModelChecks, CompositionFunctionsWithoutABackwardFormAreRefused) {
+TEST(ModelChecks, ForwardOnlyCompositionFunctionsAreRefused) {
     namespace mc = model_checks_test;
     auto extension_only =
         mc::composition_line(std::make_unique<mc::ForwardOnlyCompositionExtension>(),

@@ -211,7 +211,7 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             Resource<ResourceTypeComposition<ResourceTypes...>>* /*extended_resource*/) {
             throw NoBackwardExtension("the composition extension function " +
                                       short_type_name(*this) +
-                                      " has no backward form: override extend_back, as "
+                                      " cannot be read backward: override extend_back, as "
                                       "CompositionExtensionFunction does");
         }
 

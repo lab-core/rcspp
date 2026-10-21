@@ -43,7 +43,7 @@ enum class DirectionalResourceKind {
 //    reads backward: a declared kind, threshold clamps and starts that match the feasibility
 //    function, no negative arc consumption where the backward reading assumes none, a
 //    feasibility function that `requires_arc_endpoints()` paired with `ArcEndpoints`, an
-//    additive cost, and backward forms for the composition's functions.
+//    additive cost, and composition functions that can be read backward.
 //  - Before a bidirectional solve, `JoinCheck` also checks the join: a declared `join_rule()`
 //    that fits the component; accumulations that really add and start backward at the type
 //    default, where the join adds their two halves; and a join test for the composition.

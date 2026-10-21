@@ -229,7 +229,7 @@ class FeasibilityFunction<ResourceTypeComposition<ResourceTypes...>> {
             const Resource<ResourceTypeComposition<ResourceTypes...>>& /*resource*/) -> bool {
             throw NoBackwardFeasibility("the composition feasibility function " +
                                         short_type_name(*this) +
-                                        " has no backward form: override is_back_feasible, as "
+                                        " cannot be read backward: override is_back_feasible, as "
                                         "CompositionFeasibilityFunction does");
         }
 

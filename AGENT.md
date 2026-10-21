@@ -301,7 +301,7 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
 | `SubtractExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
-| `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, as a *threshold* — the backward form of a capacity; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
+| `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, read backward as a *threshold*; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
 | `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
 | `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
 | `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
