@@ -119,6 +119,15 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
             }
         }
 
+        /// @brief This node's upper bound: the largest value the paired feasibility function
+        ///        admits there.
+        ///
+        /// @param node_id Index of the node.
+        /// @return The bound, or @c std::nullopt when the node has none.
+        [[nodiscard]] std::optional<V> node_upper_bound(size_t node_id) const {
+            return upper_bound_at(node_id);
+        }
+
     protected:
         /// @brief The forward step before any clamp, e.g. `value + arc`.
         ///

@@ -9,8 +9,10 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <map>
 #include <optional>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -152,4 +154,21 @@ TEST(ThresholdForm, TranslationSaturatesOnUnsignedAndSubtractsOnSigned) {
     static_assert(threshold_form_test::UnsignedThreshold::kind == BackwardKind::Unspecified);
     static_assert(threshold_form_test::UnclampedThreshold::kind == BackwardKind::Threshold);
     EXPECT_EQ(proto.backward_kind(), BackwardKind::Unspecified);
+}
+
+// The upper bound read from outside is the one the form clamps backward values to, and the one the
+// paired feasibility function enforces: a node's window, the default elsewhere, a capacity.
+TEST(ThresholdForm, NodeUpperBoundIsTheFeasibilityBound) {
+    const std::map<size_t, std::pair<double, double>> windows{{1, {0.0, 10.0}}, {2, {5.0, 20.0}}};
+    const TimeWindowExtensionFunction<RealResource> time(windows, /*default_max_time_window=*/50.0);
+    EXPECT_EQ(time.node_upper_bound(1), std::optional<double>(10.0));
+    EXPECT_EQ(time.node_upper_bound(2), std::optional<double>(20.0));
+    EXPECT_EQ(time.node_upper_bound(7), std::optional<double>(50.0));
+
+    const CapacityExtensionFunction<IntResource> capacity(7);
+    EXPECT_EQ(capacity.node_upper_bound(0), std::optional<int>(7));
+    EXPECT_EQ(capacity.node_upper_bound(3), std::optional<int>(7));
+
+    const threshold_form_test::UnclampedThreshold unclamped;
+    EXPECT_EQ(unclamped.node_upper_bound(1), std::nullopt);
 }

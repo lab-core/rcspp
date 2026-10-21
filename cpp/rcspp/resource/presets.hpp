@@ -193,6 +193,13 @@ void add_capacity_resource(Graph& graph, std::type_identity_t<V> capacity,
                                      std::make_unique<ValueDominanceFunction<R>>());
 }
 
+/// @brief Options of @ref add_ng_path_resource.
+struct NgPathOptions {
+        /// @brief Fold into each forward label's memory the ng-neighbours it can no longer reach
+        ///        (`ResourceGraph::enable_ng_unreachable_fold`). Off by default.
+        bool fold_unreachable = false;
+};
+
 /// @brief The ng-path relaxation: a memory read from the arc's endpoints, plus the ng-route
 /// condition.
 ///
@@ -207,8 +214,10 @@ void add_capacity_resource(Graph& graph, std::type_identity_t<V> capacity,
 /// @param graph         The graph to register the resource on.
 /// @param neighborhoods Each node's ng-neighborhood. A node absent from the map forgets every
 ///                      previously visited node on arrival, so give every node a neighborhood.
+/// @param options       Whether solves also fold unreachable ng-neighbours into the memory.
 template <typename R, typename Graph, typename E = typename R::ValueType>
-void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborhoods) {
+void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborhoods,
+                          NgPathOptions options = {}) {
     std::map<size_t, std::set<E>> forbidden_by_node;
     for (const auto& [node_id, neighborhood] : neighborhoods) {
         forbidden_by_node[node_id] = {static_cast<E>(node_id)};
@@ -227,6 +236,11 @@ void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborho
                                      std::move(feasibility),
                                      std::make_unique<TrivialCostFunction<R>>(),
                                      std::make_unique<InclusionDominanceFunction<R>>());
+    if (options.fold_unreachable) {
+        // The component just added is the last of its type.
+        graph.template enable_ng_unreachable_fold<R, E>(
+            graph.get_resource_factory().template get_num_resource_type<R>() - 1);
+    }
 }
 
 /// @brief An elementary path: no node may be visited twice.

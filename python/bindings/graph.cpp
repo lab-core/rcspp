@@ -179,6 +179,10 @@ void init_graph(py::module_& m) {
                       "Dominance comparisons performed across every label container, both "
                       "directions. Divided by the surviving label count it is the cost of the "
                       "dominance rule per label kept.")
+        .def_readonly("unreachable_folds",
+                      &SolveResult::unreachable_folds,
+                      "Nodes the ng unreachable fold added to forward labels' memories during "
+                      "this solve; 0 when it is off.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })

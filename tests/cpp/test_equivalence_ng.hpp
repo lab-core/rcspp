@@ -454,3 +454,100 @@ TEST(Equivalence, TheGeneratorRefusesTheIllegalCyclicCombinations) {
     cyclic.with_time_window = true;
     EXPECT_THROW(test_util::brute_force_optimum(cyclic), std::logic_error);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The ng unreachable fold against the oracle. The instances' arc times are random, so they need
+// not satisfy the triangle inequality: the fold must stay exact anyway.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+namespace ng_fold_test {
+
+/// @brief The cyclic ng configurations the fold is checked on: time windows, and time windows
+///        plus a capacity.
+inline std::vector<test_util::InstanceConfig> sweep() {
+    std::vector<test_util::InstanceConfig> configs;
+    for (const bool with_capacity : {false, true}) {
+        for (unsigned seed = 0; seed < 12; ++seed) {
+            test_util::InstanceConfig config;
+            config.num_nodes = 8;
+            config.density = 0.6;
+            config.back_arc_density = 0.3;
+            config.mixed_sign_costs = true;
+            config.with_time_window = true;
+            config.with_capacity = with_capacity;
+            config.with_ng_path = true;
+            config.seed = seed;
+            configs.push_back(config);
+        }
+    }
+    return configs;
+}
+
+}  // namespace ng_fold_test
+
+/// @brief With the fold on, forward and bidirectional searches still find the oracle's optimum,
+///        and every path they return is ng-feasible; and the fold actually fires.
+TEST(Equivalence, NgUnreachableFoldMatchesTheOracle) {
+    namespace eq = equivalence_test;
+
+    size_t folds = 0;
+    for (const auto& config : ng_fold_test::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+        const double oracle = test_util::ng_cyclic_optimum(config);
+
+        const auto forward = eq::solve_forward_ng(config, /*fold_unreachable=*/true);
+        EXPECT_NEAR(forward.best_cost(), oracle, eq::kTolerance) << where;
+        EXPECT_EQ(eq::any_path_problem(forward), "") << where;
+        folds += forward.result.unreachable_folds;
+
+        for (const bool with_bound : {false, true}) {
+            const auto bidi = eq::solve_bidirectional_ng(config,
+                                                         with_bound,
+                                                         eq::kNonBindingUpperBound,
+                                                         /*fold_unreachable=*/true);
+            EXPECT_NEAR(bidi.best_cost(), oracle, eq::kTolerance)
+                << "bound=" << with_bound << " " << where;
+            EXPECT_EQ(eq::any_path_problem(bidi), "") << "bound=" << with_bound << " " << where;
+            folds += bidi.result.unreachable_folds;
+        }
+    }
+
+    std::cout << "[ SWEEP ] ng unreachable folds: " << folds << std::endl;
+    EXPECT_GT(folds, 0U) << "the fold never fired, so this sweep tests nothing";
+}
+
+/// @brief The fold keeps the best cost of a plain solve, for each forward algorithm, and leaves no
+///        more labels standing overall.
+///
+/// The returned columns may be fewer: labels reaching a sink carry folded memories, so dominance
+/// there can discard more of them.
+TEST(Equivalence, NgUnreachableFoldAgreesWithThePlainSolve) {
+    namespace eq = equivalence_test;
+
+    size_t plain_labels = 0;
+    size_t folding_labels = 0;
+    for (const auto& config : ng_fold_test::sweep()) {
+        const std::string where = test_util::describe(config);
+        SCOPED_TRACE(where);
+
+        const auto plain = eq::solve_forward_ng(config);
+        const auto folding = eq::solve_forward_ng(config, /*fold_unreachable=*/true);
+        EXPECT_NEAR(folding.best_cost(), plain.best_cost(), eq::kTolerance) << where;
+        EXPECT_LE(folding.result.solutions.size(), plain.result.solutions.size()) << where;
+        plain_labels += plain.result.forward_labels;
+        folding_labels += folding.result.forward_labels;
+
+        const auto pushing = eq::solve_forward_ng<PushingDominanceAlgorithm>(config, true);
+        EXPECT_NEAR(pushing.best_cost(), plain.best_cost(), eq::kTolerance) << "pushing " << where;
+        EXPECT_EQ(eq::any_path_problem(pushing), "") << "pushing " << where;
+
+        const auto pulling = eq::solve_forward_ng<PullingDominanceAlgorithm>(config, true);
+        EXPECT_NEAR(pulling.best_cost(), plain.best_cost(), eq::kTolerance) << "pulling " << where;
+        EXPECT_EQ(eq::any_path_problem(pulling), "") << "pulling " << where;
+    }
+
+    std::cout << "[ SWEEP ] surviving labels, plain / folding: " << plain_labels << " / "
+              << folding_labels << std::endl;
+    EXPECT_LE(folding_labels, plain_labels);
+}

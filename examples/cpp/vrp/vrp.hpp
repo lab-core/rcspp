@@ -57,6 +57,9 @@ struct CGSolveResult {
         size_t truncated_solves = 0;
         /// @brief The budget of the last pricing attempt; infinity when no budget was set.
         double final_budget_seconds = std::numeric_limits<double>::infinity();
+        /// @brief Nodes the ng unreachable fold added to labels' memories, over every pricing
+        ///        solve; 0 when it is off.
+        size_t unreachable_folds = 0;
 };
 
 /// @brief Type-erased solver for passing heterogeneous-container algorithms to VRP::solve.
@@ -156,6 +159,7 @@ class VRP {
             double budget = pricing_budget_.seconds;  // infinity when no budget is set
             size_t escalations = 0;
             size_t truncated = 0;
+            unreachable_folds_ = 0;
             while (min_reduced_cost < -EPSILON) {
                 master_solution = master_problem.solve();
 
@@ -396,7 +400,8 @@ class VRP {
                                  nb_iter,
                                  escalations,
                                  truncated,
-                                 budget};
+                                 budget,
+                                 unreachable_folds_};
         }
 
         RGraph& get_graph() { return graph_; }
@@ -412,6 +417,23 @@ class VRP {
                 budget.check();
             }
             pricing_budget_ = budget;
+        }
+
+        /// @brief Folds unreachable ng-neighbours into pricing labels' memories, or stops.
+        ///
+        /// See `ResourceGraph::enable_ng_unreachable_fold`: the columns priced are unchanged,
+        /// dominance discards more labels. Only under `RouteRelaxation::NgPath`; elsewhere it does
+        /// nothing.
+        ///
+        /// @param enabled Whether to fold.
+        void set_ng_unreachable_fold(bool enabled) {
+            if constexpr (kRouteRelaxation == RouteRelaxation::NgPath) {
+                if (enabled) {
+                    graph_.template enable_ng_unreachable_fold<SizeTBitsetResource>(0);
+                } else {
+                    graph_.disable_ng_unreachable_fold();
+                }
+            }
         }
 
         /// @brief Removes the columns @p drop selects from @p master and from this model's paths.
@@ -477,6 +499,8 @@ class VRP {
         // initialized
         RGraph graph_;
         PricingBudget pricing_budget_;
+        /// Nodes the ng unreachable fold added during the current `solve()`.
+        size_t unreachable_folds_ = 0;
 
         std::optional<SolutionOutput> solution_output_;
 
@@ -529,6 +553,7 @@ class VRP {
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
             auto result = graph_.solve<AlgorithmType>(-EPSILON, params);
+            unreachable_folds_ += result.unreachable_folds;
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",
@@ -555,6 +580,7 @@ class VRP {
             update_resource_graph(&graph_, &dual_by_id);
             total_subproblem_solve_time_.start();
             auto result = graph_.solve(algo, -EPSILON);
+            unreachable_folds_ += result.unreachable_folds;
 
             LOG_DEBUG(__FUNCTION__,
                       " Time: ",

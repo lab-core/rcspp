@@ -26,7 +26,8 @@
 // Usage: rcspp-ng-dynamic-cg [--fixed=0,4,8,12] [--no-dynamic] [--start=N] [--reduce]
 //                           [--pricer=forward|bidirectional] [--pricing-timeout=S]
 //                           [--pricing-budget=S] [--budget-reset] [--verify]
-//                           [--dynamic-h] [--join-budget=K] [--max-join-pairs=N] [INSTANCE...]
+//                           [--dynamic-h] [--join-budget=K] [--max-join-pairs=N]
+//                           [--fold-unreachable] [INSTANCE...]
 //
 // With --pricer=bidirectional, --dynamic-h lets the half-way point adapt between pricing solves
 // (dynamic_half_way; the persistent pricer carries the controller across ng swaps too),
@@ -44,6 +45,9 @@
 // --verify reruns column generation from scratch under the final grown table -- a model built
 // with it, not one swapped into -- and checks it reaches the same bound: if removing columns had
 // ever left an ng-infeasible column in the master, the dynamic bound would be lower.
+//
+// --fold-unreachable folds, in every run, the ng-neighbours a pricing label can no longer reach
+// into its memory (`VRP::set_ng_unreachable_fold`); each run reports how many it folded.
 //
 // Needs Gurobi, and a build whose kRouteRelaxation is RouteRelaxation::NgPath.
 
@@ -88,11 +92,12 @@ struct Options {
         bool bidirectional = false;
         double timeout_s = 120.0;  // as kPricingBudgetSeconds in ng_cg_comparison_main.cpp
         bool verify = false;
-        double budget_s = 0.05;        ///< --pricing-budget=S; infinity for none
-        bool budget_sticky = true;     ///< false with --budget-reset
-        bool dynamic_h = false;        ///< --dynamic-h
-        size_t join_budget = MAX_INT;  ///< --join-budget=K
-        size_t max_pairs = MAX_INT;    ///< --max-join-pairs=N
+        double budget_s = 0.05;         ///< --pricing-budget=S; infinity for none
+        bool budget_sticky = true;      ///< false with --budget-reset
+        bool dynamic_h = false;         ///< --dynamic-h
+        size_t join_budget = MAX_INT;   ///< --join-budget=K
+        size_t max_pairs = MAX_INT;     ///< --max-join-pairs=N
+        bool fold_unreachable = false;  ///< --fold-unreachable
 };
 
 /// @brief Records the seconds of every `solve()` of the algorithm it wraps, and how many timed
@@ -156,6 +161,7 @@ struct CGRun {
         double seconds = 0.0;
         bool proven_optimal = true;
         size_t escalations = 0;
+        size_t unreachable_folds = 0;
         size_t timeouts = 0;
         size_t truncated_joins = 0;
         bool has_controller = false;
@@ -336,6 +342,7 @@ CGRun run(VRP& vrp, const Instance& instance, const Options& options, bool dynam
           std::string label) {
     AlgorithmParams<ListLC> params;
     params.timeout_s = options.timeout_s;
+    vrp.set_ng_unreachable_fold(options.fold_unreachable);
     if (std::isfinite(options.budget_s)) {
         // The budget times every solve, and the timeout becomes its cap.
         vrp.set_pricing_budget({.seconds = options.budget_s,
@@ -376,6 +383,7 @@ CGRun run(VRP& vrp, const Instance& instance, const Options& options, bool dynam
               .seconds = seconds,
               .proven_optimal = result.proven_optimal,
               .escalations = result.escalations,
+              .unreachable_folds = result.unreachable_folds,
               .rounds = dynamic ? augmenter.rounds() : 1,
               .table = vrp.ng_neighborhoods()};
     for (const double s : timed.seconds()) {
@@ -407,6 +415,7 @@ void print(const CGRun& run) {
               << "  pricing=" << std::setprecision(2) << run.pricing_seconds << " s"
               << "  total=" << run.seconds << " s  escalations=" << run.escalations
               << "  timeouts=" << run.timeouts << "  jtrunc=" << run.truncated_joins
+              << "  folds=" << run.unreachable_folds
               << (run.has_controller ? "  H moves/obs=" + std::to_string(run.h_moves) + "/" +
                                            std::to_string(run.h_observations)
                                      : std::string())
@@ -463,6 +472,8 @@ int main(int argc, char** argv) {
             options.max_pairs = std::stoull(value_of(arg));
         } else if (arg == "--verify") {
             options.verify = true;
+        } else if (arg == "--fold-unreachable") {
+            options.fold_unreachable = true;
         } else {
             names.push_back(arg);
         }

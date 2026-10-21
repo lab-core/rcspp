@@ -247,6 +247,14 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
 
             bool feasible = Dir2::feasible(new_label);
+            if constexpr (!Dir2::backward) {
+                // A feasible forward label may forbid the moves it can never complete, before
+                // dominance compares it.
+                if (feasible && this->label_strengthening_ != nullptr) {
+                    this->unreachable_folds_ +=
+                        this->label_strengthening_->strengthen_forward(&new_label);
+                }
+            }
             if (feasible && dispatch_update_non_dominated_labels<Dir2>(new_label, containers)) {
                 // Keep the label only if it is feasible and not dominated: store it at its node
                 // and queue it for extension.
