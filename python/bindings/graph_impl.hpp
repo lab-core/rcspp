@@ -48,8 +48,8 @@ class ActiveCall {
 
         template <typename Callable>
         static auto run_interruptible(Callable&& f) {
-            using R = std::invoke_result_t<Callable>;
-            if constexpr (std::is_void_v<R>) {
+            using ResultType = std::invoke_result_t<Callable>;
+            if constexpr (std::is_void_v<ResultType>) {
                 {
                     ActiveCallGuard guard;
                     py::gil_scoped_release release;
@@ -57,7 +57,7 @@ class ActiveCall {
                 }
                 check_if_throw_error();
             } else {
-                std::optional<R> result;
+                std::optional<ResultType> result;
                 {
                     ActiveCallGuard guard;
                     py::gil_scoped_release release;
@@ -302,14 +302,14 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, ResourceGraphType& rg, double 
 // Picks the first numerical resource in the pack; falls back to RealResource sentinel.
 
 template <typename... ResourceTypes>
-struct SelectCostRC {
+struct SelectCostResourceType {
         using type = RealResource;
 };
 
 template <typename ResourceType, typename... ResourceTypes>
-struct SelectCostRC<ResourceType, ResourceTypes...> {
+struct SelectCostResourceType<ResourceType, ResourceTypes...> {
         using type = std::conditional_t<is_numerical_resource_v<ResourceType>, ResourceType,
-                                        typename SelectCostRC<ResourceTypes...>::type>;
+                                        typename SelectCostResourceType<ResourceTypes...>::type>;
 };
 
 // ─── Helper: bind common Graph base methods ───────────────────────────────────
@@ -470,12 +470,12 @@ template <typename ResourceGraphType, typename CompositionType,
           typename CostResourceType = RealResource, typename... ResourceTypes>
 py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
     py::class_<ResourceGraphType, Graph<CompositionType>>& c) {
-    using N = Node<CompositionType>;
+    using NodeType = Node<CompositionType>;
     constexpr double INF = std::numeric_limits<double>::infinity();
 
     return c
         .def("add_node",
-             static_cast<N& (ResourceGraphType::*)(size_t, bool, bool)>(
+             static_cast<NodeType& (ResourceGraphType::*)(size_t, bool, bool)>(
                  &ResourceGraphType::add_node),
              py::arg("id"),
              py::arg("source") = false,
@@ -721,7 +721,7 @@ std::string auto_mix_name() {
 
 template <typename... ResourceTypes>
 void bind_auto_rg(py::module_& m) {
-    using CostResourceType = typename SelectCostRC<ResourceTypes...>::type;
+    using CostResourceType = typename SelectCostResourceType<ResourceTypes...>::type;
     bind_mixed_rg<CostResourceType, ResourceTypes...>(m, auto_mix_name<ResourceTypes...>().c_str());
 }
 
