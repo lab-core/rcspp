@@ -624,8 +624,8 @@ class ThrowingAddition : public Clonable<ThrowingAddition, ExtensionFunction<Rea
             }
             extended_resource->set_value(resource.get_value() + extender_value.get_value());
         }
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Accumulate;
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const override {
+            return DirectionalResourceKind::Accumulate;
         }
 };
 
@@ -779,10 +779,10 @@ namespace bidirectional_validation_test {
 
 /// @brief A bottleneck: the largest arc value seen. It extends backward the same way, so it
 ///        declares an accumulation, but a path's value is not the sum of its halves' values.
-class Bottleneck
-    : public Clonable<Bottleneck,
-                      BackwardForm<ExtensionFunction<RealResource>, BackwardKind::Accumulate>,
-                      ExtensionFunction<RealResource>> {
+class Bottleneck : public Clonable<Bottleneck,
+                                   DirectionalExtensionForm<ExtensionFunction<RealResource>,
+                                                            DirectionalResourceKind::Accumulate>,
+                                   ExtensionFunction<RealResource>> {
     public:
         void extend(const RealResource& resource, const RealResource& extender_value,
                     RealResource* extended_resource) override {
@@ -1293,8 +1293,9 @@ class CachedNodeCap : public Clonable<CachedNodeCap, FeasibilityFunction<RealRes
             return resource.get_value() >= 0.0 && resource.get_value() <= cap_;
         }
         [[nodiscard]] JoinRule join_rule() const override {
-            return backward_kind_ == BackwardKind::Threshold ? JoinRule::ValueOrder
-                                                             : JoinRule::Unspecified;
+            return directional_resource_kind_ == DirectionalResourceKind::Threshold
+                       ? JoinRule::ValueOrder
+                       : JoinRule::Unspecified;
         }
 
     protected:
@@ -1344,7 +1345,8 @@ TEST(BidirectionalValidation, ACustomPerNodeCapSharedWithTheCapacityBindsAtEachN
 
 namespace bidirectional_validation_test {
 
-/// @brief A threshold written without `ThresholdForm`: it adds going forward, going backward
+/// @brief A threshold written without `ThresholdExtensionForm`: it adds going forward, going
+/// backward
 ///        subtracts and clamps to its own closing time at the node left, and starts a backward
 ///        label at the closing time of the node it enters.
 ///
@@ -1357,8 +1359,8 @@ class HandWrittenThreshold
               default_closing_(default_closing),
               close_(default_closing) {}
 
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Threshold;
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const override {
+            return DirectionalResourceKind::Threshold;
         }
 
         void extend(const RealResource& resource, const RealResource& extender_value,
@@ -1392,11 +1394,12 @@ class HandWrittenThreshold
         }
 };
 
-/// @brief A `ThresholdForm` that waits for nothing and clamps nothing.
+/// @brief A `ThresholdExtensionForm` that waits for nothing and clamps nothing.
 class UnclampedThreshold
-    : public Clonable<UnclampedThreshold,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          UnclampedThreshold,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
             return std::nullopt;

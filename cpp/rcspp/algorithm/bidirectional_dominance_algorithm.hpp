@@ -447,7 +447,8 @@ class BidirectionalDominanceAlgorithm
                                           " component(s) of the critical resource's type");
                     return;
                 }
-                if (critical_backward_kind(graph) != BackwardKind::Threshold) {
+                if (critical_directional_resource_kind(graph) !=
+                    DirectionalResourceKind::Threshold) {
                     turn_half_way_off(HalfWayOff::NotAThreshold,
                                       clock +
                                           " does not extend backwards as a threshold, so its "
@@ -523,25 +524,28 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief The backward kind of the critical component, read off any arc's extender.
+        /// @brief The directional resource kind of the critical component, read off any arc's
+        /// extender.
         ///
         /// Only a `Threshold` backward value is on the forward scale that `H` uses; any other kind
         /// disables the bound. Use e.g. `TimeWindowExtensionFunction` or
         /// `CapacityExtensionFunction`.
         ///
         /// @param graph The graph whose arcs carry the extenders.
-        /// @return The critical component's declared backward kind, or `Unspecified` when the
+        /// @return The critical component's declared directional resource kind, or `Unspecified`
+        /// when the
         ///         graph has no arc carrying an extender.
-        [[nodiscard]] BackwardKind critical_backward_kind(const Graph<ResourceType>& graph) const {
+        [[nodiscard]] DirectionalResourceKind critical_directional_resource_kind(
+            const Graph<ResourceType>& graph) const {
             // One arc suffices: all extenders come from one factory, so they share one component
             // layout (assumed, not checked). It is the arc the model checks read, live or removed.
             const auto* arc = threshold_probe::model_arc(graph);
             if (arc == nullptr) {
-                return BackwardKind::Unspecified;
+                return DirectionalResourceKind::Unspecified;
             }
             return arc->extender
                 ->template get_component<CriticalRC>(this->params_.critical_resource_index)
-                .backward_kind();
+                .directional_resource_kind();
         }
 
         /// @brief A sink at which the clock's extension sets no backward start, if any.

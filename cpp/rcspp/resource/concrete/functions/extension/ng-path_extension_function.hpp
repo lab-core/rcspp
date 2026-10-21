@@ -13,7 +13,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
-#include "rcspp/resource/functions/extension/arc_endpoints_form.hpp"
+#include "rcspp/resource/functions/extension/arc_endpoints_extension_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/utils/logger.hpp"
 
@@ -43,12 +43,12 @@ inline bool first_report_of_arc_value() {
 /// stored set is thus the memory on leaving the node, which lets forward and backward halves
 /// meeting at a node compare their memories directly.
 ///
-/// Backward kind: @c ArcEndpoints, via @c ArcEndpointsForm, which swaps origin and
-/// destination per direction. The arc's extender value is ignored; the node added to the memory
+/// Directional resource kind: @c ArcEndpoints, via @c ArcEndpointsExtensionForm, which swaps origin
+/// and destination per direction. The arc's extender value is ignored; the node added to the memory
 /// comes from the arc's endpoints.
 ///
-/// @c extend and @c extend_back come from @c ArcEndpointsForm: both call @ref apply, with the
-/// arc's ends in forward or reverse order. This class only gives the formula and its sets.
+/// @c extend and @c extend_back come from @c ArcEndpointsExtensionForm: both call @ref apply, with
+/// the arc's ends in forward or reverse order. This class only gives the formula and its sets.
 ///
 /// @tparam ResourceType A ContainerResource-compatible type supporting `get_intersection()`,
 ///                      `get_union()`, `set_value()`, and `reset()`.
@@ -58,7 +58,7 @@ inline bool first_report_of_arc_value() {
 template <typename ResourceType, typename ValueType = typename ResourceType::ValueType>
 class NgPathExtensionFunction
     : public Clonable<NgPathExtensionFunction<ResourceType, ValueType>,
-                      ArcEndpointsForm<ResourceType, ExtensionFunction<ResourceType>>,
+                      ArcEndpointsExtensionForm<ResourceType, ExtensionFunction<ResourceType>>,
                       ExtensionFunction<ResourceType>> {
     public:
         /// @brief Constructs an NgPathExtensionFunction with the per-node neighborhoods.
@@ -75,10 +75,11 @@ class NgPathExtensionFunction
 
     protected:
         // `Side` lives in a dependent base, so it must be named explicitly.
-        using Side = typename ArcEndpointsForm<ResourceType, ExtensionFunction<ResourceType>>::Side;
+        using Side =
+            typename ArcEndpointsExtensionForm<ResourceType, ExtensionFunction<ResourceType>>::Side;
 
         /// @brief The ng-path formula, shared by both directions. Called by
-        ///        @c ArcEndpointsForm::extend and @c extend_back.
+        ///        @c ArcEndpointsExtensionForm::extend and @c extend_back.
         ///
         /// Adds the node just left, then keeps only the members of the arrival node's neighborhood.
         ///

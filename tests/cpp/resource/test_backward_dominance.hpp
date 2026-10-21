@@ -7,7 +7,7 @@
 //
 // For threshold resources a backward label stores a deadline, so the comparison flips by an
 // argument swap: check_back_dominance(a, b) == check_dominance(b, a). add_resource derives the
-// flag from the extension function's backward_kind().
+// flag from the extension function's directional_resource_kind().
 
 #include <gtest/gtest.h>
 
@@ -250,8 +250,8 @@ TEST(BackwardDominance, CompositionFansOutPerComponentDirection) {
 // 6. The derivation is applied
 // ============================================================================
 
-/// @brief Every BackwardKind maps to the expected reversed flag in add_resource.
-TEST(BackwardDominance, DerivationMatchesBackwardKind) {
+/// @brief Every DirectionalResourceKind maps to the expected reversed flag in add_resource.
+TEST(BackwardDominance, DerivationMatchesDirectionalResourceKind) {
     ResourceGraph<RealResource> graph;
 
     // Accumulate -> not reversed.
@@ -315,7 +315,7 @@ TEST(BackwardDominance, UnspecifiedDerivesUnreversed) {
     // An unsigned time window reports Unspecified, which `add_resource` accepts (forward-only).
     std::unique_ptr<ExtensionFunction<UIntResource>> extension =
         std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
-    ASSERT_EQ(extension->backward_kind(), BackwardKind::Unspecified);
+    ASSERT_EQ(extension->directional_resource_kind(), DirectionalResourceKind::Unspecified);
 
     graph.add_resource<UIntResource>(std::move(extension),
                                      std::make_unique<TrivialFeasibilityFunction<UIntResource>>(),

@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-#include "rcspp/resource/functions/extension/backward_form.hpp"
+#include "rcspp/resource/functions/extension/directional_extension_form.hpp"
 
 namespace rcspp {
 
@@ -27,14 +27,16 @@ namespace rcspp {
 /// Because the set is filtered on arrival, a forward and a backward label meeting at a node both
 /// hold sets filtered by that node, and the join can compare them directly.
 ///
-/// @note Use `BackwardForm<ExtensionFunction<R>, BackwardKind::ArcValue>` instead when the arc's
+/// @note Use `DirectionalExtensionForm<ExtensionFunction<R>, DirectionalResourceKind::ArcValue>`
+/// instead when the arc's
 ///       value is real per-arc data. Only this form keeps the label's own node out of its set in
 ///       both directions.
 ///
 /// @tparam R    The container resource type.
 /// @tparam Base The base to insert above, normally @c ExtensionFunction<R>.
 template <typename R, typename Base>
-class ArcEndpointsForm : public BackwardForm<Base, BackwardKind::ArcEndpoints> {
+class ArcEndpointsExtensionForm
+    : public DirectionalExtensionForm<Base, DirectionalResourceKind::ArcEndpoints> {
     public:
         /// @brief Forward extension: leaves the arc's origin, arrives at its destination.
         ///

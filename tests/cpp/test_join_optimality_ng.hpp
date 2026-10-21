@@ -321,7 +321,8 @@ TEST(JoinOptimalityNg, TheJoinMatchesBruteForceOnAcyclicNgInstances) {
 /// @brief Many more seeds than the suite can afford every time.
 ///
 /// Disabled for runtime only; run it after touching the joiner, the half-way policy,
-/// `NgPathExtensionFunction` or `DisjointJoinForm`, with `--gtest_also_run_disabled_tests`.
+/// `NgPathExtensionFunction` or `DisjointJoinFeasibilityForm`, with
+/// `--gtest_also_run_disabled_tests`.
 TEST(JoinOptimalityNg, DISABLED_DeepNgOptimalitySoak) {
     namespace jo = join_optimality_ng;
 

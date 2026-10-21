@@ -23,8 +23,8 @@
 #include "rcspp/resource/concrete/functions/feasibility/intersection_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
 #include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
@@ -34,13 +34,13 @@
 /// @brief One call per resource kind, registering a coherent set of four function objects.
 ///
 /// Presets are sugar over the four-object `add_resource` form; each one documents what it expands
-/// to. Every preset asserts @c declares_backward_kind_v on its extension, so a preset whose
-/// extension has no backward reading fails to compile. Whether the rest of the quadruple fits
+/// to. Every preset asserts @c declares_directional_resource_kind_v on its extension, so a preset
+/// whose extension has no backward reading fails to compile. Whether the rest of the quadruple fits
 /// depends on its settings, which the model checks test before a backward or bidirectional solve.
 
 namespace rcspp {
 
-/// @brief Whether an extension function type declares a backward kind: the one backward
+/// @brief Whether an extension function type declares a directional resource kind: the one backward
 ///        requirement a type alone can answer.
 ///
 /// It says nothing about the feasibility function paired with it: whether that suits the
@@ -49,13 +49,13 @@ namespace rcspp {
 /// forward-only models do not need it:
 ///
 /// @code
-/// static_assert(rcspp::declares_backward_kind_v<MyExtension>);
+/// static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
 /// @endcode
 ///
 /// @tparam Ext Concrete extension function type.
 template <typename Ext>
-inline constexpr bool declares_backward_kind_v =
-    backward_kind_of_v<Ext> != BackwardKind::Unspecified;
+inline constexpr bool declares_directional_resource_kind_v =
+    directional_resource_kind_of_v<Ext> != DirectionalResourceKind::Unspecified;
 
 }  // namespace rcspp
 
@@ -76,8 +76,8 @@ template <typename R, typename Graph, typename Ext, typename Feas, typename Cost
 void add_coherent_resource(Graph& graph, std::unique_ptr<Ext> extension,
                            std::unique_ptr<Feas> feasibility, std::unique_ptr<Cost> cost,
                            std::unique_ptr<Dom> dominance) {
-    static_assert(backward_kind_of_v<Ext> != BackwardKind::Unspecified,
-                  "a preset's extension function declares no backward kind");
+    static_assert(directional_resource_kind_of_v<Ext> != DirectionalResourceKind::Unspecified,
+                  "a preset's extension function declares no directional resource kind");
     graph.template add_resource<R>(std::move(extension),
                                    std::move(feasibility),
                                    std::move(cost),

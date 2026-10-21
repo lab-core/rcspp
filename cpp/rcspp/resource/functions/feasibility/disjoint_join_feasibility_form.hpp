@@ -20,7 +20,7 @@ namespace rcspp {
 /// @tparam R    The container resource type. Must expose `intersects()`.
 /// @tparam Base The base to insert above, normally @c FeasibilityFunction<R>.
 template <typename R, typename Base>
-class DisjointJoinForm : public Base {
+class DisjointJoinFeasibilityForm : public Base {
     public:
         /// @brief Two halves may be joined only when their remembered sets do not overlap.
         ///

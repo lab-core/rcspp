@@ -334,8 +334,8 @@ TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
 
 // add_capacity_resource produces a Threshold extension, not an Accumulate one.
 TEST(Presets, CapacityPresetDeclaresThreshold) {
-    static_assert(backward_kind_of_v<CapacityExtensionFunction<IntResource>> ==
-                  BackwardKind::Threshold);
+    static_assert(directional_resource_kind_of_v<CapacityExtensionFunction<IntResource>> ==
+                  DirectionalResourceKind::Threshold);
 
     // The model is solvable bidirectionally; an accumulating extension would find nothing.
     auto graph = std::make_unique<ResourceGraph<RealResource, IntResource>>();

@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "rcspp/resource/functions/extension/backward_form.hpp"
+#include "rcspp/resource/functions/extension/directional_extension_form.hpp"
 
 namespace rcspp {
 
@@ -38,28 +38,31 @@ namespace rcspp {
 /// extension on values beyond every bound, so the formulas must accept any value of @p V (the
 /// infinities included).
 ///
-/// Backward kind: @c Threshold if the value type is signed, @c Unspecified if it is unsigned.
-/// Going backward, a deadline can become impossible to meet: a deadline of 3 before an arc that
-/// takes 5 means leaving at -2. The form marks such a label with the type's lowest value. For a
-/// signed type that is a large negative number that no real value reaches. For an unsigned type
-/// it is 0, which is also a real value, so an impossible label could not be told apart from a
+/// Directional resource kind: @c Threshold if the value type is signed, @c Unspecified if it is
+/// unsigned. Going backward, a deadline can become impossible to meet: a deadline of 3 before an
+/// arc that takes 5 means leaving at -2. The form marks such a label with the type's lowest value.
+/// For a signed type that is a large negative number that no real value reaches. For an unsigned
+/// type it is 0, which is also a real value, so an impossible label could not be told apart from a
 /// valid one; such a resource is left @c Unspecified, and a backward or bidirectional solve
 /// refuses it.
 ///
 /// @note Use as the middle argument of a three-argument @c Clonable:
-///       `Clonable<Derived, ThresholdForm<R, ExtensionFunction<R>>, ExtensionFunction<R>>`.
+///       `Clonable<Derived, ThresholdExtensionForm<R, ExtensionFunction<R>>,
+///       ExtensionFunction<R>>`.
 ///
 /// @tparam R    The scalar resource type.
 /// @tparam Base The base to insert above, normally @c ExtensionFunction<R>.
 /// @tparam V    The resource's arithmetic value type, and no other.
 template <typename R, typename Base,
           typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardKind::Threshold
-                                                                     : BackwardKind::Unspecified)> {
+class ThresholdExtensionForm
+    : public DirectionalExtensionForm<Base, (std::is_signed_v<V>
+                                                 ? DirectionalResourceKind::Threshold
+                                                 : DirectionalResourceKind::Unspecified)> {
         // Both formulas convert to V and back, so any other type truncates or widens every value:
         // a real resource read through int bounds loses its fractions in every algorithm.
         static_assert(std::is_same_v<V, std::decay_t<decltype(std::declval<R>().get_value())>>,
-                      "ThresholdForm: V must be the resource's own value type");
+                      "ThresholdExtensionForm: V must be the resource's own value type");
 
     public:
         /// @brief Forward step: @c forward_value, raised to the arrival node's lower bound
@@ -180,7 +183,8 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
         }
 };
 
-/// @brief A @ref ThresholdForm for additive resources: forward adds the arc's consumption, backward
+/// @brief A @ref ThresholdExtensionForm for additive resources: forward adds the arc's consumption,
+/// backward
 ///        subtracts it.
 ///
 /// Time windows and capacities are built on it.
@@ -190,7 +194,7 @@ class ThresholdForm : public BackwardForm<Base, (std::is_signed_v<V> ? BackwardK
 /// @tparam V    The resource's arithmetic value type.
 template <typename R, typename Base,
           typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-class TranslationThresholdForm : public ThresholdForm<R, Base, V> {
+class TranslationThresholdExtensionForm : public ThresholdExtensionForm<R, Base, V> {
     protected:
         /// @brief Adds the arc's consumption.
         ///

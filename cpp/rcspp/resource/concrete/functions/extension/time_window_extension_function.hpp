@@ -13,7 +13,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
-#include "rcspp/resource/functions/extension/threshold_form.hpp"
+#include "rcspp/resource/functions/extension/threshold_extension_form.hpp"
 #include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
@@ -28,9 +28,9 @@ namespace rcspp {
 /// - **Backward extension**: `min(latest[origin], current - arc_time)` — a backward label
 ///   stores the latest permissible departure time (a deadline).
 ///
-/// The formulas come from `TranslationThresholdForm`; this class only supplies the per-node
-/// floor and ceiling. They must be the windows the paired feasibility function enforces: build
-/// both from one @ref SharedNodeBounds, as @c presets::add_window_resource does.
+/// The formulas come from `TranslationThresholdExtensionForm`; this class only supplies the
+/// per-node floor and ceiling. They must be the windows the paired feasibility function enforces:
+/// build both from one @ref SharedNodeBounds, as @c presets::add_window_resource does.
 ///
 /// @tparam ResourceType A NumericalResource-compatible type whose value type is arithmetic.
 /// @tparam ValueType    Deduced value type of the resource (default: `ResourceType::get_value()`
@@ -38,10 +38,10 @@ namespace rcspp {
 template <typename ResourceType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class TimeWindowExtensionFunction
-    : public Clonable<
-          TimeWindowExtensionFunction<ResourceType, ValueType>,
-          TranslationThresholdForm<ResourceType, ExtensionFunction<ResourceType>, ValueType>,
-          ExtensionFunction<ResourceType>> {
+    : public Clonable<TimeWindowExtensionFunction<ResourceType, ValueType>,
+                      TranslationThresholdExtensionForm<ResourceType,
+                                                        ExtensionFunction<ResourceType>, ValueType>,
+                      ExtensionFunction<ResourceType>> {
     public:
         /// @brief Constructs a TimeWindowExtensionFunction with node time windows.
         ///

@@ -16,8 +16,8 @@ namespace test_util {
 /// @brief Asserts the defining property of a threshold resource's backward extension:
 ///        extend(x, arc) <= theta   <==>   x <= extend_back(theta, arc)
 ///
-/// Applies to @c rcspp::BackwardKind::Threshold functions only. Precondition: neither the
-/// forward clamp (@c earliest[destination]) nor the backward clamp (@c latest[origin]) may bind
+/// Applies to @c rcspp::DirectionalResourceKind::Threshold functions only. Precondition: neither
+/// the forward clamp (@c earliest[destination]) nor the backward clamp (@c latest[origin]) may bind
 /// over the sampled range, since each breaks the biconditional; test clamps with explicit cases.
 ///
 /// @tparam ExtensionFn  The extension function under test.

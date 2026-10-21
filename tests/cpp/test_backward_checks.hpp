@@ -39,7 +39,7 @@ struct RefusedModel {
         std::string problem;
 };
 
-/// @brief An extension function that declares no backward kind.
+/// @brief An extension function that declares no directional resource kind.
 class UndeclaredExtensionFunction
     : public Clonable<UndeclaredExtensionFunction, ExtensionFunction<RealResource>> {
     public:
@@ -117,7 +117,7 @@ inline std::vector<RefusedModel> refused_models() {
                                           std::numeric_limits<double>::max() / 2,
                                           {{1, {5.0, 100.0}}, {2, {0.0, 6.0}}});
     return {
-        {"undeclared component", undeclared_component, "declares no backward_kind()"},
+        {"undeclared component", undeclared_component, "declares no directional_resource_kind()"},
         {"forward-only composition dominance", forward_only_dominance, "check_back_dominance"},
         {"forward-only composition extension",
          [] {
@@ -305,7 +305,8 @@ namespace backward_checks_test {
 /// checks accept it.
 class ThrowOnCallAddition
     : public Clonable<ThrowOnCallAddition,
-                      BackwardForm<ExtensionFunction<RealResource>, BackwardKind::Accumulate>,
+                      DirectionalExtensionForm<ExtensionFunction<RealResource>,
+                                               DirectionalResourceKind::Accumulate>,
                       ExtensionFunction<RealResource>> {
     public:
         static inline size_t calls = 0;

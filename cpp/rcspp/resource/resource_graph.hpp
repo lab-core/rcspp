@@ -66,7 +66,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///
         /// Backward coherence is not checked here, since forward-only models need not satisfy
         /// it; the model checks validate it before a backward or bidirectional solve, and callers
-        /// may assert @c declares_backward_kind_v themselves.
+        /// may assert @c declares_directional_resource_kind_v themselves.
         ///
         /// @tparam ResourceType The component's resource type.
         /// @param extension_function   How an arc modifies the resource.
@@ -82,9 +82,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
-            pass_backward_kind(*extension_function,
-                               feasibility_function.get(),
-                               dominance_function.get());
+            pass_directional_resource_kind(*extension_function,
+                                           feasibility_function.get(),
+                                           dominance_function.get());
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
@@ -117,9 +117,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
 
-            pass_backward_kind(*extension_function,
-                               feasibility_function.get(),
-                               dominance_function.get());
+            pass_directional_resource_kind(*extension_function,
+                                           feasibility_function.get(),
+                                           dominance_function.get());
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
@@ -538,21 +538,23 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @brief Tells a resource's dominance and feasibility functions how its extension function
         ///        extends backwards.
         ///
-        /// The extension's backward kind decides how the other functions read the resource
-        /// backward: the dominance function reverses where @ref reverses_back_dominance says (a
-        /// threshold: a larger limit is better), and the feasibility function records the kind to
-        /// pick its join test. Set on the prototypes, so every per-node clone inherits both.
+        /// The extension's directional resource kind decides how the other functions read the
+        /// resource backward: the dominance function reverses where @ref reverses_back_dominance
+        /// says (a threshold: a larger limit is better), and the feasibility function records the
+        /// kind to pick its join test. Set on the prototypes, so every per-node clone inherits
+        /// both.
         ///
         /// @param extension_function   The resource's extension function.
         /// @param feasibility_function Receives the kind.
         /// @param dominance_function   Receives whether the backward order reverses.
         template <typename ResourceType>
-        static void pass_backward_kind(const ExtensionFunction<ResourceType>& extension_function,
-                                       FeasibilityFunction<ResourceType>* feasibility_function,
-                                       DominanceFunction<ResourceType>* dominance_function) {
-            const BackwardKind kind = extension_function.backward_kind();
+        static void pass_directional_resource_kind(
+            const ExtensionFunction<ResourceType>& extension_function,
+            FeasibilityFunction<ResourceType>* feasibility_function,
+            DominanceFunction<ResourceType>* dominance_function) {
+            const DirectionalResourceKind kind = extension_function.directional_resource_kind();
             dominance_function->set_backward_reversed(reverses_back_dominance(kind));
-            feasibility_function->set_backward_kind(kind);
+            feasibility_function->set_directional_resource_kind(kind);
         }
 
         /// @brief The feasibility preprocessor as a solve runs it: its removals are kept for good,

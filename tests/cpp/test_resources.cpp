@@ -5,17 +5,17 @@
 
 #include <gtest/gtest.h>
 
-#include "resource/concrete/functions/extension/test_backward_kind_declared.hpp"
 #include "resource/concrete/functions/extension/test_capacity_extension_function.hpp"
+#include "resource/concrete/functions/extension/test_directional_resource_kind_declared.hpp"
 #include "resource/concrete/functions/extension/test_ng_path_extension_function.hpp"
 #include "resource/concrete/functions/extension/test_time_window_extension_function.hpp"
 #include "resource/concrete/functions/feasibility/test_intersection_feasibility_function.hpp"
-#include "resource/test_arc_endpoints_form.hpp"
+#include "resource/test_arc_endpoints_extension_form.hpp"
 #include "resource/test_back_start.hpp"
 #include "resource/test_backward_dominance.hpp"
 #include "resource/test_join_rules.hpp"
 #include "resource/test_node_bounds.hpp"
-#include "resource/test_threshold_form.hpp"
+#include "resource/test_threshold_extension_form.hpp"
 #include "test_backward_api.hpp"
 #include "test_backward_checks.hpp"
 #include "test_container_resources.hpp"

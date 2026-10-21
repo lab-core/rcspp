@@ -183,12 +183,13 @@ inline std::optional<double> backward_value_at(const BackwardAlgorithm& algorith
 /// A reversed arc still applies the forward extension, so the oracle is valid only for additive
 /// resources.
 TEST(BackwardSearch, OracleBuildsOnlyAdditiveResources) {
-    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Accumulate);
+    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.directional_resource_kind(),
+              DirectionalResourceKind::Accumulate);
 
     // A time-window resource is not additive, so the oracle cannot be used for it.
     EXPECT_NE(TimeWindowExtensionFunction<RealResource>{backward_search_test::time_windows()}
-                  .backward_kind(),
-              BackwardKind::Accumulate);
+                  .directional_resource_kind(),
+              DirectionalResourceKind::Accumulate);
 }
 
 // ============================================================================

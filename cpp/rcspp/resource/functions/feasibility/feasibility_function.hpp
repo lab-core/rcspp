@@ -9,7 +9,7 @@
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
@@ -89,7 +89,8 @@ class FeasibilityFunction {
 
         /// @brief Which join test the bidirectional join applies to this resource.
         ///
-        /// May depend on @c backward_kind(): @c MinMaxFeasibilityFunction compares the two values
+        /// May depend on @c directional_resource_kind(): @c MinMaxFeasibilityFunction compares the
+        /// two values
         /// (@c ValueOrder) under @c Threshold, and tests their sum (@c Custom) under
         /// @c Accumulate. @c Unspecified by default, so a bidirectional solve refuses a function
         /// that declares none.
@@ -97,20 +98,25 @@ class FeasibilityFunction {
         /// @return The join rule declared by this feasibility function.
         [[nodiscard]] virtual JoinRule join_rule() const { return JoinRule::Unspecified; }
 
-        /// @brief Records the paired extension function's backward kind. Called by
+        /// @brief Records the paired extension function's directional resource kind. Called by
         ///        @c ResourceGraph::add_resource, not by hand.
         ///
         /// The feasibility function reads it to choose its join test and to know what a backward
         /// value means: a limit (@c Threshold) or a sum (@c Accumulate).
         ///
-        /// @param kind The paired extension function's declared backward kind.
-        void set_backward_kind(BackwardKind kind) { backward_kind_ = kind; }
+        /// @param kind The paired extension function's declared directional resource kind.
+        void set_directional_resource_kind(DirectionalResourceKind kind) {
+            directional_resource_kind_ = kind;
+        }
 
-        /// @brief The paired extension function's backward kind; @c Unspecified until the resource
+        /// @brief The paired extension function's directional resource kind; @c Unspecified until
+        /// the resource
         ///        is added to a graph.
         ///
-        /// @return The declared backward kind of the paired extension function.
-        [[nodiscard]] BackwardKind backward_kind() const { return backward_kind_; }
+        /// @return The declared directional resource kind of the paired extension function.
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const {
+            return directional_resource_kind_;
+        }
 
         /// @brief Whether this function needs the label's set to exclude the node the label sits
         ///        on, which backward only an @c ArcEndpoints extension guarantees.
@@ -174,9 +180,10 @@ class FeasibilityFunction {
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}
 
-        /// @brief The paired extension function's backward kind, set by add_resource and copied
+        /// @brief The paired extension function's directional resource kind, set by add_resource
+        /// and copied
         ///        into every per-node clone.
-        BackwardKind backward_kind_ = BackwardKind::Unspecified;
+        DirectionalResourceKind directional_resource_kind_ = DirectionalResourceKind::Unspecified;
 };
 
 /// @brief Thrown by a composed function whose backward members (@c is_back_feasible and

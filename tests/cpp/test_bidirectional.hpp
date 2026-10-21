@@ -416,8 +416,8 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
 /// @brief A forbidden set that is not the node's own is refused, on two models where it would
 ///        give a wrong answer.
 ///
-/// `DisjointJoinForm` needs `forbidden(v) = {v}`. Each case is a minimal model on which a
-/// bidirectional solve would answer wrongly; both are refused by the model checks and still solve
+/// `DisjointJoinFeasibilityForm` needs `forbidden(v) = {v}`. Each case is a minimal model on which
+/// a bidirectional solve would answer wrongly; both are refused by the model checks and still solve
 /// forward.
 TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
     struct Arc {
@@ -666,7 +666,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
             EXPECT_NE(message.find("component 2"), std::string::npos) << message;
             EXPECT_NE(message.find("ArcEndpoints"), std::string::npos) << message;
             // The remedy is named, not only the missing declaration.
-            EXPECT_NE(message.find("ArcEndpointsForm"), std::string::npos) << message;
+            EXPECT_NE(message.find("ArcEndpointsExtensionForm"), std::string::npos) << message;
         }
     }
 

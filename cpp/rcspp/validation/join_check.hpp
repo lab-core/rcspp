@@ -11,8 +11,8 @@
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
 #include "rcspp/resource/functions/cost/cost_function.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 #include "rcspp/validation/model_check.hpp"
@@ -39,7 +39,8 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class JoinCheck final : public ModelCheck<ResourceType> {
     public:
-        /// @brief Pairs @c backward_kind() from one arc's extender with @c join_rule() and the
+        /// @brief Pairs @c directional_resource_kind() from one arc's extender with @c join_rule()
+        /// and the
         ///        other declarations of one node's resource, by component index, then checks the
         ///        accumulations and probes the composition's join test.
         void check(const Graph<ResourceType>& graph, ModelReport* report) const override {
@@ -51,9 +52,10 @@ class JoinCheck final : public ModelCheck<ResourceType> {
 
             auto* problems = &report->problems;
             const size_t reported_before = problems->size();
-            model.for_each_component([&](const auto& component, BackwardKind kind, size_t index) {
-                describe_problem(component, kind, index, problems);
-            });
+            model.for_each_component(
+                [&](const auto& component, DirectionalResourceKind kind, size_t index) {
+                    describe_problem(component, kind, index, problems);
+                });
             check_accumulations(graph, *node->resource, model.kinds, problems);
 
             // The composition feasibility function needs a join test too. Probed only when this
@@ -72,8 +74,9 @@ class JoinCheck final : public ModelCheck<ResourceType> {
 
         /// @brief Records what, if anything, is wrong with one component's join declarations.
         template <typename ComponentResource>
-        static void describe_problem(const ComponentResource& component, BackwardKind kind,
-                                     size_t index, std::vector<std::string>* problems) {
+        static void describe_problem(const ComponentResource& component,
+                                     DirectionalResourceKind kind, size_t index,
+                                     std::vector<std::string>* problems) {
             using ComponentValue = std::decay_t<decltype(component.get_value())>;
             const auto rule = component.join_rule();
             const std::string label = "component " + std::to_string(index);
@@ -93,7 +96,7 @@ class JoinCheck final : public ModelCheck<ResourceType> {
             }
             // ValueOrder reads the backward value as a bound; under an accumulation it is a
             // consumption, so the join would accept infeasible splices.
-            if (kind == BackwardKind::Accumulate && rule == JoinRule::ValueOrder) {
+            if (kind == DirectionalResourceKind::Accumulate && rule == JoinRule::ValueOrder) {
                 problems->push_back(
                     label +
                     ": its extension accumulates but its feasibility function declares "
@@ -111,7 +114,7 @@ class JoinCheck final : public ModelCheck<ResourceType> {
         /// where its feasibility function reads the backward value as a running total
         /// (@c requires_nondecreasing, as @c MinMaxFeasibilityFunction does under an accumulation:
         /// its join tests `forward + backward`). That is exact only if a path's value is the sum
-        /// of one amount per arc, which @c BackwardKind::Accumulate does not promise: a
+        /// of one amount per arc, which @c DirectionalResourceKind::Accumulate does not promise: a
         /// bottleneck, the largest load seen, extends backward the same way, but does not add.
         ///
         /// Checked by running the extension, as the clamps are (@ref check_sums), and by checking
@@ -120,11 +123,11 @@ class JoinCheck final : public ModelCheck<ResourceType> {
         ///
         /// @param graph    The graph.
         /// @param any      Any node's resource, to read the declarations from and copy probes of.
-        /// @param kinds    Each component's backward kind.
+        /// @param kinds    Each component's directional resource kind.
         /// @param problems Receives one line per offending component.
         static void check_accumulations(const Graph<ResourceType>& graph,
                                         const Resource<ResourceType>& any,
-                                        const std::vector<BackwardKind>& kinds,
+                                        const std::vector<DirectionalResourceKind>& kinds,
                                         std::vector<std::string>* problems) {
             std::vector<bool> halves_added(kinds.size(), false);
             size_t index = 0;
@@ -133,7 +136,7 @@ class JoinCheck final : public ModelCheck<ResourceType> {
                 using Value = std::decay_t<decltype(component.get_value())>;
                 if constexpr (is_numerical_resource_v<Value>) {
                     if (component_index < kinds.size() &&
-                        kinds[component_index] == BackwardKind::Accumulate) {
+                        kinds[component_index] == DirectionalResourceKind::Accumulate) {
                         halves_added[component_index] = component.cost_form() == CostForm::Value ||
                                                         component.requires_nondecreasing();
                     }
@@ -217,7 +220,8 @@ class JoinCheck final : public ModelCheck<ResourceType> {
                             (*checked)[component_index] = false;  // report once
                             problems->push_back(
                                 "component " + std::to_string(component_index) +
-                                ": its extension declares BackwardKind::Accumulate, but along " +
+                                ": its extension declares DirectionalResourceKind::Accumulate, but "
+                                "along " +
                                 std::to_string(arc.origin->id) + " -> " +
                                 std::to_string(arc.destination->id) + " -> " +
                                 std::to_string(then.destination->id) +
@@ -299,7 +303,8 @@ class JoinCheck final : public ModelCheck<ResourceType> {
                             reported[component_index] = true;
                             problems->push_back(
                                 "component " + std::to_string(component_index) +
-                                ": its extension declares BackwardKind::Accumulate, but starts "
+                                ": its extension declares DirectionalResourceKind::Accumulate, but "
+                                "starts "
                                 "its backward labels at sink " +
                                 std::to_string(sink_id) + " at " + std::to_string(*start) +
                                 ", not at the type default the forward search starts from, so "

@@ -111,7 +111,7 @@ New features are summarised, with a pointer to where they are documented.
   threshold extension of your own is checked however it is written, and must accept any value of
   its type. A feasibility function's floor is checked the same way, by asking its backward test.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
-  code compiling: `ExtensionFunction::backward_kind()` and `start_back()`; on `FeasibilityFunction`
+  code compiling: `ExtensionFunction::directional_resource_kind()` and `start_back()`; on `FeasibilityFunction`
   `join_rule()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition
   `DominanceFunction` gains a `check_back_dominance()` whose default refuses, and a composition
   `CostFunction` an `is_additive()` whose default refuses: a backward label's cost is its
@@ -135,8 +135,8 @@ New features are summarised, with a pointer to where they are documented.
   `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`, also in Python,
   in `rcspp.presets`. Only the cost preset prices its resource; a window or a
   capacity costs nothing. Each asserts at compile time that its extension declares a
-  backward kind; C++ callers can assert the same of their own extensions with
-  `rcspp::declares_backward_kind_v<Ext>`. The rest of a pairing is checked by the model checks.
+  directional resource kind; C++ callers can assert the same of their own extensions with
+  `rcspp::declares_directional_resource_kind_v<Ext>`. The rest of a pairing is checked by the model checks.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.

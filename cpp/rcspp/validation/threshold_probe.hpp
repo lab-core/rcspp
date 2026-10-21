@@ -15,7 +15,7 @@
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 /// @brief What the model checks read off the model by running its own functions, rather than
@@ -185,16 +185,16 @@ template <typename ResourceType>
     return nullptr;
 }
 
-/// @brief Each component's backward kind, as @ref model_arc's extender declares them.
+/// @brief Each component's directional resource kind, as @ref model_arc's extender declares them.
 ///
 /// @param graph The graph.
 /// @return The kinds, in component order; empty when the model has no arc.
 template <typename ResourceType>
-[[nodiscard]] std::vector<BackwardKind> model_kinds(const Graph<ResourceType>& graph) {
-    std::vector<BackwardKind> kinds;
+[[nodiscard]] std::vector<DirectionalResourceKind> model_kinds(const Graph<ResourceType>& graph) {
+    std::vector<DirectionalResourceKind> kinds;
     if (const auto* arc = model_arc(graph); arc != nullptr) {
         arc->extender->for_each_component(
-            [&](const auto& component) { kinds.push_back(component.backward_kind()); });
+            [&](const auto& component) { kinds.push_back(component.directional_resource_kind()); });
     }
     return kinds;
 }
@@ -263,11 +263,11 @@ template <typename ResourceType>
 /// does apply would read as none.
 ///
 /// @param arc   The arc; its extender must be set.
-/// @param kinds Each component's backward kind.
+/// @param kinds Each component's directional resource kind.
 /// @return Whether the arc can be probed for clamps.
 template <typename ResourceType>
 [[nodiscard]] bool consumes_finitely(const Arc<ResourceType>& arc,
-                                     const std::vector<BackwardKind>& kinds) {
+                                     const std::vector<DirectionalResourceKind>& kinds) {
     bool finite = true;
     size_t index = 0;
     arc.extender->for_each_component([&](const auto& extender) {
@@ -277,7 +277,7 @@ template <typename ResourceType>
             using Scalar = std::decay_t<decltype(extender.get_value().get_value())>;
             if constexpr (std::is_floating_point_v<Scalar>) {
                 if (component_index < kinds.size() &&
-                    kinds[component_index] == BackwardKind::Threshold &&
+                    kinds[component_index] == DirectionalResourceKind::Threshold &&
                     !std::isfinite(extender.get_value().get_value())) {
                     finite = false;
                 }
@@ -330,12 +330,12 @@ struct ClampProbe {
 /// called, so a clamp is seen however the extension is written.
 ///
 /// @param arc      The arc.
-/// @param kinds    Each component's backward kind.
+/// @param kinds    Each component's directional resource kind.
 /// @param backward Whether to push the values backward.
 /// @param probe    Reused inputs and outputs.
 /// @param clamps   Receives one entry per component.
 template <typename ResourceType>
-void observe_clamps(const Arc<ResourceType>& arc, const std::vector<BackwardKind>& kinds,
+void observe_clamps(const Arc<ResourceType>& arc, const std::vector<DirectionalResourceKind>& kinds,
                     bool backward, ClampProbe<ResourceType>* probe,
                     std::vector<std::optional<double>>* clamps) {
     const auto place = [&](Resource<ResourceType>* input, bool second) {
@@ -345,7 +345,7 @@ void observe_clamps(const Arc<ResourceType>& arc, const std::vector<BackwardKind
             using Value = std::decay_t<decltype(component.get_value())>;
             if constexpr (is_numerical_resource_v<Value>) {
                 if (component_index < kinds.size() &&
-                    kinds[component_index] == BackwardKind::Threshold) {
+                    kinds[component_index] == DirectionalResourceKind::Threshold) {
                     component.set_value(
                         beyond_bounds(extender->get_value().get_value(), backward, second));
                 }
@@ -377,7 +377,7 @@ void observe_clamps(const Arc<ResourceType>& arc, const std::vector<BackwardKind
             using Value = std::decay_t<decltype(first.get_value())>;
             if constexpr (is_numerical_resource_v<Value>) {
                 const auto value = first.get_value().get_value();
-                if (kinds[component_index] == BackwardKind::Threshold &&
+                if (kinds[component_index] == DirectionalResourceKind::Threshold &&
                     value == second->get_value().get_value()) {
                     clamp = static_cast<double>(value);
                 }
@@ -391,11 +391,11 @@ void observe_clamps(const Arc<ResourceType>& arc, const std::vector<BackwardKind
 ///        @c std::nullopt where it leaves the type default (and for every other component).
 ///
 /// @param arc    An arc entering a sink.
-/// @param kinds  Each component's backward kind.
+/// @param kinds  Each component's directional resource kind.
 /// @param probe  Reused scratch resources.
 /// @param starts Receives one entry per component.
 template <typename ResourceType>
-void observe_starts(const Arc<ResourceType>& arc, const std::vector<BackwardKind>& kinds,
+void observe_starts(const Arc<ResourceType>& arc, const std::vector<DirectionalResourceKind>& kinds,
                     ClampProbe<ResourceType>* probe, std::vector<std::optional<double>>* starts) {
     size_t index = 0;
     probe->first_input.for_each_component(*arc.extender,
@@ -405,7 +405,8 @@ void observe_starts(const Arc<ResourceType>& arc, const std::vector<BackwardKind
                                                   return;
                                               }
                                               (*starts)[component_index] =
-                                                  kinds[component_index] == BackwardKind::Threshold
+                                                  kinds[component_index] ==
+                                                          DirectionalResourceKind::Threshold
                                                       ? observe_start(*extender, &component)
                                                       : std::nullopt;
                                           });
@@ -425,13 +426,13 @@ void observe_starts(const Arc<ResourceType>& arc, const std::vector<BackwardKind
 ///
 /// @param node    The node.
 /// @param removed The removed arcs, for a node whose live arcs are all gone.
-/// @param kinds   Each component's backward kind.
+/// @param kinds   Each component's directional resource kind.
 /// @param probe   Reused scratch resources.
 /// @param clamps  Receives the clamps.
 template <typename ResourceType>
 void observe_node_clamps(const Node<ResourceType>& node, const RemovedArcs<ResourceType>& removed,
-                         const std::vector<BackwardKind>& kinds, ClampProbe<ResourceType>* probe,
-                         NodeClamps* clamps) {
+                         const std::vector<DirectionalResourceKind>& kinds,
+                         ClampProbe<ResourceType>* probe, NodeClamps* clamps) {
     const auto finite = [&kinds](const Arc<ResourceType>& arc) {
         return consumes_finitely(arc, kinds);
     };

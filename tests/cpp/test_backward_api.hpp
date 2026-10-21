@@ -74,7 +74,8 @@ class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, Lab
 // Enum defaults
 // ============================================================================
 
-/// @brief backward_kind() and join_rule() default to Unspecified on a class that declares
+/// @brief directional_resource_kind() and join_rule() default to Unspecified on a class that
+/// declares
 ///        neither, which is what lets a bidirectional solve refuse an undeclared component.
 TEST(BackwardApi, EnumsDefaultToUnspecified) {
     class UndeclaredExtensionFunction
@@ -83,7 +84,8 @@ TEST(BackwardApi, EnumsDefaultToUnspecified) {
             void extend(const RealResource& /*resource*/, const RealResource& /*extender_value*/,
                         RealResource* /*extended_resource*/) override {}
     };
-    EXPECT_EQ(UndeclaredExtensionFunction{}.backward_kind(), BackwardKind::Unspecified);
+    EXPECT_EQ(UndeclaredExtensionFunction{}.directional_resource_kind(),
+              DirectionalResourceKind::Unspecified);
 
     class UndeclaredFeasibilityFunction
         : public Clonable<UndeclaredFeasibilityFunction, FeasibilityFunction<RealResource>> {

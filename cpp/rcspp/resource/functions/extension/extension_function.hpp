@@ -12,7 +12,7 @@
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
@@ -29,28 +29,31 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Arc;
 
-/// @brief An extension function type with a static @c kind member that names its backward kind.
+/// @brief An extension function type with a static @c kind member that names its directional
+/// resource kind.
 template <typename T>
-concept DeclaresBackwardKind = requires {
-    { T::kind } -> std::convertible_to<BackwardKind>;
+concept DeclaresDirectionalResourceKind = requires {
+    { T::kind } -> std::convertible_to<DirectionalResourceKind>;
 };
 
-/// @brief The backward kind of extension function type @p T: its static @c kind, or
+/// @brief The directional resource kind of extension function type @p T: its static @c kind, or
 ///        @c Unspecified when it has none.
 template <typename T>
-struct BackwardKindOf {
-        static constexpr BackwardKind value = BackwardKind::Unspecified;
+struct DirectionalResourceKindOf {
+        static constexpr DirectionalResourceKind value = DirectionalResourceKind::Unspecified;
 };
 
-template <DeclaresBackwardKind T>
-struct BackwardKindOf<T> {
-        static constexpr BackwardKind value = T::kind;
+template <DeclaresDirectionalResourceKind T>
+struct DirectionalResourceKindOf<T> {
+        static constexpr DirectionalResourceKind value = T::kind;
 };
 
-/// @brief Shorthand for @c BackwardKindOf<T>::value. For checks made before any object exists,
-///        such as @c declares_backward_kind_v.
+/// @brief Shorthand for @c DirectionalResourceKindOf<T>::value. For checks made before any object
+/// exists,
+///        such as @c declares_directional_resource_kind_v.
 template <typename T>
-inline constexpr BackwardKind backward_kind_of_v = BackwardKindOf<T>::value;
+inline constexpr DirectionalResourceKind directional_resource_kind_of_v =
+    DirectionalResourceKindOf<T>::value;
 
 /// @brief Abstract base class defining the extension function for a resource type.
 ///
@@ -78,16 +81,16 @@ class ExtensionFunction {
         /// @c Unspecified by default, which keeps forward-only functions valid but makes a
         /// backward or bidirectional solve refuse the resource.
         ///
-        /// @return The backward kind declared by this extension function.
-        [[nodiscard]] virtual BackwardKind backward_kind() const {
-            return BackwardKind::Unspecified;
+        /// @return The directional resource kind declared by this extension function.
+        [[nodiscard]] virtual DirectionalResourceKind directional_resource_kind() const {
+            return DirectionalResourceKind::Unspecified;
         }
 
         /// @brief Extends a value backward along an arc: from a label at the arc's destination to
         ///        one at its origin.
         ///
         /// A backward or bidirectional search calls it, from the sinks. What the backward value
-        /// means follows @c backward_kind():
+        /// means follows @c directional_resource_kind():
         ///  - @c Accumulate (this default): the suffix's sum, by the same formula as @c extend;
         ///  - @c Threshold: the most the prefix may reach at the origin. It must invert @c extend,
         ///    `extend(x, arc) <= b  <=>  x <= extend_back(b, arc)`, and clamp down to the origin's
@@ -184,11 +187,11 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
         /// @brief Not read: a composition has no kind of its own. The model checks read
-        ///        each component's @c backward_kind() instead.
+        ///        each component's @c directional_resource_kind() instead.
         ///
-        /// @return @c BackwardKind::Unspecified unless overridden.
-        [[nodiscard]] virtual BackwardKind backward_kind() const {
-            return BackwardKind::Unspecified;
+        /// @return @c DirectionalResourceKind::Unspecified unless overridden.
+        [[nodiscard]] virtual DirectionalResourceKind directional_resource_kind() const {
+            return DirectionalResourceKind::Unspecified;
         }
 
         /// @brief Extends a composed resource backward.

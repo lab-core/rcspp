@@ -12,8 +12,8 @@
 #include <utility>
 
 #include "rcspp/general/clonable.hpp"
+#include "rcspp/resource/functions/feasibility/disjoint_join_feasibility_form.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
-#include "rcspp/resource/functions/feasibility/join_form.hpp"
 
 namespace rcspp {
 
@@ -50,10 +50,10 @@ concept ComparableToNodeId = requires(const ValueType& element, size_t node_id) 
 template <typename ContainerResourceType,
           typename ValueType = typename ContainerResourceType::ValueType>
 class IntersectionFeasibilityFunction
-    : public Clonable<
-          IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
-          DisjointJoinForm<ContainerResourceType, FeasibilityFunction<ContainerResourceType>>,
-          FeasibilityFunction<ContainerResourceType>> {
+    : public Clonable<IntersectionFeasibilityFunction<ContainerResourceType, ValueType>,
+                      DisjointJoinFeasibilityForm<ContainerResourceType,
+                                                  FeasibilityFunction<ContainerResourceType>>,
+                      FeasibilityFunction<ContainerResourceType>> {
     public:
         /// @brief Constructs the function with a per-node map of value sets.
         ///
@@ -137,7 +137,7 @@ class IntersectionFeasibilityFunction
         ///        path before it.
         ///
         /// The @c Custom test is @ref can_be_joined, which refines the plain disjointness test of
-        /// @c DisjointJoinForm.
+        /// @c DisjointJoinFeasibilityForm.
         ///
         /// @return The join rule for this configuration.
         [[nodiscard]] JoinRule join_rule() const override {
@@ -151,7 +151,8 @@ class IntersectionFeasibilityFunction
         }
 
         /// @brief Whether this function carries the self-forbidden condition, whose backward
-        ///        reading needs a memory at `v` that excludes `v` (@c BackwardKind::ArcEndpoints).
+        ///        reading needs a memory at `v` that excludes `v` (@c
+        ///        DirectionalResourceKind::ArcEndpoints).
         ///
         /// @return @c true exactly when @ref join_rule answers @c Custom.
         [[nodiscard]] bool requires_arc_endpoints() const override {

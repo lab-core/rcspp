@@ -307,14 +307,14 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
 | `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
 
-The last four are all containers, but they split into two **backward kinds**, and pairing the wrong
+The last four are all containers, but they split into two **directional resource kinds**, and pairing the wrong
 one with a forbidden-set feasibility is refused by the model checks:
 
 - `NgPathExtensionFunction` reads node identities off the arc's *endpoints* and swaps them per
-  direction (`BackwardKind::ArcEndpoints`), so the memory at a node excludes that node going both
+  direction (`DirectionalResourceKind::ArcEndpoints`), so the memory at a node excludes that node going both
   ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
 - The other three accumulate the arc's *value*, which is the same object in both directions
-  (`BackwardKind::ArcValue`).  Right for genuine per-arc set data; wrong for node identities.
+  (`DirectionalResourceKind::ArcValue`).  Right for genuine per-arc set data; wrong for node identities.
 
 ### Feasibility
 

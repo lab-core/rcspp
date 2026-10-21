@@ -185,7 +185,8 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
                 case CostForm::Zero:
                     return true;
                 case CostForm::Value:
-                    return this->feasibility_function_->backward_kind() == BackwardKind::Accumulate;
+                    return this->feasibility_function_->directional_resource_kind() ==
+                           DirectionalResourceKind::Accumulate;
                 default:
                     return false;
             }

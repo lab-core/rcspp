@@ -41,11 +41,12 @@ ResourceType start_at(ExtensionFunction<ResourceType>& prototype, size_t sink,
     return before;
 }
 
-/// @brief A @c ThresholdForm that states no bound at any node.
+/// @brief A @c ThresholdExtensionForm that states no bound at any node.
 class Unbounded
-    : public Clonable<Unbounded,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          Unbounded,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
             return std::nullopt;
@@ -56,12 +57,13 @@ class Unbounded
         }
 };
 
-/// @brief A @c ThresholdForm that caps every node at @ref kCapacity and has no floor, as a
+/// @brief A @c ThresholdExtensionForm that caps every node at @ref kCapacity and has no floor, as a
 ///        capacity does.
 class CappedAtNinety
-    : public Clonable<CappedAtNinety,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          CappedAtNinety,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
             return std::nullopt;

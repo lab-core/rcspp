@@ -146,10 +146,10 @@ constexpr double kStartOfTen = 10.0;
 
 /// @brief A bottleneck: the largest arc value seen. It extends backward the same way, so it
 ///        declares an accumulation, but a path's value is not the sum of its halves' values.
-class Bottleneck
-    : public Clonable<Bottleneck,
-                      BackwardForm<ExtensionFunction<RealResource>, BackwardKind::Accumulate>,
-                      ExtensionFunction<RealResource>> {
+class Bottleneck : public Clonable<Bottleneck,
+                                   DirectionalExtensionForm<ExtensionFunction<RealResource>,
+                                                            DirectionalResourceKind::Accumulate>,
+                                   ExtensionFunction<RealResource>> {
     public:
         void extend(const RealResource& resource, const RealResource& extender_value,
                     RealResource* extended_resource) override {
@@ -161,7 +161,8 @@ class Bottleneck
 /// @brief An addition whose backward labels start at 10 rather than at the type default.
 class AdditionStartingAtTen
     : public Clonable<AdditionStartingAtTen,
-                      BackwardForm<ExtensionFunction<RealResource>, BackwardKind::Accumulate>,
+                      DirectionalExtensionForm<ExtensionFunction<RealResource>,
+                                               DirectionalResourceKind::Accumulate>,
                       ExtensionFunction<RealResource>> {
     public:
         void extend(const RealResource& resource, const RealResource& extender_value,
@@ -344,8 +345,9 @@ class CachedNodeCap : public Clonable<CachedNodeCap, FeasibilityFunction<RealRes
             return resource.get_value() >= 0.0 && resource.get_value() <= cap_;
         }
         [[nodiscard]] JoinRule join_rule() const override {
-            return backward_kind_ == BackwardKind::Threshold ? JoinRule::ValueOrder
-                                                             : JoinRule::Unspecified;
+            return directional_resource_kind_ == DirectionalResourceKind::Threshold
+                       ? JoinRule::ValueOrder
+                       : JoinRule::Unspecified;
         }
 
     protected:
@@ -360,7 +362,8 @@ class CachedNodeCap : public Clonable<CachedNodeCap, FeasibilityFunction<RealRes
         double cap_;
 };
 
-/// @brief A threshold written without `ThresholdForm`: it adds going forward, going backward
+/// @brief A threshold written without `ThresholdExtensionForm`: it adds going forward, going
+/// backward
 ///        subtracts and clamps to its own closing time at the node left, and starts a backward
 ///        label at the closing time of the node it enters.
 ///
@@ -374,8 +377,8 @@ class HandWrittenThreshold
               default_closing_(default_closing),
               close_(default_closing) {}
 
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Threshold;
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const override {
+            return DirectionalResourceKind::Threshold;
         }
 
         void extend(const RealResource& resource, const RealResource& extender_value,
@@ -409,11 +412,12 @@ class HandWrittenThreshold
         }
 };
 
-/// @brief A `ThresholdForm` that waits for nothing and clamps nothing.
+/// @brief A `ThresholdExtensionForm` that waits for nothing and clamps nothing.
 class UnclampedThreshold
-    : public Clonable<UnclampedThreshold,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          UnclampedThreshold,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
             return std::nullopt;
@@ -551,7 +555,8 @@ TEST(ModelChecks, ARemovedArcStillCounts) {
 // Declarations
 // ============================================================================
 
-/// @brief An undeclared component is named, for its backward kind (a backward search's problem)
+/// @brief An undeclared component is named, for its directional resource kind (a backward search's
+/// problem)
 ///        and for its join rule (a bidirectional search's).
 TEST(ModelChecks, AnUndeclaredComponentIsNamed) {
     namespace mc = model_checks_test;
@@ -582,8 +587,9 @@ TEST(ModelChecks, AnUndeclaredComponentIsNamed) {
     graph->add_arc<RealResource>(std::make_tuple(1.0), 0, 1, 1.0);
 
     const std::string both = mc::problems(*graph, SearchDirection::Bidirectional);
-    EXPECT_NE(both.find("component 0: its extension function declares no backward_kind()"),
-              std::string::npos)
+    EXPECT_NE(
+        both.find("component 0: its extension function declares no directional_resource_kind()"),
+        std::string::npos)
         << both;
     EXPECT_NE(both.find("component 0: its feasibility function declares no join_rule()"),
               std::string::npos)
@@ -592,7 +598,7 @@ TEST(ModelChecks, AnUndeclaredComponentIsNamed) {
     EXPECT_NE(both.find("UndeclaredExtensionFunction"), std::string::npos) << both;
     EXPECT_NE(both.find("UndeclaredFeasibilityFunction"), std::string::npos) << both;
     const std::string backward = mc::problems(*graph, SearchDirection::Backward);
-    EXPECT_NE(backward.find("backward_kind"), std::string::npos) << backward;
+    EXPECT_NE(backward.find("directional_resource_kind"), std::string::npos) << backward;
     EXPECT_EQ(backward.find("join_rule"), std::string::npos) << backward;
     EXPECT_TRUE(graph->check_model(SearchDirection::Forward).ok());
 }
@@ -807,9 +813,11 @@ TEST(ModelChecks, ABottleneckWhoseHalvesAreAddedIsRefused) {
 
     for (const auto* graph : {priced.get(), capped.get()}) {
         const std::string message = mc::problems(*graph, SearchDirection::Bidirectional);
-        EXPECT_NE(message.find("component 1: its extension declares BackwardKind::Accumulate, but "
-                               "along "),
-                  std::string::npos)
+        EXPECT_NE(
+            message.find(
+                "component 1: its extension declares DirectionalResourceKind::Accumulate, but "
+                "along "),
+            std::string::npos)
             << message;
         EXPECT_NE(message.find("it is not a sum"), std::string::npos) << message;
         EXPECT_EQ(mc::problems(*graph, SearchDirection::Backward).find("not a sum"),
@@ -836,9 +844,10 @@ TEST(ModelChecks, AnAccumulationThatStartsElsewhereIsRefused) {
                                std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
                                std::make_unique<ValueCostFunction<RealResource>>());
     const std::string message = mc::problems(*graph, SearchDirection::Bidirectional);
-    EXPECT_NE(message.find("component 1: its extension declares BackwardKind::Accumulate, but "
-                           "starts its backward labels at sink 2 at 10"),
-              std::string::npos)
+    EXPECT_NE(
+        message.find("component 1: its extension declares DirectionalResourceKind::Accumulate, but "
+                     "starts its backward labels at sink 2 at 10"),
+        std::string::npos)
         << message;
     EXPECT_EQ(message.find("not a sum"), std::string::npos) << message;
 }
@@ -1089,7 +1098,8 @@ TEST(ModelChecks, AClampAboveATimeWindowsClosingTimeIsRefused) {
         << message;
 }
 
-/// @brief A threshold that is not a `ThresholdForm` is checked by what its backward step does.
+/// @brief A threshold that is not a `ThresholdExtensionForm` is checked by what its backward step
+/// does.
 ///
 /// It closes node 1 at 100 where the feasibility function closes it at 3. Nothing in its
 /// declarations says so, but its `extend_back` clamps there to 100, which the check observes.
@@ -1228,7 +1238,7 @@ TEST(ModelChecks, ASelfForbiddingMemoryUnderAnArcValueExtensionIsRefused) {
         EXPECT_NE(message.find("component 1: its feasibility function forbids each node at itself"),
                   std::string::npos)
             << to_string(direction) << ": " << message;
-        EXPECT_NE(message.find("ArcEndpointsForm"), std::string::npos) << message;
+        EXPECT_NE(message.find("ArcEndpointsExtensionForm"), std::string::npos) << message;
     }
     EXPECT_TRUE(graph->check_model(SearchDirection::Forward).ok());
 }

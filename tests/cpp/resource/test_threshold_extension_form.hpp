@@ -3,8 +3,8 @@
 
 #pragma once
 
-// ThresholdForm / TranslationThresholdForm, tested directly: the declined-clamp branches that no
-// production resource reaches, and which node each clamp reads in each direction.
+// ThresholdExtensionForm / TranslationThresholdExtensionForm, tested directly: the declined-clamp
+// branches that no production resource reaches, and which node each clamp reads in each direction.
 
 #include <gtest/gtest.h>
 
@@ -19,13 +19,14 @@
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
-namespace threshold_form_test {
+namespace threshold_extension_form_test {
 
 // Declines both clamps, exercising the unclamped arms of extend and extend_back.
 class UnclampedThreshold
-    : public Clonable<UnclampedThreshold,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          UnclampedThreshold,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
             return std::nullopt;
@@ -39,9 +40,10 @@ class UnclampedThreshold
 // lower_bound_at(n) = 100n ; upper_bound_at(n) = 1000 + 100n, so a transposed node lookup shows
 // up in the result.
 class LabelledThreshold
-    : public Clonable<LabelledThreshold,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          LabelledThreshold,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t node_id) const final {
             return 100.0 * static_cast<double>(node_id);
@@ -52,11 +54,12 @@ class LabelledThreshold
         }
 };
 
-// An unsigned instantiation, to pin the saturating branch of TranslationThresholdForm.
+// An unsigned instantiation, to pin the saturating branch of TranslationThresholdExtensionForm.
 class UnsignedThreshold
-    : public Clonable<UnsignedThreshold,
-                      TranslationThresholdForm<UIntResource, ExtensionFunction<UIntResource>>,
-                      ExtensionFunction<UIntResource>> {
+    : public Clonable<
+          UnsignedThreshold,
+          TranslationThresholdExtensionForm<UIntResource, ExtensionFunction<UIntResource>>,
+          ExtensionFunction<UIntResource>> {
     protected:
         [[nodiscard]] std::optional<unsigned int> lower_bound_at(size_t /*node_id*/) const final {
             return 0U;
@@ -67,11 +70,11 @@ class UnsignedThreshold
         }
 };
 
-}  // namespace threshold_form_test
+}  // namespace threshold_extension_form_test
 
 // Both clamps declined: the value passes through unclamped.
-TEST(ThresholdForm, DeclinedClampsLeaveTheValueAlone) {
-    threshold_form_test::UnclampedThreshold proto;
+TEST(ThresholdExtensionForm, DeclinedClampsLeaveTheValueAlone) {
+    threshold_extension_form_test::UnclampedThreshold proto;
     test_util::TestArc<RealResource> fixture(0, 1);
     auto fn = proto.create(fixture.arc);
 
@@ -83,9 +86,10 @@ TEST(ThresholdForm, DeclinedClampsLeaveTheValueAlone) {
     EXPECT_DOUBLE_EQ(out.get_value(), -80.0);  // no min(bound, .) applied
 }
 
-// The backward contract holds for any TranslationThresholdForm, checked on the unclamped one.
-TEST(ThresholdForm, SatisfiesTheBiconditionalGenerically) {
-    threshold_form_test::UnclampedThreshold proto;
+// The backward contract holds for any TranslationThresholdExtensionForm, checked on the unclamped
+// one.
+TEST(ThresholdExtensionForm, SatisfiesTheBiconditionalGenerically) {
+    threshold_extension_form_test::UnclampedThreshold proto;
     test_util::TestArc<RealResource> fixture(0, 1);
     auto fn = proto.create(fixture.arc);
 
@@ -97,8 +101,8 @@ TEST(ThresholdForm, SatisfiesTheBiconditionalGenerically) {
 }
 
 // Forward clamps with the destination's lower bound; backward with the origin's upper bound.
-TEST(ThresholdForm, PreprocessReadsDestinationForLowerAndOriginForUpper) {
-    threshold_form_test::LabelledThreshold proto;
+TEST(ThresholdExtensionForm, PreprocessReadsDestinationForLowerAndOriginForUpper) {
+    threshold_extension_form_test::LabelledThreshold proto;
     test_util::TestArc<RealResource> fixture(/*origin_id=*/2, /*destination_id=*/7);
     auto fn = proto.create(fixture.arc);
 
@@ -112,8 +116,8 @@ TEST(ThresholdForm, PreprocessReadsDestinationForLowerAndOriginForUpper) {
 
 // Forward clamps up to the lower bound, backward clamps down to the upper bound, and backward is
 // never clamped up: below the origin's lower bound it is unmeetable, and stays so.
-TEST(ThresholdForm, ForwardClampsUpAndBackwardClampsDown) {
-    threshold_form_test::LabelledThreshold proto;
+TEST(ThresholdExtensionForm, ForwardClampsUpAndBackwardClampsDown) {
+    threshold_extension_form_test::LabelledThreshold proto;
     test_util::TestArc<RealResource> fixture(/*origin_id=*/2, /*destination_id=*/7);
     auto fn = proto.create(fixture.arc);
 
@@ -136,8 +140,8 @@ TEST(ThresholdForm, ForwardClampsUpAndBackwardClampsDown) {
 }
 
 // Unsigned subtraction saturates at zero rather than wrapping to a huge, very loose bound.
-TEST(ThresholdForm, TranslationSaturatesOnUnsignedAndSubtractsOnSigned) {
-    threshold_form_test::UnsignedThreshold proto;
+TEST(ThresholdExtensionForm, TranslationSaturatesOnUnsignedAndSubtractsOnSigned) {
+    threshold_extension_form_test::UnsignedThreshold proto;
     test_util::TestArc<UIntResource> fixture(0, 1);
     auto fn = proto.create(fixture.arc);
 
@@ -149,7 +153,9 @@ TEST(ThresholdForm, TranslationSaturatesOnUnsignedAndSubtractsOnSigned) {
     EXPECT_EQ(out.get_value(), 60U);  // the ordinary subtraction
 
     // An unsigned threshold cannot represent an unmeetable bound, so it stays Unspecified.
-    static_assert(threshold_form_test::UnsignedThreshold::kind == BackwardKind::Unspecified);
-    static_assert(threshold_form_test::UnclampedThreshold::kind == BackwardKind::Threshold);
-    EXPECT_EQ(proto.backward_kind(), BackwardKind::Unspecified);
+    static_assert(threshold_extension_form_test::UnsignedThreshold::kind ==
+                  DirectionalResourceKind::Unspecified);
+    static_assert(threshold_extension_form_test::UnclampedThreshold::kind ==
+                  DirectionalResourceKind::Threshold);
+    EXPECT_EQ(proto.directional_resource_kind(), DirectionalResourceKind::Unspecified);
 }
