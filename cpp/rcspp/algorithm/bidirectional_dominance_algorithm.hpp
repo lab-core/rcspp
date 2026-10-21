@@ -237,19 +237,19 @@ class BidirectionalDominanceAlgorithm
 
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
-            // Routed by step<Dir>() into the correct frontier; see extend_into().
+            // Routed by step<Direction>() into the correct frontier; see extend_into().
             pending_frontier_->push(label_iterator_pair);
         }
 
     private:
         /// @brief Creates the start labels for one direction and puts them on its frontier.
-        template <typename Dir, typename Container>
+        template <typename Direction, typename Container>
         void create_start_labels(std::vector<Container>& containers,
                                  LabelFrontier<ResourceType>* frontier) {
-            for (auto start_node_id : Dir::start_nodes(*this->graph_)) {
+            for (auto start_node_id : Direction::start_nodes(*this->graph_)) {
                 auto* start_node = this->graph_->get_node(start_node_id);
                 auto& label = this->label_pool_.get_next_label(start_node);
-                Dir::apply_start(*this->graph_, start_node, label);
+                Direction::apply_start(*this->graph_, start_node, label);
                 auto label_it = containers.at(start_node->pos()).add_label(&label);
                 frontier->push(std::make_pair(&label, label_it));
             }
@@ -259,7 +259,7 @@ class BidirectionalDominanceAlgorithm
         ///
         /// Abandoning a label (dominated, over quota, beyond the completion bound, past `H`) never
         /// stops the solve; run-level stops are checked in `main_loop`.
-        template <typename Dir, typename Container>
+        template <typename Direction, typename Container>
         void step(std::vector<Container>& containers, LabelFrontier<ResourceType>* frontier,
                   std::vector<size_t>* extended_per_node) {
             auto label_iterator_pair = frontier->pop();
@@ -286,27 +286,27 @@ class BidirectionalDominanceAlgorithm
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
             if (this->params_.prune_based_on_upper_bound_ &&
-                label_ptr->get_cost() + completion_bound<Dir>(node_pos) >=
+                label_ptr->get_cost() + completion_bound<Direction>(node_pos) >=
                     this->best_cost_upper_bound_) {
-                this->template remove_label<Dir>(label_iterator_pair.second, containers);
+                this->template remove_label<Direction>(label_iterator_pair.second, containers);
                 this->label_pool_.release_with_ref_count(label_ptr);
                 return;
             }
 
-            if (Dir::is_terminal(label_ptr->get_end_node())) {
+            if (Direction::is_terminal(label_ptr->get_end_node())) {
                 if (label_ptr->get_cost() < this->best_cost_upper_bound_) {
                     this->best_cost_upper_bound_ = label_ptr->get_cost();
                 }
                 // Record now: a terminal label dominated later is gone by the final sweep, and
                 // `stop_after_X_solutions` needs `solutions_` to grow during the search.
                 if (this->params_.return_dominated_solutions) {
-                    this->template extract_path_solution<Dir>(*label_ptr);
+                    this->template extract_path_solution<Direction>(*label_ptr);
                 }
                 return;
             }
 
             if (std::isinf(label_ptr->get_cost())) {
-                this->template remove_label<Dir>(label_iterator_pair.second, containers);
+                this->template remove_label<Direction>(label_iterator_pair.second, containers);
                 this->label_pool_.release_with_ref_count(label_ptr);
                 return;
             }
@@ -317,7 +317,7 @@ class BidirectionalDominanceAlgorithm
                 const double critical =
                     critical_value<CriticalRC>(label_ptr->get_resource(),
                                                this->params_.critical_resource_index);
-                if constexpr (Dir::backward) {
+                if constexpr (Direction::backward) {
                     if (half_way_.should_stop_backward(critical)) {
                         return;
                     }
@@ -328,20 +328,20 @@ class BidirectionalDominanceAlgorithm
                 }
             }
 
-            extend_into<Dir>(label_ptr, containers, frontier);
+            extend_into<Direction>(label_ptr, containers, frontier);
         }
 
         /// @brief Extends one label along its direction's arcs into @p containers.
         ///
         /// Adds the arcs to its direction's work count, which @ref main_loop balances.
-        template <typename Dir, typename Container>
+        template <typename Direction, typename Container>
         void extend_into(Label<ResourceType>* label_ptr, std::vector<Container>& containers,
                          LabelFrontier<ResourceType>* frontier) {
             pending_frontier_ = frontier;
-            const auto arcs = Dir::arcs(*this->graph_, label_ptr->get_end_node());
-            (Dir::backward ? backward_work_ : forward_work_) += arcs.size();
+            const auto arcs = Direction::arcs(*this->graph_, label_ptr->get_end_node());
+            (Direction::backward ? backward_work_ : forward_work_) += arcs.size();
             for (auto* arc_ptr : arcs) {
-                this->template extend_label<Dir>(label_ptr, arc_ptr, containers);
+                this->template extend_label<Direction>(label_ptr, arc_ptr, containers);
             }
             pending_frontier_ = nullptr;
         }
@@ -412,9 +412,9 @@ class BidirectionalDominanceAlgorithm
         ///
         /// 0 when @c prune_based_on_upper_bound_ is off; minus infinity when no bound could be
         /// computed.
-        template <typename Dir>
+        template <typename Direction>
         [[nodiscard]] double completion_bound(size_t node_pos) const {
-            if constexpr (Dir::backward) {
+            if constexpr (Direction::backward) {
                 return h_from_source_.empty() ? 0.0 : h_from_source_.at(node_pos);
             } else {
                 return h_to_sink_.empty() ? 0.0 : h_to_sink_.at(node_pos);

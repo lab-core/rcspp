@@ -86,7 +86,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                         template_name<LabelContainerType>() +
                         " has no backward form: a backward search keeps its labels in the "
                         "container its params hold, turned backward, so the container must "
-                        "declare its own with_direction<D>()");
+                        "declare its own with_direction<TargetDirection>()");
                 }
             }
             break;
@@ -105,7 +105,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                         template_name<LabelContainerType>() +
                         " has no backward form: a bidirectional search keeps its backward labels "
                         "in the container its params hold, turned backward, so the container "
-                        "must declare its own with_direction<D>()");
+                        "must declare its own with_direction<TargetDirection>()");
                 }
             }
             break;

@@ -65,7 +65,7 @@ New features are summarised, with a pointer to where they are documented.
   direction raises `ValueError`.
   An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
   throws `std::invalid_argument` when it is created or solved, as does a backward search with a
-  label container that declares no `with_direction<D>()` (`LabelList` and `LabelBuckets` both do).
+  label container that declares no `with_direction<TargetDirection>()` (`LabelList` and `LabelBuckets` both do).
   A backward search returns complete paths in forward order. See "Search directions" in
   `docs/advanced/algorithms.md`.
 - **Bidirectional labelling**: `SimpleDominanceAlgorithm` with

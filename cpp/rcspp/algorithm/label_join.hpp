@@ -69,8 +69,8 @@ class Joiner {
         /// a pair's total cost, or on a forward label plus the cheapest backward label at the
         /// node; never on one half's cost alone, which is not a lower bound under reduced costs.
         ///
-        /// @tparam FwdContainer Per-node forward label container.
-        /// @tparam BwdContainer Per-node backward label container.
+        /// @tparam ForwardContainerType Per-node forward label container.
+        /// @tparam BackwardContainerType Per-node backward label container.
         /// @tparam OnSolution   Callable `(double cost, std::vector<size_t> arc_ids,
         ///                      size_t end_node_id)`.
         /// @param graph                 The model.
@@ -80,9 +80,11 @@ class Joiner {
         /// @param best_cost_upper_bound The cost of the cheapest complete path found so far;
         ///                              lowered in place as cheaper joins are found.
         /// @param on_solution           Invoked once per accepted join.
-        template <typename FwdContainer, typename BwdContainer, typename OnSolution>
-        void join(const Graph<ResourceType>& graph, std::vector<FwdContainer>& forward_by_pos,
-                  std::vector<BwdContainer>& backward_by_pos, const JoinOptions& options,
+        template <typename ForwardContainerType, typename BackwardContainerType,
+                  typename OnSolution>
+        void join(const Graph<ResourceType>& graph,
+                  std::vector<ForwardContainerType>& forward_by_pos,
+                  std::vector<BackwardContainerType>& backward_by_pos, const JoinOptions& options,
                   double& best_cost_upper_bound, OnSolution&& on_solution) {
             const double cost_upper_bound = options.cost_upper_bound;
             // Prune against the incumbent when asked, or when there is no fixed bound: otherwise a
@@ -232,14 +234,14 @@ class Joiner {
         /// A boundary label is a non-start label with `clock > H`; with the bound disabled, every
         /// non-start label qualifies.
         ///
-        /// @tparam FwdContainer Per-node forward label container.
+        /// @tparam ForwardContainerType Per-node forward label container.
         /// @param container               The node's forward labels.
         /// @param half_way                The half-way policy.
         /// @param critical_resource_index Index of the critical resource within its type slot.
         /// @return The boundary labels, sorted by cost.
-        template <typename FwdContainer>
+        template <typename ForwardContainerType>
         [[nodiscard]] static std::vector<Label<ResourceType>*> boundary_labels_by_cost(
-            const FwdContainer& container, const HalfWayPolicy& half_way,
+            const ForwardContainerType& container, const HalfWayPolicy& half_way,
             size_t critical_resource_index) {
             std::vector<Label<ResourceType>*> labels;
             for (auto* label : container.get_labels()) {

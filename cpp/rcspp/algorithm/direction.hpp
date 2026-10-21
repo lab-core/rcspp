@@ -17,7 +17,7 @@ namespace rcspp {
 
 /// @brief Compile-time policy holding the direction-dependent operations of the labeling loop.
 ///
-/// The loop is written once against @c Dir and instantiated for each direction.
+/// The loop is written once against @c Direction and instantiated for each direction.
 struct ForwardDirection {
         /// @brief Direction tag for `if constexpr` where a policy member does not suffice.
         static constexpr bool backward = false;
@@ -217,30 +217,30 @@ struct BackwardDirection {
 
 /// @brief The interface a direction policy must provide.
 ///
-/// @tparam Dir          The candidate policy.
+/// @tparam Direction          The candidate policy.
 /// @tparam ResourceType The resource type it will be used with.
-template <typename Dir, typename ResourceType>
+template <typename Direction, typename ResourceType>
 concept DirectionPolicy =
     requires(const Graph<ResourceType>& graph, const Node<ResourceType>* node,
              const Arc<ResourceType>& arc, const Label<ResourceType>& label,
              Label<ResourceType>& mutable_label, Label<ResourceType>* extended_label) {
         {
-            Dir::template arcs<ResourceType>(graph, node)
+            Direction::template arcs<ResourceType>(graph, node)
         } -> std::same_as<std::span<Arc<ResourceType>*>>;
-        { Dir::template head<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
-        Dir::template extend<ResourceType>(label, arc, extended_label);
-        { Dir::template feasible<ResourceType>(label) } -> std::same_as<bool>;
-        { Dir::template dominates<ResourceType>(label, label) } -> std::same_as<bool>;
-        Dir::template apply_start<ResourceType>(graph, node, mutable_label);
+        { Direction::template head<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
+        Direction::template extend<ResourceType>(label, arc, extended_label);
+        { Direction::template feasible<ResourceType>(label) } -> std::same_as<bool>;
+        { Direction::template dominates<ResourceType>(label, label) } -> std::same_as<bool>;
+        Direction::template apply_start<ResourceType>(graph, node, mutable_label);
         {
-            Dir::template start_nodes<ResourceType>(graph)
+            Direction::template start_nodes<ResourceType>(graph)
         } -> std::same_as<const std::vector<size_t>&>;
-        { Dir::template is_terminal<ResourceType>(node) } -> std::same_as<bool>;
-        { Dir::template is_start_node<ResourceType>(node) } -> std::same_as<bool>;
+        { Direction::template is_terminal<ResourceType>(node) } -> std::same_as<bool>;
+        { Direction::template is_start_node<ResourceType>(node) } -> std::same_as<bool>;
         {
-            Dir::template terminals<ResourceType>(graph)
+            Direction::template terminals<ResourceType>(graph)
         } -> std::same_as<const std::vector<size_t>&>;
-        { Dir::backward } -> std::convertible_to<bool>;
+        { Direction::backward } -> std::convertible_to<bool>;
     };
 
 }  // namespace rcspp

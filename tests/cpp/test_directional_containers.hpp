@@ -284,7 +284,7 @@ TEST(DirectionalContainers, ForwardBucketsUnchanged) {
         std::is_same_v<
             Buckets,
             LabelBuckets<RealResource, RealResource, dct::RealComposition, ForwardDirection>>,
-        "the Dir parameter must be defaulted, not required");
+        "the Direction parameter must be defaulted, not required");
 
     // copy() keeps the direction.
     Buckets buckets(/*range_buckets=*/10, /*bucket_resource_index=*/0, /*sort_resource_index=*/0);
