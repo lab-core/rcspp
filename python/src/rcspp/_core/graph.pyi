@@ -174,6 +174,7 @@ class AlgorithmParams:
     direction: SearchDirection
     critical_resource_index: int
     half_way_point: float
+    derive_half_way_point: bool
     join_column_budget: int
     max_join_pairs: int
     join_after_early_stop: bool

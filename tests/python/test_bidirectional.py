@@ -537,6 +537,23 @@ def test_result_reports_the_label_counts_and_dominance_checks():
     assert result.bidirectional.half_way_point_used == params.half_way_point
 
 
+def test_derive_half_way_point_is_off_by_default():
+    """0 keeps meaning "no bound" unless a caller opts in."""
+    assert AlgorithmParams().derive_half_way_point is False
+
+
+def test_derive_half_way_point_reads_the_sink_ceiling():
+    """With the flag and H = 0, H is half the sink's closing time (1000 here)."""
+    params = _bidirectional_params(0.0, critical_resource_index=1)
+    params.derive_half_way_point = True
+    result = _diamond_window_graph().solve(algorithm="bidirectional", params=params)
+    forward = _diamond_window_graph().solve(params=AlgorithmParams())
+
+    assert result.bidirectional.bounded_by_half_way is True
+    assert result.bidirectional.half_way_point_used == pytest.approx(500.0)
+    assert result.solutions[0].cost == pytest.approx(forward.solutions[0].cost)
+
+
 def test_the_reported_half_way_point_is_the_one_applied_not_the_one_asked_for():
     """Cost is never a clock, so the bound switches itself off and H is reported as 0.
 

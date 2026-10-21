@@ -8,7 +8,10 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 
 #include "rcspp/rcspp.hpp"
 
@@ -180,6 +183,46 @@ TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     params.timeout_s = 0.0;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+}
+
+/// @brief `set_timeout` lifts a construction timeout on the same object, and `nullopt` restores it.
+TEST(SimpleDominanceAlgorithmTest, SetTimeoutLiftsAConstructionTimeout) {
+    auto g = make_dom_two_path_graph();
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.timeout_s = 0.0;
+    auto algorithm = g->create_algorithm<SimpleDominanceAlgorithm>(params);
+
+    EXPECT_EQ(g->solve(algorithm.get()).status, AlgorithmStatus::TIMEOUT);
+
+    algorithm->set_timeout(std::numeric_limits<double>::infinity());
+    EXPECT_EQ(algorithm->timeout(), std::numeric_limits<double>::infinity());
+    const auto lifted = g->solve(algorithm.get());
+    EXPECT_EQ(lifted.status, AlgorithmStatus::COMPLETE);
+    ASSERT_FALSE(lifted.solutions.empty());
+    EXPECT_NEAR(lifted.solutions[0].cost, kBestCost, 1e-9);
+
+    algorithm->set_timeout(std::nullopt);
+    EXPECT_EQ(algorithm->timeout(), 0.0);
+    EXPECT_EQ(g->solve(algorithm.get()).status, AlgorithmStatus::TIMEOUT);
+}
+
+/// @brief `set_timeout` imposes a timeout on an object built without one.
+TEST(SimpleDominanceAlgorithmTest, SetTimeoutImposesOne) {
+    auto g = make_dom_two_path_graph();
+    auto algorithm = g->create_algorithm<SimpleDominanceAlgorithm>(
+        AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{});
+    algorithm->set_timeout(0.0);
+    EXPECT_EQ(g->solve(algorithm.get()).status, AlgorithmStatus::TIMEOUT);
+}
+
+/// @brief A negative or NaN timeout is refused.
+TEST(SimpleDominanceAlgorithmTest, SetTimeoutRejectsNegative) {
+    auto g = make_dom_two_path_graph();
+    auto algorithm = g->create_algorithm<SimpleDominanceAlgorithm>(
+        AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{});
+    EXPECT_THROW(algorithm->set_timeout(-1.0), std::invalid_argument);
+    EXPECT_THROW(algorithm->set_timeout(std::numeric_limits<double>::quiet_NaN()),
+                 std::invalid_argument);
 }
 
 /// @brief return_dominated_solutions=true includes non-optimal solutions.

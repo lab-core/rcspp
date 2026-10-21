@@ -324,13 +324,31 @@ struct AlgorithmBaseParams {
         /// algorithm.
         size_t critical_resource_index = 0;
 
-        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**.
+        /// @brief Half-way point `H` on the critical resource; **0 turns the bound off**, unless
+        ///        @ref derive_half_way_point is set.
         ///
         /// Forward labels stop above `H`, backward labels below it. Set it to about half the
         /// clock's range. With 0, both searches run unbounded: correct but slower.
         /// @c BidirectionalStats::bounded_by_half_way, in @c SolveResult::bidirectional, reports
         /// which happened.
         double half_way_point = 0.0;
+
+        /// @brief Read the clock's range `R` off the model, and derive `H = R / 2` when
+        ///        @ref half_way_point is 0.
+        ///
+        /// Bidirectional only. `R` is the largest ceiling the clock states at a sink: its backward
+        /// start, which under a threshold clock is the sink's upper bound. With an explicit
+        /// @ref half_way_point the flag still supplies `R`, which @ref dynamic_half_way then
+        /// clamps `H` inside, instead of assuming `R = 2H`. When `R` cannot be read -- a sink
+        /// without a ceiling, an index out of range -- the solve behaves as without the flag, and
+        /// says why (@c BidirectionalStats::bounded_by_half_way, `half_way_off_reason`). Off by
+        /// default, so that `half_way_point = 0` keeps meaning "no bound".
+        ///
+        /// It reads what the model states, so the sinks must state the real horizon. A sink whose
+        /// window is a sentinel -- the VRP example gives its sink `[0, max() / 2]` -- derives an
+        /// `H` beyond every label, and the solve is then a forward search plus an idle backward
+        /// one. Set `half_way_point` by hand for such a model.
+        bool derive_half_way_point = false;
 
         /// @brief Let the half-way point adapt **between** solves on the same algorithm object.
         ///
@@ -341,8 +359,8 @@ struct AlgorithmBaseParams {
         /// Needs a persistent algorithm object (`ResourceGraph::create_algorithm` plus
         /// `solve(algorithm*, ...)`, or the vector `VRP::solve` accepts) and a positive
         /// @ref half_way_point, which gives the controller its initial `H` and fixes the range
-        /// `[0, 2H]` it keeps `H` inside. The controller learns only from exact solves with the
-        /// bound in force.
+        /// `[0, 2H]` it keeps `H` inside, or @ref derive_half_way_point, which reads both off the
+        /// model. The controller learns only from exact solves with the bound in force.
         /// `as_bidirectional(algorithm)->half_way_controller()` reads, freezes or resets it.
         ///
         /// Not exposed to Python, where `rg.solve(...)` builds a fresh algorithm each call; Python
@@ -502,6 +520,29 @@ class Algorithm {
          * @return true if the algorithm is optimal (no labels left to process), false otherwise.
          */
         [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
+
+        /// @brief Overrides `timeout_s` for every solve from now on, or restores it.
+        ///
+        /// The params are fixed at construction; this is the one thing a caller may change between
+        /// solves on the same object, so a persistent algorithm -- and whatever state it carries,
+        /// such as a half-way controller -- can be re-run with a longer or shorter budget.
+        /// @ref AlgorithmBaseParams::could_be_non_optimal reads the params only, and does not see
+        /// the override: read the status of each result instead.
+        ///
+        /// @param seconds The wall-clock budget per solve; infinity for none; `std::nullopt`
+        ///                restores `params.timeout_s`.
+        /// @throws std::invalid_argument when @p seconds is negative or NaN.
+        void set_timeout(std::optional<double> seconds) {
+            if (seconds && !(*seconds >= 0.0)) {
+                throw std::invalid_argument("Algorithm::set_timeout: seconds must be >= 0");
+            }
+            timeout_override_ = seconds;
+        }
+
+        /// @brief The timeout the next solve runs with: the override, else `params.timeout_s`.
+        [[nodiscard]] double timeout() const {
+            return timeout_override_.value_or(params_.timeout_s);
+        }
 
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
@@ -852,7 +893,7 @@ class Algorithm {
         /// calls are O(1) (no timer read).  Safe to call only during solve().
         bool is_time_out() {
             if (!timed_out_ && solve_timer_ != nullptr &&
-                solve_timer_->elapsed_seconds() >= params_.timeout_s) {
+                solve_timer_->elapsed_seconds() >= timeout()) {
                 timed_out_ = true;
             }
             return timed_out_;
@@ -900,5 +941,7 @@ class Algorithm {
 
         bool timed_out_ = false;
         const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().
+        /// @brief Replaces `params_.timeout_s` for the solves that follow; see @ref set_timeout.
+        std::optional<double> timeout_override_;
 };
 }  // namespace rcspp

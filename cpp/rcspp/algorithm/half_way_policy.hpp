@@ -30,6 +30,7 @@ enum class HalfWayOff : unsigned {
     NotIncreasing,       ///< the clock is not an increasing part of the dominance order
     NoCeiling,           ///< the clock's extension sets no backward start at a sink
     IndexOutOfRange,     ///< `critical_resource_index` names no component of the critical type
+    NoArcs,              ///< the graph has no arcs, so there is nothing to bound
 };
 
 /// @brief Whether this process has not yet reported the bound being off for @p reason.
@@ -166,13 +167,15 @@ struct HalfWayControllerParams {
         /// floor one early run of reversals would pin `H` for good.
         double min_step = 0.025;  // NOLINT(readability-magic-numbers)
 
-        /// @brief `H` is kept inside `[min_fraction, max_fraction] * R`, with `R = 2 * H0`.
+        /// @brief `H` is kept inside `[min_fraction, max_fraction] * R`, with `R` the range the
+        ///        controller was given (@ref HalfWayController::over_range), `2 * H0` unless given.
         ///
-        /// `R` is the clock's range as the algorithm understands it -- the same `[0, 2H]` reading
-        /// `AlgorithmBaseParams::half_way_point` documents -- so the initial `H0` should be about
-        /// half the real range for the clamp to mean anything. The clamp only guards against
-        /// runaway: any `H` is correct, and one outside the range merely turns the solve into a
-        /// one-directional search with extra work.
+        /// `R` is the clock's range as the algorithm understands it. Without one given, that is
+        /// the `[0, 2H]` reading `AlgorithmBaseParams::half_way_point` documents, so the initial
+        /// `H0` should then be about half the real range for the clamp to mean anything;
+        /// `derive_half_way_point` reads the real range off the model instead. The clamp only
+        /// guards against runaway: any `H` is correct, and one outside the range merely turns the
+        /// solve into a one-directional search with extra work.
         double min_fraction = 0.05;  // NOLINT(readability-magic-numbers)
 
         /// @brief See @ref min_fraction.
@@ -271,7 +274,8 @@ class HalfWayController {
 
         /// @brief Starts the controller at @p initial_h.
         ///
-        /// @param initial_h `H0`, which also fixes the range `R = 2 * H0` that `H` is clamped to.
+        /// @param initial_h `H0`, which also fixes the range `R = 2 * H0` that `H` is clamped to;
+        ///                  use @ref over_range to give `R` separately.
         ///                  Must be positive: a zero `H` is the "bound off" sentinel, and there is
         ///                  nothing to adapt when the bound is off.
         /// @param params    The tuning knobs; validated here.
@@ -283,8 +287,32 @@ class HalfWayController {
                 throw std::invalid_argument(
                     "HalfWayController: the initial half-way point must be positive and finite");
             }
+            range_ = 2.0 * initial_h;
             params_.check();
             reset();
+        }
+
+        /// @brief Starts the controller at @p initial_h inside a known range `[0, range]`.
+        ///
+        /// A named factory rather than a constructor overload: `HalfWayController(h, {})` would
+        /// otherwise resolve to a `(double, double, params)` constructor, `{}` becoming a zero
+        /// range.
+        ///
+        /// @param initial_h `H0`; must satisfy `0 < H0 < range`.
+        /// @param range     `R`, the clock's range, e.g. read from the sinks' ceilings.
+        /// @param params    The tuning knobs; validated here.
+        /// @return The controller.
+        /// @throws std::invalid_argument when @p range is not finite, @p initial_h is not inside
+        ///         it, or @p params is out of range.
+        [[nodiscard]] static HalfWayController over_range(double initial_h, double range,
+                                                          HalfWayControllerParams params = {}) {
+            if (!std::isfinite(range) || !(initial_h > 0.0) || !(initial_h < range)) {
+                throw std::invalid_argument(
+                    "HalfWayController::over_range: need 0 < initial_h < range, range finite");
+            }
+            HalfWayController controller(initial_h, params);
+            controller.range_ = range;
+            return controller;
         }
 
         /// @brief Folds one solve's observation into `H`, and says what it did.
@@ -333,8 +361,9 @@ class HalfWayController {
         /// @brief The `H0` the controller started from.
         [[nodiscard]] double initial_h() const { return initial_h_; }
 
-        /// @brief The clock's range as the controller understands it, `R = 2 * H0`.
-        [[nodiscard]] double range() const { return 2.0 * initial_h_; }
+        /// @brief The clock's range as the controller understands it: the one
+        ///        @ref over_range was given, else `R = 2 * H0`.
+        [[nodiscard]] double range() const { return range_; }
 
         /// @brief The current multiplicative step.
         [[nodiscard]] double step() const { return step_; }
@@ -408,6 +437,7 @@ class HalfWayController {
 
         HalfWayControllerParams params_;
         double initial_h_ = 0.0;
+        double range_ = 0.0;
         double h_ = 0.0;
         double step_ = 0.0;
         int last_direction_ = 0;
