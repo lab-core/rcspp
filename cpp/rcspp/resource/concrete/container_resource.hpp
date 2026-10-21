@@ -145,11 +145,11 @@ class ContainerResource {
 
         /// @brief Returns a human-readable string for any iterable collection @p list.
         ///
-        /// @tparam C Any iterable container whose elements support `operator<<`.
+        /// @tparam Iterable Any iterable container whose elements support `operator<<`.
         /// @param list Collection to stringify.
         /// @return String of the form `{e1,e2,...}`.
-        template <typename C>
-        [[nodiscard]] std::string to_string(const C& list) const {
+        template <typename Iterable>
+        [[nodiscard]] std::string to_string(const Iterable& list) const {
             std::ostringstream oss;
             oss << "{";
             bool first = true;

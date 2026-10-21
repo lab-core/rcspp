@@ -165,10 +165,10 @@ inline std::vector<Variant> bidirectional_variants() {
     return v;
 }
 
-/// @brief The params of type @p Params for setting @p v.
-template <typename Params>
-Params params_for(const Variant& v) {
-    Params p;
+/// @brief The params of type @p ParamsType for setting @p v.
+template <typename ParamsType>
+ParamsType params_for(const Variant& v) {
+    ParamsType p;
     p.num_labels_to_extend_by_node = v.quota;
     p.num_max_phases = v.phases;
     // Phases and dominated solutions only take effect with a finite stop
@@ -267,8 +267,8 @@ inline const char* kind_name(Kind k) {
 }
 
 /// @brief Solves @p g with @p a under @p v and summarises the result.
-template <typename Algo>
-Outcome finish(Algo& a, ResourceGraph<RealResource>* g, const Variant& v) {
+template <typename AlgorithmPointer>
+Outcome finish(AlgorithmPointer& a, ResourceGraph<RealResource>* g, const Variant& v) {
     const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
     return summarise(r, a->get_number_of_extended_labels());
 }

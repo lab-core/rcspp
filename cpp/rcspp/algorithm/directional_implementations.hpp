@@ -44,11 +44,13 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
             BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalResourceType>;
 };
 
-/// @brief Whether constructor arguments @p Args are exactly one @c AlgorithmParams<LC>: then
+/// @brief Whether constructor arguments @p Args are exactly one @c
+/// AlgorithmParams<LabelContainerType>: then
 ///        @c ResourceGraph::create_algorithm picks the class from the params' direction.
-template <typename LC, typename... Args>
+template <typename LabelContainerType, typename... Args>
 inline constexpr bool is_params_only_v =
-    sizeof...(Args) == 1 && (std::is_same_v<std::remove_cvref_t<Args>, AlgorithmParams<LC>> && ...);
+    sizeof...(Args) == 1 &&
+    (std::is_same_v<std::remove_cvref_t<Args>, AlgorithmParams<LabelContainerType>> && ...);
 
 /// @brief Builds the class that searches in `params.direction` for @p Strategy.
 ///

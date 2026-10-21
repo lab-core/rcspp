@@ -152,8 +152,8 @@ class Graph {
 
         std::vector<size_t> force_arc(const Arc<ResourceType>& arc) { return force_arc(arc.id); }
 
-        template <typename C>
-        std::vector<size_t> remove_arcs_if(C check) {
+        template <typename Predicate>
+        std::vector<size_t> remove_arcs_if(Predicate check) {
             std::vector<size_t> to_remove;
             for_each_arc([&](const auto& arc) {
                 if (check(arc)) {
@@ -201,8 +201,8 @@ class Graph {
             return restored;
         }
 
-        template <typename C>
-        std::vector<size_t> restore_arcs_if(C check) {
+        template <typename Predicate>
+        std::vector<size_t> restore_arcs_if(Predicate check) {
             std::vector<size_t> restored_arc_ids;
             for (auto it = removed_arcs_by_id_.begin(); it != removed_arcs_by_id_.end();) {
                 if (check(*it->second)) {
@@ -270,8 +270,8 @@ class Graph {
         [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
 
         /// @brief Iterates over all active arcs without allocating, passing a mutable Arc&.
-        template <typename F>
-        void for_each_arc(F&& fn) {
+        template <typename Callable>
+        void for_each_arc(Callable&& fn) {
             for (auto& arc : arcs_) {
                 if (arc) {
                     fn(*arc);
@@ -280,8 +280,8 @@ class Graph {
         }
 
         /// @brief Iterates over all active arcs without allocating, passing a const Arc&.
-        template <typename F>
-        void for_each_arc(F&& fn) const {
+        template <typename Callable>
+        void for_each_arc(Callable&& fn) const {
             for (const auto& arc : arcs_) {
                 if (arc) {
                     fn(*arc);

@@ -307,17 +307,18 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         std::vector<size_t> number_of_extended_labels_per_node_;
 };
 
-/// @brief Presents AStarDominanceAlgorithm<ResourceType, LC, CostResourceType> as a 2-param
-/// template.
+/// @brief Presents AStarDominanceAlgorithm<ResourceType, LabelContainerType, CostResourceType> as a
+/// 2-param template.
 ///
 /// Required because C++ template template parameters must match exactly in arity
 /// (P0522 matching is not reliably supported).  Use AStarAlgoBound<CostResourceType>::Algo
 /// wherever a @c template<typename,typename> class argument is expected.
 template <typename CostResourceType>
 struct AStarAlgoBound {
-        template <typename ResourceType, typename LC>
-        class Algo : public AStarDominanceAlgorithm<ResourceType, LC, CostResourceType> {
-                using AStarDominanceAlgorithm<ResourceType, LC,
+        template <typename ResourceType, typename LabelContainerType>
+        class Algo
+            : public AStarDominanceAlgorithm<ResourceType, LabelContainerType, CostResourceType> {
+                using AStarDominanceAlgorithm<ResourceType, LabelContainerType,
                                               CostResourceType>::AStarDominanceAlgorithm;
         };
 };

@@ -360,11 +360,12 @@ struct AlgorithmBaseParams {
         /// @brief Wrap these base params in an AlgorithmParams with the given container.
         ///
         /// @param container Label container instance (e.g. LabelList or LabelBuckets).
-        ///                  Defaults to a default-constructed LC{} when LC is
-        ///                  default-constructible (e.g. LabelList).
-        /// @return AlgorithmParams<LC> inheriting all settings from *this.
-        template <typename LC>
-        AlgorithmParams<LC> with_container(LC container = LC{}) const;
+        ///                  Defaults to a default-constructed LabelContainerType{} when
+        ///                  LabelContainerType is default-constructible (e.g. LabelList).
+        /// @return AlgorithmParams<LabelContainerType> inheriting all settings from *this.
+        template <typename LabelContainerType>
+        AlgorithmParams<LabelContainerType> with_container(
+            LabelContainerType container = LabelContainerType{}) const;
 };
 
 template <typename LabelContainerType>
@@ -381,9 +382,10 @@ struct AlgorithmParams : AlgorithmBaseParams {
 };
 
 // Out-of-line definition: AlgorithmParams is now complete.
-template <typename LC>
-AlgorithmParams<LC> AlgorithmBaseParams::with_container(LC container) const {
-    return AlgorithmParams<LC>(*this, std::move(container));
+template <typename LabelContainerType>
+AlgorithmParams<LabelContainerType> AlgorithmBaseParams::with_container(
+    LabelContainerType container) const {
+    return AlgorithmParams<LabelContainerType>(*this, std::move(container));
 }
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>

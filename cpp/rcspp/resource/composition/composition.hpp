@@ -177,20 +177,20 @@ class Composition : public CompositionTag {
         /// The callable receives a `std::vector<std::unique_ptr<ComponentClass<BT>>>&` for
         /// each base type @p BT in @p BaseTypes.
         ///
-        /// @tparam Func Callable type with signature `void(auto&)`.
+        /// @tparam Callable The callable's type, with signature `void(auto&)`.
         /// @param func  The callable to invoke.
-        template <typename Func>
-        void apply(Func&& func) {
+        template <typename Callable>
+        void apply(Callable&& func) {
             std::apply([&](auto&&... args_comp_vec) -> auto { (func(args_comp_vec), ...); },
                        components_);
         }
 
         /// @brief Applies a unary callable to each per-type component vector (const).
         ///
-        /// @tparam Func Callable type with signature `void(const auto&)`.
+        /// @tparam Callable The callable's type, with signature `void(const auto&)`.
         /// @param func  The callable to invoke.
-        template <typename Func>
-        void apply(Func&& func) const {
+        template <typename Callable>
+        void apply(Callable&& func) const {
             std::apply([&](const auto&... args_comp_vec) -> auto { (func(args_comp_vec), ...); },
                        components_);
         }
@@ -198,64 +198,64 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (mutable overload, rvalue ref).
         ///
-        /// @tparam Func Callable type with signature `void(auto&, auto&&)`.
-        /// @tparam Comp A type satisfying `IsComposition`.
+        /// @tparam Callable The callable's type, with signature `void(auto&, auto&&)`.
+        /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
-        template <typename Func, typename Comp>
-            requires(IsComposition<Comp>)
-        void apply(Comp&& rhs_composition, Func&& func) {
+        template <typename Callable, typename CompositionType>
+            requires(IsComposition<CompositionType>)
+        void apply(CompositionType&& rhs_composition, Callable&& func) {
             apply(rhs_composition.get_components(), func);
         }
 
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (const overload, rvalue ref).
         ///
-        /// @tparam Func Callable type with signature `void(const auto&, auto&&)`.
-        /// @tparam Comp A type satisfying `IsComposition`.
+        /// @tparam Callable The callable's type, with signature `void(const auto&, auto&&)`.
+        /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
-        template <typename Func, typename Comp>
-            requires(IsComposition<Comp>)
-        void apply(Comp&& rhs_composition, Func&& func) const {
+        template <typename Callable, typename CompositionType>
+            requires(IsComposition<CompositionType>)
+        void apply(CompositionType&& rhs_composition, Callable&& func) const {
             apply(rhs_composition.get_components(), func);
         }
 
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (mutable overload, const lvalue ref).
         ///
-        /// @tparam Func Callable type with signature `void(auto&, const auto&)`.
-        /// @tparam Comp A type satisfying `IsComposition`.
+        /// @tparam Callable The callable's type, with signature `void(auto&, const auto&)`.
+        /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
-        template <typename Func, typename Comp>
-            requires(IsComposition<Comp>)
-        void apply(const Comp& rhs_composition, Func&& func) {
+        template <typename Callable, typename CompositionType>
+            requires(IsComposition<CompositionType>)
+        void apply(const CompositionType& rhs_composition, Callable&& func) {
             apply(rhs_composition.get_components(), func);
         }
 
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (const overload, const lvalue ref).
         ///
-        /// @tparam Func Callable type with signature `void(const auto&, const auto&)`.
-        /// @tparam Comp A type satisfying `IsComposition`.
+        /// @tparam Callable The callable's type, with signature `void(const auto&, const auto&)`.
+        /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
-        template <typename Func, typename Comp>
-            requires(IsComposition<Comp>)
-        void apply(const Comp& rhs_composition, Func&& func) const {
+        template <typename Callable, typename CompositionType>
+            requires(IsComposition<CompositionType>)
+        void apply(const CompositionType& rhs_composition, Callable&& func) const {
             apply(rhs_composition.get_components(), func);
         }
 
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (mutable overload, forwarding ref).
         ///
-        /// @tparam Func Callable type with signature `void(auto&, auto&&)`.
-        /// @tparam Comp Raw tuple type compatible with the component-vector tuple.
+        /// @tparam Callable The callable's type, with signature `void(auto&, auto&&)`.
+        /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Forwarding-ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
-        template <typename Func, typename Comp>
-        void apply(Comp&& rhs_components, Func&& func) {
+        template <typename Callable, typename ComponentTupleType>
+        void apply(ComponentTupleType&& rhs_components, Callable&& func) {
             std::apply(
                 [&](auto&&... args_comp_vec) -> auto {
                     std::apply(
@@ -270,12 +270,12 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (const overload, forwarding ref).
         ///
-        /// @tparam Func Callable type with signature `void(const auto&, auto&&)`.
-        /// @tparam Comp Raw tuple type compatible with the component-vector tuple.
+        /// @tparam Callable The callable's type, with signature `void(const auto&, auto&&)`.
+        /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Forwarding-ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
-        template <typename Func, typename Comp>
-        void apply(Comp&& rhs_components, Func&& func) const {
+        template <typename Callable, typename ComponentTupleType>
+        void apply(ComponentTupleType&& rhs_components, Callable&& func) const {
             std::apply(
                 [&](const auto&... args_comp_vec) -> auto {
                     std::apply(
@@ -290,12 +290,12 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (mutable overload, const lvalue ref).
         ///
-        /// @tparam Func Callable type with signature `void(auto&, const auto&)`.
-        /// @tparam Comp Raw tuple type compatible with the component-vector tuple.
+        /// @tparam Callable The callable's type, with signature `void(auto&, const auto&)`.
+        /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Const lvalue ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
-        template <typename Func, typename Comp>
-        void apply(const Comp& rhs_components, Func&& func) {
+        template <typename Callable, typename ComponentTupleType>
+        void apply(const ComponentTupleType& rhs_components, Callable&& func) {
             std::apply(
                 [&](auto&&... args_comp_vec) -> auto {
                     std::apply(
@@ -310,12 +310,12 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (const overload, const lvalue ref).
         ///
-        /// @tparam Func Callable type with signature `void(const auto&, const auto&)`.
-        /// @tparam Comp Raw tuple type compatible with the component-vector tuple.
+        /// @tparam Callable The callable's type, with signature `void(const auto&, const auto&)`.
+        /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Const lvalue ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
-        template <typename Func, typename Comp>
-        void apply(const Comp& rhs_components, Func&& func) const {
+        template <typename Callable, typename ComponentTupleType>
+        void apply(const ComponentTupleType& rhs_components, Callable&& func) const {
             std::apply(
                 [&](const auto&... args_comp_vec) -> auto {
                     std::apply(
@@ -330,30 +330,34 @@ class Composition : public CompositionTag {
         /// @brief Applies a ternary callable to component-vector triples from this and two other
         /// compositions (mutable, both rhs as `IsComposition`).
         ///
-        /// @tparam Func  Callable type with signature `void(auto&, const auto&, const auto&)`.
-        /// @tparam Comp  A type satisfying `IsComposition`.
-        /// @tparam Comp2 A type satisfying `IsComposition`.
+        /// @tparam Callable  The callable's type, with signature `void(auto&, const auto&, const
+        /// auto&)`.
+        /// @tparam CompositionType  A type satisfying `IsComposition`.
+        /// @tparam SecondCompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition  First right-hand composition.
         /// @param rhs_composition2 Second right-hand composition.
         /// @param func             The callable to invoke.
-        template <typename Func, typename Comp, typename Comp2>
-            requires(IsComposition<Comp> && IsComposition<Comp2>)
-        void apply(const Comp& rhs_composition, const Comp2& rhs_composition2, Func&& func) {
+        template <typename Callable, typename CompositionType, typename SecondCompositionType>
+            requires(IsComposition<CompositionType> && IsComposition<SecondCompositionType>)
+        void apply(const CompositionType& rhs_composition,
+                   const SecondCompositionType& rhs_composition2, Callable&& func) {
             apply(rhs_composition, rhs_composition2.get_components(), func);
         }
 
         /// @brief Applies a ternary callable to component-vector triples from this, one
         /// composition, and one raw component tuple (mutable overload).
         ///
-        /// @tparam Func  Callable type with signature `void(auto&, const auto&, const auto&)`.
-        /// @tparam Comp  A type satisfying `IsComposition`.
-        /// @tparam Comp2 Raw tuple type compatible with the component-vector tuple.
+        /// @tparam Callable  The callable's type, with signature `void(auto&, const auto&, const
+        /// auto&)`.
+        /// @tparam CompositionType  A type satisfying `IsComposition`.
+        /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_composition   Right-hand composition.
         /// @param rhs_components2   Right-hand raw component tuple.
         /// @param func              The callable to invoke.
-        template <typename Func, typename Comp, typename Comp2>
-            requires(IsComposition<Comp>)
-        void apply(const Comp& rhs_composition, const Comp2& rhs_components2, Func&& func) {
+        template <typename Callable, typename CompositionType, typename ComponentTupleType>
+            requires(IsComposition<CompositionType>)
+        void apply(const CompositionType& rhs_composition,
+                   const ComponentTupleType& rhs_components2, Callable&& func) {
             std::apply(
                 [&](auto&&... args_comp_vec) -> auto {
                     std::apply(
@@ -370,19 +374,20 @@ class Composition : public CompositionTag {
                 components_);
         }
 
-        /// @brief Applies a ternary callable to component-vector triples from this, one
-        /// composition, and one raw component tuple (const overload).
+        /// @brief Applies a ternary callable to component-vector triples from this and two other
+        /// compositions (const overload).
         ///
-        /// @tparam Func  Callable type with signature `void(const auto&, const auto&, const
-        /// auto&)`.
-        /// @tparam Comp  A type satisfying `IsComposition`.
-        /// @tparam Comp2 Raw tuple type compatible with the component-vector tuple.
-        /// @param rhs_composition   Right-hand composition.
-        /// @param rhs_composition2  Right-hand raw component tuple.
+        /// @tparam Callable  The callable's type, with signature `void(const auto&, const auto&,
+        /// const auto&)`.
+        /// @tparam CompositionType  A type satisfying `IsComposition`.
+        /// @tparam SecondCompositionType A composition: its `get_components()` is read.
+        /// @param rhs_composition   First right-hand composition.
+        /// @param rhs_composition2  Second right-hand composition.
         /// @param func              The callable to invoke.
-        template <typename Func, typename Comp, typename Comp2>
-            requires(IsComposition<Comp>)
-        void apply(const Comp& rhs_composition, const Comp2& rhs_composition2, Func&& func) const {
+        template <typename Callable, typename CompositionType, typename SecondCompositionType>
+            requires(IsComposition<CompositionType>)
+        void apply(const CompositionType& rhs_composition,
+                   const SecondCompositionType& rhs_composition2, Callable&& func) const {
             std::apply(
                 [&](const auto&... args_comp_vec) -> auto {
                     std::apply(
@@ -403,11 +408,11 @@ class Composition : public CompositionTag {
         ///
         /// Short-circuits on the first `false` result.
         ///
-        /// @tparam Func Callable type with signature `bool(const auto&)`.
+        /// @tparam Callable The callable's type, with signature `bool(const auto&)`.
         /// @param func  The predicate to invoke.
         /// @return `true` if and only if @p func returns `true` for every component-type slot.
-        template <typename Func>
-        bool apply_and(Func&& func) const {
+        template <typename Callable>
+        bool apply_and(Callable&& func) const {
             return std::apply(
                 [&](const auto&... args_comp_vec) -> auto { return (func(args_comp_vec) && ...); },
                 components_);
@@ -418,27 +423,27 @@ class Composition : public CompositionTag {
         ///
         /// Delegates to the raw-tuple overload via `rhs_composition.get_components()`.
         ///
-        /// @tparam Func Callable type with signature `bool(const auto&, const auto&)`.
-        /// @tparam Comp A type satisfying `IsComposition`.
+        /// @tparam Callable The callable's type, with signature `bool(const auto&, const auto&)`.
+        /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The predicate to invoke.
         /// @return `true` if and only if @p func returns `true` for every paired slot.
-        template <typename Func, typename Comp>
-            requires(IsComposition<Comp>)
-        bool apply_and(const Comp& rhs_composition, Func&& func) const {
+        template <typename Callable, typename CompositionType>
+            requires(IsComposition<CompositionType>)
+        bool apply_and(const CompositionType& rhs_composition, Callable&& func) const {
             return apply_and(rhs_composition.get_components(), func);
         }
 
         /// @brief Applies a binary predicate to paired component-vector slots and returns the
         /// logical AND (raw-tuple overload).
         ///
-        /// @tparam Func Callable type with signature `bool(const auto&, const auto&)`.
-        /// @tparam Comp Raw tuple type compatible with the component-vector tuple.
+        /// @tparam Callable The callable's type, with signature `bool(const auto&, const auto&)`.
+        /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components The right-hand component tuple.
         /// @param func           The predicate to invoke.
         /// @return `true` if and only if @p func returns `true` for every paired slot.
-        template <typename Func, typename Comp>
-        bool apply_and(const Comp& rhs_components, Func&& func) const {
+        template <typename Callable, typename ComponentTupleType>
+        bool apply_and(const ComponentTupleType& rhs_components, Callable&& func) const {
             return std::apply(
                 [&](const auto&... args_comp_vec) -> auto {
                     return std::apply(
@@ -454,10 +459,10 @@ class Composition : public CompositionTag {
         ///
         /// Iterates over all per-type vectors and invokes @p func on each dereferenced component.
         ///
-        /// @tparam Func Callable type with signature `void(ComponentClass<BT>&)`.
+        /// @tparam Callable The callable's type, with signature `void(ComponentClass<BT>&)`.
         /// @param func  The callable to invoke.
-        template <typename Func>
-        void for_each_component(Func&& func) {
+        template <typename Callable>
+        void for_each_component(Callable&& func) {
             apply([&func](auto&& args_comp_vec) -> auto {
                 std::for_each(args_comp_vec.begin(), args_comp_vec.end(), [&](auto&& comp_ptr) {
                     func(*comp_ptr);
@@ -467,10 +472,10 @@ class Composition : public CompositionTag {
 
         /// @brief Applies a unary callable to every individual component (const).
         ///
-        /// @tparam Func Callable type with signature `void(const ComponentClass<BT>&)`.
+        /// @tparam Callable The callable's type, with signature `void(const ComponentClass<BT>&)`.
         /// @param func  The callable to invoke.
-        template <typename Func>
-        void for_each_component(Func&& func) const {
+        template <typename Callable>
+        void for_each_component(Callable&& func) const {
             apply([&func](const auto& args_comp_vec) -> auto {
                 std::for_each(args_comp_vec.begin(),
                               args_comp_vec.end(),
@@ -483,13 +488,14 @@ class Composition : public CompositionTag {
         ///
         /// Both compositions must have the same number of components in each type slot.
         ///
-        /// @tparam Func Callable type with signature `void(ComponentClass<BT>&, const
+        /// @tparam Callable The callable's type, with signature `void(ComponentClass<BT>&, const
         ///              ComponentClass<BT>&)`.
-        /// @tparam Comp Any composition or tuple whose per-type vectors pair with this one.
+        /// @tparam CompositionOrTupleType Any composition or tuple whose per-type vectors pair with
+        /// this one.
         /// @param rhs_composition The right-hand composition to pair with.
         /// @param func            The callable to invoke.
-        template <typename Func, typename Comp>
-        void for_each_component(const Comp& rhs_composition, Func&& func) {
+        template <typename Callable, typename CompositionOrTupleType>
+        void for_each_component(const CompositionOrTupleType& rhs_composition, Callable&& func) {
             apply(
                 rhs_composition,
                 [&func](auto&& args_comp_vec, const auto& args_rhs_comp_vec) -> auto {
@@ -504,13 +510,16 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to each paired component from this and another
         /// composition (const).
         ///
-        /// @tparam Func Callable type with signature `void(const ComponentClass<BT>&, const
+        /// @tparam Callable The callable's type, with signature `void(const ComponentClass<BT>&,
+        /// const
         ///              ComponentClass<BT>&)`.
-        /// @tparam Comp Any composition or tuple whose per-type vectors pair with this one.
+        /// @tparam CompositionOrTupleType Any composition or tuple whose per-type vectors pair with
+        /// this one.
         /// @param rhs_composition The right-hand composition to pair with.
         /// @param func            The callable to invoke.
-        template <typename Func, typename Comp>
-        void for_each_component(const Comp& rhs_composition, Func&& func) const {
+        template <typename Callable, typename CompositionOrTupleType>
+        void for_each_component(const CompositionOrTupleType& rhs_composition,
+                                Callable&& func) const {
             apply(rhs_composition,
                   [&func](const auto& args_comp_vec, const auto& args_rhs_comp_vec) -> auto {
                       auto it = args_rhs_comp_vec.begin();
@@ -528,16 +537,17 @@ class Composition : public CompositionTag {
         ///
         /// All three compositions must have the same number of components per type slot.
         ///
-        /// @tparam Func  Callable type with signature
+        /// @tparam Callable  The callable's type, with signature
         ///               `void(ComponentClass<BT>&, const ComponentClass<BT>&,
         ///                     const ComponentClass<BT>&)`.
-        /// @tparam Comp1 First right-hand composition type.
-        /// @tparam Comp2 Second right-hand composition type.
+        /// @tparam FirstCompositionType First right-hand composition type.
+        /// @tparam SecondCompositionType Second right-hand composition type.
         /// @param rhs1  First right-hand composition.
         /// @param rhs2  Second right-hand composition.
         /// @param func  The callable to invoke.
-        template <typename Func, typename Comp1, typename Comp2>
-        void for_each_component(const Comp1& rhs1, const Comp2& rhs2, Func&& func) {
+        template <typename Callable, typename FirstCompositionType, typename SecondCompositionType>
+        void for_each_component(const FirstCompositionType& rhs1, const SecondCompositionType& rhs2,
+                                Callable&& func) {
             apply(rhs1, rhs2, [&func](auto& vec, const auto& rhs1_vec, const auto& rhs2_vec) {
                 auto it1 = rhs1_vec.begin();
                 auto it2 = rhs2_vec.begin();
@@ -552,16 +562,17 @@ class Composition : public CompositionTag {
         /// @brief Applies a ternary callable to each component triple from this and two other
         /// compositions (const).
         ///
-        /// @tparam Func  Callable type with signature
+        /// @tparam Callable  The callable's type, with signature
         ///               `void(const ComponentClass<BT>&, const ComponentClass<BT>&,
         ///                     const ComponentClass<BT>&)`.
-        /// @tparam Comp1 First right-hand composition type.
-        /// @tparam Comp2 Second right-hand composition type.
+        /// @tparam FirstCompositionType First right-hand composition type.
+        /// @tparam SecondCompositionType Second right-hand composition type.
         /// @param rhs1  First right-hand composition.
         /// @param rhs2  Second right-hand composition.
         /// @param func  The callable to invoke.
-        template <typename Func, typename Comp1, typename Comp2>
-        void for_each_component(const Comp1& rhs1, const Comp2& rhs2, Func&& func) const {
+        template <typename Callable, typename FirstCompositionType, typename SecondCompositionType>
+        void for_each_component(const FirstCompositionType& rhs1, const SecondCompositionType& rhs2,
+                                Callable&& func) const {
             apply(rhs1, rhs2, [&func](const auto& vec, const auto& rhs1_vec, const auto& rhs2_vec) {
                 auto it1 = rhs1_vec.begin();
                 auto it2 = rhs2_vec.begin();
@@ -575,11 +586,11 @@ class Composition : public CompositionTag {
 
         /// @brief Applies a unary predicate to every component and returns `true` if all pass.
         ///
-        /// @tparam Func Callable type with signature `bool(const ComponentClass<BT>&)`.
+        /// @tparam Callable The callable's type, with signature `bool(const ComponentClass<BT>&)`.
         /// @param func  The predicate to invoke.
         /// @return `true` if and only if @p func returns `true` for every component.
-        template <typename Func>
-        bool for_each_component_and(Func&& func) const {
+        template <typename Callable>
+        bool for_each_component_and(Callable&& func) const {
             return apply_and([&func](const auto& comp_vec) {
                 return std::all_of(comp_vec.begin(), comp_vec.end(), [&](const auto& comp_ptr) {
                     return func(*comp_ptr);
@@ -592,14 +603,15 @@ class Composition : public CompositionTag {
         ///
         /// Both compositions must have the same number of components per type slot.
         ///
-        /// @tparam Func Callable type with signature
+        /// @tparam Callable The callable's type, with signature
         ///              `bool(const ComponentClass<BT>&, const ComponentClass<BT>&)`.
-        /// @tparam Comp Any composition or tuple whose per-type vectors pair with this one.
+        /// @tparam CompositionOrTupleType Any composition or tuple whose per-type vectors pair with
+        /// this one.
         /// @param rhs   The right-hand composition to pair with.
         /// @param func  The predicate to invoke.
         /// @return `true` if and only if @p func returns `true` for every paired component.
-        template <typename Func, typename Comp>
-        bool for_each_component_and(const Comp& rhs, Func&& func) const {
+        template <typename Callable, typename CompositionOrTupleType>
+        bool for_each_component_and(const CompositionOrTupleType& rhs, Callable&& func) const {
             return apply_and(rhs, [&func](const auto& comp_vec, const auto& rhs_comp_vec) {
                 auto it = rhs_comp_vec.begin();
                 return std::all_of(comp_vec.begin(), comp_vec.end(), [&](const auto& comp_ptr) {

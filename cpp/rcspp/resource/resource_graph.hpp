@@ -308,7 +308,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
                 // Only the params: the class to build depends on params.direction, known at run
                 // time (forward builds AlgorithmType; backward and bidirectional build other
-                // classes), so this returns their common base, Algorithm<R, LC>.
+                // classes), so this returns their common base, Algorithm<ResourceType,
+                // LabelContainerType>.
                 return detail::make_directional_algorithm<AlgorithmType,
                                                           ResourceCompositionType,
                                                           LabelContainerType,

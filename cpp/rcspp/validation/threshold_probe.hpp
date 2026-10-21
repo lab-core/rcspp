@@ -118,8 +118,8 @@ template <typename ComponentExtender, typename ComponentResource>
 ///
 /// Such an arc still belongs to the model, so the checks read it like a live one: a refusal does
 /// not depend on what one solve's bounds happened to remove.
-template <typename ResourceType, typename Fn>
-void for_each_removed_arc(const Graph<ResourceType>& graph, Fn&& fn) {
+template <typename ResourceType, typename Callable>
+void for_each_removed_arc(const Graph<ResourceType>& graph, Callable&& fn) {
     for (const size_t arc_id : graph.get_removed_arc_ids()) {
         if (const auto* arc = graph.get_removed_arc(arc_id); arc != nullptr) {
             fn(*arc);
@@ -128,8 +128,8 @@ void for_each_removed_arc(const Graph<ResourceType>& graph, Fn&& fn) {
 }
 
 /// @brief Calls @p fn on every arc of the model: the live ones, then the removed ones.
-template <typename ResourceType, typename Fn>
-void for_each_model_arc(const Graph<ResourceType>& graph, Fn&& fn) {
+template <typename ResourceType, typename Callable>
+void for_each_model_arc(const Graph<ResourceType>& graph, Callable&& fn) {
     graph.for_each_arc([&](const Arc<ResourceType>& arc) { fn(arc); });
     for_each_removed_arc(graph, fn);
 }

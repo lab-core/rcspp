@@ -31,29 +31,30 @@ class Arc;
 
 /// @brief An extension function type with a static @c kind member that names its directional
 /// resource kind.
-template <typename T>
+template <typename ExtensionFunctionType>
 concept DeclaresDirectionalResourceKind = requires {
-    { T::kind } -> std::convertible_to<DirectionalResourceKind>;
+    { ExtensionFunctionType::kind } -> std::convertible_to<DirectionalResourceKind>;
 };
 
-/// @brief The directional resource kind of extension function type @p T: its static @c kind, or
+/// @brief The directional resource kind of extension function type @p ExtensionFunctionType: its
+/// static @c kind, or
 ///        @c Unspecified when it has none.
-template <typename T>
+template <typename ExtensionFunctionType>
 struct DirectionalResourceKindOf {
         static constexpr DirectionalResourceKind value = DirectionalResourceKind::Unspecified;
 };
 
-template <DeclaresDirectionalResourceKind T>
-struct DirectionalResourceKindOf<T> {
-        static constexpr DirectionalResourceKind value = T::kind;
+template <DeclaresDirectionalResourceKind ExtensionFunctionType>
+struct DirectionalResourceKindOf<ExtensionFunctionType> {
+        static constexpr DirectionalResourceKind value = ExtensionFunctionType::kind;
 };
 
-/// @brief Shorthand for @c DirectionalResourceKindOf<T>::value. For checks made before any object
-/// exists,
+/// @brief Shorthand for @c DirectionalResourceKindOf<ExtensionFunctionType>::value. For checks made
+/// before any object exists,
 ///        such as @c declares_directional_resource_kind_v.
-template <typename T>
+template <typename ExtensionFunctionType>
 inline constexpr DirectionalResourceKind directional_resource_kind_of_v =
-    DirectionalResourceKindOf<T>::value;
+    DirectionalResourceKindOf<ExtensionFunctionType>::value;
 
 /// @brief Abstract base class defining the extension function for a resource type.
 ///

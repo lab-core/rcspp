@@ -30,9 +30,9 @@ using RealComposition = ResourceTypeComposition<RealResource>;
 ///
 /// The dominance function is explicit because ValueDominanceFunction calls leq(), which
 /// SetResource lacks.
-template <typename ResourceType, typename FeasibilityFn>
+template <typename ResourceType, typename FeasibilityFunctionType>
 std::unique_ptr<Resource<ResourceType>> make_resource(
-    const ResourceType& value, std::unique_ptr<FeasibilityFn> feasibility,
+    const ResourceType& value, std::unique_ptr<FeasibilityFunctionType> feasibility,
     std::unique_ptr<DominanceFunction<ResourceType>> dominance) {
     return std::make_unique<Resource<ResourceType>>(
         value,
@@ -42,9 +42,9 @@ std::unique_ptr<Resource<ResourceType>> make_resource(
 }
 
 /// @brief make_resource with the usual scalar dominance function.
-template <typename FeasibilityFn>
+template <typename FeasibilityFunctionType>
 std::unique_ptr<Resource<RealResource>> make_real_resource(
-    double value, std::unique_ptr<FeasibilityFn> feasibility) {
+    double value, std::unique_ptr<FeasibilityFunctionType> feasibility) {
     return make_resource<RealResource>(RealResource(value),
                                        std::move(feasibility),
                                        std::make_unique<ValueDominanceFunction<RealResource>>());

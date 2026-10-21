@@ -513,9 +513,9 @@ struct NodeUnprocessedLabelsManager {
         /// @param pool              Pool to recycle labels into.
         /// @param remove_from_nondom  Callable that removes a label from its node's
         ///                            non-dominated set given the list iterator.
-        template <typename RemoveFn>
+        template <typename RemoveFunction>
         void release_truncated_labels(LabelPool<ResourceType>* pool,
-                                      RemoveFn&& remove_from_nondom) {
+                                      RemoveFunction&& remove_from_nondom) {
             for (auto& truncated_list : truncated_unprocessed_labels_by_node_pos_) {
                 for (auto& [label_ptr, label_iter] : truncated_list) {
                     remove_from_nondom(label_iter);

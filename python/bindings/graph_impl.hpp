@@ -46,14 +46,14 @@ class ActiveCall {
 
         static bool is_interrupted() { return g_py_interrupted.load(std::memory_order_relaxed); }
 
-        template <typename F>
-        static auto run_interruptible(F&& f) {
-            using R = std::invoke_result_t<F>;
+        template <typename Callable>
+        static auto run_interruptible(Callable&& f) {
+            using R = std::invoke_result_t<Callable>;
             if constexpr (std::is_void_v<R>) {
                 {
                     ActiveCallGuard guard;
                     py::gil_scoped_release release;
-                    std::forward<F>(f)();
+                    std::forward<Callable>(f)();
                 }
                 check_if_throw_error();
             } else {
@@ -61,7 +61,7 @@ class ActiveCall {
                 {
                     ActiveCallGuard guard;
                     py::gil_scoped_release release;
-                    result.emplace(std::forward<F>(f)());
+                    result.emplace(std::forward<Callable>(f)());
                 }
                 check_if_throw_error();
                 return std::move(*result);
@@ -81,9 +81,10 @@ class ActiveCall {
 // ─── Python-facing non-template AlgorithmParams ──────────────────────────────
 
 struct PyAlgorithmParams : AlgorithmBaseParams {
-        template <typename LC>
-        [[nodiscard]] AlgorithmParams<LC> to_params(LC label_container = LC{}) const {
-            AlgorithmParams<LC> p(*this, std::move(label_container));
+        template <typename LabelContainerType>
+        [[nodiscard]] AlgorithmParams<LabelContainerType> to_params(
+            LabelContainerType label_container = LabelContainerType{}) const {
+            AlgorithmParams<LabelContainerType> p(*this, std::move(label_container));
             return p;
         }
 };
@@ -103,46 +104,51 @@ enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, Bidi
 
 // Dispatch entry for the algorithms that read the search direction from params. An algorithm that
 // does not support the requested direction throws std::invalid_argument (ValueError in Python).
-template <SolverAlgorithm E, template <typename, typename> class Algo>
+template <SolverAlgorithm SolverId, template <typename, typename> class AlgorithmType>
 struct AlgoEntry {
-        static constexpr SolverAlgorithm value = E;
-        template <typename ResourceGraphType, typename CostResourceType, typename LC>
-        static SolveResult run(ResourceGraphType& rg, double ub, AlgorithmParams<LC> p, bool pre,
-                               size_t ci) {
-            return rg.template solve<Algo, CostResourceType, LC>(ub, std::move(p), pre, ci);
+        static constexpr SolverAlgorithm value = SolverId;
+        template <typename ResourceGraphType, typename CostResourceType,
+                  typename LabelContainerType>
+        static SolveResult run(ResourceGraphType& rg, double ub,
+                               AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
+            return rg.template solve<AlgorithmType, CostResourceType, LabelContainerType>(
+                ub,
+                std::move(p),
+                pre,
+                ci);
         }
 };
 
 // Dispatch entry for A*: injects cost_index into params and binds CostResourceType.
-template <SolverAlgorithm E>
+template <SolverAlgorithm SolverId>
 struct AStarAlgoEntry {
-        static constexpr SolverAlgorithm value = E;
-        template <typename ResourceGraphType, typename CostResourceType, typename LC>
-        static SolveResult run(ResourceGraphType& rg, double ub, AlgorithmParams<LC> p, bool pre,
-                               size_t ci) {
+        static constexpr SolverAlgorithm value = SolverId;
+        template <typename ResourceGraphType, typename CostResourceType,
+                  typename LabelContainerType>
+        static SolveResult run(ResourceGraphType& rg, double ub,
+                               AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
             p.heuristic_cost_index = ci;
             return rg.template solve<AStarAlgoBound<CostResourceType>::template Algo,
                                      CostResourceType,
-                                     LC>(ub, std::move(p), pre, ci);
+                                     LabelContainerType>(ub, std::move(p), pre, ci);
         }
 };
 
 // Dispatch entry for `algorithm="bidirectional"`: the simple search with direction Bidirectional,
 // the clock's type being the cost's. `critical_resource_index` comes from params untouched. A clock
 // whose type differs from the cost's needs the C++ API.
-template <SolverAlgorithm E>
+template <SolverAlgorithm SolverId>
 struct BidirectionalAlgoEntry {
-        static constexpr SolverAlgorithm value = E;
-        template <typename ResourceGraphType, typename CostResourceType, typename LC>
-        static SolveResult run(ResourceGraphType& rg, double ub, AlgorithmParams<LC> p, bool pre,
-                               size_t ci) {
+        static constexpr SolverAlgorithm value = SolverId;
+        template <typename ResourceGraphType, typename CostResourceType,
+                  typename LabelContainerType>
+        static SolveResult run(ResourceGraphType& rg, double ub,
+                               AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
             p.direction = SearchDirection::Bidirectional;
-            return rg
-                .template solve<SimpleDominanceAlgorithm, CostResourceType, LC, CostResourceType>(
-                    ub,
-                    std::move(p),
-                    pre,
-                    ci);
+            return rg.template solve<SimpleDominanceAlgorithm,
+                                     CostResourceType,
+                                     LabelContainerType,
+                                     CostResourceType>(ub, std::move(p), pre, ci);
         }
 };
 
@@ -154,29 +160,32 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AStarAlgoEntry<SolverAlgorithm::AStar>,
                                   BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
 
-template <typename ResourceGraphType, typename CostResourceType, typename LC, typename... Entries>
+template <typename ResourceGraphType, typename CostResourceType, typename LabelContainerType,
+          typename... Entries>
 SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, ResourceGraphType& rg, double ub,
-                                    AlgorithmParams<LC> p, bool pre, size_t ci,
+                                    AlgorithmParams<LabelContainerType> p, bool pre, size_t ci,
                                     std::tuple<Entries...>* /*tag*/) {
     SolveResult result;
     [[maybe_unused]] bool matched =
         ((Entries::value == alg
-              ? (result = Entries::template run<ResourceGraphType, CostResourceType, LC>(rg,
-                                                                                         ub,
-                                                                                         p,
-                                                                                         pre,
-                                                                                         ci),
+              ? (result =
+                     Entries::template run<ResourceGraphType, CostResourceType, LabelContainerType>(
+                         rg,
+                         ub,
+                         p,
+                         pre,
+                         ci),
                  true)
               : false) ||
          ...);
     return result;
 }
 
-template <typename ResourceGraphType, typename CostResourceType, typename LC>
+template <typename ResourceGraphType, typename CostResourceType, typename LabelContainerType>
 SolveResult dispatch_algorithm(SolverAlgorithm alg, ResourceGraphType& rg, double ub,
-                               AlgorithmParams<LC> p, bool pre, size_t ci) {
+                               AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
     p.should_stop = &ActiveCall::is_interrupted;
-    return dispatch_algorithm_impl<ResourceGraphType, CostResourceType, LC>(
+    return dispatch_algorithm_impl<ResourceGraphType, CostResourceType, LabelContainerType>(
         alg,
         rg,
         ub,
@@ -503,15 +512,12 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
                const PyAlgorithmParams& py_p,
                bool pre,
                size_t ci) -> SolveResult {
-                using LC = LabelList<CompositionType>;
-                auto p = py_p.template to_params<LC>();
+                using LabelContainerType = LabelList<CompositionType>;
+                auto p = py_p.template to_params<LabelContainerType>();
                 return ActiveCall::run_interruptible([&] {
-                    return dispatch_algorithm<ResourceGraphType, CostResourceType, LC>(alg,
-                                                                                       rg,
-                                                                                       ub,
-                                                                                       p,
-                                                                                       pre,
-                                                                                       ci);
+                    return dispatch_algorithm<ResourceGraphType,
+                                              CostResourceType,
+                                              LabelContainerType>(alg, rg, ub, p, pre, ci);
                 });
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,

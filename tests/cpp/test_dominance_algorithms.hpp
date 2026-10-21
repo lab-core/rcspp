@@ -355,15 +355,16 @@ inline int calls = 0;
 /// @brief Counts the calls to the protected virtual on top of @p Base.
 template <template <typename, typename> class Base>
 struct Counting {
-        template <typename ResourceType, typename LC>
-        class Algo : public Base<ResourceType, LC> {
+        template <typename ResourceType, typename LabelContainerType>
+        class Algo : public Base<ResourceType, LabelContainerType> {
             public:
-                using Base<ResourceType, LC>::Base;
+                using Base<ResourceType, LabelContainerType>::Base;
 
             protected:
                 bool update_non_dominated_labels(const Label<ResourceType>& label) override {
                     ++calls;
-                    return Base<ResourceType, LC>::update_non_dominated_labels(label);
+                    return Base<ResourceType, LabelContainerType>::update_non_dominated_labels(
+                        label);
                 }
         };
 };

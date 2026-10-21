@@ -52,10 +52,10 @@ namespace rcspp {
 /// static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
 /// @endcode
 ///
-/// @tparam Ext Concrete extension function type.
-template <typename Ext>
+/// @tparam ExtensionFunctionType Concrete extension function type.
+template <typename ExtensionFunctionType>
 inline constexpr bool declares_directional_resource_kind_v =
-    directional_resource_kind_of_v<Ext> != DirectionalResourceKind::Unspecified;
+    directional_resource_kind_of_v<ExtensionFunctionType> != DirectionalResourceKind::Unspecified;
 
 }  // namespace rcspp
 
@@ -72,12 +72,15 @@ namespace detail {
 /// @param feasibility The feasibility function.
 /// @param cost        The cost function.
 /// @param dominance   The dominance function.
-template <typename ResourceType, typename Graph, typename Ext, typename Feas, typename Cost,
-          typename Dom>
-void add_coherent_resource(Graph& graph, std::unique_ptr<Ext> extension,
-                           std::unique_ptr<Feas> feasibility, std::unique_ptr<Cost> cost,
-                           std::unique_ptr<Dom> dominance) {
-    static_assert(directional_resource_kind_of_v<Ext> != DirectionalResourceKind::Unspecified,
+template <typename ResourceType, typename Graph, typename ExtensionFunctionType,
+          typename FeasibilityFunctionType, typename CostFunctionType,
+          typename DominanceFunctionType>
+void add_coherent_resource(Graph& graph, std::unique_ptr<ExtensionFunctionType> extension,
+                           std::unique_ptr<FeasibilityFunctionType> feasibility,
+                           std::unique_ptr<CostFunctionType> cost,
+                           std::unique_ptr<DominanceFunctionType> dominance) {
+    static_assert(directional_resource_kind_of_v<ExtensionFunctionType> !=
+                      DirectionalResourceKind::Unspecified,
                   "a preset's extension function declares no directional resource kind");
     graph.template add_resource<ResourceType>(std::move(extension),
                                               std::move(feasibility),
