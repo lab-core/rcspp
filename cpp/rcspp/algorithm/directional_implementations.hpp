@@ -39,9 +39,9 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
         template <typename ResourceType, typename LabelContainerType>
         using Backward = BackwardSimple<ResourceType, LabelContainerType>;
         static constexpr bool has_bidirectional = true;
-        template <typename ResourceType, typename LabelContainerType, typename ClockResourceType>
+        template <typename ResourceType, typename LabelContainerType, typename CriticalResourceType>
         using Bidirectional =
-            BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, ClockResourceType>;
+            BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalResourceType>;
 };
 
 /// @brief Whether constructor arguments @p Args are exactly one @c AlgorithmParams<LC>: then
@@ -56,7 +56,8 @@ inline constexpr bool is_params_only_v =
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container of the params.
 /// @tparam CostResourceType   The cost resource type; the clock's type defaults to it.
-/// @tparam ClockResourceType  The type of the bidirectional search's clock, the critical resource.
+/// @tparam CriticalResourceType  The type of the bidirectional search's clock, the critical
+/// resource.
 /// @param resource_factory The graph's resource factory.
 /// @param params           The algorithm's params; their direction picks the class.
 /// @return The algorithm, behind its base class.
@@ -65,7 +66,7 @@ inline constexpr bool is_params_only_v =
 ///         form.
 template <template <typename, typename> class Strategy, typename ResourceType,
           typename LabelContainerType, typename CostResourceType = RealResource,
-          typename ClockResourceType = CostResourceType>
+          typename CriticalResourceType = CostResourceType>
 std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_algorithm(
     ResourceFactory<ResourceType>* resource_factory, AlgorithmParams<LabelContainerType> params) {
     using Impl = DirectionalImplementations<Strategy>;
@@ -97,7 +98,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                     return std::make_unique<
                         typename Impl::template Bidirectional<ResourceType,
                                                               LabelContainerType,
-                                                              ClockResourceType>>(
+                                                              CriticalResourceType>>(
                         resource_factory,
                         std::move(params));
                 } else {

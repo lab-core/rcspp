@@ -27,14 +27,14 @@ namespace rcspp {
 /// Because the set is filtered on arrival, a forward and a backward label meeting at a node both
 /// hold sets filtered by that node, and the join can compare them directly.
 ///
-/// @note Use `DirectionalExtensionForm<ExtensionFunction<R>, DirectionalResourceKind::ArcValue>`
-/// instead when the arc's
+/// @note Use `DirectionalExtensionForm<ExtensionFunction<ResourceType>,
+/// DirectionalResourceKind::ArcValue>` instead when the arc's
 ///       value is real per-arc data. Only this form keeps the label's own node out of its set in
 ///       both directions.
 ///
-/// @tparam R    The container resource type.
-/// @tparam Base The base to insert above, normally @c ExtensionFunction<R>.
-template <typename R, typename Base>
+/// @tparam ResourceType    The container resource type.
+/// @tparam Base The base to insert above, normally @c ExtensionFunction<ResourceType>.
+template <typename ResourceType, typename Base>
 class ArcEndpointsExtensionForm
     : public DirectionalExtensionForm<Base, DirectionalResourceKind::ArcEndpoints> {
     public:
@@ -44,8 +44,9 @@ class ArcEndpointsExtensionForm
         /// @param extender_value    Arc's extender resource: unused, except by
         ///                          @ref check_arc_value in a debug build.
         /// @param extended_resource Output: receives the new container value.
-        void extend(const R& resource, [[maybe_unused]] const R& extender_value,
-                    R* extended_resource) final {
+        void extend(const ResourceType& resource,
+                    [[maybe_unused]] const ResourceType& extender_value,
+                    ResourceType* extended_resource) final {
 #ifndef NDEBUG
             check_arc_value(extender_value, forward_side_);
 #endif
@@ -58,8 +59,8 @@ class ArcEndpointsExtensionForm
         /// @param resource          Current container resource of the backward label.
         /// @param extender_value    Arc's extender resource (unused).
         /// @param extended_resource Output: receives the new container value.
-        void extend_back(const R& resource, const R& /*extender_value*/,
-                         R* extended_resource) final {
+        void extend_back(const ResourceType& resource, const ResourceType& /*extender_value*/,
+                         ResourceType* extended_resource) final {
             apply(resource, extended_resource, backward_side_);
         }
 
@@ -72,10 +73,10 @@ class ArcEndpointsExtensionForm
         /// must outlive this function and its clones, and never change.
         struct Side {
                 /// the set {node being left}, added to the label's set
-                const R* node_left = nullptr;
+                const ResourceType* node_left = nullptr;
                 /// the neighborhood of the node arrived at, which the label's set is
                 /// intersected with
-                const R* arrival_neighborhood = nullptr;
+                const ResourceType* arrival_neighborhood = nullptr;
         };
 
         /// @brief Debug-build hook to inspect the arc's value, which the form never reads.
@@ -85,14 +86,16 @@ class ArcEndpointsExtensionForm
         ///
         /// @param extender_value The arc's value.
         /// @param side           This traversal's node left and arrival neighborhood.
-        virtual void check_arc_value(const R& /*extender_value*/, const Side& /*side*/) const {}
+        virtual void check_arc_value(const ResourceType& /*extender_value*/,
+                                     const Side& /*side*/) const {}
 
         /// @brief The direction-blind extension formula.
         ///
         /// @param resource          The label's current value.
         /// @param extended_resource Output: receives the new value.
         /// @param side              This traversal's node left and arrival neighborhood.
-        virtual void apply(const R& resource, R* extended_resource, const Side& side) const = 0;
+        virtual void apply(const ResourceType& resource, ResourceType* extended_resource,
+                           const Side& side) const = 0;
 
         /// @brief Builds the side for one traversal.
         ///

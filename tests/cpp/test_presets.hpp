@@ -32,12 +32,12 @@ inline std::map<size_t, std::pair<double, double>> windows() {
 ///
 /// @p arc_value takes the resource's own value type, so an integer resource is not handed a
 /// double.
-template <typename Graph, typename R,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-inline void finish(Graph* graph, V arc_value) {
+template <typename Graph, typename ResourceType,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
+inline void finish(Graph* graph, ValueType arc_value) {
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1, /*source=*/false, /*sink=*/true);
-    graph->template add_arc<R>(std::make_tuple(arc_value), 0, 1, 10.0);
+    graph->template add_arc<ResourceType>(std::make_tuple(arc_value), 0, 1, 10.0);
 }
 
 /// @brief Node 1's cap is 5 and node 3's is 7; every other node has the uniform capacity.
@@ -381,8 +381,8 @@ inline void add_fractional_routes(ResourceGraph<RealResource, RealResource>* gra
 /// @brief An `int` capacity on a real resource is the capacity, not the type every consumption is
 ///        read as.
 ///
-/// `V` is the resource's value type, not the argument's: deduced from `5` it would build an `int`
-/// capacity, read each 2.9 as 2, and accept the 5.8 route at cost 2.
+/// `ValueType` is the resource's value type, not the argument's: deduced from `5` it would build an
+/// `int` capacity, read each 2.9 as 2, and accept the 5.8 route at cost 2.
 TEST(Presets, CapacityOnARealResourceKeepsFractionalConsumption) {
     auto graph = std::make_unique<ResourceGraph<RealResource, RealResource>>();
     presets::add_cost_resource<RealResource>(*graph);

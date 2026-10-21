@@ -57,8 +57,9 @@ struct JoinOptions {
 /// the two halves (the join arc is inside the forward half). Runs after both searches finish.
 ///
 /// @tparam ResourceType The resource type carried by labels.
-/// @tparam CriticalRC   The critical resource's type -- the clock the half-way rule reads.
-template <typename ResourceType, typename CriticalRC>
+/// @tparam CriticalResourceType   The critical resource's type -- the clock the half-way rule
+/// reads.
+template <typename ResourceType, typename CriticalResourceType>
 class Joiner {
     public:
         /// @brief Pairs each node's boundary forward labels with the backward labels sitting
@@ -252,8 +253,8 @@ class Joiner {
                 assert(!label->get_in_arc()->origin->sink &&
                        "the forward search must never extend out of a sink");
                 if (half_way.enabled() &&
-                    critical_value<CriticalRC>(label->get_resource(), critical_resource_index) <=
-                        half_way.h()) {
+                    critical_value<CriticalResourceType>(label->get_resource(),
+                                                         critical_resource_index) <= half_way.h()) {
                     continue;
                 }
                 labels.push_back(label);

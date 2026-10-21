@@ -56,11 +56,12 @@ static_assert(directional_resource_kind_of_v<ExtensionFunction<RealResource>> ==
 // Checks at compile time, over a sample grid, that x + arc <= theta iff x <= theta - arc, i.e.
 // that the unclamped translation pair is a genuine inverse. The clamps are covered in
 // test_threshold_extension_form.hpp.
-template <typename V>
-consteval bool translation_biconditional_holds(std::initializer_list<V> samples,
-                                               std::initializer_list<V> thetas, V arc) {
-    for (const V theta : thetas) {
-        for (const V x : samples) {
+template <typename ValueType>
+consteval bool translation_biconditional_holds(std::initializer_list<ValueType> samples,
+                                               std::initializer_list<ValueType> thetas,
+                                               ValueType arc) {
+    for (const ValueType theta : thetas) {
+        for (const ValueType x : samples) {
             const bool forward_fits = (x + arc) <= theta;
             const bool backward_fits = x <= (theta - arc);
             if (forward_fits != backward_fits) {

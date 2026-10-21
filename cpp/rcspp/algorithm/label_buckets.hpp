@@ -164,31 +164,32 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
         using BucketIdx = size_t;
 
-        template <class RType>
+        template <class ComponentType>
         struct Bucket {
-                Bucket(const LabelPosition& pos, const RType* value, double range)
+                Bucket(const LabelPosition& pos, const ComponentType* value, double range)
                     : begin(pos), end(std::next(pos)), begin_value(value), range(range) {}
 
                 LabelPosition begin, end;
-                const RType* begin_value;
+                const ComponentType* begin_value;
                 double range;
 
                 /// @brief True when @p value is strictly before this bucket's range.
-                [[nodiscard]] bool is_before_bucket(const RType& value) const {
+                [[nodiscard]] bool is_before_bucket(const ComponentType& value) const {
                     return !Direction::is_lower(*begin_value, value);
                 }
 
                 /// @brief True when @p value is strictly after this bucket's range.
-                [[nodiscard]] bool is_after_bucket(const RType& value) const {
+                [[nodiscard]] bool is_after_bucket(const ComponentType& value) const {
                     return Direction::is_lower(*begin_value, value, -range);
                 }
 
                 /// @brief True when @p value falls within [begin_value, begin_value + range].
-                [[nodiscard]] bool is_within_bucket(const RType& value) const {
+                [[nodiscard]] bool is_within_bucket(const ComponentType& value) const {
                     return !is_before_bucket(value) && !is_after_bucket(value);
                 }
 
-                void update_begin(const LabelPosition& new_begin, const RType* new_min_value) {
+                void update_begin(const LabelPosition& new_begin,
+                                  const ComponentType* new_min_value) {
                     begin = new_begin;
                     begin_value = new_min_value;
                 }
@@ -460,10 +461,10 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
             return get_resource<SortResource>(label, sort_resource_index_);
         }
 
-        template <class RType>
-        [[nodiscard]] static const Resource<RType>& get_resource(const Label<ResourceType>& label,
-                                                                 size_t resource_index) {
-            return label.get_resource().template get_component<RType>(resource_index);
+        template <class ComponentType>
+        [[nodiscard]] static const Resource<ComponentType>& get_resource(
+            const Label<ResourceType>& label, size_t resource_index) {
+            return label.get_resource().template get_component<ComponentType>(resource_index);
         }
 
         // ── Binary search helpers ────────────────────────────────────────────────

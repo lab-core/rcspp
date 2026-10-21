@@ -57,9 +57,9 @@ enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The forward per-node container.
-/// @tparam CriticalRC         The critical resource's type (the clock).
+/// @tparam CriticalResourceType         The critical resource's type (the clock).
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
-          typename CriticalRC = RealResource>
+          typename CriticalResourceType = RealResource>
     requires ResourceTypeConcept<ResourceType>
 class BidirectionalDominanceAlgorithm
     : public DominanceAlgorithm<ResourceType, LabelContainerType, ForwardDirection> {
@@ -315,8 +315,8 @@ class BidirectionalDominanceAlgorithm
             // bound off, the clock (and its index) is never read.
             if (half_way_.enabled()) {
                 const double critical =
-                    critical_value<CriticalRC>(label_ptr->get_resource(),
-                                               this->params_.critical_resource_index);
+                    critical_value<CriticalResourceType>(label_ptr->get_resource(),
+                                                         this->params_.critical_resource_index);
                 if constexpr (Direction::backward) {
                     if (half_way_.should_stop_backward(critical)) {
                         return;
@@ -427,7 +427,7 @@ class BidirectionalDominanceAlgorithm
             half_way_ = HalfWayPolicy(this->params_.half_way_point, resource_upper_bound(graph));
             half_way_off_reason_.clear();
 
-            if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
+            if constexpr (!is_cost_in_composition_v<CriticalResourceType, ResourceType>) {
                 turn_half_way_off(HalfWayOff::CriticalTypeAbsent,
                                   "the critical resource type is not in the model");
             } else {
@@ -439,7 +439,7 @@ class BidirectionalDominanceAlgorithm
                                       "critical resource's range");
                     return;
                 }
-                const size_t clocks = components_of<CriticalRC>(graph);
+                const size_t clocks = components_of<CriticalResourceType>(graph);
                 if (this->params_.critical_resource_index >= clocks) {
                     turn_half_way_off(HalfWayOff::IndexOutOfRange,
                                       clock + " does not exist: the model has " +
@@ -464,14 +464,14 @@ class BidirectionalDominanceAlgorithm
                     return;
                 }
                 const std::vector<double> probes{0.0, half_way_.h()};
-                if (!critical_resource_is_monotone<CriticalRC>(
+                if (!critical_resource_is_monotone<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index,
                         probes)) {
                     turn_half_way_off(HalfWayOff::NotMonotone, clock + " is not monotone");
                     return;
                 }
-                if (!critical_resource_dominance_is_increasing<CriticalRC>(
+                if (!critical_resource_dominance_is_increasing<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index)) {
                     turn_half_way_off(HalfWayOff::NotIncreasing,
@@ -507,18 +507,22 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief How many components of type @p T the model has, read off one arc's extender.
+        /// @brief How many components of type @p ComponentType the model has, read off one arc's
+        /// extender.
         ///
         /// Uses the arc @c threshold_probe::model_arc picks (a removed arc when no live one is
         /// left), so the count does not depend on what preprocessing removed.
         ///
         /// @param graph The graph whose arcs carry the extenders.
-        /// @return The count, or 0 when @p T is not in the model or no arc carries an extender.
-        template <typename T>
+        /// @return The count, or 0 when @p ComponentType is not in the model or no arc carries an
+        /// extender.
+        template <typename ComponentType>
         [[nodiscard]] static size_t components_of(const Graph<ResourceType>& graph) {
-            if constexpr (is_cost_in_composition_v<T, ResourceType>) {
+            if constexpr (is_cost_in_composition_v<ComponentType, ResourceType>) {
                 const auto* arc = threshold_probe::model_arc(graph);
-                return arc == nullptr ? 0 : arc->extender->template get_components<T>().size();
+                return arc == nullptr
+                           ? 0
+                           : arc->extender->template get_components<ComponentType>().size();
             } else {
                 return 0;
             }
@@ -544,7 +548,8 @@ class BidirectionalDominanceAlgorithm
                 return DirectionalResourceKind::Unspecified;
             }
             return arc->extender
-                ->template get_component<CriticalRC>(this->params_.critical_resource_index)
+                ->template get_component<CriticalResourceType>(
+                    this->params_.critical_resource_index)
                 .directional_resource_kind();
         }
 
@@ -568,9 +573,9 @@ class BidirectionalDominanceAlgorithm
                 if (entering == nullptr) {
                     continue;
                 }
-                auto scratch = sink->resource->template get_component<CriticalRC>(index);
+                auto scratch = sink->resource->template get_component<CriticalResourceType>(index);
                 if (!threshold_probe::observe_start(
-                        entering->extender->template get_component<CriticalRC>(index),
+                        entering->extender->template get_component<CriticalResourceType>(index),
                         &scratch)) {
                     return sink_id;
                 }
@@ -699,7 +704,7 @@ class BidirectionalDominanceAlgorithm
         std::string half_way_off_reason_;
 
         size_t joined_paths_ = 0;
-        Joiner<ResourceType, CriticalRC> joiner_;
+        Joiner<ResourceType, CriticalResourceType> joiner_;
 };
 
 }  // namespace rcspp::detail

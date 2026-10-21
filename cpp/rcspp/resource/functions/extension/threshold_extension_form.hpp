@@ -35,8 +35,8 @@ namespace rcspp {
 ///
 /// The formulas must satisfy `extend(x, arc) <= b  <==>  x <= extend_back(b, arc)` wherever neither
 /// clamp binds. @c BackwardExtensionCheck observes the clamps and the start by running the
-/// extension on values beyond every bound, so the formulas must accept any value of @p V (the
-/// infinities included).
+/// extension on values beyond every bound, so the formulas must accept any value of @p ValueType
+/// (the infinities included).
 ///
 /// Directional resource kind: @c Threshold if the value type is signed, @c Unspecified if it is
 /// unsigned. Going backward, a deadline can become impossible to meet: a deadline of 3 before an
@@ -47,22 +47,24 @@ namespace rcspp {
 /// refuses it.
 ///
 /// @note Use as the middle argument of a three-argument @c Clonable:
-///       `Clonable<Derived, ThresholdExtensionForm<R, ExtensionFunction<R>>,
-///       ExtensionFunction<R>>`.
+///       `Clonable<Derived, ThresholdExtensionForm<ResourceType, ExtensionFunction<ResourceType>>,
+///       ExtensionFunction<ResourceType>>`.
 ///
-/// @tparam R    The scalar resource type.
-/// @tparam Base The base to insert above, normally @c ExtensionFunction<R>.
-/// @tparam V    The resource's arithmetic value type, and no other.
-template <typename R, typename Base,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
+/// @tparam ResourceType    The scalar resource type.
+/// @tparam Base The base to insert above, normally @c ExtensionFunction<ResourceType>.
+/// @tparam ValueType    The resource's arithmetic value type, and no other.
+template <typename ResourceType, typename Base,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class ThresholdExtensionForm
-    : public DirectionalExtensionForm<Base, (std::is_signed_v<V>
+    : public DirectionalExtensionForm<Base, (std::is_signed_v<ValueType>
                                                  ? DirectionalResourceKind::Threshold
                                                  : DirectionalResourceKind::Unspecified)> {
-        // Both formulas convert to V and back, so any other type truncates or widens every value:
-        // a real resource read through int bounds loses its fractions in every algorithm.
-        static_assert(std::is_same_v<V, std::decay_t<decltype(std::declval<R>().get_value())>>,
-                      "ThresholdExtensionForm: V must be the resource's own value type");
+        // Both formulas convert to ValueType and back, so any other type truncates or widens every
+        // value: a real resource read through int bounds loses its fractions in every algorithm.
+        static_assert(
+            std::is_same_v<ValueType,
+                           std::decay_t<decltype(std::declval<ResourceType>().get_value())>>,
+            "ThresholdExtensionForm: ValueType must be the resource's own value type");
 
     public:
         /// @brief Forward step: @c forward_value, raised to the arrival node's lower bound
@@ -71,8 +73,9 @@ class ThresholdExtensionForm
         /// @param resource           Current resource of the forward label.
         /// @param extender_value     Arc's consumption.
         /// @param extended_resource  Output: receives `max(lower, forward_value(...))`.
-        void extend(const R& resource, const R& extender_value, R* extended_resource) final {
-            V value = forward_value(resource.get_value(), extender_value.get_value());
+        void extend(const ResourceType& resource, const ResourceType& extender_value,
+                    ResourceType* extended_resource) final {
+            ValueType value = forward_value(resource.get_value(), extender_value.get_value());
             if (lower_) {
                 value = std::max(*lower_, value);
             }
@@ -90,8 +93,9 @@ class ThresholdExtensionForm
         /// @param extender_value     Arc's consumption.
         /// @param extended_resource  Output: receives `min(upper, backward_value(...))`, or
         ///                           `lowest()` when that is below the origin's lower bound.
-        void extend_back(const R& resource, const R& extender_value, R* extended_resource) final {
-            if constexpr (std::is_signed_v<V>) {
+        void extend_back(const ResourceType& resource, const ResourceType& extender_value,
+                         ResourceType* extended_resource) final {
+            if constexpr (std::is_signed_v<ValueType>) {
                 // Already unmeetable: keep it so. The feasibility function may not reject it
                 // (MinMaxFeasibilityFunction(0, close) does not), and lowest() - arc would
                 // overflow.
@@ -100,11 +104,11 @@ class ThresholdExtensionForm
                     return;
                 }
             }
-            V value = backward_value(resource.get_value(), extender_value.get_value());
+            ValueType value = backward_value(resource.get_value(), extender_value.get_value());
             if (upper_) {
                 value = std::min(*upper_, value);
             }
-            if constexpr (std::is_signed_v<V>) {
+            if constexpr (std::is_signed_v<ValueType>) {
                 if (back_lower_ && value < *back_lower_) {
                     value = unmeetable;
                 }
@@ -116,7 +120,7 @@ class ThresholdExtensionForm
         ///        since none arrives at a sink. Without one, the type default.
         ///
         /// @param resource Output: receives the destination's upper bound, if it has one.
-        void start_back(R* resource) final {
+        void start_back(ResourceType* resource) final {
             if (back_start_) {
                 resource->set_value(*back_start_);
             }
@@ -128,7 +132,7 @@ class ThresholdExtensionForm
         /// @param value The label's current value.
         /// @param arc   The arc's consumption.
         /// @return The unclamped forward value.
-        [[nodiscard]] virtual V forward_value(V value, V arc) const = 0;
+        [[nodiscard]] virtual ValueType forward_value(ValueType value, ValueType arc) const = 0;
 
         /// @brief The backward step before any clamp: the largest `x` with
         ///        `forward_value(x, arc) <= value`.
@@ -136,7 +140,7 @@ class ThresholdExtensionForm
         /// @param value The label's current bound.
         /// @param arc   The arc's consumption.
         /// @return The unclamped backward value.
-        [[nodiscard]] virtual V backward_value(V value, V arc) const = 0;
+        [[nodiscard]] virtual ValueType backward_value(ValueType value, ValueType arc) const = 0;
 
         /// @brief This node's lower bound: forward values are raised to it, backward values below
         ///        it are unmeetable.
@@ -145,7 +149,7 @@ class ThresholdExtensionForm
         ///
         /// @param node_id Index of the node the extension arrives at.
         /// @return The bound to clamp up to, or @c nullopt.
-        [[nodiscard]] virtual std::optional<V> lower_bound_at(size_t node_id) const = 0;
+        [[nodiscard]] virtual std::optional<ValueType> lower_bound_at(size_t node_id) const = 0;
 
         /// @brief This node's upper bound: backward values are lowered to it, and a backward label
         ///        starting here starts at it.
@@ -154,20 +158,22 @@ class ThresholdExtensionForm
         ///
         /// @param node_id Index of the node the extension arrives at.
         /// @return The bound to clamp down to, or @c nullopt.
-        [[nodiscard]] virtual std::optional<V> upper_bound_at(size_t node_id) const = 0;
+        [[nodiscard]] virtual std::optional<ValueType> upper_bound_at(size_t node_id) const = 0;
 
     private:
         /// @brief The backward value of a deadline no forward label can meet. It propagates
         ///        unchanged and fails every backward test.
-        static constexpr V unmeetable = std::numeric_limits<V>::lowest();
+        static constexpr ValueType unmeetable = std::numeric_limits<ValueType>::lowest();
 
         // Bounds of this arc, cached by preprocess.
-        std::optional<V> lower_;       ///< destination's lower bound: forward values are
-                                       ///< raised to it
-        std::optional<V> upper_;       ///< origin's upper bound: backward values are lowered to it
-        std::optional<V> back_lower_;  ///< origin's lower bound: backward values below it are
-                                       ///< unmeetable
-        std::optional<V> back_start_;  ///< destination's upper bound: where a backward label starts
+        std::optional<ValueType> lower_;  ///< destination's lower bound: forward values are
+                                          ///< raised to it
+        std::optional<ValueType>
+            upper_;  ///< origin's upper bound: backward values are lowered to it
+        std::optional<ValueType> back_lower_;  ///< origin's lower bound: backward values below it
+                                               ///< are unmeetable
+        std::optional<ValueType>
+            back_start_;  ///< destination's upper bound: where a backward label starts
 
         /// @brief Caches this arc's bounds: forward arrives at the destination, backward at the
         ///        origin, where its lower bound marks the deadlines no arrival can meet. A backward
@@ -189,30 +195,33 @@ class ThresholdExtensionForm
 ///
 /// Time windows and capacities are built on it.
 ///
-/// @tparam R    The scalar resource type.
-/// @tparam Base The base to insert above, normally @c ExtensionFunction<R>.
-/// @tparam V    The resource's arithmetic value type.
-template <typename R, typename Base,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-class TranslationThresholdExtensionForm : public ThresholdExtensionForm<R, Base, V> {
+/// @tparam ResourceType    The scalar resource type.
+/// @tparam Base The base to insert above, normally @c ExtensionFunction<ResourceType>.
+/// @tparam ValueType    The resource's arithmetic value type.
+template <typename ResourceType, typename Base,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
+class TranslationThresholdExtensionForm
+    : public ThresholdExtensionForm<ResourceType, Base, ValueType> {
     protected:
         /// @brief Adds the arc's consumption.
         ///
         /// @param value The label's current value.
         /// @param arc   The arc's consumption.
         /// @return `value + arc`.
-        [[nodiscard]] V forward_value(V value, V arc) const final { return value + arc; }
+        [[nodiscard]] ValueType forward_value(ValueType value, ValueType arc) const final {
+            return value + arc;
+        }
 
         /// @brief Subtracts the arc's consumption, saturating at zero for an unsigned type.
         ///
         /// @param value The label's current bound.
         /// @param arc   The arc's consumption.
         /// @return `value - arc`, or `0` where an unsigned subtraction would underflow.
-        [[nodiscard]] V backward_value(V value, V arc) const final {
-            if constexpr (std::is_signed_v<V>) {
+        [[nodiscard]] ValueType backward_value(ValueType value, ValueType arc) const final {
+            if constexpr (std::is_signed_v<ValueType>) {
                 return value - arc;
             } else {
-                return value < arc ? V{0} : value - arc;
+                return value < arc ? ValueType{0} : value - arc;
             }
         }
 };

@@ -23,8 +23,8 @@ template <typename Params>
 /// @param algorithm An algorithm `create_algorithm` built with `direction = Bidirectional`.
 /// @return @p algorithm as @p Impl.
 /// @throws std::logic_error when @p algorithm is not an @p Impl.
-template <typename Impl, typename R, typename LC>
-[[nodiscard]] Impl* bidirectional_impl(rcspp::Algorithm<R, LC>* algorithm) {
+template <typename Impl, typename ResourceType, typename LC>
+[[nodiscard]] Impl* bidirectional_impl(rcspp::Algorithm<ResourceType, LC>* algorithm) {
     auto* impl = dynamic_cast<Impl*>(algorithm);
     if (impl == nullptr) {
         throw std::logic_error("not a bidirectional search of this type");

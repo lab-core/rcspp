@@ -291,7 +291,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
         /// @tparam LabelContainerType The per-node label container.
         /// @tparam CostResourceType   The cost resource type.
-        /// @tparam ClockResourceType  The resource type whose value decides where a bidirectional
+        /// @tparam CriticalResourceType  The resource type whose value decides where a
+        /// bidirectional
         ///                            search's two halves stop (its half-way point); defaults to
         ///                            @p CostResourceType.
         /// @param args The constructor arguments after the resource factory.
@@ -302,7 +303,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
-                  typename ClockResourceType = CostResourceType, typename... Args>
+                  typename CriticalResourceType = CostResourceType, typename... Args>
         auto create_algorithm(Args&&... args) {
             if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
                 // Only the params: the class to build depends on params.direction, known at run
@@ -312,7 +313,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                           ResourceCompositionType,
                                                           LabelContainerType,
                                                           CostResourceType,
-                                                          ClockResourceType>(
+                                                          CriticalResourceType>(
                     &resource_factory_,
                     std::forward<Args>(args)...);
             } else {
@@ -332,7 +333,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
         /// @tparam CostResourceType   The numerical resource type holding the cost slot.
         /// @tparam LabelContainerType The per-node label container.
-        /// @tparam ClockResourceType  The resource type whose value decides where a bidirectional
+        /// @tparam CriticalResourceType  The resource type whose value decides where a
+        /// bidirectional
         ///                            search's two halves stop (its half-way point); defaults to
         ///                            @p CostResourceType.
         /// @param upper_bound Cost upper bound; solutions above it are discarded.
@@ -346,7 +348,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename ClockResourceType = CostResourceType>
+                  typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
@@ -355,7 +357,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             auto algorithm = create_algorithm<AlgorithmType,
                                               LabelContainerType,
                                               CostResourceType,
-                                              ClockResourceType>(std::move(params));
+                                              CriticalResourceType>(std::move(params));
             return solve<Algorithm<ResourceCompositionType, LabelContainerType>, CostResourceType>(
                 algorithm.get(),
                 upper_bound,
@@ -367,11 +369,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename ClockResourceType = CostResourceType>
+                  typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
                           size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, CriticalResourceType>(
                 std::numeric_limits<double>::infinity(),
                 std::move(params),
                 preprocess,
@@ -391,12 +393,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename ClockResourceType = CostResourceType>
+                  typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmBaseParams base_params,
                           double upper_bound = std::numeric_limits<double>::infinity(),
                           bool preprocess = true, size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, CriticalResourceType>(
                 upper_bound,
                 AlgorithmParams<LabelContainerType>(std::move(base_params)),
                 preprocess,
