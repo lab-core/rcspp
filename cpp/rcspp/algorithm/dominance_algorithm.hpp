@@ -38,9 +38,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                       "Direction does not satisfy DirectionPolicy for this ResourceType");
 
     public:
-        using resource_type = ResourceType;
-        using label_container_type = LabelContainerType;
-
         /// @brief The per-node container this search keeps: @c LabelContainerType rebound to
         ///        @c Direction.
         using DirectedContainer = detail::rebind_direction_t<LabelContainerType, Direction>;

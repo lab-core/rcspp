@@ -14,14 +14,15 @@ namespace rcspp {
 
 namespace detail {
 
-/// @brief The FIFO frontier of @ref SimpleDominanceAlgorithm, over any directional base.
+/// @brief The FIFO frontier of @ref SimpleDominanceAlgorithm, in either direction.
 ///
-/// @tparam Base The labeling loop, @ref DominanceAlgorithm, going forward or with
-///              @ref BackwardDirection.
-template <typename Base>
-class SimpleFrontier : public Base {
-        using ResourceType = typename Base::resource_type;
-        using LabelContainerType = typename Base::label_container_type;
+/// @tparam ResourceType       The resource type carried by labels.
+/// @tparam LabelContainerType The per-node container its params hold.
+/// @tparam Direction          The direction policy: @ref ForwardDirection or
+///                           @ref BackwardDirection.
+template <typename ResourceType, typename LabelContainerType, typename Direction>
+class SimpleFrontier : public DominanceAlgorithm<ResourceType, LabelContainerType, Direction> {
+        using Base = DominanceAlgorithm<ResourceType, LabelContainerType, Direction>;
 
     public:
         using Base::Base;
@@ -135,8 +136,7 @@ class SimpleFrontier : public Base {
 ///
 /// @c create_algorithm<SimpleDominanceAlgorithm> builds it for @c SearchDirection::Backward.
 template <typename ResourceType, typename LabelContainerType>
-using BackwardSimple =
-    SimpleFrontier<DominanceAlgorithm<ResourceType, LabelContainerType, BackwardDirection>>;
+using BackwardSimple = SimpleFrontier<ResourceType, LabelContainerType, BackwardDirection>;
 
 }  // namespace detail
 
@@ -148,9 +148,9 @@ using BackwardSimple =
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
 class SimpleDominanceAlgorithm
-    : public detail::SimpleFrontier<DominanceAlgorithm<ResourceType, LabelContainerType>> {
+    : public detail::SimpleFrontier<ResourceType, LabelContainerType, ForwardDirection> {
     public:
-        using detail::SimpleFrontier<
-            DominanceAlgorithm<ResourceType, LabelContainerType>>::SimpleFrontier;
+        using detail::SimpleFrontier<ResourceType, LabelContainerType,
+                                     ForwardDirection>::SimpleFrontier;
 };
 }  // namespace rcspp
