@@ -130,30 +130,35 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         }
 
         // Check distance from the resource to another
-        /// @brief Fast dominance check with a relaxation delta.
+        /// @brief Whether this resource comes first, against @p rhs_resource, in the dominance
+        ///        order, shifted by @p delta: the dominance function's `fast_check_dominance`.
         ///
-        /// Uses the dominance function's `fast_check_dominance` method, which may apply an
-        /// additive tolerance `delta` to speed up dominance screening.
+        /// "Lower" means first in that order: the value that would dominate, which under
+        /// `ValueDominanceFunction` is the smaller one. `LabelBuckets` uses it to place a value
+        /// on its bucket axis. For a container the check is a size comparison, a necessary
+        /// condition for dominance rather than dominance itself.
         ///
         /// @param rhs_resource The resource to compare against.
-        /// @param delta        Relaxation tolerance (default 0).
-        /// @return `true` if this resource (partially) dominates `rhs_resource` within the given
-        ///         tolerance.
+        /// @param delta        An offset (default 0): a positive one makes the check easier to
+        ///                     pass, a negative one harder.
+        /// @return `true` if this resource passes `fast_check_dominance` against `rhs_resource`.
         [[nodiscard]] auto is_lower(const Resource& rhs_resource, double delta = 0) const -> bool {
             return this->dominance_function_->fast_check_dominance(this->value_,
                                                                    rhs_resource.value_,
                                                                    delta);
         }
 
-        /// @brief Relaxed backward dominance within @p delta, for bucketed backward label
-        ///        containers.
+        /// @brief @c is_lower going backward: whether this resource comes first in the backward
+        ///        dominance order, shifted by @p delta. For bucketed backward label containers.
         ///
-        /// The backward twin of @c is_lower; scalar resources only.
+        /// A threshold's backward order is reversed, so there "lower" is the larger value: a
+        /// later deadline. Scalar resources only.
         ///
         /// @param rhs_resource The resource to compare against.
-        /// @param delta        Relaxation tolerance (default 0).
-        /// @return `true` if this resource (partially) dominates `rhs_resource` going backward,
-        ///         within the tolerance.
+        /// @param delta        An offset (default 0): a positive one makes the check easier to
+        ///                     pass, a negative one harder.
+        /// @return `true` if this resource passes `fast_check_back_dominance` against
+        ///         `rhs_resource`.
         [[nodiscard]] auto is_back_lower(const Resource& rhs_resource,
                                          double delta = 0) const -> bool {
             return this->dominance_function_->fast_check_back_dominance(this->value_,
