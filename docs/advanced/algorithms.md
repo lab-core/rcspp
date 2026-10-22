@@ -130,14 +130,14 @@ the usual case).  A model whose clock is an `int` resource while its cost is
 `create_algorithm`, after the cost's, and defaults to it:
 
 ```cpp
-using Comp = rcspp::ResourceTypeComposition<rcspp::RealResource, rcspp::IntResource>;
-using LC = rcspp::LabelList<Comp>;
-rcspp::AlgorithmParams<LC> params;
+using Resources = rcspp::ResourceTypeComposition<rcspp::RealResource, rcspp::IntResource>;
+using Labels = rcspp::LabelList<Resources>;
+rcspp::AlgorithmParams<Labels> params;
 params.direction = rcspp::SearchDirection::Bidirectional;
 params.critical_resource_index = 0;  // the first int component
 params.half_way_point = 500;
 // cost type RealResource, clock type IntResource
-auto result = graph.solve<rcspp::SimpleDominanceAlgorithm, rcspp::RealResource, LC,
+auto result = graph.solve<rcspp::SimpleDominanceAlgorithm, rcspp::RealResource, Labels,
                           rcspp::IntResource>(std::move(params));
 ```
 
@@ -552,7 +552,7 @@ params.max_iterations         = 100
 params.seed                   = 42
 
 result = rg.solve(algorithm="greedy", params=params)
-# In C++, use DiversificationSearch<Comp> explicitly to wrap any inner algorithm
+# In C++, use DiversificationSearch explicitly to wrap any inner algorithm
 ```
 
 ## Search directions
@@ -765,7 +765,7 @@ result = rg.solve(algorithm="simple", params=bp)
 In C++:
 
 ```cpp
-BucketAlgorithmParams<LabelBuckets<Comp>> bp;
+BucketAlgorithmParams<LabelBuckets<Resources>> bp;
 bp.range_buckets = 200;
 bp.bucket_resource_index = 0;
 bp.sort_resource_index = 1;

@@ -237,9 +237,9 @@ cannot express backward semantics cannot produce a correct answer at all.
 In C++, a bidirectional search is `SimpleDominanceAlgorithm` with `params.direction =
 SearchDirection::Bidirectional`; the class behind it is internal
 (`rcspp::detail::BidirectionalDominanceAlgorithm`). An int clock beside a real cost is
-`solve<SimpleDominanceAlgorithm, RealResource, LC, IntResource>`: the clock's type is the
-last template parameter and defaults to the cost's. `SolveResult::bidirectional`, empty from
-every other algorithm, reports `bounded_by_half_way`, `half_way_off_reason` and
+`solve<SimpleDominanceAlgorithm, RealResource, LabelContainerType, IntResource>`: the clock's
+type is the last template parameter and defaults to the cost's. `SolveResult::bidirectional`,
+empty from every other algorithm, reports `bounded_by_half_way`, `half_way_off_reason` and
 `number_of_joined_paths`.
 
 See `docs/advanced/algorithms.md` for the full description.
@@ -251,8 +251,7 @@ See `docs/advanced/algorithms.md` for the full description.
 ### Single resource
 
 ```cpp
-using RG = ResourceGraph<RealResource>;
-RG graph;
+ResourceGraph<RealResource> graph;
 graph.add_resource<RealResource>(
     std::make_unique<AdditionExtensionFunction<RealResource>>(),
     std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0),
@@ -269,8 +268,7 @@ auto result = graph.solve();
 ### Multiple resources
 
 ```cpp
-using RG = ResourceGraph<RealResource, IntResource>;
-RG graph;
+ResourceGraph<RealResource, IntResource> graph;
 graph.add_resource<RealResource>(…);   // index 0
 graph.add_resource<IntResource>(…);    // index 1
 
