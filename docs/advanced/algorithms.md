@@ -210,8 +210,8 @@ checks refuse a clamp that differs from the node's bound, in either direction.
 
 One of the checks can be answered from the *types* alone, and C++ exposes it as a trait,
 `rcspp::declares_directional_resource_kind_v<ExtensionFunctionType>` (in
-`rcspp/resource/presets.hpp`): the extension function declares a `DirectionalResourceKind` other
-than `Unspecified`.
+`rcspp/resource/functions/extension/extension_function.hpp`): the extension function declares a
+`DirectionalResourceKind` other than `Unspecified`.
 
 Every preset asserts it on its own extension, so a preset whose extension has no backward
 reading does not compile.  It says nothing about the feasibility function paired with it: that

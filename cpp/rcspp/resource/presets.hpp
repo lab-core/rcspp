@@ -38,27 +38,6 @@
 /// whose extension has no backward reading fails to compile. Whether the rest of the quadruple fits
 /// depends on its settings, which the model checks test before a backward or bidirectional solve.
 
-namespace rcspp {
-
-/// @brief Whether an extension function type declares a directional resource kind: the one backward
-///        requirement a type alone can answer.
-///
-/// It says nothing about the feasibility function paired with it: whether that suits the
-/// extension depends on its settings (bounds, windows, forbidden sets), which the model checks
-/// test before a backward or bidirectional solve. Not enforced by `add_resource`, since
-/// forward-only models do not need it:
-///
-/// @code
-/// static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
-/// @endcode
-///
-/// @tparam ExtensionFunctionType Concrete extension function type.
-template <typename ExtensionFunctionType>
-inline constexpr bool declares_directional_resource_kind_v =
-    directional_resource_kind_of_v<ExtensionFunctionType> != DirectionalResourceKind::Unspecified;
-
-}  // namespace rcspp
-
 namespace rcspp::presets {
 
 namespace detail {

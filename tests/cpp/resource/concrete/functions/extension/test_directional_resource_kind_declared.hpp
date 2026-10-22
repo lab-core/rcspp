@@ -130,7 +130,7 @@ TEST(DirectionalResourceKindDeclared, TraitFallsBackToUnspecified) {
                         RealResource* /*extended_resource*/) override {}
     };
 
-    static_assert(!DeclaresDirectionalResourceKind<NoConstant>);
+    static_assert(!HasStaticDirectionalResourceKind<NoConstant>);
     static_assert(directional_resource_kind_of_v<NoConstant> ==
                   DirectionalResourceKind::Unspecified);
     EXPECT_EQ(NoConstant{}.directional_resource_kind(), DirectionalResourceKind::Unspecified);

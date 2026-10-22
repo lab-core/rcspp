@@ -30,9 +30,14 @@ template <typename ResourceType>
 class Arc;
 
 /// @brief An extension function type with a static @c kind member that names its directional
-/// resource kind.
+///        resource kind, @c Unspecified included.
+///
+/// It tests for the member only. Whether the type declares a kind a backward or bidirectional solve
+/// can use, one other than @c Unspecified, is @ref declares_directional_resource_kind_v: a form
+/// whose kind depends on its arguments, such as @c ThresholdExtensionForm over an unsigned type,
+/// has the member but declares no usable kind.
 template <typename ExtensionFunctionType>
-concept DeclaresDirectionalResourceKind = requires {
+concept HasStaticDirectionalResourceKind = requires {
     { ExtensionFunctionType::kind } -> std::convertible_to<DirectionalResourceKind>;
 };
 
@@ -43,7 +48,7 @@ struct DirectionalResourceKindOf {
         static constexpr DirectionalResourceKind value = DirectionalResourceKind::Unspecified;
 };
 
-template <DeclaresDirectionalResourceKind ExtensionFunctionType>
+template <HasStaticDirectionalResourceKind ExtensionFunctionType>
 struct DirectionalResourceKindOf<ExtensionFunctionType> {
         static constexpr DirectionalResourceKind value = ExtensionFunctionType::kind;
 };
@@ -53,6 +58,23 @@ struct DirectionalResourceKindOf<ExtensionFunctionType> {
 template <typename ExtensionFunctionType>
 inline constexpr DirectionalResourceKind directional_resource_kind_of_v =
     DirectionalResourceKindOf<ExtensionFunctionType>::value;
+
+/// @brief Whether an extension function type declares a directional resource kind: the one backward
+///        requirement a type alone can answer.
+///
+/// It says nothing about the feasibility function paired with it: whether that suits the
+/// extension depends on its settings (bounds, windows, forbidden sets), which the model checks
+/// test before a backward or bidirectional solve. Every preset asserts it on its extension. Not
+/// enforced by `add_resource`, since forward-only models do not need it:
+///
+/// @code
+/// static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
+/// @endcode
+///
+/// @tparam ExtensionFunctionType Concrete extension function type.
+template <typename ExtensionFunctionType>
+inline constexpr bool declares_directional_resource_kind_v =
+    directional_resource_kind_of_v<ExtensionFunctionType> != DirectionalResourceKind::Unspecified;
 
 /// @brief Abstract base class defining the extension function for a resource type.
 ///

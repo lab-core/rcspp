@@ -5,7 +5,7 @@
 
 // Backward coherence at compile time: the trait, and the forward-only models it must not block.
 //
-// Every preset asserts `declares_directional_resource_kind_v<Ext>` on its extension; `add_resource`
+// Every preset asserts `declares_directional_resource_kind_v` on its extension; `add_resource`
 // does not, since a model never solved bidirectionally needs no directional resource kind. This
 // file pins the traits' answers with static_asserts, and checks that forward-only models the trait
 // flags still register, solve forward, and are refused by the model checks before a bidirectional
@@ -173,9 +173,11 @@ TEST(BackwardCoherence, AnAccumulationAgainstDueDatesIsAValidForwardOnlyModel) {
     bc::expect_refused_bidirectionally(build().get(), "component 1", "CapacityExtensionFunction");
 }
 
-// An unsigned time window declares no directional resource kind, but forward it is correct.
+// An unsigned time window declares no directional resource kind, but forward it is correct. It
+// still has the static member, set to Unspecified, so the concept and the trait answer differently.
 TEST(BackwardCoherence, AnUnsignedTimeWindowIsAValidForwardOnlyModel) {
     namespace bc = backward_coherence_test;
+    static_assert(HasStaticDirectionalResourceKind<TimeWindowExtensionFunction<UIntResource>>);
     static_assert(directional_resource_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
                   DirectionalResourceKind::Unspecified);
     static_assert(!declares_directional_resource_kind_v<TimeWindowExtensionFunction<UIntResource>>);
