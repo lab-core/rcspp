@@ -137,8 +137,8 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         ///
         /// @param rhs_resource The resource to compare against.
         /// @param delta        Relaxation tolerance (default 0).
-        /// @return `true` if this resource is considered lower than (dominated by) `rhs_resource`
-        ///         within the given tolerance.
+        /// @return `true` if this resource (partially) dominates `rhs_resource` within the given
+        ///         tolerance.
         [[nodiscard]] auto is_lower(const Resource& rhs_resource, double delta = 0) const -> bool {
             return this->dominance_function_->fast_check_dominance(this->value_,
                                                                    rhs_resource.value_,
@@ -152,8 +152,8 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         ///
         /// @param rhs_resource The resource to compare against.
         /// @param delta        Relaxation tolerance (default 0).
-        /// @return `true` if this resource is backward-dominated by `rhs_resource` within the
-        ///         tolerance.
+        /// @return `true` if this resource (partially) dominates `rhs_resource` going backward,
+        ///         within the tolerance.
         [[nodiscard]] auto is_back_lower(const Resource& rhs_resource,
                                          double delta = 0) const -> bool {
             return this->dominance_function_->fast_check_back_dominance(this->value_,
