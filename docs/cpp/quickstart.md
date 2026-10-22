@@ -42,7 +42,7 @@ std::cout << "Cost: " << result.solutions[0].cost << "\n"; // 25.0
 using namespace rcspp;
 
 // time windows per node: {node_id: {ready, due}}
-std::unordered_map<size_t, std::pair<double,double>> tw = {
+std::map<size_t, std::pair<double, double>> tw = {
     {0, {0.0, 0.0}},
     {1, {5.0, 20.0}},
     {2, {0.0, 100.0}},
@@ -114,16 +114,18 @@ while (true) {
 
 ```cpp
 // Default (optimal): SimpleDominanceAlgorithm
-auto result = graph.solve();
+auto optimal = graph.solve();
+
+AlgorithmParams<LabelList<Resources>> params;
 
 // Greedy (fast, non-optimal)
-auto result = graph.solve<GreedyAlgorithm, RealResource, LabelList<Resources>>(ub, params);
+auto greedy = graph.solve<GreedyAlgorithm, RealResource, LabelList<Resources>>(ub, params);
 
 // Diversification search — collect N diverse solutions
-AlgorithmParams<LabelList<Resources>> params;
 params.max_solutions = 10;
 params.max_iterations = 50;
-auto result = graph.solve<DiversificationSearch, RealResource, LabelList<Resources>>(ub, params);
+auto diverse =
+    graph.solve<DiversificationSearch, RealResource, LabelList<Resources>>(ub, params);
 ```
 
 ---
