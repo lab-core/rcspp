@@ -17,8 +17,8 @@ namespace rcspp {
 ///
 /// @note @c override, not @c final: @c IntersectionFeasibilityFunction narrows @c join_rule().
 ///
-/// @tparam ResourceType    The container resource type. Must expose `intersects()`.
-/// @tparam Base The base to insert above, normally @c FeasibilityFunction<ResourceType>.
+/// @tparam ResourceType The container resource type. Must expose `intersects()`.
+/// @tparam Base         The base to insert above, normally @c FeasibilityFunction<ResourceType>.
 template <typename ResourceType, typename Base>
 class DisjointJoinFeasibilityForm : public Base {
     public:

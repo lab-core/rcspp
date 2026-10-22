@@ -50,8 +50,8 @@ namespace rcspp {
 ///       `Clonable<Derived, ThresholdExtensionForm<ResourceType, ExtensionFunction<ResourceType>>,
 ///       ExtensionFunction<ResourceType>>`.
 ///
-/// @tparam ResourceType    The scalar resource type.
-/// @tparam Base The base to insert above, normally @c ExtensionFunction<ResourceType>.
+/// @tparam ResourceType The scalar resource type.
+/// @tparam Base         The base to insert above, normally @c ExtensionFunction<ResourceType>.
 /// @tparam ValueType    The resource's arithmetic value type, and no other.
 template <typename ResourceType, typename Base,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
@@ -190,13 +190,12 @@ class ThresholdExtensionForm
 };
 
 /// @brief A @ref ThresholdExtensionForm for additive resources: forward adds the arc's consumption,
-/// backward
-///        subtracts it.
+///        backward subtracts it.
 ///
 /// Time windows and capacities are built on it.
 ///
-/// @tparam ResourceType    The scalar resource type.
-/// @tparam Base The base to insert above, normally @c ExtensionFunction<ResourceType>.
+/// @tparam ResourceType The scalar resource type.
+/// @tparam Base         The base to insert above, normally @c ExtensionFunction<ResourceType>.
 /// @tparam ValueType    The resource's arithmetic value type.
 template <typename ResourceType, typename Base,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>

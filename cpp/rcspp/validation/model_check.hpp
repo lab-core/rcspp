@@ -53,8 +53,7 @@ class ModelCheck : public PreSolveStage<ResourceType> {
                 std::vector<DirectionalResourceKind> kinds;
 
                 /// @brief Component @p index's directional resource kind; @c Unspecified past the
-                /// arc's
-                ///        components.
+                ///        arc's components.
                 [[nodiscard]] DirectionalResourceKind kind(size_t index) const {
                     return index < kinds.size() ? kinds[index]
                                                 : DirectionalResourceKind::Unspecified;

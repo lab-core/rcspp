@@ -209,8 +209,9 @@ checks refuse a clamp that differs from the node's bound, in either direction.
 #### C++ callers can ask for one of these at compile time
 
 One of the checks can be answered from the *types* alone, and C++ exposes it as a trait,
-`rcspp::declares_directional_resource_kind_v<Ext>` (in `rcspp/resource/presets.hpp`): the extension
-function declares a `DirectionalResourceKind` other than `Unspecified`.
+`rcspp::declares_directional_resource_kind_v<ExtensionFunctionType>` (in
+`rcspp/resource/presets.hpp`): the extension function declares a `DirectionalResourceKind` other
+than `Unspecified`.
 
 Every preset asserts it on its own extension, so a preset whose extension has no backward
 reading does not compile.  It says nothing about the feasibility function paired with it: that
@@ -270,13 +271,13 @@ on the model.
 depends on where the container's elements come from:
 
 - `NgPathExtensionFunction` reads them off the arc's *endpoints* and swaps which endpoint is "the
-  node being left" per direction — `DirectionalResourceKind::ArcEndpoints`. The memory at `v` is the nodes
-  before it going forward and the nodes after it going backward. Correct.
+  node being left" per direction — `DirectionalResourceKind::ArcEndpoints`. The memory at `v` is the
+  nodes before it going forward and the nodes after it going backward. Correct.
 - `UnionExtensionFunction`, `IntersectionExtensionFunction` and `SubtractExtensionFunction`
-  accumulate the arc's *value*, which is the same object both ways — `DirectionalResourceKind::ArcValue`. With
-  the usual `{origin}` payload the backward memory at `v` contains `v` itself, so the feasibility
-  test rejects every backward label the moment it is created and the backward search keeps nothing
-  but its start label.
+  accumulate the arc's *value*, which is the same object both ways —
+  `DirectionalResourceKind::ArcValue`. With the usual `{origin}` payload the backward memory at `v`
+  contains `v` itself, so the feasibility test rejects every backward label the moment it is created
+  and the backward search keeps nothing but its start label.
 
 The second is the obvious way to write an elementary path and it fails silently, so the model
 checks refuse that pairing for a backward or bidirectional solve. Use
@@ -590,13 +591,13 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
-(`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels
-in the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
+(`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels in
+the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
 `with_direction<TargetDirection>()`, an empty copy of themselves that compares in direction
 `TargetDirection`. A container of your own that does not declare it is refused for a backward
-search. Since the class that searches
-backward is not the one you name,
-`create_algorithm<Strategy>(params)` returns a `std::unique_ptr<Algorithm<R, LC>>`.
+search. Since the class that searches backward is not the one you name,
+`create_algorithm<Strategy>(params)` returns a
+`std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
 
 **The model checks run first, always.** A backward or bidirectional solve runs the checks its
 direction needs ([Model checks](#model-checks)) on the whole model before anything else: before any
@@ -607,11 +608,12 @@ whether the solve may reduce the graph; it never skips a check. A forward search
 ## Model checks
 
 A forward search reads nothing but the forward functions. A search that also extends labels
-**backward**, from the sinks, reads each resource's backward semantics: its `directional_resource_kind()`, its
-backward extension, start and feasibility test. A **bidirectional** search also **joins** a forward
-and a backward half into one path, so it reads each component's `join_rule()` as well. A model whose
-backward semantics are missing or incoherent would let those searches return infeasible paths, or
-none, while reporting `complete`. The model checks find that before any label exists:
+**backward**, from the sinks, reads each resource's backward semantics: its
+`directional_resource_kind()`, its backward extension, start and feasibility test. A
+**bidirectional** search also **joins** a forward and a backward half into one path, so it reads
+each component's `join_rule()` as well. A model whose backward semantics are missing or incoherent
+would let those searches return infeasible paths, or none, while reporting `complete`. The model
+checks find that before any label exists:
 
 | Check | Needed by | What it checks |
 |---|---|---|

@@ -56,9 +56,9 @@ struct JoinOptions {
 /// labels are never stored); each pair is checked with `can_be_joined`, and its cost is the sum of
 /// the two halves (the join arc is inside the forward half). Runs after both searches finish.
 ///
-/// @tparam ResourceType The resource type carried by labels.
-/// @tparam CriticalResourceType   The critical resource's type -- the clock the half-way rule
-/// reads.
+/// @tparam ResourceType         The resource type carried by labels.
+/// @tparam CriticalResourceType The critical resource's type -- the clock the half-way rule
+///                              reads.
 template <typename ResourceType, typename CriticalResourceType>
 class Joiner {
     public:
@@ -70,10 +70,10 @@ class Joiner {
         /// a pair's total cost, or on a forward label plus the cheapest backward label at the
         /// node; never on one half's cost alone, which is not a lower bound under reduced costs.
         ///
-        /// @tparam ForwardContainerType Per-node forward label container.
+        /// @tparam ForwardContainerType  Per-node forward label container.
         /// @tparam BackwardContainerType Per-node backward label container.
-        /// @tparam OnSolution   Callable `(double cost, std::vector<size_t> arc_ids,
-        ///                      size_t end_node_id)`.
+        /// @tparam OnSolution            Callable `(double cost, std::vector<size_t> arc_ids,
+        ///                               size_t end_node_id)`.
         /// @param graph                 The model.
         /// @param forward_by_pos        Forward labels, indexed by node position.
         /// @param backward_by_pos       Backward labels, indexed by node position.

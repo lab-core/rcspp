@@ -92,8 +92,7 @@ using SharedNodeBounds = std::shared_ptr<const NodeBounds<ValueType>>;
 /// @endcode
 ///
 /// @tparam ValueType The resource's arithmetic value type, deduced from the two defaults, which
-/// must
-///           agree (write `0.0`, not `0`, for a real resource).
+///                   must agree (write `0.0`, not `0`, for a real resource).
 /// @param default_lower Lower bound at every node absent from @p by_node.
 /// @param default_upper Upper bound at every node absent from @p by_node.
 /// @param by_node       Per-node `{lower, upper}` windows. May be empty.

@@ -20,8 +20,9 @@ New features are summarised, with a pointer to where they are documented.
   and now fails when it is built. Model a depot that a route passes through as separate source and
   sink nodes, as the VRP example does.
 - **Breaking: `ResourceGraph::create_algorithm<Strategy>(params)` returns
-  `std::unique_ptr<Algorithm<R, LC>>`**, not `std::unique_ptr<Strategy<R, LC>>`: the class that
-  searches in `params.direction` is not always `Strategy` itself. Code that stored the result in a
+  `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`**, not
+  `std::unique_ptr<Strategy<ResourceType, LabelContainerType>>`: the class that searches in
+  `params.direction` is not always `Strategy` itself. Code that stored the result in a
   `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
   `auto`, or build the algorithm directly. With constructor arguments beyond the params,
   `create_algorithm` still returns the type it names.
@@ -65,7 +66,8 @@ New features are summarised, with a pointer to where they are documented.
   direction raises `ValueError`.
   An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
   throws `std::invalid_argument` when it is created or solved, as does a backward search with a
-  label container that declares no `with_direction<TargetDirection>()` (`LabelList` and `LabelBuckets` both do).
+  label container that declares no `with_direction<TargetDirection>()` (`LabelList` and
+  `LabelBuckets` both do).
   A backward search returns complete paths in forward order. See "Search directions" in
   `docs/advanced/algorithms.md`.
 - **Bidirectional labelling**: `SimpleDominanceAlgorithm` with
@@ -111,19 +113,19 @@ New features are summarised, with a pointer to where they are documented.
   threshold extension of your own is checked however it is written, and must accept any value of
   its type. A feasibility function's floor is checked the same way, by asking its backward test.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
-  code compiling: `ExtensionFunction::directional_resource_kind()` and `start_back()`; on `FeasibilityFunction`
-  `join_rule()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition
-  `DominanceFunction` gains a `check_back_dominance()` whose default refuses, and a composition
-  `CostFunction` an `is_additive()` whose default refuses: a backward label's cost is its
-  suffix's, and the join adds the two halves' costs, so a cost that reads a threshold's value is
-  refused. An accumulation whose halves the join adds, through its cost or its join test, must be
-  a sum, which the checks verify by running the extension. The model checks refuse a model whose
-  declarations are missing or incoherent, naming the component. A backward or bidirectional
-  search is also refused a constraint a backward label cannot check exactly, a test of what the
-  path has collected up to a node such as per-node caps on `SizeFeasibilityFunction` or per-node
-  windows on an accumulating `MinMaxFeasibilityFunction`; and a backward search a source whose
-  window opens after the value a forward label starts with. See "Model checks" in
-  `docs/advanced/algorithms.md`.
+  code compiling: `ExtensionFunction::directional_resource_kind()` and `start_back()`; on
+  `FeasibilityFunction` `join_rule()` and `requires_nondecreasing()`; and
+  `CostFunction::cost_form()`. A composition `DominanceFunction` gains a `check_back_dominance()`
+  whose default refuses, and a composition `CostFunction` an `is_additive()` whose default refuses:
+  a backward label's cost is its suffix's, and the join adds the two halves' costs, so a cost that
+  reads a threshold's value is refused. An accumulation whose halves the join adds, through its cost
+  or its join test, must be a sum, which the checks verify by running the extension. The model
+  checks refuse a model whose declarations are missing or incoherent, naming the component. A
+  backward or bidirectional search is also refused a constraint a backward label cannot check
+  exactly, a test of what the path has collected up to a node such as per-node caps on
+  `SizeFeasibilityFunction` or per-node windows on an accumulating `MinMaxFeasibilityFunction`; and
+  a backward search a source whose window opens after the value a forward label starts with. See
+  "Model checks" in `docs/advanced/algorithms.md`.
 - **`SolveResult.bidirectional`** (C++ and Python): a bidirectional solve's diagnostics,
   `bounded_by_half_way`, `half_way_off_reason` and `number_of_joined_paths`, as a
   `BidirectionalStats`; empty (`None` in Python) from every other algorithm.
@@ -132,11 +134,12 @@ New features are summarised, with a pointer to where they are documented.
   `UnionExtensionFunction` is refused by the model checks, naming the fix.
 - **Presets**, one call per resource kind, each building its four function objects so that they
   agree (`rcspp/resource/presets.hpp`): `add_cost_resource`, `add_window_resource`,
-  `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`, also in Python,
-  in `rcspp.presets`. Only the cost preset prices its resource; a window or a
-  capacity costs nothing. Each asserts at compile time that its extension declares a
-  directional resource kind; C++ callers can assert the same of their own extensions with
-  `rcspp::declares_directional_resource_kind_v<Ext>`. The rest of a pairing is checked by the model checks.
+  `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`, also in Python, in
+  `rcspp.presets`. Only the cost preset prices its resource; a window or a capacity costs nothing.
+  Each asserts at compile time that its extension declares a directional resource kind; C++ callers
+  can assert the same of their own extensions with
+  `rcspp::declares_directional_resource_kind_v<ExtensionFunctionType>`. The rest of a pairing is
+  checked by the model checks.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.

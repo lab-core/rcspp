@@ -198,7 +198,7 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (mutable overload, rvalue ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(auto&, auto&&)`.
+        /// @tparam Callable        The callable's type, with signature `void(auto&, auto&&)`.
         /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
@@ -211,7 +211,7 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (const overload, rvalue ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(const auto&, auto&&)`.
+        /// @tparam Callable        The callable's type, with signature `void(const auto&, auto&&)`.
         /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
@@ -224,7 +224,7 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (mutable overload, const lvalue ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(auto&, const auto&)`.
+        /// @tparam Callable        The callable's type, with signature `void(auto&, const auto&)`.
         /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
@@ -237,7 +237,8 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors of this and another
         /// composition (const overload, const lvalue ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(const auto&, const auto&)`.
+        /// @tparam Callable        The callable's type, with signature
+        ///                         `void(const auto&, const auto&)`.
         /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The callable to invoke.
@@ -250,7 +251,7 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (mutable overload, forwarding ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(auto&, auto&&)`.
+        /// @tparam Callable           The callable's type, with signature `void(auto&, auto&&)`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Forwarding-ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
@@ -270,7 +271,8 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (const overload, forwarding ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(const auto&, auto&&)`.
+        /// @tparam Callable           The callable's type, with signature
+        ///                            `void(const auto&, auto&&)`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Forwarding-ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
@@ -290,7 +292,8 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (mutable overload, const lvalue ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(auto&, const auto&)`.
+        /// @tparam Callable           The callable's type, with signature
+        ///                            `void(auto&, const auto&)`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Const lvalue ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
@@ -310,7 +313,8 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to paired component vectors using a raw tuple of
         /// right-hand vectors (const overload, const lvalue ref).
         ///
-        /// @tparam Callable The callable's type, with signature `void(const auto&, const auto&)`.
+        /// @tparam Callable           The callable's type, with signature
+        ///                            `void(const auto&, const auto&)`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components Const lvalue ref to the right-hand component tuple.
         /// @param func           The callable to invoke.
@@ -330,9 +334,9 @@ class Composition : public CompositionTag {
         /// @brief Applies a ternary callable to component-vector triples from this and two other
         /// compositions (mutable, both rhs as `IsComposition`).
         ///
-        /// @tparam Callable  The callable's type, with signature `void(auto&, const auto&, const
-        /// auto&)`.
-        /// @tparam CompositionType  A type satisfying `IsComposition`.
+        /// @tparam Callable              The callable's type, with signature
+        ///                               `void(auto&, const auto&, const auto&)`.
+        /// @tparam CompositionType       A type satisfying `IsComposition`.
         /// @tparam SecondCompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition  First right-hand composition.
         /// @param rhs_composition2 Second right-hand composition.
@@ -347,9 +351,9 @@ class Composition : public CompositionTag {
         /// @brief Applies a ternary callable to component-vector triples from this, one
         /// composition, and one raw component tuple (mutable overload).
         ///
-        /// @tparam Callable  The callable's type, with signature `void(auto&, const auto&, const
-        /// auto&)`.
-        /// @tparam CompositionType  A type satisfying `IsComposition`.
+        /// @tparam Callable           The callable's type, with signature
+        ///                            `void(auto&, const auto&, const auto&)`.
+        /// @tparam CompositionType    A type satisfying `IsComposition`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_composition   Right-hand composition.
         /// @param rhs_components2   Right-hand raw component tuple.
@@ -377,9 +381,9 @@ class Composition : public CompositionTag {
         /// @brief Applies a ternary callable to component-vector triples from this and two other
         /// compositions (const overload).
         ///
-        /// @tparam Callable  The callable's type, with signature `void(const auto&, const auto&,
-        /// const auto&)`.
-        /// @tparam CompositionType  A type satisfying `IsComposition`.
+        /// @tparam Callable              The callable's type, with signature
+        ///                               `void(const auto&, const auto&, const auto&)`.
+        /// @tparam CompositionType       A type satisfying `IsComposition`.
         /// @tparam SecondCompositionType A composition: its `get_components()` is read.
         /// @param rhs_composition   First right-hand composition.
         /// @param rhs_composition2  Second right-hand composition.
@@ -423,7 +427,8 @@ class Composition : public CompositionTag {
         ///
         /// Delegates to the raw-tuple overload via `rhs_composition.get_components()`.
         ///
-        /// @tparam Callable The callable's type, with signature `bool(const auto&, const auto&)`.
+        /// @tparam Callable        The callable's type, with signature
+        ///                         `bool(const auto&, const auto&)`.
         /// @tparam CompositionType A type satisfying `IsComposition`.
         /// @param rhs_composition The right-hand composition.
         /// @param func            The predicate to invoke.
@@ -437,7 +442,8 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary predicate to paired component-vector slots and returns the
         /// logical AND (raw-tuple overload).
         ///
-        /// @tparam Callable The callable's type, with signature `bool(const auto&, const auto&)`.
+        /// @tparam Callable           The callable's type, with signature
+        ///                            `bool(const auto&, const auto&)`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_components The right-hand component tuple.
         /// @param func           The predicate to invoke.
@@ -488,10 +494,10 @@ class Composition : public CompositionTag {
         ///
         /// Both compositions must have the same number of components in each type slot.
         ///
-        /// @tparam Callable The callable's type, with signature `void(ComponentClass<BT>&, const
-        ///              ComponentClass<BT>&)`.
+        /// @tparam Callable               The callable's type, with signature
+        ///                                `void(ComponentClass<BT>&, const ComponentClass<BT>&)`.
         /// @tparam CompositionOrTupleType Any composition or tuple whose per-type vectors pair with
-        /// this one.
+        ///                                this one.
         /// @param rhs_composition The right-hand composition to pair with.
         /// @param func            The callable to invoke.
         template <typename Callable, typename CompositionOrTupleType>
@@ -510,11 +516,11 @@ class Composition : public CompositionTag {
         /// @brief Applies a binary callable to each paired component from this and another
         /// composition (const).
         ///
-        /// @tparam Callable The callable's type, with signature `void(const ComponentClass<BT>&,
-        /// const
-        ///              ComponentClass<BT>&)`.
+        /// @tparam Callable               The callable's type, with signature
+        ///                                `void(const ComponentClass<BT>&,
+        ///                                      const ComponentClass<BT>&)`.
         /// @tparam CompositionOrTupleType Any composition or tuple whose per-type vectors pair with
-        /// this one.
+        ///                                this one.
         /// @param rhs_composition The right-hand composition to pair with.
         /// @param func            The callable to invoke.
         template <typename Callable, typename CompositionOrTupleType>
@@ -537,10 +543,10 @@ class Composition : public CompositionTag {
         ///
         /// All three compositions must have the same number of components per type slot.
         ///
-        /// @tparam Callable  The callable's type, with signature
-        ///               `void(ComponentClass<BT>&, const ComponentClass<BT>&,
-        ///                     const ComponentClass<BT>&)`.
-        /// @tparam FirstCompositionType First right-hand composition type.
+        /// @tparam Callable              The callable's type, with signature
+        ///                               `void(ComponentClass<BT>&, const ComponentClass<BT>&,
+        ///                                     const ComponentClass<BT>&)`.
+        /// @tparam FirstCompositionType  First right-hand composition type.
         /// @tparam SecondCompositionType Second right-hand composition type.
         /// @param rhs1  First right-hand composition.
         /// @param rhs2  Second right-hand composition.
@@ -562,10 +568,11 @@ class Composition : public CompositionTag {
         /// @brief Applies a ternary callable to each component triple from this and two other
         /// compositions (const).
         ///
-        /// @tparam Callable  The callable's type, with signature
-        ///               `void(const ComponentClass<BT>&, const ComponentClass<BT>&,
-        ///                     const ComponentClass<BT>&)`.
-        /// @tparam FirstCompositionType First right-hand composition type.
+        /// @tparam Callable              The callable's type, with signature
+        ///                               `void(const ComponentClass<BT>&,
+        ///                                     const ComponentClass<BT>&,
+        ///                                     const ComponentClass<BT>&)`.
+        /// @tparam FirstCompositionType  First right-hand composition type.
         /// @tparam SecondCompositionType Second right-hand composition type.
         /// @param rhs1  First right-hand composition.
         /// @param rhs2  Second right-hand composition.
@@ -603,10 +610,11 @@ class Composition : public CompositionTag {
         ///
         /// Both compositions must have the same number of components per type slot.
         ///
-        /// @tparam Callable The callable's type, with signature
-        ///              `bool(const ComponentClass<BT>&, const ComponentClass<BT>&)`.
+        /// @tparam Callable               The callable's type, with signature
+        ///                                `bool(const ComponentClass<BT>&,
+        ///                                      const ComponentClass<BT>&)`.
         /// @tparam CompositionOrTupleType Any composition or tuple whose per-type vectors pair with
-        /// this one.
+        ///                                this one.
         /// @param rhs   The right-hand composition to pair with.
         /// @param func  The predicate to invoke.
         /// @return `true` if and only if @p func returns `true` for every paired component.

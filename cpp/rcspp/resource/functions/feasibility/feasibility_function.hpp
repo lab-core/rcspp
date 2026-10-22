@@ -90,8 +90,7 @@ class FeasibilityFunction {
         /// @brief Which join test the bidirectional join applies to this resource.
         ///
         /// May depend on @c directional_resource_kind(): @c MinMaxFeasibilityFunction compares the
-        /// two values
-        /// (@c ValueOrder) under @c Threshold, and tests their sum (@c Custom) under
+        /// two values (@c ValueOrder) under @c Threshold, and tests their sum (@c Custom) under
         /// @c Accumulate. @c Unspecified by default, so a bidirectional solve refuses a function
         /// that declares none.
         ///
@@ -110,8 +109,7 @@ class FeasibilityFunction {
         }
 
         /// @brief The paired extension function's directional resource kind; @c Unspecified until
-        /// the resource
-        ///        is added to a graph.
+        ///        the resource is added to a graph.
         ///
         /// @return The declared directional resource kind of the paired extension function.
         [[nodiscard]] DirectionalResourceKind directional_resource_kind() const {
@@ -181,8 +179,7 @@ class FeasibilityFunction {
         virtual void preprocess(size_t node_id) {}
 
         /// @brief The paired extension function's directional resource kind, set by add_resource
-        /// and copied
-        ///        into every per-node clone.
+        ///        and copied into every per-node clone.
         DirectionalResourceKind directional_resource_kind_ = DirectionalResourceKind::Unspecified;
 };
 

@@ -37,8 +37,7 @@ concept DeclaresDirectionalResourceKind = requires {
 };
 
 /// @brief The directional resource kind of extension function type @p ExtensionFunctionType: its
-/// static @c kind, or
-///        @c Unspecified when it has none.
+///        static @c kind, or @c Unspecified when it has none.
 template <typename ExtensionFunctionType>
 struct DirectionalResourceKindOf {
         static constexpr DirectionalResourceKind value = DirectionalResourceKind::Unspecified;
@@ -50,8 +49,7 @@ struct DirectionalResourceKindOf<ExtensionFunctionType> {
 };
 
 /// @brief Shorthand for @c DirectionalResourceKindOf<ExtensionFunctionType>::value. For checks made
-/// before any object exists,
-///        such as @c declares_directional_resource_kind_v.
+///        before any object exists, such as @c declares_directional_resource_kind_v.
 template <typename ExtensionFunctionType>
 inline constexpr DirectionalResourceKind directional_resource_kind_of_v =
     DirectionalResourceKindOf<ExtensionFunctionType>::value;

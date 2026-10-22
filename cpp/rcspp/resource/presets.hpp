@@ -65,8 +65,8 @@ namespace detail {
 
 /// @brief Registers a preset's four function objects after asserting that they are coherent.
 ///
-/// @tparam ResourceType     The resource type.
-/// @tparam Graph The graph type, deduced.
+/// @tparam ResourceType The resource type.
+/// @tparam Graph        The graph type, deduced.
 /// @param graph       The graph to register the resource on.
 /// @param extension   The extension function.
 /// @param feasibility The feasibility function.
@@ -95,8 +95,8 @@ void add_coherent_resource(Graph& graph, std::unique_ptr<ExtensionFunctionType> 
 /// Expands to `add_resource(AdditionExtensionFunction, TrivialFeasibilityFunction,
 /// ValueCostFunction, ValueDominanceFunction)`.
 ///
-/// @tparam ResourceType     The resource type; normally a signed numerical type.
-/// @tparam Graph The graph type, deduced.
+/// @tparam ResourceType The resource type; normally a signed numerical type.
+/// @tparam Graph        The graph type, deduced.
 /// @param graph The graph to register the resource on.
 template <typename ResourceType, typename Graph>
 void add_cost_resource(Graph& graph) {
@@ -120,11 +120,11 @@ void add_cost_resource(Graph& graph) {
 /// add arrival times to the objective. A model whose objective is the arrival time uses the
 /// four-object form.
 ///
-/// @tparam ResourceType     The resource type. Must be signed: backward extension subtracts.
-/// @tparam Graph The graph type, deduced.
-/// @tparam ValueType     The resource's arithmetic value type. Never deduced from the arguments, so
-/// an
-///               `int` bound on a real resource converts rather than truncating every value.
+/// @tparam ResourceType The resource type. Must be signed: backward extension subtracts.
+/// @tparam Graph        The graph type, deduced.
+/// @tparam ValueType    The resource's arithmetic value type. Never deduced from the arguments, so
+///                      an `int` bound on a real resource converts rather than truncating every
+///                      value.
 /// @param graph       The graph to register the resource on.
 /// @param windows     Per-node `{earliest, latest}` pairs.
 /// @param default_max Bound used at nodes absent from the map.
@@ -147,9 +147,9 @@ void add_window_resource(
 /// @brief @ref add_window_resource for integer windows on a floating-point resource, as
 ///        instances with integer time windows give them. Each bound converts exactly.
 ///
-/// @tparam ResourceType     The resource type, with a floating-point value.
-/// @tparam Graph The graph type, deduced.
-/// @tparam WindowValueType     The windows' integer type, deduced.
+/// @tparam ResourceType    The resource type, with a floating-point value.
+/// @tparam Graph           The graph type, deduced.
+/// @tparam WindowValueType The windows' integer type, deduced.
 /// @param graph   The graph to register the resource on.
 /// @param windows Per-node `{earliest, latest}` pairs.
 template <typename ResourceType, typename Graph, std::integral WindowValueType,
@@ -177,12 +177,11 @@ void add_window_resource(
 /// only an upper limit, so a bidirectional solve cannot check a minimum; 0 holds automatically as
 /// long as every arc load is non-negative, and the model checks refuse a negative one.
 ///
-/// @tparam ResourceType     The resource type. Must be signed.
-/// @tparam Graph The graph type, deduced.
-/// @tparam ValueType     The resource's arithmetic value type. Never deduced from the arguments, so
-/// a
-///               capacity of `5` on a real resource converts to `5.0` rather than truncating
-///               every consumption.
+/// @tparam ResourceType The resource type. Must be signed.
+/// @tparam Graph        The graph type, deduced.
+/// @tparam ValueType    The resource's arithmetic value type. Never deduced from the arguments, so
+///                      a capacity of `5` on a real resource converts to `5.0` rather than
+///                      truncating every consumption.
 /// @param graph    The graph to register the resource on.
 /// @param capacity The upper bound at every node without its own.
 /// @param per_node Optional per-node capacities; empty means uniform.
@@ -212,9 +211,9 @@ void add_capacity_resource(Graph& graph, std::type_identity_t<ValueType> capacit
 /// InclusionDominanceFunction)`. The forbidden set `{v}` is derived for every node that
 /// @p neighborhoods mentions, as a key or a member.
 ///
-/// @tparam ResourceType     The container resource type.
-/// @tparam Graph The graph type, deduced.
-/// @tparam ValueType     The element type stored in the sets.
+/// @tparam ResourceType The container resource type.
+/// @tparam Graph        The graph type, deduced.
+/// @tparam ValueType    The element type stored in the sets.
 /// @param graph         The graph to register the resource on.
 /// @param neighborhoods Each node's ng-neighborhood. A node absent from the map forgets every
 ///                      previously visited node on arrival, so give every node a neighborhood.
@@ -253,9 +252,9 @@ void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<ValueType>> ne
 ///       node and shared by the arcs. Use a bitset memory such as `SizeTBitsetResource`, which
 ///       stores each set in `n` bits rather than one tree node per element.
 ///
-/// @tparam ResourceType     The container resource type.
-/// @tparam Graph The graph type, deduced.
-/// @tparam ValueType     The element type stored in the sets.
+/// @tparam ResourceType The container resource type.
+/// @tparam Graph        The graph type, deduced.
+/// @tparam ValueType    The element type stored in the sets.
 /// @param graph    The graph to register the resource on.
 /// @param node_ids Every node id in the model (resources are registered before nodes). A node left
 ///                 out gets no neighborhood, and elementarity stops holding through it.

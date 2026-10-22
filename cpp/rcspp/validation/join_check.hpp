@@ -40,9 +40,8 @@ template <typename ResourceType>
 class JoinCheck final : public ModelCheck<ResourceType> {
     public:
         /// @brief Pairs @c directional_resource_kind() from one arc's extender with @c join_rule()
-        /// and the
-        ///        other declarations of one node's resource, by component index, then checks the
-        ///        accumulations and probes the composition's join test.
+        ///        and the other declarations of one node's resource, by component index, then
+        ///        checks the accumulations and probes the composition's join test.
         void check(const Graph<ResourceType>& graph, ModelReport* report) const override {
             const auto model = this->declarations(graph);
             const auto* node = model.node;

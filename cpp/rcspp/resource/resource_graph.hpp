@@ -288,16 +288,16 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// class that does, behind its base class. Given other constructor arguments, it returns
         /// @p AlgorithmType itself.
         ///
-        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
-        /// @tparam LabelContainerType The per-node label container.
-        /// @tparam CostResourceType   The cost resource type.
-        /// @tparam CriticalResourceType  The resource type whose value decides where a
-        /// bidirectional
-        ///                            search's two halves stop (its half-way point); defaults to
-        ///                            @p CostResourceType.
+        /// @tparam AlgorithmType        The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam LabelContainerType   The per-node label container.
+        /// @tparam CostResourceType     The cost resource type.
+        /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
+        ///                              search's two halves stop (its half-way point); defaults to
+        ///                              @p CostResourceType.
         /// @param args The constructor arguments after the resource factory.
-        /// @return The algorithm: a @c std::unique_ptr<Algorithm<R, LabelContainerType>> when
-        ///         @p args is the params alone.
+        /// @return The algorithm: a
+        ///         @c std::unique_ptr<Algorithm<ResourceCompositionType, LabelContainerType>>
+        ///         when @p args is the params alone.
         /// @throws std::invalid_argument when @p AlgorithmType cannot search in the direction the
         ///         params ask for.
         template <template <typename, typename> class AlgorithmType,
@@ -308,8 +308,8 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
                 // Only the params: the class to build depends on params.direction, known at run
                 // time (forward builds AlgorithmType; backward and bidirectional build other
-                // classes), so this returns their common base, Algorithm<ResourceType,
-                // LabelContainerType>.
+                // classes), so this returns their common base,
+                // Algorithm<ResourceCompositionType, LabelContainerType>.
                 return detail::make_directional_algorithm<AlgorithmType,
                                                           ResourceCompositionType,
                                                           LabelContainerType,
@@ -331,13 +331,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// The search runs in `params.direction`. A backward or bidirectional search first runs
         /// the model checks (see @ref check_model).
         ///
-        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
-        /// @tparam CostResourceType   The numerical resource type holding the cost slot.
-        /// @tparam LabelContainerType The per-node label container.
-        /// @tparam CriticalResourceType  The resource type whose value decides where a
-        /// bidirectional
-        ///                            search's two halves stop (its half-way point); defaults to
-        ///                            @p CostResourceType.
+        /// @tparam AlgorithmType        The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam CostResourceType     The numerical resource type holding the cost slot.
+        /// @tparam LabelContainerType   The per-node label container.
+        /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
+        ///                              search's two halves stop (its half-way point); defaults to
+        ///                              @p CostResourceType.
         /// @param upper_bound Cost upper bound; solutions above it are discarded.
         /// @param params      The algorithm's parameters, including the search direction.
         /// @param preprocess  Whether to reduce the graph before solving.

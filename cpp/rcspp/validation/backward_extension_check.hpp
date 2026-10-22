@@ -64,8 +64,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             : backward_labels_end_paths_(backward_labels_end_paths) {}
 
         /// @brief Pairs @c directional_resource_kind() from one arc's extender with the other
-        /// declarations of
-        ///        one node's resource, by component index, then probes the model's functions.
+        ///        declarations of one node's resource, by component index, then probes the model's
+        ///        functions.
         void check(const Graph<ResourceType>& graph, ModelReport* report) const override {
             const auto model = this->declarations(graph);
             // No arcs at all: nothing to read the declarations from.

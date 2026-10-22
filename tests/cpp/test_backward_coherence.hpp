@@ -39,8 +39,7 @@ static_assert(declares_directional_resource_kind_v<AdditionExtensionFunction<Rea
 namespace backward_coherence_test {
 
 /// @brief A custom extension function that declares no directional resource kind, as a forward-only
-/// author
-///        would write it.
+///        author would write it.
 class DoublingExtension : public Clonable<DoublingExtension, ExtensionFunction<RealResource>> {
     public:
         void extend(const RealResource& resource, const RealResource& extender_value,

@@ -12,16 +12,16 @@
 namespace rcspp::detail {
 
 /// @brief Whether label container @p LabelContainerType declares its own
-/// `with_direction<Direction>()`: an empty copy of
-///        itself, configured the same, that compares labels in direction @p Direction.
+///        `with_direction<Direction>()`: an empty copy of itself, configured the same, that
+///        compares labels in direction @p Direction.
 ///
-/// The member must be declared by @p LabelContainerType, not inherited: a container derived from @c
-/// LabelList that does not declare it would otherwise be swapped for a plain list. A member
+/// The member must be declared by @p LabelContainerType, not inherited: a container derived from
+/// @c LabelList that does not declare it would otherwise be swapped for a plain list. A member
 /// function inherited from a base has the base's member-pointer type, which the second test
 /// rejects.
 ///
-/// @tparam LabelContainerType  The container type.
-/// @tparam Direction The direction policy.
+/// @tparam LabelContainerType The container type.
+/// @tparam Direction          The direction policy.
 template <typename LabelContainerType, typename Direction>
 concept RebindsDirection =
     requires(const LabelContainerType& container) {
@@ -31,18 +31,18 @@ concept RebindsDirection =
                                    .template with_direction<Direction>()) (LabelContainerType::*)()
                           const>;
 
-/// @brief The container a search in @p Direction keeps, given the container type @p
-/// LabelContainerType its params hold.
+/// @brief The container a search in @p Direction keeps, given the container type
+/// @p LabelContainerType its params hold.
 ///
 /// A container checks dominance itself, and a backward label dominates in the reverse order on a
 /// threshold resource, so a backward search cannot keep the caller's forward container: it needs
 /// the same container comparing backward. Forward keeps @p LabelContainerType, whatever it is. Any
-/// other direction asks the container for a copy of itself in that direction (@ref
-/// RebindsDirection); a container that cannot make one has no rebinding, and a search in that
+/// other direction asks the container for a copy of itself in that direction
+/// (@ref RebindsDirection); a container that cannot make one has no rebinding, and a search in that
 /// direction cannot be built with it.
 ///
-/// @tparam LabelContainerType  The container type of the algorithm's params.
-/// @tparam Direction The search's direction policy.
+/// @tparam LabelContainerType The container type of the algorithm's params.
+/// @tparam Direction          The search's direction policy.
 template <typename LabelContainerType, typename Direction>
 struct rebind_direction;
 

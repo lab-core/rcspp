@@ -20,9 +20,9 @@ namespace test_util {
 /// the forward clamp (@c earliest[destination]) nor the backward clamp (@c latest[origin]) may bind
 /// over the sampled range, since each breaks the biconditional; test clamps with explicit cases.
 ///
-/// @tparam ExtensionFunctionType  The extension function under test.
-/// @tparam ResourceType The scalar resource type.
-/// @tparam ValueType    The underlying arithmetic value type.
+/// @tparam ExtensionFunctionType The extension function under test.
+/// @tparam ResourceType          The scalar resource type.
+/// @tparam ValueType             The underlying arithmetic value type.
 /// @param fn         The extension function, already preprocessed for the arc under test.
 /// @param arc_value  The arc's consumption.
 /// @param samples    Forward values @c x to probe.

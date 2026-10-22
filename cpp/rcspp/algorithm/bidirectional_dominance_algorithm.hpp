@@ -55,9 +55,9 @@ enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 /// @c ResourceGraph::solve, and the model checks it needs (@c BackwardExtensionCheck and
 /// @c JoinCheck) run before the solve.
 ///
-/// @tparam ResourceType       The resource type carried by labels.
-/// @tparam LabelContainerType The forward per-node container.
-/// @tparam CriticalResourceType         The critical resource's type (the clock).
+/// @tparam ResourceType         The resource type carried by labels.
+/// @tparam LabelContainerType   The forward per-node container.
+/// @tparam CriticalResourceType The critical resource's type (the clock).
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
           typename CriticalResourceType = RealResource>
     requires ResourceTypeConcept<ResourceType>
@@ -537,8 +537,7 @@ class BidirectionalDominanceAlgorithm
         ///
         /// @param graph The graph whose arcs carry the extenders.
         /// @return The critical component's declared directional resource kind, or `Unspecified`
-        /// when the
-        ///         graph has no arc carrying an extender.
+        ///         when the graph has no arc carrying an extender.
         [[nodiscard]] DirectionalResourceKind critical_directional_resource_kind(
             const Graph<ResourceType>& graph) const {
             // One arc suffices: all extenders come from one factory, so they share one component

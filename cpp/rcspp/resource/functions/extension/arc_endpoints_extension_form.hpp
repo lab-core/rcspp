@@ -28,12 +28,11 @@ namespace rcspp {
 /// hold sets filtered by that node, and the join can compare them directly.
 ///
 /// @note Use `DirectionalExtensionForm<ExtensionFunction<ResourceType>,
-/// DirectionalResourceKind::ArcValue>` instead when the arc's
-///       value is real per-arc data. Only this form keeps the label's own node out of its set in
-///       both directions.
+///       DirectionalResourceKind::ArcValue>` instead when the arc's value is real per-arc data.
+///       Only this form keeps the label's own node out of its set in both directions.
 ///
-/// @tparam ResourceType    The container resource type.
-/// @tparam Base The base to insert above, normally @c ExtensionFunction<ResourceType>.
+/// @tparam ResourceType The container resource type.
+/// @tparam Base         The base to insert above, normally @c ExtensionFunction<ResourceType>.
 template <typename ResourceType, typename Base>
 class ArcEndpointsExtensionForm
     : public DirectionalExtensionForm<Base, DirectionalResourceKind::ArcEndpoints> {

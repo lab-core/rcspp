@@ -24,8 +24,7 @@ namespace rcspp {
 /// `min_ <= resource.value <= max_`.
 ///
 /// The bidirectional join test depends on the paired extension function's directional resource
-/// kind; see
-/// @ref join_rule. Under a threshold extension, build both functions from one
+/// kind; see @ref join_rule. Under a threshold extension, build both functions from one
 /// @ref SharedNodeBounds (see @ref bounds), so the extension clamps backward labels to the same
 /// per-node maxima this function enforces forward.
 ///

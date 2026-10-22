@@ -44,9 +44,9 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
             BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalResourceType>;
 };
 
-/// @brief Whether constructor arguments @p Args are exactly one @c
-/// AlgorithmParams<LabelContainerType>: then
-///        @c ResourceGraph::create_algorithm picks the class from the params' direction.
+/// @brief Whether constructor arguments @p Args are exactly one
+///        @c AlgorithmParams<LabelContainerType>: then @c ResourceGraph::create_algorithm picks the
+///        class from the params' direction.
 template <typename LabelContainerType, typename... Args>
 inline constexpr bool is_params_only_v =
     sizeof...(Args) == 1 &&
@@ -54,12 +54,12 @@ inline constexpr bool is_params_only_v =
 
 /// @brief Builds the class that searches in `params.direction` for @p Strategy.
 ///
-/// @tparam Strategy           The algorithm template the caller names.
-/// @tparam ResourceType       The resource type carried by labels.
-/// @tparam LabelContainerType The per-node container of the params.
-/// @tparam CostResourceType   The cost resource type; the clock's type defaults to it.
-/// @tparam CriticalResourceType  The type of the bidirectional search's clock, the critical
-/// resource.
+/// @tparam Strategy             The algorithm template the caller names.
+/// @tparam ResourceType         The resource type carried by labels.
+/// @tparam LabelContainerType   The per-node container of the params.
+/// @tparam CostResourceType     The cost resource type; the clock's type defaults to it.
+/// @tparam CriticalResourceType The type of the bidirectional search's clock, the critical
+///                              resource.
 /// @param resource_factory The graph's resource factory.
 /// @param params           The algorithm's params; their direction picks the class.
 /// @return The algorithm, behind its base class.

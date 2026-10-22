@@ -37,8 +37,8 @@ enum class DirectionalResourceKind {
 // Where the backward declarations are checked. A kind is declared only by the extension's
 // `directional_resource_kind()`; `ResourceGraph::add_resource` passes it to the feasibility
 // function, and tells the dominance function whether backward dominance reverses.
-//  - At compile time, `declares_directional_resource_kind_v<Ext>` requires a declared kind (not
-//    `Unspecified`). Every preset asserts this; other code may.
+//  - At compile time, `declares_directional_resource_kind_v<ExtensionFunctionType>` requires a
+//    declared kind (not `Unspecified`). Every preset asserts this; other code may.
 //  - Before every backward or bidirectional solve, `BackwardExtensionCheck` checks how the model
 //    reads backward: a declared kind, threshold clamps and starts that match the feasibility
 //    function, no negative arc consumption where the backward reading assumes none, a

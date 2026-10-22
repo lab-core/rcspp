@@ -75,8 +75,8 @@ class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, Lab
 // ============================================================================
 
 /// @brief directional_resource_kind() and join_rule() default to Unspecified on a class that
-/// declares
-///        neither, which is what lets a bidirectional solve refuse an undeclared component.
+///        declares neither, which is what lets a bidirectional solve refuse an undeclared
+///        component.
 TEST(BackwardApi, EnumsDefaultToUnspecified) {
     class UndeclaredExtensionFunction
         : public Clonable<UndeclaredExtensionFunction, ExtensionFunction<RealResource>> {

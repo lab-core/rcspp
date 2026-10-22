@@ -151,8 +151,8 @@ class IntersectionFeasibilityFunction
         }
 
         /// @brief Whether this function carries the self-forbidden condition, whose backward
-        ///        reading needs a memory at `v` that excludes `v` (@c
-        ///        DirectionalResourceKind::ArcEndpoints).
+        ///        reading needs a memory at `v` that excludes `v`
+        ///        (@c DirectionalResourceKind::ArcEndpoints).
         ///
         /// @return @c true exactly when @ref join_rule answers @c Custom.
         [[nodiscard]] bool requires_arc_endpoints() const override {

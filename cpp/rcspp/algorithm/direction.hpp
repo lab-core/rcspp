@@ -217,7 +217,7 @@ struct BackwardDirection {
 
 /// @brief The interface a direction policy must provide.
 ///
-/// @tparam Direction          The candidate policy.
+/// @tparam Direction    The candidate policy.
 /// @tparam ResourceType The resource type it will be used with.
 template <typename Direction, typename ResourceType>
 concept DirectionPolicy =

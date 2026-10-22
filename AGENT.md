@@ -307,14 +307,15 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
 | `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
 
-The last four are all containers, but they split into two **directional resource kinds**, and pairing the wrong
-one with a forbidden-set feasibility is refused by the model checks:
+The last four are all containers, but they split into two **directional resource kinds**, and
+pairing the wrong one with a forbidden-set feasibility is refused by the model checks:
 
 - `NgPathExtensionFunction` reads node identities off the arc's *endpoints* and swaps them per
-  direction (`DirectionalResourceKind::ArcEndpoints`), so the memory at a node excludes that node going both
-  ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
+  direction (`DirectionalResourceKind::ArcEndpoints`), so the memory at a node excludes that node
+  going both ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
 - The other three accumulate the arc's *value*, which is the same object in both directions
-  (`DirectionalResourceKind::ArcValue`).  Right for genuine per-arc set data; wrong for node identities.
+  (`DirectionalResourceKind::ArcValue`).  Right for genuine per-arc set data; wrong for node
+  identities.
 
 ### Feasibility
 
@@ -444,7 +445,8 @@ Test files:
     `SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward.
     `SearchDirection::Bidirectional` makes it search both ways.
     An algorithm asked for a direction it does not search throws `std::invalid_argument`, so
-    `create_algorithm<Strategy>(params)` returns `std::unique_ptr<Algorithm<R, LC>>`.
+    `create_algorithm<Strategy>(params)` returns
+    `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
     A backward or bidirectional solve runs the model checks before any preprocessing and throws
     `ModelRefused` on a failing model, with `preprocess=false` too, and on a direct
     `Algorithm::solve`.
@@ -482,8 +484,8 @@ Inherit from `Algorithm<ResourceType, LabelContainerType>` and override
 `main_loop()`:
 
 ```cpp
-template<typename R, typename LC = LabelList<R>>
-class MyAlgorithm : public Algorithm<R, LC> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
   protected:
     void main_loop() override { /* custom label expansion */ }
 };

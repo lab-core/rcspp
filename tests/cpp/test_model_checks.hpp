@@ -363,9 +363,8 @@ class CachedNodeCap : public Clonable<CachedNodeCap, FeasibilityFunction<RealRes
 };
 
 /// @brief A threshold written without `ThresholdExtensionForm`: it adds going forward, going
-/// backward
-///        subtracts and clamps to its own closing time at the node left, and starts a backward
-///        label at the closing time of the node it enters.
+///        backward subtracts and clamps to its own closing time at the node left, and starts a
+///        backward label at the closing time of the node it enters.
 ///
 /// It declares nothing about its clamps or starts, so the checks can only learn them by running
 /// it.
@@ -556,8 +555,7 @@ TEST(ModelChecks, ARemovedArcStillCounts) {
 // ============================================================================
 
 /// @brief An undeclared component is named, for its directional resource kind (a backward search's
-/// problem)
-///        and for its join rule (a bidirectional search's).
+///        problem) and for its join rule (a bidirectional search's).
 TEST(ModelChecks, AnUndeclaredComponentIsNamed) {
     namespace mc = model_checks_test;
 

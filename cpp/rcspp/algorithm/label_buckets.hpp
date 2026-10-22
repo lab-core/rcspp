@@ -22,7 +22,7 @@ namespace rcspp {
 /// would discard the better labels.
 ///
 /// @tparam ResourceType The resource type carried by labels.
-/// @tparam Direction          The direction policy supplying the dominance order.
+/// @tparam Direction    The direction policy supplying the dominance order.
 template <class ResourceType, class Direction = ForwardDirection>
 class LabelList {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
@@ -151,10 +151,10 @@ class LabelList {
 /// warm-up phase and pass the result to the next `LabelBuckets` constructor to
 /// improve bucket utilisation.
 ///
-/// @tparam BucketResource  Resource type used to partition labels into buckets.
-/// @tparam SortResource    Resource type used to sort labels within a bucket.
-/// @tparam ResourceType    Full composite resource type of the labels.
-/// @tparam Direction             The direction policy supplying the dominance order.
+/// @tparam BucketResource Resource type used to partition labels into buckets.
+/// @tparam SortResource   Resource type used to sort labels within a bucket.
+/// @tparam ResourceType   Full composite resource type of the labels.
+/// @tparam Direction      The direction policy supplying the dominance order.
 ///
 /// @note A backward search with buckets keeps its labels in `with_direction<BackwardDirection>()`:
 ///       the same buckets, comparing backward (see @c detail::rebind_direction).
@@ -415,7 +415,8 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         ///
         /// ```cpp
         /// size_t better_range = container.suggest_range(50);
-        /// auto next = LabelBuckets<BR, SR, RT>(better_range, bi, si);
+        /// auto next = LabelBuckets<BucketResource, SortResource, ResourceType>(
+        ///     better_range, bucket_resource_index, sort_resource_index);
         /// ```
         ///
         /// @param target_buckets  Desired number of buckets in the next phase.

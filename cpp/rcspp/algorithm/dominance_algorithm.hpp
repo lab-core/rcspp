@@ -28,7 +28,7 @@ namespace rcspp {
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node non-dominated label container its params hold; a
 ///                            backward search keeps it rebound (@c detail::rebind_direction).
-/// @tparam Direction                The direction policy: @ref ForwardDirection (the default) or
+/// @tparam Direction          The direction policy: @ref ForwardDirection (the default) or
 ///                            @ref BackwardDirection.
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
           typename Direction = ForwardDirection>
@@ -171,8 +171,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         /// @brief Extends @p label_ptr along @p arc_ptr into an explicit container set.
         ///
-        /// @tparam LabelDirection      The direction to extend in.
-        /// @tparam Container The per-node non-dominated label container type.
+        /// @tparam LabelDirection The direction to extend in.
+        /// @tparam Container      The per-node non-dominated label container type.
         /// @param label_ptr  The label to extend.
         /// @param arc_ptr    The arc to extend along.
         /// @param containers The per-node containers to insert the result into.
@@ -306,8 +306,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         /// @brief Updates an explicit non-dominated set with @p label.
         ///
-        /// @tparam LabelDirection      The direction whose dominance order applies.
-        /// @tparam Container The per-node non-dominated label container type.
+        /// @tparam LabelDirection The direction whose dominance order applies.
+        /// @tparam Container      The per-node non-dominated label container type.
         /// @param label      The candidate label.
         /// @param containers The per-node containers to test against and prune.
         /// @return @c true when @p label is not dominated and should be kept.
@@ -342,8 +342,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         /// @brief Removes @p label_iterator from an explicit container set.
         ///
-        /// @tparam LabelDirection      The direction the containers belong to.
-        /// @tparam Container The per-node non-dominated label container type.
+        /// @tparam LabelDirection The direction the containers belong to.
+        /// @tparam Container      The per-node non-dominated label container type.
         /// @param label_iterator Iterator into the container holding the label.
         /// @param containers The per-node containers to erase from.
         template <typename LabelDirection, typename Container>
@@ -359,8 +359,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         /// @brief Collects the labels at this direction's terminal nodes.
         ///
-        /// @tparam LabelDirection      The direction whose terminals to sweep.
-        /// @tparam Container The per-node non-dominated label container type.
+        /// @tparam LabelDirection The direction whose terminals to sweep.
+        /// @tparam Container      The per-node non-dominated label container type.
         /// @param containers The per-node containers to read.
         /// @return Every label held at a terminal node of @c LabelDirection.
         template <typename LabelDirection, typename Container>

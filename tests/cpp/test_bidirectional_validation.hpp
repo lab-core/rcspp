@@ -1346,9 +1346,8 @@ TEST(BidirectionalValidation, ACustomPerNodeCapSharedWithTheCapacityBindsAtEachN
 namespace bidirectional_validation_test {
 
 /// @brief A threshold written without `ThresholdExtensionForm`: it adds going forward, going
-/// backward
-///        subtracts and clamps to its own closing time at the node left, and starts a backward
-///        label at the closing time of the node it enters.
+///        backward subtracts and clamps to its own closing time at the node left, and starts a
+///        backward label at the closing time of the node it enters.
 ///
 /// It declares nothing about its clamps or starts, so the setup can only learn them by running it.
 class HandWrittenThreshold

@@ -104,13 +104,12 @@ class HalfWayPolicy {
 
 /// @brief The critical resource's scalar value in @p resource: the clock the half-way bound reads.
 ///
-/// @tparam CriticalResourceType   The critical resource's type.
-/// @tparam ResourceType The resource type carried by labels.
+/// @tparam CriticalResourceType The critical resource's type.
+/// @tparam ResourceType         The resource type carried by labels.
 /// @param resource                The label's resource.
 /// @param critical_resource_index Position of the critical resource within its type slot.
 /// @return The value, or 0 when @p CriticalResourceType is not in the composition (the bound is
-/// then off;
-///         the guard keeps that case compiling).
+///         then off; the guard keeps that case compiling).
 template <typename CriticalResourceType, typename ResourceType>
 [[nodiscard]] double critical_value(const Resource<ResourceType>& resource,
                                     size_t critical_resource_index) {
@@ -129,8 +128,8 @@ template <typename CriticalResourceType, typename ResourceType>
 /// requires the result to be at least `x`. Raw arc consumptions are not enough: an extension that
 /// clamps up to a time window can be monotone despite a negative stored value.
 ///
-/// @tparam CriticalResourceType    The critical resource's type.
-/// @tparam ResourceTypes The graph's resource pack.
+/// @tparam CriticalResourceType The critical resource's type.
+/// @tparam ResourceTypes        The graph's resource pack.
 /// @param graph                   The graph whose arcs are probed.
 /// @param critical_resource_index Position of the critical resource within its type slot.
 /// @param probes                  Values to probe with, e.g. `{0, R/2}`.
@@ -190,8 +189,8 @@ template <typename CriticalResourceType, typename... ResourceTypes>
 /// evict a label the join needed. `ValueDominanceFunction` satisfies this;
 /// `TrivialDominanceFunction` and higher-is-better orders do not.
 ///
-/// @tparam CriticalResourceType    The critical resource's type.
-/// @tparam ResourceTypes The graph's resource pack.
+/// @tparam CriticalResourceType The critical resource's type.
+/// @tparam ResourceTypes        The graph's resource pack.
 /// @param graph                   The graph whose nodes carry the function objects.
 /// @param critical_resource_index Position of the critical resource within its type slot.
 /// @return `true` when the clock's dominance is increasing; `false` otherwise, including when the
