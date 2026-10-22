@@ -495,27 +495,38 @@ Follow these when adding a name, in C++ and in Python.
 
 ### Custom resource type (C++)
 
-<!-- docs-check: broken -->
+A resource type needs `reset()`, `get_value()`, `set_value()` and `to_string()`
+(`ResourceTypeConcept`), plus whatever the functions you pair it with call: here
+`ValueDominanceFunction`, which compares with `leq()`, against another resource and against a
+raw value. Derive a function through `Clonable<Derived, Base>`, which supplies `clone()`.
+
+<!-- docs-check: file-scope -->
 
 ```cpp
 struct MyResource {
     double value = 0.0;
-    bool leq(const MyResource& other) const { return value <= other.value; }
-    bool geq(const MyResource& other) const { return value >= other.value; }
-    void add(double v) { value += v; }
     void reset() { value = 0.0; }
     double get_value() const { return value; }
+    void set_value(double v) { value = v; }
+    std::string to_string() const { return std::to_string(value); }
+    bool leq(const MyResource& other) const { return value <= other.value; }
+    bool leq(double v) const { return value <= v; }
 };
 
-class MyExtensionFn : public ExtensionFunction<MyResource> {
-    void extend(const MyResource& cur, const MyResource& arc,
-                MyResource* res) override {
+class MyExtensionFn : public Clonable<MyExtensionFn, ExtensionFunction<MyResource>> {
+  public:
+    void extend(const MyResource& cur, const MyResource& arc, MyResource* res) override {
         res->value = cur.value + arc.value * 2.0;  // custom rule
     }
-    std::unique_ptr<ExtensionFunction<MyResource>> clone() const override {
-        return std::make_unique<MyExtensionFn>(*this);
-    }
 };
+
+// Registered like any resource; the graph also needs a real cost resource.
+void add_my_resource(ResourceGraph<RealResource, MyResource>& graph) {
+    graph.add_resource<MyResource>(std::make_unique<MyExtensionFn>(),
+                                   std::make_unique<TrivialFeasibilityFunction<MyResource>>(),
+                                   std::make_unique<TrivialCostFunction<MyResource>>(),
+                                   std::make_unique<ValueDominanceFunction<MyResource>>());
+}
 ```
 
 ### Custom algorithm (C++)
