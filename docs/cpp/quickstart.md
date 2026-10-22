@@ -79,6 +79,12 @@ auto result = graph.solve();
 
 ## Column generation loop
 
+<!-- docs-check: given size_t n_constraints = 1;
+     struct MasterProblem {
+         void add_column(const Column&) {}
+         std::vector<double> get_duals() { return {}; }
+     } master_problem; -->
+
 ```cpp
 #include "rcspp/rcspp.hpp"
 using namespace rcspp;
@@ -112,6 +118,8 @@ while (true) {
 
 ## Choosing an algorithm
 
+<!-- docs-check: given using Resources = ResourceTypeComposition<RealResource, IntResource>; -->
+
 ```cpp
 // Default (optimal): SimpleDominanceAlgorithm
 auto optimal = graph.solve();
@@ -131,6 +139,8 @@ auto diverse =
 ---
 
 ## Memory-limited solve
+
+<!-- docs-check: given using Resources = ResourceTypeComposition<RealResource, IntResource>; -->
 
 ```cpp
 AlgorithmParams<LabelList<Resources>> params;

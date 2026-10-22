@@ -67,6 +67,8 @@ Each resource slot has four functions that you supply at construction time.
 
 Defines how an arc modifies the resource as a label is extended along it.
 
+<!-- docs-check: skip -->
+
 ```cpp
 template<typename ResourceType>
 class ExtensionFunction {
@@ -93,6 +95,8 @@ Built-in implementations:
 
 Returns `true` when a label's resource value is still within bounds.
 
+<!-- docs-check: skip -->
+
 ```cpp
 template<typename ResourceType>
 class FeasibilityFunction {
@@ -115,6 +119,8 @@ Built-in implementations:
 
 Returns `true` when `lhs` dominates `rhs` (i.e. `rhs` can be pruned).
 
+<!-- docs-check: skip -->
+
 ```cpp
 template<typename ResourceType>
 class DominanceFunction {
@@ -135,6 +141,8 @@ Built-in implementations:
 ### Cost function
 
 Returns the contribution of this resource slot to the label's total cost.
+
+<!-- docs-check: skip -->
 
 ```cpp
 template<typename ResourceType>
@@ -159,6 +167,8 @@ the arc's resource consumption value together with the pre-bound extension
 function, so extending a label along an arc is a single virtual call.
 
 Arc resource consumption is specified at construction time:
+
+<!-- docs-check: given size_t origin = 0; size_t dest = 1; double arc_cost = 1.0; -->
 
 ```cpp
 // Single resource

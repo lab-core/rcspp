@@ -267,6 +267,8 @@ auto result = graph.solve();
 
 ### Multiple resources
 
+<!-- docs-check: skip -->
+
 ```cpp
 ResourceGraph<RealResource, IntResource> graph;
 graph.add_resource<RealResource>(…);   // index 0
@@ -277,6 +279,8 @@ graph.add_arc<RealResource, IntResource>({10.0, 3}, origin, dest, cost);
 ```
 
 ### Column generation
+
+<!-- docs-check: skip -->
 
 ```cpp
 // Arcs with LP rows
@@ -389,6 +393,12 @@ Test files:
 - `tests/python/test_rcspp.py` — Python solver tests
 - `tests/python/test_bindings_coverage.py` — binding coverage
 
+The C++ code blocks of `docs/`, `AGENT.md` and `README.md` compile as part of the build (target
+`docs-samples`, written by `scripts/extract_cpp_doc_samples.py`), and an error names the Markdown
+line. A fragment states what it takes from the reader in a comment above it, such as
+`<!-- docs-check: given double capacity = 10.0; -->`. The other markers, `file-scope`, `skip` and
+`broken`, are explained at the top of the script.
+
 ---
 
 ## Common pitfalls
@@ -485,6 +495,8 @@ Follow these when adding a name, in C++ and in Python.
 
 ### Custom resource type (C++)
 
+<!-- docs-check: broken -->
+
 ```cpp
 struct MyResource {
     double value = 0.0;
@@ -510,6 +522,8 @@ class MyExtensionFn : public ExtensionFunction<MyResource> {
 
 Inherit from `Algorithm<ResourceType, LabelContainerType>` and override
 `main_loop()`:
+
+<!-- docs-check: file-scope -->
 
 ```cpp
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
