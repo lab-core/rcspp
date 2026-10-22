@@ -56,8 +56,8 @@ inline std::map<size_t, std::pair<Clock, Clock>> windows() {
 
 /// @brief Two routes: 0 -> 1 -> 2 is cheaper (-10) but reaches node 1 after it closes; 0 -> 2
 ///        costs -1 and is on time. Components are (cost, clock).
-template <typename ClockResource, typename Graph>
-inline void add_routes(Graph* graph) {
+template <typename ClockResource, typename GraphType>
+inline void add_routes(GraphType* graph) {
     using Clock = std::decay_t<decltype(std::declval<ClockResource>().get_value())>;
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1);

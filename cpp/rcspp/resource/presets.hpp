@@ -45,16 +45,16 @@ namespace detail {
 /// @brief Registers a preset's four function objects after asserting that they are coherent.
 ///
 /// @tparam ResourceType The resource type.
-/// @tparam Graph        The graph type, deduced.
+/// @tparam GraphType    The graph type, deduced.
 /// @param graph       The graph to register the resource on.
 /// @param extension   The extension function.
 /// @param feasibility The feasibility function.
 /// @param cost        The cost function.
 /// @param dominance   The dominance function.
-template <typename ResourceType, typename Graph, typename ExtensionFunctionType,
+template <typename ResourceType, typename GraphType, typename ExtensionFunctionType,
           typename FeasibilityFunctionType, typename CostFunctionType,
           typename DominanceFunctionType>
-void add_coherent_resource(Graph& graph, std::unique_ptr<ExtensionFunctionType> extension,
+void add_coherent_resource(GraphType& graph, std::unique_ptr<ExtensionFunctionType> extension,
                            std::unique_ptr<FeasibilityFunctionType> feasibility,
                            std::unique_ptr<CostFunctionType> cost,
                            std::unique_ptr<DominanceFunctionType> dominance) {
@@ -75,10 +75,10 @@ void add_coherent_resource(Graph& graph, std::unique_ptr<ExtensionFunctionType> 
 /// ValueCostFunction, ValueDominanceFunction)`.
 ///
 /// @tparam ResourceType The resource type; normally a signed numerical type.
-/// @tparam Graph        The graph type, deduced.
+/// @tparam GraphType    The graph type, deduced.
 /// @param graph The graph to register the resource on.
-template <typename ResourceType, typename Graph>
-void add_cost_resource(Graph& graph) {
+template <typename ResourceType, typename GraphType>
+void add_cost_resource(GraphType& graph) {
     detail::add_coherent_resource<ResourceType>(
         graph,
         std::make_unique<AdditionExtensionFunction<ResourceType>>(),
@@ -100,17 +100,17 @@ void add_cost_resource(Graph& graph) {
 /// four-object form.
 ///
 /// @tparam ResourceType The resource type. Must be signed: backward extension subtracts.
-/// @tparam Graph        The graph type, deduced.
+/// @tparam GraphType    The graph type, deduced.
 /// @tparam ValueType    The resource's arithmetic value type. Never deduced from the arguments, so
 ///                      an `int` bound on a real resource converts rather than truncating every
 ///                      value.
 /// @param graph       The graph to register the resource on.
 /// @param windows     Per-node `{earliest, latest}` pairs.
 /// @param default_max Bound used at nodes absent from the map.
-template <typename ResourceType, typename Graph,
+template <typename ResourceType, typename GraphType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 void add_window_resource(
-    Graph& graph,
+    GraphType& graph,
     std::map<size_t, std::pair<std::type_identity_t<ValueType>, std::type_identity_t<ValueType>>>
         windows,
     std::type_identity_t<ValueType> default_max = std::numeric_limits<ValueType>::max() / 2) {
@@ -127,22 +127,23 @@ void add_window_resource(
 ///        instances with integer time windows give them. Each bound converts exactly.
 ///
 /// @tparam ResourceType    The resource type, with a floating-point value.
-/// @tparam Graph           The graph type, deduced.
+/// @tparam GraphType       The graph type, deduced.
 /// @tparam WindowValueType The windows' integer type, deduced.
 /// @param graph   The graph to register the resource on.
 /// @param windows Per-node `{earliest, latest}` pairs.
-template <typename ResourceType, typename Graph, std::integral WindowValueType,
+template <typename ResourceType, typename GraphType, std::integral WindowValueType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
     requires std::floating_point<ValueType>
 void add_window_resource(
-    Graph& graph, const std::map<size_t, std::pair<WindowValueType, WindowValueType>>& windows) {
+    GraphType& graph,
+    const std::map<size_t, std::pair<WindowValueType, WindowValueType>>& windows) {
     std::map<size_t, std::pair<ValueType, ValueType>> converted;
     for (const auto& [node_id, window] : windows) {
         converted.emplace(node_id,
                           std::pair<ValueType, ValueType>{static_cast<ValueType>(window.first),
                                                           static_cast<ValueType>(window.second)});
     }
-    add_window_resource<ResourceType, Graph, ValueType>(graph, std::move(converted));
+    add_window_resource<ResourceType, GraphType, ValueType>(graph, std::move(converted));
 }
 
 /// @brief A bounded accumulation (capacity, duration, any limit).
@@ -157,16 +158,16 @@ void add_window_resource(
 /// long as every arc load is non-negative, and the model checks refuse a negative one.
 ///
 /// @tparam ResourceType The resource type. Must be signed.
-/// @tparam Graph        The graph type, deduced.
+/// @tparam GraphType    The graph type, deduced.
 /// @tparam ValueType    The resource's arithmetic value type. Never deduced from the arguments, so
 ///                      a capacity of `5` on a real resource converts to `5.0` rather than
 ///                      truncating every consumption.
 /// @param graph    The graph to register the resource on.
 /// @param capacity The upper bound at every node without its own.
 /// @param per_node Optional per-node capacities; empty means uniform.
-template <typename ResourceType, typename Graph,
+template <typename ResourceType, typename GraphType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
-void add_capacity_resource(Graph& graph, std::type_identity_t<ValueType> capacity,
+void add_capacity_resource(GraphType& graph, std::type_identity_t<ValueType> capacity,
                            const std::map<size_t, std::type_identity_t<ValueType>>& per_node = {}) {
     std::map<size_t, std::pair<ValueType, ValueType>> windows;
     for (const auto& [node_id, node_capacity] : per_node) {
@@ -191,14 +192,14 @@ void add_capacity_resource(Graph& graph, std::type_identity_t<ValueType> capacit
 /// @p neighborhoods mentions, as a key or a member.
 ///
 /// @tparam ResourceType The container resource type.
-/// @tparam Graph        The graph type, deduced.
+/// @tparam GraphType    The graph type, deduced.
 /// @tparam ValueType    The element type stored in the sets.
 /// @param graph         The graph to register the resource on.
 /// @param neighborhoods Each node's ng-neighborhood. A node absent from the map forgets every
 ///                      previously visited node on arrival, so give every node a neighborhood.
-template <typename ResourceType, typename Graph,
+template <typename ResourceType, typename GraphType,
           typename ValueType = typename ResourceType::ValueType>
-void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<ValueType>> neighborhoods) {
+void add_ng_path_resource(GraphType& graph, std::map<size_t, std::set<ValueType>> neighborhoods) {
     std::map<size_t, std::set<ValueType>> forbidden_by_node;
     for (const auto& [node_id, neighborhood] : neighborhoods) {
         forbidden_by_node[node_id] = {static_cast<ValueType>(node_id)};
@@ -232,14 +233,14 @@ void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<ValueType>> ne
 ///       stores each set in `n` bits rather than one tree node per element.
 ///
 /// @tparam ResourceType The container resource type.
-/// @tparam Graph        The graph type, deduced.
+/// @tparam GraphType    The graph type, deduced.
 /// @tparam ValueType    The element type stored in the sets.
 /// @param graph    The graph to register the resource on.
 /// @param node_ids Every node id in the model (resources are registered before nodes). A node left
 ///                 out gets no neighborhood, and elementarity stops holding through it.
-template <typename ResourceType, typename Graph,
+template <typename ResourceType, typename GraphType,
           typename ValueType = typename ResourceType::ValueType>
-void add_elementary_resource(Graph& graph, const std::vector<size_t>& node_ids) {
+void add_elementary_resource(GraphType& graph, const std::vector<size_t>& node_ids) {
     std::set<ValueType> every_node;
     for (const size_t node_id : node_ids) {
         every_node.insert(static_cast<ValueType>(node_id));
@@ -250,7 +251,7 @@ void add_elementary_resource(Graph& graph, const std::vector<size_t>& node_ids) 
         neighborhoods[node_id] = every_node;
     }
 
-    add_ng_path_resource<ResourceType, Graph, ValueType>(graph, std::move(neighborhoods));
+    add_ng_path_resource<ResourceType, GraphType, ValueType>(graph, std::move(neighborhoods));
 }
 
 }  // namespace rcspp::presets

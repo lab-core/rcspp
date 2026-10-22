@@ -32,9 +32,9 @@ inline std::map<size_t, std::pair<double, double>> windows() {
 ///
 /// @p arc_value takes the resource's own value type, so an integer resource is not handed a
 /// double.
-template <typename Graph, typename ResourceType,
+template <typename GraphType, typename ResourceType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
-inline void finish(Graph* graph, ValueType arc_value) {
+inline void finish(GraphType* graph, ValueType arc_value) {
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1, /*source=*/false, /*sink=*/true);
     graph->template add_arc<ResourceType>(std::make_tuple(arc_value), 0, 1, 10.0);

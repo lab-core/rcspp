@@ -34,18 +34,18 @@ namespace rcspp {
  * feasible paths quickly (e.g. to seed a tighter UB for a dominance run, or to feed a
  * column generator), without the cost of repeatedly cloning and mutating the graph.
  */
-template <typename ResourceType, typename LabelsType = LabelList<ResourceType>>
-class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelsType> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelContainerType> {
     public:
         TabuSearchAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                            AlgorithmParams<LabelsType> params)
-            : BacktrackingDiveAlgorithm<ResourceType, LabelsType>(resource_factory,
-                                                                  std::move(params)),
+                            AlgorithmParams<LabelContainerType> params)
+            : BacktrackingDiveAlgorithm<ResourceType, LabelContainerType>(resource_factory,
+                                                                          std::move(params)),
               tabu_(this->params_.seed) {}
 
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Algorithm<ResourceType, LabelsType>::initialize(graph, cost_upper_bound);
+            Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             tabu_.clear();
         }
 

@@ -31,12 +31,12 @@ namespace rcspp {
  * This class does not implement @ref main_loop: each subclass picks how to
  * sequence dives, sink-extractions, and resets.
  */
-template <typename ResourceType, typename LabelsType = LabelList<ResourceType>>
-class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelsType> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     public:
         BacktrackingDiveAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                                  AlgorithmParams<LabelsType> params)
-            : Algorithm<ResourceType, LabelsType>(resource_factory, std::move(params)) {}
+                                  AlgorithmParams<LabelContainerType> params)
+            : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)) {}
 
     protected:
         using PathEntry = std::pair<Label<ResourceType>*, std::list<Label<ResourceType>*>>;
