@@ -106,16 +106,17 @@ G = nx.DiGraph()
 G.add_node(0, source=True)
 G.add_node(1)
 G.add_node(2, sink=True)
-G.add_edge(0, 1, cost=3.0, consumption=(3.0,))
-G.add_edge(1, 2, cost=5.0, consumption=(5.0,))
+G.add_edge(0, 1, cost=3.0, resource=(3.0,))
+G.add_edge(1, 2, cost=5.0, resource=(5.0,))
 
-rg = ResourceGraph(G)
-rg.add_real_resource(
+rg = ResourceGraph()
+rg.add_real_resource(  # resources first: the arcs' tuples follow their order
     AdditionExtensionFunction(),
     TrivialFeasibilityFunction(),
     ValueCostFunction(),
     ValueDominanceFunction(),
 )
+rg.from_networkx(G)
 result = rg.solve()
 ```
 
