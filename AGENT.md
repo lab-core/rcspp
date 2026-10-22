@@ -260,7 +260,7 @@ graph.add_resource<RealResource>(
 
 graph.add_node(0, /*source=*/true);
 graph.add_node(1, false, /*sink=*/true);
-graph.add_arc({10.0}, 0, 1, /*cost=*/10.0);
+graph.add_arc<RealResource>({10.0}, 0, 1, /*cost=*/10.0);
 
 auto result = graph.solve();
 ```
@@ -273,8 +273,7 @@ graph.add_resource<RealResource>(…);   // index 0
 graph.add_resource<IntResource>(…);    // index 1
 
 // arc: {real_val, int_val}
-graph.add_arc(std::make_tuple(std::vector{10.0}, std::vector{3}),
-              origin, dest, cost);
+graph.add_arc<RealResource, IntResource>({10.0, 3}, origin, dest, cost);
 ```
 
 ### Column generation

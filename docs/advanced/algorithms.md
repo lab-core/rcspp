@@ -531,10 +531,10 @@ Arc removal is temporary (governed by `tabu_tenure`).
 
 ```python
 params = AlgorithmParams()
-params.tabu_tenure          = 5
-params.tabu_random_noise    = True      # random ±1 tenure noise
-params.max_iterations       = 100
-params.tabu_exempt_node_ids = {source_id, sink_id}  # never remove arcs from these
+params.tabu_tenure        = 5
+params.tabu_random_noise  = True      # random ±1 tenure noise
+params.max_iterations     = 100
+params.tabu_exempt_node_ids     = {source_id, sink_id}  # never remove arcs from these
 
 result = rg.solve(algorithm="tabu", params=params)
 ```
@@ -547,9 +547,9 @@ solutions.
 
 ```python
 params = AlgorithmParams()
-params.max_solutions  = 20    # collect 20 distinct solutions
-params.max_iterations = 100
-params.seed           = 42
+params.max_solutions = 20    # collect 20 distinct solutions
+params.max_iterations         = 100
+params.seed                   = 42
 
 result = rg.solve(algorithm="greedy", params=params)
 # In C++, use DiversificationSearch explicitly to wrap any inner algorithm
@@ -755,7 +755,7 @@ checking by partitioning labels on one resource dimension.
 from rcspp.graph import BucketAlgorithmParams
 
 bp = BucketAlgorithmParams()
-bp.bucket_width          = 200    # partition the time dimension into 200 buckets
+bp.bucket_width         = 200    # partition the time dimension into 200 buckets
 bp.bucket_resource_index = 0      # resource 0 is time
 bp.sort_resource_index   = 1      # sort within bucket by resource 1
 
@@ -765,9 +765,10 @@ result = rg.solve(algorithm="simple", params=bp)
 In C++:
 
 ```cpp
-BucketAlgorithmParams<LabelBuckets<Resources>> bp;
-bp.bucket_width = 200;
-bp.bucket_resource_index = 0;
-bp.sort_resource_index = 1;
-auto result = graph.solve<SimpleDominanceAlgorithm, RealResource, LabelBuckets>(ub, bp);
+using Resources = ResourceTypeComposition<RealResource>;  // the graph's resource types
+// bucket on real component 0 (time), sort within a bucket on real component 1
+using Buckets = LabelBuckets<RealResource, RealResource, Resources>;
+AlgorithmParams<Buckets> params(Buckets(/*bucket_width=*/200, /*bucket_resource_index=*/0,
+                                        /*sort_resource_index=*/1));
+auto result = graph.solve<SimpleDominanceAlgorithm, RealResource, Buckets>(ub, params);
 ```

@@ -162,11 +162,10 @@ Arc resource consumption is specified at construction time:
 
 ```cpp
 // Single resource
-graph.add_arc({10.0}, origin, dest, arc_cost);
+graph.add_arc<RealResource>({10.0}, origin, dest, arc_cost);
 
 // Two resources
-graph.add_arc(std::make_tuple(std::vector{10.0}, std::vector{3}),
-              origin, dest, arc_cost);
+graph.add_arc<RealResource, IntResource>({10.0, 3}, origin, dest, arc_cost);
 ```
 
 ---
