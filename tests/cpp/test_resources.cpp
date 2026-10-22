@@ -13,6 +13,7 @@
 #include "resource/test_arc_endpoints_extension_form.hpp"
 #include "resource/test_back_start.hpp"
 #include "resource/test_backward_dominance.hpp"
+#include "resource/test_composition_apply.hpp"
 #include "resource/test_join_rules.hpp"
 #include "resource/test_node_bounds.hpp"
 #include "resource/test_threshold_extension_form.hpp"

@@ -356,12 +356,12 @@ class Composition : public CompositionTag {
         /// @tparam CompositionType    A type satisfying `IsComposition`.
         /// @tparam ComponentTupleType Raw tuple type compatible with the component-vector tuple.
         /// @param rhs_composition   Right-hand composition.
-        /// @param rhs_components2   Right-hand raw component tuple.
+        /// @param rhs_components    Right-hand raw component tuple.
         /// @param func              The callable to invoke.
         template <typename Callable, typename CompositionType, typename ComponentTupleType>
             requires(IsComposition<CompositionType>)
-        void apply(const CompositionType& rhs_composition,
-                   const ComponentTupleType& rhs_components2, Callable&& func) {
+        void apply(const CompositionType& rhs_composition, const ComponentTupleType& rhs_components,
+                   Callable&& func) {
             std::apply(
                 [&](auto&&... args_comp_vec) -> auto {
                     std::apply(
@@ -371,7 +371,7 @@ class Composition : public CompositionTag {
                                     (func(args_comp_vec, args_rhs_comp_vec, args_rhs_comp2_vec),
                                      ...);
                                 },
-                                rhs_components2);
+                                rhs_components);
                         },
                         rhs_composition.get_components());
                 },
@@ -384,12 +384,13 @@ class Composition : public CompositionTag {
         /// @tparam Callable              The callable's type, with signature
         ///                               `void(const auto&, const auto&, const auto&)`.
         /// @tparam CompositionType       A type satisfying `IsComposition`.
-        /// @tparam SecondCompositionType A composition: its `get_components()` is read.
+        /// @tparam SecondCompositionType A type satisfying `IsComposition`. There is no const
+        ///                               overload for a raw component tuple.
         /// @param rhs_composition   First right-hand composition.
         /// @param rhs_composition2  Second right-hand composition.
         /// @param func              The callable to invoke.
         template <typename Callable, typename CompositionType, typename SecondCompositionType>
-            requires(IsComposition<CompositionType>)
+            requires(IsComposition<CompositionType> && IsComposition<SecondCompositionType>)
         void apply(const CompositionType& rhs_composition,
                    const SecondCompositionType& rhs_composition2, Callable&& func) const {
             std::apply(
