@@ -21,6 +21,14 @@
 
 namespace rcspp {
 
+/// @brief The default threshold of @c FilteredSolutionPool::price: a column is returned when its
+///        reduced cost is below it.
+///
+/// Slightly below zero, so that a column whose reduced cost is negative only by rounding does not
+/// count as improving, which could make column generation cycle. The Python pools use the same
+/// value, bound as @c DEFAULT_PRICE_THRESHOLD.
+inline constexpr double kDefaultPriceThreshold = -1e-9;
+
 // Activity stats for a column — stored in the pool and updated on every price() call
 // and on update_activity() calls (LP basis membership).
 struct ColumnActivity {
@@ -421,12 +429,13 @@ class FilteredSolutionPool {
         /// @ref ColumnActivity writes are atomic.
         ///
         /// @param duals     LP dual values indexed by constraint index.
-        /// @param threshold Only columns with ``rc < threshold`` are returned (default 0.0).
+        /// @param threshold Only columns with ``rc < threshold`` are returned (default
+        ///                  @ref kDefaultPriceThreshold).
         /// @return          Priced columns with their ids, reduced costs, and @c Solution pointers.
         ///                  The returned @c Solution* is valid until the next structural
         ///                  modification of the pool.
         [[nodiscard]] std::vector<PricedColumn> price(const std::vector<double>& duals,
-                                                      double threshold = 0.0) {
+                                                      double threshold = kDefaultPriceThreshold) {
             std::shared_lock lock(pool_.mutex_);
             ++pool_.pricing_count_;  // std::atomic<size_t>: safe under shared_lock
             return price_subset_locked(duals, threshold);

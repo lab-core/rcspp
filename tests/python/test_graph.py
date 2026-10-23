@@ -718,13 +718,23 @@ def test_to_string_empty_graph():
 
 
 def test_str_and_repr():
-    """Str() and repr() both call to_string() and return a non-empty string."""
+    """Str() is to_string(); repr() is a one-line summary that does not flush."""
     rg = make_diamond()
-    s = str(rg)
-    assert isinstance(s, str)
+    assert str(rg) == rg.to_string()
     r = repr(rg)
-    assert isinstance(r, str)
-    assert s == r
+    assert r.startswith("<ResourceGraph: ") and "\n" not in r
+
+
+def test_repr_does_not_flush_a_refused_arc():
+    """Repr() of a graph whose buffer holds a refused arc does not raise, and flushes nothing."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 1, 0, cost=1.0)  # leaves the sink: refused when flushed
+    r = repr(rg)
+    assert "2 nodes and 1 arcs buffered" in r
+    with pytest.raises(ValueError):
+        rg.update()
 
 
 # ── solve() error paths ───────────────────────────────────────────────────────

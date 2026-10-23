@@ -43,8 +43,11 @@ try:
     from rcspp._core import solution_pool as _sp
 
     _SolutionPool = _sp.SolutionPool
+    # The default threshold of every price(), the C++ pool's included.
+    DEFAULT_PRICE_THRESHOLD: float = _sp.DEFAULT_PRICE_THRESHOLD
 except ImportError:  # pragma: no cover
     _SolutionPool = None
+    DEFAULT_PRICE_THRESHOLD = -1e-9
 
 if TYPE_CHECKING:
     from rcspp._core.graph import Solution
@@ -476,7 +479,7 @@ class SharedPricingPool:
     def price(
         self,
         duals: np.ndarray,
-        threshold: float = -1e-9,
+        threshold: float = DEFAULT_PRICE_THRESHOLD,
         view_mask: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Compute reduced costs.  Returns ``(shared_slot_indices, rcs)`` sorted best-
@@ -490,7 +493,8 @@ class SharedPricingPool:
 
         Args:
             duals: 1-D float64 LP dual values.
-            threshold: Keep only columns with ``rc < threshold`` (default -1e-9).
+            threshold: Keep only columns with ``rc < threshold`` (default
+                ``DEFAULT_PRICE_THRESHOLD``, -1e-9).
             view_mask: Optional bool array ``(max_cols,)`` restricting which slots
                 are priced (used internally by :class:`FilteredSharedPricingPool`).
 
@@ -656,12 +660,15 @@ class FilteredSharedPricingPool:
         if len(shared_indices) > 0:
             self._mask[np.asarray(shared_indices, dtype=np.intp)] = False
 
-    def price(self, duals: np.ndarray, threshold: float = -1e-9) -> tuple[np.ndarray, np.ndarray]:
+    def price(
+        self, duals: np.ndarray, threshold: float = DEFAULT_PRICE_THRESHOLD
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Price only the slots visible through this mask.
 
         Args:
             duals: 1-D float64 LP dual values.
-            threshold: Keep only columns with ``rc < threshold`` (default -1e-9).
+            threshold: Keep only columns with ``rc < threshold`` (default
+                ``DEFAULT_PRICE_THRESHOLD``, -1e-9).
 
         Returns:
             ``(shared_indices, reduced_costs)`` sorted ascending by rc.
@@ -784,7 +791,10 @@ class FilteredPricingPool:
     # ── Pricing ───────────────────────────────────────────────────────────────
 
     def price(
-        self, duals: np.ndarray, threshold: float = -1e-9, track_activity: bool = True
+        self,
+        duals: np.ndarray,
+        threshold: float = DEFAULT_PRICE_THRESHOLD,
+        track_activity: bool = True,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Lock-free filtered pricing.  Returns ``(ColumnIds, rcs)`` sorted best-first.
 
@@ -1191,7 +1201,10 @@ class PricingPool:
     # ── Pricing ───────────────────────────────────────────────────────────────
 
     def price(
-        self, duals: np.ndarray, threshold: float = -1e-9, track_activity: bool = True
+        self,
+        duals: np.ndarray,
+        threshold: float = DEFAULT_PRICE_THRESHOLD,
+        track_activity: bool = True,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Price all valid columns.  Returns ``(ColumnIds, rcs)`` sorted best-first.
 

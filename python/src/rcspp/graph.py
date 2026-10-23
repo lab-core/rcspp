@@ -714,11 +714,11 @@ class ResourceGraph:
 
     # ── String representation ─────────────────────────────────────────────────
 
-    def to_string(self, print_arcs: bool = True) -> str:
+    def to_string(self, print_arcs: bool = False) -> str:
         """Return a human-readable string representation of the graph.
 
         Args:
-            print_arcs: Include arc details in the output (default ``True``).
+            print_arcs: Include arc details in the output (default ``False``).
 
         Returns:
             Multi-line string describing the graph, or an empty string when the
@@ -734,8 +734,21 @@ class ResourceGraph:
         return self.to_string()
 
     def __repr__(self) -> str:
-        """Return a developer-friendly representation of the graph."""
-        return self.to_string()
+        """Return a one-line summary of the graph, without flushing the buffers.
+
+        A repr must not fail: flushing could raise, for example when a buffered arc is
+        refused, so this reads the counts as they stand.
+        """
+        nodes = arcs = 0
+        if self._graph is not None:
+            nodes = self._graph.number_of_nodes()
+            arcs = self._graph.number_of_arcs()
+        resources = self._registered_order or tuple(r[0] for r in self._pending)
+        return (
+            f"<ResourceGraph: {nodes} nodes, {arcs} arcs, "
+            f"{len(self._node_buffer)} nodes and {len(self._arc_buffer)} arcs buffered, "
+            f"resources={list(resources)}>"
+        )
 
     # ── Transparent delegation for everything else ────────────────────────────
 
