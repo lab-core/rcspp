@@ -59,6 +59,14 @@ New features are summarised, with a pointer to where they are documented.
   compiles; Python code that passes an old keyword or reads an old attribute raises.
   - `Preprocessor::remove_arc` is `should_remove_arc`: it only answers, where
     `Graph::remove_arc` removes.
+  - The values of `AlgorithmStatus` are in CapWords, as in Python: `Complete`, `Timeout`,
+    `MaxSolutions`, `MaxPhases`, `Interrupted` and `MemoryLimit`.
+  - `Algorithm::prepareNextPhase` is `prepare_next_phase`. Rename your overrides.
+  - `Algorithm::get_labels_at_sinks` is `get_labels_at_terminals`: going backward, it returns
+    the labels at the sources.
+  - `Graph::track_modifications` is `mark_unmodified`: it clears the modified flag.
+  - `ResourceGraph::process_feasibility` is `remove_infeasible_arcs`, in C++ and in Python, where
+    it was `preprocess_feasibility`.
 
 ### Added
 

@@ -39,32 +39,32 @@ namespace rcspp {
 
 /// @brief Exit status returned by Algorithm::solve().
 enum class AlgorithmStatus {
-    COMPLETE,       ///< All labels processed; result is optimal (given other params).
-    TIMEOUT,        ///< Wall-clock timeout reached before completion.
-    MAX_SOLUTIONS,  ///< stop_after_X_solutions reached.
-    MAX_PHASES,     ///< num_max_phases exhausted with labels still remaining.
-    INTERRUPTED,    ///< External should_stop callback returned true.
-    MEMORY_LIMIT,   ///< RSS memory limit reached.
+    Complete,      ///< All labels processed; result is optimal (given other params).
+    Timeout,       ///< Wall-clock timeout reached before completion.
+    MaxSolutions,  ///< stop_after_X_solutions reached.
+    MaxPhases,     ///< num_max_phases exhausted with labels still remaining.
+    Interrupted,   ///< External should_stop callback returned true.
+    MemoryLimit,   ///< RSS memory limit reached.
 };
 
 /// @brief Human-readable name for an @ref AlgorithmStatus value.
 ///
-/// Note: only @ref AlgorithmStatus::COMPLETE means the search was exhaustive; every other
+/// Note: only @ref AlgorithmStatus::Complete means the search was exhaustive; every other
 /// status indicates the solve was cut short (so e.g. "no solution found" does not prove that
 /// none exists).
 [[nodiscard]] inline std::string to_string(AlgorithmStatus status) {
     switch (status) {
-        case AlgorithmStatus::COMPLETE:
+        case AlgorithmStatus::Complete:
             return "complete";
-        case AlgorithmStatus::TIMEOUT:
+        case AlgorithmStatus::Timeout:
             return "timeout";
-        case AlgorithmStatus::MAX_SOLUTIONS:
+        case AlgorithmStatus::MaxSolutions:
             return "max_solutions";
-        case AlgorithmStatus::MAX_PHASES:
+        case AlgorithmStatus::MaxPhases:
             return "max_phases";
-        case AlgorithmStatus::INTERRUPTED:
+        case AlgorithmStatus::Interrupted:
             return "interrupted";
-        case AlgorithmStatus::MEMORY_LIMIT:
+        case AlgorithmStatus::MemoryLimit:
             return "memory_limit";
     }
     return "unknown";
@@ -93,12 +93,12 @@ struct BidirectionalStats {
 /// @brief Return value of Algorithm::solve().
 struct SolveResult {
         std::vector<Solution> solutions;
-        AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+        AlgorithmStatus status = AlgorithmStatus::Complete;
 
         /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
         ///
-        /// Status can still be @c AlgorithmStatus::COMPLETE after a trim, so a caller treating
-        /// @c COMPLETE as a proof of optimality must check this too. Same value as
+        /// Status can still be @c AlgorithmStatus::Complete after a trim, so a caller treating
+        /// @c Complete as a proof of optimality must check this too. Same value as
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
@@ -469,7 +469,7 @@ class Algorithm {
 
                 // prepare next phase (if any)
                 if (++num_phases < params_.num_max_phases) {
-                    prepareNextPhase();
+                    prepare_next_phase();
                 } else {
                     break;
                 }
@@ -492,7 +492,7 @@ class Algorithm {
             // prepare next phase to ensure that all_labels_processed() returns the right value
             // (if not releasing all labels). Also, next solve() is ready to start if needed
             if (!params_.release_after_solve) {
-                prepareNextPhase();
+                prepare_next_phase();
             }
 
             // sort solutions
@@ -520,17 +520,17 @@ class Algorithm {
             // describe why the search stopped *early* (labels still remain).
             AlgorithmStatus status;
             if (number_of_labels() == 0) {
-                status = AlgorithmStatus::COMPLETE;
+                status = AlgorithmStatus::Complete;
             } else if (timed_out_) {
-                status = AlgorithmStatus::TIMEOUT;
+                status = AlgorithmStatus::Timeout;
             } else if (is_interrupted()) {
-                status = AlgorithmStatus::INTERRUPTED;
+                status = AlgorithmStatus::Interrupted;
             } else if (memory_limit_.is_exceeded()) {
-                status = AlgorithmStatus::MEMORY_LIMIT;
+                status = AlgorithmStatus::MemoryLimit;
             } else if (solutions.size() >= params_.stop_after_X_solutions) {
-                status = AlgorithmStatus::MAX_SOLUTIONS;
+                status = AlgorithmStatus::MaxSolutions;
             } else {
-                status = AlgorithmStatus::MAX_PHASES;
+                status = AlgorithmStatus::MaxPhases;
             }
 
             // Optionally release label memory so RAM is reclaimed when the caller returns.
@@ -660,7 +660,7 @@ class Algorithm {
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
-        virtual void prepareNextPhase() {}
+        virtual void prepare_next_phase() {}
 
         virtual void main_loop() = 0;
 
@@ -668,13 +668,13 @@ class Algorithm {
         ///
         /// Virtual so a bidirectional search can add backward and joined paths.
         virtual void extract_remaining_solutions() {
-            auto labels_at_sinks = this->get_labels_at_sinks();
-            for (const auto* sink_label : labels_at_sinks) {
-                this->extract_solution(*sink_label);
+            auto labels_at_terminals = this->get_labels_at_terminals();
+            for (const auto* terminal_label : labels_at_terminals) {
+                this->extract_solution(*terminal_label);
             }
         }
 
-        [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
+        [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_terminals() const = 0;
 
         virtual void print_labels() const {}
 

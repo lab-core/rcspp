@@ -46,9 +46,9 @@ class BackwardOnlyAlgorithm
         }
 
         /// @brief The labels at this search's terminal nodes, i.e. the graph's *sources*
-        ///        (the inherited `get_labels_at_sinks()` follows the search direction).
+        ///        (the inherited `get_labels_at_terminals()` follows the search direction).
         [[nodiscard]] std::list<rcspp::Label<ResourceType>*> get_terminal_labels() const {
-            return this->get_labels_at_sinks();
+            return this->get_labels_at_terminals();
         }
 
         /// @brief The cheapest complete backward path, read from the terminal labels.

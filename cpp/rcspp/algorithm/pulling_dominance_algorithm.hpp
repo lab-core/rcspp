@@ -177,7 +177,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             return this->current_unprocessed_labels_.erase(label_iterator);
         }
 
-        void prepareNextPhase() override {
+        void prepare_next_phase() override {
             first_loop_ = true;
             this->restore_truncated_unprocessed_labels();
         }

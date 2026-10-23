@@ -139,7 +139,7 @@ params.memory_pressure_max_labels_per_node = 50; // prune to 50 labels/node unde
 params.memory_check_interval          = 10000;  // check every 10k label extensions
 
 auto result = graph.solve(ub, params);
-if (result.status == AlgorithmStatus::MEMORY_LIMIT) {
+if (result.status == AlgorithmStatus::MemoryLimit) {
     // solver hit the RSS limit; solutions may be incomplete
 }
 ```

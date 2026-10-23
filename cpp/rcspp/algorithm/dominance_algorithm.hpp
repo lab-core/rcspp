@@ -353,7 +353,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             containers.at(current_node_pos).erase_label(label_iterator);
         }
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
             return get_labels_at_terminals<Direction>(non_dominated_labels_by_node_pos_);
         }
 

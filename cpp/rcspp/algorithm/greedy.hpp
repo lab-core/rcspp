@@ -173,7 +173,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return true;
         }
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
             return {};
         }
 

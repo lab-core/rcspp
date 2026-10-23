@@ -98,12 +98,12 @@ void init_graph(py::module_& m) {
     // ── AlgorithmStatus enum ──────────────────────────────────────────────────
 
     py::enum_<AlgorithmStatus>(m, "AlgorithmStatus")
-        .value("Complete", AlgorithmStatus::COMPLETE)
-        .value("Timeout", AlgorithmStatus::TIMEOUT)
-        .value("MaxSolutions", AlgorithmStatus::MAX_SOLUTIONS)
-        .value("MaxPhases", AlgorithmStatus::MAX_PHASES)
-        .value("Interrupted", AlgorithmStatus::INTERRUPTED)
-        .value("MemoryLimit", AlgorithmStatus::MEMORY_LIMIT);
+        .value("Complete", AlgorithmStatus::Complete)
+        .value("Timeout", AlgorithmStatus::Timeout)
+        .value("MaxSolutions", AlgorithmStatus::MaxSolutions)
+        .value("MaxPhases", AlgorithmStatus::MaxPhases)
+        .value("Interrupted", AlgorithmStatus::Interrupted)
+        .value("MemoryLimit", AlgorithmStatus::MemoryLimit);
 
     // ── BidirectionalStats ────────────────────────────────────────────────────
 

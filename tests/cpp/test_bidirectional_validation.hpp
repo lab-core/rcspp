@@ -307,7 +307,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
         auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(20.0)));
         const SolveResult result = graph->solve(algorithm.get());
-        ASSERT_EQ(result.status, AlgorithmStatus::COMPLETE);
+        ASSERT_EQ(result.status, AlgorithmStatus::Complete);
         ASSERT_GT(result.bidirectional->number_of_joined_paths, 0U)
             << "the control must join, or the interrupted run below proves nothing";
     }
@@ -323,7 +323,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
-    ASSERT_EQ(result.status, AlgorithmStatus::INTERRUPTED)
+    ASSERT_EQ(result.status, AlgorithmStatus::Interrupted)
         << "the callback did not stop the search, so the guard was never reached";
     EXPECT_EQ(result.bidirectional->number_of_joined_paths, 0U)
         << "the join ran after the solve was interrupted";
@@ -365,7 +365,7 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
     };
 
     const SolveResult joined = run(/*join_after_early_stop=*/true);
-    ASSERT_EQ(joined.status, AlgorithmStatus::MEMORY_LIMIT)
+    ASSERT_EQ(joined.status, AlgorithmStatus::MemoryLimit)
         << "the limit did not stop the search, so this test proves nothing";
     ASSERT_EQ(joined.bidirectional->number_of_joined_paths, 1U);
     ASSERT_FALSE(joined.solutions.empty());
@@ -373,7 +373,7 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
     EXPECT_EQ(joined.solutions.front().path_arc_ids, (std::vector<size_t>{0, 1, 2, 3}));
 
     const SolveResult skipped = run(/*join_after_early_stop=*/false);
-    ASSERT_EQ(skipped.status, AlgorithmStatus::MEMORY_LIMIT);
+    ASSERT_EQ(skipped.status, AlgorithmStatus::MemoryLimit);
     EXPECT_EQ(skipped.bidirectional->number_of_joined_paths, 0U)
         << "with join_after_early_stop off, a memory-limit stop must skip the join";
 }

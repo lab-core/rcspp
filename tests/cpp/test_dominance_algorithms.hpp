@@ -131,11 +131,11 @@ TEST(SimpleDominanceAlgorithmTest, SinglePathFindsOptimal) {
     EXPECT_NEAR(result.solutions[0].cost, kSingleCost, 1e-9);
 }
 
-/// @brief SimpleDominanceAlgorithm on a single-path graph reports COMPLETE status.
+/// @brief SimpleDominanceAlgorithm on a single-path graph reports Complete status.
 TEST(SimpleDominanceAlgorithmTest, SinglePathStatusComplete) {
     auto g = make_dom_linear_graph();
     const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 /// @brief SimpleDominanceAlgorithm finds the best path on a two-path graph.
@@ -164,7 +164,7 @@ TEST(SimpleDominanceAlgorithmTest, NoPathReturnsEmpty) {
     EXPECT_TRUE(result.solutions.empty());
 }
 
-/// @brief stop_after_X_solutions=1 on two-path graph gives MAX_SOLUTIONS status.
+/// @brief stop_after_X_solutions=1 on two-path graph gives MaxSolutions status.
 TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
@@ -173,13 +173,13 @@ TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
-/// @brief Timeout=0 returns TIMEOUT status.
+/// @brief Timeout=0 returns Timeout status.
 TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief return_dominated_solutions=true includes non-optimal solutions.
@@ -223,20 +223,20 @@ TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
 
-/// @brief AStarDominanceAlgorithm: COMPLETE status on single-path graph.
+/// @brief AStarDominanceAlgorithm: Complete status on single-path graph.
 TEST(AStarDominanceAlgorithmTest, StatusComplete) {
     auto g = make_dom_linear_graph();
     const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief AStarDominanceAlgorithm: zero timeout gives TIMEOUT status.
+/// @brief AStarDominanceAlgorithm: zero timeout gives Timeout status.
 TEST(AStarDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
     const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief AStarDominanceAlgorithm: no path → empty result.

@@ -71,7 +71,7 @@ class DirectedSimpleDominanceAlgorithm
             unprocessed_labels_.push_back(label_iterator_pair);
         }
 
-        void prepareNextPhase() override {
+        void prepare_next_phase() override {
             std::ranges::fill(number_of_extended_labels_per_node_.begin(),
                               number_of_extended_labels_per_node_.end(),
                               0);

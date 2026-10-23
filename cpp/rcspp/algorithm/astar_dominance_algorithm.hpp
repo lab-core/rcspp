@@ -153,7 +153,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 // NOT admissible: with per-node truncation or memory-pressure pruning (which retain
                 // the lowest-f labels) it can discard the labels lying on the true optimal path and
                 // then return a suboptimal solution while still reporting
-                // AlgorithmStatus::COMPLETE.
+                // AlgorithmStatus::Complete.
                 //
                 // With h == 0, A* is an ordinary reduced-cost-ordered label-correcting search — the
                 // same ordering the non-A* dominance algorithms use. A full (untruncated) search is
@@ -207,7 +207,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         // ─── Multi-phase support ──────────────────────────────────────────────
 
         /// @brief Restore truncated labels into the main heap for the next phase.
-        void prepareNextPhase() override {
+        void prepare_next_phase() override {
             std::ranges::fill(number_of_extended_labels_per_node_, 0);
             for (const auto& pair : unprocessed_truncated_labels_) {
                 unprocessed_labels_.push(pair);

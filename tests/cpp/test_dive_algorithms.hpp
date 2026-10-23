@@ -92,11 +92,11 @@ TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
 
-/// @brief GreedyAlgorithm on single-path graph reports COMPLETE status.
+/// @brief GreedyAlgorithm on single-path graph reports Complete status.
 TEST(GreedyAlgorithmTest, SinglePathGraphStatusComplete) {
     auto g = make_linear_graph();
     const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 /// @brief GreedyAlgorithm on single-path graph visits nodes in order.
@@ -136,7 +136,7 @@ TEST(GreedyAlgorithmTest, StopAfterOneSolution) {
     params.stop_after_X_solutions = 1;
     const auto result = g->solve<GreedyAlgorithm>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
-    EXPECT_EQ(result.status, AlgorithmStatus::MAX_SOLUTIONS);
+    EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
 
 /// @brief stop_after_X_solutions=1 returns at most one solution.
@@ -148,13 +148,13 @@ TEST(GreedyAlgorithmTest, StopAfterOneSolutionBound) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
-/// @brief A 0-second timeout returns TIMEOUT status immediately.
+/// @brief A 0-second timeout returns Timeout status immediately.
 TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
     const auto result = g->solve<GreedyAlgorithm>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief GreedyAlgorithm with prune_based_on_upper_bound_ covers that branch.
@@ -256,17 +256,17 @@ TEST(TabuSearchAlgorithmTest, StopAfterOneSolution) {
     params.stop_after_X_solutions = 1;
     const auto result = g->solve<TabuSearchAlgorithm>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
-    EXPECT_EQ(result.status, AlgorithmStatus::MAX_SOLUTIONS);
+    EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
 
-/// @brief TabuSearch: a 0-second timeout returns TIMEOUT status.
+/// @brief TabuSearch: a 0-second timeout returns Timeout status.
 TEST(TabuSearchAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.timeout_s = 0.0;
     const auto result = g->solve<TabuSearchAlgorithm>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief TabuSearch: return_dominated_solutions = true includes all solutions.
@@ -320,14 +320,14 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsSolutions) {
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief ImprovingTabuSearch: zero timeout → TIMEOUT status.
+/// @brief ImprovingTabuSearch: zero timeout → Timeout status.
 TEST(ImprovingTabuSearchTest, ZeroTimeoutReportsTimeout) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.timeout_s = 0.0;
     const auto result = g->solve<ImprovingTabuSearch>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief ImprovingTabuSearch: stop_after_X_solutions=1 stops early.
@@ -406,14 +406,14 @@ TEST(DiversificationSearchTest, TwoPathFindsSolutions) {
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief DiversificationSearch: zero timeout → TIMEOUT status.
+/// @brief DiversificationSearch: zero timeout → Timeout status.
 TEST(DiversificationSearchTest, ZeroTimeoutReportsTimeout) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
     params.timeout_s = 0.0;
     const auto result = g->solve<DiversificationSearch>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief DiversificationSearch: stop_after_X_solutions=1 stops after first solution.

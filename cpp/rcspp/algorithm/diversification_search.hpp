@@ -140,7 +140,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             return 1;
         }  // dummy -> never stop on labels
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
             return {};
         }
 

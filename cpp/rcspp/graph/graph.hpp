@@ -443,7 +443,7 @@ class Graph {
             return true;
         }
 
-        void track_modifications() { modified_ = false; }
+        void mark_unmodified() { modified_ = false; }
 
         [[nodiscard]] bool is_modified() const { return modified_; }
 

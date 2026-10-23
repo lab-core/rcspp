@@ -1112,7 +1112,7 @@ TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
 
 /// @brief Memory-pressure lossiness reaches `SolveResult`, not just the algorithm object.
 ///
-/// A trimmed run may be non-optimal yet still reports COMPLETE, so the result flag is the only
+/// A trimmed run may be non-optimal yet still reports Complete, so the result flag is the only
 /// signal a caller without the algorithm object gets.
 TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
     namespace bt = bidirectional_test;
@@ -1142,7 +1142,7 @@ TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
     ASSERT_TRUE(pressed_flag) << "the pressure recipe did not fire";
     EXPECT_TRUE(pressed.memory_pressure_triggered)
         << "the algorithm knows the run was trimmed but the result the caller receives does not";
-    EXPECT_EQ(pressed.status, AlgorithmStatus::COMPLETE)
+    EXPECT_EQ(pressed.status, AlgorithmStatus::Complete)
         << "the status cannot express this, which is exactly why the flag has to";
 }
 
@@ -1753,7 +1753,7 @@ TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
 
-    ASSERT_NE(result.status, AlgorithmStatus::COMPLETE) << "the stop must land mid-search";
+    ASSERT_NE(result.status, AlgorithmStatus::Complete) << "the stop must land mid-search";
     EXPECT_TRUE(result.bidirectional->bounded_by_half_way);
     size_t backward = 0;
     for (const auto& container : test_util::bidirectional_impl<bt::Bidir>(algorithm.get())

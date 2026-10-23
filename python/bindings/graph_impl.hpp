@@ -533,7 +533,7 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             py::arg("direction") = SearchDirection::Bidirectional,
             "Run, without solving, the model checks that a search in `direction` needs. Returns "
             "one string per problem found; empty when the model is ready for that search.")
-        .def("preprocess_feasibility", &ResourceGraphType::process_feasibility)
+        .def("remove_infeasible_arcs", &ResourceGraphType::remove_infeasible_arcs)
         .def("is_connected",
              &ResourceGraphType::is_connected,
              py::arg("origin_node_id"),

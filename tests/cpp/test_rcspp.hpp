@@ -284,7 +284,7 @@ DEFINE_REFCOUNT_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 // ── Exit-status accuracy ────────────────────────────────────────────────────────
 //
 // The VRP column-generation loop trusts "pricing found no improving column" as a proof of
-// LP-optimality ONLY when the pricing subproblem returns AlgorithmStatus::COMPLETE; any other
+// LP-optimality ONLY when the pricing subproblem returns AlgorithmStatus::Complete; any other
 // status means the solve was cut short, so optimality is not proven (VRP::solve then warns and
 // flags proven_optimal = false). These tests verify solve() reports that status accurately —
 // end-to-end through the real pricing solver — the signal column generation relies on. (The
@@ -304,10 +304,10 @@ void test_solve_status_complete() {
         InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
 
     // Default params are fully unbounded (no truncation / phase / solution / time / memory cap),
-    // so the labeling runs to exhaustion and the result must be COMPLETE.
+    // so the labeling runs to exhaustion and the result must be Complete.
     const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id);
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE)
-        << "an unbounded solve must report COMPLETE, got '" << result.status_string() << "'";
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete)
+        << "an unbounded solve must report Complete, got '" << result.status_string() << "'";
     ASSERT_FALSE(result.solutions.empty());
     constexpr double kOptimal = -319.87786809696524415;
     EXPECT_NEAR(result.solutions[0].cost, kOptimal, 1e-9);
@@ -330,8 +330,8 @@ void test_solve_status_memory_limit() {
     base.max_memory_gb = 1e-9;  // ~1 byte: exceeded on the very first memory check
     base.memory_check_interval = 1;
     const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id, base);
-    EXPECT_EQ(result.status, AlgorithmStatus::MEMORY_LIMIT)
-        << "a tiny memory limit must report MEMORY_LIMIT, got '" << result.status_string() << "'";
+    EXPECT_EQ(result.status, AlgorithmStatus::MemoryLimit)
+        << "a tiny memory limit must report MemoryLimit, got '" << result.status_string() << "'";
 }
 
 template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
@@ -350,8 +350,8 @@ void test_solve_status_timeout() {
     AlgorithmBaseParams base;
     base.timeout_s = 0.0;  // a 0-second budget: exceeded on the first should_stop() check
     const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id, base);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT)
-        << "a 0-second timeout must report TIMEOUT, got '" << result.status_string() << "'";
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout)
+        << "a 0-second timeout must report Timeout, got '" << result.status_string() << "'";
 }
 
 #define DEFINE_STATUS_TESTS(AlgoSuffix, AlgoType)      \
@@ -372,14 +372,14 @@ DEFINE_STATUS_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 #undef DEFINE_STATUS_TESTS
 
-// ── COMPLETE status precedence ──────────────────────────────────────────────────
+// ── Complete status precedence ──────────────────────────────────────────────────
 //
-// A finished run (number_of_labels() == 0) must be reported COMPLETE even if a timeout /
+// A finished run (number_of_labels() == 0) must be reported Complete even if a timeout /
 // interrupt / memory flag is (re-)true at status-determination time — completion takes precedence
 // over the early-stop reasons. We exercise this with a tiny memory limit (so
 // memory_limit_.is_exceeded() is true when the status is computed) combined with an enormous
 // memory_check_interval (so the periodic check never fires during the solve and the search runs
-// to completion). The status must then be COMPLETE, not MEMORY_LIMIT.
+// to completion). The status must then be Complete, not MemoryLimit.
 template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
 void test_status_complete_beats_memory_flag() {
     const std::string instance_name = "R101";
@@ -398,8 +398,8 @@ void test_status_complete_beats_memory_flag() {
     base.memory_check_interval =
         std::numeric_limits<size_t>::max();  // ...but the periodic check never fires during solve
     const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id, base);
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE)
-        << "a finished run must report COMPLETE even with the memory flag set at status time, got '"
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete)
+        << "a finished run must report Complete even with the memory flag set at status time, got '"
         << result.status_string() << "'";
     ASSERT_FALSE(result.solutions.empty());
     constexpr double kOptimal = -319.87786809696524415;
@@ -470,7 +470,7 @@ TEST(AStarHeuristic, NegativeCycleFallbackPreservesOptimum) {
     auto ref_graph = make_negative_cycle_graph();
     const SolveResult ref = solve_no_preprocess<SimpleDominanceAlgorithm>(ref_graph.get());
     ASSERT_FALSE(ref.solutions.empty());
-    EXPECT_EQ(ref.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(ref.status, AlgorithmStatus::Complete);
     EXPECT_NEAR(ref.solutions[0].cost, -5.0, 1e-9);  // S -> A -> B -> T (3 hops)
 
     // A* on the same graph: the heuristic Bellman-Ford hits the negative-cost cycle, so the catch
@@ -480,6 +480,6 @@ TEST(AStarHeuristic, NegativeCycleFallbackPreservesOptimum) {
     ASSERT_NO_THROW(
         { astar = solve_no_preprocess<AStarAlgoBound<RealResource>::Algo>(astar_graph.get()); });
     ASSERT_FALSE(astar.solutions.empty());
-    EXPECT_EQ(astar.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(astar.status, AlgorithmStatus::Complete);
     EXPECT_NEAR(astar.solutions[0].cost, ref.solutions[0].cost, 1e-9);
 }

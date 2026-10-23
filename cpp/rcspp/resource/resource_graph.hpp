@@ -45,7 +45,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
                   std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function))),
-              connectivityMatrix_(this) {}
+              connectivity_matrix_(this) {}
 
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
@@ -53,7 +53,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
                   std::make_unique<ComponentCostFunction<0, ResourceTypes...>>(0),
                   std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
-              connectivityMatrix_(this) {}
+              connectivity_matrix_(this) {}
 
         ResourceGraph(const ResourceGraph&) = delete;
         ResourceGraph& operator=(const ResourceGraph&) = delete;
@@ -278,7 +278,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             requires is_numerical_resource_v<CostResourceType>
         void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,
-                                                              &connectivityMatrix_,
+                                                              &connectivity_matrix_,
                                                               cost_index);
         }
 
@@ -451,13 +451,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // restore the removed arcs for the next resolution
             stages.undo();
             if (preprocess) {
-                this->track_modifications();  // mark as unmodified after restoring arcs
+                this->mark_unmodified();  // mark as unmodified after restoring arcs
             }
 
             return result;
         }
 
-        void process_feasibility() {
+        void remove_infeasible_arcs() {
             FeasibilityPreprocessor<ResourceCompositionType> feasibility_preprocessor(
                 &resource_factory_,
                 this);
@@ -481,11 +481,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
             if (this->is_modified()) {
-                connectivityMatrix_.compute_bitmatrix();
-                this->track_modifications();
+                connectivity_matrix_.compute_bitmatrix();
+                this->mark_unmodified();
             }
 
-            return connectivityMatrix_.is_connected(origin_node_id, destination_node_id);
+            return connectivity_matrix_.is_connected(origin_node_id, destination_node_id);
         }
 
         // Constrained to RealResource on purpose. The body computes the reduced cost as a
@@ -535,7 +535,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
     private:
         /// @brief Construct directly from a pre-built factory (used by clone()).
         explicit ResourceGraph(ResourceCompositionFactory<ResourceTypes...>&& factory)
-            : resource_factory_(std::move(factory)), connectivityMatrix_(this) {}
+            : resource_factory_(std::move(factory)), connectivity_matrix_(this) {}
 
         /// @brief Tells a resource's dominance and feasibility functions how its extension function
         ///        extends backwards.
@@ -572,7 +572,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
                 void run(Graph<ResourceCompositionType>& graph, SolveContext& context) override {
                     FeasibilityPreprocessor<ResourceCompositionType>::run(graph, context);
-                    graph_->connectivityMatrix_.compute_bitmatrix();
+                    graph_->connectivity_matrix_.compute_bitmatrix();
                 }
 
                 void undo() noexcept override {}
@@ -653,7 +653,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         }
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
-        ConnectivityMatrix<ResourceCompositionType> connectivityMatrix_;
+        ConnectivityMatrix<ResourceCompositionType> connectivity_matrix_;
         std::mutex mutex_;
 };
 }  // namespace rcspp
