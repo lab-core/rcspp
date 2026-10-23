@@ -53,4 +53,14 @@ class ArtificialColumns final : public MasterInitialization {
         double cost_;
 };
 
+/// @brief Leaves the master as it is: for a model that is already feasible, e.g. with starting
+///        columns or its own slack variables.
+///
+/// Nothing is added to the user's model. If the first LP turns out to be infeasible, the run ends
+/// with @c ColumnGenerationStatus::RestrictedMasterInfeasible.
+class NoInitialization final : public MasterInitialization {
+    public:
+        void initialize(MasterProblem& master, const ToleranceContext& context) override;
+};
+
 }  // namespace rcspp::column_generation

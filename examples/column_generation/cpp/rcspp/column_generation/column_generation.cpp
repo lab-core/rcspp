@@ -14,6 +14,40 @@
 
 namespace rcspp::column_generation {
 
+namespace {
+
+// How a run ends when the master LP was not solved to optimality. Every status is listed, without
+// a default, so that a new SolverStatus value makes the compiler warn here.
+ColumnGenerationStatus status_after_failed_solve(SolverStatus status) {
+    switch (status) {
+        case SolverStatus::Infeasible:
+            return ColumnGenerationStatus::RestrictedMasterInfeasible;
+        case SolverStatus::Unbounded:
+            return ColumnGenerationStatus::Unbounded;
+        case SolverStatus::TimeLimit:
+            return ColumnGenerationStatus::TimeLimit;
+        case SolverStatus::Optimal:  // not a failure; never passed here
+        case SolverStatus::Other:
+            return ColumnGenerationStatus::SolverError;
+    }
+    return ColumnGenerationStatus::SolverError;  // an out-of-range value
+}
+
+// Calls `function`, adding its duration to `timer` when timing is on.
+template <typename Function>
+auto timed(bool enabled, Timer& timer, Function&& function) {
+    if (enabled) {
+        timer.start();
+    }
+    auto value = std::forward<Function>(function)();
+    if (enabled) {
+        timer.stop();
+    }
+    return value;
+}
+
+}  // namespace
+
 ColumnGeneration::ColumnGeneration(MasterProblem& master, ColumnGenerationParams params)
     : master_(master), params_(std::move(params)) {
     if (params_.tolerances == nullptr) {
@@ -60,18 +94,10 @@ ColumnGenerationResult ColumnGeneration::run() {
         RelaxationParams relaxation = params_.relaxation;
         relaxation.timeout_s = std::min(relaxation.timeout_s, remaining);
 
-        if (timers) {
-            relaxation_timer.start();
-        }
-        const SolverStatus solver_status = solver.solve_relaxation(relaxation);
-        if (timers) {
-            relaxation_timer.stop();
-        }
-
+        const SolverStatus solver_status =
+            timed(timers, relaxation_timer, [&] { return solver.solve_relaxation(relaxation); });
         if (solver_status != SolverStatus::Optimal) {
-            result.status = solver_status == SolverStatus::TimeLimit
-                                ? ColumnGenerationStatus::TimeLimit
-                                : ColumnGenerationStatus::SolverError;
+            result.status = status_after_failed_solve(solver_status);
             break;
         }
 
@@ -82,13 +108,9 @@ ColumnGenerationResult ColumnGeneration::run() {
         solver.duals(duals);
 
         // Price the duals and add the columns found.
-        if (timers) {
-            pricing_timer.start();
-        }
-        const auto [new_columns, proven] = price(duals, total_timer, reduced_cost_tolerance);
-        if (timers) {
-            pricing_timer.stop();
-        }
+        const auto [new_columns, proven] = timed(timers, pricing_timer, [&] {
+            return price(duals, total_timer, reduced_cost_tolerance);
+        });
         result.statistics.generated_columns += new_columns;
 
         if (params_.on_iteration) {
