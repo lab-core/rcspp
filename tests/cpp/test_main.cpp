@@ -18,6 +18,7 @@
 //   test_bidirectional_benchmark_ng.cpp  ng benchmark (three-slot pack)
 //   test_path_semantics.cpp              what every algorithm returns
 //   test_backward_coherence.cpp          what add_resource accepts, and the coherence trait
+//   test_column_generation.cpp           the column generation layer (scripted backend and pricers)
 
 #include <gtest/gtest.h>
 
