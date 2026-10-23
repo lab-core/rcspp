@@ -37,8 +37,8 @@ struct PricingResult {
         PricingStatus status = PricingStatus::Unknown;
         /// @brief A lower bound on the best reduced cost (`−∞` when unknown).
         double min_reduced_cost_bound = -std::numeric_limits<double>::infinity();
-        /// @brief Whether the call ran an exact stage: only an exact @c Optimal call proves
-        ///        that no improving column exists.
+        /// @brief Whether the call ran an exact stage: only an exact call that is @c Optimal or
+        ///        @c Infeasible (no path at all) proves that no improving column exists.
         bool exact_stage = false;
 };
 
