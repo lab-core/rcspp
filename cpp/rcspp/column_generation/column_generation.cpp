@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/column_generation/pricer.hpp"
+
 namespace rcspp::column_generation {
 
 namespace {
