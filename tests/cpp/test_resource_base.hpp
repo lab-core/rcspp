@@ -14,11 +14,14 @@
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_factory.hpp"
+#include "rcspp/resource/composition/resource_composition_factory.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
+#include "rcspp/resource/presets.hpp"
+#include "rcspp/resource/resource_graph.hpp"
 #include "rcspp/resource/resource_traits.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
@@ -83,6 +86,27 @@ TEST(ResourceFactory, CloneProducesWorkingCopy) {
     auto factory = make_factory();
     auto cloned = factory.clone();
     ASSERT_NE(cloned, nullptr);
+    EXPECT_NE(cloned->create_resource(), nullptr);
+}
+
+/// @brief A composition factory cloned through its base class keeps its per-type sub-factories.
+///
+/// The inherited ResourceFactory::clone copied only the composed prototype, so the copy was a plain
+/// ResourceFactory with no sub-factory at all.
+TEST(ResourceFactory, CompositionFactoryClonedThroughItsBaseKeepsItsSubFactories) {
+    ResourceGraph<RealResource, IntResource> graph;
+    presets::add_cost_resource<RealResource>(graph);
+    presets::add_capacity_resource<IntResource>(graph, /*capacity=*/10);
+    using Composed = ResourceCompositionFactory<RealResource, IntResource>;
+    using Base = ResourceFactory<ResourceTypeComposition<RealResource, IntResource>>;
+
+    const Base& factory = graph.get_resource_factory();
+    const std::unique_ptr<Base> cloned = factory.clone();
+
+    const auto* composed = dynamic_cast<const Composed*>(cloned.get());
+    ASSERT_NE(composed, nullptr);
+    EXPECT_EQ(composed->get_num_resource_type<RealResource>(), 1U);
+    EXPECT_EQ(composed->get_num_resource_type<IntResource>(), 1U);
     EXPECT_NE(cloned->create_resource(), nullptr);
 }
 

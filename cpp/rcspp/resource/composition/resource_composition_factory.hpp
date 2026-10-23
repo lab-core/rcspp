@@ -232,6 +232,14 @@ class ResourceCompositionFactory
             return this->template get_components<ResourceTypeIndex>().size();
         }
 
+        /// @brief A deep copy, through the base class, of the whole factory: @ref clone_factory.
+        ///
+        /// The inherited @c ResourceFactory::clone copies only the composed prototype and the
+        /// extension function, so it would drop every per-type sub-factory.
+        ///
+        /// @return A deep copy of this factory, as its base type.
+        [[nodiscard]] std::unique_ptr<Base> clone() const override { return clone_factory(); }
+
         /// @brief Return a deep copy of this factory.
         ///
         /// Clones each per-type ResourceFactory (via the Composition copy constructor,
