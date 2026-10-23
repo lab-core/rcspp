@@ -911,6 +911,18 @@ def test_bucket_params_to_cpp_out_of_range_raises():
         rg.solve(params=params)
 
 
+def test_prune_by_upper_bound_is_settable():
+    """prune_by_upper_bound is bound, off by default, and a solve honours the bound with it."""
+    from rcspp.graph import AlgorithmParams
+
+    params = AlgorithmParams()
+    assert params.prune_by_upper_bound is False
+    params.prune_by_upper_bound = True
+    assert params.prune_by_upper_bound is True
+    sols = make_diamond().solve(upper_bound=4.5, params=params)
+    assert [round(s.cost, 6) for s in sols] == [4.0]
+
+
 def test_bucket_params_kwargs_forwarded():
     """BucketAlgorithmParams kwargs are forwarded to the underlying C++ object."""
     params = BucketAlgorithmParams(bucket_width=50, max_solutions=3)
