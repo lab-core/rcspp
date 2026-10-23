@@ -730,26 +730,6 @@ void bind_auto_rg(py::module_& m) {
 
 #define BIND_MIX(...) bind_auto_rg<__VA_ARGS__>(m)
 
-// ─── Macros: bind single-resource graph blocks ───────────────────────────────
-
-// clang-format off
-#define BIND_SINGLE_NUMERICAL_RG(name, scalar, ResourceType)                                 \
-    bind_resource_graph_block<ResourceGraph<ResourceType>, ResourceComposition<ResourceType>, ResourceType, ResourceType>( \
-        m,                                                                         \
-        "_" #name "_resource_graph",                                               \
-        "_" #name "_graph",                                                        \
-        "_" #name "_node",                                                         \
-        "_" #name "_arc");
-
-#define BIND_SINGLE_CONTAINER_RG(name, scalar, ResourceType)                                           \
-    bind_resource_graph_block<ResourceGraph<ResourceType>, ResourceComposition<ResourceType>, RealResource, ResourceType>( \
-        m,                                                                                   \
-        "_" #name "_resource_graph",                                                         \
-        "_" #name "_graph",                                                                  \
-        "_" #name "_node",                                                                   \
-        "_" #name "_arc");
-// clang-format on
-
 // ─── Forward declarations for sub-init functions ─────────────────────────────
 void init_graph_mix2(py::module_& /*m*/);
 void init_graph_mix3(py::module_& /*m*/);

@@ -452,7 +452,6 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             py::arg("duals"),
             py::arg("threshold") = 0.0)
         .def("__len__", &FilteredSolutionPool::size)
-        .def("size", &FilteredSolutionPool::size)
         .def("pool",
              py::overload_cast<>(&FilteredSolutionPool::pool),
              py::return_value_policy::reference);

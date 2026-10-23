@@ -407,9 +407,9 @@ line. A fragment states what it takes from the reader in a comment above it, suc
    per registered resource, in registration order.
 
 2. **`update()` / flush** — Python `ResourceGraph` buffers nodes and arcs.
-   They are flushed automatically before `solve()` and read operations, but not
-   before `get_nodes_size()` (which counts the buffer).  Call `rg.update()`
-   explicitly if you need the C++ graph up-to-date before a custom operation.
+   They are flushed automatically before `solve()` and read operations, including
+   `number_of_nodes()` and `number_of_arcs()`.  Call `rg.update()` explicitly if you
+   need the C++ graph up-to-date before a custom operation.
 
 3. **Preprocessing** — `solve(preprocess=True)` (default) removes arcs that
    cannot appear in any optimal path.  Arcs are restored after `solve()`, so

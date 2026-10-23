@@ -203,7 +203,6 @@ void init_graph(py::module_& m) {
         .def("could_be_non_optimal", &PyAlgorithmParams::could_be_non_optimal)
         .def_readwrite("max_solutions", &PyAlgorithmParams::max_solutions)
         .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)
-        .def_readwrite("use_pool", &PyAlgorithmParams::use_pool)
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)

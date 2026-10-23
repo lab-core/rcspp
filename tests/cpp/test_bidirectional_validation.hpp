@@ -661,7 +661,7 @@ TEST(BidirectionalValidation, ArcsSurviveARefusedBidirectionalSolve) {
     namespace bv = bidirectional_validation_test;
     auto graph = bv::two_route_graph(std::make_unique<AdditionExtensionFunction<RealResource>>(),
                                      std::make_unique<bv::CapWithoutAJoinRule>());
-    ASSERT_EQ(graph->get_arcs_size(), 4U);
+    ASSERT_EQ(graph->get_number_of_arcs(), 4U);
 
     auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
         test_util::bidirectional(bv::clocked_params(1.0)));
@@ -674,7 +674,8 @@ TEST(BidirectionalValidation, ArcsSurviveARefusedBidirectionalSolve) {
                   0U)
             << refused.what();
     }
-    EXPECT_EQ(graph->get_arcs_size(), 4U) << "the refusal deleted arcs from the caller's graph";
+    EXPECT_EQ(graph->get_number_of_arcs(), 4U)
+        << "the refusal deleted arcs from the caller's graph";
 
     const auto fallback = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
     EXPECT_EQ(fallback.solutions.size(), 2U);
@@ -689,14 +690,15 @@ TEST(BidirectionalValidation, ArcsSurviveAUserExceptionDuringASolve) {
     // A healthy first solve runs the one-off feasibility preprocessing, so the throw below comes
     // from the labelling, after the shortest-path preprocessor removed arcs.
     static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
-    ASSERT_EQ(graph->get_arcs_size(), 4U);
+    ASSERT_EQ(graph->get_number_of_arcs(), 4U);
 
     bv::ThrowingAddition::armed = true;
     EXPECT_THROW(
         static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}, 5.0)),
         std::runtime_error);
     bv::ThrowingAddition::armed = false;
-    EXPECT_EQ(graph->get_arcs_size(), 4U) << "the exception deleted arcs from the caller's graph";
+    EXPECT_EQ(graph->get_number_of_arcs(), 4U)
+        << "the exception deleted arcs from the caller's graph";
 
     const auto fallback = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
     EXPECT_EQ(fallback.solutions.size(), 2U);

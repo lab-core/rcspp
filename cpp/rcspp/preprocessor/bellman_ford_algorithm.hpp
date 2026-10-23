@@ -181,7 +181,7 @@ class BellmanFordAlgorithm {
             if (!forward) {
                 std::ranges::reverse(arc_relaxations);
             }
-            run_relaxations(distance, arc_relaxations, forward, graph_.get_nodes_size());
+            run_relaxations(distance, arc_relaxations, forward, graph_.get_number_of_nodes());
             return distance;
         }
 
@@ -240,7 +240,7 @@ class BellmanFordAlgorithm {
                 std::ranges::reverse(arc_relaxations);
             }
 
-            run_relaxations(distance, arc_relaxations, forward, graph_.get_nodes_size());
+            run_relaxations(distance, arc_relaxations, forward, graph_.get_number_of_nodes());
             return distance;
         }
 };

@@ -959,7 +959,7 @@ class FilteredPricingPool:
     @property
     def column_count(self) -> int:
         """Number of columns in the C++ filter view."""
-        return self._cpp_fp.size()
+        return len(self._cpp_fp)
 
     @property
     def shared_count(self) -> int:
@@ -1306,7 +1306,7 @@ class PricingPool:
     @property
     def column_count(self) -> int:
         """Number of columns in the main C++ pool view."""
-        return self._cpp_fp.size()
+        return len(self._cpp_fp)
 
     @property
     def shared_count(self) -> int:

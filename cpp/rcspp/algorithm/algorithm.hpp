@@ -205,9 +205,6 @@ struct AlgorithmBaseParams {
         // if true, prune label if greater than the best upper bound
         bool prune_by_upper_bound = false;
 
-        // for using label pool (should normally always be true)
-        bool use_pool = true;
-
         // truncated labeling: at most this many labels extended per node in each phase
         size_t max_extended_labels_per_node = MAX_INT;
 
@@ -545,8 +542,6 @@ class Algorithm {
             annotate(&result);
             return result;
         }
-
-        [[nodiscard]] bool all_labels_processed() const { return number_of_labels() == 0; }
 
         /// @brief The direction this algorithm searches in, as its params set it.
         [[nodiscard]] SearchDirection direction() const { return params_.direction; }
