@@ -191,6 +191,12 @@ New features are summarised, with a pointer to where they are documented.
   `true` after a timeout or any other early stop. It answers `false` before the first solve.
 - `ResourceCompositionFactory::clone()` copies the per-type sub-factories too. The inherited
   `ResourceFactory::clone()` it used to fall back on copied only the composed prototype.
+- **A node or arc added to a cloned `ResourceGraph` is priced as in the original**, in C++ and in
+  Python. The clone's factory was rebuilt with the default composition functions, whose cost sums
+  every resource's, while a default graph's cost is its first resource's alone; a graph built
+  with custom composition functions lost them too. Nodes and arcs present when the graph was
+  cloned were not affected, so a clone that is only solved, or whose arcs are only removed and
+  restored (as `DiversificationSearch` does), gave the same results.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.

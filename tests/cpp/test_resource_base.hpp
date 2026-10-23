@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <memory>
 #include <tuple>
 
@@ -15,6 +16,7 @@
 #include "rcspp/resource/base/resource.hpp"
 #include "rcspp/resource/base/resource_factory.hpp"
 #include "rcspp/resource/composition/resource_composition_factory.hpp"
+#include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
@@ -108,6 +110,55 @@ TEST(ResourceFactory, CompositionFactoryClonedThroughItsBaseKeepsItsSubFactories
     EXPECT_EQ(composed->get_num_resource_type<RealResource>(), 1U);
     EXPECT_EQ(composed->get_num_resource_type<IntResource>(), 1U);
     EXPECT_NE(cloned->create_resource(), nullptr);
+}
+
+/// @brief A node added to a cloned graph is priced as the same node added to the original.
+///
+/// clone_factory() built the copy with the default composition functions. Their cost sums every
+/// component's, while a default graph's cost is its first component's alone, so a node added to
+/// the clone summed two priced resources where the original counted one.
+TEST(ResourceFactory, NodeAddedToAClonedGraphIsPricedAsInTheOriginal) {
+    // Two resources, both priced by their value; the graph's cost is the first one's.
+    const auto build = [] {
+        auto graph = std::make_unique<ResourceGraph<RealResource>>();
+        for (int i = 0; i < 2; ++i) {
+            graph->add_resource<RealResource>(
+                std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                std::make_unique<ValueCostFunction<RealResource>>(),
+                std::make_unique<ValueDominanceFunction<RealResource>>());
+        }
+        graph->add_node(0, /*source=*/true);
+        graph->add_node(1, /*source=*/false, /*sink=*/true);
+        graph->add_arc<RealResource, RealResource>(std::make_tuple(1.0, 10.0), 0, 1, 1.0);
+        return graph;
+    };
+    // A second sink, added after the clone: cost 5, second resource 100.
+    const auto add_second_sink = [](ResourceGraph<RealResource>& graph) {
+        graph.add_node(2, /*source=*/false, /*sink=*/true);
+        graph.add_arc<RealResource, RealResource>(std::make_tuple(5.0, 100.0), 0, 2, 5.0);
+    };
+    const auto cost_to = [](ResourceGraph<RealResource>& graph, size_t sink_id) {
+        graph.sort_nodes();
+        const auto result =
+            graph.solve(std::numeric_limits<double>::infinity(),
+                        AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{},
+                        /*preprocess=*/false);
+        for (const auto& solution : result.solutions) {
+            if (solution.path_node_ids.back() == sink_id) {
+                return solution.cost;
+            }
+        }
+        return std::numeric_limits<double>::quiet_NaN();
+    };
+
+    const auto original = build();
+    const auto clone = original->clone();
+    add_second_sink(*original);
+    add_second_sink(*clone);
+
+    ASSERT_DOUBLE_EQ(cost_to(*original, 2), 5.0);
+    EXPECT_DOUBLE_EQ(cost_to(*clone, 2), 5.0) << "the clone summed both resources' costs";
 }
 
 /// @brief reset() adopts the other resource's join rule along with its function objects.
