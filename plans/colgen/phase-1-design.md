@@ -31,7 +31,7 @@ class SolverBackend {                       // one instance = one master LP; vir
   public:
     virtual ~SolverBackend() = default;
     virtual size_t num_rows() const = 0;
-    virtual void add_rows(const RowBatch&) = 0;               // setup only (D-34); user-model backends: rows exist
+    virtual void add_rows(const RowBatch&);                   // optional (D-54): throws unless overridden
     virtual void add_columns(const ColumnBatch&) = 0;
     virtual SolverStatus solve_relaxation(const RelaxationParams&) = 0;   // integer columns relaxed in place
     virtual double objective() const = 0;
@@ -236,7 +236,7 @@ CI is deferred (`D-52`): the last column is what the existing gate would measure
 | backend self-test | 3-row LP (`=`, `≥`, `≤`), then a max version | known duals with the convention of section 1; columns added between solves; `primal` by id |
 | toy LP | theory page 1: 3 customers, capacity 11, all 6 routes as columns | LP 37.5; duals (11.5, 12.5, 13.5) |
 | toy CG from scratch | same instance as a `ResourceGraph`, no starting columns (artificials) | LP 37.5, status `Optimal`, no artificial column used |
-| toy with a fleet limit | `max_paths = 2` / `max_paths = 1` | 37.5, `Optimal` / `Infeasible` (all three customers weigh 15 > 11) |
+| toy with a fleet limit | the user's row `Σ x_p ≤ 2` / `≤ 1`, passed as `existing_row` (`D-54`) | 37.5, `Optimal` / `Infeasible` (all three customers weigh 15 > 11) |
 | initialization swap | custom `MasterInitialization` that adds the 6 toy routes, no artificials | LP 37.5, no `Artificial` column exists |
 | convexity threshold | fake backend returning `μ_k = 3` | the pricer receives `threshold = 3 − tolerance` |
 | not proven | fake pricer returning `SolverLimit` and no column | status `NotProven` |
@@ -272,14 +272,14 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 1 | 1.4 | `feat(column_generation): big-M artificial columns as the default initialization` | `master_initialization.hpp` (`D-45`) |
 | 1 | 1.5 | `feat(column_generation): the loop, its statistics and hooks` | `statistics.hpp`, `column_generation.hpp` (`D-44`, `D-31`) |
 | 2 | 2.1 | `build: USE_HIGHS, HiGHS found or fetched` | `find_package(HIGHS)`, else FetchContent pinned to `v1.15.1`; off by default (`D-52`) |
-| 2 | 2.2 | `feat(column_generation): HiGHS backend` | `HighsBackend`: rows, CSC columns, LP solve, normalized duals, primal by id, integer solve |
+| 2 | 2.2 | `feat(column_generation): HiGHS backend` | `HighsBackend` wrapping a user's `Highs` and their row list (`D-54`): CSC columns, LP solve, normalized duals, primal by id, integer solve |
 | 2 | 2.3 | `feat(column_generation): backend self-test` | `self_test.hpp`; run on HiGHS; scripted wrong backends show it catches sign errors |
-| 2 | 2.4 | `test(column_generation): the toy on HiGHS` | toy LP 37.5 and its duals; restricted master MIP 44 (section 5) |
+| 2 | 2.4 | `test(column_generation): the toy on HiGHS` | the toy built as a user would, in `Highs`, then wrapped: LP 37.5 and its duals; restricted master MIP 44 (section 5) |
 | 3 | 3.1 | `feat(column_generation): pricing strategy with stages` | `PricingStrategy` (`D-23`), one exact stage by default |
 | 3 | 3.2 | `feat(column_generation): graph pricer` | `GraphPricer` over `ResourceGraph`; `cost_scale` = max \|arc cost\| |
 | 3 | 3.3 | `test(column_generation): column generation from scratch` | toy CG, fleet limits 2 and 1, counterexample (section 5) |
 | 4 | 4.1 | `build: FindGUROBI.cmake shared, USE_GUROBI` | moved from `examples/cpp/vrp/cmake/` to `cmake/` |
-| 4 | 4.2 | `feat(column_generation): Gurobi backend` | `GurobiBackend`, self-test and toy tests (local, `D-52`) |
+| 4 | 4.2 | `feat(column_generation): Gurobi backend` | `GurobiBackend` wrapping a user's `GRBModel` (`D-54`), self-test and toy tests (local, `D-52`) |
 | 5 | 5.1 | `feat(python): column generation types, master and loop` | bindings of section 2, results as numpy (`D-53`) |
 | 5 | 5.2 | `feat(python): subclass backends, pricers, tolerances, initializations` | trampolines; GIL released around `run()` |
 | 5 | 5.3 | `feat(python): graph pricers` | `_make_pricer` on every bound graph type (`D-48`); `GraphPricer`, `PricingStage` |
@@ -305,6 +305,8 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | artificial column on every row that `x = 0` violates | also covers an equality convexity row |
 | `timeout_s`; `ColumnGenerationResult::objective` | the name `AlgorithmParams` uses; no "lp" abbreviation |
 | an infeasible restricted master gives `SolverError` | it proves nothing without Farkas pricing (phase 2) |
+| `SolverBackend::add_rows` optional, throws by default (`D-54`) | a wrapped model's rows exist; only backends that can add rows override it |
+| no plan IDs in code comments (`D-55`) | the plans are removed at the end |
 
 ## 7. Design proposals (resolved 2026-10-23)
 

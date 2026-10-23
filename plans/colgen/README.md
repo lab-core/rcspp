@@ -5,6 +5,8 @@ Status: **phase 1 design accepted (`D-43`–`D-53`), no code yet**. Updated: 202
 
 ## Agent protocol
 
+- **Hard rule (`D-55`):** nothing that stays (code, comments, tests, commit messages, PR and issue texts, `docs/`)
+  mentions `plans/colgen`, its files, its IDs or plan-only words ("phase 1", "tier 2"). Write the reason instead.
 - Read this file first. Open the others only when the task needs them (see Index).
 - Refer to items by ID (`D-`, `Q-`, `P-`, `F-`, `T-`). Do not restate another file's content: link it.
 - Code facts belong in `inventory.md`, with `path:line`. Code moves, so re-check a fact before relying on it.
