@@ -5,7 +5,7 @@
 Covers: SolveResult protocol, Solution.to_arrays(), memory helpers, FilteredSolutionPool
 predicate-based filters, numpy methods, activity filters, make_filter statics, add_filter,
 remove_if/global_remove_if, remove_arcs_if/restore_arcs_if, AlgorithmParams helpers,
-check_interrupted, get_resource_factory, Node.resource, Arc.extender, and related API.
+check_interrupted, and related API.
 """
 
 import os

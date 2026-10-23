@@ -383,7 +383,6 @@ void init_graph(py::module_& m) {
         .def_readonly("sink", &Node<RealRC>::sink)
         .def_readwrite("in_arcs", &Node<RealRC>::in_arcs)
         .def_readwrite("out_arcs", &Node<RealRC>::out_arcs)
-        .def_readwrite("resource", &Node<RealRC>::resource)
         .def("__str__", &Node<RealRC>::to_string)
         .def("__repr__", &Node<RealRC>::to_string);
 
@@ -397,7 +396,6 @@ void init_graph(py::module_& m) {
             "destination",
             [](const Arc<RealRC>& a) -> Node<RealRC>* { return a.destination; },
             py::return_value_policy::reference)
-        .def_readwrite("extender", &Arc<RealRC>::extender)
         .def_readwrite("cost", &Arc<RealRC>::cost)
         .def_readwrite("rows", &Arc<RealRC>::rows)
         .def("__str__", &Arc<RealRC>::to_string)
