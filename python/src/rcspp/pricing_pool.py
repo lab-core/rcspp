@@ -557,7 +557,7 @@ class SharedPricingPool:
 
     @property
     def column_starts_view(self) -> np.ndarray:
-        """Zero-copy int32 offsets where each column's non-zeros start ``(count+1,)``."""
+        """Zero-copy int32 start offset of each column's non-zeros ``(count+1,)``."""
         return self._row_starts[: self.count + 1]
 
     @property

@@ -22,9 +22,8 @@ namespace rcspp {
 /// @tparam ContainerResourceType The resource type whose value is a container supporting
 ///         `includes()` and `size()`.
 template <typename ContainerResourceType>
-class SubsetDominanceFunction
-    : public Clonable<SubsetDominanceFunction<ContainerResourceType>,
-                      DominanceFunction<ContainerResourceType>> {
+class SubsetDominanceFunction : public Clonable<SubsetDominanceFunction<ContainerResourceType>,
+                                                DominanceFunction<ContainerResourceType>> {
     public:
         /// @brief Checks whether `lhs_resource` dominates `rhs_resource` by inclusion.
         ///

@@ -455,7 +455,7 @@ class ResourceGraph:
         return self._graph.get_arc(arc_id)
 
     def get_arcs(self, origin_node_id: int, destination_node_id: int):
-        """Return all arcs between *origin_node_id* and *destination_node_id* as a list."""
+        """Return the arcs from *origin_node_id* to *destination_node_id*."""
         self._flush()
         return self._graph.get_arcs(origin_node_id, destination_node_id)
 
