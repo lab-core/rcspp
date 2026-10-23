@@ -7,4 +7,5 @@
 #include <gtest/gtest.h>
 
 #include "test_column_generation_interfaces.hpp"
+#include "test_column_generation_master.hpp"
 #include "test_column_generation_tolerances.hpp"
