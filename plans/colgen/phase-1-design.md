@@ -273,6 +273,8 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 1 | 1.5 | `feat(column_generation): the loop, its statistics and hooks` | `statistics.hpp`, `column_generation.hpp` (`D-44`, `D-31`) |
 | 1 | 1.6 | `feat(column_generation): start from the user's model as is` | `NoInitialization`, `RestrictedMasterInfeasible` (`D-57`) |
 | 1 | 1.7 | `refactor(column_generation): name the default tolerances and gap` | named constants instead of literals (clang-tidy) |
+| 1 | 1.8 | `fix(column_generation): include pricer.hpp where it is used` | an include left in the header after the `.cpp` split |
+| 1 | 1.9 | `fix(column_generation): an exact pricer with no path at all proves convergence` | exact `Infeasible` counts as proof, like exact `Optimal` |
 | 2 | 2.1 | `build: USE_HIGHS, HiGHS found or fetched` | `find_package(HIGHS)`, else FetchContent pinned to `v1.15.1`; off by default (`D-52`) |
 | 2 | 2.2 | `feat(column_generation): HiGHS backend` | `HighsBackend` wrapping a user's `Highs` and their row list (`D-54`): CSC columns, LP solve, normalized duals, primal by id, integer solve |
 | 2 | 2.3 | `feat(column_generation): backend self-test` | `self_test.hpp`; run on HiGHS; scripted wrong backends show it catches sign errors |
@@ -311,6 +313,8 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | no plan IDs in code comments (`D-55`) | the plans are removed at the end |
 | `.cpp` for `tolerances`, `master_problem`, `master_initialization`, `column_generation` (`D-56`) | non-template code |
 | `NoInitialization` and `RestrictedMasterInfeasible` (`D-57`) | a feasible user model needs no artificial columns |
+| `Unbounded` status; the solver-status mapping lists every value | an unbounded master is a modeling problem, and a proof |
+| an exact pricer reporting `Infeasible` proves convergence | no path of any cost means no improving path |
 
 ## 7. Design proposals (resolved 2026-10-23)
 
