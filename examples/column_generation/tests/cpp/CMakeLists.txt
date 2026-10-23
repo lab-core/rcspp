@@ -15,7 +15,7 @@ set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_CLANG_TID
 
 include(GoogleTest)
 
-# One test executable over the core and the layer; LIBRARIES: a master solver.
+# One test executable over the core and the layer's objects; LIBRARIES: a master solver.
 function(add_column_generation_test name)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "" "SOURCES;LIBRARIES")
   add_executable(${name} ${arg_SOURCES})
@@ -27,7 +27,7 @@ function(add_column_generation_test name)
   endif()
   target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(${name} PRIVATE
-      ${RCSPP_EXAMPLE_CORE} rcspp_column_generation_headers ${arg_LIBRARIES} GTest::gtest_main)
+      ${RCSPP_EXAMPLE_CORE} rcspp_column_generation_objects ${arg_LIBRARIES} GTest::gtest_main)
   gtest_discover_tests(${name} DISCOVERY_TIMEOUT 30)
 endfunction()
 

@@ -18,6 +18,10 @@ target_include_directories(rcspp_column_generation_headers INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp"
     $<TARGET_PROPERTY:rcspp_objects,INTERFACE_INCLUDE_DIRECTORIES>)
 
+# MARK: Layer
+
+add_subdirectory(cpp/rcspp/column_generation)
+
 # MARK: Tests
 
 if(USE_TESTS)
