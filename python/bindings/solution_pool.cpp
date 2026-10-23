@@ -54,6 +54,9 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         .def_readonly("reduced_cost", &PyPricedColumn::reduced_cost)
         .def_readonly("solution", &PyPricedColumn::solution);
 
+    // Declared before SolutionPool, whose new_filter() returns it, so that the signature names it.
+    py::class_<FilteredSolutionPool> filtered_solution_pool(m, "FilteredSolutionPool");
+
     // SolutionPool: storage-only. All pricing/removal operations go through
     // FilteredSolutionPool objects created via new_filter().
     py::class_<SolutionPool>(m, "SolutionPool")
@@ -202,7 +205,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
     // On B&B backtrack: let fp go out of scope. The main pool is unaffected;
     // the FilteredSolutionPool unregisters itself automatically on destruction.
 
-    py::class_<FilteredSolutionPool>(m, "FilteredSolutionPool")
+    filtered_solution_pool
         // make_filter(...): build a filter predicate from row/arc constraints.
         .def_static(
             "make_filter",

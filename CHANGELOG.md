@@ -237,6 +237,14 @@ New features are summarised, with a pointer to where they are documented.
   It cleared the modified flag that a solve reads to decide whether to run it, so arcs no feasible
   path uses stayed in the graph. Results were the same, but the search was slower. The
   connectivity matrix now tracks its own staleness, through `Graph::get_modification_count()`.
+- **The type stubs of `rcspp._core` match the extension.** They were written by hand and had
+  drifted: they named members that do not exist (`LogLevel.Off`, `Graph.update`) and missed
+  others, and mypy rejected them. They are now generated (`scripts/generate_stubs.py`), with a
+  new `solution_pool.pyi`, and CI checks them with `mypy.stubtest`. Signatures in Python's
+  `help()` name Python types where they showed C++ ones (`rcspp::Solution`, `rcspp::Arc<…>`),
+  and a binding signature that was not valid Python is fixed: the extension's `solve` overload
+  for `BucketAlgorithmParams` takes `algorithm` and `upper_bound` without defaults, since they come
+  before the required `params`.
 - `PricingPool.populate_from_cpp_pool()` no longer copies all of the C++ pool's LP data, which it
   did not use. The docs of `SharedPricingPool.add_from_lp_arrays` no longer promise zero copy: it
   converts the index arrays to int32.

@@ -69,6 +69,12 @@ using RealRG = ResourceGraph<RealResource>;
 // ─── init_graph ───────────────────────────────────────────────────────────────
 
 void init_graph(py::module_& m) {
+    // Declared first, and defined below: SolveResult and Graph return them, and pybind11 writes
+    // a signature with the Python name of a type only once that type is bound.
+    py::class_<Solution> solution_class(m, "Solution");
+    py::class_<Node<RealRC>> node_class(m, "Node");
+    py::class_<Arc<RealRC>> arc_class(m, "Arc");
+
     m.def("check_interrupted",
           &py_check_interrupted,
           "Raise KeyboardInterrupt if a SIGINT was received since the last solve.");
@@ -309,8 +315,7 @@ void init_graph(py::module_& m) {
             "Return (cost, row_indices, row_coefficients) as numpy arrays "
             "(int64 indices, float64 coefficients) — avoids per-Row Python overhead.");
 
-    py::class_<Solution>(m, "Solution")
-        .def(py::init<>())
+    solution_class.def(py::init<>())
         .def_readwrite("cost", &Solution::cost)
         .def_readwrite("path_node_ids", &Solution::path_node_ids)
         // path_arc_ids is exposed via a property whose setter recomputes the content hash, so a
@@ -376,8 +381,7 @@ void init_graph(py::module_& m) {
                  py::return_value_policy::reference);
     }
 
-    py::class_<Node<RealRC>>(m, "Node")
-        .def(py::init<size_t, bool, bool>())
+    node_class.def(py::init<size_t, bool, bool>())
         .def_readonly("id", &Node<RealRC>::id)
         .def("pos", &Node<RealRC>::pos)
         .def_readonly("source", &Node<RealRC>::source)
@@ -387,8 +391,7 @@ void init_graph(py::module_& m) {
         .def("__str__", &Node<RealRC>::to_string)
         .def("__repr__", &Node<RealRC>::to_string);
 
-    py::class_<Arc<RealRC>>(m, "Arc")
-        .def_readonly("id", &Arc<RealRC>::id)
+    arc_class.def_readonly("id", &Arc<RealRC>::id)
         .def(
             "origin",
             [](const Arc<RealRC>& a) -> Node<RealRC>* { return a.origin; },
