@@ -62,8 +62,9 @@ struct ForwardDirection {
             return lhs <= rhs;
         }
 
-        /// @brief Whether resource @p lhs is lower than @p rhs, within @p delta, in this
-        ///        direction.
+        /// @brief Whether resource @p lhs comes before @p rhs in this direction's dominance order,
+        ///        shifted by @p delta (@c Resource::is_lower). @c LabelBuckets places values on
+        ///        its bucket axis with it; @p delta may be negative.
         template <typename ResourceType>
         static auto is_lower(const Resource<ResourceType>& lhs, const Resource<ResourceType>& rhs,
                              double delta = 0) -> bool {
@@ -153,7 +154,9 @@ struct BackwardDirection {
             return lhs.back_dominates(rhs);
         }
 
-        /// @brief Whether resource @p lhs is lower than @p rhs, within @p delta, going backward.
+        /// @brief Whether resource @p lhs comes before @p rhs in the backward dominance order,
+        ///        shifted by @p delta (@c Resource::is_back_lower). A threshold's backward order
+        ///        is reversed, so "before" is the larger value; @p delta may be negative.
         template <typename ResourceType>
         static auto is_lower(const Resource<ResourceType>& lhs, const Resource<ResourceType>& rhs,
                              double delta = 0) -> bool {

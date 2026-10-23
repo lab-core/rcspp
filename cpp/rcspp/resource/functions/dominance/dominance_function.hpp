@@ -32,26 +32,30 @@ class DominanceFunction {
 
         /// @brief Returns whether @p lhs_resource dominates @p rhs_resource.
         ///
-        /// A label with @p lhs_resource can be discarded in favour of @p rhs_resource
-        /// if @p lhs_resource dominates it (i.e., @p rhs_resource is at least as good
-        /// in every dimension).
+        /// When it does, @p lhs_resource is at least as good in every dimension, so the label
+        /// holding @p rhs_resource can be discarded in favour of the one holding @p lhs_resource.
         ///
-        /// @param lhs_resource The resource value of the label being tested for dominance.
-        /// @param rhs_resource The resource value of the reference label.
-        /// @return @c true if @p lhs_resource is dominated by @p rhs_resource.
+        /// @param lhs_resource The candidate dominating resource.
+        /// @param rhs_resource The resource being tested for dominance.
+        /// @return @c true if @p lhs_resource dominates @p rhs_resource.
         [[nodiscard]] virtual auto check_dominance(const ResourceType& lhs_resource,
                                                    const ResourceType& rhs_resource) -> bool = 0;
 
         // clang-format off
-        /// @brief Performs a fast (possibly partial) dominance check with a tolerance.
+        /// @brief A fast, possibly partial, dominance check, shifted by @p delta.
         ///
-        /// Useful as a quick filter before calling the full @c check_dominance(), or
-        /// when the dominance data structure supports approximate queries.
+        /// For a scalar it is the dominance test itself, with @p delta in @p lhs_resource's
+        /// favour. For a container it is a cheaper necessary condition, a size comparison, so it
+        /// can pass where @c check_dominance() fails. Useful as a quick filter; @c LabelBuckets
+        /// also uses it, through @c Resource::is_lower, to place a value on its bucket axis.
         ///
-        /// @param lhs_resource The resource value of the label being tested.
-        /// @param rhs_resource The resource value of the reference label.
-        /// @param delta        Tolerance used for approximate dominance comparisons.
-        /// @return @c true if @p lhs_resource is (partially) dominated by @p rhs_resource.
+        /// @param lhs_resource The candidate dominating resource.
+        /// @param rhs_resource The resource being tested for dominance.
+        /// @param delta        An offset, not only a tolerance: a positive one makes the check
+        ///                     easier to pass, a negative one harder (@c LabelBuckets passes
+        ///                     @c -range).
+        /// @return @c true if @p lhs_resource passes the check against @p rhs_resource, shifted
+        ///         by @p delta.
         // Use to check (partial) dominance quickly. Useful for more complex data structure
         virtual auto fast_check_dominance(const ResourceType& lhs_resource,
                                           const ResourceType& rhs_resource, double delta)
@@ -78,8 +82,8 @@ class DominanceFunction {
         ///
         /// The forward test, with the arguments swapped when the backward value is a limit.
         ///
-        /// @param lhs_resource The resource value of the label being tested for dominance.
-        /// @param rhs_resource The resource value of the reference label.
+        /// @param lhs_resource The candidate dominating resource.
+        /// @param rhs_resource The resource being tested for dominance.
         /// @return @c true if @p lhs_resource dominates @p rhs_resource going backward.
         [[nodiscard]] virtual auto check_back_dominance(const ResourceType& lhs_resource,
                                                         const ResourceType& rhs_resource) -> bool {
@@ -87,14 +91,16 @@ class DominanceFunction {
                                             : check_dominance(lhs_resource, rhs_resource);
         }
 
-        /// @brief The relaxed backward dominance test, within @p delta: the backward counterpart of
-        ///        @c fast_check_dominance, for bucketed backward label containers.
+        /// @brief @c fast_check_dominance going backward: its arguments are swapped when the
+        ///        backward value is a limit, as in @c check_back_dominance. For bucketed backward
+        ///        label containers.
         ///
-        /// @param lhs_resource The resource value of the label being tested.
-        /// @param rhs_resource The resource value of the reference label.
-        /// @param delta        Tolerance used for approximate dominance comparisons.
-        /// @return @c true if @p lhs_resource is (partially) backward-dominated by
-        ///         @p rhs_resource.
+        /// @param lhs_resource The candidate dominating resource.
+        /// @param rhs_resource The resource being tested for dominance.
+        /// @param delta        An offset, as in @c fast_check_dominance: a positive one makes the
+        ///                     check easier to pass, a negative one harder.
+        /// @return @c true if @p lhs_resource passes the backward check against @p rhs_resource,
+        ///         shifted by @p delta.
         virtual auto fast_check_back_dominance(const ResourceType& lhs_resource,
                                                const ResourceType& rhs_resource,
                                                double delta) -> bool {
@@ -165,9 +171,9 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
 
         /// @brief Returns whether @p lhs_resource dominates @p rhs_resource.
         ///
-        /// @param lhs_resource The label being tested for dominance.
-        /// @param rhs_resource The reference label.
-        /// @return @c true if @p lhs_resource is dominated by @p rhs_resource.
+        /// @param lhs_resource The candidate dominating resource.
+        /// @param rhs_resource The resource being tested for dominance.
+        /// @return @c true if @p lhs_resource dominates @p rhs_resource.
         [[nodiscard]] virtual auto check_dominance(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& lhs_resource,
             const Resource<ResourceTypeComposition<ResourceTypes...>>& rhs_resource) -> bool = 0;

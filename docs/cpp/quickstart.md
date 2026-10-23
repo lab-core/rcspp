@@ -23,10 +23,10 @@ graph.add_node(1);
 graph.add_node(2);
 graph.add_node(3, false, /*sink=*/true);
 
-graph.add_arc({10.0}, 0, 1, /*cost=*/10.0);
-graph.add_arc({15.0}, 1, 3, /*cost=*/15.0);
-graph.add_arc({20.0}, 0, 2, /*cost=*/20.0);
-graph.add_arc({10.0}, 2, 3, /*cost=*/10.0);
+graph.add_arc<RealResource>({10.0}, 0, 1, /*cost=*/10.0);
+graph.add_arc<RealResource>({15.0}, 1, 3, /*cost=*/15.0);
+graph.add_arc<RealResource>({20.0}, 0, 2, /*cost=*/20.0);
+graph.add_arc<RealResource>({10.0}, 2, 3, /*cost=*/10.0);
 // path 0→2→3 has lower cost (30) but identical resource usage to 0→1→3 (25)
 
 SolveResult result = graph.solve();
@@ -69,8 +69,8 @@ graph.add_node(1);
 graph.add_node(2, false, true);
 
 // arc: {travel_time, demand}
-graph.add_arc(std::make_tuple(std::vector{5.0}, std::vector{3}), 0, 1, 5.0);
-graph.add_arc(std::make_tuple(std::vector{8.0}, std::vector{4}), 1, 2, 8.0);
+graph.add_arc<RealResource, IntResource>({5.0, 3}, 0, 1, 5.0);
+graph.add_arc<RealResource, IntResource>({8.0, 4}, 1, 2, 8.0);
 
 auto result = graph.solve();
 ```
@@ -89,7 +89,7 @@ ResourceGraph<RealResource, IntResource> graph;
 // … build graph with rows on arcs …
 
 // arc with LP row: arc contributes 1 unit to constraint 5
-graph.add_arc({10.0, 2}, 0, 1, 10.0, {Row{5, 1.0}});
+graph.add_arc<RealResource, IntResource>({10.0, 2}, 0, 1, 10.0, {Row{5, 1.0}});
 
 // Solve loop
 std::vector<double> duals(n_constraints, 0.0);
@@ -117,13 +117,13 @@ while (true) {
 auto result = graph.solve();
 
 // Greedy (fast, non-optimal)
-auto result = graph.solve<GreedyAlgorithm, RealResource, LabelList>(ub, params);
+auto result = graph.solve<GreedyAlgorithm, RealResource, LabelList<Resources>>(ub, params);
 
 // Diversification search — collect N diverse solutions
 AlgorithmParams<LabelList<Resources>> params;
 params.max_solutions = 10;
 params.max_iterations = 50;
-auto result = graph.solve<DiversificationSearch, RealResource, LabelList>(ub, params);
+auto result = graph.solve<DiversificationSearch, RealResource, LabelList<Resources>>(ub, params);
 ```
 
 ---

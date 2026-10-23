@@ -232,20 +232,26 @@ class ResourceCompositionFactory
             return this->template get_components<ResourceTypeIndex>().size();
         }
 
+        /// @brief A deep copy, through the base class, of the whole factory: @ref clone_factory.
+        ///
+        /// The inherited @c ResourceFactory::clone copies only the composed prototype and the
+        /// extension function, so it would drop every per-type sub-factory.
+        ///
+        /// @return A deep copy of this factory, as its base type.
+        [[nodiscard]] std::unique_ptr<Base> clone() const override { return clone_factory(); }
+
         /// @brief Return a deep copy of this factory.
         ///
-        /// Clones each per-type ResourceFactory (via the Composition copy constructor,
-        /// which calls clone() on every element) then rebuilds the composition-level
-        /// resource prototype from the cloned sub-factories.
+        /// Clones the composition-level functions: the prototype's dominance, feasibility and
+        /// cost functions, and the extension function. A resource or an extender the copy creates
+        /// then computes what this factory's would. Then clones each per-type ResourceFactory (via
+        /// the Composition copy constructor, which calls clone() on every element) and rebuilds the
+        /// prototype's components from the cloned sub-factories.
         [[nodiscard]] std::unique_ptr<ResourceCompositionFactory<ResourceTypes...>> clone_factory()
             const {
-            // Construct with default composition functions so resource_prototype_ is
-            // valid before update_resource_prototype() is called.
-            auto new_factory = std::make_unique<ResourceCompositionFactory<ResourceTypes...>>(
-                std::make_unique<CompositionExtensionFunction<ResourceTypes...>>(),
-                std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
-                std::make_unique<CompositionCostFunction<ResourceTypes...>>(),
-                std::make_unique<CompositionDominanceFunction<ResourceTypes...>>());
+            auto new_factory = std::make_unique<ResourceCompositionFactory<ResourceTypes...>>();
+            new_factory->resource_prototype_ = this->resource_prototype_->clone();
+            new_factory->extension_function_ = this->extension_function_->clone();
             // Copy-assign the Composition<ResourceFactory, ResourceTypes...> part.
             // The assignment triggers the copy constructor, which calls clone() on
             // every per-type ResourceFactory in the vectors.
