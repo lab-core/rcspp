@@ -442,7 +442,7 @@ def test_refused_arc_leaves_the_graph_and_ids_consistent():
     rg.add_rows_to_arc(refused, (0, 1.0))
     with pytest.raises(ValueError, match="leaves sink 2"):
         rg.update()
-    assert rg.get_arcs_size() == 1  # only the arc flushed before
+    assert rg.number_of_arcs() == 1  # only the arc flushed before
 
     later = rg.add_arc(2.0, 1, 2, cost=2.0)
     rg.update()
@@ -606,21 +606,19 @@ def test_reserve_after_flush():
     assert rg.number_of_arcs() == 3
 
 
-# ── get_nodes_size / get_arcs_size ────────────────────────────────────────────
+# ── number_of_nodes / number_of_arcs ──────────────────────────────────────────
 
 
-def test_get_nodes_size_and_arcs_size():
-    """get_nodes_size and get_arcs_size include buffered items."""
+def test_number_of_nodes_and_arcs_count_buffered_items():
+    """number_of_nodes and number_of_arcs flush first, so they count everything."""
     rg = make_resource_graph()
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
-    assert rg.get_nodes_size() == 2
-    assert rg.get_arcs_size() == 0
+    assert rg.number_of_nodes() == 2
+    assert rg.number_of_arcs() == 0
     rg.add_arc(1.0, 0, 1, cost=1.0)
-    assert rg.get_arcs_size() == 1
-    rg.update()
-    assert rg.get_nodes_size() == 2
-    assert rg.get_arcs_size() == 1
+    assert rg.number_of_arcs() == 1
+    assert rg.number_of_nodes() == 2
 
 
 # ── get_arcs ──────────────────────────────────────────────────────────────────
@@ -720,13 +718,23 @@ def test_to_string_empty_graph():
 
 
 def test_str_and_repr():
-    """Str() and repr() both call to_string() and return a non-empty string."""
+    """Str() is to_string(); repr() is a one-line summary that does not flush."""
     rg = make_diamond()
-    s = str(rg)
-    assert isinstance(s, str)
+    assert str(rg) == rg.to_string()
     r = repr(rg)
-    assert isinstance(r, str)
-    assert s == r
+    assert r.startswith("<ResourceGraph: ") and "\n" not in r
+
+
+def test_repr_does_not_flush_a_refused_arc():
+    """Repr() does not flush, so a buffered arc that would be refused cannot raise."""
+    rg = make_resource_graph()
+    rg.add_node(0, source=True)
+    rg.add_node(1, sink=True)
+    rg.add_arc(1.0, 1, 0, cost=1.0)  # leaves the sink: refused when flushed
+    r = repr(rg)
+    assert "2 nodes and 1 arcs buffered" in r
+    with pytest.raises(ValueError):
+        rg.update()
 
 
 # ── solve() error paths ───────────────────────────────────────────────────────
@@ -903,22 +911,32 @@ def test_bucket_params_to_cpp_out_of_range_raises():
         rg.solve(params=params)
 
 
+def test_prune_by_upper_bound_is_settable():
+    """prune_by_upper_bound is bound, off by default, and usable in a solve."""
+    from rcspp.graph import AlgorithmParams
+
+    params = AlgorithmParams()
+    assert params.prune_by_upper_bound is False
+    params.prune_by_upper_bound = True
+    assert params.prune_by_upper_bound is True
+    sols = make_diamond().solve(upper_bound=4.5, params=params)
+    assert [round(s.cost, 6) for s in sols] == [4.0]
+
+
 def test_bucket_params_kwargs_forwarded():
     """BucketAlgorithmParams kwargs are forwarded to the underlying C++ object."""
     params = BucketAlgorithmParams(bucket_width=50, max_solutions=3)
     assert params.max_solutions == 3
 
 
-# ── ResourceGraph(nx_graph=...) constructor path ──────────────────────────────
+# ── ResourceGraph() takes no graph ────────────────────────────────────────────
 
 
-def test_resource_graph_constructor_with_nx_graph():
-    """ResourceGraph(nx_graph=G) invokes from_networkx; resources must be pre-added."""
+def test_resource_graph_constructor_takes_no_graph():
+    """A graph is imported with from_networkx, once the resources are registered."""
     G = nx.DiGraph()
     G.add_node(0, source=True)
     G.add_node(1, sink=True)
     G.add_edge(0, 1, resource=(1.0,), cost=2.0)
-    # from_networkx calls update() internally, so no resources → expected ValueError.
-    # Line 107 (self.from_networkx(nx_graph)) is reached before the error bubbles up.
-    with pytest.raises(ValueError, match="At least one resource"):
-        ResourceGraph(nx_graph=G)
+    with pytest.raises(TypeError):
+        ResourceGraph(G)  # type: ignore[call-arg]

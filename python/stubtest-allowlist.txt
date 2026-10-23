@@ -1,0 +1,18 @@
+# Differences between the stubs of rcspp._core and the extension that are not errors. Checked with
+#   PYTHONPATH=python/src python -m mypy.stubtest rcspp._core \
+#       --mypy-config-file python/stubtest.ini --allowlist python/stubtest-allowlist.txt
+
+# Every pybind11 class has pybind11's own metaclass, which the stubs do not declare. The pattern
+# names classes only (module-level names starting with a capital letter, and the generated
+# _real_* classes), so the members of each class are still checked.
+rcspp\._core\.[a-z_]+\.(_real\w*|[A-Z][a-z]\w*)
+
+# Classes bound without a constructor: pybind11 gives them an __init__(*args) that raises, while
+# the stubs give them none.
+rcspp\._core\.graph\._real\w*_(arc|node|graph)\.__init__
+rcspp\._core\.graph\.(Arc|BidirectionalStats)\.__init__
+rcspp\._core\.resource\.(Cost|Dominance|Extension|Feasibility)Function_\w+\.__init__
+rcspp\._core\.solution_pool\.(FilteredSolutionPool|PricedColumn)\.__init__
+
+# pybind11-stubgen writes an __all__ that the extension's modules do not define.
+rcspp\._core(\.[a-z_]+)?\.__all__

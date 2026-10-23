@@ -111,6 +111,18 @@ jobs:
             --cov=rcspp --cov-config=.coveragerc \
             --cov-report=term-missing --cov-fail-under=90
 
+      - name: Python stubs match the extension
+        if: steps.tested.outputs.cache-hit != 'true'
+        # The stubs in python/src/rcspp/_core/ come from scripts/generate_stubs.py; this fails
+        # when a binding changed and the stubs were not regenerated.
+        env:
+          PYTHONPATH: python/src
+        run: |
+          pip install mypy==2.4.0
+          python -m mypy.stubtest rcspp._core \
+            --mypy-config-file python/stubtest.ini \
+            --allowlist python/stubtest-allowlist.txt
+
       - name: C++ coverage gate
         if: steps.tested.outputs.cache-hit != 'true'
         run: |

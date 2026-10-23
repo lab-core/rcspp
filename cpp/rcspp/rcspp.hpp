@@ -68,7 +68,6 @@
 #include "rcspp/resource/composition/functions/cost/composition_cost_function.hpp"
 #include "rcspp/resource/composition/functions/dominance/composition_dominance_function.hpp"
 #include "rcspp/resource/composition/functions/extension/composition_extension_function.hpp"
-#include "rcspp/resource/composition/functions/extension/reachable_composition_extension_function.hpp"
 #include "rcspp/resource/composition/functions/feasibility/composition_feasibility_function.hpp"
 #include "rcspp/resource/composition/functions/feasibility/reachable_composition_feasibility_function.hpp"
 #include "rcspp/resource/composition/resource_composition.hpp"

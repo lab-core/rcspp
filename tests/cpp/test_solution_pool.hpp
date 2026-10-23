@@ -204,6 +204,19 @@ TEST(SolutionPool, PriceThreshold) {
     EXPECT_NEAR(r2[0].solution->column.cost, 10.0, 1e-9);
 }
 
+// A reduced cost negative only by rounding is not improving under the default threshold, which is
+// kDefaultPriceThreshold (-1e-9) in C++ as in the Python pools.
+TEST(SolutionPool, DefaultThresholdIgnoresRoundingNoise) {
+    SolutionPool pool;
+    auto fp = pool.new_filter();
+    // column.cost = 1, rows = [{0, 1}]: duals = [1 + 1e-12] give rc = -1e-12.
+    (void)fp.add(make_pool_solution(1.0, {{0, 1.0L}}, {0, 1}));
+
+    EXPECT_TRUE(fp.price({1.0 + 1e-12}).empty());
+    EXPECT_EQ(fp.price({1.0 + 1e-12}, /*threshold=*/0.0).size(), 1U);
+    EXPECT_EQ(fp.price({2.0}).size(), 1U);
+}
+
 // L-7: pricing accumulates the reduced cost in long double and narrows once — verify a fractional
 // computation comes out correct (exercises the non-integer coefficient/dual path).
 TEST(SolutionPool, PriceFractionalCoefficients) {

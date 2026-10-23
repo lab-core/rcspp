@@ -125,7 +125,7 @@ result = rg.solve()
 ## Multiple solutions (diversification)
 
 ```python
-from rcspp._core.graph import AlgorithmParams, Algorithm
+from rcspp.graph import AlgorithmParams, Algorithm
 
 params = AlgorithmParams()
 params.max_solutions = 10

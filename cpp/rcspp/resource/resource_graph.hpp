@@ -479,10 +479,15 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             return std::move(context.report);
         }
 
+        /// @brief Whether @p destination_node_id is reachable from @p origin_node_id.
+        ///
+        /// Recomputes the connectivity matrix when the graph has changed since it was last
+        /// computed. It leaves the modified flag alone: a solve reads it to decide whether to run
+        /// the feasibility reduction.
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
-            if (this->is_modified()) {
+            if (connectivity_modification_count_ != this->get_modification_count()) {
                 connectivity_matrix_.compute_bitmatrix();
-                this->mark_unmodified();
+                connectivity_modification_count_ = this->get_modification_count();
             }
 
             return connectivity_matrix_.is_connected(origin_node_id, destination_node_id);
@@ -573,6 +578,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 void run(Graph<ResourceCompositionType>& graph, SolveContext& context) override {
                     FeasibilityPreprocessor<ResourceCompositionType>::run(graph, context);
                     graph_->connectivity_matrix_.compute_bitmatrix();
+                    graph_->connectivity_modification_count_ = graph_->get_modification_count();
                 }
 
                 void undo() noexcept override {}
@@ -654,6 +660,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
         ConnectivityMatrix<ResourceCompositionType> connectivity_matrix_;
+        /// @brief The graph's modification count when the connectivity matrix was computed;
+        ///        none yet, at first.
+        size_t connectivity_modification_count_ = std::numeric_limits<size_t>::max();
         std::mutex mutex_;
 };
 }  // namespace rcspp

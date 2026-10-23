@@ -10,12 +10,11 @@ NetworkX integration.
 """
 
 import math
-from typing import Optional
 
 import networkx as nx
 
 from . import _core as _ext
-from ._resource_types import ALL, CPP_NAME, canonical
+from ._resource_types import ALL, canonical
 from .resource import _GenericFunctionDescriptor
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
@@ -60,11 +59,8 @@ _ALL_RESOURCE_TYPES = ALL
 # names back to canonical Python-type tuples.  Adding a new combination to
 # graph.cpp automatically makes it available here — no Python changes needed.
 
-# Reverse of CPP_NAME: C++ prefix → Python name (e.g. "uint_bitset" → "bitset").
-# Types without a CPP_NAME entry map to themselves.
-_CPP_TO_PY: dict[str, str] = {cpp: py for py, cpp in CPP_NAME.items()}
 # Sorted longest-first so the greedy parser never confuses "real" with "real_set".
-_CPP_NAMES: list[str] = sorted([CPP_NAME.get(t, t) for t in ALL], key=len, reverse=True)
+_TYPE_NAMES: list[str] = sorted(ALL, key=len, reverse=True)
 
 
 def _parse_rg_class(attr: str) -> tuple[str, ...] | None:
@@ -78,14 +74,14 @@ def _parse_rg_class(attr: str) -> tuple[str, ...] | None:
     inner = attr[1 : -len(suffix)]
     py_types: list[str] = []
     while inner:
-        for cpp in _CPP_NAMES:
-            if inner == cpp:
-                py_types.append(_CPP_TO_PY.get(cpp, cpp))
+        for name in _TYPE_NAMES:
+            if inner == name:
+                py_types.append(name)
                 inner = ""
                 break
-            if inner.startswith(cpp + "_"):
-                py_types.append(_CPP_TO_PY.get(cpp, cpp))
-                inner = inner[len(cpp) + 1 :]
+            if inner.startswith(name + "_"):
+                py_types.append(name)
+                inner = inner[len(name) + 1 :]
                 break
         else:
             return None
@@ -113,13 +109,11 @@ class ResourceGraph:
     pre-allocated with a single ``reserve`` call.
     """
 
-    def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
-        """Initialise a ResourceGraph, optionally from a NetworkX DiGraph.
+    def __init__(self):
+        """Initialise an empty ResourceGraph.
 
-        Args:
-            nx_graph: Optional directed graph whose nodes and arcs are
-                imported immediately via :meth:`from_networkx`.
-            **kwargs: Reserved for future use; currently unused.
+        Register the resources first, then add nodes and arcs, or import a NetworkX graph
+        with :meth:`from_networkx`.
         """
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
         self._refs: list = []  # keep Python wrappers alive against GC
@@ -139,21 +133,14 @@ class ResourceGraph:
             0,
         )  # (n_nodes, n_arcs) hint from reserve()
         self._next_arc_id: int = 0  # mirrors C++ next_arc_id_; returned by add_arc
-        if nx_graph is not None:
-            self.from_networkx(nx_graph)
 
     # ── Resource registration ─────────────────────────────────────────────────
 
     @staticmethod
     def _resolve(fn, canonical_type: str):
-        """Instantiate a typed C++ function object if *fn* is a generic descriptor.
-
-        ``canonical_type`` is translated to the C++ prefix via ``CPP_NAME`` before the
-        C++ class is looked up.
-        """
+        """Instantiate a typed C++ function object if *fn* is a generic descriptor."""
         if isinstance(fn, _GenericFunctionDescriptor):
-            cpp_type = CPP_NAME.get(canonical_type, canonical_type)
-            return fn.create(cpp_type)
+            return fn.create(canonical_type)
         return fn
 
     # ── Lazy construction ─────────────────────────────────────────────────────
@@ -206,8 +193,7 @@ class ResourceGraph:
 
         self._graph = getattr(_ext.graph, cls_name)()
         for r_type, ext, feas, cost, dom in self._pending:
-            cpp_name = CPP_NAME.get(r_type, r_type)
-            getattr(self._graph, f"add_{cpp_name}_resource")(ext, feas, cost, dom)
+            getattr(self._graph, f"add_{r_type}_resource")(ext, feas, cost, dom)
             self._refs.extend([ext, feas, cost, dom])
         self._pending.clear()
 
@@ -411,22 +397,6 @@ class ResourceGraph:
                 max(self._reserve_hint[0], n_nodes),
                 max(self._reserve_hint[1], n_arcs),
             )
-
-    # ── Graph size (no flush required — includes buffered counts) ─────────────
-
-    def get_nodes_size(self) -> int:
-        """Return the total number of nodes, including those still in the buffer."""
-        n = len(self._node_buffer)
-        if self._graph is not None:
-            n += self._graph.number_of_nodes()
-        return n
-
-    def get_arcs_size(self) -> int:
-        """Return the total number of arcs, including those still in the buffer."""
-        n = len(self._arc_buffer)
-        if self._graph is not None:
-            n += self._graph.number_of_arcs()
-        return n
 
     # ── Graph read operations (flush first) ───────────────────────────────────
 
@@ -730,11 +700,11 @@ class ResourceGraph:
 
     # ── String representation ─────────────────────────────────────────────────
 
-    def to_string(self, print_arcs: bool = True) -> str:
+    def to_string(self, print_arcs: bool = False) -> str:
         """Return a human-readable string representation of the graph.
 
         Args:
-            print_arcs: Include arc details in the output (default ``True``).
+            print_arcs: Include arc details in the output (default ``False``).
 
         Returns:
             Multi-line string describing the graph, or an empty string when the
@@ -750,8 +720,21 @@ class ResourceGraph:
         return self.to_string()
 
     def __repr__(self) -> str:
-        """Return a developer-friendly representation of the graph."""
-        return self.to_string()
+        """Return a one-line summary of the graph, without flushing the buffers.
+
+        A repr must not fail: flushing could raise, for example when a buffered arc is
+        refused, so this reads the counts as they stand.
+        """
+        nodes = arcs = 0
+        if self._graph is not None:
+            nodes = self._graph.number_of_nodes()
+            arcs = self._graph.number_of_arcs()
+        resources = self._registered_order or tuple(r[0] for r in self._pending)
+        return (
+            f"<ResourceGraph: {nodes} nodes, {arcs} arcs, "
+            f"{len(self._node_buffer)} nodes and {len(self._arc_buffer)} arcs buffered, "
+            f"resources={list(resources)}>"
+        )
 
     # ── Transparent delegation for everything else ────────────────────────────
 
@@ -1012,8 +995,7 @@ class BucketAlgorithmParams:
 
         if self._bucket_resource_pos is not None:
             bucket_type, bucket_idx = resolve(self._bucket_resource_pos, "bucket_resource_pos")
-            # Translate Python canonical name to the C++ prefix expected by run_bucket_solve.
-            self._cpp.bucket_resource_type = CPP_NAME.get(bucket_type, bucket_type)
+            self._cpp.bucket_resource_type = bucket_type
             self._cpp.bucket_resource_index = bucket_idx
 
         if self._sort_resource_pos is not None:

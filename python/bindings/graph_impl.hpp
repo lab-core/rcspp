@@ -484,9 +484,6 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
              py::arg("source") = false,
              py::arg("sink") = false,
              py::return_value_policy::reference)
-        .def("get_resource_factory",
-             &ResourceGraphType::get_resource_factory,
-             py::return_value_policy::reference)
         .def(
             "solve",
             [](ResourceGraphType& rg,
@@ -502,8 +499,9 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
                                             ResourceTypes...>(alg, rg, ub, py_p, pre, ci);
                 });
             },
-            py::arg("algorithm") = SolverAlgorithm::Simple,
-            py::arg("upper_bound") = INF,
+            // No defaults before the required params: a Python signature cannot have them.
+            py::arg("algorithm"),
+            py::arg("upper_bound"),
             py::arg("params"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
@@ -525,7 +523,7 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
             py::arg("upper_bound") = INF,
-            py::arg("params") = PyAlgorithmParams{},
+            py::arg_v("params", PyAlgorithmParams{}, "AlgorithmParams()"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def(
@@ -729,26 +727,6 @@ void bind_auto_rg(py::module_& m) {
 }
 
 #define BIND_MIX(...) bind_auto_rg<__VA_ARGS__>(m)
-
-// ─── Macros: bind single-resource graph blocks ───────────────────────────────
-
-// clang-format off
-#define BIND_SINGLE_NUMERICAL_RG(name, scalar, ResourceType)                                 \
-    bind_resource_graph_block<ResourceGraph<ResourceType>, ResourceComposition<ResourceType>, ResourceType, ResourceType>( \
-        m,                                                                         \
-        "_" #name "_resource_graph",                                               \
-        "_" #name "_graph",                                                        \
-        "_" #name "_node",                                                         \
-        "_" #name "_arc");
-
-#define BIND_SINGLE_CONTAINER_RG(name, scalar, ResourceType)                                           \
-    bind_resource_graph_block<ResourceGraph<ResourceType>, ResourceComposition<ResourceType>, RealResource, ResourceType>( \
-        m,                                                                                   \
-        "_" #name "_resource_graph",                                                         \
-        "_" #name "_graph",                                                                  \
-        "_" #name "_node",                                                                   \
-        "_" #name "_arc");
-// clang-format on
 
 // ─── Forward declarations for sub-init functions ─────────────────────────────
 void init_graph_mix2(py::module_& /*m*/);

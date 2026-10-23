@@ -29,6 +29,9 @@ struct PyPricedColumn {
 }  // namespace
 
 void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognitive-complexity)
+    // The default threshold of price(), shared with the Python pools.
+    m.attr("DEFAULT_PRICE_THRESHOLD") = kDefaultPriceThreshold;
+
     // ColumnActivity is stored per-entry in SolutionPool and updated on every price() call.
     // usage_rate() returns use_count / priced_count (∈ [0, 1]; 0.0 if the column was never priced).
     py::class_<ColumnActivity>(m, "ColumnActivity")
@@ -50,6 +53,9 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         .def_readonly("id", &PyPricedColumn::id)
         .def_readonly("reduced_cost", &PyPricedColumn::reduced_cost)
         .def_readonly("solution", &PyPricedColumn::solution);
+
+    // Declared before SolutionPool, whose new_filter() returns it, so that the signature names it.
+    py::class_<FilteredSolutionPool> filtered_solution_pool(m, "FilteredSolutionPool");
 
     // SolutionPool: storage-only. All pricing/removal operations go through
     // FilteredSolutionPool objects created via new_filter().
@@ -199,7 +205,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
     // On B&B backtrack: let fp go out of scope. The main pool is unaffected;
     // the FilteredSolutionPool unregisters itself automatically on destruction.
 
-    py::class_<FilteredSolutionPool>(m, "FilteredSolutionPool")
+    filtered_solution_pool
         // make_filter(...): build a filter predicate from row/arc constraints.
         .def_static(
             "make_filter",
@@ -368,7 +374,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 return out;
             },
             py::arg("duals"),
-            py::arg("threshold") = 0.0)
+            py::arg("threshold") = kDefaultPriceThreshold)
         .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_column_ids"))
         // Local removes (this view only, supports B&B backtracking):
         .def(
@@ -450,9 +456,8 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 return py::make_tuple(ids, rcs);
             },
             py::arg("duals"),
-            py::arg("threshold") = 0.0)
+            py::arg("threshold") = kDefaultPriceThreshold)
         .def("__len__", &FilteredSolutionPool::size)
-        .def("size", &FilteredSolutionPool::size)
         .def("pool",
              py::overload_cast<>(&FilteredSolutionPool::pool),
              py::return_value_policy::reference);

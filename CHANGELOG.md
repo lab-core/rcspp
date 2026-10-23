@@ -88,6 +88,37 @@ New features are summarised, with a pointer to where they are documented.
     `row_coefficients`. That changes the keywords of `SharedPricingPool.add_from_lp_arrays`,
     which were `col_costs`, `row_starts`, `col_indices` and `col_values`, and its views
     (`column_costs_view`, `column_starts_view`, `row_indices_view`, `row_coefficients_view`).
+- **Removed: API that did nothing, could not be used, or duplicated another name.**
+  - `AlgorithmBaseParams::use_pool`, in C++ and Python: nothing read it, so setting it to `false`
+    changed nothing.
+  - `ReachableCompositionExtensionFunction`, whose constructor always threw.
+  - `Graph::get_nodes_size()` and `get_arcs_size()`: use `get_number_of_nodes()` and
+    `get_number_of_arcs()`, which return the same values.
+  - Python `ResourceGraph.get_nodes_size()` and `get_arcs_size()`: use `number_of_nodes()` and
+    `number_of_arcs()`, which flush the buffers first and so count every node and arc.
+  - `FilteredSolutionPool.size()` in Python: use `len()`.
+  - `Algorithm::all_labels_processed()`, `is_resource_base_composition_v` and
+    `ResourceCompositionTypeConcept`, which nothing used.
+- **`FilteredSolutionPool::price` keeps only reduced costs below `-1e-9` by default**, in C++ and
+  in the binding, where it used to be `0.0`. The Python pools already used `-1e-9`. The value is
+  now one constant, `kDefaultPriceThreshold`, bound to Python as
+  `rcspp._core.solution_pool.DEFAULT_PRICE_THRESHOLD`. A column whose reduced cost is negative
+  only by rounding is no longer returned as improving.
+- **Python `ResourceGraph.to_string()` leaves the arcs out by default**, as in C++. `repr()` of a
+  `ResourceGraph` is now a one-line summary that does not flush the buffers, so it no longer
+  raises when a buffered arc would be refused. `str()` is still `to_string()`.
+- **Python `ResourceGraph()` takes no arguments.** `ResourceGraph(nx_graph)` imported the graph
+  before any resource could be registered, so it always raised; the unused `**kwargs` go too.
+  Register the resources, then call `from_networkx(G)`.
+- **Removed from Python: `ResourceGraph.get_resource_factory()`, `Node.resource` and
+  `Arc.extender`.** Their types are not bound, so they could only raise `TypeError`.
+- **Python names each resource type once.** The bitset type is `"bitset"` everywhere, as
+  `add_bitset_resource` already said: the function classes are `…_bitset`, and
+  `create("bitset")` works. It used to be `"uint_bitset"` in some places, which no longer
+  works. The types no bound graph uses (`uint`, `uint_set`, `size_t_set`, `size_t_bitset`) are
+  no longer exported, nor are their function classes, which could not be used. Neither are the
+  three graph classes whose first type is `int`, which a `ResourceGraph` could never pick: its
+  first resource is real.
 
 ### Added
 
@@ -178,6 +209,11 @@ New features are summarised, with a pointer to where they are documented.
   `complete` status does not rule out.
 - **`Algorithm::get_number_of_extended_labels()`**: the labels the last solve extended, a
   machine-independent measure of work.
+- **The C++ pool classes have a public Python home**: `SolutionPool`, `FilteredSolutionPool`,
+  `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
+  `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
+- **`AlgorithmParams.prune_by_upper_bound` in Python.** The C++ field was not bound, so Python
+  users could not turn pruning by the upper bound on.
 
 ### Fixed
 
@@ -197,6 +233,21 @@ New features are summarised, with a pointer to where they are documented.
   with custom composition functions lost them too. Nodes and arcs present when the graph was
   cloned were not affected, so a clone that is only solved, or whose arcs are only removed and
   restored (as `DiversificationSearch` does), gave the same results.
+- `ResourceGraph::is_connected()` no longer makes the next solve skip the feasibility reduction.
+  It cleared the modified flag that a solve reads to decide whether to run it, so arcs no feasible
+  path uses stayed in the graph. Results were the same, but the search was slower. The
+  connectivity matrix now tracks its own staleness, through `Graph::get_modification_count()`.
+- **The type stubs of `rcspp._core` match the extension.** They were written by hand and had
+  drifted: they named members that do not exist (`LogLevel.Off`, `Graph.update`) and missed
+  others, and mypy rejected them. They are now generated (`scripts/generate_stubs.py`), with a
+  new `solution_pool.pyi`, and CI checks them with `mypy.stubtest`. Signatures in Python's
+  `help()` name Python types where they showed C++ ones (`rcspp::Solution`, `rcspp::Arc<…>`),
+  and a binding signature that was not valid Python is fixed: the extension's `solve` overload
+  for `BucketAlgorithmParams` takes `algorithm` and `upper_bound` without defaults, since they come
+  before the required `params`.
+- `PricingPool.populate_from_cpp_pool()` no longer copies all of the C++ pool's LP data, which it
+  did not use. The docs of `SharedPricingPool.add_from_lp_arrays` no longer promise zero copy: it
+  converts the index arrays to int32.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.

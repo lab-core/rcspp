@@ -1,101 +1,358 @@
+"""
+Resource-related classes
+"""
+
 from __future__ import annotations
 
-from typing import Any
+import collections.abc
+import typing
 
-# ── Generic base (not directly instantiated by users) ────────────────────────
+__all__: list[str] = [
+    "AdditionExtensionFunction_int",
+    "AdditionExtensionFunction_real",
+    "CapacityExtensionFunction_int",
+    "CapacityExtensionFunction_real",
+    "CostFunction_bitset",
+    "CostFunction_int",
+    "CostFunction_int_set",
+    "CostFunction_real",
+    "CostFunction_real_set",
+    "DifferenceExtensionFunction_bitset",
+    "DifferenceExtensionFunction_int_set",
+    "DifferenceExtensionFunction_real_set",
+    "DominanceFunction_bitset",
+    "DominanceFunction_int",
+    "DominanceFunction_int_set",
+    "DominanceFunction_real",
+    "DominanceFunction_real_set",
+    "ExtensionFunction_bitset",
+    "ExtensionFunction_int",
+    "ExtensionFunction_int_set",
+    "ExtensionFunction_real",
+    "ExtensionFunction_real_set",
+    "FeasibilityFunction_bitset",
+    "FeasibilityFunction_int",
+    "FeasibilityFunction_int_set",
+    "FeasibilityFunction_real",
+    "FeasibilityFunction_real_set",
+    "IntersectionExtensionFunction_bitset",
+    "IntersectionExtensionFunction_int_set",
+    "IntersectionExtensionFunction_real_set",
+    "IntersectionFeasibilityFunction_bitset",
+    "IntersectionFeasibilityFunction_int_set",
+    "IntersectionFeasibilityFunction_real_set",
+    "MinMaxFeasibilityFunction_int",
+    "MinMaxFeasibilityFunction_real",
+    "NgPathExtensionFunction_bitset",
+    "NgPathExtensionFunction_int_set",
+    "NgPathExtensionFunction_real_set",
+    "SizeFeasibilityFunction_bitset",
+    "SizeFeasibilityFunction_int_set",
+    "SizeFeasibilityFunction_real_set",
+    "SubsetDominanceFunction_bitset",
+    "SubsetDominanceFunction_int_set",
+    "SubsetDominanceFunction_real_set",
+    "SupersetDominanceFunction_bitset",
+    "SupersetDominanceFunction_int_set",
+    "SupersetDominanceFunction_real_set",
+    "TimeWindowExtensionFunction_int",
+    "TimeWindowExtensionFunction_real",
+    "TimeWindowFeasibilityFunction_int",
+    "TimeWindowFeasibilityFunction_real",
+    "TrivialCostFunction_bitset",
+    "TrivialCostFunction_int",
+    "TrivialCostFunction_int_set",
+    "TrivialCostFunction_real",
+    "TrivialCostFunction_real_set",
+    "TrivialFeasibilityFunction_bitset",
+    "TrivialFeasibilityFunction_int",
+    "TrivialFeasibilityFunction_int_set",
+    "TrivialFeasibilityFunction_real",
+    "TrivialFeasibilityFunction_real_set",
+    "UnionExtensionFunction_bitset",
+    "UnionExtensionFunction_int_set",
+    "UnionExtensionFunction_real_set",
+    "ValueCostFunction_int",
+    "ValueCostFunction_real",
+    "ValueDominanceFunction_int",
+    "ValueDominanceFunction_real",
+]
 
-class _ExtensionFunction: ...
-class _FeasibilityFunction: ...
-class _CostFunction: ...
-class _DominanceFunction: ...
+class ExtensionFunction_real:
+    pass
 
-# ── Numerical resource functions (suffix: _real, _int, _uint) ────────────────
+class FeasibilityFunction_real:
+    pass
 
-class AdditionExtensionFunction_real(_ExtensionFunction):
+class CostFunction_real:
+    pass
+
+class DominanceFunction_real:
+    pass
+
+class ExtensionFunction_int:
+    pass
+
+class FeasibilityFunction_int:
+    pass
+
+class CostFunction_int:
+    pass
+
+class DominanceFunction_int:
+    pass
+
+class ExtensionFunction_real_set:
+    pass
+
+class FeasibilityFunction_real_set:
+    pass
+
+class CostFunction_real_set:
+    pass
+
+class DominanceFunction_real_set:
+    pass
+
+class ExtensionFunction_int_set:
+    pass
+
+class FeasibilityFunction_int_set:
+    pass
+
+class CostFunction_int_set:
+    pass
+
+class DominanceFunction_int_set:
+    pass
+
+class ExtensionFunction_bitset:
+    pass
+
+class FeasibilityFunction_bitset:
+    pass
+
+class CostFunction_bitset:
+    pass
+
+class DominanceFunction_bitset:
+    pass
+
+class AdditionExtensionFunction_real(ExtensionFunction_real):
     def __init__(self) -> None: ...
 
-class AdditionExtensionFunction_int(_ExtensionFunction):
+class ValueCostFunction_real(CostFunction_real):
     def __init__(self) -> None: ...
 
-class AdditionExtensionFunction_uint(_ExtensionFunction):
+class TrivialCostFunction_real(CostFunction_real):
     def __init__(self) -> None: ...
 
-class ValueCostFunction_real(_CostFunction):
+class ValueDominanceFunction_real(DominanceFunction_real):
     def __init__(self) -> None: ...
 
-class ValueCostFunction_int(_CostFunction):
-    def __init__(self) -> None: ...
-
-class ValueDominanceFunction_real(_DominanceFunction):
-    def __init__(self) -> None: ...
-
-class ValueDominanceFunction_int(_DominanceFunction):
-    def __init__(self) -> None: ...
-
-class TrivialFeasibilityFunction_real(_FeasibilityFunction):
-    def __init__(self) -> None: ...
-
-class TrivialFeasibilityFunction_int(_FeasibilityFunction):
-    def __init__(self) -> None: ...
-
-class TrivialCostFunction_real(_CostFunction):
-    def __init__(self) -> None: ...
-
-class TrivialCostFunction_int(_CostFunction):
-    def __init__(self) -> None: ...
-
-class MinMaxFeasibilityFunction_real(_FeasibilityFunction):
-    def __init__(self, min_value: float, max_value: float) -> None: ...
-
-class MinMaxFeasibilityFunction_int(_FeasibilityFunction):
-    def __init__(self, min_value: int, max_value: int) -> None: ...
-
-class TimeWindowExtensionFunction_real(_ExtensionFunction):
+class MinMaxFeasibilityFunction_real(FeasibilityFunction_real):
     def __init__(
-        self, tw_by_node: dict[int, tuple[float, float]], default_max_value: float = ...
+        self,
+        min_value: typing.SupportsFloat | typing.SupportsIndex,
+        max_value: typing.SupportsFloat | typing.SupportsIndex,
     ) -> None: ...
 
-class TimeWindowFeasibilityFunction_real(_FeasibilityFunction):
+class TrivialFeasibilityFunction_real(FeasibilityFunction_real):
+    def __init__(self) -> None: ...
+
+class TimeWindowExtensionFunction_real(ExtensionFunction_real):
     def __init__(
-        self, tw_by_node: dict[int, tuple[float, float]], default_max_value: float = ...
+        self,
+        tw_by_node: dict,
+        default_max_value: typing.SupportsFloat | typing.SupportsIndex = 8.988465674311579e307,
     ) -> None: ...
 
-# Signed numerical resources only: the backward step subtracts.
+class TimeWindowFeasibilityFunction_real(FeasibilityFunction_real):
+    def __init__(
+        self,
+        tw_by_node: dict,
+        default_max_value: typing.SupportsFloat | typing.SupportsIndex = 8.988465674311579e307,
+    ) -> None: ...
 
-class CapacityExtensionFunction_real(_ExtensionFunction):
-    def __init__(self, capacity: float) -> None: ...
-
-class CapacityExtensionFunction_int(_ExtensionFunction):
-    def __init__(self, capacity: int) -> None: ...
-
-# ── Container resource functions (suffix: _bitset, _set) ─────────────────────
-
-class UnionExtensionFunction_bitset(_ExtensionFunction):
+class AdditionExtensionFunction_int(ExtensionFunction_int):
     def __init__(self) -> None: ...
 
-class UnionExtensionFunction_set(_ExtensionFunction):
+class ValueCostFunction_int(CostFunction_int):
     def __init__(self) -> None: ...
 
-class IntersectionExtensionFunction_bitset(_ExtensionFunction):
+class TrivialCostFunction_int(CostFunction_int):
     def __init__(self) -> None: ...
 
-class SubsetDominanceFunction_bitset(_DominanceFunction):
+class ValueDominanceFunction_int(DominanceFunction_int):
     def __init__(self) -> None: ...
 
-class SupersetDominanceFunction_bitset(_DominanceFunction):
+class MinMaxFeasibilityFunction_int(FeasibilityFunction_int):
+    def __init__(
+        self,
+        min_value: typing.SupportsInt | typing.SupportsIndex,
+        max_value: typing.SupportsInt | typing.SupportsIndex,
+    ) -> None: ...
+
+class TrivialFeasibilityFunction_int(FeasibilityFunction_int):
     def __init__(self) -> None: ...
 
-class TrivialFeasibilityFunction_bitset(_FeasibilityFunction):
+class TimeWindowExtensionFunction_int(ExtensionFunction_int):
+    def __init__(
+        self,
+        tw_by_node: dict,
+        default_max_value: typing.SupportsInt | typing.SupportsIndex = 1073741823,
+    ) -> None: ...
+
+class TimeWindowFeasibilityFunction_int(FeasibilityFunction_int):
+    def __init__(
+        self,
+        tw_by_node: dict,
+        default_max_value: typing.SupportsInt | typing.SupportsIndex = 1073741823,
+    ) -> None: ...
+
+class CapacityExtensionFunction_real(ExtensionFunction_real):
+    def __init__(self, capacity: typing.SupportsFloat | typing.SupportsIndex) -> None: ...
+
+class CapacityExtensionFunction_int(ExtensionFunction_int):
+    def __init__(self, capacity: typing.SupportsInt | typing.SupportsIndex) -> None: ...
+
+class TrivialCostFunction_real_set(CostFunction_real_set):
     def __init__(self) -> None: ...
 
-class SizeFeasibilityFunction_bitset(_FeasibilityFunction):
-    def __init__(self, min_size: int, max_size: int) -> None: ...
-
-class NgPathExtensionFunction_bitset(_ExtensionFunction):
-    def __init__(self, neighborhoods: dict[int, set[int]]) -> None: ...
-
-class IntersectionFeasibilityFunction_bitset(_FeasibilityFunction):
-    def __init__(self, values_by_node: dict[int, set[int]], forbidden: bool = True) -> None: ...
-
-class TrivialCostFunction_bitset(_CostFunction):
+class TrivialFeasibilityFunction_real_set(FeasibilityFunction_real_set):
     def __init__(self) -> None: ...
+
+class SubsetDominanceFunction_real_set(DominanceFunction_real_set):
+    def __init__(self) -> None: ...
+
+class SupersetDominanceFunction_real_set(DominanceFunction_real_set):
+    def __init__(self) -> None: ...
+
+class UnionExtensionFunction_real_set(ExtensionFunction_real_set):
+    def __init__(self) -> None: ...
+
+class IntersectionExtensionFunction_real_set(ExtensionFunction_real_set):
+    def __init__(self) -> None: ...
+
+class DifferenceExtensionFunction_real_set(ExtensionFunction_real_set):
+    def __init__(self) -> None: ...
+
+class SizeFeasibilityFunction_real_set(FeasibilityFunction_real_set):
+    def __init__(
+        self,
+        min_size: typing.SupportsInt | typing.SupportsIndex,
+        max_size: typing.SupportsInt | typing.SupportsIndex,
+    ) -> None: ...
+
+class NgPathExtensionFunction_real_set(ExtensionFunction_real_set):
+    def __init__(
+        self,
+        neighborhoods: collections.abc.Mapping[
+            typing.SupportsInt | typing.SupportsIndex,
+            collections.abc.Set[typing.SupportsFloat | typing.SupportsIndex],
+        ],
+    ) -> None: ...
+
+class IntersectionFeasibilityFunction_real_set(FeasibilityFunction_real_set):
+    def __init__(
+        self,
+        values_by_node: collections.abc.Mapping[
+            typing.SupportsInt | typing.SupportsIndex,
+            collections.abc.Set[typing.SupportsFloat | typing.SupportsIndex],
+        ],
+        forbidden: bool = True,
+    ) -> None: ...
+
+class TrivialCostFunction_int_set(CostFunction_int_set):
+    def __init__(self) -> None: ...
+
+class TrivialFeasibilityFunction_int_set(FeasibilityFunction_int_set):
+    def __init__(self) -> None: ...
+
+class SubsetDominanceFunction_int_set(DominanceFunction_int_set):
+    def __init__(self) -> None: ...
+
+class SupersetDominanceFunction_int_set(DominanceFunction_int_set):
+    def __init__(self) -> None: ...
+
+class UnionExtensionFunction_int_set(ExtensionFunction_int_set):
+    def __init__(self) -> None: ...
+
+class IntersectionExtensionFunction_int_set(ExtensionFunction_int_set):
+    def __init__(self) -> None: ...
+
+class DifferenceExtensionFunction_int_set(ExtensionFunction_int_set):
+    def __init__(self) -> None: ...
+
+class SizeFeasibilityFunction_int_set(FeasibilityFunction_int_set):
+    def __init__(
+        self,
+        min_size: typing.SupportsInt | typing.SupportsIndex,
+        max_size: typing.SupportsInt | typing.SupportsIndex,
+    ) -> None: ...
+
+class NgPathExtensionFunction_int_set(ExtensionFunction_int_set):
+    def __init__(
+        self,
+        neighborhoods: collections.abc.Mapping[
+            typing.SupportsInt | typing.SupportsIndex,
+            collections.abc.Set[typing.SupportsInt | typing.SupportsIndex],
+        ],
+    ) -> None: ...
+
+class IntersectionFeasibilityFunction_int_set(FeasibilityFunction_int_set):
+    def __init__(
+        self,
+        values_by_node: collections.abc.Mapping[
+            typing.SupportsInt | typing.SupportsIndex,
+            collections.abc.Set[typing.SupportsInt | typing.SupportsIndex],
+        ],
+        forbidden: bool = True,
+    ) -> None: ...
+
+class TrivialCostFunction_bitset(CostFunction_bitset):
+    def __init__(self) -> None: ...
+
+class TrivialFeasibilityFunction_bitset(FeasibilityFunction_bitset):
+    def __init__(self) -> None: ...
+
+class SubsetDominanceFunction_bitset(DominanceFunction_bitset):
+    def __init__(self) -> None: ...
+
+class SupersetDominanceFunction_bitset(DominanceFunction_bitset):
+    def __init__(self) -> None: ...
+
+class UnionExtensionFunction_bitset(ExtensionFunction_bitset):
+    def __init__(self) -> None: ...
+
+class IntersectionExtensionFunction_bitset(ExtensionFunction_bitset):
+    def __init__(self) -> None: ...
+
+class DifferenceExtensionFunction_bitset(ExtensionFunction_bitset):
+    def __init__(self) -> None: ...
+
+class SizeFeasibilityFunction_bitset(FeasibilityFunction_bitset):
+    def __init__(
+        self,
+        min_size: typing.SupportsInt | typing.SupportsIndex,
+        max_size: typing.SupportsInt | typing.SupportsIndex,
+    ) -> None: ...
+
+class NgPathExtensionFunction_bitset(ExtensionFunction_bitset):
+    def __init__(
+        self,
+        neighborhoods: collections.abc.Mapping[
+            typing.SupportsInt | typing.SupportsIndex,
+            collections.abc.Set[typing.SupportsInt | typing.SupportsIndex],
+        ],
+    ) -> None: ...
+
+class IntersectionFeasibilityFunction_bitset(FeasibilityFunction_bitset):
+    def __init__(
+        self,
+        values_by_node: collections.abc.Mapping[
+            typing.SupportsInt | typing.SupportsIndex,
+            collections.abc.Set[typing.SupportsInt | typing.SupportsIndex],
+        ],
+        forbidden: bool = True,
+    ) -> None: ...
