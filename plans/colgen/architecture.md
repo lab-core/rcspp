@@ -6,7 +6,7 @@
  user code (C++ or Python)
    │ builds master rows + ResourceGraph(s) whose arcs carry Row{index}
    ▼
- rcspp::column_generation  (NEW, header-only, solver-agnostic)
+ rcspp::column_generation  (NEW, .hpp + .cpp (D-56), solver-agnostic)
    BranchAndPrice ──► ColumnGeneration ──► MasterProblem ──► SolverBackend ◄── HiGHS | Gurobi | SoPlex | fake(tests)
         │                  │   │                                          (NEW, separate targets: D-07)
         │                  │   ├─► DualStabilization
