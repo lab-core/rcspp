@@ -96,12 +96,15 @@ struct RelaxationParams {
         bool verbose = false;
 };
 
+/// @brief Default relative optimality gap of the final integer solve.
+inline constexpr double default_relative_gap = 1e-4;
+
 /// @brief Options of the final integer solve over the columns of the master.
 struct IntegerParams {
         /// @brief Wall-clock limit in seconds.
         double timeout_s = std::numeric_limits<double>::infinity();
         /// @brief Relative optimality gap at which the solver may stop.
-        double relative_gap = 1e-4;
+        double relative_gap = default_relative_gap;
         /// @brief Type given to the generated columns (the user's own variables keep theirs).
         ColumnType column_type = ColumnType::Integer;
         /// @brief Number of threads; 0 lets the solver choose.

@@ -5,6 +5,16 @@
 
 namespace rcspp::column_generation {
 
+/// @brief Default reduced-cost tolerance: a column improves when its reduced cost is below minus
+///        this.
+inline constexpr double default_reduced_cost_tolerance = 1e-9;
+
+/// @brief Default feasibility tolerance: smaller values count as zero.
+inline constexpr double default_feasibility_tolerance = 1e-6;
+
+/// @brief Default gap between the bound and the LP value at which the loop may stop early.
+inline constexpr double default_optimality_gap = 1e-6;
+
 /// @brief What a tolerance may depend on.
 struct ToleranceContext {
         /// @brief Typical magnitude of the column costs (at least 1).
@@ -39,8 +49,9 @@ class AbsoluteTolerances final : public Tolerances {
         /// @param reduced_cost   See @c Tolerances::reduced_cost.
         /// @param feasibility    See @c Tolerances::feasibility.
         /// @param optimality_gap See @c Tolerances::optimality_gap.
-        explicit AbsoluteTolerances(double reduced_cost = 1e-9, double feasibility = 1e-6,
-                                    double optimality_gap = 1e-6);
+        explicit AbsoluteTolerances(double reduced_cost = default_reduced_cost_tolerance,
+                                    double feasibility = default_feasibility_tolerance,
+                                    double optimality_gap = default_optimality_gap);
 
         [[nodiscard]] double reduced_cost(const ToleranceContext& context) const override;
         [[nodiscard]] double feasibility(const ToleranceContext& context) const override;
@@ -63,8 +74,9 @@ class RelativeTolerances final : public Tolerances {
         /// @param reduced_cost   Reduced-cost tolerance per unit of cost scale.
         /// @param feasibility    See @c Tolerances::feasibility.
         /// @param optimality_gap Gap tolerance per unit of cost scale.
-        explicit RelativeTolerances(double reduced_cost = 1e-9, double feasibility = 1e-6,
-                                    double optimality_gap = 1e-6);
+        explicit RelativeTolerances(double reduced_cost = default_reduced_cost_tolerance,
+                                    double feasibility = default_feasibility_tolerance,
+                                    double optimality_gap = default_optimality_gap);
 
         [[nodiscard]] double reduced_cost(const ToleranceContext& context) const override;
         [[nodiscard]] double feasibility(const ToleranceContext& context) const override;
