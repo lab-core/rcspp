@@ -36,4 +36,6 @@ double ArtificialColumns::cost(const ToleranceContext& context) const {
     return cost_ > 0.0 ? cost_ : automatic_cost_factor * context.cost_scale;
 }
 
+void NoInitialization::initialize(MasterProblem& /*master*/, const ToleranceContext& /*context*/) {}
+
 }  // namespace rcspp::column_generation

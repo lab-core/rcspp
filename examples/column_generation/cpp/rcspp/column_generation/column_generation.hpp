@@ -64,12 +64,19 @@ struct ColumnGenerationParams {
 
 /// @brief How a run ended.
 enum class ColumnGenerationStatus {
-    Optimal,         ///< proven: no improving column exists, and no artificial column is used
-    NotProven,       ///< no new column, but some pricer did not prove it found the best ones
-    Infeasible,      ///< converged with an artificial column still in use
+    Optimal,     ///< proven: no improving column exists, and no artificial column is used
+    NotProven,   ///< no new column, but some pricer did not prove it found the best ones
+    Infeasible,  ///< converged with an artificial column still in use: no solution exists
+    /// The master LP, with the columns it has so far, has no feasible solution. This does not
+    /// prove the problem infeasible. Add starting columns, or use @c ArtificialColumns.
+    RestrictedMasterInfeasible,
+    /// The master LP is unbounded: some column can be used without limit at a negative cost.
+    /// More columns cannot bound it, so the problem itself is unbounded; look for a missing
+    /// convexity row or bound.
+    Unbounded,
     TimeLimit,       ///< stopped by @c ColumnGenerationParams::timeout_s
     IterationLimit,  ///< stopped by @c ColumnGenerationParams::max_iterations
-    SolverError,     ///< an LP solve failed (status other than optimal or time limit)
+    SolverError,     ///< an LP solve failed for another reason (numerical trouble, interruption…)
 };
 
 /// @brief Result of a run.
