@@ -31,13 +31,14 @@ struct DirectionalImplementations {
         static constexpr bool has_bidirectional = false;
 };
 
-/// @brief @c SimpleDominanceAlgorithm also searches backward, as @ref BackwardSimple, and
-///        bidirectionally, as @ref BidirectionalDominanceAlgorithm.
+/// @brief @c SimpleDominanceAlgorithm also searches backward, as
+///        @ref BackwardSimpleDominanceAlgorithm, and bidirectionally, as
+///        @ref BidirectionalDominanceAlgorithm.
 template <>
 struct DirectionalImplementations<SimpleDominanceAlgorithm> {
         static constexpr bool has_backward = true;
         template <typename ResourceType, typename LabelContainerType>
-        using Backward = BackwardSimple<ResourceType, LabelContainerType>;
+        using Backward = BackwardSimpleDominanceAlgorithm<ResourceType, LabelContainerType>;
         static constexpr bool has_bidirectional = true;
         template <typename ResourceType, typename LabelContainerType, typename CriticalResourceType>
         using Bidirectional =

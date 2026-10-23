@@ -119,7 +119,7 @@ New features are summarised, with a pointer to where they are documented.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
   code compiling: `ExtensionFunction::directional_resource_kind()` and `start_back()`; on
   `FeasibilityFunction` `join_rule()` and `requires_nondecreasing()`; and
-  `CostFunction::cost_form()`. A composition `DominanceFunction` gains a `check_back_dominance()`
+  `CostFunction::cost_kind()`. A composition `DominanceFunction` gains a `check_back_dominance()`
   whose default refuses, and a composition `CostFunction` an `is_additive()` whose default refuses:
   a backward label's cost is its suffix's, and the join adds the two halves' costs, so a cost that
   reads a threshold's value is refused. An accumulation whose halves the join adds, through its cost

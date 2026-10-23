@@ -136,7 +136,7 @@ class JoinCheck final : public ModelCheck<ResourceType> {
                 if constexpr (is_numerical_resource_v<Value>) {
                     if (component_index < kinds.size() &&
                         kinds[component_index] == DirectionalResourceKind::Accumulate) {
-                        halves_added[component_index] = component.cost_form() == CostForm::Value ||
+                        halves_added[component_index] = component.cost_kind() == CostKind::Value ||
                                                         component.requires_nondecreasing();
                     }
                 }

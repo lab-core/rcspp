@@ -14,20 +14,21 @@ namespace rcspp {
 
 namespace detail {
 
-/// @brief The FIFO frontier of @ref SimpleDominanceAlgorithm, in either direction.
+/// @brief The search of @ref SimpleDominanceAlgorithm, first in, first out, in either direction.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container its params hold.
 /// @tparam Direction          The direction policy: @ref ForwardDirection or
 ///                           @ref BackwardDirection.
 template <typename ResourceType, typename LabelContainerType, typename Direction>
-class SimpleFrontier : public DominanceAlgorithm<ResourceType, LabelContainerType, Direction> {
+class DirectedSimpleDominanceAlgorithm
+    : public DominanceAlgorithm<ResourceType, LabelContainerType, Direction> {
         using Base = DominanceAlgorithm<ResourceType, LabelContainerType, Direction>;
 
     public:
         using Base::Base;
 
-        ~SimpleFrontier() override = default;
+        ~DirectedSimpleDominanceAlgorithm() override = default;
 
     private:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
@@ -136,7 +137,8 @@ class SimpleFrontier : public DominanceAlgorithm<ResourceType, LabelContainerTyp
 ///
 /// @c create_algorithm<SimpleDominanceAlgorithm> builds it for @c SearchDirection::Backward.
 template <typename ResourceType, typename LabelContainerType>
-using BackwardSimple = SimpleFrontier<ResourceType, LabelContainerType, BackwardDirection>;
+using BackwardSimpleDominanceAlgorithm =
+    DirectedSimpleDominanceAlgorithm<ResourceType, LabelContainerType, BackwardDirection>;
 
 }  // namespace detail
 
@@ -148,9 +150,10 @@ using BackwardSimple = SimpleFrontier<ResourceType, LabelContainerType, Backward
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
 class SimpleDominanceAlgorithm
-    : public detail::SimpleFrontier<ResourceType, LabelContainerType, ForwardDirection> {
+    : public detail::DirectedSimpleDominanceAlgorithm<ResourceType, LabelContainerType,
+                                                      ForwardDirection> {
     public:
-        using detail::SimpleFrontier<ResourceType, LabelContainerType,
-                                     ForwardDirection>::SimpleFrontier;
+        using detail::DirectedSimpleDominanceAlgorithm<
+            ResourceType, LabelContainerType, ForwardDirection>::DirectedSimpleDominanceAlgorithm;
 };
 }  // namespace rcspp

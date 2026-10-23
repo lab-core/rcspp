@@ -18,9 +18,9 @@ class Resource;
 /// @brief What a cost function computes, as far as a backward search and the join need to know.
 ///
 /// A backward label's cost, and the join of a forward and a backward label's costs, are right only
-/// for an additive cost: one that sums over arcs. The form lets @c BackwardExtensionCheck check
+/// for an additive cost: one that sums over arcs. The kind lets @c BackwardExtensionCheck check
 /// that without evaluating the function.
-enum class CostForm {
+enum class CostKind {
     Unspecified,  ///< not declared: a backward or bidirectional solve refuses a cost that reads it
     Zero,         ///< always zero, so additive
     Value,        ///< the resource's value, additive only under an accumulation that is a sum
@@ -49,8 +49,8 @@ class CostFunction {
         /// Defaults to @c Unspecified, on which a backward or bidirectional solve refuses a cost
         /// that reads this component.
         ///
-        /// @return The form declared by this cost function.
-        [[nodiscard]] virtual CostForm cost_form() const { return CostForm::Unspecified; }
+        /// @return The kind declared by this cost function.
+        [[nodiscard]] virtual CostKind cost_kind() const { return CostKind::Unspecified; }
 
         /// @brief Creates a polymorphic copy of this cost function.
         ///
