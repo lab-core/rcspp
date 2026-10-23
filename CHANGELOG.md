@@ -79,6 +79,15 @@ New features are summarised, with a pointer to where they are documented.
     `SubsetDominanceFunction`, and `SubtractExtensionFunction` is `DifferenceExtensionFunction`,
     in C++ and in Python, with their headers. The first two names were synonyms for opposite
     rules; the new ones say which set dominates.
+  - Python keywords: `id` is `node_id`, `arc_id` or `column_id` (`add_node`, `get_node`,
+    `get_arc`, and the pool's `get`, `get_activity` and `get_entry`); `origin_id` and
+    `destination_id` are `origin_node_id` and `destination_node_id` (`add_arc`, `get_arcs`), as
+    on `ResourceGraph`; the pool's `col_ids` is `column_ids`, and `update_activity(basis_ids)` is
+    `update_activity(basis_column_ids)`.
+  - The LP arrays have one vocabulary: `column_costs`, `column_starts`, `row_indices` and
+    `row_coefficients`. That changes the keywords of `SharedPricingPool.add_from_lp_arrays`,
+    which were `col_costs`, `row_starts`, `col_indices` and `col_values`, and its views
+    (`column_costs_view`, `column_starts_view`, `row_indices_view`, `row_coefficients_view`).
 
 ### Added
 

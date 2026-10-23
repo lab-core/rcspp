@@ -335,37 +335,38 @@ class SharedPricingPool:
 
     def add_from_lp_arrays(
         self,
-        col_costs: np.ndarray,
-        row_starts: np.ndarray,
-        col_indices: np.ndarray,
-        col_values: np.ndarray,
+        column_costs: np.ndarray,
+        column_starts: np.ndarray,
+        row_indices: np.ndarray,
+        row_coefficients: np.ndarray,
         valid_mask: np.ndarray | None = None,
     ) -> list[int]:
-        """Bulk-add from pre-built CSR arrays (from SolutionPool.get_lp_arrays()).
+        """Bulk-add from pre-built LP arrays (from SolutionPool.get_lp_arrays()).
 
         Zero-copy if the dtypes already match (float64 costs/values, uint32
-        row_starts/indices); one copy otherwise.  Much faster than calling
+        column_starts/row_indices); one copy otherwise.  Much faster than calling
         :meth:`add` in a loop when populating from the C++ pool::
 
-            costs, rs, ci, cv = pool._cpp_pool.get_lp_arrays()
-            shared_idxs = shared_pool.add_from_lp_arrays(costs, rs, ci, cv)
+            costs, starts, rows, coefs = pool._cpp_pool.get_lp_arrays()
+            shared_idxs = shared_pool.add_from_lp_arrays(costs, starts, rows, coefs)
 
         Args:
-            col_costs: float64 array of LP costs, shape ``(n_cols,)``.
-            row_starts: uint32 CSR row-pointer array, shape ``(n_cols + 1,)``.
-            col_indices: uint32 constraint indices, shape ``(nnz,)``.
-            col_values: float64 coefficients, shape ``(nnz,)``.
+            column_costs: float64 array of LP costs, shape ``(n_cols,)``.
+            column_starts: uint32 offsets where each column's non-zeros start in
+                ``row_indices`` and ``row_coefficients``, shape ``(n_cols + 1,)``.
+            row_indices: uint32 row (constraint) index of each non-zero, shape ``(nnz,)``.
+            row_coefficients: float64 coefficient of each non-zero, shape ``(nnz,)``.
             valid_mask: Optional bool array ``(n_cols,)``; only True slots added.
 
         Returns:
             List of shared slot indices assigned to the added columns.
         """
-        col_costs = np.asarray(col_costs, dtype=np.float64)
-        row_starts = np.asarray(row_starts, dtype=np.int32)
-        col_indices = np.asarray(col_indices, dtype=np.int32)
-        col_values = np.asarray(col_values, dtype=np.float64)
+        column_costs = np.asarray(column_costs, dtype=np.float64)
+        column_starts = np.asarray(column_starts, dtype=np.int32)
+        row_indices = np.asarray(row_indices, dtype=np.int32)
+        row_coefficients = np.asarray(row_coefficients, dtype=np.float64)
 
-        sel = np.arange(len(col_costs))
+        sel = np.arange(len(column_costs))
         if valid_mask is not None:
             sel = sel[np.asarray(valid_mask, dtype=np.bool_)]
 
@@ -374,7 +375,7 @@ class SharedPricingPool:
             return []
 
         # Pre-compute new nnz counts per selected column.
-        nnz_per = np.diff(row_starts)[sel]
+        nnz_per = np.diff(column_starts)[sel]
         new_nnz_total = int(nnz_per.sum())
 
         with self._lock:
@@ -387,12 +388,12 @@ class SharedPricingPool:
             cursor = nnz_start
             for local_i, src_i in enumerate(sel):
                 slot = start + local_i
-                self._col_costs[slot] = col_costs[src_i]
-                src_start = int(row_starts[src_i])
-                src_end = int(row_starts[src_i + 1])
+                self._col_costs[slot] = column_costs[src_i]
+                src_start = int(column_starts[src_i])
+                src_end = int(column_starts[src_i + 1])
                 length = src_end - src_start
-                self._col_indices[cursor : cursor + length] = col_indices[src_start:src_end]
-                self._col_values[cursor : cursor + length] = col_values[src_start:src_end]
+                self._col_indices[cursor : cursor + length] = row_indices[src_start:src_end]
+                self._col_values[cursor : cursor + length] = row_coefficients[src_start:src_end]
                 cursor += length
                 self._row_starts[slot + 1] = np.int32(cursor)
                 self._valid[slot] = np.uint8(1)
@@ -504,7 +505,7 @@ class SharedPricingPool:
             return np.empty(0, dtype=np.intp), np.empty(0, dtype=np.float64)
 
         n_duals = min(len(duals), self._n_constraints)
-        col_costs = np.asarray(self._col_costs[:n], dtype=np.float64)
+        column_costs = np.asarray(self._col_costs[:n], dtype=np.float64)
 
         if _SCIPY_AVAILABLE:
             indptr = self._row_starts[: n + 1]
@@ -513,7 +514,7 @@ class SharedPricingPool:
             A = _sp_csr((sp_val, sp_idx, indptr), shape=(n, self._n_constraints), copy=False)
             d = np.zeros(self._n_constraints, dtype=np.float64)
             d[:n_duals] = duals[:n_duals]
-            rc = col_costs - A @ d
+            rc = column_costs - A @ d
         else:  # pragma: no cover  # scipy not installed
             if not _scipy_warning_emitted:
                 warnings.warn(
@@ -522,7 +523,7 @@ class SharedPricingPool:
                     stacklevel=2,
                 )
                 _scipy_warning_emitted = True
-            rc = col_costs.copy()
+            rc = column_costs.copy()
             if nnz > 0:
                 counts = np.diff(self._row_starts[: n + 1].astype(np.int64))
                 row_idx = np.repeat(np.arange(n, dtype=np.int64), counts)
@@ -550,22 +551,22 @@ class SharedPricingPool:
     # ── Views ─────────────────────────────────────────────────────────────────
 
     @property
-    def col_costs_view(self) -> np.ndarray:
+    def column_costs_view(self) -> np.ndarray:
         """Zero-copy float64 LP costs for committed columns ``(count,)``."""
         return self._col_costs[: self.count]
 
     @property
-    def row_starts_view(self) -> np.ndarray:
-        """Zero-copy int32 CSR row-pointer array ``(count+1,)``."""
+    def column_starts_view(self) -> np.ndarray:
+        """Zero-copy int32 offsets where each column's non-zeros start ``(count+1,)``."""
         return self._row_starts[: self.count + 1]
 
     @property
-    def col_indices_view(self) -> np.ndarray:
-        """Zero-copy int32 constraint-index array for non-zeros ``(nnz,)``."""
+    def row_indices_view(self) -> np.ndarray:
+        """Zero-copy int32 row (constraint) index of each non-zero ``(nnz,)``."""
         return self._col_indices[: self.nnz]
 
     @property
-    def col_values_view(self) -> np.ndarray:
+    def row_coefficients_view(self) -> np.ndarray:
         """Zero-copy float64 coefficient array for non-zeros ``(nnz,)``."""
         return self._col_values[: self.nnz]
 
@@ -707,12 +708,12 @@ class FilteredPricingPool:
         self._numpy_fp = self._build_numpy_filter()
 
     def _build_numpy_filter(self) -> FilteredSharedPricingPool:
-        col_ids = self._cpp_fp.get_column_ids()  # np.ndarray[uint64]
-        if len(col_ids) == 0:
+        column_ids = self._cpp_fp.get_column_ids()  # np.ndarray[uint64]
+        if len(column_ids) == 0:
             return FilteredSharedPricingPool(
                 self._parent._shared, view_indices=np.empty(0, dtype=np.intp)
             )
-        shared_indices = self._parent._id_to_shared[col_ids.astype(np.int64)]
+        shared_indices = self._parent._id_to_shared[column_ids.astype(np.int64)]
         valid = shared_indices >= 0
         return FilteredSharedPricingPool(
             self._parent._shared,
@@ -756,7 +757,7 @@ class FilteredPricingPool:
 
         More efficient than calling :meth:`add` in a loop::
 
-            col_ids = pool.add_columns([sol1, sol2, sol3])
+            column_ids = pool.add_columns([sol1, sol2, sol3])
 
         Args:
             solutions: List of Solution objects.
@@ -764,9 +765,9 @@ class FilteredPricingPool:
         Returns:
             List of C++ ColumnIds, one per solution.
         """
-        col_ids = self._cpp_fp.add(solutions)
+        column_ids = self._cpp_fp.add(solutions)
         result = []
-        for sol, cid_raw in zip(solutions, col_ids):
+        for sol, cid_raw in zip(solutions, column_ids):
             cid = int(cid_raw)
             self._parent._ensure_id_capacity(cid)
             existing = self._parent._id_to_shared[cid]
@@ -804,9 +805,9 @@ class FilteredPricingPool:
         shared_indices, rcs = self._numpy_fp.price(duals, threshold)
         if len(shared_indices) == 0:
             return np.empty(0, dtype=np.uint64), rcs
-        col_ids = self._parent._shared_to_id[shared_indices.astype(np.int64)]
-        valid = col_ids >= 0
-        return col_ids[valid].astype(np.uint64), rcs[valid]
+        column_ids = self._parent._shared_to_id[shared_indices.astype(np.int64)]
+        valid = column_ids >= 0
+        return column_ids[valid].astype(np.uint64), rcs[valid]
 
     # ── Filter narrowing ──────────────────────────────────────────────────────
 
@@ -839,8 +840,8 @@ class FilteredPricingPool:
 
     # ── Remove / invalidate ───────────────────────────────────────────────────
 
-    def _col_ids_to_shared(self, col_ids) -> np.ndarray:
-        arr = np.asarray(col_ids, dtype=np.int64)
+    def _col_ids_to_shared(self, column_ids) -> np.ndarray:
+        arr = np.asarray(column_ids, dtype=np.int64)
         sidxs = self._parent._id_to_shared[arr]
         return sidxs[sidxs >= 0]
 
@@ -901,19 +902,19 @@ class FilteredPricingPool:
         self,
         *,
         arc_ids: list[int] | None = None,
-        col_ids: list[int] | None = None,
+        column_ids: list[int] | None = None,
     ) -> None:
         """Exclude columns from numpy mask (no shared-memory write, B&B restriction).
 
         Both args accept lists; any combination is valid::
 
             sub.remove_from_view(arc_ids=[10, 11])          # by arc
-            sub.remove_from_view(col_ids=[col_id_1, col_id_2])  # by ColumnId
-            sub.remove_from_view(arc_ids=[10], col_ids=[col_id_3])  # combined
+            sub.remove_from_view(column_ids=[col_id_1, col_id_2])  # by ColumnId
+            sub.remove_from_view(arc_ids=[10], column_ids=[col_id_3])  # combined
 
         Args:
             arc_ids: Exclude all columns whose path traverses any of these arcs.
-            col_ids: Exclude columns by ColumnId (as returned by :meth:`add`
+            column_ids: Exclude columns by ColumnId (as returned by :meth:`add`
                 or :meth:`price`).
         """
         sidxs: list[int] = []
@@ -922,21 +923,21 @@ class FilteredPricingPool:
                 removed = self._cpp_fp.remove_if_arc_present(arc_id)
                 if removed:
                     sidxs += self._col_ids_to_shared(removed).tolist()
-        if col_ids is not None:
-            sidxs += self._col_ids_to_shared(col_ids).tolist()
+        if column_ids is not None:
+            sidxs += self._col_ids_to_shared(column_ids).tolist()
         if sidxs:
             self._numpy_fp.remove_from_view(sidxs)
 
     def add_to_view(
         self,
         *,
-        col_ids: list[int] | None = None,
+        column_ids: list[int] | None = None,
     ) -> None:
         """Re-include columns previously excluded by :meth:`remove_from_view`.
 
         Modifies the numpy mask only — O(k), no shared-memory write::
 
-            sub.add_to_view(col_ids=[col_id_1, col_id_2])   # backtrack
+            sub.add_to_view(column_ids=[col_id_1, col_id_2])   # backtrack
 
         .. note::
             To undo an arc-based restriction, save the ColumnIds returned by
@@ -944,12 +945,12 @@ class FilteredPricingPool:
             them back here.
 
         Args:
-            col_ids: ColumnIds to re-include (as returned by :meth:`add`
+            column_ids: ColumnIds to re-include (as returned by :meth:`add`
                 or :meth:`price`).
         """
         sidxs: list[int] = []
-        if col_ids is not None:
-            sidxs = self._col_ids_to_shared(col_ids).tolist()
+        if column_ids is not None:
+            sidxs = self._col_ids_to_shared(column_ids).tolist()
         if sidxs:
             self._numpy_fp.add_to_view(sidxs)
 
@@ -1055,8 +1056,8 @@ class PricingPool:
             new_arr[: len(self._shared_to_id)] = self._shared_to_id
             self._shared_to_id = new_arr
 
-    def _col_ids_to_shared(self, col_ids) -> np.ndarray:
-        arr = np.asarray(col_ids, dtype=np.int64)
+    def _col_ids_to_shared(self, column_ids) -> np.ndarray:
+        arr = np.asarray(column_ids, dtype=np.int64)
         arr = arr[arr < len(self._id_to_shared)]
         sidxs = self._id_to_shared[arr]
         return sidxs[sidxs >= 0]
@@ -1078,7 +1079,7 @@ class PricingPool:
             slot_indices, rcs = shared.price(duals)
             # Return slot_indices to master; master calls pool.get_by_slot(...)
             # or simply uses the shared indices to retrieve solutions via
-            # shared.col_costs_view[slot_indices], etc.
+            # shared.column_costs_view[slot_indices], etc.
         """
         return SharedPricingPool.attach(handle)
 
@@ -1125,7 +1126,7 @@ class PricingPool:
 
         More efficient than calling :meth:`add` in a loop::
 
-            col_ids = pool.add_columns([sol1, sol2, sol3])
+            column_ids = pool.add_columns([sol1, sol2, sol3])
 
         Args:
             solutions: List of Solution objects.
@@ -1133,9 +1134,9 @@ class PricingPool:
         Returns:
             List of C++ ColumnIds, one per solution.
         """
-        col_ids = self._cpp_fp.add(solutions)
+        column_ids = self._cpp_fp.add(solutions)
         result = []
-        for sol, cid_raw in zip(solutions, col_ids):
+        for sol, cid_raw in zip(solutions, column_ids):
             cid = int(cid_raw)
             self._ensure_id_capacity(cid)
             existing = self._id_to_shared[cid]
@@ -1161,7 +1162,7 @@ class PricingPool:
         Returns:
             List of ColumnIds that were populated into the shared pool.
         """
-        col_costs, row_starts, col_indices, col_values = self._cpp_pool.get_lp_arrays()
+        column_costs, column_starts, row_indices, row_coefficients = self._cpp_pool.get_lp_arrays()
         # Get the ColumnIds for all entries so we can build the maps.
         entries = self._cpp_fp.get_all()
         if not entries:
@@ -1214,9 +1215,9 @@ class PricingPool:
         shared_indices, rcs = self._shared.price(duals, threshold)
         if len(shared_indices) == 0:
             return np.empty(0, dtype=np.uint64), rcs
-        col_ids = self._shared_to_id[shared_indices.astype(np.int64)]
-        valid = col_ids >= 0
-        return col_ids[valid].astype(np.uint64), rcs[valid]
+        column_ids = self._shared_to_id[shared_indices.astype(np.int64)]
+        valid = column_ids >= 0
+        return column_ids[valid].astype(np.uint64), rcs[valid]
 
     # ── Filter creation ───────────────────────────────────────────────────────
 

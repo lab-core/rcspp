@@ -363,14 +363,14 @@ void init_graph(py::module_& m) {
         g.def(py::init<>())
             .def("add_node",
                  &RealGraph::add_node,
-                 py::arg("id"),
+                 py::arg("node_id"),
                  py::arg("source") = false,
                  py::arg("sink") = false,
                  py::return_value_policy::reference)
             .def("add_arc",
                  py::overload_cast<size_t, size_t, double, std::vector<Row>>(&RealGraph::add_arc),
-                 py::arg("origin_id"),
-                 py::arg("destination_id"),
+                 py::arg("origin_node_id"),
+                 py::arg("destination_node_id"),
                  py::arg("cost") = 0.0,
                  py::arg("rows") = std::vector<Row>{},
                  py::return_value_policy::reference);

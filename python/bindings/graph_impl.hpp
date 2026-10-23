@@ -319,12 +319,15 @@ py::class_<GraphType>& bind_graph_methods(py::class_<GraphType>& c) {
     using ArcType = std::remove_pointer_t<decltype(std::declval<const GraphType&>().get_arc(0))>;
 
     return c
-        .def("get_node", &GraphType::get_node, py::arg("id"), py::return_value_policy::reference)
-        .def("get_arc", &GraphType::get_arc, py::arg("id"), py::return_value_policy::reference)
+        .def("get_node",
+             &GraphType::get_node,
+             py::arg("node_id"),
+             py::return_value_policy::reference)
+        .def("get_arc", &GraphType::get_arc, py::arg("arc_id"), py::return_value_policy::reference)
         .def("get_arcs",
              &GraphType::get_arcs,
-             py::arg("origin_id"),
-             py::arg("destination_id"),
+             py::arg("origin_node_id"),
+             py::arg("destination_node_id"),
              py::return_value_policy::reference)
         .def("node_ids", &GraphType::get_node_ids)
         .def("arc_ids",
@@ -477,7 +480,7 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
         .def("add_node",
              static_cast<NodeType& (ResourceGraphType::*)(size_t, bool, bool)>(
                  &ResourceGraphType::add_node),
-             py::arg("id"),
+             py::arg("node_id"),
              py::arg("source") = false,
              py::arg("sink") = false,
              py::return_value_policy::reference)

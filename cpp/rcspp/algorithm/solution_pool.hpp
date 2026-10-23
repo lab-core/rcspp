@@ -162,18 +162,20 @@ class SolutionPool {
         ///   pool.get_lp_data(costs, starts, indices, coefs);
         /// @endcode
         ///
-        /// @param[out] out_col_costs   LP cost per column (CSR column 0).
-        /// @param[out] out_row_starts  CSR row-pointer array (size = n_cols + 1).
-        /// @param[out] out_row_indices Constraint indices for each non-zero.
-        /// @param[out] out_row_coefs   Coefficient values for each non-zero.
-        void get_lp_data(std::vector<double>& out_col_costs, std::vector<uint32_t>& out_row_starts,
+        /// @param[out] out_column_costs     LP cost per column.
+        /// @param[out] out_column_starts    Where each column's non-zeros start in the next two
+        ///                                  arrays (size = n_cols + 1).
+        /// @param[out] out_row_indices      Row (constraint) index of each non-zero.
+        /// @param[out] out_row_coefficients Coefficient of each non-zero.
+        void get_lp_data(std::vector<double>& out_column_costs,
+                         std::vector<uint32_t>& out_column_starts,
                          std::vector<uint32_t>& out_row_indices,
-                         std::vector<double>& out_row_coefs) const {
+                         std::vector<double>& out_row_coefficients) const {
             std::shared_lock lock(mutex_);
-            out_col_costs = lp_.col_costs;
-            out_row_starts = lp_.row_starts;
+            out_column_costs = lp_.column_costs;
+            out_column_starts = lp_.column_starts;
             out_row_indices = lp_.row_indices;
-            out_row_coefs = lp_.row_coefs;
+            out_row_coefficients = lp_.row_coefficients;
         }
 
     private:
@@ -182,29 +184,29 @@ class SolutionPool {
         // Removed entries leave their slots orphaned (not freed); slots are never
         // reused and are only accessed while their ColumnId is still live.
         struct LpStore {
-                std::vector<double> col_costs;  // col_costs[i] = column LP cost
+                std::vector<double> column_costs;  // column_costs[i] = column LP cost
                 std::vector<uint32_t>
-                    row_starts;  // CSR: rows for col i are [row_starts[i], row_starts[i+1])
-                std::vector<uint32_t> row_indices;  // constraint indices
-                std::vector<double> row_coefs;      // matching coefficients
+                    column_starts;  // rows of column i are [column_starts[i], column_starts[i+1])
+                std::vector<uint32_t> row_indices;     // constraint indices
+                std::vector<double> row_coefficients;  // matching coefficients
 
-                [[nodiscard]] size_t size() const { return col_costs.size(); }
+                [[nodiscard]] size_t size() const { return column_costs.size(); }
 
                 // Append one column's LP data; return its lp_index.
-                // row_starts has n+1 entries for n columns (standard CSR sentinel).
+                // column_starts has n+1 entries for n columns (standard CSR sentinel).
                 uint32_t append(const Column& col) {
-                    const auto idx = static_cast<uint32_t>(col_costs.size());
-                    col_costs.push_back(col.cost);
+                    const auto idx = static_cast<uint32_t>(column_costs.size());
+                    column_costs.push_back(col.cost);
                     // Push start offset for the new column's rows.
-                    if (row_starts.empty()) {
-                        row_starts.push_back(0);
+                    if (column_starts.empty()) {
+                        column_starts.push_back(0);
                     }
                     for (const auto& row : col.rows) {
                         row_indices.push_back(static_cast<uint32_t>(row.index));
-                        row_coefs.push_back(static_cast<double>(row.coefficient));
+                        row_coefficients.push_back(static_cast<double>(row.coefficient));
                     }
-                    // Push end-of-column sentinel: row_starts[idx+1].
-                    row_starts.push_back(static_cast<uint32_t>(row_indices.size()));
+                    // Push end-of-column sentinel: column_starts[idx+1].
+                    column_starts.push_back(static_cast<uint32_t>(row_indices.size()));
                     return idx;
                 }
         };
@@ -436,18 +438,19 @@ class FilteredSolutionPool {
         /// returns the set of columns that entered the LP basis.
         ///
         /// For each column in @b this view:
-        ///   - In @p basis_ids → @c age reset to 0, @c last_was_negative = true.
-        ///   - Not in @p basis_ids → @c age incremented by 1.
+        ///   - In @p basis_column_ids → @c age reset to 0, @c last_was_negative = true.
+        ///   - Not in @p basis_column_ids → @c age incremented by 1.
         ///
         /// Columns outside this view are not touched.  Does @b not increment
         /// @c pricing_count (that counter tracks @ref price() calls only).
         ///
         /// Uses @c shared_lock — safe to call concurrently with @ref price().
         ///
-        /// @param basis_ids ColumnIds of columns currently in the LP basis.
-        void update_activity(const std::vector<ColumnId>& basis_ids) {
+        /// @param basis_column_ids ColumnIds of columns currently in the LP basis.
+        void update_activity(const std::vector<ColumnId>& basis_column_ids) {
             std::shared_lock lock(pool_.mutex_);
-            const std::unordered_set<ColumnId> basis_set(basis_ids.begin(), basis_ids.end());
+            const std::unordered_set<ColumnId> basis_set(basis_column_ids.begin(),
+                                                         basis_column_ids.end());
             for (SolutionPool::Entry* entry_ptr : filtered_entries_) {
                 auto& entry = *entry_ptr;
                 if (basis_set.contains(entry.id)) {
@@ -609,7 +612,7 @@ class FilteredSolutionPool {
         /// @brief Re-sort the filtered view by @c lp_index for cache-friendly pricing.
         ///
         /// The @ref price_subset_locked loop accesses the SoA LP arrays
-        /// (@c col_costs, @c row_starts, @c row_coefs…) via @c Entry::lp_index.
+        /// (@c column_costs, @c column_starts, @c row_coefficients…) via @c Entry::lp_index.
         /// When @c filtered_entries_ is sorted by @c lp_index ascending, these
         /// accesses are sequential and the hardware prefetcher can work effectively.
         ///
@@ -943,7 +946,7 @@ class FilteredSolutionPool {
         // window arrive via propagation (we registered before releasing the lock); the
         // `filtered_ids_.contains` guard makes the apply phase idempotent against that overlap.
         // Sort filtered_entries_ by lp_index ascending so the pricing loop
-        // accesses the SoA arrays (col_costs, row_starts, row_coefs…) sequentially,
+        // accesses the SoA arrays (column_costs, column_starts, row_coefficients…) sequentially,
         // maximising cache-line reuse.  O(n log n) once; new entries appended by
         // on_add_unlocked always have the highest lp_index so they naturally preserve
         // the order.  Caller must hold the pool unique_lock.
@@ -1016,11 +1019,11 @@ class FilteredSolutionPool {
                 // Accumulate in long double to match Row::coefficient's original precision;
                 // narrow to double once for the LP-facing threshold comparison.
                 const uint32_t li = entry.lp_index;
-                long double rc = lp.col_costs[li];
-                // row_starts has n+1 entries, so row_starts[li+1] is always valid.
-                for (uint32_t j = lp.row_starts[li]; j < lp.row_starts[li + 1]; ++j) {
+                long double rc = lp.column_costs[li];
+                // column_starts has n+1 entries, so column_starts[li+1] is always valid.
+                for (uint32_t j = lp.column_starts[li]; j < lp.column_starts[li + 1]; ++j) {
                     if (lp.row_indices[j] < n_duals) {
-                        rc -= static_cast<long double>(lp.row_coefs[j]) *
+                        rc -= static_cast<long double>(lp.row_coefficients[j]) *
                               static_cast<long double>(duals[lp.row_indices[j]]);
                     }
                 }
@@ -1061,15 +1064,15 @@ inline SolutionPool::ColumnId SolutionPool::add_unlocked(const Solution& sol,
                 // The row *indices* are fixed by the arc path; only the cost and
                 // coefficient *values* may change (e.g. after update_reduced_costs).
                 const uint32_t li = entry_it->lp_index;
-                lp_.col_costs[li] = sol.column.cost;
+                lp_.column_costs[li] = sol.column.cost;
                 // Update coefficient values in-place: build a lookup from the new column
                 // and overwrite matching entries in the existing CSR rows.
-                const uint32_t rstart = lp_.row_starts[li];
-                const uint32_t rend = lp_.row_starts[li + 1];
+                const uint32_t rstart = lp_.column_starts[li];
+                const uint32_t rend = lp_.column_starts[li + 1];
                 for (uint32_t j = rstart; j < rend; ++j) {
                     for (const auto& row : sol.column.rows) {
                         if (static_cast<uint32_t>(row.index) == lp_.row_indices[j]) {
-                            lp_.row_coefs[j] = static_cast<double>(row.coefficient);
+                            lp_.row_coefficients[j] = static_cast<double>(row.coefficient);
                             break;
                         }
                     }

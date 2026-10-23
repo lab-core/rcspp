@@ -47,9 +47,9 @@ def test_create_and_attach():
             pool.add(make_solution(42.0, [(3, 1.5)], [1]))
             assert worker.count == 1
             assert worker.nnz == 1
-            assert abs(float(worker.col_costs_view[0]) - 42.0) < 1e-9
-            assert int(worker.col_indices_view[0]) == 3
-            assert abs(float(worker.col_values_view[0]) - 1.5) < 1e-9
+            assert abs(float(worker.column_costs_view[0]) - 42.0) < 1e-9
+            assert int(worker.row_indices_view[0]) == 3
+            assert abs(float(worker.row_coefficients_view[0]) - 1.5) < 1e-9
         finally:
             worker.close()
     finally:
@@ -75,7 +75,7 @@ def test_add_batch():
         assert pool.count == 5
         assert pool.nnz == 5
         assert pool.active_count == 5
-        assert list(pool.row_starts_view) == [0, 1, 2, 3, 4, 5]
+        assert list(pool.column_starts_view) == [0, 1, 2, 3, 4, 5]
     finally:
         pool.unlink()
 
@@ -100,10 +100,10 @@ def test_csr_multiple_rows():
         pool.add(make_solution(3.0, [(1, 3.0)], [1]))
         assert pool.count == 2
         assert pool.nnz == 3
-        assert list(pool.row_starts_view) == [0, 2, 3]
-        assert int(pool.col_indices_view[0]) == 0
-        assert int(pool.col_indices_view[1]) == 2
-        assert int(pool.col_indices_view[2]) == 1
+        assert list(pool.column_starts_view) == [0, 2, 3]
+        assert int(pool.row_indices_view[0]) == 0
+        assert int(pool.row_indices_view[1]) == 2
+        assert int(pool.row_indices_view[2]) == 1
     finally:
         pool.unlink()
 
@@ -260,9 +260,9 @@ def test_pricing_pool_shared_shortcut():
         shared = pool.shared()
         duals = np.array([4.0, 0.0, 0.0, 0.0, 0.0])
         # pool.price() → ColumnIds (uint64)
-        col_ids, rcs1 = pool.price(duals)
-        assert col_ids.dtype == np.uint64
-        assert len(col_ids) == 1
+        column_ids, rcs1 = pool.price(duals)
+        assert column_ids.dtype == np.uint64
+        assert len(column_ids) == 1
         # shared.price() → shared slot indices (intp)
         slot_ids, rcs2 = shared.price(duals)
         assert len(slot_ids) == 1
@@ -381,7 +381,7 @@ def test_price_track_activity_opt_out():
 
 
 def test_pricing_pool_remove_from_view_list():
-    """remove_from_view accepts lists of arc_ids and col_ids."""
+    """remove_from_view accepts lists of arc_ids and column_ids."""
     pool = PricingPool(n_constraints=3, max_cols=20)
     try:
         c0 = pool.add(make_solution(5.0, [(0, 3.0)], [10]))
@@ -395,7 +395,7 @@ def test_pricing_pool_remove_from_view_list():
         assert len(indices) == 0
 
         # Backtrack.
-        sub.add_to_view(col_ids=[c0, c1])
+        sub.add_to_view(column_ids=[c0, c1])
         indices, _ = sub.price(duals)
         assert len(indices) == 2
     finally:
@@ -697,11 +697,11 @@ def test_get_lp_arrays_binding():
     try:
         pool.add(make_solution(5.0, [(0, 1.0), (2, 2.0)], [0]))
         pool.add(make_solution(3.0, [(1, 0.5)], [1]))
-        costs, row_starts, col_indices, col_values = pool._cpp_pool.get_lp_arrays()
+        costs, column_starts, row_indices, row_coefficients = pool._cpp_pool.get_lp_arrays()
         assert isinstance(costs, np.ndarray) and costs.dtype == np.float64
-        assert isinstance(row_starts, np.ndarray) and row_starts.dtype == np.uint32
+        assert isinstance(column_starts, np.ndarray) and column_starts.dtype == np.uint32
         assert len(costs) >= 2
-        assert int(col_indices[0]) in {0, 1, 2}  # valid constraint index
+        assert int(row_indices[0]) in {0, 1, 2}  # valid constraint index
     finally:
         pool.close()
 
@@ -717,7 +717,7 @@ def test_filter_in_range_partial():
         sol = make_solution(1.0, [(0, 0.5), (7, 2.0)], [0])
         pool.add(sol)
         assert pool.nnz == 1
-        assert int(pool.col_indices_view[0]) == 0
+        assert int(pool.row_indices_view[0]) == 0
     finally:
         pool.unlink()
 
@@ -772,11 +772,11 @@ def test_add_from_lp_arrays_basic():
     """add_from_lp_arrays bulk-inserts CSR data (lines 363-401)."""
     pool = SharedPricingPool(n_constraints=5, max_cols=20)
     try:
-        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
-        row_starts = np.array([0, 2, 3], dtype=np.uint32)
-        col_indices = np.array([0, 1, 2], dtype=np.uint32)
-        col_values = np.array([1.0, 0.5, 2.0], dtype=np.float64)
-        idxs = pool.add_from_lp_arrays(col_costs, row_starts, col_indices, col_values)
+        column_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        column_starts = np.array([0, 2, 3], dtype=np.uint32)
+        row_indices = np.array([0, 1, 2], dtype=np.uint32)
+        row_coefficients = np.array([1.0, 0.5, 2.0], dtype=np.float64)
+        idxs = pool.add_from_lp_arrays(column_costs, column_starts, row_indices, row_coefficients)
         assert idxs == [0, 1]
         assert pool.count == 2
         assert pool.nnz == 3
@@ -788,15 +788,15 @@ def test_add_from_lp_arrays_with_mask():
     """add_from_lp_arrays respects valid_mask (lines 363-401)."""
     pool = SharedPricingPool(n_constraints=5, max_cols=20)
     try:
-        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
-        row_starts = np.array([0, 2, 3], dtype=np.uint32)
-        col_indices = np.array([0, 1, 2], dtype=np.uint32)
-        col_values = np.array([1.0, 0.5, 2.0], dtype=np.float64)
+        column_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        column_starts = np.array([0, 2, 3], dtype=np.uint32)
+        row_indices = np.array([0, 1, 2], dtype=np.uint32)
+        row_coefficients = np.array([1.0, 0.5, 2.0], dtype=np.float64)
         idxs = pool.add_from_lp_arrays(
-            col_costs,
-            row_starts,
-            col_indices,
-            col_values,
+            column_costs,
+            column_starts,
+            row_indices,
+            row_coefficients,
             valid_mask=np.array([True, False]),
         )
         assert idxs == [0]
@@ -809,12 +809,12 @@ def test_add_from_lp_arrays_exceeds_col_capacity():
     """add_from_lp_arrays raises when bulk add exceeds column capacity (line 384)."""
     pool = SharedPricingPool(n_constraints=5, max_cols=2)
     try:
-        col_costs = np.array([-1.0, -2.0, -3.0], dtype=np.float64)
-        row_starts = np.array([0, 1, 2, 3], dtype=np.uint32)
-        col_indices = np.array([0, 1, 2], dtype=np.uint32)
-        col_values = np.array([1.0, 1.0, 1.0], dtype=np.float64)
+        column_costs = np.array([-1.0, -2.0, -3.0], dtype=np.float64)
+        column_starts = np.array([0, 1, 2, 3], dtype=np.uint32)
+        row_indices = np.array([0, 1, 2], dtype=np.uint32)
+        row_coefficients = np.array([1.0, 1.0, 1.0], dtype=np.float64)
         with pytest.raises(RuntimeError, match="column capacity"):
-            pool.add_from_lp_arrays(col_costs, row_starts, col_indices, col_values)
+            pool.add_from_lp_arrays(column_costs, column_starts, row_indices, row_coefficients)
     finally:
         pool.unlink()
 
@@ -824,12 +824,12 @@ def test_add_from_lp_arrays_exceeds_nnz_capacity():
     # max_nnz = 2 * 2 = 4 nnz; batch needs 5 nnz
     pool = SharedPricingPool(n_constraints=5, max_cols=2, max_nnz_per_col=2)
     try:
-        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
-        row_starts = np.array([0, 3, 5], dtype=np.uint32)
-        col_indices = np.array([0, 1, 2, 0, 1], dtype=np.uint32)
-        col_values = np.array([1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float64)
+        column_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        column_starts = np.array([0, 3, 5], dtype=np.uint32)
+        row_indices = np.array([0, 1, 2, 0, 1], dtype=np.uint32)
+        row_coefficients = np.array([1.0, 1.0, 1.0, 1.0, 1.0], dtype=np.float64)
         with pytest.raises(RuntimeError, match="non-zero capacity"):
-            pool.add_from_lp_arrays(col_costs, row_starts, col_indices, col_values)
+            pool.add_from_lp_arrays(column_costs, column_starts, row_indices, row_coefficients)
     finally:
         pool.unlink()
 
@@ -838,15 +838,15 @@ def test_add_from_lp_arrays_all_masked_out():
     """add_from_lp_arrays returns [] when no columns pass mask (line 374)."""
     pool = SharedPricingPool(n_constraints=5, max_cols=20)
     try:
-        col_costs = np.array([-1.0, -2.0], dtype=np.float64)
-        row_starts = np.array([0, 2, 3], dtype=np.uint32)
-        col_indices = np.array([0, 1, 2], dtype=np.uint32)
-        col_values = np.array([1.0, 0.5, 2.0], dtype=np.float64)
+        column_costs = np.array([-1.0, -2.0], dtype=np.float64)
+        column_starts = np.array([0, 2, 3], dtype=np.uint32)
+        row_indices = np.array([0, 1, 2], dtype=np.uint32)
+        row_coefficients = np.array([1.0, 0.5, 2.0], dtype=np.float64)
         idxs = pool.add_from_lp_arrays(
-            col_costs,
-            row_starts,
-            col_indices,
-            col_values,
+            column_costs,
+            column_starts,
+            row_indices,
+            row_coefficients,
             valid_mask=np.array([False, False]),
         )
         assert idxs == []
@@ -866,7 +866,7 @@ def test_update_mismatched_row_structure():
         # Index 0 is shared → line 444 (target[k] = new_coef[ix]) is executed.
         sol2 = make_solution(3.0, [(0, 5.0), (3, 1.0)], [0])
         pool.update(idx, sol2)
-        assert abs(float(pool.col_costs_view[idx]) - 3.0) < 1e-9
+        assert abs(float(pool.column_costs_view[idx]) - 3.0) < 1e-9
     finally:
         pool.unlink()
 
@@ -934,8 +934,8 @@ def test_filtered_pricing_pool_add_columns():
             make_solution(-1.0, [(0, 1.0)], [0]),
             make_solution(-2.0, [(1, 2.0)], [1]),
         ]
-        col_ids = sub.add_columns(solutions)
-        assert len(col_ids) == 2
+        column_ids = sub.add_columns(solutions)
+        assert len(column_ids) == 2
         assert pool.column_count == 2
         # Add the same solutions again → dedup hit (line 760)
         col_ids2 = sub.add_columns(solutions)
@@ -960,13 +960,13 @@ def test_filtered_pricing_pool_global_remove_if_nonempty():
 
 
 def test_filtered_pricing_pool_remove_from_view_combined():
-    """remove_from_view with both arc_ids and col_ids (line 907)."""
+    """remove_from_view with both arc_ids and column_ids (line 907)."""
     pool = PricingPool(n_constraints=5, max_cols=20)
     try:
         sub = pool.new_filter()
         sub.add(make_solution(-1.0, [(0, 1.0)], [10]))
         cid1 = sub.add(make_solution(-2.0, [(1, 2.0)], [20]))
-        sub.remove_from_view(arc_ids=[10], col_ids=[int(cid1)])
+        sub.remove_from_view(arc_ids=[10], column_ids=[int(cid1)])
         assert sub._numpy_fp.view_count == 0
     finally:
         pool.close()
@@ -1033,8 +1033,8 @@ def test_pricing_pool_add_columns_batch():
             make_solution(-1.0, [(0, 1.0)], [0]),
             make_solution(-2.0, [(1, 2.0)], [1]),
         ]
-        col_ids = pool.add_columns(solutions)
-        assert len(col_ids) == 2
+        column_ids = pool.add_columns(solutions)
+        assert len(column_ids) == 2
         assert pool.column_count == 2
         # Add same solutions again → dedup hit (lines 1127-1128)
         col_ids2 = pool.add_columns(solutions)
@@ -1090,8 +1090,8 @@ def test_pricing_pool_price_empty_result():
     try:
         pool.add(make_solution(5.0, [(0, 1.0)], [0]))
         duals = np.zeros(5)
-        col_ids, rcs = pool.price(duals, threshold=-1e-9)
-        assert len(col_ids) == 0
+        column_ids, rcs = pool.price(duals, threshold=-1e-9)
+        assert len(column_ids) == 0
     finally:
         pool.close()
 

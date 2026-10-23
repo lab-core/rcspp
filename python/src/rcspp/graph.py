@@ -326,8 +326,8 @@ class ResourceGraph:
     def add_arc(
         self,
         resource_consumption,
-        origin_id: int,
-        destination_id: int,
+        origin_node_id: int,
+        destination_node_id: int,
         cost: float = 0.0,
         rows=None,
     ):
@@ -349,8 +349,8 @@ class ResourceGraph:
         self._arc_buffer.append(
             (
                 resource_consumption,
-                int(origin_id),
-                int(destination_id),
+                int(origin_node_id),
+                int(destination_node_id),
                 float(cost),
                 rows,
             )
@@ -454,10 +454,10 @@ class ResourceGraph:
         self._flush()
         return self._graph.get_arc(arc_id)
 
-    def get_arcs(self, origin_id: int, destination_id: int):
-        """Return all arcs between *origin_id* and *destination_id* as a list."""
+    def get_arcs(self, origin_node_id: int, destination_node_id: int):
+        """Return all arcs between *origin_node_id* and *destination_node_id* as a list."""
         self._flush()
-        return self._graph.get_arcs(origin_id, destination_id)
+        return self._graph.get_arcs(origin_node_id, destination_node_id)
 
     def update_arc(self, arc, resource_consumption, *args, **kwargs):
         """Update an arc's resource consumption in place.
