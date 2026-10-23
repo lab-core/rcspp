@@ -1163,3 +1163,13 @@ def test_col_ids_to_shared_out_of_range():
         assert len(result2) == 0
     finally:
         pool.close()
+
+
+def test_pool_classes_are_public_in_pricing_pool():
+    """The C++ pool classes and the default threshold are importable without rcspp._core."""
+    import rcspp.pricing_pool as public
+    from rcspp._core import solution_pool as private
+
+    for name in ("SolutionPool", "FilteredSolutionPool", "ColumnActivity", "PricedColumn"):
+        assert getattr(public, name) is getattr(private, name)
+    assert public.DEFAULT_PRICE_THRESHOLD == private.DEFAULT_PRICE_THRESHOLD == -1e-9

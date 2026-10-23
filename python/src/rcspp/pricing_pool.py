@@ -43,6 +43,11 @@ try:
     from rcspp._core import solution_pool as _sp
 
     _SolutionPool = _sp.SolutionPool
+    # The C++ pool classes, public here: rcspp._core is the private extension.
+    SolutionPool = _sp.SolutionPool
+    FilteredSolutionPool = _sp.FilteredSolutionPool
+    ColumnActivity = _sp.ColumnActivity
+    PricedColumn = _sp.PricedColumn
     # The default threshold of every price(), the C++ pool's included.
     DEFAULT_PRICE_THRESHOLD: float = _sp.DEFAULT_PRICE_THRESHOLD
 except ImportError:  # pragma: no cover

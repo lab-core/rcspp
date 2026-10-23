@@ -100,7 +100,7 @@ from rcspp.resource import (
 )
 from rcspp import presets          # add_cost_resource, add_window_resource, add_capacity_resource
 from rcspp.pricing_pool import PricingPool
-from rcspp._core.graph  import Solution, Column, Row, Algorithm, AlgorithmStatus
+from rcspp.graph        import Solution, Column, Row, Algorithm, AlgorithmStatus
 ```
 
 **Not exposed to Python.** `NgPathExtensionFunction`, `IntersectionFeasibilityFunction` and
