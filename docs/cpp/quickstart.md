@@ -42,7 +42,7 @@ std::cout << "Cost: " << result.solutions[0].cost << "\n"; // 25.0
 using namespace rcspp;
 
 // time windows per node: {node_id: {ready, due}}
-std::unordered_map<size_t, std::pair<double,double>> tw = {
+std::map<size_t, std::pair<double, double>> tw = {
     {0, {0.0, 0.0}},
     {1, {5.0, 20.0}},
     {2, {0.0, 100.0}},
@@ -79,6 +79,12 @@ auto result = graph.solve();
 
 ## Column generation loop
 
+<!-- docs-check: given size_t n_constraints = 1;
+     struct MasterProblem {
+         void add_column(const Column&) {}
+         std::vector<double> get_duals() { return {}; }
+     } master_problem; -->
+
 ```cpp
 #include "rcspp/rcspp.hpp"
 using namespace rcspp;
@@ -112,23 +118,29 @@ while (true) {
 
 ## Choosing an algorithm
 
+<!-- docs-check: given using Resources = ResourceTypeComposition<RealResource, IntResource>; -->
+
 ```cpp
 // Default (optimal): SimpleDominanceAlgorithm
-auto result = graph.solve();
+auto optimal = graph.solve();
+
+AlgorithmParams<LabelList<Resources>> params;
 
 // Greedy (fast, non-optimal)
-auto result = graph.solve<GreedyAlgorithm, RealResource, LabelList<Resources>>(ub, params);
+auto greedy = graph.solve<GreedyAlgorithm, RealResource, LabelList<Resources>>(ub, params);
 
 // Diversification search — collect N diverse solutions
-AlgorithmParams<LabelList<Resources>> params;
 params.max_solutions = 10;
 params.max_iterations = 50;
-auto result = graph.solve<DiversificationSearch, RealResource, LabelList<Resources>>(ub, params);
+auto diverse =
+    graph.solve<DiversificationSearch, RealResource, LabelList<Resources>>(ub, params);
 ```
 
 ---
 
 ## Memory-limited solve
+
+<!-- docs-check: given using Resources = ResourceTypeComposition<RealResource, IntResource>; -->
 
 ```cpp
 AlgorithmParams<LabelList<Resources>> params;

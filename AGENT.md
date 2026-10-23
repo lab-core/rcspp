@@ -267,6 +267,8 @@ auto result = graph.solve();
 
 ### Multiple resources
 
+<!-- docs-check: skip -->
+
 ```cpp
 ResourceGraph<RealResource, IntResource> graph;
 graph.add_resource<RealResource>(…);   // index 0
@@ -277,6 +279,8 @@ graph.add_arc<RealResource, IntResource>({10.0, 3}, origin, dest, cost);
 ```
 
 ### Column generation
+
+<!-- docs-check: skip -->
 
 ```cpp
 // Arcs with LP rows
@@ -389,6 +393,12 @@ Test files:
 - `tests/python/test_rcspp.py` — Python solver tests
 - `tests/python/test_bindings_coverage.py` — binding coverage
 
+The C++ code blocks of `docs/`, `AGENT.md` and `README.md` compile as part of the build (target
+`docs-samples`, written by `scripts/extract_cpp_doc_samples.py`), and an error names the Markdown
+line. A fragment states what it takes from the reader in a comment above it, such as
+`<!-- docs-check: given double capacity = 10.0; -->`. The other markers, `file-scope`, `skip` and
+`broken`, are explained at the top of the script.
+
 ---
 
 ## Common pitfalls
@@ -485,31 +495,46 @@ Follow these when adding a name, in C++ and in Python.
 
 ### Custom resource type (C++)
 
+A resource type needs `reset()`, `get_value()`, `set_value()` and `to_string()`
+(`ResourceTypeConcept`), plus whatever the functions you pair it with call: here
+`ValueDominanceFunction`, which compares with `leq()`, against another resource and against a
+raw value. Derive a function through `Clonable<Derived, Base>`, which supplies `clone()`.
+
+<!-- docs-check: file-scope -->
+
 ```cpp
 struct MyResource {
     double value = 0.0;
-    bool leq(const MyResource& other) const { return value <= other.value; }
-    bool geq(const MyResource& other) const { return value >= other.value; }
-    void add(double v) { value += v; }
     void reset() { value = 0.0; }
     double get_value() const { return value; }
+    void set_value(double v) { value = v; }
+    std::string to_string() const { return std::to_string(value); }
+    bool leq(const MyResource& other) const { return value <= other.value; }
+    bool leq(double v) const { return value <= v; }
 };
 
-class MyExtensionFn : public ExtensionFunction<MyResource> {
-    void extend(const MyResource& cur, const MyResource& arc,
-                MyResource* res) override {
+class MyExtensionFn : public Clonable<MyExtensionFn, ExtensionFunction<MyResource>> {
+  public:
+    void extend(const MyResource& cur, const MyResource& arc, MyResource* res) override {
         res->value = cur.value + arc.value * 2.0;  // custom rule
     }
-    std::unique_ptr<ExtensionFunction<MyResource>> clone() const override {
-        return std::make_unique<MyExtensionFn>(*this);
-    }
 };
+
+// Registered like any resource; the graph also needs a real cost resource.
+void add_my_resource(ResourceGraph<RealResource, MyResource>& graph) {
+    graph.add_resource<MyResource>(std::make_unique<MyExtensionFn>(),
+                                   std::make_unique<TrivialFeasibilityFunction<MyResource>>(),
+                                   std::make_unique<TrivialCostFunction<MyResource>>(),
+                                   std::make_unique<ValueDominanceFunction<MyResource>>());
+}
 ```
 
 ### Custom algorithm (C++)
 
 Inherit from `Algorithm<ResourceType, LabelContainerType>` and override
 `main_loop()`:
+
+<!-- docs-check: file-scope -->
 
 ```cpp
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
