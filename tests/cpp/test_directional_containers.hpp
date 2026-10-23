@@ -38,7 +38,7 @@ constexpr double kLate = 70.0;
 inline std::unique_ptr<Label<RealComposition>> make_real_label(size_t label_id, double value,
                                                                bool reversed) {
     auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
-    dominance->set_backward_reversed(reversed);
+    dominance->set_back_dominance_reversed(reversed);
     auto component = std::make_unique<Resource<RealResource>>(
         RealResource(value),
         std::move(dominance),
@@ -120,8 +120,8 @@ TEST(DirectionalContainers, BackwardKeepsTheLaterLabel) {
 
     // Premise: this resource really does reverse backward.
     ValueDominanceFunction<RealResource> probe;
-    probe.set_backward_reversed(true);
-    ASSERT_TRUE(probe.is_backward_reversed());
+    probe.set_back_dominance_reversed(true);
+    ASSERT_TRUE(probe.is_back_dominance_reversed());
     ASSERT_NE(probe.check_dominance(RealResource(dct::kEarly), RealResource(dct::kLate)),
               probe.check_back_dominance(RealResource(dct::kEarly), RealResource(dct::kLate)));
 
@@ -245,7 +245,7 @@ TEST(DirectionalContainers, IsBackLowerFollowsTheFlag) {
 
     auto make = [](double value, bool reversed) {
         auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
-        dominance->set_backward_reversed(reversed);
+        dominance->set_back_dominance_reversed(reversed);
         return std::make_unique<Resource<RealResource>>(
             RealResource(value),
             std::move(dominance),

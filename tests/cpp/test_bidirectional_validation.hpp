@@ -133,7 +133,7 @@ inline std::unique_ptr<Label<Composed>> deadline_and_cost_label(size_t label_id,
                                                                 double cost) {
     const auto make_component = [](double value, bool reversed) {
         auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
-        dominance->set_backward_reversed(reversed);
+        dominance->set_back_dominance_reversed(reversed);
         return std::make_unique<Resource<RealResource>>(
             RealResource(value),
             std::move(dominance),

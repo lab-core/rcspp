@@ -310,7 +310,7 @@ TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
         std::move(dominance));
 
     // A window resource is a Threshold, so its dominance must be reversed.
-    EXPECT_TRUE(borrowed->is_backward_reversed());
+    EXPECT_TRUE(borrowed->is_back_dominance_reversed());
 
     // The window is the clock beside a cost slot, as in any real model. Priced on the window
     // itself the model is refused: the join would add a backward deadline as a cost.

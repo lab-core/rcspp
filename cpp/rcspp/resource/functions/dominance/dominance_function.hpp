@@ -65,13 +65,13 @@ class DominanceFunction {
         /// kind, through @c reverses_back_dominance; not meant to be set by hand.
         ///
         /// @param reversed @c true when the backward comparison is the forward one, swapped.
-        void set_backward_reversed(bool reversed) { backward_reversed_ = reversed; }
+        void set_back_dominance_reversed(bool reversed) { back_dominance_reversed_ = reversed; }
 
         /// @brief Whether backward dominance reverses the forward comparison; see
-        ///        @c set_backward_reversed.
+        ///        @c set_back_dominance_reversed.
         ///
         /// @return @c true when the backward comparison is the forward one, swapped.
-        [[nodiscard]] bool is_backward_reversed() const { return backward_reversed_; }
+        [[nodiscard]] bool is_back_dominance_reversed() const { return back_dominance_reversed_; }
 
         /// @brief Whether @p lhs_resource dominates @p rhs_resource as backward labels at the same
         ///        node: the backward search's dominance test.
@@ -83,8 +83,8 @@ class DominanceFunction {
         /// @return @c true if @p lhs_resource dominates @p rhs_resource going backward.
         [[nodiscard]] virtual auto check_back_dominance(const ResourceType& lhs_resource,
                                                         const ResourceType& rhs_resource) -> bool {
-            return backward_reversed_ ? check_dominance(rhs_resource, lhs_resource)
-                                      : check_dominance(lhs_resource, rhs_resource);
+            return back_dominance_reversed_ ? check_dominance(rhs_resource, lhs_resource)
+                                            : check_dominance(lhs_resource, rhs_resource);
         }
 
         /// @brief The relaxed backward dominance test, within @p delta: the backward counterpart of
@@ -98,8 +98,9 @@ class DominanceFunction {
         virtual auto fast_check_back_dominance(const ResourceType& lhs_resource,
                                                const ResourceType& rhs_resource,
                                                double delta) -> bool {
-            return backward_reversed_ ? fast_check_dominance(rhs_resource, lhs_resource, delta)
-                                      : fast_check_dominance(lhs_resource, rhs_resource, delta);
+            return back_dominance_reversed_
+                       ? fast_check_dominance(rhs_resource, lhs_resource, delta)
+                       : fast_check_dominance(lhs_resource, rhs_resource, delta);
         }
 
         /// @brief Creates a polymorphic copy of this dominance function.
@@ -131,7 +132,7 @@ class DominanceFunction {
         virtual void preprocess(size_t node_id) {}
 
         /// @brief Whether backward dominance swaps the forward comparison's arguments.
-        bool backward_reversed_ = false;
+        bool back_dominance_reversed_ = false;
 };
 
 /// @brief Thrown by a composed function whose backward member (@c check_back_dominance here) is not

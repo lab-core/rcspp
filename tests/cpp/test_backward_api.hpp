@@ -118,23 +118,23 @@ TEST(BackwardApi, BackDominanceFollowsTheFlag) {
     const RealResource lhs(kBackA);
     const RealResource rhs(kBackB);
 
-    EXPECT_FALSE(dominance.is_backward_reversed());
+    EXPECT_FALSE(dominance.is_back_dominance_reversed());
     EXPECT_EQ(dominance.check_back_dominance(lhs, rhs), dominance.check_dominance(lhs, rhs));
     EXPECT_EQ(dominance.check_back_dominance(rhs, lhs), dominance.check_dominance(rhs, lhs));
     EXPECT_EQ(dominance.fast_check_back_dominance(lhs, rhs, kBackDelta),
               dominance.fast_check_dominance(lhs, rhs, kBackDelta));
 
-    dominance.set_backward_reversed(true);
-    EXPECT_TRUE(dominance.is_backward_reversed());
+    dominance.set_back_dominance_reversed(true);
+    EXPECT_TRUE(dominance.is_back_dominance_reversed());
     EXPECT_EQ(dominance.check_back_dominance(lhs, rhs), dominance.check_dominance(rhs, lhs));
     EXPECT_EQ(dominance.check_back_dominance(rhs, lhs), dominance.check_dominance(lhs, rhs));
     EXPECT_EQ(dominance.fast_check_back_dominance(lhs, rhs, kBackDelta),
               dominance.fast_check_dominance(rhs, lhs, kBackDelta));
 
     // The two flag states must actually disagree, or the test proves nothing.
-    dominance.set_backward_reversed(false);
+    dominance.set_back_dominance_reversed(false);
     const bool forward_order = dominance.check_back_dominance(lhs, rhs);
-    dominance.set_backward_reversed(true);
+    dominance.set_back_dominance_reversed(true);
     EXPECT_NE(forward_order, dominance.check_back_dominance(lhs, rhs));
 }
 

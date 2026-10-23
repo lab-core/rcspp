@@ -555,7 +555,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             FeasibilityFunction<ResourceType>* feasibility_function,
             DominanceFunction<ResourceType>* dominance_function) {
             const DirectionalResourceKind kind = extension_function.directional_resource_kind();
-            dominance_function->set_backward_reversed(reverses_back_dominance(kind));
+            dominance_function->set_back_dominance_reversed(reverses_back_dominance(kind));
             feasibility_function->set_directional_resource_kind(kind);
         }
 
