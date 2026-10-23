@@ -237,6 +237,9 @@ New features are summarised, with a pointer to where they are documented.
   It cleared the modified flag that a solve reads to decide whether to run it, so arcs no feasible
   path uses stayed in the graph. Results were the same, but the search was slower. The
   connectivity matrix now tracks its own staleness, through `Graph::get_modification_count()`.
+- `PricingPool.populate_from_cpp_pool()` no longer copies all of the C++ pool's LP data, which it
+  did not use. The docs of `SharedPricingPool.add_from_lp_arrays` no longer promise zero copy: it
+  converts the index arrays to int32.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.

@@ -351,9 +351,10 @@ class SharedPricingPool:
     ) -> list[int]:
         """Bulk-add from pre-built LP arrays (from SolutionPool.get_lp_arrays()).
 
-        Zero-copy if the dtypes already match (float64 costs/values, uint32
-        column_starts/row_indices); one copy otherwise.  Much faster than calling
-        :meth:`add` in a loop when populating from the C++ pool::
+        The index arrays are converted to int32, the shared pool's storage type, which
+        copies the uint32 arrays that ``get_lp_arrays()`` returns; the float64 arrays are
+        used as they are. Much faster than calling :meth:`add` in a loop when populating
+        from the C++ pool::
 
             costs, starts, rows, coefs = pool._cpp_pool.get_lp_arrays()
             shared_idxs = shared_pool.add_from_lp_arrays(costs, starts, rows, coefs)
@@ -1165,35 +1166,30 @@ class PricingPool:
         return result
 
     def populate_from_cpp_pool(self) -> list[int]:
-        """Bulk-populate the shared pool from the C++ pool's LP arrays.
+        """Populate the shared pool with every column of the C++ pool not already in it.
 
-        Uses ``SolutionPool.get_lp_arrays()`` to copy the internal CSR data
-        in one batch — far faster than calling :meth:`add` for each column::
+        Adds the columns one at a time, through the same path as :meth:`add`, and
+        records their ColumnIds::
 
             pool = PricingPool(n_constraints=200, max_cols=50_000)
             # ... C++ pool already populated ...
             pool.populate_from_cpp_pool()
 
         Returns:
-            List of ColumnIds that were populated into the shared pool.
+            The ColumnIds of every column of the C++ pool, those already in the shared
+            pool included.
         """
-        column_costs, column_starts, row_indices, row_coefficients = self._cpp_pool.get_lp_arrays()
-        # Get the ColumnIds for all entries so we can build the maps.
         entries = self._cpp_fp.get_all()
         if not entries:
             return []
         col_ids_raw = [int(e[0]) for e in entries]
-        # Map ColumnId → LpStore index (lp_index is stored in Entry, not directly
-        # accessible here; use the ordering from get_lp_arrays which matches lp_index).
-        # We add them slot-by-slot to maintain the id→shared and shared→id maps.
+        # One slot per column, so that the id→shared and shared→id maps stay in step.
         result = []
         for cid in col_ids_raw:
             self._ensure_id_capacity(cid)
             if self._id_to_shared[cid] >= 0:
                 result.append(cid)
                 continue
-            # Find this column's lp_index by looking it up in the pool's lp_arrays.
-            # Since add_from_lp_arrays adds in order, we push one slot per column.
             sol = self._cpp_fp.get(cid)
             if sol is None:  # pragma: no cover  # defensive: col removed between get_all/get
                 continue
