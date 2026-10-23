@@ -296,12 +296,11 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | Class | Resource | Effect |
 |---|---|---|
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
-| `DifferenceExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
 | `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, read backward as a *threshold*; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
 | `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
 | `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
-| `DifferenceExtensionFunction<T>` | Container | `-=` the arc's value |
+| `DifferenceExtensionFunction<T>` | Container | removes the arc's value (set difference) |
 | `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
 
 The last four are all containers, but they split into two **directional resource kinds**, and

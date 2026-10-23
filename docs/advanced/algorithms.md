@@ -755,7 +755,7 @@ checking by partitioning labels on one resource dimension.
 from rcspp.graph import BucketAlgorithmParams
 
 bp = BucketAlgorithmParams()
-bp.bucket_width         = 200    # partition the time dimension into 200 buckets
+bp.bucket_width          = 200    # each bucket spans 200 units of time
 bp.bucket_resource_index = 0      # resource 0 is time
 bp.sort_resource_index   = 1      # sort within bucket by resource 1
 

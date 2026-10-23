@@ -52,10 +52,10 @@ dominates the corresponding resource of `L₂`.
 |---|---|---|---|
 | `RealResource` | `"real"` | `double` | Distance, time, cost |
 | `IntResource` | `"int"` | `int` | Demand, hop count |
-| `UIntResource` | `"uint"` | `unsigned int` | Unsigned quantities |
+| `UIntResource` | — (C++ only) | `unsigned int` | Unsigned quantities |
 | `SetResource<int>` | `"int_set"` | `std::set<int>` | Visited customers |
 | `SetResource<double>` | `"real_set"` | `std::set<double>` | |
-| `BitsetResource` | `"bitset"` | `boost::dynamic_bitset` | Compact visited-node tracking |
+| `UIntBitsetResource` (`BitsetResource<unsigned>`) | `"bitset"` | `std::vector<uint64_t>`, one bit per element | Compact visited-node tracking |
 
 ---
 
@@ -82,11 +82,11 @@ Built-in implementations:
 | Class | Effect |
 |---|---|
 | `AdditionExtensionFunction<T>` | `result = current + arc_value` |
-| `DifferenceExtensionFunction<T>` | `result = current - arc_value` |
 | `TimeWindowExtensionFunction<T>` | `result = max(current + travel, ready_time)` |
 | `CapacityExtensionFunction<T>` | `result = current + arc_value`, as a *threshold* (a capacity read backward) |
 | `UnionExtensionFunction<T>` | `result = current ∪ arc_value` |
 | `IntersectionExtensionFunction<T>` | `result = current ∩ arc_value` |
+| `DifferenceExtensionFunction<T>` | `result = current ∖ arc_value` (containers only) |
 | `NgPathExtensionFunction<T>` | `result = (current ∪ {node left}) ∩ ng[node arrived]` — derived from the arc's endpoints, so `arc_value` is ignored |
 
 ### Feasibility function
@@ -109,7 +109,7 @@ Built-in implementations:
 | `TimeWindowFeasibilityFunction<T>(tw)` | `value ≤ due_time[node]` |
 | `SizeFeasibilityFunction<T>(min, max)` | `min ≤ container.size() ≤ max` |
 | `IntersectionFeasibilityFunction<T>` | `current ∩ arc_value ≠ ∅` |
-| `ReachableFeasibilityFunction<T>` | Can still reach a sink |
+| `ReachableFeasibilityFunction<T>` | A node in its `checked_nodes` is entered only if the label's set already holds it |
 
 ### Dominance function
 
