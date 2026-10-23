@@ -112,6 +112,13 @@ New features are summarised, with a pointer to where they are documented.
   Register the resources, then call `from_networkx(G)`.
 - **Removed from Python: `ResourceGraph.get_resource_factory()`, `Node.resource` and
   `Arc.extender`.** Their types are not bound, so they could only raise `TypeError`.
+- **Python names each resource type once.** The bitset type is `"bitset"` everywhere, as
+  `add_bitset_resource` already said: the function classes are `…_bitset`, and
+  `create("bitset")` works. It used to be `"uint_bitset"` in some places, which no longer
+  works. The types no bound graph uses (`uint`, `uint_set`, `size_t_set`, `size_t_bitset`) are
+  no longer exported, nor are their function classes, which could not be used. Neither are the
+  three graph classes whose first type is `int`, which a `ResourceGraph` could never pick: its
+  first resource is real.
 
 ### Added
 

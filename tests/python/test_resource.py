@@ -54,27 +54,27 @@ def test_time_window_feasibility_with_default():
 
 
 def test_union_extension_function():
-    result = UnionExtensionFunction().create("uint_bitset")
+    result = UnionExtensionFunction().create("bitset")
     assert result is not None
 
 
 def test_intersection_extension_function():
-    result = IntersectionExtensionFunction().create("uint_bitset")
+    result = IntersectionExtensionFunction().create("bitset")
     assert result is not None
 
 
 def test_difference_extension_function():
-    result = DifferenceExtensionFunction().create("uint_bitset")
+    result = DifferenceExtensionFunction().create("bitset")
     assert result is not None
 
 
 def test_subset_dominance_function():
-    result = SubsetDominanceFunction().create("uint_bitset")
+    result = SubsetDominanceFunction().create("bitset")
     assert result is not None
 
 
 def test_superset_dominance_function():
-    result = SupersetDominanceFunction().create("uint_bitset")
+    result = SupersetDominanceFunction().create("bitset")
     assert result is not None
 
 
@@ -82,15 +82,15 @@ def test_size_feasibility_function_init_and_create():
     fn = SizeFeasibilityFunction(2, 5)
     assert fn.min_size == 2
     assert fn.max_size == 5
-    result = fn.create("uint_bitset")
+    result = fn.create("bitset")
     assert result is not None
 
 
 def test_trivial_feasibility_bitset():
-    result = TrivialFeasibilityFunction().create("uint_bitset")
+    result = TrivialFeasibilityFunction().create("bitset")
     assert result is not None
 
 
 def test_trivial_cost_bitset():
-    result = TrivialCostFunction().create("uint_bitset")
+    result = TrivialCostFunction().create("bitset")
     assert result is not None
