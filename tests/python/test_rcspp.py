@@ -344,12 +344,12 @@ def example_set_resource():
 
 
 # ── Example 8: BitsetResource (NG-path style forbidden-node set) ─────────────
-# uint_bitset encodes a set of forbidden node IDs in a compact bitset.
+# bitset encodes a set of forbidden node IDs in a compact bitset.
 # We use SizeFeasibilityFunction to ensure the accumulated set has at most 2 elements.
 
 
 def example_bitset_resource():
-    """4-node graph: real cost + uint_bitset resource tracking forbidden nodes."""
+    """4-node graph: real cost + bitset resource tracking forbidden nodes."""
     rg = ResourceGraph()
     # real resource 0: accumulated arc cost (optimisation objective)
     rg.add_real_resource(
@@ -358,7 +358,7 @@ def example_bitset_resource():
         ValueCostFunction(),
         ValueDominanceFunction(),
     )
-    # uint_bitset resource 1: forbidden-node set, at most 2 distinct nodes
+    # bitset resource 1: forbidden-node set, at most 2 distinct nodes
     rg.add_bitset_resource(
         UnionExtensionFunction(),
         SizeFeasibilityFunction(0, 2),  # allow at most 2 distinct nodes in the set
@@ -497,7 +497,7 @@ def example_advanced_params():
 
 
 # ── Example 12: SIGINT handler ────────────────────────────────────────────────
-# Uses SupersetDominanceFunction on a uint_bitset resource to prevent all label
+# Uses SupersetDominanceFunction on a bitset resource to prevent all label
 # pruning: every arc carries a unique bit, so every partial path has a distinct
 # bitset and no label ever dominates another, forcing 2^(N-2) labels to be kept.
 # A background thread fires SIGINT partway through and the test asserts that
@@ -877,7 +877,7 @@ if __name__ == "__main__":
     example_set_resource()
 
     print("\n" + "=" * 60)
-    print("Example 8: BitsetResource (uint_bitset)")
+    print("Example 8: BitsetResource (bitset)")
     print("=" * 60)
     example_bitset_resource()
 

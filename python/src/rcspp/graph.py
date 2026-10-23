@@ -14,7 +14,7 @@ import math
 import networkx as nx
 
 from . import _core as _ext
-from ._resource_types import ALL, CPP_NAME, canonical
+from ._resource_types import ALL, canonical
 from .resource import _GenericFunctionDescriptor
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
@@ -59,11 +59,8 @@ _ALL_RESOURCE_TYPES = ALL
 # names back to canonical Python-type tuples.  Adding a new combination to
 # graph.cpp automatically makes it available here — no Python changes needed.
 
-# Reverse of CPP_NAME: C++ prefix → Python name (e.g. "uint_bitset" → "bitset").
-# Types without a CPP_NAME entry map to themselves.
-_CPP_TO_PY: dict[str, str] = {cpp: py for py, cpp in CPP_NAME.items()}
 # Sorted longest-first so the greedy parser never confuses "real" with "real_set".
-_CPP_NAMES: list[str] = sorted([CPP_NAME.get(t, t) for t in ALL], key=len, reverse=True)
+_TYPE_NAMES: list[str] = sorted(ALL, key=len, reverse=True)
 
 
 def _parse_rg_class(attr: str) -> tuple[str, ...] | None:
@@ -77,14 +74,14 @@ def _parse_rg_class(attr: str) -> tuple[str, ...] | None:
     inner = attr[1 : -len(suffix)]
     py_types: list[str] = []
     while inner:
-        for cpp in _CPP_NAMES:
-            if inner == cpp:
-                py_types.append(_CPP_TO_PY.get(cpp, cpp))
+        for name in _TYPE_NAMES:
+            if inner == name:
+                py_types.append(name)
                 inner = ""
                 break
-            if inner.startswith(cpp + "_"):
-                py_types.append(_CPP_TO_PY.get(cpp, cpp))
-                inner = inner[len(cpp) + 1 :]
+            if inner.startswith(name + "_"):
+                py_types.append(name)
+                inner = inner[len(name) + 1 :]
                 break
         else:
             return None
@@ -141,14 +138,9 @@ class ResourceGraph:
 
     @staticmethod
     def _resolve(fn, canonical_type: str):
-        """Instantiate a typed C++ function object if *fn* is a generic descriptor.
-
-        ``canonical_type`` is translated to the C++ prefix via ``CPP_NAME`` before the
-        C++ class is looked up.
-        """
+        """Instantiate a typed C++ function object if *fn* is a generic descriptor."""
         if isinstance(fn, _GenericFunctionDescriptor):
-            cpp_type = CPP_NAME.get(canonical_type, canonical_type)
-            return fn.create(cpp_type)
+            return fn.create(canonical_type)
         return fn
 
     # ── Lazy construction ─────────────────────────────────────────────────────
@@ -201,8 +193,7 @@ class ResourceGraph:
 
         self._graph = getattr(_ext.graph, cls_name)()
         for r_type, ext, feas, cost, dom in self._pending:
-            cpp_name = CPP_NAME.get(r_type, r_type)
-            getattr(self._graph, f"add_{cpp_name}_resource")(ext, feas, cost, dom)
+            getattr(self._graph, f"add_{r_type}_resource")(ext, feas, cost, dom)
             self._refs.extend([ext, feas, cost, dom])
         self._pending.clear()
 
@@ -1004,8 +995,7 @@ class BucketAlgorithmParams:
 
         if self._bucket_resource_pos is not None:
             bucket_type, bucket_idx = resolve(self._bucket_resource_pos, "bucket_resource_pos")
-            # Translate Python canonical name to the C++ prefix expected by run_bucket_solve.
-            self._cpp.bucket_resource_type = CPP_NAME.get(bucket_type, bucket_type)
+            self._cpp.bucket_resource_type = bucket_type
             self._cpp.bucket_resource_index = bucket_idx
 
         if self._sort_resource_pos is not None:
