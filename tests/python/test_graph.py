@@ -917,16 +917,14 @@ def test_bucket_params_kwargs_forwarded():
     assert params.max_solutions == 3
 
 
-# ── ResourceGraph(nx_graph=...) constructor path ──────────────────────────────
+# ── ResourceGraph() takes no graph ────────────────────────────────────────────
 
 
-def test_resource_graph_constructor_with_nx_graph():
-    """ResourceGraph(nx_graph=G) invokes from_networkx; resources must be pre-added."""
+def test_resource_graph_constructor_takes_no_graph():
+    """A graph is imported with from_networkx, once the resources are registered."""
     G = nx.DiGraph()
     G.add_node(0, source=True)
     G.add_node(1, sink=True)
     G.add_edge(0, 1, resource=(1.0,), cost=2.0)
-    # from_networkx calls update() internally, so no resources → expected ValueError.
-    # Line 107 (self.from_networkx(nx_graph)) is reached before the error bubbles up.
-    with pytest.raises(ValueError, match="At least one resource"):
-        ResourceGraph(nx_graph=G)
+    with pytest.raises(TypeError):
+        ResourceGraph(G)  # type: ignore[call-arg]
