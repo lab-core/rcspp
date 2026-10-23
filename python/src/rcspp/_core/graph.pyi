@@ -97,6 +97,7 @@ class SolveResult:
 class AlgorithmParams:
     max_solutions: int
     return_dominated_solutions: bool
+    prune_by_upper_bound: bool
     max_extended_labels_per_node: int
     max_phases: int
     max_iterations: int
