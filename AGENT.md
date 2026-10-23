@@ -451,6 +451,38 @@ Test files:
 
 ---
 
+## Naming conventions
+
+Follow these when adding a name, in C++ and in Python.
+
+- **Case.** Classes, structs, enums, concepts and enum values are `CamelCase`
+  (`SearchDirection::Forward`, `AlgorithmStatus::MaxSolutions`). Functions, methods, variables and
+  data members are `snake_case`. Type traits follow the standard library: `snake_case`, with `_v`
+  or `_t` for the value or type (`declares_directional_resource_kind_v`, `rebind_direction`).
+- **Members.** Non-public data members end in `_` (`back_dominance_reversed_`); public fields of a
+  struct do not (`AlgorithmBaseParams::max_solutions`).
+- **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). A few older ones are
+  still in SCREAMING_CASE: `MAX_INT`, the `FNV_*` constants, `DEFAULT_LABEL_POOL_SIZE`, and the
+  `timer.cpp` constants.
+- **Template parameters** are spelled out and end in `Type` when they stand for a type
+  (`ResourceType`, `LabelContainerType`, `GraphType`); direction policies are `TargetDirection` or
+  `LabelDirection`.
+- **"Form" and "Kind".** A `…Form` is a mixin base that declares a kind and implements the members
+  that follow from it (`ThresholdExtensionForm`, `DirectionalExtensionForm`). A `…Kind` is the
+  declared enum (`DirectionalResourceKind`, `CostKind`).
+- **"back" and "backward".** `_back` marks the backward twin of an operation whose forward name is
+  bare: `extend` / `extend_back`, `start` / `start_back`, `is_feasible` / `is_back_feasible`,
+  `check_dominance` / `check_back_dominance`. Everything else says `backward`: types
+  (`BackwardDirection`, `SearchDirection::Backward`), names paired with an explicit `forward_`
+  (`forward_value` / `backward_value`), and the backward search's own state
+  (`backward_frontier_`).
+- **Limits and counts.** A cap is `max_…` (`max_solutions`, `max_phases`,
+  `max_extended_labels_per_node`); a count is `number_of_…` (`get_number_of_extended_labels`).
+- **Say what a name does.** A predicate that only answers is `should_…` or `is_…`
+  (`should_remove_arc`, `should_stop`); a method that changes state says so
+  (`mark_unmodified`, `remove_infeasible_arcs`). An id says what it identifies (`node_id`,
+  `arc_id`, `column_id`), in Python keywords too, where a bare `id` would shadow the built-in.
+
 ## Extending the library
 
 ### Custom resource type (C++)
