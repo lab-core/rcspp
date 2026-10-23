@@ -95,17 +95,17 @@ class SolveResult:
     def __repr__(self) -> str: ...
 
 class AlgorithmParams:
-    stop_after_X_solutions: int
+    max_solutions: int
     return_dominated_solutions: bool
     use_pool: bool
-    num_labels_to_extend_by_node: int
-    num_max_phases: int
+    max_extended_labels_per_node: int
+    max_phases: int
     max_iterations: int
     timeout_s: float
     tolerance: float
     release_after_solve: bool
     tabu_tenure: int
-    forbidden_tabu: set[int]
+    tabu_exempt_node_ids: set[int]
     tabu_random_noise: bool
     seed: int
     max_memory_gb: float
@@ -126,7 +126,7 @@ class AlgorithmParams:
 class BucketAlgorithmParams(AlgorithmParams):
     """Low-level C++ bucket params.  Prefer the Python wrapper in rcspp.graph."""
 
-    range_buckets: int
+    bucket_width: int
     bucket_resource_index: int
     sort_resource_index: int
     bucket_resource_type: str
@@ -154,16 +154,16 @@ class Arc:
     def __repr__(self) -> str: ...
 
 class Graph:
-    def add_node(self, id: int, source: bool = False, sink: bool = False) -> Node: ...
+    def add_node(self, node_id: int, source: bool = False, sink: bool = False) -> Node: ...
     def add_arc(
         self,
-        origin_id: int,
-        destination_id: int,
+        origin_node_id: int,
+        destination_node_id: int,
         cost: float = 0.0,
         rows: Sequence[Row] = (),
     ) -> Arc: ...
-    def get_node(self, id: int) -> Node | None: ...
-    def get_arc(self, id: int) -> Arc | None: ...
+    def get_node(self, node_id: int) -> Node | None: ...
+    def get_arc(self, arc_id: int) -> Arc | None: ...
     def remove_arc(self, arc_id: int) -> bool: ...
     def restore_arc(self, arc_id: int) -> bool: ...
     def remove_arcs(self, arc_ids: Sequence[int]) -> list[int]: ...

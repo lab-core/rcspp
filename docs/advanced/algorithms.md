@@ -96,7 +96,7 @@ One resource acts as the **clock** that says where "half-way" is.  It must be:
 - **monotone** — never decreasing along an arc, so its value crosses `H` exactly
   once along any path;
 - **bounded**, with a known finite range;
-- **a threshold backwards** — its backward form must carry a *ceiling* on the
+- **a threshold backwards** — read backward, it must carry a *ceiling* on the
   forward scale (the latest arrival still admissible here), not the consumption
   from here to the sink.  `TimeWindowExtensionFunction` and
   `CapacityExtensionFunction` are thresholds; `AdditionExtensionFunction` is not.
@@ -130,14 +130,14 @@ the usual case).  A model whose clock is an `int` resource while its cost is
 `create_algorithm`, after the cost's, and defaults to it:
 
 ```cpp
-using Comp = rcspp::ResourceTypeComposition<rcspp::RealResource, rcspp::IntResource>;
-using LC = rcspp::LabelList<Comp>;
-rcspp::AlgorithmParams<LC> params;
+using Resources = rcspp::ResourceTypeComposition<rcspp::RealResource, rcspp::IntResource>;
+using Labels = rcspp::LabelList<Resources>;
+rcspp::AlgorithmParams<Labels> params;
 params.direction = rcspp::SearchDirection::Bidirectional;
 params.critical_resource_index = 0;  // the first int component
 params.half_way_point = 500;
 // cost type RealResource, clock type IntResource
-auto result = graph.solve<rcspp::SimpleDominanceAlgorithm, rcspp::RealResource, LC,
+auto result = graph.solve<rcspp::SimpleDominanceAlgorithm, rcspp::RealResource, Labels,
                           rcspp::IntResource>(std::move(params));
 ```
 
@@ -209,8 +209,9 @@ checks refuse a clamp that differs from the node's bound, in either direction.
 #### C++ callers can ask for one of these at compile time
 
 One of the checks can be answered from the *types* alone, and C++ exposes it as a trait,
-`rcspp::declares_backward_kind_v<Ext>` (in `rcspp/resource/presets.hpp`): the extension
-function declares a `BackwardKind` other than `Unspecified`.
+`rcspp::declares_directional_resource_kind_v<ExtensionFunctionType>` (in
+`rcspp/resource/functions/extension/extension_function.hpp`): the extension function declares a
+`DirectionalResourceKind` other than `Unspecified`.
 
 Every preset asserts it on its own extension, so a preset whose extension has no backward
 reading does not compile.  It says nothing about the feasibility function paired with it: that
@@ -218,7 +219,7 @@ depends on the function's settings, which the model checks test before the solve
 extension of your own, assert it yourself:
 
 ```cpp
-static_assert(rcspp::declares_backward_kind_v<MyExtension>);
+static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
 ```
 
 `add_resource` itself does **not** assert it, on purpose.  A model that is never solved
@@ -231,7 +232,7 @@ bidirectional solve runs the model checks first, from C++ and from Python alike,
 messages and component numbering.
 
 The full inventory — all six checks, which fires where, and why no one of them subsumes
-another — is in `cpp/rcspp/resource/functions/backward_kind.hpp`.
+another — is in `cpp/rcspp/resource/functions/directional_resource_kind.hpp`.
 
 ### One rule the join imposes, and what it requires of a container resource
 
@@ -270,13 +271,13 @@ on the model.
 depends on where the container's elements come from:
 
 - `NgPathExtensionFunction` reads them off the arc's *endpoints* and swaps which endpoint is "the
-  node being left" per direction — `BackwardKind::ArcEndpoints`. The memory at `v` is the nodes
-  before it going forward and the nodes after it going backward. Correct.
-- `UnionExtensionFunction`, `IntersectionExtensionFunction` and `SubtractExtensionFunction`
-  accumulate the arc's *value*, which is the same object both ways — `BackwardKind::ArcValue`. With
-  the usual `{origin}` payload the backward memory at `v` contains `v` itself, so the feasibility
-  test rejects every backward label the moment it is created and the backward search keeps nothing
-  but its start label.
+  node being left" per direction — `DirectionalResourceKind::ArcEndpoints`. The memory at `v` is the
+  nodes before it going forward and the nodes after it going backward. Correct.
+- `UnionExtensionFunction`, `IntersectionExtensionFunction` and `DifferenceExtensionFunction`
+  accumulate the arc's *value*, which is the same object both ways —
+  `DirectionalResourceKind::ArcValue`. With the usual `{origin}` payload the backward memory at `v`
+  contains `v` itself, so the feasibility test rejects every backward label the moment it is created
+  and the backward search keeps nothing but its start label.
 
 The second is the obvious way to write an elementary path and it fails silently, so the model
 checks refuse that pairing for a backward or bidirectional solve. Use
@@ -325,8 +326,8 @@ under-rejecting quietly.
 | Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |
 |---|---|---|
 | `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found.  Joined paths are **not** filtered by dominance at the sink, whatever the flag says: see below |
-| `stop_after_X_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `stop_after_X_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
-| `prune_based_on_upper_bound_` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
+| `max_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `max_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
+| `prune_by_upper_bound` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
 | `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 
@@ -345,7 +346,7 @@ each non-dominated where they meet, not as a whole path.  On Solomon pricing gra
 horizon, with a uniform dual and pruning off, it returned 12 to 19 times the forward search's
 columns.  Every one of them is feasible at its stated cost, and the optimum is the same.  If the
 master should see only non-dominated columns, use a forward algorithm, or cap the count with
-`stop_after_X_solutions`, which the join honours without building the rest.
+`max_solutions`, which the join honours without building the rest.
 
 ### Where the two halves are paired
 
@@ -376,7 +377,7 @@ it misses relative to forward is the **half-way bound**, not the join — the bo
 labels before they reach a sink.
 
 One caveat, and it only applies in modes that are already inexact.  When the per-node extension
-quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memory_pressure` tightening
+quota binds — `max_extended_labels_per_node` (truncated labeling), or `on_memory_pressure` tightening
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
@@ -517,7 +518,7 @@ Much faster than the exact algorithms; no optimality guarantee.
 
 ```python
 params = AlgorithmParams()
-params.num_labels_to_extend_by_node = 5   # extend at most 5 labels per node
+params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)
 ```
@@ -530,10 +531,10 @@ Arc removal is temporary (governed by `tabu_tenure`).
 
 ```python
 params = AlgorithmParams()
-params.tabu_tenure        = 5
-params.tabu_random_noise  = True      # random ±1 tenure noise
-params.max_iterations     = 100
-params.forbidden_tabu     = {source_id, sink_id}  # never remove arcs from these
+params.tabu_tenure          = 5
+params.tabu_random_noise    = True      # random ±1 tenure noise
+params.max_iterations       = 100
+params.tabu_exempt_node_ids = {source_id, sink_id}  # never remove arcs from these
 
 result = rg.solve(algorithm="tabu", params=params)
 ```
@@ -546,12 +547,12 @@ solutions.
 
 ```python
 params = AlgorithmParams()
-params.stop_after_X_solutions = 20    # collect 20 distinct solutions
-params.max_iterations         = 100
-params.seed                   = 42
+params.max_solutions  = 20    # collect 20 distinct solutions
+params.max_iterations = 100
+params.seed           = 42
 
 result = rg.solve(algorithm="greedy", params=params)
-# In C++, use DiversificationSearch<Comp> explicitly to wrap any inner algorithm
+# In C++, use DiversificationSearch explicitly to wrap any inner algorithm
 ```
 
 ## Search directions
@@ -590,12 +591,13 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
-(`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels
-in the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
-`with_direction<D>()`, an empty copy of themselves that compares in direction `D`. A container of
-your own that does not declare it is refused for a backward search. Since the class that searches
-backward is not the one you name,
-`create_algorithm<Strategy>(params)` returns a `std::unique_ptr<Algorithm<R, LC>>`.
+(`Algorithm::supported_directions()` lists what it supports). A backward search keeps its labels in
+the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
+`with_direction<TargetDirection>()`, an empty copy of themselves that compares in direction
+`TargetDirection`. A container of your own that does not declare it is refused for a backward
+search. Since the class that searches backward is not the one you name,
+`create_algorithm<Strategy>(params)` returns a
+`std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
 
 **The model checks run first, always.** A backward or bidirectional solve runs the checks its
 direction needs ([Model checks](#model-checks)) on the whole model before anything else: before any
@@ -606,11 +608,12 @@ whether the solve may reduce the graph; it never skips a check. A forward search
 ## Model checks
 
 A forward search reads nothing but the forward functions. A search that also extends labels
-**backward**, from the sinks, reads each resource's backward semantics: its `backward_kind()`, its
-backward extension, start and feasibility test. A **bidirectional** search also **joins** a forward
-and a backward half into one path, so it reads each component's `join_rule()` as well. A model whose
-backward semantics are missing or incoherent would let those searches return infeasible paths, or
-none, while reporting `complete`. The model checks find that before any label exists:
+**backward**, from the sinks, reads each resource's backward semantics: its
+`directional_resource_kind()`, its backward extension, start and feasibility test. A
+**bidirectional** search also **joins** a forward and a backward half into one path, so it reads
+each component's `join_rule()` as well. A model whose backward semantics are missing or incoherent
+would let those searches return infeasible paths, or none, while reporting `complete`. The model
+checks find that before any label exists:
 
 | Check | Needed by | What it checks |
 |---|---|---|
@@ -651,12 +654,12 @@ refuses: a backward search is refused for sixteen of them, a bidirectional searc
 | Complaint | What to do | Refuses |
 |---|---|---|
 | `no node carries a resource` | The checks read the declarations off a node's resource; give the nodes their resources. | both |
-| `its extension function declares no backward_kind()` | Derive the extension function from `BackwardForm` or a form built on it (`resource/functions/extension/backward_form.hpp` explains them), or declare `static constexpr BackwardKind kind`. | both |
+| `its extension function declares no directional_resource_kind()` | Derive the extension function from `DirectionalExtensionForm` or a form built on it (`resource/functions/extension/directional_extension_form.hpp` explains them), or declare `static constexpr DirectionalResourceKind kind`. | both |
 | `its feasibility function declares no join_rule()` | Return a `JoinRule` from `join_rule()` — `AlwaysTrue` if the resource genuinely cannot block a join, and say why. | bidirectional |
 | `its feasibility function's test cannot be read backward` | The component is not a threshold, and its feasibility function declares no `join_rule()`: in the library that means a test of what the path has collected *up to* a node (the table below), which a backward label, holding what the rest of the path collects, cannot answer.  A backward search would lose feasible paths or return infeasible ones.  The fixes are the ones in the table below. | both |
 | `its feasibility function declares JoinRule::ValueOrder … on a resource that has none` | `ValueOrder` is `forward <= backward` on two scalar values.  A container resource has no such order: declare `JoinRule::Custom` and write the test. | bidirectional |
-| `the model's composition dominance function has no backward form` | A composition dominance function you passed to `ResourceGraph`'s constructor overrides `check_dominance` only, which is all a forward solve needs.  Override `check_back_dominance` too, or keep the default `CompositionDominanceFunction`. | both |
-| `the model's composition extension function has no backward form`, `… has no backward start`, `… feasibility function has no backward form` | The same for a composition extension or feasibility function: one that overrides only `extend` or `is_feasible` compiles and solves forward, but has no `extend_back`, `start_back` or `is_back_feasible`.  Override those too, or keep the defaults `CompositionExtensionFunction` and `CompositionFeasibilityFunction`. | both |
+| `the model's composition dominance function cannot be read backward` | A composition dominance function you passed to `ResourceGraph`'s constructor overrides `check_dominance` only, which is all a forward solve needs.  Override `check_back_dominance` too, or keep the default `CompositionDominanceFunction`. | both |
+| `the model's composition extension function cannot be read backward`, `… has no backward start`, `… feasibility function cannot be read backward` | The same for a composition extension or feasibility function: one that overrides only `extend` or `is_feasible` compiles and solves forward, but has no `extend_back`, `start_back` or `is_back_feasible`.  Override those too, or keep the defaults `CompositionExtensionFunction` and `CompositionFeasibilityFunction`. | both |
 | `the model's composition feasibility function has no join test` | The same for `can_be_joined`.  A `can_be_joined` of your own must be exact, like a component's: no check can tell one that refuses too much. | bidirectional |
 | `the model's cost function is not additive` | A backward label that reaches a source is a complete path, and the join prices a path as the forward half's cost plus the backward half's.  That is exact only when every component the cost reads has a zero cost (`TrivialCostFunction`) or a value cost (`ValueCostFunction`) under an accumulating extension.  A threshold's backward value is a deadline or a remaining capacity, not a cost, so a `CompositionCostFunction` over a time window with a `ValueCostFunction` is refused.  Give that component a `TrivialCostFunction`, or keep the default cost function, which reads component 0 only. | both |
 
@@ -672,7 +675,7 @@ all with a `complete` status, so they are refused instead:
 
 | Component | When it refuses | What to do instead |
 |---|---|---|
-| `IntersectionFeasibilityFunction` | **required** values (`forbidden = false`) | Model the requirement on the whole path, not per node: there is no backward form of "collected one of these already". |
+| `IntersectionFeasibilityFunction` | **required** values (`forbidden = false`) | Model the requirement on the whole path, not per node: there is no backward reading of "collected one of these already". |
 | `IntersectionFeasibilityFunction` | **forbidden** values that are not `{v}` at node `v` | Use the ng-route condition, `forbidden_by_node[v] = {v}`, with `NgPathExtensionFunction`: see "One rule the join imposes" under [`Bidirectional`](#bidirectional). |
 | `SizeFeasibilityFunction` | a non-zero **minimum** size anywhere, or a **per-node cap** that differs from the default | Use one cap for every node, or solve forward.  A single cap is suffix-safe: a backward label that reaches a source holds the whole set, and every set along the path is a subset of it.  A floor or a per-node cap bounds what the path has collected *up to* a node, which a suffix cannot see. |
 | `MinMaxFeasibilityFunction` | a non-zero **minimum** anywhere, default or per node, under a threshold extension (`CapacityExtensionFunction`, `TimeWindowExtensionFunction`) | The same fix, for the same reason: a backward label carries only a *ceiling*, so neither the join nor a backward label that reaches a source can tell whether the forward value got as high as the floor. |
@@ -703,15 +706,15 @@ checked, though a sink's start is; likewise the forward clamp at a node no arc e
 |---|---|---|
 | `its extension accumulates but its feasibility function declares JoinRule::ValueOrder` | `ValueOrder` compares the forward value against the backward one, which reads the backward value as a *bound*.  Under an accumulation it is not a bound, it is the suffix's own consumption, so the comparison tests nothing the model contains — and it fails by *accepting*.  Use a threshold extension, or declare `JoinRule::Custom` with a body that adds the two halves. | bidirectional |
 | `its feasibility function rejects a backward value of … at node …, the lowest value a forward label can hold there` | The feasibility function's backward test has a floor, a node's opening time say, above that value: the extension never waits for it going forward, and the forward test does not check it either.  The backward search would then reject deadlines a forward path meets.  Build the extension and the feasibility function from the same windows (`TimeWindowExtensionFunction` with `TimeWindowFeasibilityFunction`), or pair `CapacityExtensionFunction` with `MinMaxFeasibilityFunction(0, capacity)`. | both |
-| `its backward labels at node … are not clamped at all, but its feasibility function rejects values above some bound there` | The extension's backward step does not clamp, so a deadline can stay above the node's upper bound and the backward search admits deadlines the forward search rejects — under a time window's backward test, which reads only the opening time, the join or a backward label reaching a source would accept an infeasible path.  Clamp each backward label to its node's upper bound, as `ThresholdForm` does, built from the feasibility function's `NodeBounds`. | both |
-| `its backward labels at sink … start at the type default, but its feasibility function rejects values above some bound there` | The extension's `start_back` sets nothing, so a backward label at the sink keeps the type default, 0, as its deadline, and the backward search rejects deadlines a forward path meets.  Start each backward label at the sink's upper bound, as `ThresholdForm::start_back` does. | both |
+| `its backward labels at node … are not clamped at all, but its feasibility function rejects values above some bound there` | The extension's backward step does not clamp, so a deadline can stay above the node's upper bound and the backward search admits deadlines the forward search rejects — under a time window's backward test, which reads only the opening time, the join or a backward label reaching a source would accept an infeasible path.  Clamp each backward label to its node's upper bound, as `ThresholdExtensionForm` does, built from the feasibility function's `NodeBounds`. | both |
+| `its backward labels at sink … start at the type default, but its feasibility function rejects values above some bound there` | The extension's `start_back` sets nothing, so a backward label at the sink keeps the type default, 0, as its deadline, and the backward search rejects deadlines a forward path meets.  Start each backward label at the sink's upper bound, as `ThresholdExtensionForm::start_back` does. | both |
 | `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, which its feasibility function rejects there` | A threshold extension clamps each backward label to its own upper bound at the node.  If the node's `is_back_feasible` rejects that value, every backward label there is lost: the extension was built with other caps than the feasibility function, typically `CapacityExtensionFunction(capacity)` beside per-node caps on the feasibility function.  Build both from one `NodeBounds` (`make_node_bounds(0, capacity, per_node)`, or `feasibility->bounds()`), or use `presets::add_capacity_resource`. | both |
 | `its backward labels at node … are clamped to …` (or `at sink … start at …`) `, above` (or `below`) `the largest value its feasibility function admits there` | The same mismatch where the node's backward test cannot see it.  The node's ceiling is the largest value its forward test admits.  A clamp or start *above* it lets the backward search admit deadlines the forward search rejects — a time window's backward test reads only the opening time, so the join would accept infeasible paths; one *below* it rejects deadlines a forward path meets.  The fix is the one above.  A forward test of your own that admits values a little above its ceiling, beyond the library's own `epsilon` tolerance, reads as a ceiling higher than the clamp and is refused: make it exact. | both |
 | `a forward label leaves source … at …, below the lower bound its backward reading enforces there` | A forward label starts at a source with that node's resource value (0 unless you gave the node one), and no forward step raises it to the source's opening time.  A backward label that reaches the source with a deadline below the opening is marked unmeetable, although the forward search departs earlier and meets it, so a backward search would miss paths the forward search finds.  Open the source's window at the start value or earlier.  A bidirectional search is not refused: it finds such paths through its forward half and the join. | backward |
 | `arc … consumes …, but its backward reading assumes no arc lowers the value` | A backward label carries only a ceiling, so it cannot see a path's value dip below a floor inside the suffix: with a negative load, a `MinMaxFeasibilityFunction(0, capacity)` under `CapacityExtensionFunction` or `AdditionExtensionFunction` accepts a path whose load went below 0.  Loads must be non-negative.  A time window is exempt, since it waits at each node's opening time. | both |
-| `its extension declares BackwardKind::Accumulate, but along … it is not a sum` | The join adds the component's two halves, through its cost (`ValueCostFunction`) or its feasibility function's join test (`MinMaxFeasibilityFunction` under an accumulation tests `forward + backward`), which is exact only if a path's value is the sum of one amount per arc.  `Accumulate` promises less: that the step is the same in both directions.  A bottleneck, the largest load seen, is such a step, but its halves 3 and 5 add up to 8 where the path's value is 5.  The check runs the extension: from the type default, two steps along the model's arcs must give the sum of the two single steps.  Write the step as an addition, or keep the component's halves apart: a `TrivialCostFunction`, and a feasibility function whose join test does not add. | bidirectional |
-| `its extension declares BackwardKind::Accumulate, but starts its backward labels at sink …` | A forward label starts at the type default, so a backward label whose halves are added must start there too: any other start is counted on top of the path's own sum.  Leave `start_back` to its default. | bidirectional |
-| `its feasibility function forbids each node at itself … does not declare BackwardKind::ArcEndpoints` | The feasibility test asks *am I already in my own memory*, which needs the memory at a node to exclude that node in **both** directions.  Only an `ArcEndpoints` extension gives that.  A `BackwardKind::ArcValue` container takes its elements from the arc's *value*, which is the same object going each way, so the backward label reaches a node already holding it and is rejected there — every time.  Use `NgPathExtensionFunction`, or `presets::add_elementary_resource` for an elementary path. | both |
+| `its extension declares DirectionalResourceKind::Accumulate, but along … it is not a sum` | The join adds the component's two halves, through its cost (`ValueCostFunction`) or its feasibility function's join test (`MinMaxFeasibilityFunction` under an accumulation tests `forward + backward`), which is exact only if a path's value is the sum of one amount per arc.  `Accumulate` promises less: that the step is the same in both directions.  A bottleneck, the largest load seen, is such a step, but its halves 3 and 5 add up to 8 where the path's value is 5.  The check runs the extension: from the type default, two steps along the model's arcs must give the sum of the two single steps.  Write the step as an addition, or keep the component's halves apart: a `TrivialCostFunction`, and a feasibility function whose join test does not add. | bidirectional |
+| `its extension declares DirectionalResourceKind::Accumulate, but starts its backward labels at sink …` | A forward label starts at the type default, so a backward label whose halves are added must start there too: any other start is counted on top of the path's own sum.  Leave `start_back` to its default. | bidirectional |
+| `its feasibility function forbids each node at itself … does not declare DirectionalResourceKind::ArcEndpoints` | The feasibility test asks *am I already in my own memory*, which needs the memory at a node to exclude that node in **both** directions.  Only an `ArcEndpoints` extension gives that.  A `DirectionalResourceKind::ArcValue` container takes its elements from the arc's *value*, which is the same object going each way, so the backward label reaches a node already holding it and is rejected there — every time.  Use `NgPathExtensionFunction`, or `presets::add_elementary_resource` for an elementary path. | both |
 
 (The messages are generated by `BackwardExtensionCheck` and `JoinCheck`, in
 `cpp/rcspp/validation/`; if you change a message there, change these tables too.)
@@ -752,7 +755,7 @@ checking by partitioning labels on one resource dimension.
 from rcspp.graph import BucketAlgorithmParams
 
 bp = BucketAlgorithmParams()
-bp.range_buckets         = 200    # partition the time dimension into 200 buckets
+bp.bucket_width          = 200    # partition the time dimension into 200 buckets
 bp.bucket_resource_index = 0      # resource 0 is time
 bp.sort_resource_index   = 1      # sort within bucket by resource 1
 
@@ -762,8 +765,8 @@ result = rg.solve(algorithm="simple", params=bp)
 In C++:
 
 ```cpp
-BucketAlgorithmParams<LabelBuckets<Comp>> bp;
-bp.range_buckets = 200;
+BucketAlgorithmParams<LabelBuckets<Resources>> bp;
+bp.bucket_width = 200;
 bp.bucket_resource_index = 0;
 bp.sort_resource_index = 1;
 auto result = graph.solve<SimpleDominanceAlgorithm, RealResource, LabelBuckets>(ub, bp);

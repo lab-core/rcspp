@@ -38,7 +38,7 @@ constexpr double kLate = 70.0;
 inline std::unique_ptr<Label<RealComposition>> make_real_label(size_t label_id, double value,
                                                                bool reversed) {
     auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
-    dominance->set_backward_reversed(reversed);
+    dominance->set_back_dominance_reversed(reversed);
     auto component = std::make_unique<Resource<RealResource>>(
         RealResource(value),
         std::move(dominance),
@@ -66,7 +66,7 @@ inline std::unique_ptr<Label<SetComposition>> make_set_label(size_t label_id,
     value.set_value(values);
     auto component = std::make_unique<Resource<SetResource<int>>>(
         value,
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>(),
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>(),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
         std::make_unique<TrivialCostFunction<SetResource<int>>>());
 
@@ -120,8 +120,8 @@ TEST(DirectionalContainers, BackwardKeepsTheLaterLabel) {
 
     // Premise: this resource really does reverse backward.
     ValueDominanceFunction<RealResource> probe;
-    probe.set_backward_reversed(true);
-    ASSERT_TRUE(probe.is_backward_reversed());
+    probe.set_back_dominance_reversed(true);
+    ASSERT_TRUE(probe.is_back_dominance_reversed());
     ASSERT_NE(probe.check_dominance(RealResource(dct::kEarly), RealResource(dct::kLate)),
               probe.check_back_dominance(RealResource(dct::kEarly), RealResource(dct::kLate)));
 
@@ -245,7 +245,7 @@ TEST(DirectionalContainers, IsBackLowerFollowsTheFlag) {
 
     auto make = [](double value, bool reversed) {
         auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
-        dominance->set_backward_reversed(reversed);
+        dominance->set_back_dominance_reversed(reversed);
         return std::make_unique<Resource<RealResource>>(
             RealResource(value),
             std::move(dominance),
@@ -284,10 +284,10 @@ TEST(DirectionalContainers, ForwardBucketsUnchanged) {
         std::is_same_v<
             Buckets,
             LabelBuckets<RealResource, RealResource, dct::RealComposition, ForwardDirection>>,
-        "the Dir parameter must be defaulted, not required");
+        "the Direction parameter must be defaulted, not required");
 
     // copy() keeps the direction.
-    Buckets buckets(/*range_buckets=*/10, /*bucket_resource_index=*/0, /*sort_resource_index=*/0);
+    Buckets buckets(/*bucket_width=*/10, /*bucket_resource_index=*/0, /*sort_resource_index=*/0);
     auto copied = buckets.copy();
     static_assert(std::is_same_v<decltype(copied), Buckets>,
                   "LabelBuckets::copy() must preserve the direction");
@@ -337,7 +337,7 @@ TEST(DirectionalContainers, ContainersRebindTheirOwnDirection) {
                   "a container that already compares backward rebinds to itself");
 
     // The rebound buckets compare backward: the later deadline dominates.
-    const Buckets buckets(/*range_buckets=*/10,
+    const Buckets buckets(/*bucket_width=*/10,
                           /*bucket_resource_index=*/0,
                           /*sort_resource_index=*/0);
     auto backward = detail::rebind_direction<Buckets, BackwardDirection>::convert(buckets);

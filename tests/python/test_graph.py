@@ -18,8 +18,8 @@ import networkx as nx  # noqa: E402
 from rcspp.graph import BucketAlgorithmParams, ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
-    InclusionDominanceFunction,
     MinMaxFeasibilityFunction,
+    SubsetDominanceFunction,
     TrivialCostFunction,
     TrivialFeasibilityFunction,
     UnionExtensionFunction,
@@ -552,7 +552,7 @@ def test_ensure_graph_superset_lookup():
         UnionExtensionFunction(),
         TrivialFeasibilityFunction(),
         TrivialCostFunction(),
-        InclusionDominanceFunction(),
+        SubsetDominanceFunction(),
     )
     # No direct class for (real, int, bitset); a superset class is selected.
     rg.update()
@@ -749,7 +749,7 @@ def test_solve_unknown_algorithm_raises():
 def test_solve_with_bucket_params():
     """Solve() accepts BucketAlgorithmParams; selects bucket-based algorithm."""
     rg = make_diamond()
-    params = BucketAlgorithmParams(range_buckets=10)
+    params = BucketAlgorithmParams(bucket_width=10)
     result = rg.solve(algorithm="pushing", params=params)
     assert len(result) >= 1
 
@@ -856,15 +856,15 @@ def test_from_networkx_arc_missing_resource_no_resources_registered_raises():
 
 def test_bucket_params_init_with_positions():
     """BucketAlgorithmParams stores positions and forwards kwargs to C++."""
-    params = BucketAlgorithmParams(range_buckets=50, bucket_resource_pos=0, sort_resource_pos=0)
+    params = BucketAlgorithmParams(bucket_width=50, bucket_resource_pos=0, sort_resource_pos=0)
     assert params._bucket_resource_pos == 0
     assert params._sort_resource_pos == 0
 
 
 def test_bucket_params_getattr():
     """BucketAlgorithmParams.__getattr__ forwards non-underscore names to C++."""
-    params = BucketAlgorithmParams(range_buckets=50)
-    assert params.range_buckets == 50
+    params = BucketAlgorithmParams(bucket_width=50)
+    assert params.bucket_width == 50
 
 
 def test_bucket_params_getattr_private_raises():
@@ -877,8 +877,8 @@ def test_bucket_params_getattr_private_raises():
 def test_bucket_params_setattr_public():
     """BucketAlgorithmParams.__setattr__ forwards public names to C++."""
     params = BucketAlgorithmParams()
-    params.range_buckets = 200
-    assert params.range_buckets == 200
+    params.bucket_width = 200
+    assert params.bucket_width == 200
 
 
 def test_bucket_params_to_cpp_with_positions():
@@ -887,7 +887,7 @@ def test_bucket_params_to_cpp_with_positions():
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
     rg.add_arc(1.0, 0, 1, cost=1.0)
-    params = BucketAlgorithmParams(range_buckets=10, bucket_resource_pos=0, sort_resource_pos=0)
+    params = BucketAlgorithmParams(bucket_width=10, bucket_resource_pos=0, sort_resource_pos=0)
     result = rg.solve(algorithm="pushing", params=params)
     assert len(result) >= 1
 
@@ -898,15 +898,15 @@ def test_bucket_params_to_cpp_out_of_range_raises():
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
     rg.add_arc(1.0, 0, 1, cost=1.0)
-    params = BucketAlgorithmParams(range_buckets=10, bucket_resource_pos=99)
+    params = BucketAlgorithmParams(bucket_width=10, bucket_resource_pos=99)
     with pytest.raises(ValueError, match="out of range"):
         rg.solve(params=params)
 
 
 def test_bucket_params_kwargs_forwarded():
     """BucketAlgorithmParams kwargs are forwarded to the underlying C++ object."""
-    params = BucketAlgorithmParams(range_buckets=50, stop_after_X_solutions=3)
-    assert params.stop_after_X_solutions == 3
+    params = BucketAlgorithmParams(bucket_width=50, max_solutions=3)
+    assert params.max_solutions == 3
 
 
 # ── ResourceGraph(nx_graph=...) constructor path ──────────────────────────────

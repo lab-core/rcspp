@@ -29,7 +29,7 @@ namespace rcspp {
 ///    the first sink reached), so a FULL search returns the optimal solution for ANY @f$ h @f$ —
 ///    the heuristic only changes the *order* of expansion, not which labels exist.
 ///  - @f$ h @f$ matters for correctness only together with label-dropping truncation (a per-node
-///    extension cap, memory-pressure pruning, or @ref AlgorithmBaseParams::stop_after_X_solutions):
+///    extension cap, memory-pressure pruning, or @ref AlgorithmBaseParams::max_solutions):
 ///    those keep the lowest-@f$ f @f$ labels, so an *admissible* @f$ h @f$ (a true lower bound)
 ///    keeps the most promising labels and the truncated result stays optimal far more often,
 ///    whereas an over-estimating @f$ h @f$ could drop the optimal path.
@@ -153,7 +153,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 // NOT admissible: with per-node truncation or memory-pressure pruning (which retain
                 // the lowest-f labels) it can discard the labels lying on the true optimal path and
                 // then return a suboptimal solution while still reporting
-                // AlgorithmStatus::COMPLETE.
+                // AlgorithmStatus::Complete.
                 //
                 // With h == 0, A* is an ordinary reduced-cost-ordered label-correcting search — the
                 // same ordering the non-A* dominance algorithms use. A full (untruncated) search is
@@ -207,7 +207,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         // ─── Multi-phase support ──────────────────────────────────────────────
 
         /// @brief Restore truncated labels into the main heap for the next phase.
-        void prepareNextPhase() override {
+        void prepare_next_phase() override {
             std::ranges::fill(number_of_extended_labels_per_node_, 0);
             for (const auto& pair : unprocessed_truncated_labels_) {
                 unprocessed_labels_.push(pair);
@@ -307,16 +307,19 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         std::vector<size_t> number_of_extended_labels_per_node_;
 };
 
-/// @brief Presents AStarDominanceAlgorithm<RT, LC, CostRC> as a 2-param template.
+/// @brief Presents AStarDominanceAlgorithm<ResourceType, LabelContainerType, CostResourceType> as a
+/// 2-param template.
 ///
 /// Required because C++ template template parameters must match exactly in arity
-/// (P0522 matching is not reliably supported).  Use AStarAlgoBound<CostRC>::Algo
+/// (P0522 matching is not reliably supported).  Use AStarAlgoBound<CostResourceType>::Algo
 /// wherever a @c template<typename,typename> class argument is expected.
-template <typename CostRC>
+template <typename CostResourceType>
 struct AStarAlgoBound {
-        template <typename RT, typename LC>
-        class Algo : public AStarDominanceAlgorithm<RT, LC, CostRC> {
-                using AStarDominanceAlgorithm<RT, LC, CostRC>::AStarDominanceAlgorithm;
+        template <typename ResourceType, typename LabelContainerType>
+        class Algo
+            : public AStarDominanceAlgorithm<ResourceType, LabelContainerType, CostResourceType> {
+                using AStarDominanceAlgorithm<ResourceType, LabelContainerType,
+                                              CostResourceType>::AStarDominanceAlgorithm;
         };
 };
 

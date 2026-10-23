@@ -38,7 +38,7 @@ inline std::unique_ptr<rcspp::Resource<rcspp::SetResource<int>>> make_resource(
     const std::set<int>& values) {
     return std::make_unique<rcspp::Resource<rcspp::SetResource<int>>>(
         make_set_resource(values),
-        std::make_unique<rcspp::InclusionDominanceFunction<rcspp::SetResource<int>>>(),
+        std::make_unique<rcspp::SubsetDominanceFunction<rcspp::SetResource<int>>>(),
         std::make_unique<rcspp::TrivialFeasibilityFunction<rcspp::SetResource<int>>>(),
         std::make_unique<rcspp::TrivialCostFunction<rcspp::SetResource<int>>>());
 }
@@ -198,10 +198,11 @@ TEST(NgPathExtensionFunction, ForwardExtendThroughExtenderMatches) {
 //
 // ArcEndpoints, not ArcValue: only this kind keeps a memory from containing its own node in both
 // directions.
-TEST(NgPathExtensionFunction, DeclaresArcEndpointsBackwardKind) {
+TEST(NgPathExtensionFunction, DeclaresArcEndpointsDirectionalResourceKind) {
     NgPathExtensionFunction<SetResource<int>> proto(ng_path_test::sample_ng_map());
-    EXPECT_EQ(proto.backward_kind(), BackwardKind::ArcEndpoints);
-    EXPECT_NE(proto.backward_kind(), UnionExtensionFunction<SetResource<int>>{}.backward_kind());
+    EXPECT_EQ(proto.directional_resource_kind(), DirectionalResourceKind::ArcEndpoints);
+    EXPECT_NE(proto.directional_resource_kind(),
+              UnionExtensionFunction<SetResource<int>>{}.directional_resource_kind());
 }
 
 // The arc's extender value is ignored: the node added is the one the label leaves, derived from

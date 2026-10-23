@@ -326,8 +326,8 @@ class ResourceGraph:
     def add_arc(
         self,
         resource_consumption,
-        origin_id: int,
-        destination_id: int,
+        origin_node_id: int,
+        destination_node_id: int,
         cost: float = 0.0,
         rows=None,
     ):
@@ -349,8 +349,8 @@ class ResourceGraph:
         self._arc_buffer.append(
             (
                 resource_consumption,
-                int(origin_id),
-                int(destination_id),
+                int(origin_node_id),
+                int(destination_node_id),
                 float(cost),
                 rows,
             )
@@ -454,10 +454,10 @@ class ResourceGraph:
         self._flush()
         return self._graph.get_arc(arc_id)
 
-    def get_arcs(self, origin_id: int, destination_id: int):
-        """Return all arcs between *origin_id* and *destination_id* as a list."""
+    def get_arcs(self, origin_node_id: int, destination_node_id: int):
+        """Return the arcs from *origin_node_id* to *destination_node_id*."""
         self._flush()
-        return self._graph.get_arcs(origin_id, destination_id)
+        return self._graph.get_arcs(origin_node_id, destination_node_id)
 
     def update_arc(self, arc, resource_consumption, *args, **kwargs):
         """Update an arc's resource consumption in place.
@@ -912,7 +912,7 @@ class BucketAlgorithmParams:
     preserving backward compatibility with code that sets those fields directly.
 
     Args:
-        range_buckets: Width of each bucket along the bucket resource axis.
+        bucket_width: Width of each bucket along the bucket resource axis.
         bucket_resource_pos: Registration-order position of the resource used
             to partition labels into buckets.  ``None`` (default) keeps the
             C++ default (empty ``bucket_resource_type`` → cost resource).
@@ -921,12 +921,12 @@ class BucketAlgorithmParams:
             (``real`` or ``int``).  ``None`` (default) keeps the C++ default
             (``sort_resource_index=0``).
         **kwargs: Additional :class:`AlgorithmParams` fields
-            (e.g. ``stop_after_X_solutions``, ``timeout_s``, ``max_memory_gb``).
+            (e.g. ``max_solutions``, ``timeout_s``, ``max_memory_gb``).
     """
 
     def __init__(
         self,
-        range_buckets: int = 100,
+        bucket_width: int = 100,
         bucket_resource_pos=None,
         sort_resource_pos=None,
         **kwargs,
@@ -934,7 +934,7 @@ class BucketAlgorithmParams:
         """Create BucketAlgorithmParams with optional resource-position hints.
 
         Args:
-            range_buckets: Width of each bucket partition along the bucket
+            bucket_width: Width of each bucket partition along the bucket
                 resource axis.
             bucket_resource_pos: Zero-based registration-order index of the
                 resource used to partition labels into buckets.  ``None``
@@ -943,7 +943,7 @@ class BucketAlgorithmParams:
                 numerical resource used to sort labels within each bucket.
                 ``None`` keeps the C++ default.
             **kwargs: Additional :class:`AlgorithmParams` fields forwarded
-                directly to the C++ object (e.g. ``stop_after_X_solutions``,
+                directly to the C++ object (e.g. ``max_solutions``,
                 ``timeout_s``, ``max_memory_gb``).
         """
         self._bucket_resource_pos = (
@@ -951,7 +951,7 @@ class BucketAlgorithmParams:
         )
         self._sort_resource_pos = None if sort_resource_pos is None else int(sort_resource_pos)
         self._cpp = _CppBucketAlgorithmParams()
-        self._cpp.range_buckets = int(range_buckets)
+        self._cpp.bucket_width = int(bucket_width)
         for k, v in kwargs.items():
             setattr(self._cpp, k, v)
 

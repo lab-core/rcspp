@@ -20,8 +20,9 @@ New features are summarised, with a pointer to where they are documented.
   and now fails when it is built. Model a depot that a route passes through as separate source and
   sink nodes, as the VRP example does.
 - **Breaking: `ResourceGraph::create_algorithm<Strategy>(params)` returns
-  `std::unique_ptr<Algorithm<R, LC>>`**, not `std::unique_ptr<Strategy<R, LC>>`: the class that
-  searches in `params.direction` is not always `Strategy` itself. Code that stored the result in a
+  `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`**, not
+  `std::unique_ptr<Strategy<ResourceType, LabelContainerType>>`: the class that searches in
+  `params.direction` is not always `Strategy` itself. Code that stored the result in a
   `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
   `auto`, or build the algorithm directly. With constructor arguments beyond the params,
   `create_algorithm` still returns the type it names.
@@ -54,6 +55,39 @@ New features are summarised, with a pointer to where they are documented.
   `min(latest[origin], deadline - arc_time)`, the latest time a label can leave the arc's origin
   and still meet the deadline it carries. Before, it added the travel time. No algorithm called
   it before this release.
+- **Renamed, with no alias.** Code that names the old spelling, or overrides it, no longer
+  compiles; Python code that passes an old keyword or reads an old attribute raises.
+  - `Preprocessor::remove_arc` is `should_remove_arc`: it only answers, where
+    `Graph::remove_arc` removes.
+  - The values of `AlgorithmStatus` are in CapWords, as in Python: `Complete`, `Timeout`,
+    `MaxSolutions`, `MaxPhases`, `Interrupted` and `MemoryLimit`.
+  - `Algorithm::prepareNextPhase` is `prepare_next_phase`. Rename your overrides.
+  - `Algorithm::get_labels_at_sinks` is `get_labels_at_terminals`: going backward, it returns
+    the labels at the sources.
+  - `Graph::track_modifications` is `mark_unmodified`: it clears the modified flag.
+  - `ResourceGraph::process_feasibility` is `remove_infeasible_arcs`, in C++ and in Python, where
+    it was `preprocess_feasibility`.
+  - Fields of `AlgorithmBaseParams`, in C++ and in Python: `stop_after_X_solutions` is
+    `max_solutions` and `num_max_phases` is `max_phases`, after the statuses they cause;
+    `num_labels_to_extend_by_node` is `max_extended_labels_per_node`, a cap that applies in each
+    phase; `forbidden_tabu` is `tabu_exempt_node_ids`: it lists the nodes whose arcs are never made
+    tabu. In C++ only, `prune_based_on_upper_bound_` is `prune_by_upper_bound`.
+  - `range_buckets` is `bucket_width`, on `BucketAlgorithmParams` in Python and on the
+    `LabelBuckets` constructor, and `LabelBuckets::suggest_range` is `suggest_bucket_width`: it is
+    the width of a bucket along its resource, not a number of buckets.
+  - `ContainDominanceFunction` is `SupersetDominanceFunction`, `InclusionDominanceFunction` is
+    `SubsetDominanceFunction`, and `SubtractExtensionFunction` is `DifferenceExtensionFunction`,
+    in C++ and in Python, with their headers. The first two names were synonyms for opposite
+    rules; the new ones say which set dominates.
+  - Python keywords: `id` is `node_id`, `arc_id` or `column_id` (`add_node`, `get_node`,
+    `get_arc`, and the pool's `get`, `get_activity` and `get_entry`); `origin_id` and
+    `destination_id` are `origin_node_id` and `destination_node_id` (`add_arc`, `get_arcs`), as
+    on `ResourceGraph`; the pool's `col_ids` is `column_ids`, and `update_activity(basis_ids)` is
+    `update_activity(basis_column_ids)`.
+  - The LP arrays have one vocabulary: `column_costs`, `column_starts`, `row_indices` and
+    `row_coefficients`. That changes the keywords of `SharedPricingPool.add_from_lp_arrays`,
+    which were `col_costs`, `row_starts`, `col_indices` and `col_values`, and its views
+    (`column_costs_view`, `column_starts_view`, `row_indices_view`, `row_coefficients_view`).
 
 ### Added
 
@@ -65,7 +99,8 @@ New features are summarised, with a pointer to where they are documented.
   direction raises `ValueError`.
   An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
   throws `std::invalid_argument` when it is created or solved, as does a backward search with a
-  label container that declares no `with_direction<D>()` (`LabelList` and `LabelBuckets` both do).
+  label container that declares no `with_direction<TargetDirection>()` (`LabelList` and
+  `LabelBuckets` both do).
   A backward search returns complete paths in forward order. See "Search directions" in
   `docs/advanced/algorithms.md`.
 - **Bidirectional labelling**: `SimpleDominanceAlgorithm` with
@@ -78,7 +113,7 @@ New features are summarised, with a pointer to where they are documented.
   comes from whichever has extended fewer arcs. After a timeout or the memory limit it still runs
   its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
   `join_after_early_stop = false` skips it, and so does an interrupt. With
-  `prune_based_on_upper_bound_`, it prunes on lower bounds of the cost still to come, computed from
+  `prune_by_upper_bound`, it prunes on lower bounds of the cost still to come, computed from
   the cost function itself, so they hold whichever components the objective reads;
   `heuristic_cost_index` is not read. What it reports about its
   bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
@@ -111,19 +146,19 @@ New features are summarised, with a pointer to where they are documented.
   threshold extension of your own is checked however it is written, and must accept any value of
   its type. A feasibility function's floor is checked the same way, by asking its backward test.
 - **Backward-semantics declarations** for custom functions, each with a default that keeps existing
-  code compiling: `ExtensionFunction::backward_kind()` and `start_back()`; on `FeasibilityFunction`
-  `join_rule()` and `requires_nondecreasing()`; and `CostFunction::cost_form()`. A composition
-  `DominanceFunction` gains a `check_back_dominance()` whose default refuses, and a composition
-  `CostFunction` an `is_additive()` whose default refuses: a backward label's cost is its
-  suffix's, and the join adds the two halves' costs, so a cost that reads a threshold's value is
-  refused. An accumulation whose halves the join adds, through its cost or its join test, must be
-  a sum, which the checks verify by running the extension. The model checks refuse a model whose
-  declarations are missing or incoherent, naming the component. A backward or bidirectional
-  search is also refused a constraint a backward label cannot check exactly, a test of what the
-  path has collected up to a node such as per-node caps on `SizeFeasibilityFunction` or per-node
-  windows on an accumulating `MinMaxFeasibilityFunction`; and a backward search a source whose
-  window opens after the value a forward label starts with. See "Model checks" in
-  `docs/advanced/algorithms.md`.
+  code compiling: `ExtensionFunction::directional_resource_kind()` and `start_back()`; on
+  `FeasibilityFunction` `join_rule()` and `requires_nondecreasing()`; and
+  `CostFunction::cost_kind()`. A composition `DominanceFunction` gains a `check_back_dominance()`
+  whose default refuses, and a composition `CostFunction` an `is_additive()` whose default refuses:
+  a backward label's cost is its suffix's, and the join adds the two halves' costs, so a cost that
+  reads a threshold's value is refused. An accumulation whose halves the join adds, through its cost
+  or its join test, must be a sum, which the checks verify by running the extension. The model
+  checks refuse a model whose declarations are missing or incoherent, naming the component. A
+  backward or bidirectional search is also refused a constraint a backward label cannot check
+  exactly, a test of what the path has collected up to a node such as per-node caps on
+  `SizeFeasibilityFunction` or per-node windows on an accumulating `MinMaxFeasibilityFunction`; and
+  a backward search a source whose window opens after the value a forward label starts with. See
+  "Model checks" in `docs/advanced/algorithms.md`.
 - **`SolveResult.bidirectional`** (C++ and Python): a bidirectional solve's diagnostics,
   `bounded_by_half_way`, `half_way_off_reason` and `number_of_joined_paths`, as a
   `BidirectionalStats`; empty (`None` in Python) from every other algorithm.
@@ -132,11 +167,12 @@ New features are summarised, with a pointer to where they are documented.
   `UnionExtensionFunction` is refused by the model checks, naming the fix.
 - **Presets**, one call per resource kind, each building its four function objects so that they
   agree (`rcspp/resource/presets.hpp`): `add_cost_resource`, `add_window_resource`,
-  `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`, also in Python,
-  in `rcspp.presets`. Only the cost preset prices its resource; a window or a
-  capacity costs nothing. Each asserts at compile time that its extension declares a
-  backward kind; C++ callers can assert the same of their own extensions with
-  `rcspp::declares_backward_kind_v<Ext>`. The rest of a pairing is checked by the model checks.
+  `add_capacity_resource`, `add_ng_path_resource` and `add_elementary_resource`, also in Python, in
+  `rcspp.presets`. Only the cost preset prices its resource; a window or a capacity costs nothing.
+  Each asserts at compile time that its extension declares a directional resource kind; C++ callers
+  can assert the same of their own extensions with
+  `rcspp::declares_directional_resource_kind_v<ExtensionFunctionType>`. The rest of a pairing is
+  checked by the model checks.
 - **`SolveResult.memory_pressure_triggered`** (C++ and Python), and
   `Algorithm::memory_pressure_was_triggered()`: whether memory pressure trimmed the solve, which a
   `complete` status does not rule out.

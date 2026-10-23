@@ -31,32 +31,36 @@ struct DirectionalImplementations {
         static constexpr bool has_bidirectional = false;
 };
 
-/// @brief @c SimpleDominanceAlgorithm also searches backward, as @ref BackwardSimple, and
-///        bidirectionally, as @ref BidirectionalDominanceAlgorithm.
+/// @brief @c SimpleDominanceAlgorithm also searches backward, as
+///        @ref BackwardSimpleDominanceAlgorithm, and bidirectionally, as
+///        @ref BidirectionalDominanceAlgorithm.
 template <>
 struct DirectionalImplementations<SimpleDominanceAlgorithm> {
         static constexpr bool has_backward = true;
         template <typename ResourceType, typename LabelContainerType>
-        using Backward = BackwardSimple<ResourceType, LabelContainerType>;
+        using Backward = BackwardSimpleDominanceAlgorithm<ResourceType, LabelContainerType>;
         static constexpr bool has_bidirectional = true;
-        template <typename ResourceType, typename LabelContainerType, typename ClockResourceType>
+        template <typename ResourceType, typename LabelContainerType, typename CriticalResourceType>
         using Bidirectional =
-            BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, ClockResourceType>;
+            BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalResourceType>;
 };
 
-/// @brief Whether constructor arguments @p Args are exactly one @c AlgorithmParams<LC>: then
-///        @c ResourceGraph::create_algorithm picks the class from the params' direction.
-template <typename LC, typename... Args>
+/// @brief Whether constructor arguments @p Args are exactly one
+///        @c AlgorithmParams<LabelContainerType>: then @c ResourceGraph::create_algorithm picks the
+///        class from the params' direction.
+template <typename LabelContainerType, typename... Args>
 inline constexpr bool is_params_only_v =
-    sizeof...(Args) == 1 && (std::is_same_v<std::remove_cvref_t<Args>, AlgorithmParams<LC>> && ...);
+    sizeof...(Args) == 1 &&
+    (std::is_same_v<std::remove_cvref_t<Args>, AlgorithmParams<LabelContainerType>> && ...);
 
 /// @brief Builds the class that searches in `params.direction` for @p Strategy.
 ///
-/// @tparam Strategy           The algorithm template the caller names.
-/// @tparam ResourceType       The resource type carried by labels.
-/// @tparam LabelContainerType The per-node container of the params.
-/// @tparam CostResourceType   The cost resource type; the clock's type defaults to it.
-/// @tparam ClockResourceType  The type of the bidirectional search's clock, the critical resource.
+/// @tparam Strategy             The algorithm template the caller names.
+/// @tparam ResourceType         The resource type carried by labels.
+/// @tparam LabelContainerType   The per-node container of the params.
+/// @tparam CostResourceType     The cost resource type; the clock's type defaults to it.
+/// @tparam CriticalResourceType The type of the bidirectional search's clock, the critical
+///                              resource.
 /// @param resource_factory The graph's resource factory.
 /// @param params           The algorithm's params; their direction picks the class.
 /// @return The algorithm, behind its base class.
@@ -65,7 +69,7 @@ inline constexpr bool is_params_only_v =
 ///         form.
 template <template <typename, typename> class Strategy, typename ResourceType,
           typename LabelContainerType, typename CostResourceType = RealResource,
-          typename ClockResourceType = CostResourceType>
+          typename CriticalResourceType = CostResourceType>
 std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_algorithm(
     ResourceFactory<ResourceType>* resource_factory, AlgorithmParams<LabelContainerType> params) {
     using Impl = DirectionalImplementations<Strategy>;
@@ -84,9 +88,9 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                 } else {
                     throw std::invalid_argument(
                         template_name<LabelContainerType>() +
-                        " has no backward form: a backward search keeps its labels in the "
+                        " cannot compare backward: a backward search keeps its labels in the "
                         "container its params hold, turned backward, so the container must "
-                        "declare its own with_direction<D>()");
+                        "declare its own with_direction<TargetDirection>()");
                 }
             }
             break;
@@ -97,15 +101,16 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                     return std::make_unique<
                         typename Impl::template Bidirectional<ResourceType,
                                                               LabelContainerType,
-                                                              ClockResourceType>>(
+                                                              CriticalResourceType>>(
                         resource_factory,
                         std::move(params));
                 } else {
                     throw std::invalid_argument(
                         template_name<LabelContainerType>() +
-                        " has no backward form: a bidirectional search keeps its backward labels "
+                        " cannot compare backward: a bidirectional search keeps its backward "
+                        "labels "
                         "in the container its params hold, turned backward, so the container "
-                        "must declare its own with_direction<D>()");
+                        "must declare its own with_direction<TargetDirection>()");
                 }
             }
             break;

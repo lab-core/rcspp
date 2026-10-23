@@ -12,7 +12,7 @@
 
 #include "rcspp/resource/base/resource_type.hpp"
 #include "rcspp/resource/composition/resource_type_composition.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/utils/utils.hpp"
 
 namespace rcspp {
@@ -29,28 +29,52 @@ template <typename ResourceType>
     requires ResourceTypeConcept<ResourceType>
 class Arc;
 
-/// @brief An extension function type with a static @c kind member that names its backward kind.
-template <typename T>
-concept DeclaresBackwardKind = requires {
-    { T::kind } -> std::convertible_to<BackwardKind>;
+/// @brief An extension function type with a static @c kind member that names its directional
+///        resource kind, @c Unspecified included.
+///
+/// It tests for the member only. Whether the type declares a kind a backward or bidirectional solve
+/// can use, one other than @c Unspecified, is @ref declares_directional_resource_kind_v: a form
+/// whose kind depends on its arguments, such as @c ThresholdExtensionForm over an unsigned type,
+/// has the member but declares no usable kind.
+template <typename ExtensionFunctionType>
+concept HasStaticDirectionalResourceKind = requires {
+    { ExtensionFunctionType::kind } -> std::convertible_to<DirectionalResourceKind>;
 };
 
-/// @brief The backward kind of extension function type @p T: its static @c kind, or
-///        @c Unspecified when it has none.
-template <typename T>
-struct BackwardKindOf {
-        static constexpr BackwardKind value = BackwardKind::Unspecified;
+/// @brief The directional resource kind of extension function type @p ExtensionFunctionType: its
+///        static @c kind, or @c Unspecified when it has none.
+template <typename ExtensionFunctionType>
+struct DirectionalResourceKindOf {
+        static constexpr DirectionalResourceKind value = DirectionalResourceKind::Unspecified;
 };
 
-template <DeclaresBackwardKind T>
-struct BackwardKindOf<T> {
-        static constexpr BackwardKind value = T::kind;
+template <HasStaticDirectionalResourceKind ExtensionFunctionType>
+struct DirectionalResourceKindOf<ExtensionFunctionType> {
+        static constexpr DirectionalResourceKind value = ExtensionFunctionType::kind;
 };
 
-/// @brief Shorthand for @c BackwardKindOf<T>::value. For checks made before any object exists,
-///        such as @c declares_backward_kind_v.
-template <typename T>
-inline constexpr BackwardKind backward_kind_of_v = BackwardKindOf<T>::value;
+/// @brief Shorthand for @c DirectionalResourceKindOf<ExtensionFunctionType>::value. For checks made
+///        before any object exists, such as @c declares_directional_resource_kind_v.
+template <typename ExtensionFunctionType>
+inline constexpr DirectionalResourceKind directional_resource_kind_of_v =
+    DirectionalResourceKindOf<ExtensionFunctionType>::value;
+
+/// @brief Whether an extension function type declares a directional resource kind: the one backward
+///        requirement a type alone can answer.
+///
+/// It says nothing about the feasibility function paired with it: whether that suits the
+/// extension depends on its settings (bounds, windows, forbidden sets), which the model checks
+/// test before a backward or bidirectional solve. Every preset asserts it on its extension. Not
+/// enforced by `add_resource`, since forward-only models do not need it:
+///
+/// @code
+/// static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
+/// @endcode
+///
+/// @tparam ExtensionFunctionType Concrete extension function type.
+template <typename ExtensionFunctionType>
+inline constexpr bool declares_directional_resource_kind_v =
+    directional_resource_kind_of_v<ExtensionFunctionType> != DirectionalResourceKind::Unspecified;
 
 /// @brief Abstract base class defining the extension function for a resource type.
 ///
@@ -78,16 +102,16 @@ class ExtensionFunction {
         /// @c Unspecified by default, which keeps forward-only functions valid but makes a
         /// backward or bidirectional solve refuse the resource.
         ///
-        /// @return The backward kind declared by this extension function.
-        [[nodiscard]] virtual BackwardKind backward_kind() const {
-            return BackwardKind::Unspecified;
+        /// @return The directional resource kind declared by this extension function.
+        [[nodiscard]] virtual DirectionalResourceKind directional_resource_kind() const {
+            return DirectionalResourceKind::Unspecified;
         }
 
         /// @brief Extends a value backward along an arc: from a label at the arc's destination to
         ///        one at its origin.
         ///
         /// A backward or bidirectional search calls it, from the sinks. What the backward value
-        /// means follows @c backward_kind():
+        /// means follows @c directional_resource_kind():
         ///  - @c Accumulate (this default): the suffix's sum, by the same formula as @c extend;
         ///  - @c Threshold: the most the prefix may reach at the origin. It must invert @c extend,
         ///    `extend(x, arc) <= b  <=>  x <= extend_back(b, arc)`, and clamp down to the origin's
@@ -140,9 +164,13 @@ class ExtensionFunction {
         }
 
     protected:
-        /// @brief Optional arc-specific preprocessing hook.
+        /// @brief Optional per-arc preprocessing: precomputes what this function needs on the
+        ///        arc, such as the bounds at its endpoints, so that they are not looked up on
+        ///        every extension.
         ///
-        /// Called by @c create() after cloning. Override to cache arc-dependent data.
+        /// Called on each clone by @c create(), whenever the function is bound to an arc.
+        /// Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param origin_id      Index of the arc's origin node.
         /// @param destination_id Index of the arc's destination node.
@@ -184,11 +212,11 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             Resource<ResourceTypeComposition<ResourceTypes...>>* extended_resource) = 0;
 
         /// @brief Not read: a composition has no kind of its own. The model checks read
-        ///        each component's @c backward_kind() instead.
+        ///        each component's @c directional_resource_kind() instead.
         ///
-        /// @return @c BackwardKind::Unspecified unless overridden.
-        [[nodiscard]] virtual BackwardKind backward_kind() const {
-            return BackwardKind::Unspecified;
+        /// @return @c DirectionalResourceKind::Unspecified unless overridden.
+        [[nodiscard]] virtual DirectionalResourceKind directional_resource_kind() const {
+            return DirectionalResourceKind::Unspecified;
         }
 
         /// @brief Extends a composed resource backward.
@@ -207,7 +235,7 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
             Resource<ResourceTypeComposition<ResourceTypes...>>* /*extended_resource*/) {
             throw NoBackwardExtension("the composition extension function " +
                                       short_type_name(*this) +
-                                      " has no backward form: override extend_back, as "
+                                      " cannot be read backward: override extend_back, as "
                                       "CompositionExtensionFunction does");
         }
 
@@ -248,9 +276,13 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
         }
 
     protected:
-        /// @brief Optional arc-specific preprocessing hook.
+        /// @brief Optional per-arc preprocessing: precomputes what this function needs on the
+        ///        arc, such as the bounds at its endpoints, so that they are not looked up on
+        ///        every extension.
         ///
-        /// Called by @c create() after cloning. Override to cache arc-dependent data.
+        /// Called on each clone by @c create(), whenever the function is bound to an arc.
+        /// Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param origin_id      Index of the arc's origin node.
         /// @param destination_id Index of the arc's destination node.

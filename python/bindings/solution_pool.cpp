@@ -156,10 +156,10 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // The arrays own their data (allocated by numpy); the temporary std::vectors
         // are only used to copy the data out and are safe to destroy afterwards.
         .def("get_lp_arrays", [](const SolutionPool& pool) {
-            std::vector<double> col_costs;
-            std::vector<uint32_t> row_starts, row_indices;
-            std::vector<double> row_coefs;
-            pool.get_lp_data(col_costs, row_starts, row_indices, row_coefs);
+            std::vector<double> column_costs;
+            std::vector<uint32_t> column_starts, row_indices;
+            std::vector<double> row_coefficients;
+            pool.get_lp_data(column_costs, column_starts, row_indices, row_coefficients);
 
             // Allocate owned numpy arrays and copy the data in — avoids returning
             // views into the local vectors which would be dangling after the lambda.
@@ -174,10 +174,10 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 return arr;
             };
 
-            return py::make_tuple(make_f64(col_costs),
-                                  make_u32(row_starts),
+            return py::make_tuple(make_f64(column_costs),
+                                  make_u32(column_starts),
                                   make_u32(row_indices),
-                                  make_f64(row_coefs));
+                                  make_f64(row_coefficients));
         });
 
     // ── FilteredSolutionPool ──────────────────────────────────────────────────
@@ -369,7 +369,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
             },
             py::arg("duals"),
             py::arg("threshold") = 0.0)
-        .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_ids"))
+        .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_column_ids"))
         // Local removes (this view only, supports B&B backtracking):
         .def(
             "remove_if",
@@ -411,9 +411,9 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
         // loop accesses SoA arrays sequentially (cache-friendly).  Called automatically
         // at filter construction; call again after batch adds if needed.
         .def("sort_by_lp_index", &FilteredSolutionPool::sort_by_lp_index)
-        .def("get", &FilteredSolutionPool::get, py::arg("id"))
-        .def("get_activity", &FilteredSolutionPool::get_activity, py::arg("id"))
-        .def("get_entry", &FilteredSolutionPool::get_entry, py::arg("id"))
+        .def("get", &FilteredSolutionPool::get, py::arg("column_id"))
+        .def("get_activity", &FilteredSolutionPool::get_activity, py::arg("column_id"))
+        .def("get_entry", &FilteredSolutionPool::get_entry, py::arg("column_id"))
         .def("pricing_count", &FilteredSolutionPool::pricing_count)
         .def("get_all", &FilteredSolutionPool::get_all)
         // get_column_ids(): return ColumnIds as a contiguous uint64 numpy array.

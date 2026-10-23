@@ -14,7 +14,7 @@
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/resource/base/resource.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/resource/functions/dominance/dominance_function.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
@@ -25,14 +25,14 @@
 namespace rcspp {
 
 /// @brief Checks that a backward search can run on the model: every component, and the
-///        composition, has a backward form, and the bounds a backward label carries match the
+///        composition, can be read backward, and the bounds a backward label carries match the
 ///        ones the forward search enforces.
 ///
 /// A backward or bidirectional search needs it. Its problems, in order:
 ///  - no node carrying a resource, after which nothing else is checked;
-///  - a component whose extension function declares no @c backward_kind(), or whose
+///  - a component whose extension function declares no @c directional_resource_kind(), or whose
 ///    feasibility function forbids a node already in the label's memory (an ng-path) while its
-///    extension does not declare @c BackwardKind::ArcEndpoints;
+///    extension does not declare @c DirectionalResourceKind::ArcEndpoints;
 ///  - a component that is not a @c Threshold whose feasibility function declares
 ///    @c JoinRule::Unspecified: its test bounds what the path has collected up to a node (a
 ///    per-node window, a floor, a required set), which the suffix a backward label holds cannot
@@ -45,7 +45,7 @@ namespace rcspp {
 ///    (@ref check_source_start);
 ///  - an arc with a negative consumption on a component whose backward test assumes values
 ///    never decrease (@ref scan_negative_loads);
-///  - a composition dominance, extension or feasibility function with no backward form;
+///  - a composition dominance, extension or feasibility function that cannot be read backward;
 ///  - a cost that is not additive: a backward label reaching a source is a complete path, so its
 ///    cost must be what the forward search would compute.
 ///
@@ -63,8 +63,9 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         explicit BackwardExtensionCheck(bool backward_labels_end_paths = true)
             : backward_labels_end_paths_(backward_labels_end_paths) {}
 
-        /// @brief Pairs @c backward_kind() from one arc's extender with the other declarations of
-        ///        one node's resource, by component index, then probes the model's functions.
+        /// @brief Pairs @c directional_resource_kind() from one arc's extender with the other
+        ///        declarations of one node's resource, by component index, then probes the model's
+        ///        functions.
         void check(const Graph<ResourceType>& graph, ModelReport* report) const override {
             const auto model = this->declarations(graph);
             // No arcs at all: nothing to read the declarations from.
@@ -85,19 +86,20 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             model.arc->extender->for_each_component([&](const auto& component) {
                 extension_names.push_back(component.extension_function_name());
             });
-            model.for_each_component([&](const auto& component, BackwardKind kind, size_t index) {
-                const std::string extension_name = index < extension_names.size()
-                                                       ? extension_names[index]
-                                                       : "no extension function";
-                describe_problem(component, kind, index, extension_name, problems);
-            });
+            model.for_each_component(
+                [&](const auto& component, DirectionalResourceKind kind, size_t index) {
+                    const std::string extension_name = index < extension_names.size()
+                                                           ? extension_names[index]
+                                                           : "no extension function";
+                    describe_problem(component, kind, index, extension_name, problems);
+                });
             const auto needs_scan = check_threshold_clamps(graph, model.kinds, problems);
             if (backward_labels_end_paths_) {
                 check_source_start(graph, model.kinds, problems);
             }
             scan_negative_loads(graph, needs_scan, problems);
 
-            // The composition dominance function must also have a backward form.
+            // The composition dominance function must also be readable backward.
             try {
                 static_cast<void>(node->resource->back_dominates(*node->resource));
             } catch (const NoBackwardDominance& error) {
@@ -146,28 +148,32 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
 
         /// @brief Records what, if anything, is wrong with one component's backward declarations.
         template <typename ComponentResource>
-        static void describe_problem(const ComponentResource& component, BackwardKind kind,
-                                     size_t index, const std::string& extension_name,
+        static void describe_problem(const ComponentResource& component,
+                                     DirectionalResourceKind kind, size_t index,
+                                     const std::string& extension_name,
                                      std::vector<std::string>* problems) {
             const std::string label = "component " + std::to_string(index);
-            if (kind == BackwardKind::Unspecified) {
-                problems->push_back(label +
-                                    ": its extension function declares no backward_kind() (" +
-                                    extension_name + ")");
+            if (kind == DirectionalResourceKind::Unspecified) {
+                problems->push_back(
+                    label + ": its extension function declares no directional_resource_kind() (" +
+                    extension_name + ")");
             }
             // A feasibility function that forbids a node already in the label's memory (an
-            // ng-path) needs BackwardKind::ArcEndpoints, which reads the memory at the arc's
-            // endpoints. Under any other kind, the memory arrives holding the node it sits on,
-            // so every backward label is rejected.
-            if (component.requires_arc_endpoints() && kind != BackwardKind::ArcEndpoints) {
+            // ng-path) needs DirectionalResourceKind::ArcEndpoints, which reads the memory at the
+            // arc's endpoints. Under any other kind, the memory arrives holding the node it sits
+            // on, so every backward label is rejected.
+            if (component.requires_arc_endpoints() &&
+                kind != DirectionalResourceKind::ArcEndpoints) {
                 problems->push_back(
                     label +
                     ": its feasibility function forbids each node at itself, which only reads "
                     "correctly backwards when the memory at a node excludes that node; its "
-                    "extension function does not declare BackwardKind::ArcEndpoints, so going "
+                    "extension function does not declare DirectionalResourceKind::ArcEndpoints, so "
+                    "going "
                     "backward the memory arrives already holding the node it sits on and every "
                     "backward extension is rejected. Derive the extension function from "
-                    "ArcEndpointsForm -- NgPathExtensionFunction is the one this library ships, "
+                    "ArcEndpointsExtensionForm -- NgPathExtensionFunction is the one this library "
+                    "ships, "
                     "and "
                     "presets::add_elementary_resource wires it up for an elementary path");
             }
@@ -176,7 +182,8 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             // clamp checks below cover; any other backward value is what the suffix collected, and
             // the forward bounds do not apply to it, so the backward search would test the wrong
             // value: lose feasible paths, or return infeasible ones.
-            if (kind != BackwardKind::Unspecified && kind != BackwardKind::Threshold &&
+            if (kind != DirectionalResourceKind::Unspecified &&
+                kind != DirectionalResourceKind::Threshold &&
                 component.join_rule() == JoinRule::Unspecified) {
                 problems->push_back(
                     label +
@@ -205,10 +212,10 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         /// Costs one forward and one backward step per arc leaving a source, removed ones included.
         ///
         /// @param graph    The graph.
-        /// @param kinds    Each component's backward kind.
+        /// @param kinds    Each component's directional resource kind.
         /// @param problems Receives one line per offending component.
         static void check_source_start(const Graph<ResourceType>& graph,
-                                       const std::vector<BackwardKind>& kinds,
+                                       const std::vector<DirectionalResourceKind>& kinds,
                                        std::vector<std::string>* problems) {
             const auto removed = threshold_probe::index_removed_arcs(graph);
             std::vector<bool> reported(kinds.size(), false);
@@ -240,7 +247,7 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                             using Value = std::decay_t<decltype(origin.get_value())>;
                             if constexpr (is_numerical_resource_v<Value>) {
                                 if (component_index >= kinds.size() || reported[component_index] ||
-                                    kinds[component_index] != BackwardKind::Threshold ||
+                                    kinds[component_index] != DirectionalResourceKind::Threshold ||
                                     meets_departure(origin, head, extender)) {
                                     return;
                                 }
@@ -321,11 +328,11 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         /// Costs one pass over the nodes, with two probes each and a third at a sink.
         ///
         /// @param graph    The graph.
-        /// @param kinds    Each component's backward kind.
+        /// @param kinds    Each component's directional resource kind.
         /// @param problems Receives one line per offending component.
         /// @return For each component, whether @ref scan_negative_loads must check its arcs.
         [[nodiscard]] static std::vector<bool> check_threshold_clamps(
-            const Graph<ResourceType>& graph, const std::vector<BackwardKind>& kinds,
+            const Graph<ResourceType>& graph, const std::vector<DirectionalResourceKind>& kinds,
             std::vector<std::string>* problems) {
             const size_t count = kinds.size();
             const auto removed = threshold_probe::index_removed_arcs(graph);
@@ -432,14 +439,14 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
         /// @param component       The node's resource component.
         /// @param component_index The component's index.
         /// @param node_id         The node.
-        /// @param kind            The component's backward kind.
+        /// @param kind            The component's directional resource kind.
         /// @param clamps          The clamps observed at the node.
         /// @param state           What the checks have found so far.
         /// @param problems        Receives one line per offending component.
         template <typename ComponentResource>
         static void check_component_clamps(const ComponentResource& component,
                                            size_t component_index, size_t node_id,
-                                           BackwardKind kind, const NodeClamps& clamps,
+                                           DirectionalResourceKind kind, const NodeClamps& clamps,
                                            ClampCheckState* state,
                                            std::vector<std::string>* problems) {
             if (component.requires_nondecreasing()) {
@@ -447,7 +454,7 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
             }
             using Value = std::decay_t<decltype(component.get_value())>;
             if constexpr (is_numerical_resource_v<Value>) {
-                if (kind != BackwardKind::Threshold) {
+                if (kind != DirectionalResourceKind::Threshold) {
                     return;
                 }
                 if (clamps.has_leaving) {
@@ -550,10 +557,12 @@ class BackwardExtensionCheck final : public ModelCheck<ResourceType> {
                         ", but its feasibility function rejects values above some bound there, so "
                         "the backward search " +
                         (start ? "rejects deadlines a forward path meets; start each backward "
-                                 "label at its sink's upper bound, as ThresholdForm::start_back "
+                                 "label at its sink's upper bound, as "
+                                 "ThresholdExtensionForm::start_back "
                                  "does"
                                : "admits deadlines the forward search rejects; clamp each "
-                                 "backward label to its node's upper bound, as ThresholdForm "
+                                 "backward label to its node's upper bound, as "
+                                 "ThresholdExtensionForm "
                                  "does") +
                         ", built from the feasibility function's NodeBounds");
                 }

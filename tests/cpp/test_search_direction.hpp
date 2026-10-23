@@ -208,7 +208,7 @@ TEST(SearchDirection, RefusalsNameTheClass) {
         const std::string container = message([&] {
             (void)g->create_algorithm<SimpleDominanceAlgorithm, sdt::InheritsListOnly>(own);
         });
-        EXPECT_NE(container.find("InheritsListOnly has no backward form"), std::string::npos)
+        EXPECT_NE(container.find("InheritsListOnly cannot compare backward"), std::string::npos)
             << container;
     }
 }
@@ -290,11 +290,11 @@ TEST(BidirectionalSelection, MorePhasesAreWarnedAbout) {
     namespace sdt = search_direction_test;
     auto g = sdt::graph();
     auto params = sdt::params(SearchDirection::Bidirectional);
-    params.num_max_phases = 2;
+    params.max_phases = 2;
     testing::internal::CaptureStdout();
     auto algorithm = g->create_algorithm<SimpleDominanceAlgorithm>(params);
     const std::string output = testing::internal::GetCapturedStdout();
-    EXPECT_NE(output.find("num_max_phases > 1 has no effect on a bidirectional search"),
+    EXPECT_NE(output.find("max_phases > 1 has no effect on a bidirectional search"),
               std::string::npos)
         << output;
 }

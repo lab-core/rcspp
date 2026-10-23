@@ -39,32 +39,32 @@ namespace rcspp {
 
 /// @brief Exit status returned by Algorithm::solve().
 enum class AlgorithmStatus {
-    COMPLETE,       ///< All labels processed; result is optimal (given other params).
-    TIMEOUT,        ///< Wall-clock timeout reached before completion.
-    MAX_SOLUTIONS,  ///< stop_after_X_solutions reached.
-    MAX_PHASES,     ///< num_max_phases exhausted with labels still remaining.
-    INTERRUPTED,    ///< External should_stop callback returned true.
-    MEMORY_LIMIT,   ///< RSS memory limit reached.
+    Complete,      ///< All labels processed; result is optimal (given other params).
+    Timeout,       ///< Wall-clock timeout reached before completion.
+    MaxSolutions,  ///< max_solutions reached.
+    MaxPhases,     ///< max_phases exhausted with labels still remaining.
+    Interrupted,   ///< External should_stop callback returned true.
+    MemoryLimit,   ///< RSS memory limit reached.
 };
 
 /// @brief Human-readable name for an @ref AlgorithmStatus value.
 ///
-/// Note: only @ref AlgorithmStatus::COMPLETE means the search was exhaustive; every other
+/// Note: only @ref AlgorithmStatus::Complete means the search was exhaustive; every other
 /// status indicates the solve was cut short (so e.g. "no solution found" does not prove that
 /// none exists).
 [[nodiscard]] inline std::string to_string(AlgorithmStatus status) {
     switch (status) {
-        case AlgorithmStatus::COMPLETE:
+        case AlgorithmStatus::Complete:
             return "complete";
-        case AlgorithmStatus::TIMEOUT:
+        case AlgorithmStatus::Timeout:
             return "timeout";
-        case AlgorithmStatus::MAX_SOLUTIONS:
+        case AlgorithmStatus::MaxSolutions:
             return "max_solutions";
-        case AlgorithmStatus::MAX_PHASES:
+        case AlgorithmStatus::MaxPhases:
             return "max_phases";
-        case AlgorithmStatus::INTERRUPTED:
+        case AlgorithmStatus::Interrupted:
             return "interrupted";
-        case AlgorithmStatus::MEMORY_LIMIT:
+        case AlgorithmStatus::MemoryLimit:
             return "memory_limit";
     }
     return "unknown";
@@ -93,12 +93,12 @@ struct BidirectionalStats {
 /// @brief Return value of Algorithm::solve().
 struct SolveResult {
         std::vector<Solution> solutions;
-        AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+        AlgorithmStatus status = AlgorithmStatus::Complete;
 
         /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
         ///
-        /// Status can still be @c AlgorithmStatus::COMPLETE after a trim, so a caller treating
-        /// @c COMPLETE as a proof of optimality must check this too. Same value as
+        /// Status can still be @c AlgorithmStatus::Complete after a trim, so a caller treating
+        /// @c Complete as a proof of optimality must check this too. Same value as
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
@@ -166,54 +166,54 @@ constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
 
 struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
-            if (num_max_phases > 1 && num_labels_to_extend_by_node >= MAX_INT) {
+            if (max_phases > 1 && max_extended_labels_per_node >= MAX_INT) {
                 LOG_WARN(
-                    "AlgorithmParams: num_labels_to_extend_by_node == MAX and num_max_phases > 1. "
-                    "num_max_phases will not have any effects, set num_labels_to_extend_by_node to "
+                    "AlgorithmParams: max_extended_labels_per_node == MAX and max_phases > 1. "
+                    "max_phases will not have any effects, set max_extended_labels_per_node to "
                     "a lower value.\n");
             }
-            if (num_max_phases > 1 && stop_after_X_solutions >= MAX_INT) {
+            if (max_phases > 1 && max_solutions >= MAX_INT) {
                 LOG_WARN(
-                    "AlgorithmParams: stop_after_X_solutions == MAX and num_max_phases > 1. "
-                    "num_max_phases will not have any effects, set stop_after_X_solutions to a "
+                    "AlgorithmParams: max_solutions == MAX and max_phases > 1. "
+                    "max_phases will not have any effects, set max_solutions to a "
                     "lower value.\n");
             }
-            if (direction == SearchDirection::Bidirectional && num_max_phases > 1) {
+            if (direction == SearchDirection::Bidirectional && max_phases > 1) {
                 LOG_WARN(
-                    "AlgorithmParams: num_max_phases > 1 has no effect on a bidirectional search, "
+                    "AlgorithmParams: max_phases > 1 has no effect on a bidirectional search, "
                     "which runs one phase.\n");
             }
-            if (return_dominated_solutions && stop_after_X_solutions >= MAX_INT) {
+            if (return_dominated_solutions && max_solutions >= MAX_INT) {
                 LOG_WARN(
-                    "AlgorithmParams: stop_after_X_solutions == MAX and return_dominated_solutions "
+                    "AlgorithmParams: max_solutions == MAX and return_dominated_solutions "
                     "is set to true. return_dominated_solutions will not have any effects, set "
-                    "stop_after_X_solutions to a lower value.\n");
+                    "max_solutions to a lower value.\n");
             }
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            return ((stop_after_X_solutions < MAX_INT) ||
-                    (num_labels_to_extend_by_node < MAX_INT) || std::isfinite(timeout_s));
+            return ((max_solutions < MAX_INT) || (max_extended_labels_per_node < MAX_INT) ||
+                    std::isfinite(timeout_s));
         }
 
-        // stop after finding X solutions (not going to optimality)
-        size_t stop_after_X_solutions = MAX_INT;
+        // stop after finding this many solutions (not going to optimality)
+        size_t max_solutions = MAX_INT;
 
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
 
         // if true, prune label if greater than the best upper bound
-        bool prune_based_on_upper_bound_ = false;
+        bool prune_by_upper_bound = false;
 
         // for using label pool (should normally always be true)
         bool use_pool = true;
 
-        // for truncated labeling
-        size_t num_labels_to_extend_by_node = MAX_INT;
+        // truncated labeling: at most this many labels extended per node in each phase
+        size_t max_extended_labels_per_node = MAX_INT;
 
         // maximum number of passes for the resolution if previous pass ended early with not enough
         // solutions
-        size_t num_max_phases = 1;
+        size_t max_phases = 1;
 
         // maximum number of iterations/loops (for algorithms that use it)
         size_t max_iterations = MAX_INT;
@@ -243,7 +243,7 @@ struct AlgorithmBaseParams {
 
         // for tabu search algorithms
         size_t tabu_tenure = 5;  // NOLINT(readability-magic-numbers)
-        std::set<size_t> forbidden_tabu;
+        std::set<size_t> tabu_exempt_node_ids;
         bool tabu_random_noise = true;
 
         /// @brief Consecutive non-improving dives before a diversification step.
@@ -360,11 +360,12 @@ struct AlgorithmBaseParams {
         /// @brief Wrap these base params in an AlgorithmParams with the given container.
         ///
         /// @param container Label container instance (e.g. LabelList or LabelBuckets).
-        ///                  Defaults to a default-constructed LC{} when LC is
-        ///                  default-constructible (e.g. LabelList).
-        /// @return AlgorithmParams<LC> inheriting all settings from *this.
-        template <typename LC>
-        AlgorithmParams<LC> with_container(LC container = LC{}) const;
+        ///                  Defaults to a default-constructed LabelContainerType{} when
+        ///                  LabelContainerType is default-constructible (e.g. LabelList).
+        /// @return AlgorithmParams<LabelContainerType> inheriting all settings from *this.
+        template <typename LabelContainerType>
+        AlgorithmParams<LabelContainerType> with_container(
+            LabelContainerType container = LabelContainerType{}) const;
 };
 
 template <typename LabelContainerType>
@@ -381,9 +382,10 @@ struct AlgorithmParams : AlgorithmBaseParams {
 };
 
 // Out-of-line definition: AlgorithmParams is now complete.
-template <typename LC>
-AlgorithmParams<LC> AlgorithmBaseParams::with_container(LC container) const {
-    return AlgorithmParams<LC>(*this, std::move(container));
+template <typename LabelContainerType>
+AlgorithmParams<LabelContainerType> AlgorithmBaseParams::with_container(
+    LabelContainerType container) const {
+    return AlgorithmParams<LabelContainerType>(*this, std::move(container));
 }
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
@@ -430,7 +432,7 @@ class Algorithm {
             label_pool_.clear();
             solutions_.clear();
             num_extended_labels_ = 0;
-            effective_max_labels_per_node_ = params_.num_labels_to_extend_by_node;
+            effective_max_labels_per_node_ = params_.max_extended_labels_per_node;
             memory_pressure_triggered_ = false;
         }
 
@@ -466,8 +468,8 @@ class Algorithm {
                 extract_remaining_solutions();
 
                 // prepare next phase (if any)
-                if (++num_phases < params_.num_max_phases) {
-                    prepareNextPhase();
+                if (++num_phases < params_.max_phases) {
+                    prepare_next_phase();
                 } else {
                     break;
                 }
@@ -490,7 +492,7 @@ class Algorithm {
             // prepare next phase to ensure that all_labels_processed() returns the right value
             // (if not releasing all labels). Also, next solve() is ready to start if needed
             if (!params_.release_after_solve) {
-                prepareNextPhase();
+                prepare_next_phase();
             }
 
             // sort solutions
@@ -504,8 +506,8 @@ class Algorithm {
             LOG_DEBUG("Total time=", timer.elapsed_seconds(), " sec.\n");
 
             // resize solutions if needed
-            if (solutions.size() > params_.stop_after_X_solutions) {
-                solutions.resize(params_.stop_after_X_solutions);
+            if (solutions.size() > params_.max_solutions) {
+                solutions.resize(params_.max_solutions);
             }
 
             // Determine the exit status. "All labels processed" (number_of_labels() == 0) means
@@ -518,17 +520,17 @@ class Algorithm {
             // describe why the search stopped *early* (labels still remain).
             AlgorithmStatus status;
             if (number_of_labels() == 0) {
-                status = AlgorithmStatus::COMPLETE;
+                status = AlgorithmStatus::Complete;
             } else if (timed_out_) {
-                status = AlgorithmStatus::TIMEOUT;
+                status = AlgorithmStatus::Timeout;
             } else if (is_interrupted()) {
-                status = AlgorithmStatus::INTERRUPTED;
+                status = AlgorithmStatus::Interrupted;
             } else if (memory_limit_.is_exceeded()) {
-                status = AlgorithmStatus::MEMORY_LIMIT;
-            } else if (solutions.size() >= params_.stop_after_X_solutions) {
-                status = AlgorithmStatus::MAX_SOLUTIONS;
+                status = AlgorithmStatus::MemoryLimit;
+            } else if (solutions.size() >= params_.max_solutions) {
+                status = AlgorithmStatus::MaxSolutions;
             } else {
-                status = AlgorithmStatus::MAX_PHASES;
+                status = AlgorithmStatus::MaxPhases;
             }
 
             // Optionally release label memory so RAM is reclaimed when the caller returns.
@@ -658,7 +660,7 @@ class Algorithm {
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
 
-        virtual void prepareNextPhase() {}
+        virtual void prepare_next_phase() {}
 
         virtual void main_loop() = 0;
 
@@ -666,13 +668,13 @@ class Algorithm {
         ///
         /// Virtual so a bidirectional search can add backward and joined paths.
         virtual void extract_remaining_solutions() {
-            auto labels_at_sinks = this->get_labels_at_sinks();
-            for (const auto* sink_label : labels_at_sinks) {
-                this->extract_solution(*sink_label);
+            auto labels_at_terminals = this->get_labels_at_terminals();
+            for (const auto* terminal_label : labels_at_terminals) {
+                this->extract_solution(*terminal_label);
             }
         }
 
-        [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_sinks() const = 0;
+        [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_terminals() const = 0;
 
         virtual void print_labels() const {}
 
@@ -767,8 +769,7 @@ class Algorithm {
         /// @param iteration Current iteration index (default 0 = no iteration limit check).
         bool should_stop(size_t iteration = 0) {
             return iteration >= params_.max_iterations ||
-                   solutions_.size() >= params_.stop_after_X_solutions || is_time_out() ||
-                   is_interrupted();
+                   solutions_.size() >= params_.max_solutions || is_time_out() || is_interrupted();
         }
 
         LabelPool<ResourceType> label_pool_;
@@ -778,11 +779,11 @@ class Algorithm {
 
         /// @brief Effective per-node extension cap.
         ///
-        /// Starts at @ref AlgorithmBaseParams::num_labels_to_extend_by_node at the
+        /// Starts at @ref AlgorithmBaseParams::max_extended_labels_per_node at the
         /// beginning of each solve and is tightened to
         /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node when
         /// @ref on_memory_pressure() fires.  Subclasses use this instead of
-        /// @c params_.num_labels_to_extend_by_node wherever the per-node limit is enforced.
+        /// @c params_.max_extended_labels_per_node wherever the per-node limit is enforced.
         size_t effective_max_labels_per_node_ = MAX_INT;
 
         /// @brief True after on_memory_pressure() has been called at least once this solve.

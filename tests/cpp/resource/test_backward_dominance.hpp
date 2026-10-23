@@ -7,7 +7,7 @@
 //
 // For threshold resources a backward label stores a deadline, so the comparison flips by an
 // argument swap: check_back_dominance(a, b) == check_dominance(b, a). add_resource derives the
-// flag from the extension function's backward_kind().
+// flag from the extension function's directional_resource_kind().
 
 #include <gtest/gtest.h>
 
@@ -67,7 +67,7 @@ inline std::unique_ptr<Resource<RealComposition>> make_mixed_composition(double 
     ValueDominanceFunction<RealResource>* reversed_dominance = nullptr;
     auto unreversed_component = make_component(unreversed_value);
     auto reversed_component = make_component(reversed_value, &reversed_dominance);
-    reversed_dominance->set_backward_reversed(true);
+    reversed_dominance->set_back_dominance_reversed(true);
 
     std::tuple<std::vector<std::unique_ptr<Resource<RealResource>>>> components;
     std::get<0>(components).push_back(std::move(unreversed_component));
@@ -94,7 +94,7 @@ TEST(BackwardDominance, AccumulateIsBitIdenticalToForward) {
         &graph,
         std::make_unique<AdditionExtensionFunction<RealResource>>());
 
-    ASSERT_FALSE(dominance->is_backward_reversed());
+    ASSERT_FALSE(dominance->is_back_dominance_reversed());
 
     const std::vector<double> grid{-5.0, 0.0, 1.0, 2.5, 10.0};
     const std::vector<double> deltas{0.0, 0.5, 3.0};
@@ -127,7 +127,7 @@ TEST(BackwardDominance, ThresholdReverses) {
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(
             backward_dominance_test::windows()));
 
-    EXPECT_TRUE(dominance->is_backward_reversed());
+    EXPECT_TRUE(dominance->is_back_dominance_reversed());
 
     const RealResource early(10.0);
     const RealResource late(50.0);
@@ -154,7 +154,7 @@ TEST(BackwardDominance, ASetDoesNotReverse) {
     ResourceGraph<SetResource<int>> graph;
     std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}, {1, {0, 2}}};
 
-    auto dominance = std::make_unique<InclusionDominanceFunction<SetResource<int>>>();
+    auto dominance = std::make_unique<SubsetDominanceFunction<SetResource<int>>>();
     auto* borrowed = dominance.get();
     graph.add_resource<SetResource<int>>(
         std::make_unique<NgPathExtensionFunction<SetResource<int>>>(ng_map),
@@ -162,7 +162,7 @@ TEST(BackwardDominance, ASetDoesNotReverse) {
         std::make_unique<TrivialCostFunction<SetResource<int>>>(),
         std::move(dominance));
 
-    EXPECT_FALSE(borrowed->is_backward_reversed());
+    EXPECT_FALSE(borrowed->is_back_dominance_reversed());
 
     // Not named `small`: Windows headers define it as a macro.
     SetResource<int> small_set;
@@ -192,7 +192,7 @@ TEST(BackwardDominance, ToleranceSurvivesTheSwap) {
         &graph,
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(
             backward_dominance_test::windows()));
-    ASSERT_TRUE(dominance->is_backward_reversed());
+    ASSERT_TRUE(dominance->is_back_dominance_reversed());
 
     const std::vector<double> grid{0.0, 4.5, 5.0, 5.5, 7.0};
     const std::vector<double> deltas{0.0, 1.0, 2.5};
@@ -250,40 +250,40 @@ TEST(BackwardDominance, CompositionFansOutPerComponentDirection) {
 // 6. The derivation is applied
 // ============================================================================
 
-/// @brief Every BackwardKind maps to the expected reversed flag in add_resource.
-TEST(BackwardDominance, DerivationMatchesBackwardKind) {
+/// @brief Every DirectionalResourceKind maps to the expected reversed flag in add_resource.
+TEST(BackwardDominance, DerivationMatchesDirectionalResourceKind) {
     ResourceGraph<RealResource> graph;
 
     // Accumulate -> not reversed.
     auto* accumulate = backward_dominance_test::add_real_resource(
         &graph,
         std::make_unique<AdditionExtensionFunction<RealResource>>());
-    EXPECT_FALSE(accumulate->is_backward_reversed());
+    EXPECT_FALSE(accumulate->is_back_dominance_reversed());
 
     // Threshold -> reversed.
     auto* threshold = backward_dominance_test::add_real_resource(
         &graph,
         std::make_unique<TimeWindowExtensionFunction<RealResource>>(
             backward_dominance_test::windows()));
-    EXPECT_TRUE(threshold->is_backward_reversed());
+    EXPECT_TRUE(threshold->is_back_dominance_reversed());
 
     // Threshold, the other one.
     auto* capacity = backward_dominance_test::add_real_resource(
         &graph,
         std::make_unique<CapacityExtensionFunction<RealResource>>(10.0));
-    EXPECT_TRUE(capacity->is_backward_reversed());
+    EXPECT_TRUE(capacity->is_back_dominance_reversed());
 
     // ArcEndpoints -> not reversed.
     ResourceGraph<SetResource<int>> set_graph;
     std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
-    auto memory = std::make_unique<InclusionDominanceFunction<SetResource<int>>>();
+    auto memory = std::make_unique<SubsetDominanceFunction<SetResource<int>>>();
     auto* memory_borrowed = memory.get();
     set_graph.add_resource<SetResource<int>>(
         std::make_unique<NgPathExtensionFunction<SetResource<int>>>(ng_map),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
         std::make_unique<TrivialCostFunction<SetResource<int>>>(),
         std::move(memory));
-    EXPECT_FALSE(memory_borrowed->is_backward_reversed());
+    EXPECT_FALSE(memory_borrowed->is_back_dominance_reversed());
 }
 
 /// @brief The overload taking a default_resource_initializer derives the flag too.
@@ -299,7 +299,7 @@ TEST(BackwardDominance, DerivationAppliesToBothAddResourceOverloads) {
                                      std::move(dominance),
                                      std::make_tuple(0.0));
 
-    EXPECT_TRUE(borrowed->is_backward_reversed());
+    EXPECT_TRUE(borrowed->is_back_dominance_reversed());
 }
 
 /// @brief A component reporting Unspecified derives reversed == false.
@@ -315,12 +315,12 @@ TEST(BackwardDominance, UnspecifiedDerivesUnreversed) {
     // An unsigned time window reports Unspecified, which `add_resource` accepts (forward-only).
     std::unique_ptr<ExtensionFunction<UIntResource>> extension =
         std::make_unique<TimeWindowExtensionFunction<UIntResource>>(uint_windows);
-    ASSERT_EQ(extension->backward_kind(), BackwardKind::Unspecified);
+    ASSERT_EQ(extension->directional_resource_kind(), DirectionalResourceKind::Unspecified);
 
     graph.add_resource<UIntResource>(std::move(extension),
                                      std::make_unique<TrivialFeasibilityFunction<UIntResource>>(),
                                      std::make_unique<TrivialCostFunction<UIntResource>>(),
                                      std::move(dominance));
 
-    EXPECT_FALSE(borrowed->is_backward_reversed());
+    EXPECT_FALSE(borrowed->is_back_dominance_reversed());
 }

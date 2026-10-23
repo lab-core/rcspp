@@ -16,10 +16,10 @@ namespace test_util {
 
 /// @brief A backward-only labeling algorithm, for testing the backward machinery in isolation.
 ///
-/// The backward search of `SimpleDominanceAlgorithm` (`rcspp::detail::BackwardSimple`): it starts
-/// at the sinks and runs backward to completion, with no half-way bound and no join. It adds
-/// accessors to its labels.
-/// Its constructor sets `direction = Backward`.
+/// The backward search of `SimpleDominanceAlgorithm`
+/// (`rcspp::detail::BackwardSimpleDominanceAlgorithm`): it starts at the sinks and runs backward to
+/// completion, with no half-way bound and no join. It adds accessors to its labels. Its constructor
+/// sets `direction = Backward`.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container; defaults to a *backward* label list, since a
@@ -28,8 +28,9 @@ template <typename ResourceType,
           typename LabelContainerType = rcspp::LabelList<ResourceType, rcspp::BackwardDirection>>
     requires rcspp::ResourceTypeConcept<ResourceType>
 class BackwardOnlyAlgorithm
-    : public rcspp::detail::BackwardSimple<ResourceType, LabelContainerType> {
-        using Base = rcspp::detail::BackwardSimple<ResourceType, LabelContainerType>;
+    : public rcspp::detail::BackwardSimpleDominanceAlgorithm<ResourceType, LabelContainerType> {
+        using Base =
+            rcspp::detail::BackwardSimpleDominanceAlgorithm<ResourceType, LabelContainerType>;
 
     public:
         BackwardOnlyAlgorithm(rcspp::ResourceFactory<ResourceType>* resource_factory,
@@ -45,9 +46,9 @@ class BackwardOnlyAlgorithm
         }
 
         /// @brief The labels at this search's terminal nodes, i.e. the graph's *sources*
-        ///        (the inherited `get_labels_at_sinks()` follows the search direction).
+        ///        (the inherited `get_labels_at_terminals()` follows the search direction).
         [[nodiscard]] std::list<rcspp::Label<ResourceType>*> get_terminal_labels() const {
-            return this->get_labels_at_sinks();
+            return this->get_labels_at_terminals();
         }
 
         /// @brief The cheapest complete backward path, read from the terminal labels.

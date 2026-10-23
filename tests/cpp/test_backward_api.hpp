@@ -74,8 +74,9 @@ class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, Lab
 // Enum defaults
 // ============================================================================
 
-/// @brief backward_kind() and join_rule() default to Unspecified on a class that declares
-///        neither, which is what lets a bidirectional solve refuse an undeclared component.
+/// @brief directional_resource_kind() and join_rule() default to Unspecified on a class that
+///        declares neither, which is what lets a bidirectional solve refuse an undeclared
+///        component.
 TEST(BackwardApi, EnumsDefaultToUnspecified) {
     class UndeclaredExtensionFunction
         : public Clonable<UndeclaredExtensionFunction, ExtensionFunction<RealResource>> {
@@ -83,7 +84,8 @@ TEST(BackwardApi, EnumsDefaultToUnspecified) {
             void extend(const RealResource& /*resource*/, const RealResource& /*extender_value*/,
                         RealResource* /*extended_resource*/) override {}
     };
-    EXPECT_EQ(UndeclaredExtensionFunction{}.backward_kind(), BackwardKind::Unspecified);
+    EXPECT_EQ(UndeclaredExtensionFunction{}.directional_resource_kind(),
+              DirectionalResourceKind::Unspecified);
 
     class UndeclaredFeasibilityFunction
         : public Clonable<UndeclaredFeasibilityFunction, FeasibilityFunction<RealResource>> {
@@ -116,23 +118,23 @@ TEST(BackwardApi, BackDominanceFollowsTheFlag) {
     const RealResource lhs(kBackA);
     const RealResource rhs(kBackB);
 
-    EXPECT_FALSE(dominance.is_backward_reversed());
+    EXPECT_FALSE(dominance.is_back_dominance_reversed());
     EXPECT_EQ(dominance.check_back_dominance(lhs, rhs), dominance.check_dominance(lhs, rhs));
     EXPECT_EQ(dominance.check_back_dominance(rhs, lhs), dominance.check_dominance(rhs, lhs));
     EXPECT_EQ(dominance.fast_check_back_dominance(lhs, rhs, kBackDelta),
               dominance.fast_check_dominance(lhs, rhs, kBackDelta));
 
-    dominance.set_backward_reversed(true);
-    EXPECT_TRUE(dominance.is_backward_reversed());
+    dominance.set_back_dominance_reversed(true);
+    EXPECT_TRUE(dominance.is_back_dominance_reversed());
     EXPECT_EQ(dominance.check_back_dominance(lhs, rhs), dominance.check_dominance(rhs, lhs));
     EXPECT_EQ(dominance.check_back_dominance(rhs, lhs), dominance.check_dominance(lhs, rhs));
     EXPECT_EQ(dominance.fast_check_back_dominance(lhs, rhs, kBackDelta),
               dominance.fast_check_dominance(rhs, lhs, kBackDelta));
 
     // The two flag states must actually disagree, or the test proves nothing.
-    dominance.set_backward_reversed(false);
+    dominance.set_back_dominance_reversed(false);
     const bool forward_order = dominance.check_back_dominance(lhs, rhs);
-    dominance.set_backward_reversed(true);
+    dominance.set_back_dominance_reversed(true);
     EXPECT_NE(forward_order, dominance.check_back_dominance(lhs, rhs));
 }
 

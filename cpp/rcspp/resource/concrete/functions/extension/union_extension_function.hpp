@@ -5,7 +5,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/base/extender.hpp"
-#include "rcspp/resource/functions/extension/backward_form.hpp"
+#include "rcspp/resource/functions/extension/directional_extension_form.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 
 namespace rcspp {
@@ -16,17 +16,17 @@ namespace rcspp {
 /// extender's container.  Typical use: accumulating visited nodes or collected
 /// items along a path where the resource grows monotonically.
 ///
-/// Backward kind: @c ArcValue. The arc's value is per-arc set data, not a node identity, so the
-/// inherited @c extend_back (same formula) is correct.
+/// Directional resource kind: @c ArcValue. The arc's value is per-arc set data, not a node
+/// identity, so the inherited @c extend_back (same formula) is correct.
 ///
 /// @tparam ContainerResourceType A ContainerResource-compatible type supporting
 ///                               `get_union()` and `set_value()`.
 template <typename ContainerResourceType>
 class UnionExtensionFunction
-    : public Clonable<
-          UnionExtensionFunction<ContainerResourceType>,
-          BackwardForm<ExtensionFunction<ContainerResourceType>, BackwardKind::ArcValue>,
-          ExtensionFunction<ContainerResourceType>> {
+    : public Clonable<UnionExtensionFunction<ContainerResourceType>,
+                      DirectionalExtensionForm<ExtensionFunction<ContainerResourceType>,
+                                               DirectionalResourceKind::ArcValue>,
+                      ExtensionFunction<ContainerResourceType>> {
     public:
         /// @brief Extends @p resource by taking its union with @p extender_value, storing the
         /// result in @p extended_resource.

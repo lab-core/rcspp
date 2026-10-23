@@ -247,8 +247,8 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAcrossFamilies) {
         bb::report_ratio(forward, bidirectional);
 
         // Compare answers only when both searches finished; a truncated run would read as a win.
-        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
-            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+        if (forward.measurement.status == AlgorithmStatus::Complete &&
+            bidirectional.measurement.status == AlgorithmStatus::Complete) {
             EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
         }
     }
@@ -294,8 +294,8 @@ TEST(BidirectionalBenchmark, DISABLED_ExactComparisonAt75Customers) {
 
         // Compare answers only when both searches finished; a truncated run extends fewer labels
         // and would otherwise read as a win.
-        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
-            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+        if (forward.measurement.status == AlgorithmStatus::Complete &&
+            bidirectional.measurement.status == AlgorithmStatus::Complete) {
             EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
             ++compared;
         }
@@ -349,8 +349,8 @@ TEST(BidirectionalBenchmark, DISABLED_LargeInstancesUnderATimeBudget) {
         EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way);
 
         // If both searches finished, they must agree exactly.
-        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
-            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+        if (forward.measurement.status == AlgorithmStatus::Complete &&
+            bidirectional.measurement.status == AlgorithmStatus::Complete) {
             EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance);
         }
     }

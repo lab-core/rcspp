@@ -18,9 +18,9 @@ class Resource;
 /// @brief What a cost function computes, as far as a backward search and the join need to know.
 ///
 /// A backward label's cost, and the join of a forward and a backward label's costs, are right only
-/// for an additive cost: one that sums over arcs. The form lets @c BackwardExtensionCheck check
+/// for an additive cost: one that sums over arcs. The kind lets @c BackwardExtensionCheck check
 /// that without evaluating the function.
-enum class CostForm {
+enum class CostKind {
     Unspecified,  ///< not declared: a backward or bidirectional solve refuses a cost that reads it
     Zero,         ///< always zero, so additive
     Value,        ///< the resource's value, additive only under an accumulation that is a sum
@@ -49,8 +49,8 @@ class CostFunction {
         /// Defaults to @c Unspecified, on which a backward or bidirectional solve refuses a cost
         /// that reads this component.
         ///
-        /// @return The form declared by this cost function.
-        [[nodiscard]] virtual CostForm cost_form() const { return CostForm::Unspecified; }
+        /// @return The kind declared by this cost function.
+        [[nodiscard]] virtual CostKind cost_kind() const { return CostKind::Unspecified; }
 
         /// @brief Creates a polymorphic copy of this cost function.
         ///
@@ -73,9 +73,13 @@ class CostFunction {
         virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        /// @brief Optional node-specific preprocessing hook.
+        /// @brief Optional per-node preprocessing: precomputes what this function needs at
+        ///        @p node_id, such as the node's time window, so that it is not looked up on
+        ///        every call.
         ///
-        /// Called by @c create() and @c reset(). Override to cache node-dependent data.
+        /// Called on each clone by @c create() and @c reset(), whenever the function is bound to
+        /// a node. Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}
@@ -140,9 +144,13 @@ class CostFunction<ResourceTypeComposition<ResourceTypes...>> {
         virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        /// @brief Optional node-specific preprocessing hook.
+        /// @brief Optional per-node preprocessing: precomputes what this function needs at
+        ///        @p node_id, such as the node's time window, so that it is not looked up on
+        ///        every call.
         ///
-        /// Called by @c create() and @c reset(). Override to cache node-dependent data.
+        /// Called on each clone by @c create() and @c reset(), whenever the function is bound to
+        /// a node. Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}

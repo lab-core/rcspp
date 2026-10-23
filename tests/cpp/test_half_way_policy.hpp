@@ -31,10 +31,10 @@ inline std::vector<double> probes(double upper_bound = kUpperBound) {
 }
 
 /// @brief A two-node graph whose single component uses @p extension.
-template <typename ExtensionFn, typename FeasibilityFn>
-std::unique_ptr<ResourceGraph<RealResource>> two_node_graph(std::unique_ptr<ExtensionFn> extension,
-                                                            std::unique_ptr<FeasibilityFn> feas,
-                                                            double arc_value) {
+template <typename ExtensionFunctionType, typename FeasibilityFunctionType>
+std::unique_ptr<ResourceGraph<RealResource>> two_node_graph(
+    std::unique_ptr<ExtensionFunctionType> extension, std::unique_ptr<FeasibilityFunctionType> feas,
+    double arc_value) {
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     graph->add_resource<RealResource>(std::move(extension),
                                       std::move(feas),

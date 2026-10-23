@@ -23,8 +23,8 @@ namespace rcspp {
 /// per-node override supplied at construction.  The resource is feasible when
 /// `min_ <= resource.value <= max_`.
 ///
-/// The bidirectional join test depends on the paired extension function's backward kind; see
-/// @ref join_rule. Under a threshold extension, build both functions from one
+/// The bidirectional join test depends on the paired extension function's directional resource
+/// kind; see @ref join_rule. Under a threshold extension, build both functions from one
 /// @ref SharedNodeBounds (see @ref bounds), so the extension clamps backward labels to the same
 /// per-node maxima this function enforces forward.
 ///
@@ -96,10 +96,10 @@ class MinMaxFeasibilityFunction
         ///
         /// @return The join rule implied by the paired extension function.
         [[nodiscard]] JoinRule join_rule() const override {
-            switch (this->backward_kind_) {
-                case BackwardKind::Threshold:
+            switch (this->directional_resource_kind_) {
+                case DirectionalResourceKind::Threshold:
                     return has_floor_ ? JoinRule::Unspecified : JoinRule::ValueOrder;
-                case BackwardKind::Accumulate:
+                case DirectionalResourceKind::Accumulate:
                     return accumulate_join_is_exact_ ? JoinRule::Custom : JoinRule::Unspecified;
                 default:
                     return JoinRule::Unspecified;
@@ -118,7 +118,7 @@ class MinMaxFeasibilityFunction
         /// @return `true` if the two consumptions together fit under the cap.
         [[nodiscard]] auto can_be_joined(const ResourceType& resource,
                                          const ResourceType& back_resource) -> bool override {
-            if (this->backward_kind_ != BackwardKind::Accumulate) {
+            if (this->directional_resource_kind_ != DirectionalResourceKind::Accumulate) {
                 throw std::logic_error(
                     "MinMaxFeasibilityFunction::can_be_joined is the accumulating form's body; a "
                     "threshold pairing joins through JoinRule::ValueOrder and an unpaired "
@@ -133,7 +133,7 @@ class MinMaxFeasibilityFunction
         ///
         /// @return @c true under an accumulating extension.
         [[nodiscard]] auto requires_nondecreasing() const -> bool override {
-            return this->backward_kind_ == BackwardKind::Accumulate;
+            return this->directional_resource_kind_ == DirectionalResourceKind::Accumulate;
         }
 
     private:

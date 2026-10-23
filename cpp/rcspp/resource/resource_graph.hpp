@@ -45,7 +45,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
                   std::move(extension_function), std::move(feasibility_function),
                   std::move(cost_function), std::move(dominance_function))),
-              connectivityMatrix_(this) {}
+              connectivity_matrix_(this) {}
 
         ResourceGraph()
             : resource_factory_(ResourceCompositionFactory<ResourceTypes...>(
@@ -53,7 +53,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                   std::make_unique<CompositionFeasibilityFunction<ResourceTypes...>>(),
                   std::make_unique<ComponentCostFunction<0, ResourceTypes...>>(0),
                   std::make_unique<CompositionDominanceFunction<ResourceTypes...>>())),
-              connectivityMatrix_(this) {}
+              connectivity_matrix_(this) {}
 
         ResourceGraph(const ResourceGraph&) = delete;
         ResourceGraph& operator=(const ResourceGraph&) = delete;
@@ -66,7 +66,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///
         /// Backward coherence is not checked here, since forward-only models need not satisfy
         /// it; the model checks validate it before a backward or bidirectional solve, and callers
-        /// may assert @c declares_backward_kind_v themselves.
+        /// may assert @c declares_directional_resource_kind_v themselves.
         ///
         /// @tparam ResourceType The component's resource type.
         /// @param extension_function   How an arc modifies the resource.
@@ -82,9 +82,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                 ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
             using ResourceFactoryType = ResourceFactory<ResourceType>;
 
-            pass_backward_kind(*extension_function,
-                               feasibility_function.get(),
-                               dominance_function.get());
+            pass_directional_resource_kind(*extension_function,
+                                           feasibility_function.get(),
+                                           dominance_function.get());
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
@@ -117,9 +117,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             ResourceType resource_base_prototype =
                 std::apply(create_prototype, default_resource_initializer);
 
-            pass_backward_kind(*extension_function,
-                               feasibility_function.get(),
-                               dominance_function.get());
+            pass_directional_resource_kind(*extension_function,
+                                           feasibility_function.get(),
+                                           dominance_function.get());
 
             resource_factory_.template add_resource_factory<ResourceTypeIndex, ResourceType>(
                 std::make_unique<ResourceFactoryType>(std::move(extension_function),
@@ -278,7 +278,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             requires is_numerical_resource_v<CostResourceType>
         void sort_nodes_by_connectivity(std::optional<size_t> cost_index = std::nullopt) {
             SortType<CostResourceType, ResourceTypes...> sort(this,
-                                                              &connectivityMatrix_,
+                                                              &connectivity_matrix_,
                                                               cost_index);
         }
 
@@ -288,31 +288,33 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// class that does, behind its base class. Given other constructor arguments, it returns
         /// @p AlgorithmType itself.
         ///
-        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
-        /// @tparam LabelContainerType The per-node label container.
-        /// @tparam CostResourceType   The cost resource type.
-        /// @tparam ClockResourceType  The resource type whose value decides where a bidirectional
-        ///                            search's two halves stop (its half-way point); defaults to
-        ///                            @p CostResourceType.
+        /// @tparam AlgorithmType        The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam LabelContainerType   The per-node label container.
+        /// @tparam CostResourceType     The cost resource type.
+        /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
+        ///                              search's two halves stop (its half-way point); defaults to
+        ///                              @p CostResourceType.
         /// @param args The constructor arguments after the resource factory.
-        /// @return The algorithm: a @c std::unique_ptr<Algorithm<R, LabelContainerType>> when
-        ///         @p args is the params alone.
+        /// @return The algorithm: a
+        ///         @c std::unique_ptr<Algorithm<ResourceCompositionType, LabelContainerType>>
+        ///         when @p args is the params alone.
         /// @throws std::invalid_argument when @p AlgorithmType cannot search in the direction the
         ///         params ask for.
         template <template <typename, typename> class AlgorithmType,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
-                  typename ClockResourceType = CostResourceType, typename... Args>
+                  typename CriticalResourceType = CostResourceType, typename... Args>
         auto create_algorithm(Args&&... args) {
             if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
                 // Only the params: the class to build depends on params.direction, known at run
                 // time (forward builds AlgorithmType; backward and bidirectional build other
-                // classes), so this returns their common base, Algorithm<R, LC>.
+                // classes), so this returns their common base,
+                // Algorithm<ResourceCompositionType, LabelContainerType>.
                 return detail::make_directional_algorithm<AlgorithmType,
                                                           ResourceCompositionType,
                                                           LabelContainerType,
                                                           CostResourceType,
-                                                          ClockResourceType>(
+                                                          CriticalResourceType>(
                     &resource_factory_,
                     std::forward<Args>(args)...);
             } else {
@@ -329,12 +331,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// The search runs in `params.direction`. A backward or bidirectional search first runs
         /// the model checks (see @ref check_model).
         ///
-        /// @tparam AlgorithmType      The algorithm template, e.g. @c SimpleDominanceAlgorithm.
-        /// @tparam CostResourceType   The numerical resource type holding the cost slot.
-        /// @tparam LabelContainerType The per-node label container.
-        /// @tparam ClockResourceType  The resource type whose value decides where a bidirectional
-        ///                            search's two halves stop (its half-way point); defaults to
-        ///                            @p CostResourceType.
+        /// @tparam AlgorithmType        The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam CostResourceType     The numerical resource type holding the cost slot.
+        /// @tparam LabelContainerType   The per-node label container.
+        /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
+        ///                              search's two halves stop (its half-way point); defaults to
+        ///                              @p CostResourceType.
         /// @param upper_bound Cost upper bound; solutions above it are discarded.
         /// @param params      The algorithm's parameters, including the search direction.
         /// @param preprocess  Whether to reduce the graph before solving.
@@ -346,7 +348,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename ClockResourceType = CostResourceType>
+                  typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
@@ -355,7 +357,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             auto algorithm = create_algorithm<AlgorithmType,
                                               LabelContainerType,
                                               CostResourceType,
-                                              ClockResourceType>(std::move(params));
+                                              CriticalResourceType>(std::move(params));
             return solve<Algorithm<ResourceCompositionType, LabelContainerType>, CostResourceType>(
                 algorithm.get(),
                 upper_bound,
@@ -367,11 +369,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename ClockResourceType = CostResourceType>
+                  typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
                           size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, CriticalResourceType>(
                 std::numeric_limits<double>::infinity(),
                 std::move(params),
                 preprocess,
@@ -391,12 +393,12 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
                   typename CostResourceType = RealResource,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
-                  typename ClockResourceType = CostResourceType>
+                  typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmBaseParams base_params,
                           double upper_bound = std::numeric_limits<double>::infinity(),
                           bool preprocess = true, size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType, ClockResourceType>(
+            return solve<AlgorithmType, CostResourceType, LabelContainerType, CriticalResourceType>(
                 upper_bound,
                 AlgorithmParams<LabelContainerType>(std::move(base_params)),
                 preprocess,
@@ -449,13 +451,13 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
             // restore the removed arcs for the next resolution
             stages.undo();
             if (preprocess) {
-                this->track_modifications();  // mark as unmodified after restoring arcs
+                this->mark_unmodified();  // mark as unmodified after restoring arcs
             }
 
             return result;
         }
 
-        void process_feasibility() {
+        void remove_infeasible_arcs() {
             FeasibilityPreprocessor<ResourceCompositionType> feasibility_preprocessor(
                 &resource_factory_,
                 this);
@@ -479,11 +481,11 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
         bool is_connected(size_t origin_node_id, size_t destination_node_id) {
             if (this->is_modified()) {
-                connectivityMatrix_.compute_bitmatrix();
-                this->track_modifications();
+                connectivity_matrix_.compute_bitmatrix();
+                this->mark_unmodified();
             }
 
-            return connectivityMatrix_.is_connected(origin_node_id, destination_node_id);
+            return connectivity_matrix_.is_connected(origin_node_id, destination_node_id);
         }
 
         // Constrained to RealResource on purpose. The body computes the reduced cost as a
@@ -533,26 +535,28 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
     private:
         /// @brief Construct directly from a pre-built factory (used by clone()).
         explicit ResourceGraph(ResourceCompositionFactory<ResourceTypes...>&& factory)
-            : resource_factory_(std::move(factory)), connectivityMatrix_(this) {}
+            : resource_factory_(std::move(factory)), connectivity_matrix_(this) {}
 
         /// @brief Tells a resource's dominance and feasibility functions how its extension function
         ///        extends backwards.
         ///
-        /// The extension's backward kind decides how the other functions read the resource
-        /// backward: the dominance function reverses where @ref reverses_back_dominance says (a
-        /// threshold: a larger limit is better), and the feasibility function records the kind to
-        /// pick its join test. Set on the prototypes, so every per-node clone inherits both.
+        /// The extension's directional resource kind decides how the other functions read the
+        /// resource backward: the dominance function reverses where @ref reverses_back_dominance
+        /// says (a threshold: a larger limit is better), and the feasibility function records the
+        /// kind to pick its join test. Set on the prototypes, so every per-node clone inherits
+        /// both.
         ///
         /// @param extension_function   The resource's extension function.
         /// @param feasibility_function Receives the kind.
         /// @param dominance_function   Receives whether the backward order reverses.
         template <typename ResourceType>
-        static void pass_backward_kind(const ExtensionFunction<ResourceType>& extension_function,
-                                       FeasibilityFunction<ResourceType>* feasibility_function,
-                                       DominanceFunction<ResourceType>* dominance_function) {
-            const BackwardKind kind = extension_function.backward_kind();
-            dominance_function->set_backward_reversed(reverses_back_dominance(kind));
-            feasibility_function->set_backward_kind(kind);
+        static void pass_directional_resource_kind(
+            const ExtensionFunction<ResourceType>& extension_function,
+            FeasibilityFunction<ResourceType>* feasibility_function,
+            DominanceFunction<ResourceType>* dominance_function) {
+            const DirectionalResourceKind kind = extension_function.directional_resource_kind();
+            dominance_function->set_back_dominance_reversed(reverses_back_dominance(kind));
+            feasibility_function->set_directional_resource_kind(kind);
         }
 
         /// @brief The feasibility preprocessor as a solve runs it: its removals are kept for good,
@@ -568,7 +572,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
 
                 void run(Graph<ResourceCompositionType>& graph, SolveContext& context) override {
                     FeasibilityPreprocessor<ResourceCompositionType>::run(graph, context);
-                    graph_->connectivityMatrix_.compute_bitmatrix();
+                    graph_->connectivity_matrix_.compute_bitmatrix();
                 }
 
                 void undo() noexcept override {}
@@ -649,7 +653,7 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         }
 
         ResourceCompositionFactory<ResourceTypes...> resource_factory_;
-        ConnectivityMatrix<ResourceCompositionType> connectivityMatrix_;
+        ConnectivityMatrix<ResourceCompositionType> connectivity_matrix_;
         std::mutex mutex_;
 };
 }  // namespace rcspp

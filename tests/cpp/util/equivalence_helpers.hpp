@@ -120,7 +120,7 @@ struct BoundedOptions {
 
         /// @brief Whether the search prunes against the incumbent (a completion bound for the
         ///        bidirectional search).
-        bool prune_based_on_upper_bound = false;
+        bool prune_by_upper_bound = false;
 
         /// @brief Whether the half-way bound is in force (bidirectional only).
         bool with_half_way_bound = true;
@@ -138,7 +138,7 @@ inline Run solve_forward_bounded(const test_util::InstanceConfig& config,
     run.graph = std::move(built.graph);
 
     AlgorithmParams<LabelList<Composed>> params;
-    params.prune_based_on_upper_bound_ = options.prune_based_on_upper_bound;
+    params.prune_by_upper_bound = options.prune_by_upper_bound;
     run.result =
         run.graph->solve<SimpleDominanceAlgorithm>(options.upper_bound, params, options.preprocess);
     return run;
@@ -154,7 +154,7 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
     AlgorithmParams<LabelList<Composed>> params;
     params.critical_resource_index = built.clock_index;
     params.half_way_point = options.with_half_way_bound ? built.clock_upper_bound / 2.0 : 0.0;
-    params.prune_based_on_upper_bound_ = options.prune_based_on_upper_bound;
+    params.prune_by_upper_bound = options.prune_by_upper_bound;
     // The completion bounds must relax on the slot the labels accumulate.
     params.heuristic_cost_index = 0;
     params.release_after_solve = false;

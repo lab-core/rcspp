@@ -30,9 +30,9 @@ using RealComposition = ResourceTypeComposition<RealResource>;
 ///
 /// The dominance function is explicit because ValueDominanceFunction calls leq(), which
 /// SetResource lacks.
-template <typename ResourceType, typename FeasibilityFn>
+template <typename ResourceType, typename FeasibilityFunctionType>
 std::unique_ptr<Resource<ResourceType>> make_resource(
-    const ResourceType& value, std::unique_ptr<FeasibilityFn> feasibility,
+    const ResourceType& value, std::unique_ptr<FeasibilityFunctionType> feasibility,
     std::unique_ptr<DominanceFunction<ResourceType>> dominance) {
     return std::make_unique<Resource<ResourceType>>(
         value,
@@ -42,15 +42,16 @@ std::unique_ptr<Resource<ResourceType>> make_resource(
 }
 
 /// @brief make_resource with the usual scalar dominance function.
-template <typename FeasibilityFn>
+template <typename FeasibilityFunctionType>
 std::unique_ptr<Resource<RealResource>> make_real_resource(
-    double value, std::unique_ptr<FeasibilityFn> feasibility) {
+    double value, std::unique_ptr<FeasibilityFunctionType> feasibility) {
     return make_resource<RealResource>(RealResource(value),
                                        std::move(feasibility),
                                        std::make_unique<ValueDominanceFunction<RealResource>>());
 }
 
-/// @brief A MinMaxFeasibilityFunction already paired with an extension function's backward kind.
+/// @brief A MinMaxFeasibilityFunction already paired with an extension function's directional
+/// resource kind.
 ///
 /// In a real model `ResourceGraph::add_resource` supplies the kind; unpaired, the function
 /// declares JoinRule::Unspecified.
@@ -58,11 +59,10 @@ std::unique_ptr<Resource<RealResource>> make_real_resource(
 /// @param kind The kind the paired extension function would declare.
 /// @param min  Window lower bound.
 /// @param max  Window upper bound.
-inline std::unique_ptr<MinMaxFeasibilityFunction<RealResource>> paired_min_max(BackwardKind kind,
-                                                                               double min = 0.0,
-                                                                               double max = 100.0) {
+inline std::unique_ptr<MinMaxFeasibilityFunction<RealResource>> paired_min_max(
+    DirectionalResourceKind kind, double min = 0.0, double max = 100.0) {
     auto function = std::make_unique<MinMaxFeasibilityFunction<RealResource>>(min, max);
-    function->set_backward_kind(kind);
+    function->set_directional_resource_kind(kind);
     return function;
 }
 
@@ -192,17 +192,17 @@ TEST(JoinRules, DisjointRejectsSharedElements) {
         join_rules_test::make_set({1, 2}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto overlapping = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({2, 5}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto disjoint = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({7, 8}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     EXPECT_FALSE(forward->can_be_joined(*overlapping));  // share element 2
     EXPECT_TRUE(forward->can_be_joined(*disjoint));      // no shared element
@@ -259,12 +259,12 @@ TEST(JoinRules, RequiredIntersectionIsRefusedRatherThanJoined) {
         join_rules_test::make_set({1, 2}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(required,
                                                                             /*forbidden=*/false),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto backward = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({2, 5}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(required,
                                                                             /*forbidden=*/false),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     // The rule is undeclared, so the dispatch throws rather than guessing.
     EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
@@ -286,12 +286,12 @@ TEST(JoinRules, ForbiddingSomeOtherNodeIsRefusedRatherThanJoined) {
         join_rules_test::make_set({3}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto backward = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({7}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     // Disjointness would wrongly accept here: {3} and {7} share nothing.
     EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
@@ -305,7 +305,7 @@ TEST(JoinRules, ForbiddingSomeOtherNodeIsRefusedRatherThanJoined) {
         join_rules_test::make_set({1, 2}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(binds_nothing,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     EXPECT_EQ(loose_forward->join_rule(), JoinRule::Unspecified);
 }
 
@@ -319,7 +319,7 @@ TEST(JoinRules, CustomSizeRuleUnionsAgainstTheCap) {
         return join_rules_test::make_resource<SetResource<int>>(
             join_rules_test::make_set(values),
             std::make_unique<SizeFeasibilityFunction<SetResource<int>>>(0U, kMaxSize),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+            std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     };
 
     auto two = make_sized({1, 2});
@@ -356,8 +356,8 @@ TEST(JoinRules, UnspecifiedThrows) {
     EXPECT_THROW((void)forward->can_be_joined(*backward), std::runtime_error);
 }
 
-// A scalar resource cannot declare disjointness: `DisjointJoinForm<RealResource, ...>` does not
-// compile (RealResource has no intersects()), so there is no runtime error arm to test.
+// A scalar resource cannot declare disjointness: `DisjointJoinFeasibilityForm<RealResource, ...>`
+// does not compile (RealResource has no intersects()), so there is no runtime error arm to test.
 
 // ============================================================================
 // Composition
@@ -411,11 +411,12 @@ TEST(JoinRules, EveryConcreteFunctionDeclaresARule) {
     EXPECT_EQ(TrivialFeasibilityFunction<RealResource>{}.join_rule(), JoinRule::AlwaysTrue);
     EXPECT_EQ(TimeWindowFeasibilityFunction<RealResource>{windows}.join_rule(),
               JoinRule::ValueOrder);
-    // MinMax's rule depends on its pairing; see MinMaxRuleFollowsTheBackwardKind.
+    // MinMax's rule depends on its pairing; see MinMaxRuleFollowsTheDirectionalResourceKind.
     MinMaxFeasibilityFunction<RealResource> min_max{0.0, 100.0};
-    min_max.set_backward_kind(BackwardKind::Threshold);
+    min_max.set_directional_resource_kind(DirectionalResourceKind::Threshold);
     EXPECT_EQ(min_max.join_rule(), JoinRule::ValueOrder);
-    // Custom: the body is inherited from DisjointJoinForm, and needs every node to forbid itself.
+    // Custom: the body is inherited from DisjointJoinFeasibilityForm, and needs every node to
+    // forbid itself.
     const std::map<size_t, std::set<int>> self_forbidden{{0, {0}}, {1, {1}}};
     EXPECT_EQ((IntersectionFeasibilityFunction<SetResource<int>>{self_forbidden, true}.join_rule()),
               JoinRule::Custom);
@@ -454,18 +455,18 @@ TEST(JoinRules, EveryConcreteFunctionDeclaresARule) {
 
 /// @brief The rule is ValueOrder under a threshold pairing, Custom under an accumulating one,
 ///        and Unspecified when the function has not been paired at all.
-TEST(JoinRules, MinMaxRuleFollowsTheBackwardKind) {
+TEST(JoinRules, MinMaxRuleFollowsTheDirectionalResourceKind) {
     // Unpaired: no kind yet, so Unspecified, which the model checks refuse.
     EXPECT_EQ((MinMaxFeasibilityFunction<RealResource>{0.0, 100.0}.join_rule()),
               JoinRule::Unspecified);
 
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::Threshold)->join_rule(),
+    EXPECT_EQ(join_rules_test::paired_min_max(DirectionalResourceKind::Threshold)->join_rule(),
               JoinRule::ValueOrder);
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::Accumulate)->join_rule(),
+    EXPECT_EQ(join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate)->join_rule(),
               JoinRule::Custom);
 
     // ArcValue paired with a scalar window is incoherent, so it is refused.
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::ArcValue)->join_rule(),
+    EXPECT_EQ(join_rules_test::paired_min_max(DirectionalResourceKind::ArcValue)->join_rule(),
               JoinRule::Unspecified);
 }
 
@@ -476,7 +477,7 @@ TEST(JoinRules, MinMaxRuleFollowsTheBackwardKind) {
 TEST(JoinRules, MinMaxFloorUnderAThresholdIsRefused) {
     using Windows = std::map<size_t, std::pair<double, double>>;
     const auto threshold_rule = [](MinMaxFeasibilityFunction<RealResource> function) {
-        function.set_backward_kind(BackwardKind::Threshold);
+        function.set_directional_resource_kind(DirectionalResourceKind::Threshold);
         return function.join_rule();
     };
 
@@ -488,7 +489,8 @@ TEST(JoinRules, MinMaxFloorUnderAThresholdIsRefused) {
     EXPECT_EQ(threshold_rule({0.0, 100.0, Windows{{1, {3.0, 50.0}}}}), JoinRule::Unspecified);
 
     // The accumulating arm refuses a floor too; see MinMaxAccumulateIsDeclaredOnlyWhenExact.
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::Accumulate, 5.0, 100.0)->join_rule(),
+    EXPECT_EQ(join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, 5.0, 100.0)
+                  ->join_rule(),
               JoinRule::Unspecified);
 }
 
@@ -506,10 +508,14 @@ TEST(JoinRules, MinMaxAccumulateAddsTheTwoHalves) {
 
             auto forward = join_rules_test::make_real_resource(
                 forward_value,
-                join_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+                join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate,
+                                                0.0,
+                                                kCapacity));
             auto backward = join_rules_test::make_real_resource(
                 backward_value,
-                join_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+                join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate,
+                                                0.0,
+                                                kCapacity));
 
             EXPECT_EQ(forward->can_be_joined(*backward),
                       forward_value + backward_value <= kCapacity);
@@ -519,10 +525,10 @@ TEST(JoinRules, MinMaxAccumulateAddsTheTwoHalves) {
     // Equal halves that together overflow the cap.
     auto three_forward = join_rules_test::make_real_resource(
         3.0,
-        join_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+        join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, 0.0, kCapacity));
     auto three_backward = join_rules_test::make_real_resource(
         3.0,
-        join_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, kCapacity));
+        join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, 0.0, kCapacity));
     EXPECT_FALSE(three_forward->can_be_joined(*three_backward));
 }
 
@@ -533,16 +539,19 @@ TEST(JoinRules, MinMaxAccumulateAddsTheTwoHalves) {
 /// what the path has consumed up to a node, which the backward suffix cannot see. Either way a
 /// bidirectional solve refuses.
 TEST(JoinRules, MinMaxAccumulateIsDeclaredOnlyWhenExact) {
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, 4.0)->join_rule(),
-              JoinRule::Custom);
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::Accumulate, 1.0, 4.0)->join_rule(),
-              JoinRule::Unspecified);
-    EXPECT_EQ(join_rules_test::paired_min_max(BackwardKind::Accumulate, -1.0, 4.0)->join_rule(),
+    EXPECT_EQ(
+        join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, 0.0, 4.0)->join_rule(),
+        JoinRule::Custom);
+    EXPECT_EQ(
+        join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, 1.0, 4.0)->join_rule(),
+        JoinRule::Unspecified);
+    EXPECT_EQ(join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, -1.0, 4.0)
+                  ->join_rule(),
               JoinRule::Unspecified);
 
     std::map<size_t, std::pair<double, double>> windows{{0, {0.0, 100.0}}, {1, {0.0, 4.0}}};
     MinMaxFeasibilityFunction<RealResource> per_node{0.0, 100.0, windows};
-    per_node.set_backward_kind(BackwardKind::Accumulate);
+    per_node.set_directional_resource_kind(DirectionalResourceKind::Accumulate);
     EXPECT_EQ(per_node.join_rule(), JoinRule::Unspecified);
 }
 
@@ -551,7 +560,7 @@ TEST(JoinRules, MinMaxAccumulateIsDeclaredOnlyWhenExact) {
 /// A threshold pairing joins via JoinRule::ValueOrder in `Resource::can_be_joined` and never
 /// routes here, so a direct call throws.
 TEST(JoinRules, MinMaxCanBeJoinedIsTheAccumulatingBodyOnly) {
-    auto threshold = join_rules_test::paired_min_max(BackwardKind::Threshold);
+    auto threshold = join_rules_test::paired_min_max(DirectionalResourceKind::Threshold);
     const RealResource low(1.0);
     const RealResource high(2.0);
     // Bind the [[nodiscard]] result so EXPECT_THROW does not discard it.
@@ -559,7 +568,8 @@ TEST(JoinRules, MinMaxCanBeJoinedIsTheAccumulatingBodyOnly) {
         { [[maybe_unused]] const bool joined = threshold->can_be_joined(low, high); },
         std::logic_error);
 
-    auto accumulate = join_rules_test::paired_min_max(BackwardKind::Accumulate, 0.0, 4.0);
+    auto accumulate =
+        join_rules_test::paired_min_max(DirectionalResourceKind::Accumulate, 0.0, 4.0);
     EXPECT_TRUE(accumulate->can_be_joined(low, high));
 }
 
@@ -572,11 +582,11 @@ TEST(JoinRules, ReachableFeasibilityFunctionIsUsable) {
     auto visited_one = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({1}),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto visited_nothing = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({}),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     // Locally always feasible; all the work is in is_reachable().
     EXPECT_TRUE(function.is_feasible(visited_one->get_value()));
@@ -615,10 +625,10 @@ TEST(JoinRules, ValueOrderAgreesWithTheDeletedBodies) {
             // (see MinMaxAccumulateAddsTheTwoHalves).
             auto mm_forward = join_rules_test::make_real_resource(
                 forward_value,
-                join_rules_test::paired_min_max(BackwardKind::Threshold));
+                join_rules_test::paired_min_max(DirectionalResourceKind::Threshold));
             auto mm_backward = join_rules_test::make_real_resource(
                 backward_value,
-                join_rules_test::paired_min_max(BackwardKind::Threshold));
+                join_rules_test::paired_min_max(DirectionalResourceKind::Threshold));
             EXPECT_EQ(mm_forward->can_be_joined(*mm_backward), old_time_window_answer);
         }
     }
@@ -655,13 +665,14 @@ TEST(JoinRules, ResetRebindsTheCachedRule) {
     EXPECT_FALSE(always_true->can_be_joined(*late));  // 99 <= 70 is false
 }
 
-// DisjointJoinForm used standalone, with no join_rule() override: its own `Custom` declaration
-// is otherwise unreachable, since IntersectionFeasibilityFunction overrides it.
+// DisjointJoinFeasibilityForm used standalone, with no join_rule() override: its own `Custom`
+// declaration is otherwise unreachable, since IntersectionFeasibilityFunction overrides it.
 TEST(JoinRules, DisjointFormStandaloneDeclaresCustomAndRejectsOverlap) {
     class PlainDisjoint
-        : public Clonable<PlainDisjoint,
-                          DisjointJoinForm<SetResource<int>, FeasibilityFunction<SetResource<int>>>,
-                          FeasibilityFunction<SetResource<int>>> {
+        : public Clonable<
+              PlainDisjoint,
+              DisjointJoinFeasibilityForm<SetResource<int>, FeasibilityFunction<SetResource<int>>>,
+              FeasibilityFunction<SetResource<int>>> {
         public:
             [[nodiscard]] auto is_feasible(const SetResource<int>& /*resource*/) -> bool override {
                 return true;
@@ -674,15 +685,15 @@ TEST(JoinRules, DisjointFormStandaloneDeclaresCustomAndRejectsOverlap) {
     auto forward = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({1, 2}),
         std::make_unique<PlainDisjoint>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto overlapping = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({2, 5}),
         std::make_unique<PlainDisjoint>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto disjoint = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({7, 8}),
         std::make_unique<PlainDisjoint>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     EXPECT_FALSE(forward->can_be_joined(*overlapping));  // share element 2
     EXPECT_TRUE(forward->can_be_joined(*disjoint));

@@ -88,7 +88,7 @@ at each node.
 ```python
 from rcspp.graph    import ResourceGraph, AlgorithmParams, BucketAlgorithmParams
 from rcspp.resource import (
-    AdditionExtensionFunction, SubtractExtensionFunction,
+    AdditionExtensionFunction, DifferenceExtensionFunction,
     CapacityExtensionFunction,
     TimeWindowExtensionFunction, TimeWindowFeasibilityFunction,
     UnionExtensionFunction, IntersectionExtensionFunction,
@@ -96,7 +96,7 @@ from rcspp.resource import (
     SizeFeasibilityFunction,
     TrivialCostFunction, ValueCostFunction,
     ValueDominanceFunction,
-    InclusionDominanceFunction, ContainDominanceFunction,
+    SubsetDominanceFunction, SupersetDominanceFunction,
 )
 from rcspp import presets          # add_cost_resource, add_window_resource, add_capacity_resource
 from rcspp.pricing_pool import PricingPool
@@ -184,7 +184,7 @@ rg.clone()                          # deep copy, independent remove/restore stat
 
 ```python
 p = AlgorithmParams()
-p.stop_after_X_solutions  = 10
+p.max_solutions           = 10
 p.max_iterations          = 1000
 p.timeout_s               = 30.0
 p.tabu_tenure             = 5
@@ -237,9 +237,9 @@ cannot express backward semantics cannot produce a correct answer at all.
 In C++, a bidirectional search is `SimpleDominanceAlgorithm` with `params.direction =
 SearchDirection::Bidirectional`; the class behind it is internal
 (`rcspp::detail::BidirectionalDominanceAlgorithm`). An int clock beside a real cost is
-`solve<SimpleDominanceAlgorithm, RealResource, LC, IntResource>`: the clock's type is the
-last template parameter and defaults to the cost's. `SolveResult::bidirectional`, empty from
-every other algorithm, reports `bounded_by_half_way`, `half_way_off_reason` and
+`solve<SimpleDominanceAlgorithm, RealResource, LabelContainerType, IntResource>`: the clock's
+type is the last template parameter and defaults to the cost's. `SolveResult::bidirectional`,
+empty from every other algorithm, reports `bounded_by_half_way`, `half_way_off_reason` and
 `number_of_joined_paths`.
 
 See `docs/advanced/algorithms.md` for the full description.
@@ -251,8 +251,7 @@ See `docs/advanced/algorithms.md` for the full description.
 ### Single resource
 
 ```cpp
-using RG = ResourceGraph<RealResource>;
-RG graph;
+ResourceGraph<RealResource> graph;
 graph.add_resource<RealResource>(
     std::make_unique<AdditionExtensionFunction<RealResource>>(),
     std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0),
@@ -269,8 +268,7 @@ auto result = graph.solve();
 ### Multiple resources
 
 ```cpp
-using RG = ResourceGraph<RealResource, IntResource>;
-RG graph;
+ResourceGraph<RealResource, IntResource> graph;
 graph.add_resource<RealResource>(…);   // index 0
 graph.add_resource<IntResource>(…);    // index 1
 
@@ -299,22 +297,23 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | Class | Resource | Effect |
 |---|---|---|
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
-| `SubtractExtensionFunction<T>` | Numerical | `-=` |
+| `DifferenceExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
-| `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, as a *threshold* — the backward form of a capacity; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
+| `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, read backward as a *threshold*; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
 | `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
 | `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
-| `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
+| `DifferenceExtensionFunction<T>` | Container | `-=` the arc's value |
 | `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
 
-The last four are all containers, but they split into two **backward kinds**, and pairing the wrong
-one with a forbidden-set feasibility is refused by the model checks:
+The last four are all containers, but they split into two **directional resource kinds**, and
+pairing the wrong one with a forbidden-set feasibility is refused by the model checks:
 
 - `NgPathExtensionFunction` reads node identities off the arc's *endpoints* and swaps them per
-  direction (`BackwardKind::ArcEndpoints`), so the memory at a node excludes that node going both
-  ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
+  direction (`DirectionalResourceKind::ArcEndpoints`), so the memory at a node excludes that node
+  going both ways.  Only this can carry the ng-route condition `forbidden[v] = {v}`.
 - The other three accumulate the arc's *value*, which is the same object in both directions
-  (`BackwardKind::ArcValue`).  Right for genuine per-arc set data; wrong for node identities.
+  (`DirectionalResourceKind::ArcValue`).  Right for genuine per-arc set data; wrong for node
+  identities.
 
 ### Feasibility
 
@@ -332,8 +331,8 @@ one with a forbidden-set feasibility is refused by the model checks:
 |---|---|
 | `TrivialDominanceFunction<T>` | never |
 | `ValueDominanceFunction<T>` | `lhs ≤ rhs` |
-| `InclusionDominanceFunction<T>` | `lhs ⊆ rhs` |
-| `ContainDominanceFunction<T>` | `lhs ⊇ rhs` |
+| `SubsetDominanceFunction<T>` | `lhs ⊆ rhs` |
+| `SupersetDominanceFunction<T>` | `lhs ⊇ rhs` |
 
 ### Cost
 
@@ -444,12 +443,45 @@ Test files:
     `SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward.
     `SearchDirection::Bidirectional` makes it search both ways.
     An algorithm asked for a direction it does not search throws `std::invalid_argument`, so
-    `create_algorithm<Strategy>(params)` returns `std::unique_ptr<Algorithm<R, LC>>`.
+    `create_algorithm<Strategy>(params)` returns
+    `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
     A backward or bidirectional solve runs the model checks before any preprocessing and throws
     `ModelRefused` on a failing model, with `preprocess=false` too, and on a direct
     `Algorithm::solve`.
 
 ---
+
+## Naming conventions
+
+Follow these when adding a name, in C++ and in Python.
+
+- **Case.** Classes, structs, enums, concepts and enum values are `CamelCase`
+  (`SearchDirection::Forward`, `AlgorithmStatus::MaxSolutions`). Functions, methods, variables and
+  data members are `snake_case`. Type traits follow the standard library: `snake_case`, with `_v`
+  or `_t` for the value or type (`declares_directional_resource_kind_v`, `rebind_direction`).
+- **Members.** Non-public data members end in `_` (`back_dominance_reversed_`); public fields of a
+  struct do not (`AlgorithmBaseParams::max_solutions`).
+- **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). A few older ones are
+  still in SCREAMING_CASE: `MAX_INT`, the `FNV_*` constants, `DEFAULT_LABEL_POOL_SIZE`, and the
+  `timer.cpp` constants.
+- **Template parameters** are spelled out and end in `Type` when they stand for a type
+  (`ResourceType`, `LabelContainerType`, `GraphType`); direction policies are `TargetDirection` or
+  `LabelDirection`.
+- **"Form" and "Kind".** A `…Form` is a mixin base that declares a kind and implements the members
+  that follow from it (`ThresholdExtensionForm`, `DirectionalExtensionForm`). A `…Kind` is the
+  declared enum (`DirectionalResourceKind`, `CostKind`).
+- **"back" and "backward".** `_back` marks the backward twin of an operation whose forward name is
+  bare: `extend` / `extend_back`, `start` / `start_back`, `is_feasible` / `is_back_feasible`,
+  `check_dominance` / `check_back_dominance`. Everything else says `backward`: types
+  (`BackwardDirection`, `SearchDirection::Backward`), names paired with an explicit `forward_`
+  (`forward_value` / `backward_value`), and the backward search's own state
+  (`backward_frontier_`).
+- **Limits and counts.** A cap is `max_…` (`max_solutions`, `max_phases`,
+  `max_extended_labels_per_node`); a count is `number_of_…` (`get_number_of_extended_labels`).
+- **Say what a name does.** A predicate that only answers is `should_…` or `is_…`
+  (`should_remove_arc`, `should_stop`); a method that changes state says so
+  (`mark_unmodified`, `remove_infeasible_arcs`). An id says what it identifies (`node_id`,
+  `arc_id`, `column_id`), in Python keywords too, where a bare `id` would shadow the built-in.
 
 ## Extending the library
 
@@ -482,8 +514,8 @@ Inherit from `Algorithm<ResourceType, LabelContainerType>` and override
 `main_loop()`:
 
 ```cpp
-template<typename R, typename LC = LabelList<R>>
-class MyAlgorithm : public Algorithm<R, LC> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
   protected:
     void main_loop() override { /* custom label expansion */ }
 };

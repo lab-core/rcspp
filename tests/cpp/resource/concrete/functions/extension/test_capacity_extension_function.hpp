@@ -160,10 +160,10 @@ TEST(CapacityExtensionFunction, ForwardAccumulates) {
 }
 
 // A capacity is a ceiling-style bound; cost, which uses AdditionExtensionFunction, is not.
-TEST(CapacityExtensionFunction, DeclaresThresholdBackwardKind) {
+TEST(CapacityExtensionFunction, DeclaresThresholdDirectionalResourceKind) {
     CapacityExtensionFunction<RealResource> proto(capacity_ext_test::kHuge);
-    EXPECT_EQ(proto.backward_kind(), BackwardKind::Threshold);
+    EXPECT_EQ(proto.directional_resource_kind(), DirectionalResourceKind::Threshold);
 
     AdditionExtensionFunction<RealResource> addition;
-    EXPECT_EQ(addition.backward_kind(), BackwardKind::Accumulate);
+    EXPECT_EQ(addition.directional_resource_kind(), DirectionalResourceKind::Accumulate);
 }

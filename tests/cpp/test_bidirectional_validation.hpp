@@ -133,7 +133,7 @@ inline std::unique_ptr<Label<Composed>> deadline_and_cost_label(size_t label_id,
                                                                 double cost) {
     const auto make_component = [](double value, bool reversed) {
         auto dominance = std::make_unique<ValueDominanceFunction<RealResource>>();
-        dominance->set_backward_reversed(reversed);
+        dominance->set_back_dominance_reversed(reversed);
         return std::make_unique<Resource<RealResource>>(
             RealResource(value),
             std::move(dominance),
@@ -307,7 +307,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
         auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
             test_util::bidirectional(bv::clocked_params(20.0)));
         const SolveResult result = graph->solve(algorithm.get());
-        ASSERT_EQ(result.status, AlgorithmStatus::COMPLETE);
+        ASSERT_EQ(result.status, AlgorithmStatus::Complete);
         ASSERT_GT(result.bidirectional->number_of_joined_paths, 0U)
             << "the control must join, or the interrupted run below proves nothing";
     }
@@ -323,7 +323,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
-    ASSERT_EQ(result.status, AlgorithmStatus::INTERRUPTED)
+    ASSERT_EQ(result.status, AlgorithmStatus::Interrupted)
         << "the callback did not stop the search, so the guard was never reached";
     EXPECT_EQ(result.bidirectional->number_of_joined_paths, 0U)
         << "the join ran after the solve was interrupted";
@@ -365,7 +365,7 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
     };
 
     const SolveResult joined = run(/*join_after_early_stop=*/true);
-    ASSERT_EQ(joined.status, AlgorithmStatus::MEMORY_LIMIT)
+    ASSERT_EQ(joined.status, AlgorithmStatus::MemoryLimit)
         << "the limit did not stop the search, so this test proves nothing";
     ASSERT_EQ(joined.bidirectional->number_of_joined_paths, 1U);
     ASSERT_FALSE(joined.solutions.empty());
@@ -373,12 +373,12 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
     EXPECT_EQ(joined.solutions.front().path_arc_ids, (std::vector<size_t>{0, 1, 2, 3}));
 
     const SolveResult skipped = run(/*join_after_early_stop=*/false);
-    ASSERT_EQ(skipped.status, AlgorithmStatus::MEMORY_LIMIT);
+    ASSERT_EQ(skipped.status, AlgorithmStatus::MemoryLimit);
     EXPECT_EQ(skipped.bidirectional->number_of_joined_paths, 0U)
         << "with join_after_early_stop off, a memory-limit stop must skip the join";
 }
 
-/// @brief `stop_after_X_solutions` deliberately does NOT skip the join.
+/// @brief `max_solutions` deliberately does NOT skip the join.
 ///
 /// A solution budget caps what is returned, not the search, so skipping the join would change the
 /// answer.
@@ -387,7 +387,7 @@ TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
 
     auto graph = bv::join_only_graph();
     auto params = bv::clocked_params(20.0);
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
 
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
@@ -577,7 +577,7 @@ TEST(BidirectionalValidation, BucketedBackwardContainerMatchesTheList) {
         }
 
         LabelList<bv::Composed, BackwardDirection> list;
-        Buckets buckets(/*range_buckets=*/20, bucket_index, sort_index);
+        Buckets buckets(/*bucket_width=*/20, bucket_index, sort_index);
         for (size_t i = 0; i < values.size(); ++i) {
             bv::insert_non_dominated(&list, for_list[i].get());
             bv::insert_non_dominated(&buckets, for_buckets[i].get());
@@ -624,8 +624,8 @@ class ThrowingAddition : public Clonable<ThrowingAddition, ExtensionFunction<Rea
             }
             extended_resource->set_value(resource.get_value() + extender_value.get_value());
         }
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Accumulate;
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const override {
+            return DirectionalResourceKind::Accumulate;
         }
 };
 
@@ -779,10 +779,10 @@ namespace bidirectional_validation_test {
 
 /// @brief A bottleneck: the largest arc value seen. It extends backward the same way, so it
 ///        declares an accumulation, but a path's value is not the sum of its halves' values.
-class Bottleneck
-    : public Clonable<Bottleneck,
-                      BackwardForm<ExtensionFunction<RealResource>, BackwardKind::Accumulate>,
-                      ExtensionFunction<RealResource>> {
+class Bottleneck : public Clonable<Bottleneck,
+                                   DirectionalExtensionForm<ExtensionFunction<RealResource>,
+                                                            DirectionalResourceKind::Accumulate>,
+                                   ExtensionFunction<RealResource>> {
     public:
         void extend(const RealResource& resource, const RealResource& extender_value,
                     RealResource* extended_resource) override {
@@ -1189,7 +1189,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
     auto graph = bv::clocked_graph(windows, arcs);
     auto params = bv::clocked_params(5.0);
     params.heuristic_cost_index = 5;
-    params.prune_based_on_upper_bound_ = true;
+    params.prune_by_upper_bound = true;
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     SolveResult result;
@@ -1253,7 +1253,7 @@ TEST(BidirectionalValidation, TheJoinBuildsAtMostStopAfterXSolutions) {
     const auto solve = [&](size_t budget) {
         auto graph = build();
         auto params = bv::clocked_params(1.0);
-        params.stop_after_X_solutions = budget;
+        params.max_solutions = budget;
         auto algorithm =
             graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         // A finite bound with the prune off asks for every column under it.
@@ -1293,8 +1293,9 @@ class CachedNodeCap : public Clonable<CachedNodeCap, FeasibilityFunction<RealRes
             return resource.get_value() >= 0.0 && resource.get_value() <= cap_;
         }
         [[nodiscard]] JoinRule join_rule() const override {
-            return backward_kind_ == BackwardKind::Threshold ? JoinRule::ValueOrder
-                                                             : JoinRule::Unspecified;
+            return directional_resource_kind_ == DirectionalResourceKind::Threshold
+                       ? JoinRule::ValueOrder
+                       : JoinRule::Unspecified;
         }
 
     protected:
@@ -1344,9 +1345,9 @@ TEST(BidirectionalValidation, ACustomPerNodeCapSharedWithTheCapacityBindsAtEachN
 
 namespace bidirectional_validation_test {
 
-/// @brief A threshold written without `ThresholdForm`: it adds going forward, going backward
-///        subtracts and clamps to its own closing time at the node left, and starts a backward
-///        label at the closing time of the node it enters.
+/// @brief A threshold written without `ThresholdExtensionForm`: it adds going forward, going
+///        backward subtracts and clamps to its own closing time at the node left, and starts a
+///        backward label at the closing time of the node it enters.
 ///
 /// It declares nothing about its clamps or starts, so the setup can only learn them by running it.
 class HandWrittenThreshold
@@ -1357,8 +1358,8 @@ class HandWrittenThreshold
               default_closing_(default_closing),
               close_(default_closing) {}
 
-        [[nodiscard]] BackwardKind backward_kind() const override {
-            return BackwardKind::Threshold;
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const override {
+            return DirectionalResourceKind::Threshold;
         }
 
         void extend(const RealResource& resource, const RealResource& extender_value,
@@ -1392,11 +1393,12 @@ class HandWrittenThreshold
         }
 };
 
-/// @brief A `ThresholdForm` that waits for nothing and clamps nothing.
+/// @brief A `ThresholdExtensionForm` that waits for nothing and clamps nothing.
 class UnclampedThreshold
-    : public Clonable<UnclampedThreshold,
-                      TranslationThresholdForm<RealResource, ExtensionFunction<RealResource>>,
-                      ExtensionFunction<RealResource>> {
+    : public Clonable<
+          UnclampedThreshold,
+          TranslationThresholdExtensionForm<RealResource, ExtensionFunction<RealResource>>,
+          ExtensionFunction<RealResource>> {
     protected:
         [[nodiscard]] std::optional<double> lower_bound_at(size_t /*node_id*/) const final {
             return std::nullopt;
