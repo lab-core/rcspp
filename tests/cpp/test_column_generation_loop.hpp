@@ -205,11 +205,60 @@ TEST(ColumnGenerationLoop, TimeLimitAndSolverErrors) {
     EXPECT_EQ(solver_out_of_time.run().status, ColumnGenerationStatus::TimeLimit);
 
     CoverOneRow solver_failure;
-    solver_failure.backend.on_solve = [](ScriptedBackend&) { return SolverStatus::Infeasible; };
+    solver_failure.backend.on_solve = [](ScriptedBackend&) { return SolverStatus::Other; };
     ColumnGeneration failing(solver_failure.master);
     const ColumnGenerationResult result = failing.run();
     EXPECT_EQ(result.status, ColumnGenerationStatus::SolverError);
     EXPECT_EQ(result.iterations, 0U);
+}
+
+TEST(ColumnGenerationLoop, InfeasibleStartingMasterHasItsOwnStatus) {
+    CoverOneRow toy;
+    toy.backend.on_solve = [](ScriptedBackend&) { return SolverStatus::Infeasible; };
+    ColumnGenerationParams params;
+    params.initialization = std::make_shared<NoInitialization>();
+    ColumnGeneration loop(toy.master, params);
+    const ColumnGenerationResult result = loop.run();
+
+    EXPECT_EQ(result.status, ColumnGenerationStatus::RestrictedMasterInfeasible);
+    EXPECT_EQ(result.iterations, 0U);
+    EXPECT_EQ(toy.master.num_columns(), 0U);
+}
+
+TEST(ColumnGenerationLoop, UnboundedMasterHasItsOwnStatus) {
+    CoverOneRow toy;
+    toy.backend.on_solve = [](ScriptedBackend&) { return SolverStatus::Unbounded; };
+    ColumnGeneration loop(toy.master);
+    EXPECT_EQ(loop.run().status, ColumnGenerationStatus::Unbounded);
+
+    // A value outside the enum (e.g. from a buggy backend) is a solver error.
+    CoverOneRow unknown;
+    unknown.backend.on_solve = [](ScriptedBackend&) { return static_cast<SolverStatus>(99); };
+    ColumnGeneration unknown_loop(unknown.master);
+    EXPECT_EQ(unknown_loop.run().status, ColumnGenerationStatus::SolverError);
+}
+
+TEST(ColumnGenerationLoop, NoInitializationKeepsAFeasibleModelAsItIs) {
+    // The user's model is feasible on its own: one starting column covers the row.
+    CoverOneRow toy;
+    toy.master.add_columns(0, {make_path(12.0, {{0, 1.0}}, 0.0)});
+    toy.backend.on_solve = [](ScriptedBackend& lp) {
+        const bool cheaper_path = lp.columns.size() > 1;
+        lp.objective_value = cheaper_path ? 10.0 : 12.0;
+        lp.dual_values = {lp.objective_value};
+        lp.values = {{0, cheaper_path ? 0.0 : 1.0}, {1, 1.0}};
+        return SolverStatus::Optimal;
+    };
+    ColumnGenerationParams params;
+    params.initialization = std::make_shared<NoInitialization>();
+    ColumnGeneration loop(toy.master, params);
+    const ColumnGenerationResult result = loop.run();
+
+    EXPECT_EQ(result.status, ColumnGenerationStatus::Optimal);
+    EXPECT_DOUBLE_EQ(result.objective, 10.0);
+    EXPECT_EQ(result.statistics.artificial_columns, 0U);
+    EXPECT_TRUE(toy.master.artificial_column_ids().empty());
+    EXPECT_EQ(toy.master.num_columns(), 2U);  // the starting column and the generated one
 }
 
 TEST(ColumnGenerationLoop, TimeLimitIsPassedOn) {
