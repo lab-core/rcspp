@@ -1,7 +1,7 @@
 # Column generation layer: plan
 
-Status: **phase 1 design accepted (`D-43`–`D-53`), no code yet**. Updated: 2026-10-23. Baseline: `main` @
-`129b15e0`. CI is out of the plan for now (`D-52`).
+Status: **phase 1: PR 1 (interfaces, master, loop) written and reviewed, local commits; PR 2 next**.
+Updated: 2026-10-23. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
 

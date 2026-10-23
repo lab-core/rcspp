@@ -21,7 +21,7 @@ LP solver: compare them, but they are not golden.
 
 | ID | task | status | done when |
 |---|---|---|---|
-| T-1.1 | Interfaces (`D-21`–`D-24`, `D-30`) + `MasterProblem` with fixed rows (`D-34`) and `MasterInitialization` (`ArtificialColumns`, `D-45`) + `ColumnGeneration` + statistics tier 0–1; a fake `SolverBackend` for tests. Loop in C++ (`D-37`) | todo | unit tests on the theory toy (LP 37.5, duals `(11.5, 12.5, 13.5)`, `docs/theory/master-and-pricing.md`) |
+| T-1.1 | Interfaces (`D-21`–`D-24`, `D-30`) + `MasterProblem` with fixed rows (`D-34`) and `MasterInitialization` (`ArtificialColumns`, `D-45`) + `ColumnGeneration` + statistics tier 0–1; a fake `SolverBackend` for tests. Loop in C++ (`D-37`) | doing: PR 1 written and reviewed (local commits 1.1–1.9, 2026-10-23); the toy tests need a real LP (PR 2) | unit tests on the theory toy (LP 37.5, duals `(11.5, 12.5, 13.5)`, `docs/theory/master-and-pricing.md`) |
 | T-1.2 | `HighsBackend` + `USE_HIGHS` (FetchContent pinned); the **backend self-test** (dual signs, ranges, add/remove columns, warm start) shared by every backend (`D-30`) | todo | same tests + self-test pass on HiGHS |
 | T-1.3 | `GurobiBackend` + `USE_GUROBI` | todo | same tests + self-test pass locally |
 | T-1.4 | `GraphPricer` with a fixed single stage; returns status + bound (`D-21`) | todo | toy + `C101_25` give the T-0.1 LP value |
