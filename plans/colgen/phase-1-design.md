@@ -16,7 +16,7 @@ facts checked on `main` @ `129b15e0`.
 | numbers | `double` everywhere (`#53`); spans for arrays; no `std::map` on hot paths |
 | names | `D-12`: `rcspp::column_generation`, full words, `Params` suffix kept |
 
-## 2. C++ API (`cpp/rcspp/column_generation/`, header-only)
+## 2. C++ API (`cpp/rcspp/column_generation/`, `.hpp` + `.cpp`: `D-56`)
 
 ```cpp
 namespace rcspp::column_generation {
@@ -221,7 +221,7 @@ CI is deferred (`D-52`): the last column is what the existing gate would measure
 
 | path | content | coverage |
 |---|---|---|
-| `cpp/rcspp/column_generation/{types,solver_backend,master_problem,master_initialization,pricer,graph_pricer,pricing_strategy,tolerances,statistics,column_generation,self_test}.hpp` | section 2 | 100 % (fake backend + fake pricer in tests) |
+| `cpp/rcspp/column_generation/{types,solver_backend,master_problem,master_initialization,pricer,graph_pricer,pricing_strategy,tolerances,statistics,column_generation,self_test}.hpp`, and `.cpp` for the non-template ones (`D-56`) | section 2 | 100 % (fake backend + fake pricer in tests) |
 | `cpp/rcspp_backends/highs/highs_backend.hpp` (+ `.cpp`) | `USE_HIGHS`: `find_package(HIGHS)`, else FetchContent pinned to `v1.15.1` | outside the gcovr filter; tested locally |
 | `cpp/rcspp_backends/gurobi/gurobi_backend.hpp` (+ `.cpp`) | `USE_GUROBI`; `FindGUROBI.cmake` moves from `examples/cpp/vrp/cmake/` to `cmake/` | tested locally |
 | `python/bindings/column_generation.cpp` | bindings + trampolines | 100 % |
@@ -307,6 +307,7 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | an infeasible restricted master gives `SolverError` | it proves nothing without Farkas pricing (phase 2) |
 | `SolverBackend::add_rows` optional, throws by default (`D-54`) | a wrapped model's rows exist; only backends that can add rows override it |
 | no plan IDs in code comments (`D-55`) | the plans are removed at the end |
+| `.cpp` for `tolerances`, `master_problem`, `master_initialization`, `column_generation` (`D-56`) | non-template code |
 
 ## 7. Design proposals (resolved 2026-10-23)
 

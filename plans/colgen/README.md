@@ -55,7 +55,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 
 ## Project conventions that apply here
 
-- C++23, header-only core in `cpp/rcspp/`, namespace `rcspp`, snake_case, clang-format/clang-tidy/cpplint/cppcheck.
+- C++23, core in `cpp/rcspp/` (mostly headers; non-template code in `.cpp`, `D-56`), namespace `rcspp`, snake_case, clang-format/clang-tidy/cpplint/cppcheck.
 - Python: pybind11 bindings in `python/bindings/`, package in `python/src/rcspp/`, black/isort/flake8.
 - CMake options are named `USE_*` (`USE_PYTHON`, `USE_VRP`, `USE_TESTS`, `USE_COVERAGE`).
 - Coverage gates in CI: **100 % lines** for `cpp/rcspp/` and `python/bindings/` (`gcovr.cfg`,
