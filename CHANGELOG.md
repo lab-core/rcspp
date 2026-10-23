@@ -233,6 +233,10 @@ New features are summarised, with a pointer to where they are documented.
   with custom composition functions lost them too. Nodes and arcs present when the graph was
   cloned were not affected, so a clone that is only solved, or whose arcs are only removed and
   restored (as `DiversificationSearch` does), gave the same results.
+- `ResourceGraph::is_connected()` no longer makes the next solve skip the feasibility reduction.
+  It cleared the modified flag that a solve reads to decide whether to run it, so arcs no feasible
+  path uses stayed in the graph. Results were the same, but the search was slower. The
+  connectivity matrix now tracks its own staleness, through `Graph::get_modification_count()`.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.

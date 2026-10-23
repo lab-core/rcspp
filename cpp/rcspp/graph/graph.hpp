@@ -43,7 +43,7 @@ class Graph {
         virtual Node<ResourceType>& add_node(size_t node_id, bool source = false,
                                              bool sink = false) {
             nodes_by_id_[node_id] = std::make_unique<Node<ResourceType>>(node_id, source, sink);
-            modified_ = true;
+            mark_modified();
             csr_valid_ = false;
 
             if (source) {
@@ -100,7 +100,7 @@ class Graph {
 
             removed_arcs_by_id_.emplace(arc_id, std::move(arcs_[arc_id]));
             --active_arc_count_;
-            modified_ = true;
+            mark_modified();
             csr_valid_ = false;
             return true;
         }
@@ -182,7 +182,7 @@ class Graph {
             arcs_[arc_id] = std::move(it->second);
             removed_arcs_by_id_.erase(it);
             ++active_arc_count_;
-            modified_ = true;
+            mark_modified();
             csr_valid_ = false;
             return true;
         }
@@ -439,9 +439,22 @@ class Graph {
             return true;
         }
 
+        /// @brief Records a change: sets the modified flag and counts the change.
+        void mark_modified() {
+            modified_ = true;
+            ++modification_count_;
+        }
+
         void mark_unmodified() { modified_ = false; }
 
         [[nodiscard]] bool is_modified() const { return modified_; }
+
+        /// @brief How many times the graph has changed: nodes or arcs added, removed or
+        ///        restored.
+        ///
+        /// Unlike @ref is_modified, which a solve clears once it has reduced the graph, it only
+        /// grows, so a cache built from the graph can tell whether it is out of date.
+        [[nodiscard]] size_t get_modification_count() const { return modification_count_; }
 
         [[nodiscard]] std::string to_string(bool print_arcs = false) const {
             std::stringstream ss;
@@ -554,6 +567,7 @@ class Graph {
         NodeMap nodes_by_id_;
         std::vector<Node<ResourceType>*> sorted_nodes_;
         bool modified_ = false;
+        size_t modification_count_ = 0;
         size_t next_arc_id_ = 0;
 
         ArcMap removed_arcs_by_id_;
@@ -603,7 +617,7 @@ class Graph {
                                                                 cost,
                                                                 rows);
             ++active_arc_count_;
-            modified_ = true;
+            mark_modified();
             csr_valid_ = false;
             origin_node->out_arcs.push_back(arcs_[arc_id].get());
             destination_node->in_arcs.push_back(arcs_[arc_id].get());
@@ -621,7 +635,7 @@ class Graph {
             }
             arcs_[arc_id] = std::move(it->second);
             ++active_arc_count_;
-            modified_ = true;
+            mark_modified();
             csr_valid_ = false;
             return removed_arcs_by_id_.erase(it);
         }
