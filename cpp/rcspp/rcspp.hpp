@@ -43,6 +43,7 @@
 #include "rcspp/algorithm/tabu_search.hpp"
 #include "rcspp/column_generation/pricer.hpp"
 #include "rcspp/column_generation/solver_backend.hpp"
+#include "rcspp/column_generation/tolerances.hpp"
 #include "rcspp/column_generation/types.hpp"
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/graph/arc.hpp"
