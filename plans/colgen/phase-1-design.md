@@ -250,14 +250,61 @@ CI is deferred (`D-52`): the last column is what the existing gate would measure
 
 | # | PR | contents | needs |
 |---|---|---|---|
-| 1 | `feat(column_generation): interfaces, master, loop` | section 2 except backends and `GraphPricer` (with `ArtificialColumns`); fake backend and pricer; tests of section 5 that need neither | — |
-| 2 | `feat(column_generation): HiGHS backend` | `HighsBackend`, `USE_HIGHS`, self-test on HiGHS, toy LP | 1 |
+| 1 | `feat(column_generation): interfaces, master, loop` | section 2 except backends, `GraphPricer`, `PricingStrategy` and the self-test (with `ArtificialColumns`); scripted backend and pricers; tests of section 5 that need neither | — |
+| 2 | `feat(column_generation): HiGHS backend` | `HighsBackend`, `USE_HIGHS`, the backend self-test (moved from PR 1: it needs a real LP solver), toy LP | 1 |
 | 3 | `feat(column_generation): graph pricer` | `GraphPricer`, `PricingStrategy` (one stage), toy CG end to end | 1, 2 |
 | 4 | `feat(column_generation): Gurobi backend` | `GurobiBackend`, `USE_GUROBI`, `FindGUROBI.cmake` moved | 1 |
 | 5 | `feat(python): column generation bindings` | bindings, trampolines, `_make_pricer`, registry, Python tests with the C++ HiGHS backend | 1–3 |
 | 6 | `feat(python): user-model masters` | `HighspyMaster`, `GurobipyMaster`, extras, tests | 5 |
 | 7 | `docs: column generation` | `docs/advanced/column-generation.md` rewritten (T-1.7) | 5, 6 |
 | 8 | `refactor(vrp): examples on the column generation layer` | T-1.5 and the Python example; golden baselines (T-0.1) | RouteOpt stack merged |
+
+### Commits per PR
+
+Each commit builds and passes its tests on its own; each adds its headers to the generated `cpp/rcspp/rcspp.hpp`.
+Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by `test_column_generation.cpp`.
+
+| PR | # | commit | contents |
+|---|---|---|---|
+| 1 | 1.1 | `feat(column_generation): types, solver backend and pricer interfaces` | `types.hpp`, `solver_backend.hpp`, `pricer.hpp`; test fakes (scripted backend and pricers); tests of the defaults |
+| 1 | 1.2 | `feat(column_generation): swappable tolerances` | `tolerances.hpp` (`D-40`) |
+| 1 | 1.3 | `feat(column_generation): the master problem` | `master_problem.hpp`: rows, pricers, convexity rows, CSC column batches (`D-46`, `D-53`) |
+| 1 | 1.4 | `feat(column_generation): big-M artificial columns as the default initialization` | `master_initialization.hpp` (`D-45`) |
+| 1 | 1.5 | `feat(column_generation): the loop, its statistics and hooks` | `statistics.hpp`, `column_generation.hpp` (`D-44`, `D-31`) |
+| 2 | 2.1 | `build: USE_HIGHS, HiGHS found or fetched` | `find_package(HIGHS)`, else FetchContent pinned to `v1.15.1`; off by default (`D-52`) |
+| 2 | 2.2 | `feat(column_generation): HiGHS backend` | `HighsBackend`: rows, CSC columns, LP solve, normalized duals, primal by id, integer solve |
+| 2 | 2.3 | `feat(column_generation): backend self-test` | `self_test.hpp`; run on HiGHS; scripted wrong backends show it catches sign errors |
+| 2 | 2.4 | `test(column_generation): the toy on HiGHS` | toy LP 37.5 and its duals; restricted master MIP 44 (section 5) |
+| 3 | 3.1 | `feat(column_generation): pricing strategy with stages` | `PricingStrategy` (`D-23`), one exact stage by default |
+| 3 | 3.2 | `feat(column_generation): graph pricer` | `GraphPricer` over `ResourceGraph`; `cost_scale` = max \|arc cost\| |
+| 3 | 3.3 | `test(column_generation): column generation from scratch` | toy CG, fleet limits 2 and 1, counterexample (section 5) |
+| 4 | 4.1 | `build: FindGUROBI.cmake shared, USE_GUROBI` | moved from `examples/cpp/vrp/cmake/` to `cmake/` |
+| 4 | 4.2 | `feat(column_generation): Gurobi backend` | `GurobiBackend`, self-test and toy tests (local, `D-52`) |
+| 5 | 5.1 | `feat(python): column generation types, master and loop` | bindings of section 2, results as numpy (`D-53`) |
+| 5 | 5.2 | `feat(python): subclass backends, pricers, tolerances, initializations` | trampolines; GIL released around `run()` |
+| 5 | 5.3 | `feat(python): graph pricers` | `_make_pricer` on every bound graph type (`D-48`); `GraphPricer`, `PricingStage` |
+| 5 | 5.4 | `feat(python): components by name` | registry (`D-49`) |
+| 5 | 5.5 | `test(python): the toy through the C++ HiGHS backend` | section 5 values |
+| 6 | 6.1 | `feat(python): highspy master` | `HighspyMaster` |
+| 6 | 6.2 | `feat(python): gurobipy master` | `GurobipyMaster`; `.coveragerc` `omit` (`D-50`) |
+| 6 | 6.3 | `build(python): highs and gurobi extras` | `pyproject.toml` extras; wheel with `USE_HIGHS=ON` |
+| 7 | 7.1 | `docs: column generation` | `docs/advanced/column-generation.md` (T-1.7) |
+| 8 | 8.1 | `refactor(vrp): C++ example and benchmark on the layer` | T-1.5 |
+| 8 | 8.2 | `refactor(vrp): Python example on a user-model master` | |
+| 8 | 8.3 | `docs(plans): golden baselines` | T-0.1 |
+
+### PR 1 as written: changes from section 2
+
+| change | why |
+|---|---|
+| `SolverBackend::row_bounds(lower, upper)` | `ArtificialColumns` needs the row bounds; a wrapped model already holds them |
+| `Pricer::cost_scale()` (default 1) | automatic big-M cost and relative tolerances need a scale before any column exists |
+| `ColumnBatch::{starts, row_indices, values}` | clearer than `index` / `value` |
+| `MasterProblem::add_artificial_columns(rows, coefficients, cost)` | one backend call for all artificial columns |
+| `MasterInitialization::initialize(master, ToleranceContext)` | room for more than the cost scale |
+| artificial column on every row that `x = 0` violates | also covers an equality convexity row |
+| `timeout_s`; `ColumnGenerationResult::objective` | the name `AlgorithmParams` uses; no "lp" abbreviation |
+| an infeasible restricted master gives `SolverError` | it proves nothing without Farkas pricing (phase 2) |
 
 ## 7. Design proposals (resolved 2026-10-23)
 
