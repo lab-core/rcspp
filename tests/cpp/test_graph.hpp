@@ -198,14 +198,15 @@ TEST(ResourceGraph, ArcsSurviveAnExceptionDuringASolve) {
     // A healthy first solve runs the one-off feasibility preprocessing, so the throw below comes
     // from the labelling, after the shortest-path preprocessor removed arcs.
     static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
-    ASSERT_EQ(graph->get_arcs_size(), 4U);
+    ASSERT_EQ(graph->get_number_of_arcs(), 4U);
 
     rat::ThrowingAddition::armed = true;
     EXPECT_THROW(
         static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}, 5.0)),
         std::runtime_error);
     rat::ThrowingAddition::armed = false;
-    EXPECT_EQ(graph->get_arcs_size(), 4U) << "the exception deleted arcs from the caller's graph";
+    EXPECT_EQ(graph->get_number_of_arcs(), 4U)
+        << "the exception deleted arcs from the caller's graph";
 
     const auto fallback = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
     EXPECT_EQ(fallback.solutions.size(), 2U);

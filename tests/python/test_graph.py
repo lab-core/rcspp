@@ -442,7 +442,7 @@ def test_refused_arc_leaves_the_graph_and_ids_consistent():
     rg.add_rows_to_arc(refused, (0, 1.0))
     with pytest.raises(ValueError, match="leaves sink 2"):
         rg.update()
-    assert rg.get_arcs_size() == 1  # only the arc flushed before
+    assert rg.number_of_arcs() == 1  # only the arc flushed before
 
     later = rg.add_arc(2.0, 1, 2, cost=2.0)
     rg.update()
@@ -606,21 +606,19 @@ def test_reserve_after_flush():
     assert rg.number_of_arcs() == 3
 
 
-# ── get_nodes_size / get_arcs_size ────────────────────────────────────────────
+# ── number_of_nodes / number_of_arcs ──────────────────────────────────────────
 
 
-def test_get_nodes_size_and_arcs_size():
-    """get_nodes_size and get_arcs_size include buffered items."""
+def test_number_of_nodes_and_arcs_count_buffered_items():
+    """number_of_nodes and number_of_arcs flush the buffers, so they count everything."""
     rg = make_resource_graph()
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
-    assert rg.get_nodes_size() == 2
-    assert rg.get_arcs_size() == 0
+    assert rg.number_of_nodes() == 2
+    assert rg.number_of_arcs() == 0
     rg.add_arc(1.0, 0, 1, cost=1.0)
-    assert rg.get_arcs_size() == 1
-    rg.update()
-    assert rg.get_nodes_size() == 2
-    assert rg.get_arcs_size() == 1
+    assert rg.number_of_arcs() == 1
+    assert rg.number_of_nodes() == 2
 
 
 # ── get_arcs ──────────────────────────────────────────────────────────────────

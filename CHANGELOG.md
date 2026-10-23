@@ -88,6 +88,17 @@ New features are summarised, with a pointer to where they are documented.
     `row_coefficients`. That changes the keywords of `SharedPricingPool.add_from_lp_arrays`,
     which were `col_costs`, `row_starts`, `col_indices` and `col_values`, and its views
     (`column_costs_view`, `column_starts_view`, `row_indices_view`, `row_coefficients_view`).
+- **Removed: API that did nothing, could not be used, or duplicated another name.**
+  - `AlgorithmBaseParams::use_pool`, in C++ and Python: nothing read it, so setting it to `false`
+    changed nothing.
+  - `ReachableCompositionExtensionFunction`, whose constructor always threw.
+  - `Graph::get_nodes_size()` and `get_arcs_size()`: use `get_number_of_nodes()` and
+    `get_number_of_arcs()`, which return the same values.
+  - Python `ResourceGraph.get_nodes_size()` and `get_arcs_size()`: use `number_of_nodes()` and
+    `number_of_arcs()`, which flush the buffers first and so count every node and arc.
+  - `FilteredSolutionPool.size()` in Python: use `len()`.
+  - `Algorithm::all_labels_processed()`, `is_resource_base_composition_v` and
+    `ResourceCompositionTypeConcept`, which nothing used.
 
 ### Added
 

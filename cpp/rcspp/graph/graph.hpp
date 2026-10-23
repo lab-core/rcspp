@@ -267,8 +267,6 @@ class Graph {
             return ids;
         }
 
-        [[nodiscard]] size_t get_nodes_size() const { return nodes_by_id_.size(); }
-
         /// @brief Iterates over all active arcs without allocating, passing a mutable Arc&.
         template <typename Callable>
         void for_each_arc(Callable&& fn) {
@@ -288,8 +286,6 @@ class Graph {
                 }
             }
         }
-
-        [[nodiscard]] size_t get_arcs_size() const { return active_arc_count_; }
 
         [[nodiscard]] std::vector<size_t> get_removed_arc_ids() const {
             std::vector<size_t> ids;
@@ -475,7 +471,7 @@ class Graph {
         /// @param clone_removed_arcs Also copy removed arcs (re-removed in target).
         void clone_topology_into(Graph<ResourceType>& target, bool include_rows,
                                  bool clone_removed_arcs) const {
-            target.reserve(get_nodes_size(), get_arcs_size());
+            target.reserve(get_number_of_nodes(), get_number_of_arcs());
 
             for (const auto& [node_id, node_ptr] : nodes_by_id_) {
                 auto& node = target.add_node(node_id, node_ptr->source, node_ptr->sink);

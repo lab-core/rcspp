@@ -51,23 +51,4 @@ class ResourceTypeComposition {
         [[nodiscard]] std::string to_string() const { return ""; }
 };
 
-/// @brief Variable template: `true` if @p T is a `ResourceTypeComposition` specialisation.
-///
-/// @tparam T The type to test.
-template <typename T>
-inline constexpr bool is_resource_base_composition_v = false;
-
-/// @brief Partial specialisation: always `true` for any `ResourceTypeComposition<...>`.
-///
-/// @tparam ResourceTypes The resource types in the composition.
-template <typename... ResourceTypes>
-inline constexpr bool is_resource_base_composition_v<ResourceTypeComposition<ResourceTypes...>> =
-    true;
-
-/// @brief Concept satisfied by any `ResourceTypeComposition` specialisation.
-///
-/// @tparam T The type to test.
-template <typename T>
-concept ResourceCompositionTypeConcept = is_resource_base_composition_v<T>;
-
 }  // namespace rcspp

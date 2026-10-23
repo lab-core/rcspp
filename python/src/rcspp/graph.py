@@ -412,22 +412,6 @@ class ResourceGraph:
                 max(self._reserve_hint[1], n_arcs),
             )
 
-    # ── Graph size (no flush required — includes buffered counts) ─────────────
-
-    def get_nodes_size(self) -> int:
-        """Return the total number of nodes, including those still in the buffer."""
-        n = len(self._node_buffer)
-        if self._graph is not None:
-            n += self._graph.number_of_nodes()
-        return n
-
-    def get_arcs_size(self) -> int:
-        """Return the total number of arcs, including those still in the buffer."""
-        n = len(self._arc_buffer)
-        if self._graph is not None:
-            n += self._graph.number_of_arcs()
-        return n
-
     # ── Graph read operations (flush first) ───────────────────────────────────
 
     def get_node(self, node_id):
