@@ -1,0 +1,269 @@
+# Phase 1 detailed design (accepted 2026-10-23)
+
+Scope: roadmap T-1.1 to T-1.7. Rows are fixed and no column is removed (`D-34`); the loop is in C++ (`D-37`); Python
+users wrap their own model (`D-35`). The `DP-` proposals are resolved (section 7). Names follow #56 (`D-43`). Code
+facts checked on `main` @ `129b15e0`.
+
+## 1. Conventions
+
+| topic | rule |
+|---|---|
+| sense | every backend presents the master as a **minimization**; a backend wrapping a maximizing user model negates costs and duals |
+| duals | `π_i = ∂objective/∂rhs_i` of that minimization: `≥` row → `π ≥ 0`, `≤` row → `π ≤ 0`, `=` free (Gurobi `Pi` and HiGHS `row_dual` already follow it); checked by the backend self-test (`D-30`) |
+| reduced cost | `c_p − Σ_i a_ip π_i − μ_k` (`μ_k` = dual of pricer `k`'s convexity row) |
+| row ids | `0 … num_rows−1`: for the generic master, creation order; for a user-model master, the order of the list the user passes. `Row.index` on arcs uses these ids |
+| column ids | `ColumnId` (64-bit), assigned by `MasterProblem`, **stable**; each backend maps ids to its own solver indices, which may shift (all researched solvers renumber on delete) (`D-46`) |
+| numbers | `double` everywhere (`#53`); spans for arrays; no `std::map` on hot paths |
+| names | `D-12`: `rcspp::column_generation`, full words, `Params` suffix kept |
+
+## 2. C++ API (`cpp/rcspp/column_generation/`, header-only)
+
+```cpp
+namespace rcspp::column_generation {
+using ColumnId = std::uint64_t;
+enum class SolverStatus { Optimal, Infeasible, Unbounded, TimeLimit, Other };
+struct RowBatch    { std::span<const double> lower, upper; std::span<const std::string> names = {}; };  // D-41
+struct ColumnBatch { std::span<const ColumnId> ids; std::span<const double> cost, lower, upper;
+                     std::span<const uint32_t> starts, index; std::span<const double> value; };  // CSC
+struct Capabilities { bool add_rows, integer_solve, farkas, basis; };
+
+class SolverBackend {                       // one instance = one master LP; virtual calls once per iteration
+  public:
+    virtual ~SolverBackend() = default;
+    virtual size_t num_rows() const = 0;
+    virtual void add_rows(const RowBatch&) = 0;               // setup only (D-34); user-model backends: rows exist
+    virtual void add_columns(const ColumnBatch&) = 0;
+    virtual SolverStatus solve_relaxation(const RelaxationParams&) = 0;   // integer columns relaxed in place
+    virtual double objective() const = 0;
+    virtual void duals(std::span<double> out) const = 0;      // normalized (section 1)
+    virtual void primal(std::span<const ColumnId> ids, std::span<double> out) const = 0;
+    virtual SolverStatus solve_integer(const IntegerParams&) = 0;         // restores integrality, then MIP
+    virtual bool farkas(std::span<double> /*out*/) const { return false; }
+    virtual void set_option(std::string_view name, const OptionValue& value) = 0;
+    virtual Capabilities capabilities() const = 0;
+    // phase 2: remove_columns(std::span<const ColumnId>), set_column_bounds(...)
+};
+}
+```
+
+- `RelaxationParams{time_limit_s, threads, verbose}`; `IntegerParams{time_limit_s, gap, column_type}` with
+  `column_type ∈ {Integer (default), Binary}` (`D-51`).
+- **Self-test** (`backend_self_test(SolverBackend&)`, also exposed to Python): a 3-row LP with one `=`, one `≥`
+  and one `≤` row and known duals; checks the signs, adding columns between solves, `primal` by id, and that a
+  maximizing model is normalized. Every backend's test suite runs it.
+
+### MasterProblem
+
+```cpp
+class MasterProblem {
+  public:
+    explicit MasterProblem(SolverBackend& backend);                     // D-38: references
+    RowRange add_rows(size_t count, RowSense sense, double rhs);         // generic master only (capabilities)
+    size_t add_pricer(Pricer& pricer, ConvexityRow row);                 // returns pricer index k
+    void add_columns(size_t pricer, std::span<const Solution> columns);  // initial or generated
+    ColumnId add_artificial_column(size_t row, double coefficient, double cost);  // tagged Artificial (D-45)
+    ColumnGenerationView view() const;                                   // read-only access for hooks
+};
+struct ConvexityRow { std::optional<size_t> existing_row; double max_paths = inf; };  // one of the two
+```
+
+- `ConvexityRow{.max_paths = U}` creates the row `Σ_{p∈k} x_p ≤ U` (needs `add_rows`); `{.existing_row = i}` uses a
+  row the user built (user-model masters). The master adds coefficient 1 in that row to every column of pricer `k`.
+- Columns: `Solution.column` as is (`F-01`, `F-02`) plus the convexity coefficient; metadata vector
+  `{ColumnId, pricer k, tag (Real | Artificial), Solution}` in step with the backend.
+
+### MasterInitialization (`D-45`)
+
+```cpp
+class MasterInitialization {                // how the first LP becomes solvable; swappable (D-17, D-39)
+  public:
+    virtual ~MasterInitialization() = default;
+    virtual void initialize(MasterProblem& master, double cost_scale) = 0;  // once, before the first LP solve
+};
+class ArtificialColumns final : public MasterInitialization {  // default; registry "artificial_columns"
+  public:
+    explicit ArtificialColumns(double cost = 0);  // 0 → automatic: 1e6 × cost_scale (max |arc cost|)
+};
+```
+
+- `ArtificialColumns`: single-phase big-M, one artificial column per linking row, coefficient sign chosen from the
+  row's bounds so that it alone satisfies the row. If the converged LP still uses an artificial column above the
+  feasibility tolerance, the result is `Infeasible`.
+- Later alternatives (phase 2+): `TwoPhaseArtificialColumns` (Coluna phases 0/1/2, `D-26`, needs cost changes in
+  the backend), user columns only, Farkas pricing.
+
+### Pricer and strategy
+
+```cpp
+enum class PricingStatus { Optimal, SolverLimit, Infeasible, NotApplicable, Unknown };       // D-21
+struct PricingRequest { double reduced_cost_threshold; std::optional<double> time_limit_s; };
+struct PricingResult  { std::vector<Solution> columns; PricingStatus status;
+                        double min_reduced_cost_bound; bool exact_stage; };
+struct PricingChanges { bool costs = false, bounds = false, structure = false; };           // D-22
+
+class Pricer {
+  public:
+    virtual ~Pricer() = default;
+    virtual PricingResult price(std::span<const double> duals, const PricingRequest&) = 0;
+    virtual void update(const PricingChanges&) {}
+};
+
+template <typename... ResourceTypes>
+class GraphPricer final : public Pricer {        // refs ResourceGraph<ResourceTypes...> (D-38)
+  public:
+    GraphPricer(ResourceGraph<ResourceTypes...>& graph, PricingStrategy<ResourceTypes...> strategy,
+                size_t cost_index = 0);
+};
+```
+
+- `GraphPricer::price`: `graph.update_reduced_costs(duals, cost_index)`, then run the strategy's current stage
+  with `upper_bound = request.reduced_cost_threshold`. The master passes `threshold = μ_k − tolerance` (convexity
+  dual, `api-sketch.md` §6).
+- `min_reduced_cost_bound`: the best cost found if the stage is exact and `COMPLETE`, else `−inf` in phase 1
+  (a valid bound from a truncated solve comes with the Lagrangian bound work, T-2.3).
+- `PricingStrategy<ResourceTypes...>` (`D-23`): ordered stages `{algorithm, AlgorithmParams, exact}`; phase 1 ships
+  the stage API (`initial_stage`, `next_stage`, `reset`, `is_exact`) with one exact stage by default;
+  heuristics-first and the #49 budget come in T-2.1.
+
+### Tolerances (`D-40`)
+
+```cpp
+class Tolerances {
+  public:
+    virtual ~Tolerances() = default;
+    virtual double reduced_cost(const ToleranceContext&) const = 0;  // a column improves if rc < −this
+    virtual double feasibility(const ToleranceContext&) const = 0;   // artificial usage, integrality
+    virtual double optimality_gap(const ToleranceContext&) const = 0;  // phase 2 early stop (D-28)
+};
+class AbsoluteTolerances;   // default: 1e-9, 1e-6, 1e-6
+class RelativeTolerances;   // scaled by ToleranceContext::cost_scale (max |arc cost| or |LP value|)
+```
+
+### ColumnGeneration
+
+```cpp
+struct ColumnGenerationParams {
+    size_t max_iterations = SIZE_MAX; double time_limit_s = inf;
+    std::shared_ptr<const Tolerances> tolerances;                     // null → AbsoluteTolerances
+    std::shared_ptr<MasterInitialization> initialization;             // null → ArtificialColumns (D-45)
+    StatisticsParams statistics;                                      // tiers 0–1 in phase 1 (D-04, D-42)
+    std::function<void(const IterationInfo&)> on_iteration;           // read-only (D-31)
+    std::function<ConvergenceAction(ConvergenceContext&)> on_converged;  // D-44
+};
+enum class ColumnGenerationStatus { Optimal, NotProven, Infeasible, TimeLimit, IterationLimit, SolverError };
+struct ColumnGenerationResult { ColumnGenerationStatus status; double lp_value, lower_bound; size_t iterations;
+                                Statistics statistics; };
+
+class ColumnGeneration {
+  public:
+    ColumnGeneration(MasterProblem& master, ColumnGenerationParams params = {});
+    ColumnGenerationResult run();
+    SolverStatus solve_restricted_master_integer(const IntegerParams&);   // heuristic plan (theory §5.2)
+};
+```
+
+`run()`, phase 1:
+
+1. `initialization->initialize(master, cost_scale)` (default: the artificial columns).
+2. Loop: `solve_relaxation` (not `Optimal` → `SolverError`/`TimeLimit`); `duals`; for each pricer `k`:
+   `price(duals, {μ_k − tol})`; add its columns; record statistics; call `on_iteration`.
+3. No pricer returned a column: if every pricer is `Optimal` at an exact stage, it is a proven convergence; call
+   `on_converged` (if set): `Continue` → back to 2, `Stop` → finish. Otherwise status `NotProven` (`P-05`).
+4. Artificial column still used above `feasibility` → `Infeasible`. `lower_bound = lp_value` when proven.
+
+## 3. Python (`D-36`, `D-37`)
+
+| piece | where | notes |
+|---|---|---|
+| bindings of section 2 | `python/bindings/column_generation.cpp`, submodule `rcspp._core.column_generation` | trampolines for `SolverBackend`, `Pricer`, `Tolerances`; `py::gil_scoped_release` around `run()`, reacquired by the trampolines (`D-08`) |
+| `GraphPricer` for a Python graph | `bind_rg_methods` in `python/bindings/graph_impl.hpp` gains `_make_pricer(stages, cost_index)` on every bound graph type; Python `GraphPricer(rg, strategy)` calls it (`F-03`, `D-48`) | stages reuse the existing `SolverAlgorithm` dispatch (`simple`, `pushing`, `pulling`, `greedy`, `tabu`, `astar`, `bidirectional`) and `AlgorithmParams` |
+| Python API | `python/src/rcspp/column_generation/` | `ColumnGeneration`, `MasterProblem`, `GraphPricer`, `PricingStage`, tolerances, results as numpy |
+| registry (`D-39`, `D-49`) | same | phase 1: backends (`"highs"`, `"gurobi"`), tolerances (`"absolute"`, `"relative"`), stage algorithms, master initializations (`"artificial_columns"`); the rest in T-2.5 |
+| user-model masters (`D-35`) | `python/src/rcspp/column_generation/masters/` | `GurobipyMaster`, `HighspyMaster` in phase 1 (`D-47`) |
+
+### User-model contract (Python `SolverBackend` subclass)
+
+From the Python solver research (2026-10-21, sources in the research notes of this session; key URLs below).
+
+| contract method | gurobipy | highspy |
+|---|---|---|
+| map our row id → solver row | keep the user's `Constr` list (`Constr.index` shifts on model changes, so never cache it) | `highs_cons.index` or plain row ints |
+| `add_columns(batch)` | loop: `Column(coeffs, constrs)` + `addVar(obj, lb, ub, column=…)`, then `update()`; no batch call exists | native CSC `addCols(n, cost, lower, upper, nnz, starts, indices, values)` |
+| relax in place | set `VType='C'` on the user's integer variables, remember them (`model.relax()` copies the model: avoid) | `changeColsIntegrality`, or option `solve_relaxation=true` |
+| `solve_relaxation` | `Method=1/0`, `optimize()` (releases the GIL); warm start is automatic after adding columns | `solver="simplex"`, `run()` (releases the GIL; avoid `solve()`'s extra thread) |
+| `duals` | `model.getAttr("Pi", constrs)`; flip if `ModelSense = MAXIMIZE` | `getSolution().row_dual`; flip if maximizing |
+| `solve_integer` | restore `VType`, set ours to `I`/`B`, `optimize()` | restore integrality, `run()` |
+| `farkas` (optional) | `InfUnbdInfo=1`, `FarkasDual` (sign differs: normalize) | `getDualRay()` |
+
+Support (`D-47`):
+
+- **First:** gurobipy, highspy.
+- **Later:** python-mip (no batch add, undocumented warm start) and OR-Tools MathOpt (`IncrementalSolver`, stable
+  ids).
+- **Not supported:**
+  - PuLP: rebuilds the model on every solve.
+  - pywraplp: no duals from MIP solvers, no column delete.
+  - Pyomo persistent: one Pyomo `Var` per column, heavy overhead.
+  - PySCIPOpt as a master: `freeTransform()` drops the LP every iteration, and duals need presolve off. It belongs
+    in the SCIP adapter (phase 4).
+- Gurobi's own cutting-stock example copies the model with `relax()` every iteration: our wrappers must not.
+
+Key sources: <https://docs.gurobi.com/projects/optimizer/en/current/reference/python/column.html>,
+<https://docs.gurobi.com/projects/optimizer/en/current/reference/attributes/constraintlinear.html>,
+<https://support.gurobi.com/hc/en-us/articles/360051966772-Releasing-the-GIL-in-Python-API>,
+<https://raw.githubusercontent.com/ERGO-Code/HiGHS/master/highspy/highspy/highs.py>,
+<https://raw.githubusercontent.com/ERGO-Code/HiGHS/master/examples/branch-and-price.py>,
+<https://ergo-code.github.io/HiGHS/dev/terminology/>.
+
+## 4. Build, layout and coverage
+
+CI is deferred (`D-52`): the last column is what the existing gate would measure (`F-14`), not a CI task.
+
+| path | content | coverage |
+|---|---|---|
+| `cpp/rcspp/column_generation/{types,solver_backend,master_problem,master_initialization,pricer,graph_pricer,pricing_strategy,tolerances,statistics,column_generation,self_test}.hpp` | section 2 | 100 % (fake backend + fake pricer in tests) |
+| `cpp/rcspp_backends/highs/highs_backend.hpp` (+ `.cpp`) | `USE_HIGHS`: `find_package(HIGHS)`, else FetchContent pinned to `v1.15.1` | outside the gcovr filter; tested locally |
+| `cpp/rcspp_backends/gurobi/gurobi_backend.hpp` (+ `.cpp`) | `USE_GUROBI`; `FindGUROBI.cmake` moves from `examples/cpp/vrp/cmake/` to `cmake/` | tested locally |
+| `python/bindings/column_generation.cpp` | bindings + trampolines | 100 % |
+| `python/src/rcspp/column_generation/` | Python API, registry, masters | 90 %; `masters/gurobipy.py` in the `.coveragerc` `omit`, its tests skip without a license (`D-50`) |
+| `tests/cpp/column_generation/`, `tests/python/test_column_generation*.py` | section 5 | — |
+| `pyproject.toml` | wheel built with `USE_HIGHS=ON`; extras `[highs]` (`highspy`), `[gurobi]` (`gurobipy`) | — |
+
+## 5. Tests and expected values
+
+| test | setup | expected |
+|---|---|---|
+| backend self-test | 3-row LP (`=`, `≥`, `≤`), then a max version | known duals with the convention of section 1; columns added between solves; `primal` by id |
+| toy LP | theory page 1: 3 customers, capacity 11, all 6 routes as columns | LP 37.5; duals (11.5, 12.5, 13.5) |
+| toy CG from scratch | same instance as a `ResourceGraph`, no starting columns (artificials) | LP 37.5, status `Optimal`, no artificial column used |
+| toy with a fleet limit | `max_paths = 2` / `max_paths = 1` | 37.5, `Optimal` / `Infeasible` (all three customers weigh 15 > 11) |
+| initialization swap | custom `MasterInitialization` that adds the 6 toy routes, no artificials | LP 37.5, no `Artificial` column exists |
+| convexity threshold | fake backend returning `μ_k = 3` | the pricer receives `threshold = 3 − tolerance` |
+| not proven | fake pricer returning `SolverLimit` and no column | status `NotProven` |
+| on_converged | hook returning `Continue` once, after changing the fake pricer's answer | the loop resumes, then stops `Optimal` |
+| restricted master MIP | toy with all 6 routes as starting columns (from scratch, CG may never generate the single-customer route that the best plan needs) | 44 |
+| counterexample (theory §5.2) | 4 customers, **elementary** routes (with cycles allowed, capacity 10 permits revisits and the LP may drop below 40) | LP 40 |
+| Python | toy through `HighspyMaster` and `GurobipyMaster` (skip without license), and through the C++ HiGHS backend | same values as above |
+| VRP (`C101_25`, after the RouteOpt stack, T-1.5) | VRP example ported | the T-0.1 golden LP value to 1e-6 |
+
+## 6. PR breakdown (phase 1, from `main`: `D-43`)
+
+| # | PR | contents | needs |
+|---|---|---|---|
+| 1 | `feat(column_generation): interfaces, master, loop` | section 2 except backends and `GraphPricer` (with `ArtificialColumns`); fake backend and pricer; tests of section 5 that need neither | — |
+| 2 | `feat(column_generation): HiGHS backend` | `HighsBackend`, `USE_HIGHS`, self-test on HiGHS, toy LP | 1 |
+| 3 | `feat(column_generation): graph pricer` | `GraphPricer`, `PricingStrategy` (one stage), toy CG end to end | 1, 2 |
+| 4 | `feat(column_generation): Gurobi backend` | `GurobiBackend`, `USE_GUROBI`, `FindGUROBI.cmake` moved | 1 |
+| 5 | `feat(python): column generation bindings` | bindings, trampolines, `_make_pricer`, registry, Python tests with the C++ HiGHS backend | 1–3 |
+| 6 | `feat(python): user-model masters` | `HighspyMaster`, `GurobipyMaster`, extras, tests | 5 |
+| 7 | `docs: column generation` | `docs/advanced/column-generation.md` rewritten (T-1.7) | 5, 6 |
+| 8 | `refactor(vrp): examples on the column generation layer` | T-1.5 and the Python example; golden baselines (T-0.1) | RouteOpt stack merged |
+
+## 7. Design proposals (resolved 2026-10-23)
+
+| ID | decision | ID | decision |
+|---|---|---|---|
+| DP-01 | `D-45` (big-M behind `MasterInitialization`) | DP-05 | `D-49` |
+| DP-02 | `D-46` | DP-06 | `D-50` |
+| DP-03 | `D-47` | DP-07 | `D-51` |
+| DP-04 | `D-48` | | |

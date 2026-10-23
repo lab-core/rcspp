@@ -1,0 +1,42 @@
+# Open questions
+
+Status: `open` · `→ D-xx` (resolved). "Blocks" = the tasks that can't finish without an answer. "User" = the user's
+current stance, if any.
+
+| ID | question | proposal | blocks | status |
+|---|---|---|---|---|
+| Q-01 | Final target: LP bounds (CG) only, or proven integer optima (B&P)? | B&P eventually; LP first. User: design the whole thing (`D-09`); implement B&P only if wanted | phase 3 | → D-20 |
+| Q-02 | Do the open stacks (`F-08`) land first, or does this work stack on top of them? | User: either; no implementation yet (`D-11`). Port #49's budget in T-2.1 instead of depending on the branch | T-0.3, T-1.4 | → D-43 |
+| Q-03 | Master generality from T-1.1: (a) **several pricers** (one graph per vehicle type or commodity), (b) **convexity rows** "at most `U_k` paths from pricer `k`", added automatically by the master | (a) and (b) from the start. Cheap now, an API break later. (b) is also what the Lagrangian bound needs (`U_k`). A design choice, not something to find in the code: today's code has one graph and unlimited vehicles | T-1.1 | → D-13 |
+| Q-04 | How do Python users get backends? A: C++ backends compiled into the wheel. B: Python backends over `highspy`/`gurobipy`/`pyscipopt` (trampolines). Hybrid: A for HiGHS, B for the rest | Hybrid by default; several routes coexist. Pros and cons below | T-1.6 | → D-14 |
+| Q-05 | Gurobi backend vs the 100 % coverage gate (`F-09`) | keep backends outside the gcovr filter; test Gurobi locally; HiGHS and SCIP in CI | — | deferred (`D-52`); still for colleagues |
+| Q-06 | Tier-3 checks: runtime flag only, or also compiled out in Release? | runtime flag; compile-time only for in-labeling instrumentation | T-2.5 | → D-42 |
+| Q-07 | Benchmark project: in this repo or separate? Record format? Hardware and CI policy (Gurobi runner)? | separate repo consuming `rcspp`; JSON lines | T-2.5, phase 5 | open; CI part deferred (`D-52`) |
+| Q-08 | Is a pure-Python orchestration wanted (for prototyping) in addition to the bound C++ one? | no: one implementation (`D-08`); Python hooks cover prototyping | T-1.6 | → D-15 |
+| Q-09 | Baselines: which commit and pricing relaxation? | Golden = the commit where implementation starts (`D-11`), so after #29 (ng). Runs on today's `main` (non-elementary, `F-05`) are informative only | T-0.1 | open |
+| Q-10 | Naming: `rcspp::cg` / `rcspp.cg`? `ColumnGeneration` vs `CgSolver`? | `rcspp::cg`, `rcspp.cg`, `ColumnGeneration` | T-1.1 | → D-12 |
+| Q-11 | `Row.coefficient` is `long double`; backends take `double`. Convert at the master boundary? | Not a plan question: switch `Row::coefficient` to `double` everywhere, as an independent fix (`F-12`, `T-0.4`) | T-1.1 | open: user agrees, colleagues to confirm |
+| Q-12 | Do colleagues review `architecture.md` before T-1.1? | user shares a plan summary with colleagues at the end of 2026-10-20; review `architecture.md` before T-1.1 | T-1.1 | open |
+| Q-13 | Role of numpy / `scipy.sparse` (requested by the user's boss) | Python boundary in CSR/CSC numpy arrays, zero-copy; `scipy.sparse` optional (`as_scipy()` / accepted as input); `scipy.optimize.linprog` (HiGHS inside) as a test-only reference backend. See `architecture.md` "Data interchange" | T-1.1, T-1.6 | → D-16 |
+| Q-14 | HiGHS as the default open-source backend (`D-07`) | user agrees; colleagues to confirm | T-1.2 | open |
+| Q-15 | Ownership: who owns graphs, backend, master, pool? C++ references (the user keeps them alive) vs `shared_ptr`; Python lifetimes (`keep_alive`) | references in C++ (zero-cost, like today's `create_algorithm`); Python keeps references automatically. **For the colleague summary** | T-1.1 | → D-38 |
+| Q-16 | No feasible initial columns: artificial columns (big-M cost) vs Farkas pricing | both behind one interface; default artificial (simple, robust) | T-1.1, T-3.1 | → D-26, D-45 |
+| Q-17 | Choose components by name (registry, for configs and benchmarks) and by object (custom code)? | both; names map to default-constructed objects + params | T-1.1 | → D-39 |
+| Q-18 | Tolerances: absolute `−1e-9` (today) vs relative to cost scale; single `Tolerances` struct | one struct, absolute default, relative option | T-1.1 | → D-40 |
+| Q-19 | Named rows (`"cover[7]"`) for debugging and error messages: worth the memory? | optional names, off by default | T-1.1 | → D-41 |
+| Q-20 | Branch-and-price components: which branching rules and node selections first? | arc branching + best-bound as defaults; Ryan–Foster and depth-first as alternatives | phase 3 | open (design only, `D-20`) |
+| Q-21 | Python backend over **python-mip** (CBC free, Gurobi), already used by the Python example (`P-09`)? | checked (prior-art.md): 2.0.0 (2026-08), ~1 maintainer, CBC crash reports, now wraps highspy → low priority, user-contributed (`PA-12`) | T-1.6 | → D-32 |
+| Q-22 | SCIP study (colleague request): SCIP inside rcspp (LP backend) and/or rcspp inside SCIP (pricer plugin, SCIP owns the B&P tree). Could replace our own B&P | done (prior-art.md): not as an LP solver (use SoPlex directly); yes as an optional pricer adapter where SCIP owns the B&P tree; our loop stays the foundation (`PA-04`, `PA-12`) | phase 4 | → D-24, D-32 |
+| Q-23 | Accept the prior-art proposals `PA-01`…`PA-13` (prior-art.md)? | accept all; each becomes a D | T-1.1, T-2.x | → D-21…D-33 |
+| Q-24 | **Are there (or will there be) users of rcspp from C++ only, without Python?** Yes → option A: loop in C++, bound to Python (`D-08`, current plan). Almost none → option B: loop and masters in Python, C++ only for the engine (~30–40 % less work, no trampolines, no HiGHS in the wheel, `pip install highspy`; a C++ loop later if demand appears, at the risk of two drifting loops) | ask the colleagues; B if C++-only users are rare | T-1.1 (decides the language of the loop) | → D-37 (option A) |
+
+## Q-04: pros and cons
+
+| | A: C++ in the wheel | B: Python backends | Hybrid |
+|---|---|---|---|
+| Speed | best: no Python in the loop | one C++→Python→C++ round trip per LP call (µs–ms, GIL, numpy copies). Negligible against an LP solve, but adds up over many small iterations or B&P nodes | best for the default |
+| Same behavior in C++ and Python | yes: one implementation (fair benchmarks) | no: two backends per solver can drift (tolerances, defaults) | yes for HiGHS |
+| Gurobi | impractical: build-time headers, wheel tied to one Gurobi version | easy: `pip install gurobipy`, the user brings the license | via B |
+| Users add their own solver (CPLEX, Xpress, OR-Tools) | needs C++ and a rebuild | pure Python subclass | via B |
+| Packaging | bigger wheel, longer CI (HiGHS vendored, MIT) | no build dependencies | bigger wheel |
+| Maintenance | C++ only | C++ and Python adapters, both tested | HiGHS in C++ + thin Python adapters |
