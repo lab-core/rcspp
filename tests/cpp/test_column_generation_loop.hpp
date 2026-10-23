@@ -90,7 +90,8 @@ TEST(ColumnGenerationLoop, ThresholdIncludesTheConvexityDual) {
 
 TEST(ColumnGenerationLoop, NotProvenWithoutAnExactOptimalPricing) {
     for (const PricingResult& answer : {PricingResult{{}, PricingStatus::SolverLimit, 0.0, true},
-                                        PricingResult{{}, PricingStatus::Optimal, 0.0, false}}) {
+                                        PricingResult{{}, PricingStatus::Optimal, 0.0, false},
+                                        PricingResult{{}, PricingStatus::Infeasible, 0.0, false}}) {
         ScriptedBackend backend;
         MasterProblem master(backend);
         ScriptedPricer pricer([answer](auto, auto) { return answer; });
@@ -100,6 +101,31 @@ TEST(ColumnGenerationLoop, NotProvenWithoutAnExactOptimalPricing) {
         EXPECT_EQ(result.status, ColumnGenerationStatus::NotProven);
         EXPECT_EQ(result.lower_bound, -infinity);
     }
+}
+
+TEST(ColumnGenerationLoop, AnExactPricerWithNoPathProves) {
+    // The pricer's problem has no path at all, e.g. a vehicle type that can serve nobody.
+    const PricingResult no_path{{}, PricingStatus::Infeasible, 0.0, true};
+
+    // Its columns are not needed: the master is still optimal.
+    CoverOneRow toy;
+    ScriptedPricer useless([no_path](auto, auto) { return no_path; });
+    toy.master.add_pricer(useless);
+    ColumnGeneration loop(toy.master);
+    EXPECT_EQ(loop.run().status, ColumnGenerationStatus::Optimal);
+
+    // Its columns are needed: an artificial column stays, and that is now a proof.
+    ScriptedBackend backend;
+    MasterProblem master(backend);
+    master.add_rows(1, RowSense::GreaterEqual, 1.0);
+    ScriptedPricer only([no_path](auto, auto) { return no_path; });
+    master.add_pricer(only);
+    backend.on_solve = [](ScriptedBackend& lp) {
+        lp.values = {{0, 1.0}};
+        return SolverStatus::Optimal;
+    };
+    ColumnGeneration needed(master);
+    EXPECT_EQ(needed.run().status, ColumnGenerationStatus::Infeasible);
 }
 
 TEST(ColumnGenerationLoop, InfeasibleWhenAnArtificialColumnStays) {
