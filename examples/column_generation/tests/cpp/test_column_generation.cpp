@@ -8,5 +8,6 @@
 
 #include "test_column_generation_initialization.hpp"
 #include "test_column_generation_interfaces.hpp"
+#include "test_column_generation_loop.hpp"
 #include "test_column_generation_master.hpp"
 #include "test_column_generation_tolerances.hpp"
