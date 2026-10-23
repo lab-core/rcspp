@@ -41,6 +41,7 @@
 #include "rcspp/algorithm/solution_pool.hpp"
 #include "rcspp/algorithm/tabu_list.hpp"
 #include "rcspp/algorithm/tabu_search.hpp"
+#include "rcspp/column_generation/master_initialization.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
 #include "rcspp/column_generation/pricer.hpp"
