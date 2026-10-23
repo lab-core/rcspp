@@ -610,7 +610,7 @@ def test_reserve_after_flush():
 
 
 def test_number_of_nodes_and_arcs_count_buffered_items():
-    """number_of_nodes and number_of_arcs flush the buffers, so they count everything."""
+    """number_of_nodes and number_of_arcs flush first, so they count everything."""
     rg = make_resource_graph()
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
@@ -726,7 +726,7 @@ def test_str_and_repr():
 
 
 def test_repr_does_not_flush_a_refused_arc():
-    """Repr() of a graph whose buffer holds a refused arc does not raise, and flushes nothing."""
+    """Repr() does not flush, so a buffered arc that would be refused cannot raise."""
     rg = make_resource_graph()
     rg.add_node(0, source=True)
     rg.add_node(1, sink=True)
@@ -912,7 +912,7 @@ def test_bucket_params_to_cpp_out_of_range_raises():
 
 
 def test_prune_by_upper_bound_is_settable():
-    """prune_by_upper_bound is bound, off by default, and a solve honours the bound with it."""
+    """prune_by_upper_bound is bound, off by default, and usable in a solve."""
     from rcspp.graph import AlgorithmParams
 
     params = AlgorithmParams()

@@ -1166,7 +1166,7 @@ def test_col_ids_to_shared_out_of_range():
 
 
 def test_pool_classes_are_public_in_pricing_pool():
-    """The C++ pool classes and the default threshold are importable without rcspp._core."""
+    """The pool classes and the default threshold are public in rcspp.pricing_pool."""
     import rcspp.pricing_pool as public
     from rcspp._core import solution_pool as private
 
