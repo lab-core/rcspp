@@ -499,8 +499,9 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
                                             ResourceTypes...>(alg, rg, ub, py_p, pre, ci);
                 });
             },
-            py::arg("algorithm") = SolverAlgorithm::Simple,
-            py::arg("upper_bound") = INF,
+            // No defaults before the required params: a Python signature cannot have them.
+            py::arg("algorithm"),
+            py::arg("upper_bound"),
             py::arg("params"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
@@ -522,7 +523,7 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
             py::arg("upper_bound") = INF,
-            py::arg("params") = PyAlgorithmParams{},
+            py::arg_v("params", PyAlgorithmParams{}, "AlgorithmParams()"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def(
