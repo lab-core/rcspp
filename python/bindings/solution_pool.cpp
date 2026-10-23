@@ -29,6 +29,9 @@ struct PyPricedColumn {
 }  // namespace
 
 void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognitive-complexity)
+    // The default threshold of price(), shared with the Python pools.
+    m.attr("DEFAULT_PRICE_THRESHOLD") = kDefaultPriceThreshold;
+
     // ColumnActivity is stored per-entry in SolutionPool and updated on every price() call.
     // usage_rate() returns use_count / priced_count (∈ [0, 1]; 0.0 if the column was never priced).
     py::class_<ColumnActivity>(m, "ColumnActivity")
@@ -368,7 +371,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 return out;
             },
             py::arg("duals"),
-            py::arg("threshold") = 0.0)
+            py::arg("threshold") = kDefaultPriceThreshold)
         .def("update_activity", &FilteredSolutionPool::update_activity, py::arg("basis_column_ids"))
         // Local removes (this view only, supports B&B backtracking):
         .def(
@@ -450,7 +453,7 @@ void init_solution_pool(py::module_& m) {  // NOLINT(readability-function-cognit
                 return py::make_tuple(ids, rcs);
             },
             py::arg("duals"),
-            py::arg("threshold") = 0.0)
+            py::arg("threshold") = kDefaultPriceThreshold)
         .def("__len__", &FilteredSolutionPool::size)
         .def("pool",
              py::overload_cast<>(&FilteredSolutionPool::pool),

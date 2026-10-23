@@ -99,6 +99,14 @@ New features are summarised, with a pointer to where they are documented.
   - `FilteredSolutionPool.size()` in Python: use `len()`.
   - `Algorithm::all_labels_processed()`, `is_resource_base_composition_v` and
     `ResourceCompositionTypeConcept`, which nothing used.
+- **`FilteredSolutionPool::price` keeps only reduced costs below `-1e-9` by default**, in C++ and
+  in the binding, where it used to be `0.0`. The Python pools already used `-1e-9`. The value is
+  now one constant, `kDefaultPriceThreshold`, bound to Python as
+  `rcspp._core.solution_pool.DEFAULT_PRICE_THRESHOLD`. A column whose reduced cost is negative
+  only by rounding is no longer returned as improving.
+- **Python `ResourceGraph.to_string()` leaves the arcs out by default**, as in C++. `repr()` of a
+  `ResourceGraph` is now a one-line summary that does not flush the buffers, so it no longer
+  raises when a buffered arc would be refused. `str()` is still `to_string()`.
 
 ### Added
 
