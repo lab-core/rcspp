@@ -48,7 +48,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             if (algo_ == nullptr) {
                 // create algorithm params
                 auto alg_params = this->params_;
-                alg_params.stop_after_X_solutions = 1;  // only need one solution per iteration
+                alg_params.max_solutions = 1;    // only need one solution per iteration
                 alg_params.max_iterations = 20;  // ensure early termination if needed // NOLINT
                 alg_params.release_after_solve = false;  // pool reused each iteration; skip shrink
                 algo_ = std::make_unique<GreedyAlgorithm<ResourceType, LabelContainerType>>(
@@ -60,7 +60,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         [[nodiscard]] bool is_optimal() const override { return false; }
 
         // Run diversification search using tabu-based strategy and collect solutions. The search
-        // runs up to max_iterations or stop_after_X_solutions.
+        // runs up to max_iterations or max_solutions.
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
@@ -124,8 +124,9 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             for (auto arc_id : sol.path_arc_ids) {
                 // check if arc is already removed or can be removed
                 const auto* arc = graph_copy_->get_arc(arc_id);
-                if (arc == nullptr || this->params_.forbidden_tabu.contains(arc->origin->id) ||
-                    this->params_.forbidden_tabu.contains(arc->destination->id)) {
+                if (arc == nullptr ||
+                    this->params_.tabu_exempt_node_ids.contains(arc->origin->id) ||
+                    this->params_.tabu_exempt_node_ids.contains(arc->destination->id)) {
                     continue;
                 }
                 if (graph_copy_->remove_arc(arc_id)) {

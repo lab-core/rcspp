@@ -112,7 +112,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
-                if (this->params_.prune_based_on_upper_bound_ &&
+                if (this->params_.prune_by_upper_bound &&
                     label.get_cost() >= this->best_cost_upper_bound_) {
                     remove_label(label_iterator_pair.second);
                     // Use release_with_ref_count (not release_label): this label was added to
@@ -132,7 +132,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         }
                         if (this->params_.return_dominated_solutions) {
                             this->extract_solution(label);
-                            if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                            if (this->solutions_.size() >= this->params_.max_solutions) {
                                 LOG_DEBUG("Stopping after ",
                                           this->solutions_.size(),
                                           " solutions.\n");

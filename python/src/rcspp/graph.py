@@ -912,7 +912,7 @@ class BucketAlgorithmParams:
     preserving backward compatibility with code that sets those fields directly.
 
     Args:
-        range_buckets: Width of each bucket along the bucket resource axis.
+        bucket_width: Width of each bucket along the bucket resource axis.
         bucket_resource_pos: Registration-order position of the resource used
             to partition labels into buckets.  ``None`` (default) keeps the
             C++ default (empty ``bucket_resource_type`` → cost resource).
@@ -921,12 +921,12 @@ class BucketAlgorithmParams:
             (``real`` or ``int``).  ``None`` (default) keeps the C++ default
             (``sort_resource_index=0``).
         **kwargs: Additional :class:`AlgorithmParams` fields
-            (e.g. ``stop_after_X_solutions``, ``timeout_s``, ``max_memory_gb``).
+            (e.g. ``max_solutions``, ``timeout_s``, ``max_memory_gb``).
     """
 
     def __init__(
         self,
-        range_buckets: int = 100,
+        bucket_width: int = 100,
         bucket_resource_pos=None,
         sort_resource_pos=None,
         **kwargs,
@@ -934,7 +934,7 @@ class BucketAlgorithmParams:
         """Create BucketAlgorithmParams with optional resource-position hints.
 
         Args:
-            range_buckets: Width of each bucket partition along the bucket
+            bucket_width: Width of each bucket partition along the bucket
                 resource axis.
             bucket_resource_pos: Zero-based registration-order index of the
                 resource used to partition labels into buckets.  ``None``
@@ -943,7 +943,7 @@ class BucketAlgorithmParams:
                 numerical resource used to sort labels within each bucket.
                 ``None`` keeps the C++ default.
             **kwargs: Additional :class:`AlgorithmParams` fields forwarded
-                directly to the C++ object (e.g. ``stop_after_X_solutions``,
+                directly to the C++ object (e.g. ``max_solutions``,
                 ``timeout_s``, ``max_memory_gb``).
         """
         self._bucket_resource_pos = (
@@ -951,7 +951,7 @@ class BucketAlgorithmParams:
         )
         self._sort_resource_pos = None if sort_resource_pos is None else int(sort_resource_pos)
         self._cpp = _CppBucketAlgorithmParams()
-        self._cpp.range_buckets = int(range_buckets)
+        self._cpp.bucket_width = int(bucket_width)
         for k, v in kwargs.items():
             setattr(self._cpp, k, v)
 

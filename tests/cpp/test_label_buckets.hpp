@@ -226,7 +226,7 @@ TEST(LabelBuckets, EraseBeginMultiBucket) {
     EXPECT_TRUE(bl.is_dominated(*query));
 }
 
-// suggest_range returns a range calibrated for the requested number of buckets.
+// suggest_bucket_width returns a range calibrated for the requested number of buckets.
 TEST(LabelBuckets, SuggestRange) {
     BucketLabelList bl(10, 0, 1);
     // Add 7 labels, each 15 apart; with range=10 each lands in its own bucket.
@@ -235,13 +235,13 @@ TEST(LabelBuckets, SuggestRange) {
         labels_storage.push_back(make_label(static_cast<size_t>(i), i * 15.0, 0.0));
         bl.add_label(labels_storage.back().get());
     }
-    // max_live_buckets_ == 7, range_buckets_ == 10 -> estimated_span = 70.
-    // suggest_range(7)  -> (70 + 6) / 7  = 10 (same number of buckets -> same range)
-    // suggest_range(14) -> (70 + 13) / 14 = 5  (twice as many buckets -> half the range)
-    // suggest_range(35) -> (70 + 34) / 35 = 2
-    EXPECT_EQ(bl.suggest_range(7), 10u);
-    EXPECT_EQ(bl.suggest_range(14), 5u);
-    EXPECT_EQ(bl.suggest_range(35), 2u);
-    // Edge: target=0 returns unchanged range_buckets_.
-    EXPECT_EQ(bl.suggest_range(0), 10u);
+    // max_live_buckets_ == 7, bucket_width_ == 10 -> estimated_span = 70.
+    // suggest_bucket_width(7)  -> (70 + 6) / 7  = 10 (same number of buckets -> same range)
+    // suggest_bucket_width(14) -> (70 + 13) / 14 = 5  (twice as many buckets -> half the range)
+    // suggest_bucket_width(35) -> (70 + 34) / 35 = 2
+    EXPECT_EQ(bl.suggest_bucket_width(7), 10u);
+    EXPECT_EQ(bl.suggest_bucket_width(14), 5u);
+    EXPECT_EQ(bl.suggest_bucket_width(35), 2u);
+    // Edge: target=0 returns unchanged bucket_width_.
+    EXPECT_EQ(bl.suggest_bucket_width(0), 10u);
 }

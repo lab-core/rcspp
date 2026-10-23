@@ -95,17 +95,17 @@ class SolveResult:
     def __repr__(self) -> str: ...
 
 class AlgorithmParams:
-    stop_after_X_solutions: int
+    max_solutions: int
     return_dominated_solutions: bool
     use_pool: bool
-    num_labels_to_extend_by_node: int
-    num_max_phases: int
+    max_extended_labels_per_node: int
+    max_phases: int
     max_iterations: int
     timeout_s: float
     tolerance: float
     release_after_solve: bool
     tabu_tenure: int
-    forbidden_tabu: set[int]
+    tabu_exempt_node_ids: set[int]
     tabu_random_noise: bool
     seed: int
     max_memory_gb: float
@@ -126,7 +126,7 @@ class AlgorithmParams:
 class BucketAlgorithmParams(AlgorithmParams):
     """Low-level C++ bucket params.  Prefer the Python wrapper in rcspp.graph."""
 
-    range_buckets: int
+    bucket_width: int
     bucket_resource_index: int
     sort_resource_index: int
     bucket_resource_type: str

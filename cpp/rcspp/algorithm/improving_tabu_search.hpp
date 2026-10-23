@@ -50,7 +50,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
         ///   - @c max_iterations       – improvement-phase iteration budget.
         ///   - @c tabu_tenure          – base tabu tenure for arcs.
         ///   - @c tabu_random_noise    – whether to add jitter to tenure.
-        ///   - @c stop_after_X_solutions – early-stop threshold.
+        ///   - @c max_solutions – early-stop threshold.
         ///   - @c diversification_tenure – no-improve count before grow_extra().
         ImprovingTabuSearch(ResourceFactory<ResourceType>* resource_factory,
                             AlgorithmParams<LabelContainerType> params)
@@ -186,7 +186,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
 
                     apply_tabu(*sink_label);
 
-                    if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                    if (this->solutions_.size() >= this->params_.max_solutions) {
                         this->clear_path();
                         break;
                     }
@@ -243,8 +243,8 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                 if (arc == nullptr) {
                     continue;
                 }
-                if (this->params_.forbidden_tabu.contains(arc->origin->id) ||
-                    this->params_.forbidden_tabu.contains(arc->destination->id)) {
+                if (this->params_.tabu_exempt_node_ids.contains(arc->origin->id) ||
+                    this->params_.tabu_exempt_node_ids.contains(arc->destination->id)) {
                     continue;
                 }
                 tabu_.add(arc->id, this->params_.tabu_tenure, this->params_.tabu_random_noise);

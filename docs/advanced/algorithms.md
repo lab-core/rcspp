@@ -326,8 +326,8 @@ under-rejecting quietly.
 | Parameter | Under `simple` / `pushing` / `pulling` / `astar` | Under `bidirectional` |
 |---|---|---|
 | `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found.  Joined paths are **not** filtered by dominance at the sink, whatever the flag says: see below |
-| `stop_after_X_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `stop_after_X_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
-| `prune_based_on_upper_bound_` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
+| `max_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `max_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
+| `prune_by_upper_bound` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
 | `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 
@@ -346,7 +346,7 @@ each non-dominated where they meet, not as a whole path.  On Solomon pricing gra
 horizon, with a uniform dual and pruning off, it returned 12 to 19 times the forward search's
 columns.  Every one of them is feasible at its stated cost, and the optimum is the same.  If the
 master should see only non-dominated columns, use a forward algorithm, or cap the count with
-`stop_after_X_solutions`, which the join honours without building the rest.
+`max_solutions`, which the join honours without building the rest.
 
 ### Where the two halves are paired
 
@@ -377,7 +377,7 @@ it misses relative to forward is the **half-way bound**, not the join — the bo
 labels before they reach a sink.
 
 One caveat, and it only applies in modes that are already inexact.  When the per-node extension
-quota binds — `num_labels_to_extend_by_node` (truncated labeling), or `on_memory_pressure` tightening
+quota binds — `max_extended_labels_per_node` (truncated labeling), or `on_memory_pressure` tightening
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
@@ -518,7 +518,7 @@ Much faster than the exact algorithms; no optimality guarantee.
 
 ```python
 params = AlgorithmParams()
-params.num_labels_to_extend_by_node = 5   # extend at most 5 labels per node
+params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)
 ```
@@ -531,10 +531,10 @@ Arc removal is temporary (governed by `tabu_tenure`).
 
 ```python
 params = AlgorithmParams()
-params.tabu_tenure        = 5
-params.tabu_random_noise  = True      # random ±1 tenure noise
-params.max_iterations     = 100
-params.forbidden_tabu     = {source_id, sink_id}  # never remove arcs from these
+params.tabu_tenure          = 5
+params.tabu_random_noise    = True      # random ±1 tenure noise
+params.max_iterations       = 100
+params.tabu_exempt_node_ids = {source_id, sink_id}  # never remove arcs from these
 
 result = rg.solve(algorithm="tabu", params=params)
 ```
@@ -547,9 +547,9 @@ solutions.
 
 ```python
 params = AlgorithmParams()
-params.stop_after_X_solutions = 20    # collect 20 distinct solutions
-params.max_iterations         = 100
-params.seed                   = 42
+params.max_solutions  = 20    # collect 20 distinct solutions
+params.max_iterations = 100
+params.seed           = 42
 
 result = rg.solve(algorithm="greedy", params=params)
 # In C++, use DiversificationSearch explicitly to wrap any inner algorithm
@@ -755,7 +755,7 @@ checking by partitioning labels on one resource dimension.
 from rcspp.graph import BucketAlgorithmParams
 
 bp = BucketAlgorithmParams()
-bp.range_buckets         = 200    # partition the time dimension into 200 buckets
+bp.bucket_width          = 200    # partition the time dimension into 200 buckets
 bp.bucket_resource_index = 0      # resource 0 is time
 bp.sort_resource_index   = 1      # sort within bucket by resource 1
 
@@ -766,7 +766,7 @@ In C++:
 
 ```cpp
 BucketAlgorithmParams<LabelBuckets<Resources>> bp;
-bp.range_buckets = 200;
+bp.bucket_width = 200;
 bp.bucket_resource_index = 0;
 bp.sort_resource_index = 1;
 auto result = graph.solve<SimpleDominanceAlgorithm, RealResource, LabelBuckets>(ub, bp);

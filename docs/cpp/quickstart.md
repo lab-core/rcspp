@@ -121,7 +121,7 @@ auto result = graph.solve<GreedyAlgorithm, RealResource, LabelList>(ub, params);
 
 // Diversification search — collect N diverse solutions
 AlgorithmParams<LabelList<Resources>> params;
-params.stop_after_X_solutions = 10;
+params.max_solutions = 10;
 params.max_iterations = 50;
 auto result = graph.solve<DiversificationSearch, RealResource, LabelList>(ub, params);
 ```

@@ -177,8 +177,8 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                 if (in_arc == nullptr) {
                     continue;
                 }
-                if (this->params_.forbidden_tabu.contains(in_arc->origin->id) ||
-                    this->params_.forbidden_tabu.contains(in_arc->destination->id)) {
+                if (this->params_.tabu_exempt_node_ids.contains(in_arc->origin->id) ||
+                    this->params_.tabu_exempt_node_ids.contains(in_arc->destination->id)) {
                     continue;
                 }
                 tabu_.add(in_arc->id, this->params_.tabu_tenure, this->params_.tabu_random_noise);

@@ -488,11 +488,11 @@ TEST(BackwardSearch, BucketsFindWhatAListFinds) {
     auto graph = build();
     EXPECT_NEAR(bst::forward_optimum(graph.get()), kOptimum, bst::kTolerance);
     EXPECT_NEAR(backward_optimum(bst::BackwardList()), kOptimum, bst::kTolerance);
-    EXPECT_NEAR(backward_optimum(Buckets(/*range_buckets=*/5, kTime, kCost)),
+    EXPECT_NEAR(backward_optimum(Buckets(/*bucket_width=*/5, kTime, kCost)),
                 kOptimum,
                 bst::kTolerance)
         << "buckets on the deadline, sorted by cost";
-    EXPECT_NEAR(backward_optimum(Buckets(/*range_buckets=*/5, kCost, kTime)),
+    EXPECT_NEAR(backward_optimum(Buckets(/*bucket_width=*/5, kCost, kTime)),
                 kOptimum,
                 bst::kTolerance)
         << "buckets on the cost, sorted by the deadline";

@@ -169,15 +169,15 @@ inline std::vector<Variant> bidirectional_variants() {
 template <typename ParamsType>
 ParamsType params_for(const Variant& v) {
     ParamsType p;
-    p.num_labels_to_extend_by_node = v.quota;
-    p.num_max_phases = v.phases;
+    p.max_extended_labels_per_node = v.quota;
+    p.max_phases = v.phases;
     // Phases and dominated solutions only take effect with a finite stop
     // (AlgorithmBaseParams::check).
     if (v.phases > 1 || v.dominated) {
-        p.stop_after_X_solutions = 1000;
+        p.max_solutions = 1000;
     }
     p.return_dominated_solutions = v.dominated;
-    p.prune_based_on_upper_bound_ = v.prune;
+    p.prune_by_upper_bound = v.prune;
     p.max_iterations = v.max_iterations;
     p.join_after_early_stop = v.join_after_early_stop;
     return p;

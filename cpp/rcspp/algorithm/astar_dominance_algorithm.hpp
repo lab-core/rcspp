@@ -29,7 +29,7 @@ namespace rcspp {
 ///    the first sink reached), so a FULL search returns the optimal solution for ANY @f$ h @f$ —
 ///    the heuristic only changes the *order* of expansion, not which labels exist.
 ///  - @f$ h @f$ matters for correctness only together with label-dropping truncation (a per-node
-///    extension cap, memory-pressure pruning, or @ref AlgorithmBaseParams::stop_after_X_solutions):
+///    extension cap, memory-pressure pruning, or @ref AlgorithmBaseParams::max_solutions):
 ///    those keep the lowest-@f$ f @f$ labels, so an *admissible* @f$ h @f$ (a true lower bound)
 ///    keeps the most promising labels and the truncated result stays optimal far more often,
 ///    whereas an over-estimating @f$ h @f$ could drop the optimal path.

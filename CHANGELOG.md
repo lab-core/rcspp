@@ -67,6 +67,14 @@ New features are summarised, with a pointer to where they are documented.
   - `Graph::track_modifications` is `mark_unmodified`: it clears the modified flag.
   - `ResourceGraph::process_feasibility` is `remove_infeasible_arcs`, in C++ and in Python, where
     it was `preprocess_feasibility`.
+  - Fields of `AlgorithmBaseParams`, in C++ and in Python: `stop_after_X_solutions` is
+    `max_solutions` and `num_max_phases` is `max_phases`, after the statuses they cause;
+    `num_labels_to_extend_by_node` is `max_extended_labels_per_node`, a cap that applies in each
+    phase; `forbidden_tabu` is `tabu_exempt_node_ids`: it lists the nodes whose arcs are never made
+    tabu. In C++ only, `prune_based_on_upper_bound_` is `prune_by_upper_bound`.
+  - `range_buckets` is `bucket_width`, on `BucketAlgorithmParams` in Python and on the
+    `LabelBuckets` constructor, and `LabelBuckets::suggest_range` is `suggest_bucket_width`: it is
+    the width of a bucket along its resource, not a number of buckets.
 
 ### Added
 
@@ -92,7 +100,7 @@ New features are summarised, with a pointer to where they are documented.
   comes from whichever has extended fewer arcs. After a timeout or the memory limit it still runs
   its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
   `join_after_early_stop = false` skips it, and so does an interrupt. With
-  `prune_based_on_upper_bound_`, it prunes on lower bounds of the cost still to come, computed from
+  `prune_by_upper_bound`, it prunes on lower bounds of the cost still to come, computed from
   the cost function itself, so they hold whichever components the objective reads;
   `heuristic_cost_index` is not read. What it reports about its
   bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every

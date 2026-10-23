@@ -246,9 +246,9 @@ def example_algorithm_params():
 
     # AlgorithmParams: stop after the first solution
     params = AlgorithmParams()
-    params.stop_after_X_solutions = 1
+    params.max_solutions = 1
     sols_one = rg.solve(Algorithm.Simple, params=params)
-    print_solutions("stop_after_X_solutions=1", sols_one)
+    print_solutions("max_solutions=1", sols_one)
     assert len(sols_one) == 1, f"Expected exactly 1 solution, got {len(sols_one)}"
 
 
@@ -386,13 +386,13 @@ def example_bitset_resource():
 
 
 # ── Example 10: Pulling algorithm with truncated labeling ────────────────────
-# num_labels_to_extend_by_node limits how many labels are processed per node
-# per phase.  num_max_phases allows the algorithm to iterate and recover labels
+# max_extended_labels_per_node limits how many labels are processed per node
+# per phase.  max_phases allows the algorithm to iterate and recover labels
 # that were truncated in earlier phases, converging towards the optimal solution.
 
 
 def example_pulling_truncated():
-    """Pulling algorithm with num_labels_to_extend_by_node and num_max_phases."""
+    """Pulling algorithm with max_extended_labels_per_node and max_phases."""
     rg = ResourceGraph()
     rg.add_real_resource(
         AdditionExtensionFunction(),
@@ -419,9 +419,9 @@ def example_pulling_truncated():
     # Truncated to 1 label/node with 1 phase — may explore fewer paths but still
     # finds a feasible solution.
     params = AlgorithmParams()
-    params.num_labels_to_extend_by_node = 1
-    params.num_max_phases = 1
-    params.stop_after_X_solutions = 1
+    params.max_extended_labels_per_node = 1
+    params.max_phases = 1
+    params.max_solutions = 1
     sols_trunc = rg.solve(Algorithm.Pulling, params=params)
     print_solutions("Pulling (1 label/node, 1 phase)", sols_trunc)
     assert len(sols_trunc) >= 1, "Expected at least one solution with truncated Pulling"
@@ -429,8 +429,8 @@ def example_pulling_truncated():
     # Multiple phases restore truncated labels and let the algorithm converge;
     # with enough phases the optimal cost is recovered.
     params2 = AlgorithmParams()
-    params2.num_labels_to_extend_by_node = 1
-    params2.num_max_phases = 5
+    params2.max_extended_labels_per_node = 1
+    params2.max_phases = 5
     sols_phases = rg.solve(Algorithm.Pulling, params=params2)
     print_solutions("Pulling (1 label/node, 5 phases)", sols_phases)
     assert len(sols_phases) >= 1
@@ -444,7 +444,7 @@ def example_pulling_truncated():
 # extracted from whatever labels have already reached sink nodes.
 # return_dominated_solutions=True makes the loop extract solutions as labels
 # hit sinks (instead of waiting until after the loop), enabling early stopping
-# via stop_after_X_solutions without having to run main_loop to completion.
+# via max_solutions without having to run main_loop to completion.
 
 
 def example_advanced_params():
@@ -481,13 +481,13 @@ def example_advanced_params():
         sols_early[0].cost, 5.0, abs_tol=1e-6
     ), f"Expected cost 5.0 with max_iterations=1, got {sols_early[0].cost}"
 
-    # return_dominated_solutions=True + stop_after_X_solutions=1:
+    # return_dominated_solutions=True + max_solutions=1:
     # the main loop yields each label as it reaches the sink and stops as soon
     # as one solution is collected — regardless of optimality.  The first label
     # to arrive at the sink is the direct arc 0→2 (cost 5), so that is returned.
     params2 = AlgorithmParams()
     params2.return_dominated_solutions = True
-    params2.stop_after_X_solutions = 1
+    params2.max_solutions = 1
     sols_first = rg.solve(Algorithm.Simple, params=params2)
     print_solutions("Simple (return_dominated=True, stop_after=1)", sols_first)
     assert len(sols_first) == 1
@@ -733,7 +733,7 @@ def example_bucket_labels():
 
     # Default BucketAlgorithmParams (bucket/sort resource = CostRC = real)
     bp_default = BucketAlgorithmParams()
-    bp_default.range_buckets = 5
+    bp_default.bucket_width = 5
     sols_default = rg.solve(params=bp_default)
     print_solutions("BucketAlgorithmParams default", sols_default)
     assert sols_default, "bucket solve (default) returned no solutions"
@@ -743,7 +743,7 @@ def example_bucket_labels():
 
     # Explicit bucket_resource_type='real'
     bp_real = BucketAlgorithmParams()
-    bp_real.range_buckets = 5
+    bp_real.bucket_width = 5
     bp_real.bucket_resource_type = "real"
     sols_real = rg.solve(params=bp_real)
     print_solutions("BucketAlgorithmParams bucket_resource_type='real'", sols_real)
@@ -777,7 +777,7 @@ def example_bucket_labels():
     ref2_cost = ref2[0].cost
 
     bp_int = BucketAlgorithmParams()
-    bp_int.range_buckets = 3
+    bp_int.bucket_width = 3
     bp_int.bucket_resource_type = "int"
     sols_int = rg2.solve(params=bp_int)
     print_solutions("BucketAlgorithmParams bucket_resource_type='int'", sols_int)
@@ -797,7 +797,7 @@ def example_bucket_labels():
 
     # ── BucketAlgorithmParams inherits all AlgorithmParams fields ─────────────
     bp_inh = BucketAlgorithmParams()
-    bp_inh.stop_after_X_solutions = 1
+    bp_inh.max_solutions = 1
     sols_one = rg.solve(params=bp_inh)
     assert len(sols_one) == 1, f"Expected 1 solution, got {len(sols_one)}"
 
@@ -805,7 +805,7 @@ def example_bucket_labels():
     # rg2 has real at registration pos 0 and int at pos 1.
     # bucket_resource_pos=1 → int resource; sort_resource_pos=0 → real (cost).
     bp_pos = BucketAlgorithmParams(
-        range_buckets=3,
+        bucket_width=3,
         bucket_resource_pos=1,
         sort_resource_pos=0,
     )
@@ -818,7 +818,7 @@ def example_bucket_labels():
 
     # Bucket by real (pos 0), sort by real (pos 0) — same type, first instance.
     bp_pos_real = BucketAlgorithmParams(
-        range_buckets=5,
+        bucket_width=5,
         bucket_resource_pos=0,
         sort_resource_pos=0,
     )

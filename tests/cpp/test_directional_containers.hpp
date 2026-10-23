@@ -287,7 +287,7 @@ TEST(DirectionalContainers, ForwardBucketsUnchanged) {
         "the Direction parameter must be defaulted, not required");
 
     // copy() keeps the direction.
-    Buckets buckets(/*range_buckets=*/10, /*bucket_resource_index=*/0, /*sort_resource_index=*/0);
+    Buckets buckets(/*bucket_width=*/10, /*bucket_resource_index=*/0, /*sort_resource_index=*/0);
     auto copied = buckets.copy();
     static_assert(std::is_same_v<decltype(copied), Buckets>,
                   "LabelBuckets::copy() must preserve the direction");
@@ -337,7 +337,7 @@ TEST(DirectionalContainers, ContainersRebindTheirOwnDirection) {
                   "a container that already compares backward rebinds to itself");
 
     // The rebound buckets compare backward: the later deadline dominates.
-    const Buckets buckets(/*range_buckets=*/10,
+    const Buckets buckets(/*bucket_width=*/10,
                           /*bucket_resource_index=*/0,
                           /*sort_resource_index=*/0);
     auto backward = detail::rebind_direction<Buckets, BackwardDirection>::convert(buckets);

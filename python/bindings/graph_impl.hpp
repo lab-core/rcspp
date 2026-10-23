@@ -90,7 +90,7 @@ struct PyAlgorithmParams : AlgorithmBaseParams {
 };
 
 struct PyBucketAlgorithmParams : PyAlgorithmParams {
-        size_t range_buckets = 100;  // NOLINT(readability-magic-numbers)
+        size_t bucket_width = 100;  // NOLINT(readability-magic-numbers)
         size_t bucket_resource_index = 0;
         size_t sort_resource_index = 0;
         std::string
@@ -276,7 +276,7 @@ SolveResult run_bucket_solve(SolverAlgorithm alg, ResourceGraphType& rg, double 
                     py_p.sort_resource_index,
                     factory.template get_num_resource_type<CostResourceType>());
         using BucketLC = LabelBuckets<ResourceType, CostResourceType, CompositionType>;
-        BucketLC lc(py_p.range_buckets, py_p.bucket_resource_index, py_p.sort_resource_index);
+        BucketLC lc(py_p.bucket_width, py_p.bucket_resource_index, py_p.sort_resource_index);
         auto p = py_p.template to_params<BucketLC>(std::move(lc));
         result = dispatch_algorithm<ResourceGraphType, CostResourceType, BucketLC>(alg,
                                                                                    rg,

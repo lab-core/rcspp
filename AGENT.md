@@ -184,7 +184,7 @@ rg.clone()                          # deep copy, independent remove/restore stat
 
 ```python
 p = AlgorithmParams()
-p.stop_after_X_solutions  = 10
+p.max_solutions           = 10
 p.max_iterations          = 1000
 p.timeout_s               = 30.0
 p.tabu_tenure             = 5

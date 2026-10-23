@@ -164,11 +164,11 @@ TEST(SimpleDominanceAlgorithmTest, NoPathReturnsEmpty) {
     EXPECT_TRUE(result.solutions.empty());
 }
 
-/// @brief stop_after_X_solutions=1 on two-path graph gives MaxSolutions status.
+/// @brief max_solutions=1 on two-path graph gives MaxSolutions status.
 TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
@@ -187,7 +187,7 @@ TEST(SimpleDominanceAlgorithmTest, ReturnDominatedSolutions) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.return_dominated_solutions = true;
-    params.stop_after_X_solutions = 2;
+    params.max_solutions = 2;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
@@ -290,7 +290,7 @@ template <template <typename, typename> class Algorithm>
 size_t extended_labels(bool pressure) {
     auto graph = fan();
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
-    params.num_labels_to_extend_by_node = 2;
+    params.max_extended_labels_per_node = 2;
     if (pressure) {
         put_under_pressure(&params);
         params.memory_pressure_max_labels_per_node = 200;

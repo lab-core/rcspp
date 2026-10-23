@@ -129,21 +129,21 @@ TEST(GreedyAlgorithmTest, TwoPathGraphPicksBestFirst) {
     EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
 }
 
-/// @brief stop_after_X_solutions = 1 stops at the first solution.
+/// @brief max_solutions = 1 stops at the first solution.
 TEST(GreedyAlgorithmTest, StopAfterOneSolution) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<GreedyAlgorithm>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
     EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
 
-/// @brief stop_after_X_solutions=1 returns at most one solution.
+/// @brief max_solutions=1 returns at most one solution.
 TEST(GreedyAlgorithmTest, StopAfterOneSolutionBound) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<GreedyAlgorithm>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
@@ -157,11 +157,11 @@ TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief GreedyAlgorithm with prune_based_on_upper_bound_ covers that branch.
+/// @brief GreedyAlgorithm with prune_by_upper_bound covers that branch.
 TEST(GreedyAlgorithmTest, PruneBasedOnUpperBound) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
-    params.prune_based_on_upper_bound_ = true;
+    params.prune_by_upper_bound = true;
     const auto result = g->solve<GreedyAlgorithm>(params, /*upper_bound=*/-1.0);
     // upper_bound=-1 prunes all solutions (all paths have cost <= -4 < -1 is false)
     // Actually solutions cost -6 and -4, so upper_bound=-1: -6 < -1 yes, so the
@@ -248,12 +248,12 @@ TEST(TabuSearchAlgorithmTest, AspirationUsesTabuArcs) {
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief TabuSearch: stop_after_X_solutions=1 stops after the first solution.
+/// @brief TabuSearch: max_solutions=1 stops after the first solution.
 TEST(TabuSearchAlgorithmTest, StopAfterOneSolution) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<TabuSearchAlgorithm>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
     EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
@@ -275,17 +275,17 @@ TEST(TabuSearchAlgorithmTest, ReturnDominatedSolutions) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.return_dominated_solutions = true;
-    params.stop_after_X_solutions = 2;
+    params.max_solutions = 2;
     const auto result = g->solve<TabuSearchAlgorithm>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
 
-/// @brief TabuSearch: forbidden_tabu excludes source/sink arcs from tabu list.
+/// @brief TabuSearch: tabu_exempt_node_ids excludes source/sink arcs from tabu list.
 TEST(TabuSearchAlgorithmTest, ForbiddenTabuExcludesArcs) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    params.forbidden_tabu = {0U, 3U};  // source and sink node ids
+    params.tabu_exempt_node_ids = {0U, 3U};  // source and sink node ids
     const auto result = g->solve<TabuSearchAlgorithm>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
@@ -330,12 +330,12 @@ TEST(ImprovingTabuSearchTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief ImprovingTabuSearch: stop_after_X_solutions=1 stops early.
+/// @brief ImprovingTabuSearch: max_solutions=1 stops early.
 TEST(ImprovingTabuSearchTest, StopAfterOneSolution) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<ImprovingTabuSearch>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
@@ -361,7 +361,7 @@ TEST(ImprovingTabuSearchTest, ReturnDominatedSolutions) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.return_dominated_solutions = true;
-    params.stop_after_X_solutions = 3;
+    params.max_solutions = 3;
     const auto result = g->solve<ImprovingTabuSearch>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
@@ -416,22 +416,22 @@ TEST(DiversificationSearchTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief DiversificationSearch: stop_after_X_solutions=1 stops after first solution.
+/// @brief DiversificationSearch: max_solutions=1 stops after first solution.
 TEST(DiversificationSearchTest, StopAfterOneSolution) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<DiversificationSearch>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
-/// @brief DiversificationSearch: forbidden_tabu preserves arcs involving those nodes.
+/// @brief DiversificationSearch: tabu_exempt_node_ids preserves arcs involving those nodes.
 TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
-    params.forbidden_tabu = {0U, 3U};  // source and sink
+    params.tabu_exempt_node_ids = {0U, 3U};  // source and sink
     const auto result = g->solve<DiversificationSearch>(params);
     EXPECT_FALSE(result.solutions.empty());
 }

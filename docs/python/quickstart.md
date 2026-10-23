@@ -127,7 +127,7 @@ result = rg.solve()
 from rcspp._core.graph import AlgorithmParams, Algorithm
 
 params = AlgorithmParams()
-params.stop_after_X_solutions = 10
+params.max_solutions = 10
 params.max_iterations = 100
 params.seed = 42
 

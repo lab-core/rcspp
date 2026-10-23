@@ -142,7 +142,7 @@ using BackwardSimpleDominanceAlgorithm =
 
 }  // namespace detail
 
-/// @brief Extends labels first in, first out, up to @c num_labels_to_extend_by_node labels per
+/// @brief Extends labels first in, first out, up to @c max_extended_labels_per_node labels per
 ///        node.
 ///
 /// Searches forward, backward or in both directions, as its params' @c direction asks (through

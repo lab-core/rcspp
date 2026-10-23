@@ -378,7 +378,7 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
         << "with join_after_early_stop off, a memory-limit stop must skip the join";
 }
 
-/// @brief `stop_after_X_solutions` deliberately does NOT skip the join.
+/// @brief `max_solutions` deliberately does NOT skip the join.
 ///
 /// A solution budget caps what is returned, not the search, so skipping the join would change the
 /// answer.
@@ -387,7 +387,7 @@ TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
 
     auto graph = bv::join_only_graph();
     auto params = bv::clocked_params(20.0);
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
 
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
@@ -577,7 +577,7 @@ TEST(BidirectionalValidation, BucketedBackwardContainerMatchesTheList) {
         }
 
         LabelList<bv::Composed, BackwardDirection> list;
-        Buckets buckets(/*range_buckets=*/20, bucket_index, sort_index);
+        Buckets buckets(/*bucket_width=*/20, bucket_index, sort_index);
         for (size_t i = 0; i < values.size(); ++i) {
             bv::insert_non_dominated(&list, for_list[i].get());
             bv::insert_non_dominated(&buckets, for_buckets[i].get());
@@ -1189,7 +1189,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
     auto graph = bv::clocked_graph(windows, arcs);
     auto params = bv::clocked_params(5.0);
     params.heuristic_cost_index = 5;
-    params.prune_based_on_upper_bound_ = true;
+    params.prune_by_upper_bound = true;
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     SolveResult result;
@@ -1253,7 +1253,7 @@ TEST(BidirectionalValidation, TheJoinBuildsAtMostStopAfterXSolutions) {
     const auto solve = [&](size_t budget) {
         auto graph = build();
         auto params = bv::clocked_params(1.0);
-        params.stop_after_X_solutions = budget;
+        params.max_solutions = budget;
         auto algorithm =
             graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
         // A finite bound with the prune off asks for every column under it.

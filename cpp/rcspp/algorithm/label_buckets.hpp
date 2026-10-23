@@ -143,11 +143,11 @@ class LabelList {
 /// total labels available and labels actually visited.  `print_labels` reports
 /// both visit ratios so pruning efficiency can be compared symmetrically.
 ///
-/// ## Adaptive bucket range
+/// ## Adaptive bucket width
 ///
-/// `range_buckets_` is fixed at construction.  `suggest_range(target_buckets)`
+/// `bucket_width_` is fixed at construction.  `suggest_bucket_width(target_buckets)`
 /// estimates the resource spread from the peak simultaneous bucket count and
-/// returns a range calibrated for a chosen number of buckets.  Call it after a
+/// returns a width calibrated for a chosen number of buckets.  Call it after a
 /// warm-up phase and pass the result to the next `LabelBuckets` constructor to
 /// improve bucket utilisation.
 ///
@@ -200,17 +200,17 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
     public:
         /// @brief Constructs a bucket container.
         ///
-        /// @param range_buckets         Width of each bucket along the bucket resource axis.
+        /// @param bucket_width          Width of each bucket along the bucket resource axis.
         /// @param bucket_resource_index Index of the bucket resource in the composite resource.
         /// @param sort_resource_index   Index of the sort resource in the composite resource.
-        LabelBuckets(size_t range_buckets, size_t bucket_resource_index, size_t sort_resource_index)
-            : range_buckets_(range_buckets),
+        LabelBuckets(size_t bucket_width, size_t bucket_resource_index, size_t sort_resource_index)
+            : bucket_width_(bucket_width),
               bucket_resource_index_(bucket_resource_index),
               sort_resource_index_(sort_resource_index) {}
 
         /// @brief Returns an empty container with the same configuration.
         [[nodiscard]] LabelBuckets copy() const {
-            return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
+            return LabelBuckets(bucket_width_, bucket_resource_index_, sort_resource_index_);
         }
 
         /// @brief Returns an empty container with the same configuration that compares labels in
@@ -224,7 +224,7 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         [[nodiscard]] LabelBuckets<BucketResource, SortResource, ResourceType, TargetDirection>
         with_direction() const {
             return LabelBuckets<BucketResource, SortResource, ResourceType, TargetDirection>(
-                range_buckets_,
+                bucket_width_,
                 bucket_resource_index_,
                 sort_resource_index_);
         }
@@ -407,30 +407,30 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
             LOG_TRACE("is_dominated     visit ratio: ", dom_ratio, "\n");
         }
 
-        /// @brief Suggests a bucket range for a desired number of buckets.
+        /// @brief Suggests a bucket width for a desired number of buckets.
         ///
         /// The estimate is derived from the peak simultaneous bucket count observed
         /// during the solve, which approximates the resource spread.  Call after a
         /// warm-up phase and pass the result to the next `LabelBuckets` constructor:
         ///
         /// ```cpp
-        /// size_t better_range = container.suggest_range(50);
+        /// size_t better_width = container.suggest_bucket_width(50);
         /// auto next = LabelBuckets<BucketResource, SortResource, ResourceType>(
-        ///     better_range, bucket_resource_index, sort_resource_index);
+        ///     better_width, bucket_resource_index, sort_resource_index);
         /// ```
         ///
         /// @param target_buckets  Desired number of buckets in the next phase.
-        /// @return Suggested range_buckets value (>= 1).
-        [[nodiscard]] size_t suggest_range(size_t target_buckets) const {
+        /// @return Suggested bucket_width value (>= 1).
+        [[nodiscard]] size_t suggest_bucket_width(size_t target_buckets) const {
             if (target_buckets == 0 || max_live_buckets_ == 0) {
-                return range_buckets_;
+                return bucket_width_;
             }
-            const size_t estimated_span = max_live_buckets_ * range_buckets_;
+            const size_t estimated_span = max_live_buckets_ * bucket_width_;
             return std::max<size_t>(1, (estimated_span + target_buckets - 1) / target_buckets);
         }
 
     private:
-        size_t range_buckets_;
+        size_t bucket_width_;
         size_t bucket_resource_index_;
         size_t sort_resource_index_;
         std::vector<Bucket<Resource<BucketResource>>> buckets_;
@@ -447,7 +447,7 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         mutable size_t num_dom_labels_{0};
         mutable size_t num_dom_visited_{0};
 
-        // Peak simultaneous bucket count; drives suggest_range().
+        // Peak simultaneous bucket count; drives suggest_bucket_width().
         size_t max_live_buckets_{0};
 
         // ── Resource accessors ───────────────────────────────────────────────────
@@ -530,7 +530,7 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
             buckets_.emplace(buckets_.begin() + static_cast<std::ptrdiff_t>(idx),
                              begin,
                              begin_bucket_resource,
-                             range_buckets_);
+                             bucket_width_);
             begin_label_to_bucket_idx_[*begin] = idx;
 
             if (buckets_.size() > max_live_buckets_) {

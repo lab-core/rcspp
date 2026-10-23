@@ -27,7 +27,7 @@ namespace rcspp::detail {
 
 /// @brief A stop that ends a bidirectional search while labels are still waiting to be extended.
 ///
-/// `stop_after_X_solutions` and `max_iterations` are not run-level stops: the join always runs
+/// `max_solutions` and `max_iterations` are not run-level stops: the join always runs
 /// after either.
 enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 
@@ -285,7 +285,7 @@ class BidirectionalDominanceAlgorithm
 
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
-            if (this->params_.prune_based_on_upper_bound_ &&
+            if (this->params_.prune_by_upper_bound &&
                 label_ptr->get_cost() + completion_bound<Direction>(node_pos) >=
                     this->best_cost_upper_bound_) {
                 this->template remove_label<Direction>(label_iterator_pair.second, containers);
@@ -298,7 +298,7 @@ class BidirectionalDominanceAlgorithm
                     this->best_cost_upper_bound_ = label_ptr->get_cost();
                 }
                 // Record now: a terminal label dominated later is gone by the final sweep, and
-                // `stop_after_X_solutions` needs `solutions_` to grow during the search.
+                // `max_solutions` needs `solutions_` to grow during the search.
                 if (this->params_.return_dominated_solutions) {
                     this->template extract_path_solution<Direction>(*label_ptr);
                 }
@@ -395,9 +395,9 @@ class BidirectionalDominanceAlgorithm
                 .critical_resource_index = this->params_.critical_resource_index,
                 // After an early stop, prune against the incumbent whatever the caller asked: the
                 // join only owes the improving paths, and that keeps its output to a handful.
-                .prune_requested = this->params_.prune_based_on_upper_bound_ || stopped_early,
+                .prune_requested = this->params_.prune_by_upper_bound || stopped_early,
                 .cost_upper_bound = this->cost_upper_bound_,
-                .max_solutions = this->params_.stop_after_X_solutions,
+                .max_solutions = this->params_.max_solutions,
             };
             joiner_.join(*this->graph_,
                          this->non_dominated_labels_by_node_pos_,
@@ -410,7 +410,7 @@ class BidirectionalDominanceAlgorithm
         /// @brief A lower bound on the cost a label at @p node_pos still has to add to become a
         ///        complete path: to a sink going forward, from a source going backward.
         ///
-        /// 0 when @c prune_based_on_upper_bound_ is off; minus infinity when no bound could be
+        /// 0 when @c prune_by_upper_bound is off; minus infinity when no bound could be
         /// computed.
         template <typename Direction>
         [[nodiscard]] double completion_bound(size_t node_pos) const {
@@ -606,7 +606,7 @@ class BidirectionalDominanceAlgorithm
 
             // Only the completion-bound prune reads these; skip the relaxations when it is off.
             // The vectors stay sized above because `completion_bound` uses `.at()`.
-            if (!this->params_.prune_based_on_upper_bound_) {
+            if (!this->params_.prune_by_upper_bound) {
                 return;
             }
 
