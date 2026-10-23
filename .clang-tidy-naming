@@ -1,0 +1,36 @@
+# The naming conventions of AGENT.md ("Naming conventions"), as clang-tidy checks.
+#
+# Kept out of .clang-tidy on purpose: the pre-commit hook runs clang-tidy with -fix, which would
+# rename a declaration in the changed files and leave its uses elsewhere broken. Run it report-only:
+#   clang-tidy --config-file=.clang-tidy-naming cpp/rcspp/rcspp.hpp -- -xc++ -std=c++20 -Icpp
+Checks: '-*,readability-identifier-naming'
+HeaderFilterRegex: 'cpp[/\]rcspp[/\].*'
+CheckOptions:
+  # Types, enums and their values: CamelCase. Standard-library-style traits (is_numerical_resource,
+  # rebind_direction) keep snake_case.
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.ClassIgnoredRegexp: '^[a-z][a-z0-9_]*$'
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.StructIgnoredRegexp: '^[a-z][a-z0-9_]*$'
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.ConceptCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  # Standard-library-style aliases keep snake_case: traits' ..._t, and the std::chrono names.
+  readability-identifier-naming.TypeAliasIgnoredRegexp: '^([a-z][a-z0-9_]*_t|type|value_type|iterator|const_iterator|clock|rep|duration|time_point)$'
+  # Functions and members: snake_case; non-public data members end in _.
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.MethodCase: lower_case
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.PrivateMemberSuffix: _
+  readability-identifier-naming.ProtectedMemberSuffix: _
+  # Constants: kCamelCase. The static members of traits and policies follow the standard library
+  # (value, kind, has_backward), and so do traits' values (..._v): snake_case.
+  readability-identifier-naming.ConstexprVariableCase: CamelCase
+  readability-identifier-naming.ConstexprVariablePrefix: k
+  readability-identifier-naming.ConstexprVariableIgnoredRegexp: '^[a-z][a-z0-9_]*$'
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  readability-identifier-naming.GlobalConstantPrefix: k
+  readability-identifier-naming.GlobalConstantIgnoredRegexp: '^[a-z][a-z0-9_]*_v$'
+  # Template parameters: CamelCase, spelled out.
+  readability-identifier-naming.TemplateParameterCase: CamelCase

@@ -461,7 +461,12 @@ line. A fragment states what it takes from the reader in a comment above it, suc
 
 ## Naming conventions
 
-Follow these when adding a name, in C++ and in Python.
+Follow these when adding a name, in C++ and in Python. `.clang-tidy-naming` checks the C++ ones;
+CI runs it on every pull request and reports what it finds, without failing:
+
+```bash
+clang-tidy --config-file=.clang-tidy-naming cpp/rcspp/rcspp.hpp -- -xc++ -std=c++20 -Icpp
+```
 
 - **Case.** Classes, structs, enums, concepts and enum values are `CamelCase`
   (`SearchDirection::Forward`, `AlgorithmStatus::MaxSolutions`). Functions, methods, variables and
@@ -469,9 +474,10 @@ Follow these when adding a name, in C++ and in Python.
   or `_t` for the value or type (`declares_directional_resource_kind_v`, `rebind_direction`).
 - **Members.** Non-public data members end in `_` (`back_dominance_reversed_`); public fields of a
   struct do not (`AlgorithmBaseParams::max_solutions`).
-- **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). A few older ones are
-  still in SCREAMING_CASE: `MAX_INT`, the `FNV_*` constants, `DEFAULT_LABEL_POOL_SIZE`, and the
-  `timer.cpp` constants.
+- **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). The static members of
+  traits and policies follow the standard library instead (`value`, `kind`, `has_backward`). A
+  few older constants are still in SCREAMING_CASE: `MAX_INT`, the `FNV_*` constants,
+  `DEFAULT_LABEL_POOL_SIZE`, and the `timer.cpp` constants.
 - **Template parameters** are spelled out and end in `Type` when they stand for a type
   (`ResourceType`, `LabelContainerType`, `GraphType`); direction policies are `TargetDirection` or
   `LabelDirection`.
