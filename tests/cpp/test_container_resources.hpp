@@ -3,9 +3,9 @@
 
 #pragma once
 
-// Tests for SetResource, BitsetResource, ContainDominanceFunction,
-// InclusionDominanceFunction, IntersectionExtensionFunction,
-// UnionExtensionFunction, and SubtractExtensionFunction.
+// Tests for SetResource, BitsetResource, SupersetDominanceFunction,
+// SubsetDominanceFunction, IntersectionExtensionFunction,
+// UnionExtensionFunction, and DifferenceExtensionFunction.
 
 #include <gtest/gtest.h>
 
@@ -581,12 +581,12 @@ TEST(BitsetResource, ToStringNonEmpty) {
 }
 
 // ============================================================================
-// ContainDominanceFunction<SetResource<int>> tests
+// SupersetDominanceFunction<SetResource<int>> tests
 // ============================================================================
 
 /// @brief check_dominance: lhs dominates rhs when lhs includes rhs's container.
-TEST(ContainDominanceFunction, DominatesWhenIncludes) {
-    ContainDominanceFunction<SetResource<int>> fn;
+TEST(SupersetDominanceFunction, DominatesWhenIncludes) {
+    SupersetDominanceFunction<SetResource<int>> fn;
     SetResource<int> lhs;
     lhs.add(1);
     lhs.add(2);
@@ -598,8 +598,8 @@ TEST(ContainDominanceFunction, DominatesWhenIncludes) {
 }
 
 /// @brief check_dominance: lhs does not dominate when it doesn't include rhs.
-TEST(ContainDominanceFunction, DoesNotDominateWhenMissingElement) {
-    ContainDominanceFunction<SetResource<int>> fn;
+TEST(SupersetDominanceFunction, DoesNotDominateWhenMissingElement) {
+    SupersetDominanceFunction<SetResource<int>> fn;
     SetResource<int> lhs;
     lhs.add(1);
     SetResource<int> rhs;
@@ -609,8 +609,8 @@ TEST(ContainDominanceFunction, DoesNotDominateWhenMissingElement) {
 }
 
 /// @brief fast_check_dominance: rhs.size() <= lhs.size() + delta.
-TEST(ContainDominanceFunction, FastCheckDominance) {
-    ContainDominanceFunction<SetResource<int>> fn;
+TEST(SupersetDominanceFunction, FastCheckDominance) {
+    SupersetDominanceFunction<SetResource<int>> fn;
     SetResource<int> lhs;
     lhs.add(1);
     lhs.add(2);
@@ -621,12 +621,12 @@ TEST(ContainDominanceFunction, FastCheckDominance) {
 }
 
 // ============================================================================
-// InclusionDominanceFunction<SetResource<int>> tests
+// SubsetDominanceFunction<SetResource<int>> tests
 // ============================================================================
 
 /// @brief check_dominance: lhs dominates rhs when rhs includes lhs's container.
-TEST(InclusionDominanceFunction, DominatesWhenRhsIncludesLhs) {
-    InclusionDominanceFunction<SetResource<int>> fn;
+TEST(SubsetDominanceFunction, DominatesWhenRhsIncludesLhs) {
+    SubsetDominanceFunction<SetResource<int>> fn;
     SetResource<int> lhs;
     lhs.add(1);
     SetResource<int> rhs;
@@ -636,8 +636,8 @@ TEST(InclusionDominanceFunction, DominatesWhenRhsIncludesLhs) {
 }
 
 /// @brief check_dominance: lhs does not dominate when rhs does not include lhs.
-TEST(InclusionDominanceFunction, DoesNotDominate) {
-    InclusionDominanceFunction<SetResource<int>> fn;
+TEST(SubsetDominanceFunction, DoesNotDominate) {
+    SubsetDominanceFunction<SetResource<int>> fn;
     SetResource<int> lhs;
     lhs.add(1);
     lhs.add(2);
@@ -647,8 +647,8 @@ TEST(InclusionDominanceFunction, DoesNotDominate) {
 }
 
 /// @brief fast_check_dominance: lhs.size() <= rhs.size() + delta.
-TEST(InclusionDominanceFunction, FastCheckDominance) {
-    InclusionDominanceFunction<SetResource<int>> fn;
+TEST(SubsetDominanceFunction, FastCheckDominance) {
+    SubsetDominanceFunction<SetResource<int>> fn;
     SetResource<int> lhs;
     lhs.add(1);
     SetResource<int> rhs;
@@ -703,12 +703,12 @@ TEST(UnionExtensionFunction, ExtendSetsUnion) {
 }
 
 // ============================================================================
-// SubtractExtensionFunction<SetResource<int>> tests
+// DifferenceExtensionFunction<SetResource<int>> tests
 // ============================================================================
 
 /// @brief extend() sets the extended resource to the set difference.
-TEST(SubtractExtensionFunction, ExtendSetsDifference) {
-    SubtractExtensionFunction<SetResource<int>> fn;
+TEST(DifferenceExtensionFunction, ExtendSetsDifference) {
+    DifferenceExtensionFunction<SetResource<int>> fn;
     SetResource<int> resource;
     resource.add(1);
     resource.add(2);
@@ -727,9 +727,9 @@ TEST(SubtractExtensionFunction, ExtendSetsDifference) {
 // BitsetResource with dominance/extension functions
 // ============================================================================
 
-/// @brief ContainDominanceFunction on BitsetResource.
-TEST(ContainDominanceFunctionBitset, DominatesSuperset) {
-    ContainDominanceFunction<BitsetResource<unsigned int>> fn;
+/// @brief SupersetDominanceFunction on BitsetResource.
+TEST(SupersetDominanceFunctionBitset, DominatesSuperset) {
+    SupersetDominanceFunction<BitsetResource<unsigned int>> fn;
     BitsetResource<unsigned int> lhs;
     lhs.add(kIdx1);
     lhs.add(kIdx2);
@@ -770,9 +770,9 @@ TEST(UnionExtensionFunctionBitset, ExtendSetsUnion) {
     EXPECT_TRUE(result.contains(kIdx2));
 }
 
-/// @brief SubtractExtensionFunction on BitsetResource.
-TEST(SubtractExtensionFunctionBitset, ExtendSetsDifference) {
-    SubtractExtensionFunction<BitsetResource<unsigned int>> fn;
+/// @brief DifferenceExtensionFunction on BitsetResource.
+TEST(DifferenceExtensionFunctionBitset, ExtendSetsDifference) {
+    DifferenceExtensionFunction<BitsetResource<unsigned int>> fn;
     BitsetResource<unsigned int> resource;
     resource.add(kIdx1);
     resource.add(kIdx2);
@@ -784,9 +784,9 @@ TEST(SubtractExtensionFunctionBitset, ExtendSetsDifference) {
     EXPECT_TRUE(result.contains(kIdx2));
 }
 
-/// @brief InclusionDominanceFunction on BitsetResource.
-TEST(InclusionDominanceFunctionBitset, DominatesSubset) {
-    InclusionDominanceFunction<BitsetResource<unsigned int>> fn;
+/// @brief SubsetDominanceFunction on BitsetResource.
+TEST(SubsetDominanceFunctionBitset, DominatesSubset) {
+    SubsetDominanceFunction<BitsetResource<unsigned int>> fn;
     BitsetResource<unsigned int> lhs;
     lhs.add(kIdx1);
     BitsetResource<unsigned int> rhs;

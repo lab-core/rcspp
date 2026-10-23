@@ -366,7 +366,7 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
             std::move(memory),
             std::move(feasibility),
             std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+            std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1, /*source=*/false, /*sink=*/true);
@@ -448,7 +448,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
                 forbidden,
                 /*forbidden=*/true),
             std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+            std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
         for (size_t node = 0; node < num_nodes; ++node) {
             graph->add_node(node, /*source=*/node == 0, /*sink=*/node == sink);
@@ -625,7 +625,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
                     self_forbidden,
                     /*forbidden=*/true),
                 std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-                std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+                std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
         }
 
         for (size_t node : node_ids) {

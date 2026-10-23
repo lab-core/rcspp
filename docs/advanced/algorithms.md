@@ -273,7 +273,7 @@ depends on where the container's elements come from:
 - `NgPathExtensionFunction` reads them off the arc's *endpoints* and swaps which endpoint is "the
   node being left" per direction — `DirectionalResourceKind::ArcEndpoints`. The memory at `v` is the
   nodes before it going forward and the nodes after it going backward. Correct.
-- `UnionExtensionFunction`, `IntersectionExtensionFunction` and `SubtractExtensionFunction`
+- `UnionExtensionFunction`, `IntersectionExtensionFunction` and `DifferenceExtensionFunction`
   accumulate the arc's *value*, which is the same object both ways —
   `DirectionalResourceKind::ArcValue`. With the usual `{origin}` payload the backward memory at `v`
   contains `v` itself, so the feasibility test rejects every backward label the moment it is created

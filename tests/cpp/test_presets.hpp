@@ -209,7 +209,7 @@ TEST(Presets, NgPathResourceMatchesTheHandBuiltModel) {
             forbidden,
             /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     by_hand->add_node(0, /*source=*/true, /*sink=*/false);
     by_hand->add_node(1, /*source=*/false, /*sink=*/true);
     by_hand->add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}), 0, 1, 10.0);
@@ -259,7 +259,7 @@ TEST(Presets, ElementaryResourceIsNgPathWithUniversalNeighborhoods) {
             forbidden,
             /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     build_arcs(by_hand.get());
 
     presets_test::expect_same_solutions(

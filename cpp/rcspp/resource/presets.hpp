@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/inclusion_dominance_function.hpp"
+#include "rcspp/resource/concrete/functions/dominance/subset_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/capacity_extension_function.hpp"
@@ -188,7 +188,7 @@ void add_capacity_resource(GraphType& graph, std::type_identity_t<ValueType> cap
 ///
 /// Expands to `add_resource(NgPathExtensionFunction(neighborhoods),
 /// IntersectionFeasibilityFunction({v: {v}}, forbidden = true), TrivialCostFunction,
-/// InclusionDominanceFunction)`. The forbidden set `{v}` is derived for every node that
+/// SubsetDominanceFunction)`. The forbidden set `{v}` is derived for every node that
 /// @p neighborhoods mentions, as a key or a member.
 ///
 /// @tparam ResourceType The container resource type.
@@ -219,7 +219,7 @@ void add_ng_path_resource(GraphType& graph, std::map<size_t, std::set<ValueType>
         std::move(extension),
         std::move(feasibility),
         std::make_unique<TrivialCostFunction<ResourceType>>(),
-        std::make_unique<InclusionDominanceFunction<ResourceType>>());
+        std::make_unique<SubsetDominanceFunction<ResourceType>>());
 }
 
 /// @brief An elementary path: no node may be visited twice.

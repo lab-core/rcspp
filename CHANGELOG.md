@@ -75,6 +75,10 @@ New features are summarised, with a pointer to where they are documented.
   - `range_buckets` is `bucket_width`, on `BucketAlgorithmParams` in Python and on the
     `LabelBuckets` constructor, and `LabelBuckets::suggest_range` is `suggest_bucket_width`: it is
     the width of a bucket along its resource, not a number of buckets.
+  - `ContainDominanceFunction` is `SupersetDominanceFunction`, `InclusionDominanceFunction` is
+    `SubsetDominanceFunction`, and `SubtractExtensionFunction` is `DifferenceExtensionFunction`,
+    in C++ and in Python, with their headers. The first two names were synonyms for opposite
+    rules; the new ones say which set dominates.
 
 ### Added
 

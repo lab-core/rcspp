@@ -456,7 +456,7 @@ inline NgGeneratedInstance build_ng_instance(const InstanceConfig& config) {
             std::move(forbidden_by_node),
             /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
 
     const std::set<size_t> sinks(draw.sinks.begin(), draw.sinks.end());
     for (size_t node_id = 0; node_id < config.num_nodes; ++node_id) {

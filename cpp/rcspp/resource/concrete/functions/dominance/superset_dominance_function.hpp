@@ -8,9 +8,8 @@
 
 namespace rcspp {
 
-/// @brief Dominance function based on containment: the left-hand resource dominates the
-///        right-hand resource when it includes all elements of the right-hand resource's
-///        container value.
+/// @brief Superset dominance: the left-hand resource dominates the right-hand resource when it
+///        includes every element of the right-hand resource's container value.
 ///
 /// A label `lhs` is considered to dominate label `rhs` (i.e., `lhs <= rhs`) if
 /// `lhs_resource` contains every element in `rhs_resource`.  Intuitively, a label
@@ -23,8 +22,8 @@ namespace rcspp {
 /// @tparam ResourceType The resource type whose value is a container supporting
 ///         `includes()` and `size()`.
 template <typename ResourceType>
-class ContainDominanceFunction
-    : public Clonable<ContainDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
+class SupersetDominanceFunction
+    : public Clonable<SupersetDominanceFunction<ResourceType>, DominanceFunction<ResourceType>> {
     public:
         /// @brief Checks whether `lhs_resource` dominates `rhs_resource` by containment.
         ///

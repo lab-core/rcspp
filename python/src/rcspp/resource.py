@@ -339,26 +339,26 @@ class IntersectionExtensionFunction(_GenericFunctionDescriptor):
         return _get_fn("IntersectionExtensionFunction", resource_type)()
 
 
-class SubtractExtensionFunction(_GenericFunctionDescriptor):
+class DifferenceExtensionFunction(_GenericFunctionDescriptor):
     """Extension function that removes the arc consumption set from the resource.
 
     Applicable to container resource types only.
     """
 
     def create(self, resource_type: str):
-        """Instantiate a SubtractExtensionFunction for *resource_type*.
+        """Instantiate a DifferenceExtensionFunction for *resource_type*.
 
         Args:
             resource_type: Container resource type string
                 (e.g. ``"real_set"``, ``"int_set"``, ``"bitset"``).
 
         Returns:
-            A typed C++ SubtractExtensionFunction instance.
+            A typed C++ DifferenceExtensionFunction instance.
         """
-        return _get_fn("SubtractExtensionFunction", resource_type)()
+        return _get_fn("DifferenceExtensionFunction", resource_type)()
 
 
-class InclusionDominanceFunction(_GenericFunctionDescriptor):
+class SubsetDominanceFunction(_GenericFunctionDescriptor):
     """Dominance function based on set inclusion.
 
     A label dominates another if its resource set is a subset of the other's. Applicable
@@ -366,19 +366,19 @@ class InclusionDominanceFunction(_GenericFunctionDescriptor):
     """
 
     def create(self, resource_type: str):
-        """Instantiate an InclusionDominanceFunction for *resource_type*.
+        """Instantiate an SubsetDominanceFunction for *resource_type*.
 
         Args:
             resource_type: Container resource type string
                 (e.g. ``"real_set"``, ``"int_set"``, ``"bitset"``).
 
         Returns:
-            A typed C++ InclusionDominanceFunction instance.
+            A typed C++ SubsetDominanceFunction instance.
         """
-        return _get_fn("InclusionDominanceFunction", resource_type)()
+        return _get_fn("SubsetDominanceFunction", resource_type)()
 
 
-class ContainDominanceFunction(_GenericFunctionDescriptor):
+class SupersetDominanceFunction(_GenericFunctionDescriptor):
     """Dominance function based on superset containment.
 
     A label dominates another if its resource set is a superset of the other's.
@@ -386,16 +386,16 @@ class ContainDominanceFunction(_GenericFunctionDescriptor):
     """
 
     def create(self, resource_type: str):
-        """Instantiate a ContainDominanceFunction for *resource_type*.
+        """Instantiate a SupersetDominanceFunction for *resource_type*.
 
         Args:
             resource_type: Container resource type string
                 (e.g. ``"real_set"``, ``"int_set"``, ``"bitset"``).
 
         Returns:
-            A typed C++ ContainDominanceFunction instance.
+            A typed C++ SupersetDominanceFunction instance.
         """
-        return _get_fn("ContainDominanceFunction", resource_type)()
+        return _get_fn("SupersetDominanceFunction", resource_type)()
 
 
 class SizeFeasibilityFunction(_GenericFunctionDescriptor):
@@ -508,9 +508,9 @@ _overridden = {
     "CapacityExtensionFunction",
     "UnionExtensionFunction",
     "IntersectionExtensionFunction",
-    "SubtractExtensionFunction",
-    "InclusionDominanceFunction",
-    "ContainDominanceFunction",
+    "DifferenceExtensionFunction",
+    "SubsetDominanceFunction",
+    "SupersetDominanceFunction",
     "SizeFeasibilityFunction",
     "NgPathExtensionFunction",
     "IntersectionFeasibilityFunction",

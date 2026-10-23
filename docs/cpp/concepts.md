@@ -82,7 +82,7 @@ Built-in implementations:
 | Class | Effect |
 |---|---|
 | `AdditionExtensionFunction<T>` | `result = current + arc_value` |
-| `SubtractExtensionFunction<T>` | `result = current - arc_value` |
+| `DifferenceExtensionFunction<T>` | `result = current - arc_value` |
 | `TimeWindowExtensionFunction<T>` | `result = max(current + travel, ready_time)` |
 | `CapacityExtensionFunction<T>` | `result = current + arc_value`, as a *threshold* (a capacity read backward) |
 | `UnionExtensionFunction<T>` | `result = current ∪ arc_value` |
@@ -129,8 +129,8 @@ Built-in implementations:
 |---|---|
 | `TrivialDominanceFunction<T>` | Never dominates (keep all labels) |
 | `ValueDominanceFunction<T>` | `lhs.value ≤ rhs.value` |
-| `InclusionDominanceFunction<T>` | `lhs ⊆ rhs` |
-| `ContainDominanceFunction<T>` | `lhs ⊇ rhs` |
+| `SubsetDominanceFunction<T>` | `lhs ⊆ rhs` |
+| `SupersetDominanceFunction<T>` | `lhs ⊇ rhs` |
 
 ### Cost function
 

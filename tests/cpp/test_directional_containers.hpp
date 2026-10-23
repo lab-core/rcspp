@@ -66,7 +66,7 @@ inline std::unique_ptr<Label<SetComposition>> make_set_label(size_t label_id,
     value.set_value(values);
     auto component = std::make_unique<Resource<SetResource<int>>>(
         value,
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>(),
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>(),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
         std::make_unique<TrivialCostFunction<SetResource<int>>>());
 

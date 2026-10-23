@@ -38,7 +38,7 @@ inline std::unique_ptr<rcspp::Resource<rcspp::SetResource<int>>> make_resource(
     const std::set<int>& values) {
     return std::make_unique<rcspp::Resource<rcspp::SetResource<int>>>(
         make_set_resource(values),
-        std::make_unique<rcspp::InclusionDominanceFunction<rcspp::SetResource<int>>>(),
+        std::make_unique<rcspp::SubsetDominanceFunction<rcspp::SetResource<int>>>(),
         std::make_unique<rcspp::TrivialFeasibilityFunction<rcspp::SetResource<int>>>(),
         std::make_unique<rcspp::TrivialCostFunction<rcspp::SetResource<int>>>());
 }

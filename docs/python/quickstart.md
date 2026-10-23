@@ -172,7 +172,7 @@ from rcspp.resource import (
     AdditionExtensionFunction, TrivialFeasibilityFunction,
     ValueCostFunction, ValueDominanceFunction,
     UnionExtensionFunction, SizeFeasibilityFunction,
-    TrivialCostFunction, InclusionDominanceFunction,
+    TrivialCostFunction, SubsetDominanceFunction,
 )
 
 rg = ResourceGraph()
@@ -190,7 +190,7 @@ rg.add_int_set_resource(
     UnionExtensionFunction(),            # each arc carries the set it adds
     SizeFeasibilityFunction(0, 10),      # path length ≤ 10 nodes
     TrivialCostFunction(),
-    InclusionDominanceFunction(),        # L1 dominates L2 if visited(L1) ⊆ visited(L2)
+    SubsetDominanceFunction(),        # L1 dominates L2 if visited(L1) ⊆ visited(L2)
 )
 
 # Arcs now carry one value per resource, in registration order:

@@ -19,13 +19,13 @@ from rcspp.graph import Algorithm, AlgorithmParams, BucketAlgorithmParams, Resou
 from rcspp.resource import (  # Generic (type-unspecialized) wrappers — resolved to the right C++ template; automatically by add_real_resource / add_int_resource / add_real_set_resource / etc.; Real-resource–only functions
     AdditionExtensionFunction,
     AdditionExtensionFunction_real,
-    ContainDominanceFunction,
-    InclusionDominanceFunction,
+    DifferenceExtensionFunction,
     IntersectionExtensionFunction,
     MinMaxFeasibilityFunction,
     MinMaxFeasibilityFunction_real,
     SizeFeasibilityFunction,
-    SubtractExtensionFunction,
+    SubsetDominanceFunction,
+    SupersetDominanceFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
     TrivialCostFunction,
@@ -314,7 +314,7 @@ def example_sort_nodes():
 
 def example_set_resource():
     """3-node graph: real cost + int_set resource tracking visited nodes
-    (InclusionDominance)."""
+    (SubsetDominance)."""
     rg = ResourceGraph()
     # real resource 0: accumulated arc cost (optimisation objective)
     rg.add_real_resource(
@@ -328,7 +328,7 @@ def example_set_resource():
         UnionExtensionFunction(),
         TrivialFeasibilityFunction(),
         TrivialCostFunction(),
-        InclusionDominanceFunction(),
+        SubsetDominanceFunction(),
     )
     rg.add_node(0, source=True)
     rg.add_node(1)
@@ -363,7 +363,7 @@ def example_bitset_resource():
         UnionExtensionFunction(),
         SizeFeasibilityFunction(0, 2),  # allow at most 2 distinct nodes in the set
         TrivialCostFunction(),
-        ContainDominanceFunction(),  # lhs dominates rhs if lhs ⊇ rhs
+        SupersetDominanceFunction(),  # lhs dominates rhs if lhs ⊇ rhs
     )
     rg.add_node(0, source=True)
     rg.add_node(1)
@@ -497,7 +497,7 @@ def example_advanced_params():
 
 
 # ── Example 12: SIGINT handler ────────────────────────────────────────────────
-# Uses ContainDominanceFunction on a uint_bitset resource to prevent all label
+# Uses SupersetDominanceFunction on a uint_bitset resource to prevent all label
 # pruning: every arc carries a unique bit, so every partial path has a distinct
 # bitset and no label ever dominates another, forcing 2^(N-2) labels to be kept.
 # A background thread fires SIGINT partway through and the test asserts that
@@ -520,14 +520,14 @@ def example_sigint_handler():
         ValueCostFunction(),
         ValueDominanceFunction(),
     )
-    # ContainDominanceFunction: A dominates B only if A.set ⊇ B.set.
+    # SupersetDominanceFunction: A dominates B only if A.set ⊇ B.set.
     # Each arc carries a unique bit → all partial paths have incomparable
     # bitsets → no pruning → exponential label count → long solve.
     rg.add_bitset_resource(
         UnionExtensionFunction(),
         TrivialFeasibilityFunction(),
         TrivialCostFunction(),
-        ContainDominanceFunction(),
+        SupersetDominanceFunction(),
     )
 
     N = 13

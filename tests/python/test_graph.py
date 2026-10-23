@@ -18,8 +18,8 @@ import networkx as nx  # noqa: E402
 from rcspp.graph import BucketAlgorithmParams, ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
-    InclusionDominanceFunction,
     MinMaxFeasibilityFunction,
+    SubsetDominanceFunction,
     TrivialCostFunction,
     TrivialFeasibilityFunction,
     UnionExtensionFunction,
@@ -552,7 +552,7 @@ def test_ensure_graph_superset_lookup():
         UnionExtensionFunction(),
         TrivialFeasibilityFunction(),
         TrivialCostFunction(),
-        InclusionDominanceFunction(),
+        SubsetDominanceFunction(),
     )
     # No direct class for (real, int, bitset); a superset class is selected.
     rg.update()

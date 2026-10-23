@@ -177,7 +177,7 @@ TEST(BackStart, CompositionStartsEachComponentIndependently) {
         std::make_unique<UnionExtensionFunction<SetResource<int>>>(),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
         std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     graph.add_node(0, /*source=*/true, /*sink=*/false);
     graph.add_node(2, /*source=*/false, /*sink=*/true);
     auto& arc = graph.add_arc<RealResource, RealResource, SetResource<int>>(

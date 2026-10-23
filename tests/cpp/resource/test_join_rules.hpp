@@ -192,17 +192,17 @@ TEST(JoinRules, DisjointRejectsSharedElements) {
         join_rules_test::make_set({1, 2}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto overlapping = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({2, 5}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto disjoint = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({7, 8}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbidden,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     EXPECT_FALSE(forward->can_be_joined(*overlapping));  // share element 2
     EXPECT_TRUE(forward->can_be_joined(*disjoint));      // no shared element
@@ -259,12 +259,12 @@ TEST(JoinRules, RequiredIntersectionIsRefusedRatherThanJoined) {
         join_rules_test::make_set({1, 2}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(required,
                                                                             /*forbidden=*/false),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto backward = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({2, 5}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(required,
                                                                             /*forbidden=*/false),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     // The rule is undeclared, so the dispatch throws rather than guessing.
     EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
@@ -286,12 +286,12 @@ TEST(JoinRules, ForbiddingSomeOtherNodeIsRefusedRatherThanJoined) {
         join_rules_test::make_set({3}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto backward = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({7}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(forbids_another,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     // Disjointness would wrongly accept here: {3} and {7} share nothing.
     EXPECT_EQ(forward->join_rule(), JoinRule::Unspecified);
@@ -305,7 +305,7 @@ TEST(JoinRules, ForbiddingSomeOtherNodeIsRefusedRatherThanJoined) {
         join_rules_test::make_set({1, 2}),
         std::make_unique<IntersectionFeasibilityFunction<SetResource<int>>>(binds_nothing,
                                                                             /*forbidden=*/true),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     EXPECT_EQ(loose_forward->join_rule(), JoinRule::Unspecified);
 }
 
@@ -319,7 +319,7 @@ TEST(JoinRules, CustomSizeRuleUnionsAgainstTheCap) {
         return join_rules_test::make_resource<SetResource<int>>(
             join_rules_test::make_set(values),
             std::make_unique<SizeFeasibilityFunction<SetResource<int>>>(0U, kMaxSize),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+            std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     };
 
     auto two = make_sized({1, 2});
@@ -582,11 +582,11 @@ TEST(JoinRules, ReachableFeasibilityFunctionIsUsable) {
     auto visited_one = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({1}),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto visited_nothing = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({}),
         std::make_unique<TrivialFeasibilityFunction<SetResource<int>>>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     // Locally always feasible; all the work is in is_reachable().
     EXPECT_TRUE(function.is_feasible(visited_one->get_value()));
@@ -685,15 +685,15 @@ TEST(JoinRules, DisjointFormStandaloneDeclaresCustomAndRejectsOverlap) {
     auto forward = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({1, 2}),
         std::make_unique<PlainDisjoint>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto overlapping = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({2, 5}),
         std::make_unique<PlainDisjoint>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
     auto disjoint = join_rules_test::make_resource<SetResource<int>>(
         join_rules_test::make_set({7, 8}),
         std::make_unique<PlainDisjoint>(),
-        std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+        std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
     EXPECT_FALSE(forward->can_be_joined(*overlapping));  // share element 2
     EXPECT_TRUE(forward->can_be_joined(*disjoint));

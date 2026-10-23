@@ -154,7 +154,7 @@ TEST(BackwardDominance, ASetDoesNotReverse) {
     ResourceGraph<SetResource<int>> graph;
     std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}, {1, {0, 2}}};
 
-    auto dominance = std::make_unique<InclusionDominanceFunction<SetResource<int>>>();
+    auto dominance = std::make_unique<SubsetDominanceFunction<SetResource<int>>>();
     auto* borrowed = dominance.get();
     graph.add_resource<SetResource<int>>(
         std::make_unique<NgPathExtensionFunction<SetResource<int>>>(ng_map),
@@ -276,7 +276,7 @@ TEST(BackwardDominance, DerivationMatchesDirectionalResourceKind) {
     // ArcEndpoints -> not reversed.
     ResourceGraph<SetResource<int>> set_graph;
     std::map<size_t, std::set<int>> ng_map{{0, {1, 2}}};
-    auto memory = std::make_unique<InclusionDominanceFunction<SetResource<int>>>();
+    auto memory = std::make_unique<SubsetDominanceFunction<SetResource<int>>>();
     auto* memory_borrowed = memory.get();
     set_graph.add_resource<SetResource<int>>(
         std::make_unique<NgPathExtensionFunction<SetResource<int>>>(ng_map),

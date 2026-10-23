@@ -22,8 +22,8 @@ namespace rcspp {
 /// @tparam ResourceType A ContainerResource-compatible type supporting `subtract()`
 ///                      and `set_value()`.
 template <typename ResourceType>
-class SubtractExtensionFunction
-    : public Clonable<SubtractExtensionFunction<ResourceType>,
+class DifferenceExtensionFunction
+    : public Clonable<DifferenceExtensionFunction<ResourceType>,
                       DirectionalExtensionForm<ExtensionFunction<ResourceType>,
                                                DirectionalResourceKind::ArcValue>,
                       ExtensionFunction<ResourceType>> {

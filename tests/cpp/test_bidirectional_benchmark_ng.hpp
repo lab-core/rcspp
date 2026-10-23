@@ -139,7 +139,7 @@ TEST(BidirectionalBenchmarkNg, NgForwardVersusBidirectionalOnVrptw) {
         << "the forward search extended " << forward.measurement.extended_labels
         << " labels against a ceiling of " << ng::kMaxForwardExtensions
         << ". A count above it means NgPathExtensionFunction no longer stores the memory "
-           "narrowed, so InclusionDominanceFunction compares wider sets and discards fewer "
+           "narrowed, so SubsetDominanceFunction compares wider sets and discards fewer "
            "labels. Check NgPathExtensionFunction::apply.";
     EXPECT_LT(bidirectional.measurement.extended_labels, ng::kMaxBidirectionalExtensions)
         << "the same regression, seen from the bidirectional side";

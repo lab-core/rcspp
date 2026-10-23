@@ -1215,7 +1215,7 @@ TEST(ModelChecks, ASelfForbiddingMemoryUnderAnArcValueExtensionIsRefused) {
         std::make_unique<IntersectionFeasibilityFunction<SizeTBitsetResource>>(forbidden,
                                                                                /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1);
     graph->add_node(2, /*source=*/false, /*sink=*/true);

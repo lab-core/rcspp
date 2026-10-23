@@ -79,10 +79,10 @@ class UnionExtensionFunction_set(_ExtensionFunction):
 class IntersectionExtensionFunction_bitset(_ExtensionFunction):
     def __init__(self) -> None: ...
 
-class InclusionDominanceFunction_bitset(_DominanceFunction):
+class SubsetDominanceFunction_bitset(_DominanceFunction):
     def __init__(self) -> None: ...
 
-class ContainDominanceFunction_bitset(_DominanceFunction):
+class SupersetDominanceFunction_bitset(_DominanceFunction):
     def __init__(self) -> None: ...
 
 class TrivialFeasibilityFunction_bitset(_FeasibilityFunction):

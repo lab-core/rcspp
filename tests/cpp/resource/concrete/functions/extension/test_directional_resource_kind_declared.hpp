@@ -38,7 +38,7 @@ static_assert(directional_resource_kind_of_v<UnionExtensionFunction<SetResource<
               DirectionalResourceKind::ArcValue);
 static_assert(directional_resource_kind_of_v<IntersectionExtensionFunction<SetResource<int>>> ==
               DirectionalResourceKind::ArcValue);
-static_assert(directional_resource_kind_of_v<SubtractExtensionFunction<SetResource<int>>> ==
+static_assert(directional_resource_kind_of_v<DifferenceExtensionFunction<SetResource<int>>> ==
               DirectionalResourceKind::ArcValue);
 // ArcEndpoints, not ArcValue: ng-path reads node identities off the arc's endpoints rather than
 // its value, which is what keeps a memory from containing its own node in both directions.
@@ -116,8 +116,8 @@ TEST(DirectionalResourceKindDeclared, ConstantAgreesWithTheVirtual) {
               UnionExtensionFunction<SetResource<int>>::kind);
     EXPECT_EQ(IntersectionExtensionFunction<SetResource<int>>{}.directional_resource_kind(),
               IntersectionExtensionFunction<SetResource<int>>::kind);
-    EXPECT_EQ(SubtractExtensionFunction<SetResource<int>>{}.directional_resource_kind(),
-              SubtractExtensionFunction<SetResource<int>>::kind);
+    EXPECT_EQ(DifferenceExtensionFunction<SetResource<int>>{}.directional_resource_kind(),
+              DifferenceExtensionFunction<SetResource<int>>::kind);
     EXPECT_EQ(NgPathExtensionFunction<SetResource<int>>{ng_map}.directional_resource_kind(),
               NgPathExtensionFunction<SetResource<int>>::kind);
 }

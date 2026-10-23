@@ -88,7 +88,7 @@ at each node.
 ```python
 from rcspp.graph    import ResourceGraph, AlgorithmParams, BucketAlgorithmParams
 from rcspp.resource import (
-    AdditionExtensionFunction, SubtractExtensionFunction,
+    AdditionExtensionFunction, DifferenceExtensionFunction,
     CapacityExtensionFunction,
     TimeWindowExtensionFunction, TimeWindowFeasibilityFunction,
     UnionExtensionFunction, IntersectionExtensionFunction,
@@ -96,7 +96,7 @@ from rcspp.resource import (
     SizeFeasibilityFunction,
     TrivialCostFunction, ValueCostFunction,
     ValueDominanceFunction,
-    InclusionDominanceFunction, ContainDominanceFunction,
+    SubsetDominanceFunction, SupersetDominanceFunction,
 )
 from rcspp import presets          # add_cost_resource, add_window_resource, add_capacity_resource
 from rcspp.pricing_pool import PricingPool
@@ -297,12 +297,12 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | Class | Resource | Effect |
 |---|---|---|
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
-| `SubtractExtensionFunction<T>` | Numerical | `-=` |
+| `DifferenceExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
 | `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, read backward as a *threshold*; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
 | `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
 | `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
-| `SubtractExtensionFunction<T>` | Container | `-=` the arc's value |
+| `DifferenceExtensionFunction<T>` | Container | `-=` the arc's value |
 | `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
 
 The last four are all containers, but they split into two **directional resource kinds**, and
@@ -331,8 +331,8 @@ pairing the wrong one with a forbidden-set feasibility is refused by the model c
 |---|---|
 | `TrivialDominanceFunction<T>` | never |
 | `ValueDominanceFunction<T>` | `lhs ≤ rhs` |
-| `InclusionDominanceFunction<T>` | `lhs ⊆ rhs` |
-| `ContainDominanceFunction<T>` | `lhs ⊇ rhs` |
+| `SubsetDominanceFunction<T>` | `lhs ⊆ rhs` |
+| `SupersetDominanceFunction<T>` | `lhs ⊇ rhs` |
 
 ### Cost
 
