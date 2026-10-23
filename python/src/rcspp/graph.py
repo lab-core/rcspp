@@ -10,7 +10,6 @@ NetworkX integration.
 """
 
 import math
-from typing import Optional
 
 import networkx as nx
 
@@ -113,13 +112,11 @@ class ResourceGraph:
     pre-allocated with a single ``reserve`` call.
     """
 
-    def __init__(self, nx_graph: Optional[nx.DiGraph] = None, **kwargs):
-        """Initialise a ResourceGraph, optionally from a NetworkX DiGraph.
+    def __init__(self):
+        """Initialise an empty ResourceGraph.
 
-        Args:
-            nx_graph: Optional directed graph whose nodes and arcs are
-                imported immediately via :meth:`from_networkx`.
-            **kwargs: Reserved for future use; currently unused.
+        Register the resources first, then add nodes and arcs, or import a NetworkX graph
+        with :meth:`from_networkx`.
         """
         self._pending: list[tuple] = []  # (canonical_type, ext, feas, cost, dom)
         self._refs: list = []  # keep Python wrappers alive against GC
@@ -139,8 +136,6 @@ class ResourceGraph:
             0,
         )  # (n_nodes, n_arcs) hint from reserve()
         self._next_arc_id: int = 0  # mirrors C++ next_arc_id_; returned by add_arc
-        if nx_graph is not None:
-            self.from_networkx(nx_graph)
 
     # ── Resource registration ─────────────────────────────────────────────────
 

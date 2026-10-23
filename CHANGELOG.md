@@ -107,6 +107,9 @@ New features are summarised, with a pointer to where they are documented.
 - **Python `ResourceGraph.to_string()` leaves the arcs out by default**, as in C++. `repr()` of a
   `ResourceGraph` is now a one-line summary that does not flush the buffers, so it no longer
   raises when a buffered arc would be refused. `str()` is still `to_string()`.
+- **Python `ResourceGraph()` takes no arguments.** `ResourceGraph(nx_graph)` imported the graph
+  before any resource could be registered, so it always raised; the unused `**kwargs` go too.
+  Register the resources, then call `from_networkx(G)`.
 
 ### Added
 
