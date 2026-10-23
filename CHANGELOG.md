@@ -110,6 +110,8 @@ New features are summarised, with a pointer to where they are documented.
 - **Python `ResourceGraph()` takes no arguments.** `ResourceGraph(nx_graph)` imported the graph
   before any resource could be registered, so it always raised; the unused `**kwargs` go too.
   Register the resources, then call `from_networkx(G)`.
+- **Removed from Python: `ResourceGraph.get_resource_factory()`, `Node.resource` and
+  `Arc.extender`.** Their types are not bound, so they could only raise `TypeError`.
 
 ### Added
 

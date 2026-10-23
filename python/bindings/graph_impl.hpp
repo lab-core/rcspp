@@ -484,9 +484,6 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
              py::arg("source") = false,
              py::arg("sink") = false,
              py::return_value_policy::reference)
-        .def("get_resource_factory",
-             &ResourceGraphType::get_resource_factory,
-             py::return_value_policy::reference)
         .def(
             "solve",
             [](ResourceGraphType& rg,
