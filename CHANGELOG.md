@@ -209,6 +209,9 @@ New features are summarised, with a pointer to where they are documented.
   `complete` status does not rule out.
 - **`Algorithm::get_number_of_extended_labels()`**: the labels the last solve extended, a
   machine-independent measure of work.
+- **The C++ pool classes have a public Python home**: `SolutionPool`, `FilteredSolutionPool`,
+  `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
+  `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
 - **`AlgorithmParams.prune_by_upper_bound` in Python.** The C++ field was not bound, so Python
   users could not turn pruning by the upper bound on.
 
