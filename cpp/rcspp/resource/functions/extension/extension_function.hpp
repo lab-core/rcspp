@@ -164,9 +164,13 @@ class ExtensionFunction {
         }
 
     protected:
-        /// @brief Optional arc-specific preprocessing hook.
+        /// @brief Optional per-arc preprocessing: precomputes what this function needs on the
+        ///        arc, such as the bounds at its endpoints, so that they are not looked up on
+        ///        every extension.
         ///
-        /// Called by @c create() after cloning. Override to cache arc-dependent data.
+        /// Called on each clone by @c create(), whenever the function is bound to an arc.
+        /// Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param origin_id      Index of the arc's origin node.
         /// @param destination_id Index of the arc's destination node.
@@ -272,9 +276,13 @@ class ExtensionFunction<ResourceTypeComposition<ResourceTypes...>> {
         }
 
     protected:
-        /// @brief Optional arc-specific preprocessing hook.
+        /// @brief Optional per-arc preprocessing: precomputes what this function needs on the
+        ///        arc, such as the bounds at its endpoints, so that they are not looked up on
+        ///        every extension.
         ///
-        /// Called by @c create() after cloning. Override to cache arc-dependent data.
+        /// Called on each clone by @c create(), whenever the function is bound to an arc.
+        /// Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param origin_id      Index of the arc's origin node.
         /// @param destination_id Index of the arc's destination node.

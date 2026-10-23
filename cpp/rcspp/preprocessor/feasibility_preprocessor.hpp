@@ -74,7 +74,7 @@ class FeasibilityPreprocessor : public Preprocessor<ResourceType> {
         Graph<ResourceType>* graph_;
         std::map<size_t, std::vector<std::unique_ptr<Resource<ResourceType>>>>
             initial_resources_by_node_id_;
-        bool remove_arc(const Arc<ResourceType>& arc) override {
+        bool should_remove_arc(const Arc<ResourceType>& arc) override {
             // extend the initial resources
             auto extended_resource = resource_factory_->copy_resource(*arc.destination);
             for (auto& resource : initial_resources_by_node_id_[arc.origin->id]) {

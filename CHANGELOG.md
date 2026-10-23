@@ -55,6 +55,10 @@ New features are summarised, with a pointer to where they are documented.
   `min(latest[origin], deadline - arc_time)`, the latest time a label can leave the arc's origin
   and still meet the deadline it carries. Before, it added the travel time. No algorithm called
   it before this release.
+- **Renamed, with no alias.** Code that names the old spelling, or overrides it, no longer
+  compiles; Python code that passes an old keyword or reads an old attribute raises.
+  - `Preprocessor::remove_arc` is `should_remove_arc`: it only answers, where
+    `Graph::remove_arc` removes.
 
 ### Added
 

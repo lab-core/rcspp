@@ -124,9 +124,13 @@ class DominanceFunction {
         virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        /// @brief Optional node-specific preprocessing hook.
+        /// @brief Optional per-node preprocessing: precomputes what this function needs at
+        ///        @p node_id, such as the node's time window, so that it is not looked up on
+        ///        every call.
         ///
-        /// Called by @c create() and @c reset(). Override to cache node-dependent data.
+        /// Called on each clone by @c create() and @c reset(), whenever the function is bound to
+        /// a node. Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}
@@ -210,9 +214,13 @@ class DominanceFunction<ResourceTypeComposition<ResourceTypes...>> {
         virtual void reset(const size_t node_id) { preprocess(node_id); }
 
     protected:
-        /// @brief Optional node-specific preprocessing hook.
+        /// @brief Optional per-node preprocessing: precomputes what this function needs at
+        ///        @p node_id, such as the node's time window, so that it is not looked up on
+        ///        every call.
         ///
-        /// Called by @c create() and @c reset(). Override to cache node-dependent data.
+        /// Called on each clone by @c create() and @c reset(), whenever the function is bound to
+        /// a node. Unrelated to the graph preprocessing that the @c preprocess argument of
+        /// @c ResourceGraph::solve controls.
         ///
         /// @param node_id Index of the node being preprocessed.
         virtual void preprocess(size_t node_id) {}
