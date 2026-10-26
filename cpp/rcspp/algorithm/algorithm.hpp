@@ -70,17 +70,17 @@ enum class AlgorithmStatus {
     return "unknown";
 }
 
-/// @brief What a bidirectional solve reports about its half-way bound and its join.
+/// @brief What a bidirectional solve reports about its half-way point and its join.
 ///
 /// On @c SolveResult::bidirectional, which only a bidirectional search fills.
 struct BidirectionalStats {
-        /// @brief Whether the half-way bound was in force for this solve.
+        /// @brief Whether the half-way point was in force for this solve.
         ///
         /// Without the bound, a bidirectional solve does more work than a forward search alone.
         /// A disabled bound costs speed, not optimality.
         bool bounded_by_half_way = false;
 
-        /// @brief Why the half-way bound was off for this solve; empty when it was in force.
+        /// @brief Why the half-way point was off for this solve; empty when it was in force.
         std::string half_way_off_reason;
 
         /// @brief How many distinct complete paths only the join pass produced.
@@ -102,7 +102,7 @@ struct SolveResult {
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
-        /// @brief The bidirectional search's half-way bound and join; empty from every other
+        /// @brief The bidirectional search's half-way point and join; empty from every other
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
 
@@ -279,7 +279,7 @@ struct AlgorithmBaseParams {
 
         /// @brief Whether the join still runs after a timeout or the memory limit (default true).
         ///
-        /// Bidirectional only. With the half-way bound in force, few forward labels reach a sink,
+        /// Bidirectional only. With the half-way point in force, few forward labels reach a sink,
         /// so an early stop without the join returns almost nothing. With this set, the join
         /// still runs and keeps only paths cheaper than the best one found so far. An interrupt
         /// (`should_stop`) always skips the join. Set false to skip the join after a timeout or

@@ -122,7 +122,7 @@ struct BoundedOptions {
         ///        bidirectional search).
         bool prune_by_upper_bound = false;
 
-        /// @brief Whether the half-way bound is in force (bidirectional only).
+        /// @brief Whether the half-way point is in force (bidirectional only).
         bool with_half_way_bound = true;
 
         /// @brief Whether `solve()` preprocesses. With a binding upper bound this can strip

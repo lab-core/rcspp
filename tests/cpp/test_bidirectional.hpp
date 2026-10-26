@@ -92,7 +92,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> diamond_graph(double upper_f
 /// @brief A line graph with a cost in slot 0 and a capacity clock in slot 1.
 ///
 /// The capacity counts down backwards, so backward and forward labels share a scale and the
-/// half-way bound applies.
+/// half-way point applies.
 ///
 /// @param arc_values Per-arc `{cost, clock}` consumption.
 /// @param capacity   The clock's upper bound; its lower bound is zero.
@@ -589,7 +589,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
 ///
 /// `UnionExtensionFunction` over arcs carrying `{origin}` with each node forbidding itself is
 /// correct forward but not backward: the backward memory at `v` already contains `v`, so every
-/// backward label is rejected on creation. With the half-way bound on, that silently returns an
+/// backward label is rejected on creation. With the half-way point on, that silently returns an
 /// empty result. Each half is legal alone; only a check that sees both catches it.
 TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
     struct Arc {
@@ -704,7 +704,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
 }
 
 // ============================================================================
-// The half-way bound's failure mode
+// The half-way point's failure mode
 // ============================================================================
 
 /// @brief `half_way_point = 0` turns the bound OFF -- it does not derive one.

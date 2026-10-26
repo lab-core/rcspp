@@ -275,7 +275,7 @@ TEST(BidirectionalValidation, APathThatCrossesHOnItsLastArcIsNotJoined) {
 }
 
 // ============================================================================
-// The join is not owed after a run-level stop
+// The join is not owed after a early stop
 // ============================================================================
 
 namespace bidirectional_validation_test {
@@ -296,7 +296,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> join_only_graph() {
 
 /// @brief An interrupted solve does not then run the join.
 ///
-/// An interrupt means stop now, so it is the one run-level stop after which the join does not run;
+/// An interrupt means stop now, so it is the one early stop after which the join does not run;
 /// a timeout or the memory limit still joins (see ASolveStoppedByTheMemoryLimitStillJoins).
 TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     namespace bv = bidirectional_validation_test;
@@ -332,7 +332,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
         << "skipping the join must not change what the pool owns";
 }
 
-/// @brief Which run-level stops still run the join.
+/// @brief Which early stops still run the join.
 TEST(BidirectionalValidation, OnlyAnInterruptSkipsTheJoin) {
     static_assert(detail::join_runs_after(detail::RunLevelStop::None));
     static_assert(detail::join_runs_after(detail::RunLevelStop::Timeout));
@@ -1441,7 +1441,7 @@ TEST(BidirectionalValidation, AHandWrittenThresholdThatMatchesItsWindowsSolves) 
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
 
-/// @brief A clock that sets no backward start at its sink turns the half-way bound off, with a
+/// @brief A clock that sets no backward start at its sink turns the half-way point off, with a
 ///        reason, and still matches simple.
 ///
 /// Without a start, a backward label keeps the type default, 0, below H, and would stop at once.

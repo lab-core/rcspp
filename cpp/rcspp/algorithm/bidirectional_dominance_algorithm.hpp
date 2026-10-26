@@ -90,17 +90,17 @@ class BidirectionalDominanceAlgorithm
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
 
-            const size_t num_nodes = graph->get_number_of_nodes();
-            forward_extended_per_node_.assign(num_nodes, 0);
-            backward_extended_per_node_.assign(num_nodes, 0);
+            const size_t number_of_nodes = graph->get_number_of_nodes();
+            forward_extended_per_node_.assign(number_of_nodes, 0);
+            backward_extended_per_node_.assign(number_of_nodes, 0);
             forward_work_ = 0;
             backward_work_ = 0;
             forward_frontier_.clear();
             backward_frontier_.clear();
 
             backward_labels_by_node_pos_.clear();
-            backward_labels_by_node_pos_.reserve(num_nodes);
-            for (size_t i = 0; i < num_nodes; ++i) {
+            backward_labels_by_node_pos_.reserve(number_of_nodes);
+            for (size_t i = 0; i < number_of_nodes; ++i) {
                 backward_labels_by_node_pos_.emplace_back(
                     rebind_direction<LabelContainerType, BackwardDirection>::convert(
                         this->params_.labels));
@@ -218,9 +218,9 @@ class BidirectionalDominanceAlgorithm
                          this->params_.memory_pressure_max_labels_per_node);
             this->memory_pressure_triggered_ = true;
             const size_t per_node = this->params_.memory_pressure_max_labels_per_node;
-            const size_t num_nodes = this->graph_->get_number_of_nodes();
-            forward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
-            backward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
+            const size_t number_of_nodes = this->graph_->get_number_of_nodes();
+            forward_frontier_.shed(per_node, number_of_nodes, &this->label_pool_);
+            backward_frontier_.shed(per_node, number_of_nodes, &this->label_pool_);
         }
 
         void release_label_memory() override {
@@ -311,7 +311,7 @@ class BidirectionalDominanceAlgorithm
                 return;
             }
 
-            // The half-way bound: forward labels stop above H, backward labels below it. With the
+            // The half-way point: forward labels stop above H, backward labels below it. With the
             // bound off, the clock (and its index) is never read.
             if (half_way_.enabled()) {
                 const double critical =
@@ -483,7 +483,7 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief Turns the half-way bound off for this solve, and says why.
+        /// @brief Turns the half-way point off for this solve, and says why.
         ///
         /// Logs at WARN the first time @p reason occurs in this process, at DEBUG after that.
         ///
@@ -495,13 +495,13 @@ class BidirectionalDominanceAlgorithm
             half_way_off_reason_ = std::move(why);
             if (first_report_of(reason)) {
                 LOG_WARN(
-                    "BidirectionalDominanceAlgorithm: the half-way bound is off because ",
+                    "BidirectionalDominanceAlgorithm: the half-way point is off because ",
                     half_way_off_reason_,
                     ". The solve stays correct, but it runs a full forward search, a full "
                     "backward search and a join -- more work than a forward algorithm on the "
                     "same model. (Reported once per process; later solves log it at DEBUG.)\n");
             } else {
-                LOG_DEBUG("BidirectionalDominanceAlgorithm: the half-way bound is off because ",
+                LOG_DEBUG("BidirectionalDominanceAlgorithm: the half-way point is off because ",
                           half_way_off_reason_,
                           ".\n");
             }
@@ -600,9 +600,9 @@ class BidirectionalDominanceAlgorithm
         /// additive cost before any bidirectional solve. Unlike A*, this reads neither `arc.cost`
         /// (the original weight, not a bound under reduced costs) nor a cost slot index.
         void compute_completion_bounds(const Graph<ResourceType>& graph) {
-            const size_t num_nodes = graph.get_number_of_nodes();
-            h_to_sink_.assign(num_nodes, 0.0);
-            h_from_source_.assign(num_nodes, 0.0);
+            const size_t number_of_nodes = graph.get_number_of_nodes();
+            h_to_sink_.assign(number_of_nodes, 0.0);
+            h_from_source_.assign(number_of_nodes, 0.0);
 
             // Only the completion-bound prune reads these; skip the relaxations when it is off.
             // The vectors stay sized above because `completion_bound` uses `.at()`.

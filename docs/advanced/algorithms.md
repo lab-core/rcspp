@@ -117,7 +117,7 @@ misses a deadline by one rounding can also be accepted: 0.1 + 0.2 against 0.3.  
 their deadlines, as they do with one-decimal times and integer service times, scale the times to
 integers.
 
-If the chosen resource fails any of these, **the half-way bound is switched off**
+If the chosen resource fails any of these, **the half-way point is switched off**
 and a `LOG_DEBUG` line says why.  The solve stays correct — both directions simply
 run to completion and every pair is considered — it is only slower.  A *wrong*
 bound would be far worse: it can discard a valid path in both directions and then
@@ -300,7 +300,7 @@ it:
 
 If neither holds, the join compares a one-step-stale set against a current one and refuses splices
 the model permits. The symptom is specific and worth recognising: **`bidirectional` returns a worse
-optimum than `simple` on the same graph, and a worse one with the half-way bound on than with it
+optimum than `simple` on the same graph, and a worse one with the half-way point on than with it
 off** — because with the bound off most paths are found end-to-end and never reach the join. Every
 path refused that way contains a cycle and no *elementary* route is ever lost, so a
 column-generation bound stays valid; what is lost is that the answer stops depending only on the
@@ -333,7 +333,7 @@ under-rejecting quietly.
 | `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found.  Joined paths are **not** filtered by dominance at the sink, whatever the flag says: see below |
 | `max_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `max_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
 | `prune_by_upper_bound` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
-| `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
+| `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way point in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 
 Why the last row depends on `upper_bound` being finite: a solve that supplies none has expressed no
@@ -378,7 +378,7 @@ pairs.
 from `simple`: on 96 generated configurations the forward search returned 1 608 columns and both
 joins reproduced the same 1 601 of them; on five Solomon instances forward returned 2 770 and both
 reproduced the same 1 767.  The join loses no column a forward-only solve would have produced.  What
-it misses relative to forward is the **half-way bound**, not the join — the bound stops forward
+it misses relative to forward is the **half-way point**, not the join — the bound stops forward
 labels before they reach a sink.
 
 One caveat, and it only applies in modes that are already inexact.  When the per-node extension

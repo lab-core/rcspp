@@ -53,10 +53,10 @@ class LabelFrontier {
         /// Keeps @p per_node times the number of nodes overall.
         ///
         /// @param per_node  Labels to keep per node.
-        /// @param num_nodes The number of nodes.
+        /// @param number_of_nodes The number of nodes.
         /// @param pool      Receives the dominated labels dropped.
-        void shed(size_t per_node, size_t num_nodes, LabelPool<ResourceType>* pool) {
-            trim(&current_, per_node * num_nodes, pool);
+        void shed(size_t per_node, size_t number_of_nodes, LabelPool<ResourceType>* pool) {
+            trim(&current_, per_node * number_of_nodes, pool);
         }
 
         /// @brief Forgets every label, releasing none (the pool owns them).

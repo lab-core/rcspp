@@ -143,7 +143,7 @@ New features are summarised, with a pointer to where they are documented.
   of `solve` and `create_algorithm`, after the cost's, and defaulting to it.
   In Python, `algorithm="bidirectional"`, the same as `simple` with `direction="bidirectional"`.
   Give it a `critical_resource_index` and a `half_way_point`: with the default `half_way_point = 0`
-  the half-way bound is off, and the solve does more work than a forward one and logs a warning
+  the half-way point is off, and the solve does more work than a forward one and logs a warning
   saying so. A bidirectional search runs one phase, and its two searches interleave: the next label
   comes from whichever has extended fewer arcs. After a timeout or the memory limit it still runs
   its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
@@ -252,6 +252,13 @@ New features are summarised, with a pointer to where they are documented.
 - `PricingPool.populate_from_cpp_pool()` no longer copies all of the C++ pool's LP data, which it
   did not use. The docs of `SharedPricingPool.add_from_lp_arrays` no longer promise zero copy: it
   converts the index arrays to int32.
+- `SimpleDominanceAlgorithm` (forward and backward) and `AStarDominanceAlgorithm` no longer
+  release a label twice or extend one over the per-node quota. When a search's queue ran out
+  while it was skipping dominated or over-quota labels, the last of them went back to the main
+  loop. A dominated one was then released a second time, so the label pool could hand the same
+  label out twice; an over-quota one was extended anyway. Under `max_extended_labels_per_node`
+  these searches now extend fewer labels and can return fewer solutions, as the quota asks; on a
+  40-node graph with three phases, A* no longer runs out of memory.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.
