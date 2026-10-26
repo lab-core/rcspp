@@ -266,7 +266,7 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 
 | PR | # | commit | contents |
 |---|---|---|---|
-| 1 | 1.1 | `feat(column_generation): types, solver backend and pricer interfaces` | `types.hpp`, `solver_backend.hpp`, `pricer.hpp`; test fakes (scripted backend and pricers); tests of the defaults |
+| 1 | 1.1 | `feat(column_generation): types, master solver and pricer interfaces` | `types.hpp`, `master_solver.hpp` (`solver_backend.hpp` before `D-69`), `pricer.hpp`; test fakes (scripted master solver and pricers); tests of the defaults |
 | 1 | 1.2 | `feat(column_generation): swappable tolerances` | `tolerances.hpp` (`D-40`) |
 | 1 | 1.3 | `feat(column_generation): the master problem` | `master_problem.hpp`: rows, pricers, convexity rows, CSC column batches (`D-46`, `D-53`) |
 | 1 | 1.4 | `feat(column_generation): big-M artificial columns as the default initialization` | `master_initialization.hpp` (`D-45`) |
@@ -275,11 +275,11 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 1 | 1.7 | `refactor(column_generation): name the default tolerances and gap` | named constants instead of literals (clang-tidy) |
 | 1 | 1.8 | `fix(column_generation): include pricer.hpp where it is used` | an include left in the header after the `.cpp` split |
 | 1 | 1.9 | `fix(column_generation): an exact pricer with no path at all proves convergence` | exact `Infeasible` counts as proof, like exact `Optimal` |
-| 2 | 2.1 | `build: FindGUROBI.cmake shared, USE_GUROBI` | done (`9a4bcf60`): moved from `examples/cpp/vrp/cmake/` to `cmake/`, the VRP example still finds it; newer library names (`gurobi140`…); off by default (`D-52`) |
-| 2 | 2.2 | `feat(column_generation): Gurobi backend` | done (`275886c2` here): `GurobiBackend` wrapping a user's `GRBModel` and their row list (`D-54`): columns, LP solve, normalized duals, primal by id, integer solve (`D-61`, `D-62`); fixes the comment at `master_problem.hpp:72`. Primal simplex while `Method` is automatic (`D-65`); Gurobi tests in their own executable, skipped without a license |
+| 2 | 2.1 | `build: FindGUROBI.cmake shared, USE_GUROBI` | done (`c0aaaa70`): moved from `examples/cpp/vrp/cmake/` to `cmake/`, the VRP example still finds it; newer library names (`gurobi140`…); off by default (`D-52`) |
+| 2 | 2.2 | `feat(column_generation): Gurobi master solver` | done (`a7be28a0` here): `GurobiMasterSolver` wrapping a user's `GRBModel` and their row list (`D-54`): columns, LP solve, normalized duals, primal by id, integer solve (`D-61`, `D-62`); fixes the comment at `master_problem.hpp:72`. Primal simplex while `Method` is automatic (`D-65`); Gurobi tests in their own executable, skipped without a license |
 | 2 | 2.2b | `fix(column_generation): refuse Gurobi rows that no constraint holds` | done (review): `add_rows` refused ranges only; an infinite equality, `lower = +∞`, `upper = −∞` or NaN now refuse the batch too |
-| 1, 2 | 2.2c | `refactor(column_generation): rename SolverBackend to MasterSolver` | `D-67`; names and commit plan in `Q-29` (open). Then 2.3 uses the new names |
-| 2 | 2.3 | `feat(column_generation): backend self-test` | `self_test.hpp`; run on Gurobi, skipped without a license; scripted wrong backends (run everywhere) show it catches sign errors |
+| 1, 2 | 2.2c | (no commit) rename `SolverBackend` to `MasterSolver` | done (`D-67`, `D-69`): every code commit rewritten; hashes above are the new ones. 2.3 uses the new names |
+| 2 | 2.3 | `feat(column_generation): master solver self-test` | `self_test.hpp` (`master_solver_self_test`); run on Gurobi, skipped without a license; scripted wrong master solvers (run everywhere) show it catches sign errors |
 | 2 | 2.4 | `test(column_generation): the toy on Gurobi` | the toy (described in the test, `D-64`) built as a user would, in a `GRBModel`, then wrapped: LP 37.5 and its duals; restricted master MIP 44 (section 5) |
 | 3 | 3.1 | `feat(column_generation): pricing strategy with stages` | `PricingStrategy` (`D-23`), one exact stage by default |
 | 3 | 3.2 | `feat(column_generation): graph pricer` | `GraphPricer` over `ResourceGraph`; `cost_scale` = max \|arc cost\| |
