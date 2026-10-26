@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "rcspp/column_generation/master_problem.hpp"
+#include "rcspp/column_generation/master_solver_self_test.hpp"
 #include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
 #include "test_column_generation_fakes.hpp"
 
@@ -135,26 +136,18 @@ TEST_F(GurobiMasterSolverTest, RowBoundsFromTheModel) {
     EXPECT_EQ(upper, (std::vector<double>{2.0, infinity, 1.5}));
 }
 
-TEST_F(GurobiMasterSolverTest, SolvesTheLpWithNormalizedDuals) {
-    GurobiMasterSolver solver(*model, lp_rows());
-    add_lp_columns(solver);
+TEST_F(GurobiMasterSolverTest, PassesTheMasterSolverSelfTest) {
+    GRBModel maximizing_model(*environment());
+    maximizing_model.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
+    GurobiMasterSolver minimizing(*model, {});
+    GurobiMasterSolver maximizing(maximizing_model, {});
 
-    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    const MasterSolverSelfTestReport report = master_solver_self_test(minimizing, maximizing);
 
-    EXPECT_NEAR(solver.objective(), 3.75, tolerance);
-
-    std::vector<double> duals(3);
-    solver.duals(duals);
-    EXPECT_NEAR(duals[0], 1.5, tolerance);
-    EXPECT_NEAR(duals[1], 1.5, tolerance);
-    EXPECT_NEAR(duals[2], -0.5, tolerance);
-
-    const std::vector<ColumnId> ids{2, 0, 1};
-    std::vector<double> values(3);
-    solver.primal(ids, values);
-    EXPECT_NEAR(values[0], 0.25, tolerance);
-    EXPECT_NEAR(values[1], 1.25, tolerance);
-    EXPECT_NEAR(values[2], 0.75, tolerance);
+    EXPECT_TRUE(report.passed());
+    for (const std::string& failure : report.failures) {
+        ADD_FAILURE() << failure;
+    }
 }
 
 TEST_F(GurobiMasterSolverTest, MaximizingModelIsSeenAsAMinimization) {
@@ -164,16 +157,11 @@ TEST_F(GurobiMasterSolverTest, MaximizingModelIsSeenAsAMinimization) {
 
     ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
 
-    // Gurobi maximizes the negated costs; the master solver reports the minimization.
+    // Gurobi maximizes the negated costs; the master solver reports the minimization (the
+    // self-test checks the normalized answers).
     EXPECT_NEAR(solver.variable(1).get(GRB_DoubleAttr_Obj), -3.0, tolerance);
     EXPECT_NEAR(model->get(GRB_DoubleAttr_ObjVal), -3.75, tolerance);
     EXPECT_NEAR(solver.objective(), 3.75, tolerance);
-
-    std::vector<double> duals(3);
-    solver.duals(duals);
-    EXPECT_NEAR(duals[0], 1.5, tolerance);
-    EXPECT_NEAR(duals[1], 1.5, tolerance);
-    EXPECT_NEAR(duals[2], -0.5, tolerance);
 }
 
 TEST_F(GurobiMasterSolverTest, InfeasibleAndUnboundedAreToldApart) {
