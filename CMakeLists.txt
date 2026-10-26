@@ -14,6 +14,8 @@ option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
 option(USE_COLUMN_GENERATION_EXAMPLE
        "Build the C++ column generation example (examples/column_generation) and, with USE_PYTHON, its bindings"
        OFF)
+option(USE_COLUMN_GENERATION_EXAMPLE_GUROBI
+       "Build the column generation example's Gurobi master solver (needs Gurobi)" OFF)
 
 enable_testing()
 
@@ -88,6 +90,9 @@ add_subdirectory(cpp/rcspp)
 # python/CMakeLists.txt adds its bindings to the Python module.
 if(USE_COLUMN_GENERATION_EXAMPLE)
   add_subdirectory(examples/column_generation)
+elseif(USE_COLUMN_GENERATION_EXAMPLE_GUROBI)
+  message(FATAL_ERROR "USE_COLUMN_GENERATION_EXAMPLE_GUROBI builds a master solver of the column "
+                      "generation example: it needs USE_COLUMN_GENERATION_EXAMPLE.")
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------
