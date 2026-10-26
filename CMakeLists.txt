@@ -17,6 +17,9 @@ option(USE_COLUMN_GENERATION_EXAMPLE
 
 enable_testing()
 
+# Find modules (FindGUROBI.cmake) shared by the library and the examples.
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 # Coverage instrumentation -----------------------------------------------------
 # When enabled, every target that compiles cpp/rcspp or python/bindings code links
 # this INTERFACE target so it emits .gcno/.gcda. The header-only templates are
