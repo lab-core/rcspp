@@ -36,6 +36,8 @@ myst_enable_extensions = [
     "deflist",
     "tasklist",
     "attrs_inline",
+    "dollarmath",
+    "amsmath",
 ]
 myst_heading_anchors = 3
 
@@ -117,6 +119,7 @@ exclude_patterns = [
     ".DS_Store",
     "Gemfile*",
     "_config.yml",
+    "README.md",
 ]
 
 source_suffix = {
