@@ -9,9 +9,9 @@ an opened page. Proposed plan changes are the `PA-` items; all accepted on 2026-
 | project | what | license | language | status (2026-10) | role for us |
 |---|---|---|---|---|---|
 | SCIP 10.1.0 | branch-cut-and-price framework; bundles SoPlex | Apache-2.0 (since 8.0.3) | C | release 2026-09-18 | optional host of B&P (rcspp as its pricer) |
-| SoPlex | simplex LP solver of SCIP | Apache-2.0 | C++ | active | possible LP backend (instead of SCIP itself) |
+| SoPlex 8.1.0 | simplex LP solver of SCIP; exact rational LP | Apache-2.0 | C++ | release 2026-09-18 with SCIP 10.1.0 | possible LP backend (instead of SCIP itself) |
 | PySCIPOpt 6.3.0 | Python API of SCIP; wheels bundle SCIP | MIT | Python/Cython | 2026-10-11, CPython 3.9–3.15 | Python route to SCIP pricers |
-| GCG | generic Dantzig-Wolfe B&P on SCIP; PyGCGOpt | GitHub: Apache-2.0; website (docs 3.5, 2021): LGPL → **check** | C/C++ | 4.1 in CHANGELOG, dates unverified | reference design (pricing loop, stabilization) |
+| GCG 4.1.0 | generic Dantzig-Wolfe B&P on SCIP; PyGCGOpt 0.4.0 (2024-12, looks stale) | Apache-2.0 (checked 2026-10-26); optional Cliquer and GSL are GPL-3.0 | C/C++ | in SCIP Opt Suite 10.1.0; 5.0 notes in the repo | reference design (pricing loop, stabilization) |
 | Coluna.jl 0.8.2 | B&P framework of swappable algorithms | MPL-2.0 | Julia | release 2025-07, push 2026-09 | reference design (stages, phases, API) |
 | BaPCod / VRPSolver | state-of-the-art VRP BCP | academic, **not open source** | C++ | — | reference only |
 | RouteOpt 2.0 | exact CVRP/VRPTW BCP | **GPL-3.0** (Gitee "academic use" unverified) | C++ | commits 2026-10-13 | ideas only, no code reuse (we are MIT) |
@@ -49,10 +49,43 @@ an opened page. Proposed plan changes are the `PA-` items; all accepted on 2026-
   - an arc-branching rule + a marker constraint handler that applies and undoes our `remove_arcs` per node (pattern:
     SCIP's Binpacking example, `branch_ryanfoster.c` + `cons_samediff.c`); it must also handle pseudo solutions.
   - Settings: separators, restarts and presolve off; constraints marked "modifiable".
-  - Limits: SCIP is mostly sequential; no built-in stabilization (smoothing must live in our pricer); a column can
-    only be removed at the node that created it.
+  - Limits: SCIP is mostly sequential; no built-in stabilization in SCIP itself (its FAQ: objective coefficients
+    cannot change, so do weighted-sum smoothing in the pricer; GCG has a stabilization class); a column can only be
+    removed at the node that created it, and column deletion is beta.
 - **Our own loop stays the foundation** (`D-06`, `D-19`). The SCIP route reuses our pricer, pricing strategy,
   stabilization (smoothing form), pool and statistics, but not our master or `SolverBackend`.
+
+## SCIP pros and cons (colleague question, 2026-10-26)
+
+Colleague page: <https://claude.ai/artifact/4pQWNzgaSNZXiKpwoWUZp8>. One-liner: not for column generation alone; a
+serious option for B&P with rcspp as SCIP's pricer.
+
+| use | pros | cons |
+|---|---|---|
+| CG only (root LP) | pricer plugin: reduced-cost and Farkas pricing, `lowerbound`, `stopearly`; LPI swappable (SoPlex, Gurobi ≥ 7.0.2, CPLEX, Xpress, CLP, Glop, Mosek, QSopt, HiGHS beta); PySCIPOpt 6.3.0 wheels bundle SCIP | presolve + transformed problem on top of the LP (FAQ: call an LP solver directly); nothing over our own backends; our master and backends not reused |
+| B&P (SCIP owns the tree) | tree, node LP warm starts, primal heuristics on the master; custom branching via constraint handlers (Binpacking: `branch_ryanfoster` + `cons_samediff`); arc branching = branching on master arc variables (VRP example) or our own rule; Python pricers and branching rules; GCG adds Dantzig–Wolfe, branching rules, stabilization, column pool, `solver_xyz` pricing-solver template | mostly sequential (parallelism via TPI concurrent solves or UG only); must switch off separators, the dual-fixing presolver, possibly `propagating/rootredcost/freq=-1`; rows `modifiable`; objective fixed during the solve (no box-step); column deletion beta, only at the creating node; large API, harder debugging (original vs transformed problem) |
+
+Published use: SCIP's `examples/VRP` (C++ pricer); arXiv 2401.17937 (cycle partition: PySCIPOpt B&P, Rust parallel
+pricer, "the rest of SCIP is sequential"); arXiv 2602.08673 (EVRPTW branch-price-and-cut on GCG 3.7.1 / SCIP 9.2.1,
+Gurobi 11 as LP solver, own labeling).
+
+## SoPlex vs HiGHS for the master LP (colleague question, 2026-10-26)
+
+Colleague page: <https://claude.ai/artifact/8XFo11Zp2BeTHQ21vXLABw>. Benchmarks: `F-22`. One-liner: HiGHS about 8×
+faster, MIT, pip wheels; SoPlex's edge is exact rational LP, so HiGHS stays the default (`D-07`).
+
+| | HiGHS 1.15.1 | SoPlex 8.1.0 |
+|---|---|---|
+| CG API | `addCols`, `deleteCols` (range, set, mask), `getBasis`/`setBasis`, `getSolution` (duals), `getDualRay` | `addColsReal`, `removeColsReal`, `getBasis`/`setBasis`, `getDualReal`, `getDualFarkasReal` |
+| warm start | new columns nonbasic, no refactorization; bug `F-21` | "hot-start from any regular basis"; no CG reports found |
+| exact LP | no | rational LU, iterative refinement, optional quad precision |
+| parallelism | serial dual simplex by default; parallel IPM (HiPO); GPU PDLP ("not robust") | sequential |
+| Python | `highspy` (MIT, wheels) | none on PyPI (C and Rust interfaces) |
+| build | CMake, FetchContent options (`FAST_BUILD`) | CMake, C++14; GMP, MPFR, PaPILO on by default; `BOOST=OFF` for the library only (inference) |
+
+Other open-source LP solvers: CLP 1.17.11 (EPL-2.0, mature simplex, warm start); cuOpt 26.10 (Apache-2.0, GPU,
+first-order: no simplex warm start); OR-Tools PDLP and Glop (Apache-2.0); cuPDLPx, HPR-LP (GPU research codes,
+approximate duals). None beats HiGHS for a warm-started CG master on what is public.
 
 ## Proposed changes to the plan (`PA-`)
 
@@ -94,4 +127,9 @@ HiGHS: <https://github.com/ERGO-Code/HiGHS/releases>, <https://raw.githubusercon
 <https://ergo-code.github.io/HiGHS/dev/guide/further/>, <https://ergo-code.github.io/HiGHS/dev/terminology/>, <https://pypi.org/project/highspy/>.
 Gurobi: <https://docs.gurobi.com/projects/optimizer/en/current/reference/attributes/constraintlinear.html>.
 python-mip: <https://pypi.org/project/mip/>, <https://raw.githubusercontent.com/coin-or/python-mip/master/CHANGELOG.md>,
-<https://github.com/coin-or/python-mip/issues>. SciPy: <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html>.
+<https://github.com/coin-or/python-mip/issues>. 2026-10-26: <https://www.scipopt.org/doc/html/FAQ.php>,
+<https://www.scipopt.org/doc/html/PRICER.php>, <https://www.scipopt.org/doc/html/LPI.php>,
+<https://raw.githubusercontent.com/scipopt/PySCIPOpt/master/src/pyscipopt/pricer.pxi>,
+<https://raw.githubusercontent.com/scipopt/gcg/master/README.md>, <https://soplex.zib.de/>,
+<https://plato.asu.edu/ftp/lpopt.html>, <https://plato.asu.edu/ftp/network.html>, <https://arxiv.org/html/2401.17937>,
+<https://arxiv.org/html/2602.08673>, <https://github.com/ERGO-Code/HiGHS/issues/1785>. SciPy: <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html>.

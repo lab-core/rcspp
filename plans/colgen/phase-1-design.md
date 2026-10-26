@@ -278,13 +278,14 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 2 | 2.1 | `build: FindGUROBI.cmake shared, USE_GUROBI` | done (`9a4bcf60`): moved from `examples/cpp/vrp/cmake/` to `cmake/`, the VRP example still finds it; newer library names (`gurobi140`…); off by default (`D-52`) |
 | 2 | 2.2 | `feat(column_generation): Gurobi backend` | done (`275886c2` here): `GurobiBackend` wrapping a user's `GRBModel` and their row list (`D-54`): columns, LP solve, normalized duals, primal by id, integer solve (`D-61`, `D-62`); fixes the comment at `master_problem.hpp:72`. Primal simplex while `Method` is automatic (`D-65`); Gurobi tests in their own executable, skipped without a license |
 | 2 | 2.2b | `fix(column_generation): refuse Gurobi rows that no constraint holds` | done (review): `add_rows` refused ranges only; an infinite equality, `lower = +∞`, `upper = −∞` or NaN now refuse the batch too |
+| 1, 2 | 2.2c | `refactor(column_generation): rename SolverBackend to MasterSolver` | `D-67`; names and commit plan in `Q-29` (open). Then 2.3 uses the new names |
 | 2 | 2.3 | `feat(column_generation): backend self-test` | `self_test.hpp`; run on Gurobi, skipped without a license; scripted wrong backends (run everywhere) show it catches sign errors |
 | 2 | 2.4 | `test(column_generation): the toy on Gurobi` | the toy (described in the test, `D-64`) built as a user would, in a `GRBModel`, then wrapped: LP 37.5 and its duals; restricted master MIP 44 (section 5) |
 | 3 | 3.1 | `feat(column_generation): pricing strategy with stages` | `PricingStrategy` (`D-23`), one exact stage by default |
 | 3 | 3.2 | `feat(column_generation): graph pricer` | `GraphPricer` over `ResourceGraph`; `cost_scale` = max \|arc cost\| |
 | 3 | 3.3 | `test(column_generation): column generation from scratch` | toy CG, fleet limits 2 and 1, counterexample (section 5); on every backend built in (Gurobi until PR 4) |
 | 4 | 4.1 | `build: USE_HIGHS, HiGHS found or fetched` | `find_package(HIGHS)`, else FetchContent pinned to `v1.15.1`; off by default (`D-52`) |
-| 4 | 4.2 | `feat(column_generation): HiGHS backend` | `HighsBackend` wrapping a user's `Highs` and their row list (`D-54`): CSC columns, LP solve, normalized duals, primal by id, integer solve |
+| 4 | 4.2 | `feat(column_generation): HiGHS backend` | `HighsBackend` wrapping a user's `Highs` and their row list (`D-54`): CSC columns, LP solve, normalized duals, primal by id, integer solve; basis reset and retry on a false cycling stop (`F-21`) |
 | 4 | 4.3 | `test(column_generation): the backend tests on HiGHS` | self-test, toy (2.4) and CG from scratch (3.3) run on HiGHS too |
 | 5 | 5.1 | `feat(python): column generation types, master and loop` | bindings of section 2, results as numpy (`D-53`) |
 | 5 | 5.2 | `feat(python): subclass backends, pricers, tolerances, initializations` | trampolines; GIL released around `run()` |
