@@ -1,7 +1,8 @@
 # Column generation layer: plan
 
-Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) next, on
-branch `feature/column-generation-gurobi`**. Updated: 2026-10-26. Baseline: `main` @ `129b15e0`. CI is out of the
+Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) on
+`feature/column-generation-gurobi`: 2.1–2.2b done; next the rename to `MasterSolver` (`D-67`, names `Q-29`), then
+2.3 (self-test)**. Updated: 2026-10-26. Baseline: `main` @ `129b15e0`. CI is out of the
 plan for now (`D-52`).
 
 ## Agent protocol
@@ -39,7 +40,8 @@ configurations.
 ## Index
 
 Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfDgEKG37NtHWKCcpj2Ab>, English
-<https://claude.ai/artifact/BZLej9R9NdVA4dcYt6joCf>. Keep both in sync with `decisions.md`.
+<https://claude.ai/artifact/BZLej9R9NdVA4dcYt6joCf>. Keep both in sync with `decisions.md` (not yet updated for
+`D-58`–`D-68`). Colleague pages of 2026-10-26: SCIP pros and cons, SoPlex vs HiGHS (links in `prior-art.md`).
 
 | file | contains | read when |
 |---|---|---|
@@ -76,4 +78,4 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | stabilization | smooth the duals between iterations to avoid oscillation and tailing-off |
 | Lagrangian bound | lower bound available before CG converges: `z_RMP + Σ_k U_k · min_rc_k` |
 | B&P | branch-and-price: branch-and-bound where every node runs CG |
-| backend | adapter to an external LP/MIP solver (HiGHS, Gurobi, SCIP) |
+| backend, master solver | adapter to an external LP/MIP solver (HiGHS, Gurobi, SoPlex). The interface `SolverBackend` is renamed `MasterSolver` (`D-67`); older plan text keeps the old name |
