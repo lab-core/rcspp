@@ -37,6 +37,29 @@ anything better than another label (**dominance**).
 The pages use vehicle routing as their running example because it is easy to picture. The library itself is not
 specific to routing.
 
+## Reproducing the numbers
+
+Every number on these pages comes from running the library. The package
+[`examples/python/theory`](https://github.com/lab-core/rcspp/tree/main/examples/python/theory) recomputes them, one
+module per page, and prints them. Its README explains how to set up the environment. Then, from `examples/python`:
+
+```sh
+python -m theory            # every page
+python -m theory --page 3   # one page
+```
+
+The master LPs are solved with HiGHS, through SciPy. Where the LP has several optimal duals, the pages quote the ones
+HiGHS returns.
+
+The tests check the pages against the library, so a change in the library's behaviour that makes a page wrong fails
+them:
+
+- [`tests/python/test_theory_numbers.py`](https://github.com/lab-core/rcspp/blob/main/tests/python/test_theory_numbers.py)
+  checks most numbers;
+- [`tests/cpp/test_theory_docs.hpp`](https://github.com/lab-core/rcspp/blob/main/tests/cpp/test_theory_docs.hpp)
+  checks the two things Python cannot see: the labels each half of a bidirectional search keeps (page 5), and the
+  "no waiting" example of page 3.
+
 :::{toctree}
 :maxdepth: 1
 :hidden:
