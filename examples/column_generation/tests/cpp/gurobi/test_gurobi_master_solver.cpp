@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -313,13 +314,28 @@ TEST_F(GurobiMasterSolverTest, AddsRowsBySenseWithNames) {
     EXPECT_EQ(model->getConstr(4).get(GRB_CharAttr_Sense), GRB_LESS_EQUAL);
 }
 
-TEST_F(GurobiMasterSolverTest, RangesAreRefusedWithoutAddingAnything) {
+TEST_F(GurobiMasterSolverTest, RefusedRowsAddNothing) {
     GurobiMasterSolver solver(*model, {});
     MasterProblem master(solver);
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
 
-    const std::vector<double> lower{0.0, 1.0};
-    const std::vector<double> upper{0.0, 2.0};
-    EXPECT_THROW((void)master.add_rows(lower, upper), std::invalid_argument);
+    // A range, then bounds no Gurobi row holds; each after a valid row of the same batch.
+    const std::vector<std::array<double, 2>> refused{{1.0, 2.0},
+                                                     {infinity, infinity},
+                                                     {-infinity, -infinity},
+                                                     {infinity, 1.0},
+                                                     {1.0, -infinity},
+                                                     {not_a_number, 1.0},
+                                                     {-infinity, not_a_number}};
+    for (const auto& [lower, upper] : refused) {
+        const std::vector<double> lowers{0.0, lower};
+        const std::vector<double> uppers{0.0, upper};
+        EXPECT_THROW((void)master.add_rows(lowers, uppers), std::invalid_argument)
+            << lower << " <= a.x <= " << upper;
+    }
+    EXPECT_THROW((void)master.add_rows(1, RowSense::Equal, infinity), std::invalid_argument);
+
+    model->update();
     EXPECT_EQ(solver.number_of_rows(), 0U);
     EXPECT_EQ(model->get(GRB_IntAttr_NumConstrs), 0);
 }
