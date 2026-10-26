@@ -36,9 +36,9 @@ class DirectedSimpleDominanceAlgorithm
             number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
         }
         LabelIteratorPair<ResourceType> next_label_iterator() override {
-            LabelIteratorPair<ResourceType> label_iterator_pair;
             while (!unprocessed_labels_.empty()) {
-                label_iterator_pair = unprocessed_labels_.front();
+                const LabelIteratorPair<ResourceType> label_iterator_pair =
+                    unprocessed_labels_.front();
                 unprocessed_labels_.pop_front();
 
                 // if dominated, release the label. Use release_with_ref_count (not
@@ -52,14 +52,17 @@ class DirectedSimpleDominanceAlgorithm
                         label_iterator_pair.first->get_end_node()->pos());
                     if (num_extended_labels_for_node < this->effective_max_labels_per_node_) {
                         ++num_extended_labels_for_node;
-                        break;  // found a label to process
+                        return label_iterator_pair;  // found a label to process
                     }
                     // otherwise, store truncated label for next phase
                     unprocessed_truncated_labels_.push_back(label_iterator_pair);
                 }
             }
 
-            return label_iterator_pair;
+            // Every label taken was released or stored for the next phase: none to process. The
+            // last one must not be handed back, or the loop would release it a second time or
+            // extend a label it stored aside.
+            return {};
         }
 
         [[nodiscard]] size_t number_of_labels() const override {

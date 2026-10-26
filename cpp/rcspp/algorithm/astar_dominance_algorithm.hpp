@@ -173,9 +173,9 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         // ─── Frontier management ──────────────────────────────────────────────
 
         LabelIteratorPair<ResourceType> next_label_iterator() override {
-            LabelIteratorPair<ResourceType> label_iterator_pair;
             while (!unprocessed_labels_.empty()) {
-                label_iterator_pair = unprocessed_labels_.top();
+                const LabelIteratorPair<ResourceType> label_iterator_pair =
+                    unprocessed_labels_.top();
                 unprocessed_labels_.pop();
 
                 if (label_iterator_pair.first->dominated) {
@@ -187,12 +187,15 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                         label_iterator_pair.first->get_end_node()->pos());
                     if (num_extended < this->effective_max_labels_per_node_) {
                         ++num_extended;
-                        break;
+                        return label_iterator_pair;
                     }
                     unprocessed_truncated_labels_.push_back(label_iterator_pair);
                 }
             }
-            return label_iterator_pair;
+            // Every label taken was released or stored for the next phase: none to process. The
+            // last one must not be handed back, or the loop would release it a second time or
+            // extend a label it stored aside.
+            return {};
         }
 
         [[nodiscard]] size_t number_of_labels() const override {
