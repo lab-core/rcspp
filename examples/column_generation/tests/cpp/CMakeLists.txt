@@ -32,3 +32,9 @@ function(add_column_generation_test name)
 endfunction()
 
 add_column_generation_test(tests-column-generation SOURCES test_column_generation.cpp)
+
+if(USE_COLUMN_GENERATION_EXAMPLE_GUROBI)
+  file(GLOB gurobi_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gurobi/*.cpp")
+  add_column_generation_test(tests-column-generation-gurobi
+      SOURCES ${gurobi_sources} LIBRARIES rcspp_column_generation_gurobi)
+endif()
