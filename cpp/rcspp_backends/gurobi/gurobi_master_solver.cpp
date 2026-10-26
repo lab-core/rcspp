@@ -1,0 +1,351 @@
+// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+// All rights reserved.
+
+#include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <format>
+#include <iterator>
+#include <limits>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
+
+namespace rcspp::column_generation {
+
+namespace {
+
+constexpr double infinity = std::numeric_limits<double>::infinity();
+
+// Gurobi writes infinity as ±GRB_INFINITY (1e100).
+double to_gurobi(double value) {
+    return std::clamp(value, -GRB_INFINITY, GRB_INFINITY);
+}
+
+double from_gurobi(double value) {
+    if (value >= GRB_INFINITY) {
+        return infinity;
+    }
+    if (value <= -GRB_INFINITY) {
+        return -infinity;
+    }
+    return value;
+}
+
+// Gurobi returns attribute arrays allocated with new[]: copies one into a vector and frees it.
+template <typename Value>
+std::vector<Value> take(Value* array, size_t count) {
+    std::vector<Value> values(array, array + count);
+    delete[] array;
+    return values;
+}
+
+SolverStatus status_of(int status) {
+    switch (status) {
+        case GRB_OPTIMAL:
+            return SolverStatus::Optimal;
+        case GRB_INFEASIBLE:
+            return SolverStatus::Infeasible;
+        case GRB_UNBOUNDED:
+            return SolverStatus::Unbounded;
+        case GRB_TIME_LIMIT:
+            return SolverStatus::TimeLimit;
+        default:
+            return SolverStatus::Other;
+    }
+}
+
+// The options every solve sets.
+void set_solve_options(GRBModel& model, double timeout_s, int threads, bool verbose) {
+    model.set(GRB_DoubleParam_TimeLimit, to_gurobi(std::max(0.0, timeout_s)));
+    model.set(GRB_IntParam_Threads, threads);
+    model.set(GRB_IntParam_OutputFlag, verbose ? 1 : 0);
+}
+
+// Sets an integer parameter for the lifetime of the guard, then puts the old value back.
+class TemporaryParameter {
+    public:
+        TemporaryParameter(GRBModel& model, GRB_IntParam parameter, int value)
+            : model_(model), parameter_(parameter), old_value_(model.get(parameter)) {
+            model_.set(parameter_, value);
+        }
+
+        TemporaryParameter(const TemporaryParameter&) = delete;
+        TemporaryParameter& operator=(const TemporaryParameter&) = delete;
+        TemporaryParameter(TemporaryParameter&&) = delete;
+        TemporaryParameter& operator=(TemporaryParameter&&) = delete;
+
+        ~TemporaryParameter() {
+            try {
+                model_.set(parameter_, old_value_);
+            } catch (const GRBException&) {  // a destructor must not throw
+            }
+        }
+
+    private:
+        GRBModel& model_;
+        GRB_IntParam parameter_;
+        int old_value_;
+};
+
+}  // namespace
+
+GurobiMasterSolver::GurobiMasterSolver(GRBModel& model, std::vector<GRBConstr> rows)
+    : model_(model), rows_(std::move(rows)) {
+    // Rows created just before are pending until an update; their attributes are read below.
+    model_.update();
+}
+
+void GurobiMasterSolver::row_bounds(std::span<double> lower, std::span<double> upper) const {
+    if (rows_.empty()) {
+        return;
+    }
+
+    const int count = static_cast<int>(rows_.size());
+    const std::vector<char> senses =
+        take(model_.get(GRB_CharAttr_Sense, rows_.data(), count), rows_.size());
+    const std::vector<double> sides =
+        take(model_.get(GRB_DoubleAttr_RHS, rows_.data(), count), rows_.size());
+
+    for (size_t row = 0; row < rows_.size(); ++row) {
+        const double side = from_gurobi(sides[row]);
+        lower[row] = senses[row] == GRB_LESS_EQUAL ? -infinity : side;
+        upper[row] = senses[row] == GRB_GREATER_EQUAL ? infinity : side;
+    }
+}
+
+void GurobiMasterSolver::add_rows(const RowBatch& rows) {
+    // Check every row first, so that a refused batch adds nothing.
+    for (size_t row = 0; row < rows.lower.size(); ++row) {
+        const double lower = rows.lower[row];
+        const double upper = rows.upper[row];
+        if (lower != upper && std::isfinite(lower) && std::isfinite(upper)) {
+            throw std::invalid_argument(
+                "GurobiMasterSolver::add_rows: a row with two different finite bounds is a range; "
+                "build it in the model instead");
+        }
+    }
+
+    for (size_t row = 0; row < rows.lower.size(); ++row) {
+        const double lower = rows.lower[row];
+        const double upper = rows.upper[row];
+        const std::string name = rows.names.empty() ? std::string() : rows.names[row];
+
+        // A free row (both bounds infinite) becomes `a·x ≤ ∞`.
+        char row_sense = GRB_LESS_EQUAL;
+        double side = to_gurobi(upper);
+        if (lower == upper) {
+            row_sense = GRB_EQUAL;
+            side = lower;
+        } else if (std::isfinite(lower)) {
+            row_sense = GRB_GREATER_EQUAL;
+            side = lower;
+        }
+
+        rows_.push_back(model_.addConstr(GRBLinExpr(), row_sense, side, name));
+    }
+
+    model_.update();
+}
+
+void GurobiMasterSolver::add_columns(const ColumnBatch& columns) {
+    const double cost_sign = sense_sign();
+    std::vector<GRBConstr> constraints;
+
+    for (size_t column = 0; column < columns.size(); ++column) {
+        const ColumnId id = columns.ids[column];
+        if (column_index_.contains(id)) {
+            throw std::invalid_argument(
+                "GurobiMasterSolver::add_columns: a column id is already used");
+        }
+
+        // The column's entries, rows checked.
+        const std::uint32_t begin = columns.starts[column];
+        const std::uint32_t end = columns.starts[column + 1];
+        constraints.clear();
+        for (std::uint32_t entry = begin; entry < end; ++entry) {
+            constraints.push_back(rows_.at(columns.row_indices[entry]));
+        }
+
+        GRBColumn entries;
+        if (end > begin) {
+            entries.addTerms(&columns.values[begin],
+                             constraints.data(),
+                             static_cast<int>(constraints.size()));
+        }
+
+        const GRBVar added = model_.addVar(to_gurobi(columns.lower[column]),
+                                           to_gurobi(columns.upper[column]),
+                                           cost_sign * columns.cost[column],
+                                           GRB_CONTINUOUS,
+                                           entries);
+        column_index_.emplace(id, columns_.size());
+        columns_.push_back(added);
+    }
+
+    model_.update();
+}
+
+SolverStatus GurobiMasterSolver::solve_relaxation(const RelaxationParams& params) {
+    relax();
+    set_solve_options(model_, params.timeout_s, params.threads, params.verbose);
+
+    // After columns are added the last basis stays primal feasible, so primal simplex resumes
+    // from it; a method the user chose is kept.
+    if (model_.get(GRB_IntParam_Method) == GRB_METHOD_AUTO) {
+        const TemporaryParameter method(model_, GRB_IntParam_Method, GRB_METHOD_PRIMAL);
+        return optimize();
+    }
+    return optimize();
+}
+
+double GurobiMasterSolver::objective() const {
+    return sense_sign() * model_.get(GRB_DoubleAttr_ObjVal);
+}
+
+void GurobiMasterSolver::duals(std::span<double> out) const {
+    if (rows_.empty()) {
+        return;
+    }
+
+    const double sign = sense_sign();
+    const std::vector<double> values =
+        take(model_.get(GRB_DoubleAttr_Pi, rows_.data(), static_cast<int>(rows_.size())),
+             rows_.size());
+    for (size_t row = 0; row < rows_.size(); ++row) {
+        out[row] = sign * values[row];
+    }
+}
+
+void GurobiMasterSolver::primal(std::span<const ColumnId> ids, std::span<double> out) const {
+    if (ids.empty()) {
+        return;
+    }
+
+    std::vector<GRBVar> variables;
+    variables.reserve(ids.size());
+    std::ranges::transform(ids, std::back_inserter(variables), [this](ColumnId id) {
+        return variable(id);
+    });
+
+    const std::vector<double> values =
+        take(model_.get(GRB_DoubleAttr_X, variables.data(), static_cast<int>(variables.size())),
+             variables.size());
+    std::ranges::copy(values, out.begin());
+}
+
+SolverStatus GurobiMasterSolver::solve_integer(const IntegerParams& params) {
+    restore(params.column_type == ColumnType::Binary ? GRB_BINARY : GRB_INTEGER);
+    set_solve_options(model_, params.timeout_s, params.threads, params.verbose);
+    model_.set(GRB_DoubleParam_MIPGap, params.relative_gap);
+    return optimize();
+}
+
+void GurobiMasterSolver::set_option(std::string_view name, const OptionValue& value) {
+    const std::string parameter(name);
+
+    std::visit(
+        [&](const auto& option) {
+            using Value = std::decay_t<decltype(option)>;
+            if constexpr (std::is_same_v<Value, bool>) {
+                model_.set(parameter, option ? "1" : "0");
+            } else if constexpr (std::is_same_v<Value, std::string>) {
+                model_.set(parameter, option);
+            } else {
+                // The shortest text that reads back as the same number.
+                model_.set(parameter, std::format("{}", option));
+            }
+        },
+        value);
+}
+
+GRBVar GurobiMasterSolver::variable(ColumnId id) const {
+    const auto found = column_index_.find(id);
+    if (found == column_index_.end()) {
+        throw std::out_of_range("GurobiMasterSolver: no column has this id");
+    }
+    return columns_[found->second];
+}
+
+double GurobiMasterSolver::sense_sign() const {
+    return model_.get(GRB_IntAttr_ModelSense) == GRB_MAXIMIZE ? -1.0 : 1.0;
+}
+
+void GurobiMasterSolver::relax() {
+    if (relaxed_) {
+        return;
+    }
+    remember_user_types();
+
+    std::vector<GRBVar> variables = columns_;
+    for (const auto& [user_variable, type] : user_types_) {
+        variables.push_back(user_variable);
+    }
+    const std::vector<char> types(variables.size(), GRB_CONTINUOUS);
+    model_.set(GRB_CharAttr_VType,
+               variables.data(),
+               types.data(),
+               static_cast<int>(variables.size()));
+    relaxed_ = true;
+}
+
+void GurobiMasterSolver::restore(char type) {
+    remember_user_types();
+
+    std::vector<GRBVar> variables = columns_;
+    std::vector<char> types(columns_.size(), type);
+    for (const auto& [user_variable, user_type] : user_types_) {
+        variables.push_back(user_variable);
+        types.push_back(user_type);
+    }
+    model_.set(GRB_CharAttr_VType,
+               variables.data(),
+               types.data(),
+               static_cast<int>(variables.size()));
+    relaxed_ = false;
+}
+
+void GurobiMasterSolver::remember_user_types() {
+    if (user_types_known_) {
+        return;
+    }
+    user_types_known_ = true;
+
+    // Generated columns are all continuous until the first type change, so every other type
+    // belongs to a variable of the user.
+    const int count = model_.get(GRB_IntAttr_NumVars);
+    if (count == 0) {
+        return;
+    }
+    const auto size = static_cast<size_t>(count);
+    const std::vector<GRBVar> variables = take(model_.getVars(), size);
+    const std::vector<char> types =
+        take(model_.get(GRB_CharAttr_VType, variables.data(), count), size);
+    for (size_t index = 0; index < size; ++index) {
+        if (types[index] != GRB_CONTINUOUS) {
+            user_types_.emplace_back(variables[index], types[index]);
+        }
+    }
+}
+
+SolverStatus GurobiMasterSolver::optimize() {
+    model_.optimize();
+    int status = model_.get(GRB_IntAttr_Status);
+
+    if (status == GRB_INF_OR_UNBD) {
+        const TemporaryParameter reductions(model_, GRB_IntParam_DualReductions, 0);
+        model_.optimize();
+        status = model_.get(GRB_IntAttr_Status);
+    }
+    return status_of(status);
+}
+
+}  // namespace rcspp::column_generation
