@@ -195,7 +195,7 @@ $$
 Read it as "half a vehicle does 1–2, half does 1–3, half does 2–3". Each customer is covered by two halves, and
 $\tfrac12 + \tfrac12 = 1$. This isn't a real plan, but it proves that **no plan can cost less than 37.5**. The best
 real plan costs 44, so the **integrality gap** is $44 - 37.5 = 6.5$. How to get integer solutions is the subject of
-page 5; for now we focus on solving the LP.
+page 6; for now we focus on solving the LP.
 
 ---
 
@@ -472,7 +472,7 @@ Column generation gives the **LP** optimum (37.5 here), which is only a lower bo
   solution: the best integer plan may need a column that pricing never produced, because it was never attractive
   for the LP. The repository's VRP example does this.
 - **Branch-and-price.** To *prove* optimality, branch on fractional decisions and run column generation again in
-  every node of the search tree. This repository does not implement it. See page 5.
+  every node of the search tree. This repository does not implement it. See page 6.
 
 ---
 
