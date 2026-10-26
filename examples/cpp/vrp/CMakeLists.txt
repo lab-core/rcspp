@@ -2,9 +2,6 @@
 
 project(rcspp-vrp LANGUAGES CXX)
 
-# Use the canonical FindGUROBI.cmake from examples/cpp/vrp/cmake
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
 # Boost (optional) ------------------------------------------------------------
 find_package(Boost CONFIG QUIET)
 if(NOT Boost_FOUND)
