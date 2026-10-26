@@ -115,17 +115,17 @@ void init_graph(py::module_& m) {
 
     py::class_<BidirectionalStats>(m,
                                    "BidirectionalStats",
-                                   "What a bidirectional solve reports: whether the half-way bound "
+                                   "What a bidirectional solve reports: whether the half-way point "
                                    "was in force, why it was off if it was, and how many paths the "
                                    "join produced. Read it from SolveResult.bidirectional.")
         .def_readonly("bounded_by_half_way",
                       &BidirectionalStats::bounded_by_half_way,
-                      "Whether the half-way bound was in force. When it is off (see "
+                      "Whether the half-way point was in force. When it is off (see "
                       "half_way_off_reason), both searches run in full and the solve is slower "
                       "than a forward one, so check this rather than assume it.")
         .def_readonly("half_way_off_reason",
                       &BidirectionalStats::half_way_off_reason,
-                      "Why the half-way bound was off for this solve; empty when it was in force.")
+                      "Why the half-way point was off for this solve; empty when it was in force.")
         .def_readonly("number_of_joined_paths",
                       &BidirectionalStats::number_of_joined_paths,
                       "How many distinct complete paths came only from the join, that is, paths "
@@ -146,7 +146,7 @@ void init_graph(py::module_& m) {
         .def_readonly("bidirectional",
                       &SolveResult::bidirectional,
                       "Statistics of a bidirectional solve (a BidirectionalStats): whether the "
-                      "half-way bound was in force, and what the join produced. None unless the "
+                      "half-way point was in force, and what the join produced. None unless the "
                       "search ran bidirectionally.")
         .def_readonly("memory_pressure_triggered",
                       &SolveResult::memory_pressure_triggered,
@@ -268,7 +268,7 @@ void init_graph(py::module_& m) {
                        "resources of the cost's type (e.g. 1 for the second 'real' resource). The "
                        "clock must never decrease along an arc and must be a time window or a "
                        "capacity, not a plain sum and never the cost. If it is not, the half-way "
-                       "bound turns itself off: the answer stays correct, but the solve is slower. "
+                       "point turns itself off: the answer stays correct, but the solve is slower. "
                        "Used only by a bidirectional search (default 0).")
         .def_readwrite("half_way_point",
                        &PyAlgorithmParams::half_way_point,

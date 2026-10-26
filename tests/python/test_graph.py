@@ -911,7 +911,7 @@ def test_bucket_params_to_cpp_out_of_range_raises():
         rg.solve(params=params)
 
 
-def test_prune_by_upper_bound_is_settable():
+def test_prune_by_incumbent_is_settable():
     """prune_by_upper_bound is bound, off by default, and usable in a solve."""
     from rcspp.graph import AlgorithmParams
 

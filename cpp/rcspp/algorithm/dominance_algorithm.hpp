@@ -406,9 +406,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
 template <typename ResourceType>
 struct NodeUnprocessedLabelsManager {
-        void initialize_unprocessed_labels(size_t num_nodes) {
+        void initialize_unprocessed_labels(size_t number_of_nodes) {
             if (unprocessed_labels_by_node_pos_.empty()) {
-                for (size_t i = 0; i < num_nodes; i++) {
+                for (size_t i = 0; i < number_of_nodes; i++) {
                     unprocessed_labels_by_node_pos_.push_back(
                         std::list<LabelIteratorPair<ResourceType>>());
                     truncated_unprocessed_labels_by_node_pos_.push_back(
