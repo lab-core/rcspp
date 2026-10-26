@@ -1,8 +1,8 @@
 # Column generation layer: plan
 
 Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) on
-`feature/column-generation-gurobi`: 2.1–2.2b done, renamed `MasterSolver` by rewriting history (`D-69`, force-push
-pending); next 2.3 (self-test)**. Updated: 2026-10-26. Baseline: `main` @ `129b15e0`. CI is out of the
+`feature/column-generation-gurobi`: 2.1–2.3 done (`MasterSolver` rename `D-69`, self-test `D-70`); next 2.4 (the toy on
+Gurobi)**. Updated: 2026-10-26. Baseline: `main` @ `129b15e0`. CI is out of the
 plan for now (`D-52`).
 
 ## Agent protocol
