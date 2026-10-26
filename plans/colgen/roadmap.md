@@ -22,7 +22,7 @@ LP solver: compare them, but they are not golden.
 | ID | task | status | done when |
 |---|---|---|---|
 | T-1.1 | Interfaces (`D-21`–`D-24`, `D-30`) + `MasterProblem` with fixed rows (`D-34`) and `MasterInitialization` (`ArtificialColumns`, `D-45`) + `ColumnGeneration` + statistics tier 0–1; a fake `SolverBackend` for tests. Loop in C++ (`D-37`) | doing: PR 1 open as draft #61 (2026-10-26), stays a draft until phase 1 is ready; the toy tests need a real LP (T-1.3) | unit tests on the theory toy (LP 37.5, duals `(11.5, 12.5, 13.5)`, `docs/theory/master-and-pricing.md`) |
-| T-1.3 | `GurobiBackend` + `USE_GUROBI`; the **backend self-test** (dual signs, ranges, add columns, warm start: `F-15`) shared by every backend (`D-30`). First backend (`D-58`), C++ API (`D-61`, `D-62`) | doing: 2.1 committed (`9a4bcf60`, 2026-10-26) | self-test + toy pass locally; skipped cleanly without a license |
+| T-1.3 | `GurobiBackend` + `USE_GUROBI`; the **backend self-test** (dual signs, ranges, add columns, warm start: `F-15`) shared by every backend (`D-30`). First backend (`D-58`), C++ API (`D-61`, `D-62`) | doing: 2.1 and 2.2 committed (2026-10-26) | self-test + toy pass locally; skipped cleanly without a license |
 | T-1.4 | `GraphPricer` with a fixed single stage; returns status + bound (`D-21`) | todo | toy + `C101_25` give the T-0.1 LP value |
 | T-1.2 | `HighsBackend` + `USE_HIGHS` (FetchContent pinned); runs the self-test and toy tests written for Gurobi (`D-58`). Before #61 leaves draft (`D-59`) | todo | same tests + self-test pass on HiGHS |
 | T-1.5 | Port the C++ VRP example and benchmark to `rcspp::column_generation` (VRP code reduced to instance → graph + rows) | todo | T-0.1 LP values to 1e-6 relative on every instance; time ≤ baseline + 5 % (Gurobi) |
