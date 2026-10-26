@@ -63,6 +63,40 @@ SolverStatus status_of(int status) {
     }
 }
 
+// A row as Gurobi holds it: `a·x (sense) side`.
+struct GurobiRow {
+        char sense;
+        double side;
+};
+
+// The Gurobi row for `lower ≤ a·x ≤ upper`: `=` for equal finite bounds, `≥` or `≤` for one
+// finite bound, `≤ ∞` for a free row.
+GurobiRow gurobi_row(double lower, double upper) {
+    if (std::isnan(lower) || std::isnan(upper) || lower == infinity || upper == -infinity) {
+        throw std::invalid_argument(
+            "GurobiMasterSolver::add_rows: row bounds must be numbers, with lower < +inf and "
+            "upper > -inf");
+    }
+
+    const bool finite_lower = std::isfinite(lower);
+    const bool finite_upper = std::isfinite(upper);
+    if (finite_lower && finite_upper) {
+        if (lower != upper) {
+            throw std::invalid_argument(
+                "GurobiMasterSolver::add_rows: a row with two different finite bounds is a range; "
+                "build it in the model instead");
+        }
+        return {.sense = GRB_EQUAL, .side = lower};
+    }
+    if (finite_lower) {
+        return {.sense = GRB_GREATER_EQUAL, .side = lower};
+    }
+    if (finite_upper) {
+        return {.sense = GRB_LESS_EQUAL, .side = upper};
+    }
+    return {.sense = GRB_LESS_EQUAL, .side = GRB_INFINITY};
+}
+
 // The options every solve sets.
 void set_solve_options(GRBModel& model, double timeout_s, int threads, bool verbose) {
     model.set(GRB_DoubleParam_TimeLimit, to_gurobi(std::max(0.0, timeout_s)));
@@ -123,34 +157,17 @@ void GurobiMasterSolver::row_bounds(std::span<double> lower, std::span<double> u
 }
 
 void GurobiMasterSolver::add_rows(const RowBatch& rows) {
-    // Check every row first, so that a refused batch adds nothing.
+    // Convert every row first, so that a refused batch adds nothing.
+    std::vector<GurobiRow> converted;
+    converted.reserve(rows.lower.size());
     for (size_t row = 0; row < rows.lower.size(); ++row) {
-        const double lower = rows.lower[row];
-        const double upper = rows.upper[row];
-        if (lower != upper && std::isfinite(lower) && std::isfinite(upper)) {
-            throw std::invalid_argument(
-                "GurobiMasterSolver::add_rows: a row with two different finite bounds is a range; "
-                "build it in the model instead");
-        }
+        converted.push_back(gurobi_row(rows.lower[row], rows.upper[row]));
     }
 
-    for (size_t row = 0; row < rows.lower.size(); ++row) {
-        const double lower = rows.lower[row];
-        const double upper = rows.upper[row];
+    for (size_t row = 0; row < converted.size(); ++row) {
         const std::string name = rows.names.empty() ? std::string() : rows.names[row];
-
-        // A free row (both bounds infinite) becomes `a·x ≤ ∞`.
-        char row_sense = GRB_LESS_EQUAL;
-        double side = to_gurobi(upper);
-        if (lower == upper) {
-            row_sense = GRB_EQUAL;
-            side = lower;
-        } else if (std::isfinite(lower)) {
-            row_sense = GRB_GREATER_EQUAL;
-            side = lower;
-        }
-
-        rows_.push_back(model_.addConstr(GRBLinExpr(), row_sense, side, name));
+        rows_.push_back(
+            model_.addConstr(GRBLinExpr(), converted[row].sense, converted[row].side, name));
     }
 
     model_.update();
