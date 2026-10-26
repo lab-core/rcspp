@@ -304,7 +304,7 @@ $0 \to 2 \to 1 \to 3$ of section 3.6, the stored sets are $\{\}$, $\{2\}$ and $\
 when $j \in S_j$, which happens exactly when $j$ was in the memory at $i$: the textbook rule.
 
 Both nodes come from the arc's **endpoints**. That is why each arc's value for this resource is ignored, and why the
-same function also works for a search that starts from the sink (page 4).
+same function also works for a search that starts from the sink (page 5).
 
 With every node in every neighbourhood, nothing is ever forgotten, and $S_j$ is section 3.5's "visited before $j$"
 set. `add_elementary_resource` builds elementary paths this way. The `UnionExtensionFunction` of section 3.5's

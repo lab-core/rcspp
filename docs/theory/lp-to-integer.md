@@ -2,7 +2,7 @@
 title: From LP to integer solutions
 ---
 
-# 5. From LP to integer solutions
+# 6. From LP to integer solutions
 
 Column generation (page 1) solves the **LP relaxation** of the master problem. Real decisions need integers: a
 vehicle drives a route or it doesn't. This page covers how to get from one to the other:
@@ -29,7 +29,7 @@ $x_{12} = x_{13} = x_{32} = \tfrac12$. The best integer plan is again **44** ($p
 
 ---
 
-## 5.1 Bounds and gaps
+## 6.1 Bounds and gaps
 
 Two numbers bracket the optimal plan cost $z^*$:
 
@@ -47,7 +47,7 @@ optimal) or small enough to be acceptable.
 
 ---
 
-## 5.2 The quick way: solve the restricted master as an integer program
+## 6.2 The quick way: solve the restricted master as an integer program
 
 After column generation, solve the RMP once more **with integer variables**, using only the columns that were
 generated. This is what the repository's VRP example does (`master.solve(relax=False)`).
@@ -83,7 +83,7 @@ misses, branching is needed.
 
 ---
 
-## 5.3 Branching, and why not on the route variables
+## 6.3 Branching, and why not on the route variables
 
 Branch-and-bound splits a problem into subproblems that exclude the current fractional solution, and solves each
 subproblem's LP. The obvious choice would be to pick a fractional $x_p$ and create two branches, $x_p = 1$ and
@@ -99,7 +99,7 @@ The standard fix is to branch on quantities that pricing *can* respect. The most
 
 ---
 
-## 5.4 Branching on arcs
+## 6.4 Branching on arcs
 
 The **flow** on arc $a$ is how much the LP solution uses it:
 
@@ -157,7 +157,7 @@ No branch is left open, so the lower bound (the smallest LP among open branches)
 
 ---
 
-## 5.5 Cuts: raising the lower bound without branching
+## 6.5 Cuts: raising the lower bound without branching
 
 A **cut** is an inequality that every real plan satisfies but the current LP solution does not. Adding it to the
 master raises the lower bound.
@@ -196,7 +196,7 @@ Combining branching and cuts is called **branch-cut-and-price**, the state of th
 
 ---
 
-## 5.6 What `rcspp` provides, and what it doesn't
+## 6.6 What `rcspp` provides, and what it doesn't
 
 | need | in `rcspp` |
 |---|---|
@@ -242,7 +242,7 @@ def process_node(rg, pool, node, master, upper_bound):
 
 1. After column generation the LP is 37.5 and the restricted master IP returns a plan of cost 44. Without any more
    work, what do you know about the optimum?
-2. In the counterexample of section 5.2, why did pricing never return route $\{3, 4\}$, even though it is in the
+2. In the counterexample of section 6.2, why did pricing never return route $\{3, 4\}$, even though it is in the
    optimal plan?
 3. Why is forbidding arc $1 \to 2$ easy to enforce in pricing, but forbidding the route 0→1→2→0′ is not?
 4. In branch A, why is it enough to remove the other arcs leaving 1 and the other arcs entering 2?

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 380" width="760" height="380" role="img" aria-label="Route 0, 1, 2, 0 prime searched from both ends and joined at node 2" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+<title>Route 0 → 1 → 2 → 0′ searched from both ends</title>
+<defs><marker id="f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9480f"/></marker><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1a6b9a"/></marker></defs>
+<rect x="0" y="0" width="760" height="380" rx="10" fill="#ffffff"/>
+<text x="20.0" y="30.0" font-size="15" text-anchor="start" fill="#1b1b1b" font-weight="bold">Route 0 → 1 → 2 → 0′, searched from both ends</text>
+<rect x="150" y="52" width="224.0" height="196" fill="#fff4e6" opacity="0.6"/>
+<rect x="374.0" y="52" width="336.0" height="196" fill="#e7f5ff" opacity="0.6"/>
+<line x1="374.0" y1="48" x2="374.0" y2="252" stroke="#1b1b1b" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="374.0" y="44.0" font-size="12" text-anchor="middle" fill="#1b1b1b" font-weight="bold">H = 16</text>
+<text x="138.0" y="104.0" font-size="13" text-anchor="end" fill="#d9480f" font-weight="bold">forward</text>
+<line x1="150" y1="100" x2="710" y2="100" stroke="#e3e8ec" stroke-width="1"/>
+<line x1="156.0" y1="100" x2="282.0" y2="100" stroke="#d9480f" stroke-width="2.4" marker-end="url(#f)"/>
+<line x1="296.0" y1="100" x2="422.0" y2="100" stroke="#d9480f" stroke-width="2.4" marker-end="url(#f)"/>
+<circle cx="150.0" cy="100" r="6" fill="#d9480f"/>
+<text x="150.0" y="122.0" font-size="11" text-anchor="middle" fill="#d9480f" font-weight="bold">leave 0 at 0</text>
+<circle cx="290.0" cy="100" r="6" fill="#d9480f"/>
+<text x="290.0" y="122.0" font-size="11" text-anchor="middle" fill="#d9480f" font-weight="bold">reach 1 at 10</text>
+<circle cx="430.0" cy="100" r="6" fill="#d9480f"/>
+<text x="430.0" y="122.0" font-size="11" text-anchor="middle" fill="#d9480f" font-weight="bold">reach 2 at 20</text>
+<text x="430.0" y="137.0" font-size="11" text-anchor="middle" fill="#d9480f" font-weight="normal">past H: kept, not extended</text>
+<text x="138.0" y="194.0" font-size="13" text-anchor="end" fill="#1a6b9a" font-weight="bold">backward</text>
+<line x1="150" y1="190" x2="710" y2="190" stroke="#e3e8ec" stroke-width="1"/>
+<line x1="710.0" y1="190" x2="578.0" y2="190" stroke="#1a6b9a" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#b)"/>
+<text x="706.0" y="178.0" font-size="11" text-anchor="end" fill="#1a6b9a" font-weight="normal">from 0′ (deadline 100)</text>
+<line x1="564.0" y1="190" x2="368.0" y2="190" stroke="#1a6b9a" stroke-width="2.4" marker-end="url(#b)"/>
+<circle cx="570.0" cy="190" r="6" fill="#1a6b9a"/>
+<text x="570.0" y="212.0" font-size="11" text-anchor="middle" fill="#1a6b9a" font-weight="bold">be at 2 by 30</text>
+<circle cx="360.0" cy="190" r="6" fill="#1a6b9a"/>
+<text x="360.0" y="212.0" font-size="11" text-anchor="middle" fill="#1a6b9a" font-weight="bold">be at 1 by 15</text>
+<text x="360.0" y="227.0" font-size="11" text-anchor="middle" fill="#1a6b9a" font-weight="normal">below H: kept, not extended</text>
+<line x1="430.0" y1="146" x2="430.0" y2="182" stroke="#2b8a3e" stroke-width="2" stroke-dasharray="3 3"/>
+<line x1="430.0" y1="182" x2="563.0" y2="182" stroke="#2b8a3e" stroke-width="2" stroke-dasharray="3 3"/>
+<text x="500.0" y="176.0" font-size="11" text-anchor="middle" fill="#2b8a3e" font-weight="bold">join at node 2</text>
+<text x="150.0" y="278.0" font-size="13" text-anchor="start" fill="#2b8a3e" font-weight="bold">Join at node 2:</text>
+<text x="150.0" y="298.0" font-size="13" text-anchor="start" fill="#2b8a3e" font-weight="normal">time 20 ≤ deadline 30 ✓   load 9 + 0 ≤ 11 ✓   reduced cost −6 + (−10) = −16</text>
+<line x1="150" y1="335" x2="710" y2="335" stroke="#1b1b1b" stroke-width="1.2"/>
+<line x1="150.0" y1="335" x2="150.0" y2="340" stroke="#1b1b1b"/>
+<text x="150.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">0</text>
+<line x1="220.0" y1="335" x2="220.0" y2="340" stroke="#1b1b1b"/>
+<text x="220.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">5</text>
+<line x1="290.0" y1="335" x2="290.0" y2="340" stroke="#1b1b1b"/>
+<text x="290.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">10</text>
+<line x1="360.0" y1="335" x2="360.0" y2="340" stroke="#1b1b1b"/>
+<text x="360.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">15</text>
+<line x1="430.0" y1="335" x2="430.0" y2="340" stroke="#1b1b1b"/>
+<text x="430.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">20</text>
+<line x1="500.0" y1="335" x2="500.0" y2="340" stroke="#1b1b1b"/>
+<text x="500.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">25</text>
+<line x1="570.0" y1="335" x2="570.0" y2="340" stroke="#1b1b1b"/>
+<text x="570.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">30</text>
+<line x1="640.0" y1="335" x2="640.0" y2="340" stroke="#1b1b1b"/>
+<text x="640.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">35</text>
+<line x1="710.0" y1="335" x2="710.0" y2="340" stroke="#1b1b1b"/>
+<text x="710.0" y="355.0" font-size="12" text-anchor="middle" fill="#5f6b76" font-weight="normal">40</text>
+<text x="138.0" y="340.0" font-size="13" text-anchor="end" fill="#5f6b76" font-weight="normal">time</text>
+</svg>

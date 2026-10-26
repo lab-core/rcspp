@@ -71,10 +71,8 @@ usually runs without its heuristic. The same applies to the shortest-path prepro
 
 All four search **forward**, from the sources. `simple` can also search **backward**, from the sinks, or
 **bidirectionally**: one search from each end, with the two halves joined in the middle. Neither `pushing` nor
-`pulling` is bidirectional; they only sweep the nodes in a different order. A backward or bidirectional search needs
-every resource to say how it extends from the sink, and checks the model for that before it starts.
-See [`Bidirectional`](../advanced/algorithms.md#bidirectional) and
-[Search directions](../advanced/algorithms.md#search-directions) for how to set them up.
+`pulling` is bidirectional; they only sweep the nodes in a different order. Page 5 explains how a search from the
+sink works and when it pays off.
 
 Which exact algorithm is fastest depends on the graph, so it is worth benchmarking on representative instances;
 `examples/cpp/benchmark_main.cpp` shows how.
@@ -209,6 +207,13 @@ it costs $10 + 5 + 10 = 25 > 24$. Arc $1 \to 2$ stays ($10 + 4 + 10 = 24$).
 
 The nodes are sorted: sources first, sinks last, and a node before the nodes it can reach but that cannot reach it
 back. Ties are broken by distance from the source. `pushing` and `pulling` sweep the nodes in this order.
+
+### Checking the model
+
+A backward or bidirectional search (page 5) first runs **model checks**. They verify that every resource says how
+to extend from the sink, and how to join two halves, and they refuse the model otherwise. Unlike the three steps
+above, they run whatever `preprocess` says, and they never change the graph. Forward searches skip them. Page 5,
+section 5.6, explains what they check.
 
 ---
 
