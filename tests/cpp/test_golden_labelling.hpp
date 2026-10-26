@@ -370,16 +370,16 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s1_n11_t1_pre_pulling", {179u, 9u, -25000LL, 0x64536858836ca57fULL}},
         {"s1_n11_t1_pre_astar", {211u, 9u, -25000LL, 0x64536858836ca57fULL}},
         {"s1_n11_t1_pre_backward", {163u, 4u, -25000LL, 0xa669604305fccfe3ULL}},
-        {"s1_n11_t1_quota_simple", {55u, 1u, -9000LL, 0x4ca20e1bb6f584ddULL}},
+        {"s1_n11_t1_quota_simple", {53u, 1u, -9000LL, 0x4ca20e1bb6f584ddULL}},
         {"s1_n11_t1_quota_pushing", {112u, 6u, -25000LL, 0x05e81eeb9d01446dULL}},
         {"s1_n11_t1_quota_pulling", {112u, 6u, -25000LL, 0x05e81eeb9d01446dULL}},
-        {"s1_n11_t1_quota_astar", {60u, 4u, -25000LL, 0xe2b814672eacf330ULL}},
-        {"s1_n11_t1_quota_backward", {56u, 2u, -12000LL, 0xca4d81db9e005e43ULL}},
-        {"s1_n11_t1_phases_simple", {139u, 5u, -25000LL, 0x8b47eee5f713dd49ULL}},
+        {"s1_n11_t1_quota_astar", {49u, 4u, -25000LL, 0xe2b814672eacf330ULL}},
+        {"s1_n11_t1_quota_backward", {49u, 2u, -12000LL, 0xca4d81db9e005e43ULL}},
+        {"s1_n11_t1_phases_simple", {137u, 5u, -25000LL, 0x8b47eee5f713dd49ULL}},
         {"s1_n11_t1_phases_pushing", {236u, 10u, -25000LL, 0x2d5f057de5ab1423ULL}},
         {"s1_n11_t1_phases_pulling", {248u, 10u, -25000LL, 0x2d5f057de5ab1423ULL}},
-        {"s1_n11_t1_phases_astar", {134u, 6u, -25000LL, 0x2633d6a989e6e337ULL}},
-        {"s1_n11_t1_phases_backward", {147u, 4u, -25000LL, 0xa669604305fccfe3ULL}},
+        {"s1_n11_t1_phases_astar", {115u, 6u, -25000LL, 0x2633d6a989e6e337ULL}},
+        {"s1_n11_t1_phases_backward", {132u, 4u, -25000LL, 0xa669604305fccfe3ULL}},
         {"s1_n11_t1_dominated_simple", {198u, 10u, -25000LL, 0xb1fa7e25e121ac1aULL}},
         {"s1_n11_t1_dominated_pushing", {232u, 10u, -25000LL, 0xb1fa7e25e121ac1aULL}},
         {"s1_n11_t1_dominated_pulling", {232u, 10u, -25000LL, 0xb1fa7e25e121ac1aULL}},
@@ -404,12 +404,12 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s2_n8_t1_quota_pushing", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_quota_pulling", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_quota_astar", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
-        {"s2_n8_t1_quota_backward", {14u, 1u, 3000LL, 0x161452c261f33846ULL}},
+        {"s2_n8_t1_quota_backward", {13u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_phases_simple", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_phases_pushing", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_phases_pulling", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_phases_astar", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
-        {"s2_n8_t1_phases_backward", {15u, 1u, 3000LL, 0x161452c261f33846ULL}},
+        {"s2_n8_t1_phases_backward", {14u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_dominated_simple", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_dominated_pushing", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
         {"s2_n8_t1_dominated_pulling", {1u, 1u, 3000LL, 0x161452c261f33846ULL}},
@@ -430,16 +430,16 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s2_n11_t1_pre_pulling", {128u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_pre_astar", {159u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_pre_backward", {10u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
-        {"s2_n11_t1_quota_simple", {40u, 1u, 16000LL, 0x2b262cdf1d46649aULL}},
+        {"s2_n11_t1_quota_simple", {36u, 1u, 16000LL, 0x2b262cdf1d46649aULL}},
         {"s2_n11_t1_quota_pushing", {115u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_quota_pulling", {115u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
-        {"s2_n11_t1_quota_astar", {43u, 0u, 0LL, 0x14650fb0739d0383ULL}},
-        {"s2_n11_t1_quota_backward", {15u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
-        {"s2_n11_t1_phases_simple", {97u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
+        {"s2_n11_t1_quota_astar", {28u, 0u, 0LL, 0x14650fb0739d0383ULL}},
+        {"s2_n11_t1_quota_backward", {13u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
+        {"s2_n11_t1_phases_simple", {88u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_phases_pushing", {140u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_phases_pulling", {154u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
-        {"s2_n11_t1_phases_astar", {108u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
-        {"s2_n11_t1_phases_backward", {17u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
+        {"s2_n11_t1_phases_astar", {90u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
+        {"s2_n11_t1_phases_backward", {15u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_dominated_simple", {144u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_dominated_pushing", {144u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
         {"s2_n11_t1_dominated_pulling", {144u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL}},
@@ -460,15 +460,15 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s3_n8_t1_pre_pulling", {23u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_pre_astar", {23u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_pre_backward", {22u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
-        {"s3_n8_t1_quota_simple", {26u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
+        {"s3_n8_t1_quota_simple", {25u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_quota_pushing", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_quota_pulling", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
-        {"s3_n8_t1_quota_astar", {27u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
+        {"s3_n8_t1_quota_astar", {26u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_quota_backward", {26u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
-        {"s3_n8_t1_phases_simple", {29u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
+        {"s3_n8_t1_phases_simple", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_phases_pushing", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_phases_pulling", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
-        {"s3_n8_t1_phases_astar", {30u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
+        {"s3_n8_t1_phases_astar", {29u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_phases_backward", {26u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_dominated_simple", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
         {"s3_n8_t1_dominated_pushing", {28u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL}},
@@ -493,13 +493,13 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s3_n11_t1_quota_simple", {51u, 4u, -23000LL, 0x66384dfd43515437ULL}},
         {"s3_n11_t1_quota_pushing", {64u, 2u, -23000LL, 0x38a5bda264be4397ULL}},
         {"s3_n11_t1_quota_pulling", {64u, 2u, -23000LL, 0x38a5bda264be4397ULL}},
-        {"s3_n11_t1_quota_astar", {57u, 3u, -23000LL, 0x7277b0614129e13fULL}},
+        {"s3_n11_t1_quota_astar", {49u, 2u, -23000LL, 0x38a5bda264be4397ULL}},
         {"s3_n11_t1_quota_backward", {63u, 3u, -23000LL, 0xa29307f1d30e27ffULL}},
-        {"s3_n11_t1_phases_simple", {126u, 4u, -23000LL, 0x66384dfd43515437ULL}},
+        {"s3_n11_t1_phases_simple", {117u, 4u, -23000LL, 0x66384dfd43515437ULL}},
         {"s3_n11_t1_phases_pushing", {103u, 4u, -23000LL, 0x66384dfd43515437ULL}},
         {"s3_n11_t1_phases_pulling", {106u, 4u, -23000LL, 0x66384dfd43515437ULL}},
-        {"s3_n11_t1_phases_astar", {109u, 4u, -23000LL, 0x66384dfd43515437ULL}},
-        {"s3_n11_t1_phases_backward", {129u, 3u, -23000LL, 0xa29307f1d30e27ffULL}},
+        {"s3_n11_t1_phases_astar", {103u, 4u, -23000LL, 0x66384dfd43515437ULL}},
+        {"s3_n11_t1_phases_backward", {121u, 3u, -23000LL, 0xa29307f1d30e27ffULL}},
         {"s3_n11_t1_dominated_simple", {121u, 4u, -23000LL, 0x66384dfd43515437ULL}},
         {"s3_n11_t1_dominated_pushing", {103u, 4u, -23000LL, 0x66384dfd43515437ULL}},
         {"s3_n11_t1_dominated_pulling", {103u, 4u, -23000LL, 0x66384dfd43515437ULL}},
@@ -554,12 +554,12 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s4_n11_t1_quota_pushing", {81u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_quota_pulling", {81u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_quota_astar", {45u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
-        {"s4_n11_t1_quota_backward", {43u, 2u, -8000LL, 0x5207dc0f05f645f4ULL}},
+        {"s4_n11_t1_quota_backward", {40u, 2u, -8000LL, 0x5207dc0f05f645f4ULL}},
         {"s4_n11_t1_phases_simple", {85u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_phases_pushing", {91u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_phases_pulling", {91u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_phases_astar", {88u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
-        {"s4_n11_t1_phases_backward", {77u, 2u, -8000LL, 0x5207dc0f05f645f4ULL}},
+        {"s4_n11_t1_phases_backward", {72u, 2u, -8000LL, 0x5207dc0f05f645f4ULL}},
         {"s4_n11_t1_dominated_simple", {91u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_dominated_pushing", {91u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
         {"s4_n11_t1_dominated_pulling", {91u, 3u, -8000LL, 0x9ade3884b8e2faeaULL}},
@@ -613,13 +613,13 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s5_n11_t1_quota_simple", {43u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_quota_pushing", {97u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_quota_pulling", {97u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
-        {"s5_n11_t1_quota_astar", {50u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
-        {"s5_n11_t1_quota_backward", {32u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
+        {"s5_n11_t1_quota_astar", {41u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
+        {"s5_n11_t1_quota_backward", {28u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_phases_simple", {93u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_phases_pushing", {97u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_phases_pulling", {97u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
-        {"s5_n11_t1_phases_astar", {103u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
-        {"s5_n11_t1_phases_backward", {36u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
+        {"s5_n11_t1_phases_astar", {93u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
+        {"s5_n11_t1_phases_backward", {32u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_dominated_simple", {93u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_dominated_pushing", {97u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
         {"s5_n11_t1_dominated_pulling", {97u, 2u, -12000LL, 0xb93d69275e2f6f42ULL}},
@@ -644,12 +644,12 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s6_n8_t1_quota_pushing", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_quota_pulling", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_quota_astar", {21u, 4u, -37000LL, 0x51b475ea1bac6977ULL}},
-        {"s6_n8_t1_quota_backward", {27u, 3u, -14000LL, 0xda06319219f81509ULL}},
+        {"s6_n8_t1_quota_backward", {24u, 3u, -14000LL, 0xda06319219f81509ULL}},
         {"s6_n8_t1_phases_simple", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_phases_pushing", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_phases_pulling", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_phases_astar", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
-        {"s6_n8_t1_phases_backward", {48u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
+        {"s6_n8_t1_phases_backward", {45u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_dominated_simple", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_dominated_pushing", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
         {"s6_n8_t1_dominated_pulling", {30u, 5u, -39000LL, 0x7fc63171a5612e92ULL}},
@@ -670,15 +670,15 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s6_n11_t1_pre_pulling", {67u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_pre_astar", {67u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_pre_backward", {1u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
-        {"s6_n11_t1_quota_simple", {41u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
+        {"s6_n11_t1_quota_simple", {40u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_quota_pushing", {66u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_quota_pulling", {66u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
-        {"s6_n11_t1_quota_astar", {41u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
+        {"s6_n11_t1_quota_astar", {40u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_quota_backward", {2u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
-        {"s6_n11_t1_phases_simple", {74u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
+        {"s6_n11_t1_phases_simple", {69u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_phases_pushing", {76u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_phases_pulling", {80u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
-        {"s6_n11_t1_phases_astar", {74u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
+        {"s6_n11_t1_phases_astar", {69u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_phases_backward", {2u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_dominated_simple", {75u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
         {"s6_n11_t1_dominated_pushing", {77u, 1u, 5000LL, 0x7d259b7a076f694dULL}},
@@ -734,12 +734,12 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s7_n11_t1_quota_pushing", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
         {"s7_n11_t1_quota_pulling", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
         {"s7_n11_t1_quota_astar", {20u, 3u, -25000LL, 0x11f8f47a35cf8689ULL}},
-        {"s7_n11_t1_quota_backward", {39u, 2u, -22000LL, 0x932b95a6d1571386ULL}},
-        {"s7_n11_t1_phases_simple", {47u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
+        {"s7_n11_t1_quota_backward", {34u, 2u, -22000LL, 0x932b95a6d1571386ULL}},
+        {"s7_n11_t1_phases_simple", {46u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
         {"s7_n11_t1_phases_pushing", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
         {"s7_n11_t1_phases_pulling", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
-        {"s7_n11_t1_phases_astar", {53u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
-        {"s7_n11_t1_phases_backward", {82u, 3u, -25000LL, 0x11f8f47a35cf8689ULL}},
+        {"s7_n11_t1_phases_astar", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
+        {"s7_n11_t1_phases_backward", {72u, 3u, -25000LL, 0x11f8f47a35cf8689ULL}},
         {"s7_n11_t1_dominated_simple", {46u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
         {"s7_n11_t1_dominated_pushing", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
         {"s7_n11_t1_dominated_pulling", {52u, 5u, -25000LL, 0x287dea0a61a3be49ULL}},
@@ -820,16 +820,16 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s9_n11_t2_pre_pulling", {49u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_pre_astar", {49u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_pre_backward", {25u, 5u, -17000LL, 0x62a707e88ee53805ULL}},
-        {"s9_n11_t2_quota_simple", {32u, 4u, -14000LL, 0xfc4c9d765d6764c9ULL}},
+        {"s9_n11_t2_quota_simple", {31u, 4u, -14000LL, 0xfc4c9d765d6764c9ULL}},
         {"s9_n11_t2_quota_pushing", {54u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_quota_pulling", {54u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_quota_astar", {31u, 4u, -17000LL, 0xfb41366d569b4540ULL}},
-        {"s9_n11_t2_quota_backward", {26u, 5u, -17000LL, 0x62a707e88ee53805ULL}},
-        {"s9_n11_t2_phases_simple", {58u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
+        {"s9_n11_t2_quota_backward", {23u, 5u, -17000LL, 0x62a707e88ee53805ULL}},
+        {"s9_n11_t2_phases_simple", {54u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_phases_pushing", {55u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_phases_pulling", {55u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_phases_astar", {54u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
-        {"s9_n11_t2_phases_backward", {29u, 5u, -17000LL, 0x62a707e88ee53805ULL}},
+        {"s9_n11_t2_phases_backward", {26u, 5u, -17000LL, 0x62a707e88ee53805ULL}},
         {"s9_n11_t2_dominated_simple", {54u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_dominated_pushing", {55u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
         {"s9_n11_t2_dominated_pulling", {55u, 6u, -17000LL, 0x9996c7be97eaac38ULL}},
@@ -880,16 +880,16 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s11_n11_t2_pre_pulling", {65u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
         {"s11_n11_t2_pre_astar", {69u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
         {"s11_n11_t2_pre_backward", {46u, 8u, -33000LL, 0x3c8722830d1a4fc6ULL}},
-        {"s11_n11_t2_quota_simple", {50u, 6u, -17000LL, 0x393cddcaa9d47410ULL}},
+        {"s11_n11_t2_quota_simple", {46u, 5u, -17000LL, 0x8417a2753c5b206bULL}},
         {"s11_n11_t2_quota_pushing", {61u, 8u, -33000LL, 0x47ce1cb70d7523b8ULL}},
         {"s11_n11_t2_quota_pulling", {61u, 8u, -33000LL, 0x47ce1cb70d7523b8ULL}},
-        {"s11_n11_t2_quota_astar", {52u, 6u, -17000LL, 0xa24c140b76f624b3ULL}},
-        {"s11_n11_t2_quota_backward", {46u, 8u, -33000LL, 0x3c8722830d1a4fc6ULL}},
-        {"s11_n11_t2_phases_simple", {79u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
+        {"s11_n11_t2_quota_astar", {46u, 5u, -17000LL, 0x0cf0eea2b4c54308ULL}},
+        {"s11_n11_t2_quota_backward", {42u, 7u, -27000LL, 0xc5e06b207b7ffd82ULL}},
+        {"s11_n11_t2_phases_simple", {71u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
         {"s11_n11_t2_phases_pushing", {75u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
         {"s11_n11_t2_phases_pulling", {86u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
-        {"s11_n11_t2_phases_astar", {84u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
-        {"s11_n11_t2_phases_backward", {53u, 8u, -33000LL, 0x3c8722830d1a4fc6ULL}},
+        {"s11_n11_t2_phases_astar", {74u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
+        {"s11_n11_t2_phases_backward", {49u, 8u, -33000LL, 0x3c8722830d1a4fc6ULL}},
         {"s11_n11_t2_dominated_simple", {75u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
         {"s11_n11_t2_dominated_pushing", {75u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
         {"s11_n11_t2_dominated_pulling", {75u, 9u, -33000LL, 0xfc59b160261878c3ULL}},
@@ -940,16 +940,16 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s13_n16_t1_pre_pulling", {358u, 10u, -32000LL, 0x8d1f228482729a91ULL}},
         {"s13_n16_t1_pre_astar", {345u, 10u, -32000LL, 0x8d1f228482729a91ULL}},
         {"s13_n16_t1_pre_backward", {844u, 5u, -32000LL, 0x584438287326bce4ULL}},
-        {"s13_n16_t1_quota_simple", {135u, 4u, -10000LL, 0x82fd74d2a8291e96ULL}},
+        {"s13_n16_t1_quota_simple", {125u, 4u, -10000LL, 0x82fd74d2a8291e96ULL}},
         {"s13_n16_t1_quota_pushing", {265u, 7u, -32000LL, 0x5cb6071eab65d007ULL}},
         {"s13_n16_t1_quota_pulling", {265u, 7u, -32000LL, 0x5cb6071eab65d007ULL}},
-        {"s13_n16_t1_quota_astar", {142u, 5u, -28000LL, 0xd6f70fd9c030731aULL}},
-        {"s13_n16_t1_quota_backward", {124u, 2u, -6000LL, 0x1d298349d118d3b2ULL}},
-        {"s13_n16_t1_phases_simple", {302u, 9u, -28000LL, 0xc2993e9419b7b715ULL}},
+        {"s13_n16_t1_quota_astar", {121u, 5u, -28000LL, 0xd6f70fd9c030731aULL}},
+        {"s13_n16_t1_quota_backward", {121u, 2u, -6000LL, 0x1d298349d118d3b2ULL}},
+        {"s13_n16_t1_phases_simple", {292u, 9u, -28000LL, 0xc2993e9419b7b715ULL}},
         {"s13_n16_t1_phases_pushing", {388u, 10u, -32000LL, 0x8d1f228482729a91ULL}},
         {"s13_n16_t1_phases_pulling", {408u, 10u, -32000LL, 0x8d1f228482729a91ULL}},
-        {"s13_n16_t1_phases_astar", {294u, 7u, -32000LL, 0x5cb6071eab65d007ULL}},
-        {"s13_n16_t1_phases_backward", {374u, 5u, -28000LL, 0x9eb068c78c939c1eULL}},
+        {"s13_n16_t1_phases_astar", {270u, 7u, -32000LL, 0x5cb6071eab65d007ULL}},
+        {"s13_n16_t1_phases_backward", {346u, 5u, -28000LL, 0x9eb068c78c939c1eULL}},
         {"s13_n16_t1_dominated_simple", {367u, 11u, -32000LL, 0x62039085add9f6f3ULL}},
         {"s13_n16_t1_dominated_pushing", {388u, 14u, -32000LL, 0x5e1fd3085c21d56bULL}},
         {"s13_n16_t1_dominated_pulling", {388u, 14u, -32000LL, 0x5e1fd3085c21d56bULL}},
@@ -970,16 +970,16 @@ inline const std::vector<Row>& golden_forward_backward() {
         {"s14_n16_t1_pre_pulling", {229u, 7u, -35000LL, 0x876c8aad12cbc5abULL}},
         {"s14_n16_t1_pre_astar", {267u, 7u, -35000LL, 0x876c8aad12cbc5abULL}},
         {"s14_n16_t1_pre_backward", {351u, 5u, -35000LL, 0x968b1939edce355fULL}},
-        {"s14_n16_t1_quota_simple", {108u, 4u, -21000LL, 0x14980f553faaec11ULL}},
+        {"s14_n16_t1_quota_simple", {98u, 4u, -21000LL, 0x14980f553faaec11ULL}},
         {"s14_n16_t1_quota_pushing", {163u, 6u, -29000LL, 0x23b7ff6237f12daaULL}},
         {"s14_n16_t1_quota_pulling", {163u, 6u, -29000LL, 0x23b7ff6237f12daaULL}},
-        {"s14_n16_t1_quota_astar", {95u, 3u, -23000LL, 0x4b25de7853cca805ULL}},
-        {"s14_n16_t1_quota_backward", {125u, 3u, -29000LL, 0x888af517706b27daULL}},
-        {"s14_n16_t1_phases_simple", {238u, 8u, -35000LL, 0x22cfe41447f633dcULL}},
+        {"s14_n16_t1_quota_astar", {93u, 3u, -23000LL, 0x4b25de7853cca805ULL}},
+        {"s14_n16_t1_quota_backward", {122u, 3u, -29000LL, 0x888af517706b27daULL}},
+        {"s14_n16_t1_phases_simple", {228u, 8u, -35000LL, 0x22cfe41447f633dcULL}},
         {"s14_n16_t1_phases_pushing", {298u, 9u, -35000LL, 0x98346b8a442d966fULL}},
         {"s14_n16_t1_phases_pulling", {296u, 8u, -29000LL, 0xee91006ecb02a62aULL}},
-        {"s14_n16_t1_phases_astar", {226u, 6u, -35000LL, 0xd11d596738980aa3ULL}},
-        {"s14_n16_t1_phases_backward", {321u, 5u, -35000LL, 0x3381bb8eba4f9664ULL}},
+        {"s14_n16_t1_phases_astar", {220u, 6u, -35000LL, 0xd11d596738980aa3ULL}},
+        {"s14_n16_t1_phases_backward", {309u, 5u, -35000LL, 0x3381bb8eba4f9664ULL}},
         {"s14_n16_t1_dominated_simple", {259u, 8u, -35000LL, 0x22cfe41447f633dcULL}},
         {"s14_n16_t1_dominated_pushing", {268u, 7u, -35000LL, 0x876c8aad12cbc5abULL}},
         {"s14_n16_t1_dominated_pulling", {268u, 7u, -35000LL, 0x876c8aad12cbc5abULL}},
@@ -1280,6 +1280,56 @@ TEST(GoldenLabelling, TimingIsPrintedWhenAsked) {
                               .count();
             }
             std::printf("TIMING %s %zu %lld\n", gl::kind_name(k), n, micros);
+        }
+    }
+}
+
+namespace golden_labelling {
+/// @brief Solves @p g with @p Strategy under @p v, keeping its labels, and says whether the pool's
+///        reference counts are consistent afterwards.
+template <template <typename, typename> class Strategy>
+bool keeps_reference_counts(const Variant& v, ResourceGraph<RealResource>* g) {
+    auto p = params_for<AlgorithmParams<ForwardList>>(v);
+    p.release_after_solve = false;
+    auto a = g->create_algorithm<Strategy>(p);
+    (void)g->solve(a.get(), v.upper_bound, v.preprocess);
+    return a->get_label_pool().check_ref_count_consistency();
+}
+}  // namespace golden_labelling
+
+/// @brief No search releases a label twice or extends one it stored for the next phase: after
+///        every forward search, on every instance and setting, each kept label's reference count
+///        matches the labels that name it as their predecessor.
+///
+/// The queue can run out while the search is skipping dominated or over-quota labels; the last
+/// of them must then not reach the loop, which would release it again (the pool's free list
+/// would hold it twice) or extend it while it waits for the next phase. The 40-node instance
+/// with three phases is where A* exhausts memory when that happens.
+TEST(GoldenLabelling, EverySearchKeepsTheReferenceCountsConsistent) {
+    namespace gl = golden_labelling;
+    std::vector<gl::Spec> specs = gl::specs();
+    specs.push_back({16, 40, 1});
+    for (const gl::Spec& spec : specs) {
+        const gl::Instance in = gl::generate(spec);
+        for (const auto& v : gl::variants()) {
+            const std::string where =
+                "s" + std::to_string(spec.seed) + "_n" + std::to_string(spec.n) + "_" + v.name;
+            EXPECT_TRUE(
+                gl::keeps_reference_counts<rcspp::SimpleDominanceAlgorithm>(v, gl::build(in).get()))
+                << where << " simple";
+            EXPECT_TRUE(
+                gl::keeps_reference_counts<rcspp::PushingDominanceAlgorithm>(v,
+                                                                             gl::build(in).get()))
+                << where << " pushing";
+            EXPECT_TRUE(
+                gl::keeps_reference_counts<rcspp::PullingDominanceAlgorithm>(v,
+                                                                             gl::build(in).get()))
+                << where << " pulling";
+            EXPECT_TRUE(
+                gl::keeps_reference_counts<rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>(
+                    v,
+                    gl::build(in).get()))
+                << where << " astar";
         }
     }
 }

@@ -248,6 +248,13 @@ New features are summarised, with a pointer to where they are documented.
 - `PricingPool.populate_from_cpp_pool()` no longer copies all of the C++ pool's LP data, which it
   did not use. The docs of `SharedPricingPool.add_from_lp_arrays` no longer promise zero copy: it
   converts the index arrays to int32.
+- `SimpleDominanceAlgorithm` (forward and backward) and `AStarDominanceAlgorithm` no longer
+  release a label twice or extend one over the per-node quota. When a search's queue ran out
+  while it was skipping dominated or over-quota labels, the last of them went back to the main
+  loop. A dominated one was then released a second time, so the label pool could hand the same
+  label out twice; an over-quota one was extended anyway. Under `max_extended_labels_per_node`
+  these searches now extend fewer labels and can return fewer solutions, as the quota asks; on a
+  40-node graph with three phases, A* no longer runs out of memory.
 - `ResourceGraph::solve` restores the arcs its preprocessing removed even when the solve throws.
   Before, any exception out of a solve (a user function's error, say) left those arcs deleted from
   the caller's graph, so a fallback solve priced on a smaller graph.
