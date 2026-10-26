@@ -50,8 +50,10 @@ class GurobiMasterSolver final : public MasterSolver {
 
         /// @brief Appends `=`, `≥`, `≤` or free rows to the model.
         ///
-        /// @throws std::invalid_argument For a row with two different finite bounds (a range):
-        ///                               build it in the model instead.
+        /// @throws std::invalid_argument For a row with two different finite bounds (a range:
+        ///                               build it in the model instead), or with bounds that
+        ///                               no Gurobi row holds (NaN, `lower = +∞`, `upper = −∞`).
+        ///                               A refused batch adds no row.
         void add_rows(const RowBatch& rows) override;
 
         void add_columns(const ColumnBatch& columns) override;
