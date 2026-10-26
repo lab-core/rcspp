@@ -90,6 +90,7 @@ if(USE_GUROBI)
     message(FATAL_ERROR
             "USE_GUROBI needs the Gurobi C++ library (gurobi_c++); pass -DGUROBI_CXX_LIBRARY=<path>.")
   endif()
+  add_subdirectory(cpp/rcspp_backends/gurobi)
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------
