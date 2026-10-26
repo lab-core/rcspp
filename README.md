@@ -105,6 +105,11 @@ cmake -DUSE_PYTHON=ON -DUSE_VRP=ON ..
 cmake --build .
 ```
 
+### Building the documentation
+
+To build the documentation site locally and view it in a browser, see
+[docs/README.md](docs/README.md).
+
 ---
 
 ## Pre-commit and hooks

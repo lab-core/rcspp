@@ -119,6 +119,7 @@ exclude_patterns = [
     ".DS_Store",
     "Gemfile*",
     "_config.yml",
+    "README.md",
 ]
 
 source_suffix = {
