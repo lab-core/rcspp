@@ -69,9 +69,12 @@ $-32$. Even at page 1's final duals, $1 \to 2 \to 1$ costs $(4 - 11.5) + (4 - 12
 usually runs without its heuristic. The same applies to the shortest-path preprocessing of section 4.6.
 :::
 
-Neither `pushing` nor `pulling` is **bidirectional** (a search from both the source and the sink that meets in the
-middle). Resources already have the hooks such a search would need (`extend_back`, `can_be_merged`), but no algorithm
-in the library uses them yet.
+All four search **forward**, from the sources. `simple` can also search **backward**, from the sinks, or
+**bidirectionally**: one search from each end, with the two halves joined in the middle. Neither `pushing` nor
+`pulling` is bidirectional; they only sweep the nodes in a different order. A backward or bidirectional search needs
+every resource to say how it extends from the sink, and checks the model for that before it starts.
+See [`Bidirectional`](../advanced/algorithms.md#bidirectional) and
+[Search directions](../advanced/algorithms.md#search-directions) for how to set them up.
 
 Which exact algorithm is fastest depends on the graph, so it is worth benchmarking on representative instances;
 `examples/cpp/benchmark_main.cpp` shows how.
@@ -242,7 +245,8 @@ The result is the same as with `LabelList`; only the speed changes.
 ```python
 from rcspp.graph import AlgorithmParams
 
-result = rg.solve(algorithm="simple")              # "simple", "pushing", "pulling", "astar", "greedy", "tabu"
+result = rg.solve(algorithm="simple")              # "simple", "pushing", "pulling", "astar", "bidirectional",
+                                                   # "greedy", "tabu"
 print(result.status_string())                      # "complete", "timeout", "max_solutions", ...
 
 p = AlgorithmParams()
@@ -260,7 +264,15 @@ p.max_iterations = 50                              # tabu: 50 dives
 p.tabu_tenure = 5
 result = rg.solve(algorithm="tabu", upper_bound=-1e-9, params=p)
 
-result = rg.solve(preprocess=False)                # skip all preprocessing
+p = AlgorithmParams()
+p.critical_resource_index = 1                      # bidirectional: the halves split on resource 1 (time)...
+p.half_way_point = 50.0                            # ...and meet around time 50; 0 turns the split off
+result = rg.solve(algorithm="bidirectional", upper_bound=-1e-9, params=p)
+
+result = rg.solve(direction="backward")            # "simple" searching from the sinks
+
+result = rg.solve(preprocess=False)                # skip preprocessing (backward and bidirectional
+                                                   # solves still run their model checks)
 ```
 
 In C++ the algorithm is a template parameter, for example

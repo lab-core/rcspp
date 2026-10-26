@@ -240,65 +240,90 @@ ng-paths reach the elementary bound here.
 
 Dominance uses inclusion on the memory sets. Memories are much smaller than full visited sets, so labels dominate
 each other far more often. In practice, neighbourhoods of a handful of nearest customers usually give most of the
-elementary bound at a fraction of the cost. (The repository's C++ VRP example builds neighbourhoods of the 3 nearest
-customers; see "In code" below.)
+elementary bound at a fraction of the cost. (The repository's C++ VRP example builds neighbourhoods of the 8 nearest
+customers by default; see "In code" below.)
 
 ---
 
 ## 3.7 In code
 
-### Available in C++
+The library has one preset per memory on this page, in Python and in C++. Both presets build the same resource: a set,
+extended by `NgPathExtensionFunction`, checked by `IntersectionFeasibilityFunction` with the forbidden set $\{j\}$ at
+each node $j$, and compared by inclusion.
 
-The elementary resource of section 3.5, as it was run to produce the numbers on this page:
+### Python
+
+Add the memory to page 2's graph as a fourth resource:
+
+```python
+from rcspp import presets
+
+# ... resources 0 to 2 (cost, time, load), as on page 2 ...
+
+# Resource 3: the ng memory of section 3.6
+presets.add_ng_path_resource(rg, "bitset", {1: {1, 2}, 2: {1, 2}, 3: {1, 3}})
+# or elementary paths (section 3.5):
+# presets.add_elementary_resource(rg, "bitset", [0, 1, 2, 3, SINK])
+
+# ... nodes as on page 2. Each arc's consumption tuple gets one more entry, an empty set:
+rg.add_arc((d, d, demand.get(j, 0), set()), i, j, cost=d, rows=[] if i == 0 else [Row(i, 1.0)])
+```
+
+### C++
 
 ```cpp
 using R = RealResource;
-using S = IntSetResource;                        // SetResource<int>
-ResourceGraph<R, S> graph;
-// ... resource 0: cost (real), resource 1: load (real), as on page 2 ...
+using M = SizeTBitsetResource;                   // sets of node ids, stored as bits
+ResourceGraph<R, M> graph;
+// ... resources 0 to 2 (cost, time, load), as on page 2 ...
 
-// "visited before the current node": arriving at j is forbidden if j is in the set
-std::map<size_t, std::set<int>> self{{1, {1}}, {2, {2}}, {3, {3}}};
-graph.add_resource<S>(std::make_unique<UnionExtensionFunction<S>>(),
-                      std::make_unique<IntersectionFeasibilityFunction<S>>(self, /*forbidden=*/true),
-                      std::make_unique<TrivialCostFunction<S>>(),
-                      std::make_unique<InclusionDominanceFunction<S>>());
+std::map<size_t, std::set<size_t>> neighbourhood{{1, {1, 2}}, {2, {1, 2}}, {3, {1, 3}}};
+presets::add_ng_path_resource<M>(graph, neighbourhood);
+// or elementary paths: presets::add_elementary_resource<M>(graph, {0, 1, 2, 3, 4});
 
-// arc i -> j: the set resource consumes {i}  (empty set when i is the depot)
-using Consumption = std::tuple<std::vector<std::tuple<double>>,             // real resources, in order
-                               std::vector<std::tuple<std::set<int>>>>;     // set resources
-std::set<int> left = (i == 0) ? std::set<int>{} : std::set<int>{int(i)};
-graph.add_arc(Consumption{{{reduced_cost}, {demand_j}}, {{left}}}, i, j, base_cost, rows);
+// arc i -> j: one value per resource, the memory's being an empty set
+graph.add_arc<R, R, R, M>(std::make_tuple(std::make_tuple(reduced_cost), std::make_tuple(time_ij),
+                                          std::make_tuple(demand_j), std::make_tuple(std::set<size_t>{})),
+                          i, j, base_cost, rows);
 ```
 
-For **ng-paths**, replace the extension function and keep everything else:
-
-```cpp
-std::map<size_t, std::set<int>> neighbourhood{{1, {1, 2}}, {2, {1, 2}}, {3, {1, 3}}};
-std::make_unique<NgPathExtensionFunction<S>>(neighbourhood)   // instead of UnionExtensionFunction<S>
-```
-
-`BitsetResource` (`UIntBitsetResource`) stores sets of node ids more compactly and is the usual choice for speed; the
-numbers on this page were produced with `SetResource<int>`.
+`SetResource` (`IntSetResource`, `"int_set"` in Python) works as well. The bitset stores the same sets more
+compactly and is the usual choice for speed.
 
 :::{note}
-**How the library applies the ng rule.** On arc $i \to j$, `NgPathExtensionFunction` computes
-$(S \cap N(i)) \cup \{i\}$, using the neighbourhood of the arc's **origin**, and the arc's consumption $\{i\}$.
-So the set stored in a label at $j$ is the memory *after visiting $i$*, which is exactly the $M$ of section 3.6 one
-step earlier. Checking "$j \notin S$" at $j$ is then the textbook rule.
+**How the library applies the ng rule.** Section 3.6 adds $j$ to the memory on *arriving* at $j$. On arc
+$i \to j$, `NgPathExtensionFunction` instead adds the node it *leaves*, then keeps what $j$'s neighbourhood holds
+($j$ always counts as part of $N(j)$):
+
+$$
+S_j = (S_i \cup \{i\}) \cap N(j) .
+$$
+
+By induction, $S_j$ is section 3.6's memory at $j$ without $j$ itself: $S_j = M_j \setminus \{j\}$. On the path
+$0 \to 2 \to 1 \to 3$ of section 3.6, the stored sets are $\{\}$, $\{2\}$ and $\{1\}$. Arriving at $j$ is refused
+when $j \in S_j$, which happens exactly when $j$ was in the memory at $i$: the textbook rule.
+
+Both nodes come from the arc's **endpoints**. That is why each arc's value for this resource is ignored, and why the
+same function also works for a search that starts from the sink (page 4).
+
+With every node in every neighbourhood, nothing is ever forgotten, and $S_j$ is section 3.5's "visited before $j$"
+set. `add_elementary_resource` builds elementary paths this way. The `UnionExtensionFunction` of section 3.5's
+table, with $\{i\}$ on each arc, still works for a forward search. The library's checks refuse it for a backward or
+bidirectional search, because it cannot be extended from the sink.
 :::
 
-### Not yet available in Python
+### The repository's examples
 
-The Python package does **not** currently expose `NgPathExtensionFunction` or `IntersectionFeasibilityFunction`.
-Set resources exist (`add_int_set_resource`, `add_bitset_resource`), with union, intersection and subtraction
-extensions, size feasibility and inclusion dominance. But without a per-node "forbidden" check there is no way to
-express "don't revisit $j$". **Elementary and ng-path pricing are therefore C++-only for now.**
+- The **Python VRP example** prices non-elementary paths. Its master counts visits (`visit_counts`) to build the
+  columns, as section 3.4 explains.
+- The **C++ VRP example** chooses its memory with the constant `kRouteRelaxation` in
+  [`examples/cpp/vrp/vrp.hpp`](https://github.com/lab-core/rcspp/blob/main/examples/cpp/vrp/vrp.hpp):
+  - `None` (the default) prices non-elementary paths;
+  - `NgPath` uses the neighbourhoods of the 8 nearest customers by default;
+  - `Elementary` prices elementary paths.
 
-The repository's examples reflect this. The Python VRP example prices non-elementary paths. The C++ VRP example
-builds ng-neighbourhoods (`initialize_ng_neighborhoods(3)` in
-[`examples/cpp/vrp/vrp.cpp`](https://github.com/lab-core/rcspp/blob/main/examples/cpp/vrp/vrp.cpp)), but its
-visited-set and ng resources are commented out, so it prices non-elementary paths as well.
+  [`examples/cpp/ng_cg_comparison_main.cpp`](https://github.com/lab-core/rcspp/blob/main/examples/cpp/ng_cg_comparison_main.cpp)
+  compares neighbourhood sizes over a whole column generation run.
 
 ---
 
