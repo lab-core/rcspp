@@ -1,7 +1,8 @@
 # Column generation layer: plan
 
-Status: **phase 1: PR 1 (interfaces, master, loop) written and reviewed, local commits; PR 2 next**.
-Updated: 2026-10-23. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
+Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) next, on
+branch `feature/column-generation-gurobi`**. Updated: 2026-10-26. Baseline: `main` @ `129b15e0`. CI is out of the
+plan for now (`D-52`).
 
 ## Agent protocol
 
