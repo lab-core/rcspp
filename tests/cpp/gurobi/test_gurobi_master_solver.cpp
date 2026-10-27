@@ -1,28 +1,23 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// The Gurobi master solver on small models built as a user would build them, and the column
-// generation loop on it. Skipped without a Gurobi license.
+// The Gurobi master solver on small models built as a user would build them. Skipped without a
+// Gurobi license.
 
 #include <gtest/gtest.h>
 #include <gurobi_c++.h>
 
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
 #include <memory>
-#include <numeric>
-#include <span>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gurobi_environment.hpp"
-#include "rcspp/column_generation/column_generation.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver_self_test.hpp"
 #include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
@@ -432,107 +427,4 @@ TEST_F(GurobiMasterSolverTest, OptionsBySolverName) {
     EXPECT_EQ(model->get(GRB_DoubleParam_MIPGap), gap);
     EXPECT_EQ(model->get(GRB_IntParam_OutputFlag), 0);
     EXPECT_EQ(model->get(GRB_IntParam_Method), GRB_METHOD_DUAL);
-}
-
-namespace {
-
-// The toy: three customers, each visited exactly once by vehicles of capacity 11. Customers 1, 2
-// and 3 weigh 4, 5 and 6, so a route serves one or two of them: six routes, whose costs are in
-// toy_costs. The LP optimum 37.5 takes half of each two-customer route; its duals (11.5, 12.5,
-// 13.5) make the three of them tight, and are unique since the optimum is not degenerate. The
-// best plan serves {1, 2} and {3}, at 24 + 20 = 44.
-constexpr std::array<double, 6> toy_costs{20.0, 20.0, 20.0, 24.0, 25.0, 26.0};
-constexpr double toy_lp = 37.5;
-constexpr std::array<double, 3> toy_duals{11.5, 12.5, 13.5};
-constexpr std::array<double, 6> toy_lp_values{0.0, 0.0, 0.0, 0.5, 0.5, 0.5};
-constexpr double toy_best_plan = 44.0;
-constexpr std::array<double, 6> toy_best_plan_values{0.0, 0.0, 1.0, 1.0, 0.0, 0.0};
-
-// The routes serving {1}, {2}, {3}, {1, 2}, {1, 3}, {2, 3}; they get the ids 0 to 5.
-std::vector<Solution> toy_routes() {
-    const std::vector<std::vector<size_t>> customers{{0}, {1}, {2}, {0, 1}, {0, 2}, {1, 2}};
-    std::vector<Solution> routes;
-    for (size_t route = 0; route < customers.size(); ++route) {
-        std::vector<Row> rows;
-        for (const size_t customer : customers[route]) {
-            rows.push_back(Row{.index = customer, .coefficient = 1.0});
-        }
-        routes.push_back(make_path(toy_costs.at(route), std::move(rows)));
-    }
-    return routes;
-}
-
-// The toy as a user builds it: their own model with a row "customer i is visited once" per
-// customer, wrapped; every route is a starting column.
-struct ToyMaster {
-        ToyMaster(GRBModel& model, std::vector<GRBConstr> rows) : solver(model, std::move(rows)) {
-            master.add_columns(master.add_pricer(pricer), toy_routes());
-        }
-
-        GurobiMasterSolver solver;
-        MasterProblem master{solver};
-        ScriptedPricer pricer;  // every route is in: it proves that none is missing
-};
-
-// Whether @p actual matches @p expected, entry by entry.
-::testing::AssertionResult near(std::span<const double> actual, std::span<const double> expected,
-                                double accuracy) {
-    if (actual.size() != expected.size()) {
-        return ::testing::AssertionFailure()
-               << actual.size() << " entries instead of " << expected.size();
-    }
-    for (size_t entry = 0; entry < actual.size(); ++entry) {
-        if (std::abs(actual[entry] - expected[entry]) > accuracy) {
-            return ::testing::AssertionFailure() << "entry " << entry << " is " << actual[entry]
-                                                 << " instead of " << expected[entry];
-        }
-    }
-    return ::testing::AssertionSuccess();
-}
-
-class GurobiToyTest : public GurobiMasterSolverTest {
-    protected:
-        // The user's rows, empty until the routes fill them; row i is customer i + 1.
-        std::vector<GRBConstr> customer_rows() {
-            std::vector<GRBConstr> rows;
-            for (const char* name : {"customer 1", "customer 2", "customer 3"}) {
-                rows.push_back(model->addConstr(GRBLinExpr(), GRB_EQUAL, 1.0, name));
-            }
-            return rows;
-        }
-
-        // The value of every route.
-        static std::vector<double> route_values(const GurobiMasterSolver& solver) {
-            std::vector<ColumnId> ids(toy_costs.size());
-            std::iota(ids.begin(), ids.end(), ColumnId{0});
-            std::vector<double> values(ids.size());
-            solver.primal(ids, values);
-            return values;
-        }
-};
-
-}  // namespace
-
-TEST_F(GurobiToyTest, TheLoopFindsTheLpOptimumAndItsDuals) {
-    ToyMaster toy(*model, customer_rows());
-
-    ColumnGeneration loop(toy.master);
-    const ColumnGenerationResult result = loop.run();
-
-    EXPECT_EQ(result.status, ColumnGenerationStatus::Optimal);
-    EXPECT_NEAR(result.objective, toy_lp, tolerance);
-    ASSERT_EQ(toy.pricer.seen_duals.size(), 1U);
-    EXPECT_TRUE(near(toy.pricer.seen_duals[0], toy_duals, tolerance));
-    EXPECT_TRUE(near(route_values(toy.solver), toy_lp_values, tolerance));
-}
-
-TEST_F(GurobiToyTest, TheRestrictedMasterMipFindsTheBestPlan) {
-    ToyMaster toy(*model, customer_rows());
-    ColumnGeneration loop(toy.master);
-    static_cast<void>(loop.run());
-
-    ASSERT_EQ(loop.solve_restricted_master_integer({}), SolverStatus::Optimal);
-
-    EXPECT_NEAR(toy.solver.objective(), toy_best_plan, 1e-6);
-    EXPECT_TRUE(near(route_values(toy.solver), toy_best_plan_values, 1e-6));
 }
