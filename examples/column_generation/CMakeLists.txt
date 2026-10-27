@@ -76,6 +76,7 @@ if(USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
   else()
     message(STATUS "HiGHS: fetched, v1.15.1")
   endif()
+  add_subdirectory(cpp/rcspp/column_generation/highs)
 endif()
 
 # MARK: Tests
