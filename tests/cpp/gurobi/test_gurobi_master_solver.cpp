@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "gurobi_environment.hpp"
 #include "rcspp/column_generation/column_generation.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver_self_test.hpp"
@@ -49,21 +50,6 @@ std::vector<Row> covering(std::initializer_list<size_t> rows) {
     return entries;
 }
 
-// One environment for every test; null when Gurobi has no license on this machine.
-GRBEnv* environment() {
-    static const std::unique_ptr<GRBEnv> shared = []() -> std::unique_ptr<GRBEnv> {
-        try {
-            auto created = std::make_unique<GRBEnv>(true);
-            created->set(GRB_IntParam_OutputFlag, 0);
-            created->start();
-            return created;
-        } catch (const GRBException&) {
-            return nullptr;
-        }
-    }();
-    return shared.get();
-}
-
 // A model per test, and the LP most tests use:
 //
 //   min x1 + 3 x2 + x3   s.t.  x1 + x2 = 2,  x2 + x3 ≥ 1,  x1 + x3 ≤ 1.5,  x ≥ 0
@@ -73,7 +59,7 @@ GRBEnv* environment() {
 class GurobiMasterSolverTest : public ::testing::Test {
     protected:
         void SetUp() override {
-            GRBEnv* env = environment();
+            GRBEnv* env = gurobi_environment();
             if (env == nullptr) {
                 GTEST_SKIP() << "Gurobi has no license on this machine";
             }
@@ -131,7 +117,7 @@ TEST_F(GurobiMasterSolverTest, RowBoundsFromTheModel) {
 }
 
 TEST_F(GurobiMasterSolverTest, PassesTheMasterSolverSelfTest) {
-    GRBModel maximizing_model(*environment());
+    GRBModel maximizing_model(*gurobi_environment());
     maximizing_model.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
     GurobiMasterSolver minimizing(*model, {});
     GurobiMasterSolver maximizing(maximizing_model, {});
@@ -170,7 +156,7 @@ TEST_F(GurobiMasterSolverTest, InfeasibleAndUnboundedAreToldApart) {
     EXPECT_EQ(infeasible.solve_relaxation({}), SolverStatus::Infeasible);
 
     // min −y with y ≥ 1 only.
-    GRBModel unbounded_model(*environment());
+    GRBModel unbounded_model(*gurobi_environment());
     GurobiMasterSolver unbounded(unbounded_model,
                                  {unbounded_model.addConstr(GRBLinExpr(), GRB_GREATER_EQUAL, 1.0)});
     MasterProblem unbounded_master(unbounded);
