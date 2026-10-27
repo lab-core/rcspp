@@ -15,11 +15,12 @@ set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_CLANG_TID
 # Sources ---------------------------------------------------------------------
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_connectivity.cpp")
-# The Gurobi master solver tests are a separate executable (below): these never need Gurobi. The
-# folder's files are left out by name; a pattern on the full path would also match a checkout that
-# happens to sit in a folder named gurobi, and leave out every test.
-file(GLOB GUROBI_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gurobi/*.cpp")
-list(REMOVE_ITEM TEST_SOURCES ${GUROBI_TEST_SOURCES})
+# The Gurobi and HiGHS master solver tests are separate executables (below): these need neither.
+# Their folders' files are left out by name; a pattern on the full path would also match a checkout
+# that happens to sit in a folder named gurobi or highs, and leave out every test.
+file(GLOB SOLVER_TEST_SOURCES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/gurobi/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/highs/*.cpp")
+list(REMOVE_ITEM TEST_SOURCES ${SOLVER_TEST_SOURCES})
 file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
 
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
@@ -58,4 +59,8 @@ gtest_discover_tests(${PROJECT_NAME} DISCOVERY_TIMEOUT 30)
 
 if(USE_GUROBI)
   add_subdirectory(gurobi)
+endif()
+
+if(USE_HIGHS)
+  add_subdirectory(highs)
 endif()
