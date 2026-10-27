@@ -15,8 +15,8 @@ set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_CLANG_TID
 # Sources ---------------------------------------------------------------------
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_connectivity.cpp")
-# The Gurobi master solver tests are a separate executable (below): these never need Gurobi.
-list(FILTER TEST_SOURCES EXCLUDE REGEX "/gurobi/")
+# The Gurobi and HiGHS master solver tests are separate executables (below): these need neither.
+list(FILTER TEST_SOURCES EXCLUDE REGEX "/(gurobi|highs)/")
 file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
 
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
@@ -55,4 +55,8 @@ gtest_discover_tests(${PROJECT_NAME} DISCOVERY_TIMEOUT 30)
 
 if(USE_GUROBI)
   add_subdirectory(gurobi)
+endif()
+
+if(USE_HIGHS)
+  add_subdirectory(highs)
 endif()

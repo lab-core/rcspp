@@ -125,6 +125,7 @@ if(USE_HIGHS)
   else()
     message(STATUS "HiGHS: fetched, v1.15.1")
   endif()
+  add_subdirectory(cpp/rcspp_backends/highs)
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------
