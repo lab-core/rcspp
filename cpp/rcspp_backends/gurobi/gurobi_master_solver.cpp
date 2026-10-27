@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -174,22 +175,31 @@ void GurobiMasterSolver::add_rows(const RowBatch& rows) {
 }
 
 void GurobiMasterSolver::add_columns(const ColumnBatch& columns) {
+    // Check the whole batch first, so that a refused batch adds nothing.
+    std::unordered_set<ColumnId> batch_ids;
+    for (const ColumnId id : columns.ids) {
+        if (column_index_.contains(id) || !batch_ids.insert(id).second) {
+            throw std::invalid_argument(
+                "GurobiMasterSolver::add_columns: a column id is already used");
+        }
+    }
+    if (std::ranges::any_of(columns.row_indices,
+                            [this](std::uint32_t row) { return row >= rows_.size(); })) {
+        throw std::out_of_range("GurobiMasterSolver::add_columns: a column enters no row");
+    }
+
     const double cost_sign = sense_sign();
     std::vector<GRBConstr> constraints;
 
     for (size_t column = 0; column < columns.size(); ++column) {
         const ColumnId id = columns.ids[column];
-        if (column_index_.contains(id)) {
-            throw std::invalid_argument(
-                "GurobiMasterSolver::add_columns: a column id is already used");
-        }
 
-        // The column's entries, rows checked.
+        // The column's entries.
         const std::uint32_t begin = columns.starts[column];
         const std::uint32_t end = columns.starts[column + 1];
         constraints.clear();
         for (std::uint32_t entry = begin; entry < end; ++entry) {
-            constraints.push_back(rows_.at(columns.row_indices[entry]));
+            constraints.push_back(rows_[columns.row_indices[entry]]);
         }
 
         GRBColumn entries;
