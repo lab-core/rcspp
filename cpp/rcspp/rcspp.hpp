@@ -47,6 +47,7 @@
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
 #include "rcspp/column_generation/master_solver_self_test.hpp"
+#include "rcspp/column_generation/master_solver_support.hpp"
 #include "rcspp/column_generation/pricer.hpp"
 #include "rcspp/column_generation/pricing_strategy.hpp"
 #include "rcspp/column_generation/statistics.hpp"
