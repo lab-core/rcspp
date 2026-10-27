@@ -127,6 +127,30 @@ struct SingleColumn {
         }
 };
 
+// A batch of two columns with one entry each: the first in row 0, the second in @p second_row.
+struct TwoColumns {
+        std::array<ColumnId, 2> ids;
+        std::array<double, 2> cost{1.0, 1.0};
+        std::array<double, 2> lower{0.0, 0.0};
+        std::array<double, 2> upper{infinity, infinity};
+        std::array<std::uint32_t, 3> starts{0, 1, 2};
+        std::array<std::uint32_t, 2> row_indices;
+        std::array<double, 2> values{1.0, 1.0};
+
+        TwoColumns(ColumnId first, ColumnId second, std::uint32_t second_row)
+            : ids{first, second}, row_indices{0, second_row} {}
+
+        [[nodiscard]] ColumnBatch batch() const {
+            return ColumnBatch{.ids = ids,
+                               .cost = cost,
+                               .lower = lower,
+                               .upper = upper,
+                               .starts = starts,
+                               .row_indices = row_indices,
+                               .values = values};
+        }
+};
+
 // Whether @p master refuses a batch of a valid row followed by the row lower ≤ a·x ≤ upper.
 bool refuses_after_a_valid_row(MasterProblem& master, double lower, double upper) {
     const std::vector<double> lowers{0.0, lower};
@@ -366,6 +390,23 @@ TEST_F(GurobiMasterSolverTest, UnknownIdsAndRowsThrow) {
     const std::vector<ColumnId> ids{42};
     std::vector<double> values(1);
     EXPECT_THROW(solver.primal(ids, values), std::out_of_range);
+}
+
+TEST_F(GurobiMasterSolverTest, ARefusedBatchAddsNoColumn) {
+    GurobiMasterSolver solver(*model, lp_rows());
+
+    // The second column is refused: it repeats the first's id, or enters a row that does not
+    // exist.
+    EXPECT_THROW(solver.add_columns(TwoColumns(3, 3, 0).batch()), std::invalid_argument);
+    EXPECT_THROW(solver.add_columns(TwoColumns(2, 4, 7).batch()), std::out_of_range);
+
+    model->update();
+    EXPECT_EQ(model->get(GRB_IntAttr_NumVars), 0);
+    EXPECT_THROW((void)solver.variable(2), std::out_of_range);
+
+    // The ids are still free.
+    solver.add_columns(TwoColumns(2, 3, 1).batch());
+    EXPECT_EQ(model->get(GRB_IntAttr_NumVars), 2);
 }
 
 TEST_F(GurobiMasterSolverTest, OptionsBySolverName) {
