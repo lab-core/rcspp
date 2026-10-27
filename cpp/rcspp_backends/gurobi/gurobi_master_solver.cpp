@@ -15,7 +15,6 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -73,7 +72,7 @@ struct GurobiRow {
 // The Gurobi row for `lower ≤ a·x ≤ upper`: `=` for equal finite bounds, `≥` or `≤` for one
 // finite bound, `≤ ∞` for a free row.
 GurobiRow gurobi_row(double lower, double upper) {
-    if (std::isnan(lower) || std::isnan(upper) || lower == infinity || upper == -infinity) {
+    if (!row_bounds_can_be_held(lower, upper)) {
         throw std::invalid_argument(
             "GurobiMasterSolver::add_rows: row bounds must be numbers, with lower < +inf and "
             "upper > -inf");
@@ -175,18 +174,7 @@ void GurobiMasterSolver::add_rows(const RowBatch& rows) {
 }
 
 void GurobiMasterSolver::add_columns(const ColumnBatch& columns) {
-    // Check the whole batch first, so that a refused batch adds nothing.
-    std::unordered_set<ColumnId> batch_ids;
-    for (const ColumnId id : columns.ids) {
-        if (column_index_.contains(id) || !batch_ids.insert(id).second) {
-            throw std::invalid_argument(
-                "GurobiMasterSolver::add_columns: a column id is already used");
-        }
-    }
-    if (std::ranges::any_of(columns.row_indices,
-                            [this](std::uint32_t row) { return row >= rows_.size(); })) {
-        throw std::out_of_range("GurobiMasterSolver::add_columns: a column enters no row");
-    }
+    columns_.check(columns, rows_.size());
 
     const double cost_sign = sense_sign();
     std::vector<GRBConstr> constraints;
@@ -214,8 +202,7 @@ void GurobiMasterSolver::add_columns(const ColumnBatch& columns) {
                                            cost_sign * columns.cost[column],
                                            GRB_CONTINUOUS,
                                            entries);
-        column_index_.emplace(id, columns_.size());
-        columns_.push_back(added);
+        columns_.add(id, added);
     }
 
     model_.update();
@@ -295,11 +282,7 @@ void GurobiMasterSolver::set_option(std::string_view name, const OptionValue& va
 }
 
 GRBVar GurobiMasterSolver::variable(ColumnId id) const {
-    const auto found = column_index_.find(id);
-    if (found == column_index_.end()) {
-        throw std::out_of_range("GurobiMasterSolver: no column has this id");
-    }
-    return columns_[found->second];
+    return columns_.at(id);
 }
 
 double GurobiMasterSolver::sense_sign() const {
@@ -312,7 +295,7 @@ void GurobiMasterSolver::relax() {
     }
     remember_user_types();
 
-    std::vector<GRBVar> variables = columns_;
+    std::vector<GRBVar> variables(columns_.all().begin(), columns_.all().end());
     for (const auto& [user_variable, type] : user_types_) {
         variables.push_back(user_variable);
     }
@@ -327,8 +310,8 @@ void GurobiMasterSolver::relax() {
 void GurobiMasterSolver::restore(char type) {
     remember_user_types();
 
-    std::vector<GRBVar> variables = columns_;
-    std::vector<char> types(columns_.size(), type);
+    std::vector<GRBVar> variables(columns_.all().begin(), columns_.all().end());
+    std::vector<char> types(variables.size(), type);
     for (const auto& [user_variable, user_type] : user_types_) {
         variables.push_back(user_variable);
         types.push_back(user_type);
