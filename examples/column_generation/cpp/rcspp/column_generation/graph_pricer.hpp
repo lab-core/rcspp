@@ -80,13 +80,13 @@ class GraphPricer final : public Pricer {
                     .timeout_s = std::max(0.0, request.timeout_s - timer.elapsed_seconds()),
                     .preprocess = preprocess_,
                     .cost_index = cost_index_};
-                const bool exact = strategy_.is_exact();
                 PricingResult result =
                     to_pricing_result(strategy_.current().search(graph_, stage_request),
-                                      exact,
+                                      strategy_.is_exact(),
                                       request.reduced_cost_threshold);
 
-                const bool proven = exact && result.status == PricingStatus::Optimal;
+                // Only an exact stage that finished is optimal.
+                const bool proven = result.status == PricingStatus::Optimal;
                 const bool out_of_time = timer.elapsed_seconds() >= request.timeout_s;
                 if (!result.columns.empty() || proven || out_of_time || !strategy_.next_stage()) {
                     return result;
