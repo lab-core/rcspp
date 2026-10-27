@@ -28,6 +28,7 @@ LP solver: compare them, but they are not golden.
 | T-1.5 | Port the C++ VRP example and benchmark to `rcspp::column_generation` (VRP code reduced to instance → graph + rows) | todo | T-0.1 LP values to 1e-6 relative on every instance; time ≤ baseline + 5 % (Gurobi) |
 | T-1.6 | Python layer (`D-36`): bindings + trampolines (`D-37`), **user-model masters** `GurobipyMaster` then `HighspyMaster` (`D-35`), port the Python example to a user-model master | todo; `phase-1-design.md` §3 to redo for `D-60` before PR 5; a Python loop over the C++ pieces is planned with it (`D-68`) | pytest on toy + `C101_25` pass |
 | T-1.7 | User docs page (`docs/advanced/column-generation.md` rewrite) | todo | the Sphinx build passes |
+| T-1.9 | Several vehicle types: a test or example with one graph and one convexity row per type, types differing by capacity, then possibly cost per distance, a stop limit or a battery resource. Needs nothing new in the library (`D-13`); to design after PR 3 | todo, after PR 3 | each type's routes respect its own resources; LP checked against all routes enumerated |
 | T-1.8 | Theory pages for column generation (big-M and artificial columns, convexity rows, proof of convergence…) next to `docs/theory/` (`D-64`) | todo, after `docs/theory` merges and the branches are rebased | the theory page checks pass |
 
 Deferred (`D-52`): CI for backends (`USE_HIGHS` in `ci.yml`, Gurobi vs the gate: `Q-05`), the benchmark workflow
