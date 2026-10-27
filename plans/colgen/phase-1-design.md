@@ -282,7 +282,7 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 1, 2 | 2.2c | (no commit) rename `SolverBackend` to `MasterSolver` | done (`D-67`, `D-69`): every code commit rewritten; hashes above are the new ones. 2.3 uses the new names |
 | 2 | 2.3 | `feat(column_generation): master solver self-test` | done (`0bf9c257` here, `D-70`): `master_solver_self_test.{hpp,cpp}`; run on Gurobi, skipped without a license; a scripted master solver making one mistake at a time (run everywhere) shows each is reported; 100 % of the lines covered |
 | 2 | 2.3b | `test(column_generation): split the Gurobi refused-rows test` | done (`bdc236a5` here): its clang-tidy complexity warning |
-| 2 | 2.4 | `test(column_generation): the toy on Gurobi` | the toy (described in the test, `D-64`) built as a user would, in a `GRBModel`, then wrapped: LP 37.5 and its duals; restricted master MIP 44 (section 5) |
+| 2 | 2.4 | `test(column_generation): the toy on Gurobi` | done (`2adde95b` here): through `ColumnGeneration` with the default initialization; the duals as the pricer receives them; route values by id. The toy (described in the test, `D-64`) built as a user would, in a `GRBModel`, then wrapped: LP 37.5 and its duals; restricted master MIP 44 (section 5) |
 | 3 | 3.1 | `feat(column_generation): pricing strategy with stages` | `PricingStrategy` (`D-23`), one exact stage by default |
 | 3 | 3.2 | `feat(column_generation): graph pricer` | `GraphPricer` over `ResourceGraph`; `cost_scale` = max \|arc cost\| |
 | 3 | 3.3 | `test(column_generation): column generation from scratch` | toy CG, fleet limits 2 and 1, counterexample (section 5); on every backend built in (Gurobi until PR 4) |
