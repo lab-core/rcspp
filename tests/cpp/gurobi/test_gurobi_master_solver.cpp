@@ -302,6 +302,30 @@ TEST_F(GurobiMasterSolverTest, IntegralityIsRelaxedThenRestored) {
     EXPECT_EQ(solver.variable(2).get(GRB_CharAttr_VType), GRB_CONTINUOUS);
 }
 
+TEST_F(GurobiMasterSolverTest, AVariableTheUserAddsDuringTheRunIsRelaxedToo) {
+    std::vector<GRBConstr> rows = lp_rows();
+    GurobiMasterSolver solver(*model, rows);
+    add_lp_columns(solver);
+    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+
+    // An integer variable of the user's, added between two LP solves: in the `≥` row, too dear
+    // to be used.
+    GRBColumn in_second_row;
+    in_second_row.addTerm(1.0, rows[1]);
+    const GRBVar integer = model->addVar(0.0, 5.0, 10.0, GRB_INTEGER, in_second_row);
+
+    // Still an LP solve, with duals.
+    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    std::vector<double> duals(rows.size());
+    solver.duals(duals);
+    EXPECT_NEAR(duals[0], 1.5, tolerance);
+    EXPECT_EQ(integer.get(GRB_CharAttr_VType), GRB_CONTINUOUS);
+
+    // The integer solve gives the user's type back.
+    ASSERT_EQ(solver.solve_integer({}), SolverStatus::Optimal);
+    EXPECT_EQ(integer.get(GRB_CharAttr_VType), GRB_INTEGER);
+}
+
 TEST_F(GurobiMasterSolverTest, AddsRowsBySenseWithNames) {
     GurobiMasterSolver solver(*model, {});
     ASSERT_TRUE(solver.capabilities().add_rows);
