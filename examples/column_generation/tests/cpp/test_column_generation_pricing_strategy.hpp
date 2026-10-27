@@ -3,56 +3,24 @@
 
 #pragma once
 
-// Pricing stages and the strategy that moves between them, on a three-node graph.
+// Pricing stages and the strategy that moves between them.
 
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <stdexcept>
-#include <tuple>
 #include <vector>
 
 #include "rcspp/column_generation/pricing_strategy.hpp"
-#include "rcspp/rcspp.hpp"
+#include "test_column_generation_graphs.hpp"
 
-using namespace rcspp;                     // NOLINT(google-build-using-namespace)
-using namespace rcspp::column_generation;  // NOLINT(google-build-using-namespace)
+using namespace rcspp;                              // NOLINT(google-build-using-namespace)
+using namespace rcspp::column_generation;           // NOLINT(google-build-using-namespace)
+using namespace rcspp::column_generation::testing;  // NOLINT(google-build-using-namespace)
 
 namespace {
 
-using StageGraph = ResourceGraph<RealResource>;
-using Stage = PricingStage<RealResource>;
-using Strategy = PricingStrategy<RealResource>;
-
-// Source 0 to sink 2, through 1 (cost 2 + 3 = 5) or directly (cost 7).
-constexpr double through_first_arc = 2.0;
-constexpr double through_second_arc = 3.0;
-constexpr double through_cost = through_first_arc + through_second_arc;
-constexpr double direct_cost = 7.0;
-
-std::unique_ptr<StageGraph> two_path_graph() {
-    auto graph = std::make_unique<StageGraph>();
-    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
-                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
-                                      std::make_unique<ValueCostFunction<RealResource>>(),
-                                      std::make_unique<ValueDominanceFunction<RealResource>>());
-    graph->add_node(0, /*source=*/true, /*sink=*/false);
-    graph->add_node(1, /*source=*/false, /*sink=*/false);
-    graph->add_node(2, /*source=*/false, /*sink=*/true);
-    graph->add_arc<RealResource>(std::make_tuple(through_first_arc), 0, 1, through_first_arc);
-    graph->add_arc<RealResource>(std::make_tuple(through_second_arc), 1, 2, through_second_arc);
-    graph->add_arc<RealResource>(std::make_tuple(direct_cost), 0, 2, direct_cost);
-    return graph;
-}
-
-// A stage that runs no search: it records the request and returns nothing.
-Stage recording_stage(std::vector<StageRequest>* requests, bool exact) {
-    return {[requests](StageGraph& /*graph*/, const StageRequest& request) {
-                requests->push_back(request);
-                return SolveResult{};
-            },
-            exact};
-}
+constexpr double through_cost = TwoPathGraph::through_cost;
+constexpr double direct_cost = TwoPathGraph::direct_cost;
 
 }  // namespace
 
@@ -67,7 +35,7 @@ TEST(ColumnGenerationPricingStrategy, DefaultIsOneExactStage) {
 
 TEST(ColumnGenerationPricingStrategy, MovesToTheNextStageThenComesBack) {
     std::vector<StageRequest> requests;
-    Strategy strategy({recording_stage(&requests, false), recording_stage(&requests, true)});
+    Strategy strategy({scripted_stage(&requests, false), scripted_stage(&requests, true)});
     EXPECT_FALSE(strategy.is_exact());
 
     EXPECT_TRUE(strategy.next_stage());
@@ -89,8 +57,8 @@ TEST(ColumnGenerationPricingStrategy, RejectsNoStageAndAnEmptySearch) {
 
 TEST(ColumnGenerationPricingStrategy, AStageGetsTheWholeRequest) {
     std::vector<StageRequest> requests;
-    const Stage stage = recording_stage(&requests, true);
-    auto graph = two_path_graph();
+    const Stage stage = scripted_stage(&requests, true);
+    auto graph = TwoPathGraph::make();
 
     constexpr double upper_bound = -1.0;
     constexpr double timeout_s = 4.0;
@@ -108,7 +76,7 @@ TEST(ColumnGenerationPricingStrategy, AStageGetsTheWholeRequest) {
 
 TEST(ColumnGenerationPricingStrategy, AnAlgorithmStageKeepsThePathsBelowTheBound) {
     const Stage stage = Stage::make();
-    auto graph = two_path_graph();
+    auto graph = TwoPathGraph::make();
 
     // Between the two path costs: only the path through node 1.
     const SolveResult below = stage.search(*graph, StageRequest{.upper_bound = direct_cost});
@@ -124,7 +92,7 @@ TEST(ColumnGenerationPricingStrategy, AnAlgorithmStageKeepsThePathsBelowTheBound
 
 TEST(ColumnGenerationPricingStrategy, TheRequestCapsTheAlgorithmTimeLimit) {
     const Stage stage = Stage::make();  // no time limit of its own
-    auto graph = two_path_graph();
+    auto graph = TwoPathGraph::make();
 
     const SolveResult result =
         stage.search(*graph, StageRequest{.upper_bound = direct_cost, .timeout_s = 0.0});
