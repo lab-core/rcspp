@@ -4,7 +4,6 @@
 #include "rcspp_backends/highs/highs_master_solver.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -13,7 +12,6 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -91,8 +89,7 @@ void HighsMasterSolver::add_rows(const RowBatch& rows) {
     for (size_t row = 0; row < rows.lower.size(); ++row) {
         const double lower = rows.lower[row];
         const double upper = rows.upper[row];
-        if (std::isnan(lower) || std::isnan(upper) || lower == infinity || upper == -infinity ||
-            lower > upper) {
+        if (!row_bounds_can_be_held(lower, upper)) {
             throw std::invalid_argument(
                 "HighsMasterSolver::add_rows: row bounds must be numbers, with lower <= upper, "
                 "lower < +inf and upper > -inf");
@@ -117,18 +114,12 @@ void HighsMasterSolver::add_columns(const ColumnBatch& columns) {
         return;
     }
 
-    // Check the ids and rows, and translate the rows, before adding anything.
-    std::unordered_set<ColumnId> batch_ids;
-    for (const ColumnId id : columns.ids) {
-        if (column_index_.contains(id) || !batch_ids.insert(id).second) {
-            throw std::invalid_argument(
-                "HighsMasterSolver::add_columns: a column id is already used");
-        }
-    }
+    columns_.check(columns, rows_.size());
+
     std::vector<HighsInt> model_rows;
     model_rows.reserve(columns.row_indices.size());
     for (const std::uint32_t row : columns.row_indices) {
-        model_rows.push_back(rows_.at(row));
+        model_rows.push_back(rows_[row]);
     }
 
     const double cost_sign = sense_sign();
@@ -149,8 +140,7 @@ void HighsMasterSolver::add_columns(const ColumnBatch& columns) {
                    columns.values.data());
 
     for (size_t column = 0; column < columns.size(); ++column) {
-        column_index_.emplace(columns.ids[column], columns_.size());
-        columns_.push_back(first + static_cast<HighsInt>(column));
+        columns_.add(columns.ids[column], first + static_cast<HighsInt>(column));
         upper_bounds_.push_back(columns.upper[column]);
     }
 }
@@ -187,21 +177,22 @@ SolverStatus HighsMasterSolver::solve_integer(const IntegerParams& params) {
     set_solve_options(params.timeout_s, params.threads, params.verbose);
     highs_.setOptionValue("mip_rel_gap", params.relative_gap);
 
-    const auto count = static_cast<HighsInt>(columns_.size());
+    const std::span<const HighsInt> generated = columns_.all();
+    const auto count = static_cast<HighsInt>(generated.size());
     if (count > 0) {
-        const std::vector<HighsVarType> types(columns_.size(), HighsVarType::kInteger);
-        highs_.changeColsIntegrality(count, columns_.data(), types.data());
+        const std::vector<HighsVarType> types(generated.size(), HighsVarType::kInteger);
+        highs_.changeColsIntegrality(count, generated.data(), types.data());
 
         // HiGHS has no binary type: an integer column with an upper bound of at most 1.
         if (params.column_type == ColumnType::Binary) {
             const HighsLp& model = highs_.getLp();
             std::vector<double> lower;
             std::vector<double> upper;
-            for (size_t column = 0; column < columns_.size(); ++column) {
-                lower.push_back(model.col_lower_[columns_[column]]);
+            for (size_t column = 0; column < generated.size(); ++column) {
+                lower.push_back(model.col_lower_[generated[column]]);
                 upper.push_back(std::min(upper_bounds_[column], 1.0));
             }
-            highs_.changeColsBounds(count, columns_.data(), lower.data(), upper.data());
+            highs_.changeColsBounds(count, generated.data(), lower.data(), upper.data());
             binary_bounds_ = true;
         }
     }
@@ -235,11 +226,7 @@ void HighsMasterSolver::set_option(std::string_view name, const OptionValue& val
 }
 
 HighsInt HighsMasterSolver::column(ColumnId id) const {
-    const auto found = column_index_.find(id);
-    if (found == column_index_.end()) {
-        throw std::out_of_range("HighsMasterSolver: no column has this id");
-    }
-    return columns_[found->second];
+    return columns_.at(id);
 }
 
 double HighsMasterSolver::sense_sign() const {
@@ -263,11 +250,12 @@ void HighsMasterSolver::restore_upper_bounds() {
     }
     const HighsLp& model = highs_.getLp();
     std::vector<double> lower;
-    for (const HighsInt index : columns_) {
+    const std::span<const HighsInt> generated = columns_.all();
+    for (const HighsInt index : generated) {
         lower.push_back(model.col_lower_[index]);
     }
-    highs_.changeColsBounds(static_cast<HighsInt>(columns_.size()),
-                            columns_.data(),
+    highs_.changeColsBounds(static_cast<HighsInt>(generated.size()),
+                            generated.data(),
                             lower.data(),
                             upper_bounds_.data());
     binary_bounds_ = false;
