@@ -8,10 +8,10 @@
 #include <cstddef>
 #include <span>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 #include "rcspp/column_generation/master_solver.hpp"
+#include "rcspp/column_generation/master_solver_support.hpp"
 #include "rcspp/column_generation/types.hpp"
 
 namespace rcspp::column_generation {
@@ -111,8 +111,7 @@ class HighsMasterSolver final : public MasterSolver {
 
         Highs& highs_;
         std::vector<HighsInt> rows_;
-        std::vector<HighsInt> columns_;
-        std::unordered_map<ColumnId, size_t> column_index_;
+        SolverColumns<HighsInt> columns_;
         // The upper bound of each generated column, as added.
         std::vector<double> upper_bounds_;
         // The last integer solve made the generated columns binary.
