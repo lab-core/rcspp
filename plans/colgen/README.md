@@ -2,9 +2,9 @@
 
 Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) on
 `feature/column-generation-gurobi`: 2.1–2.4 done (`MasterSolver` rename `D-69`, self-test `D-70`, the toy on Gurobi),
-not opened on GitHub yet; PR 3 (graph pricer) on `feature/column-generation-pricer`: 3.1–3.3 done, not pushed;
-next PR 4 (HiGHS, `D-59`)**. Updated: 2026-10-27. Baseline: `main` @ `129b15e0`. CI is out of the
-plan for now (`D-52`).
+not opened on GitHub yet; PR 3 (graph pricer) on `feature/column-generation-pricer`: 3.1–3.3 done, pushed; PR 4 (HiGHS,
+`D-59`) on `feature/column-generation-highs`: 4.1 done; next the simplex measurement (`D-79`), then 4.2**. Updated:
+2026-10-27. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
 
