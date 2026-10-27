@@ -21,23 +21,26 @@ using namespace rcspp::column_generation::testing;  // NOLINT(google-build-using
 TEST(ArtificialColumnsInitialization, OneColumnPerRowThatZeroViolates) {
     ScriptedMasterSolver solver;
     MasterProblem master(solver);
-    master.add_rows(1, RowSense::Equal, 3.0);         // row 0: violated, +1
-    master.add_rows(1, RowSense::GreaterEqual, 1.0);  // row 1: violated, +1
-    master.add_rows(1, RowSense::LessEqual, 5.0);     // row 2: satisfied by 0
-    master.add_rows(1, RowSense::LessEqual, -2.0);    // row 3: violated, -1
+    constexpr double positive = 3.0;
+    constexpr double negative = -2.0;
+    master.add_rows(1, RowSense::Equal, positive);      // row 0: violated, +1
+    master.add_rows(1, RowSense::GreaterEqual, 1.0);    // row 1: violated, +1
+    master.add_rows(1, RowSense::LessEqual, positive);  // row 2: satisfied by 0
+    master.add_rows(1, RowSense::LessEqual, negative);  // row 3: violated, -1
     const std::vector<double> lower{-1.0};
     const std::vector<double> upper{1.0};
     master.add_rows(lower, upper);  // row 4: satisfied by 0
 
+    constexpr double cost_scale = 2.0;
     ArtificialColumns initialization;
-    initialization.initialize(master, ToleranceContext{2.0});
+    initialization.initialize(master, ToleranceContext{cost_scale});
 
     using Entries = std::vector<std::pair<std::uint32_t, double>>;
     ASSERT_EQ(solver.columns.size(), 3U);
     EXPECT_EQ(solver.columns[0].entries, (Entries{{0, 1.0}}));
     EXPECT_EQ(solver.columns[1].entries, (Entries{{1, 1.0}}));
     EXPECT_EQ(solver.columns[2].entries, (Entries{{3, -1.0}}));
-    EXPECT_EQ(solver.columns[0].cost, 2e6);
+    EXPECT_EQ(solver.columns[0].cost, ArtificialColumns::automatic_cost_factor * cost_scale);
     EXPECT_EQ(master.artificial_column_ids().size(), 3U);
 }
 
@@ -47,7 +50,8 @@ TEST(ArtificialColumnsInitialization, ExplicitCostAndNothingToDo) {
 
     ScriptedMasterSolver solver;
     MasterProblem master(solver);
-    master.add_rows(1, RowSense::LessEqual, 5.0);
+    constexpr double positive = 5.0;
+    master.add_rows(1, RowSense::LessEqual, positive);  // satisfied by 0
     ArtificialColumns initialization;
     initialization.initialize(master, ToleranceContext{});
     EXPECT_EQ(solver.add_columns_calls, 0U);

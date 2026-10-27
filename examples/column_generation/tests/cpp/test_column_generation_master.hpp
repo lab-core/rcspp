@@ -92,7 +92,8 @@ TEST(MasterProblemPricers, RejectsBadConvexityRows) {
     MasterProblem master(solver);
     master.add_rows(1, RowSense::GreaterEqual, 1.0);
     ScriptedPricer pricer;
-    EXPECT_THROW(master.add_pricer(pricer, ConvexityRow{.existing_row = 0, .max_paths = 2.0}),
+    constexpr double max_paths = 2.0;
+    EXPECT_THROW(master.add_pricer(pricer, ConvexityRow{.existing_row = 0, .max_paths = max_paths}),
                  std::invalid_argument);
     EXPECT_THROW(master.add_pricer(pricer, ConvexityRow{.existing_row = 1}), std::out_of_range);
     EXPECT_EQ(master.number_of_pricers(), 0U);
@@ -105,26 +106,35 @@ TEST(MasterProblemColumns, AddColumnsSendsOneCscBatch) {
     ScriptedPricer pricer;
     const size_t k = master.add_pricer(pricer, ConvexityRow{.max_paths = 2.0});  // row 3
 
-    master.add_columns(k, {make_path(7.0, {{0, 1.0}}), make_path(9.0, {{1, 1.0}, {2, 2.0}}, -4.0)});
+    constexpr double first_cost = 7.0;
+    constexpr double second_cost = 9.0;
+    constexpr double second_reduced_cost = -4.0;
+    constexpr double coefficient = 2.0;
+    master.add_columns(
+        k,
+        {make_path(first_cost, {{.index = 0, .coefficient = 1.0}}),
+         make_path(second_cost,
+                   {{.index = 1, .coefficient = 1.0}, {.index = 2, .coefficient = coefficient}},
+                   second_reduced_cost)});
 
     EXPECT_EQ(solver.add_columns_calls, 1U);
     ASSERT_EQ(solver.columns.size(), 2U);
     EXPECT_EQ(solver.columns[0].id, 0U);
-    EXPECT_EQ(solver.columns[0].cost, 7.0);
+    EXPECT_EQ(solver.columns[0].cost, first_cost);
     EXPECT_EQ(solver.columns[0].lower, 0.0);
     EXPECT_EQ(solver.columns[0].upper, infinity);
     using Entries = std::vector<std::pair<std::uint32_t, double>>;
     EXPECT_EQ(solver.columns[0].entries, (Entries{{0, 1.0}, {3, 1.0}}));
     EXPECT_EQ(solver.columns[1].id, 1U);
-    EXPECT_EQ(solver.columns[1].entries, (Entries{{1, 1.0}, {2, 2.0}, {3, 1.0}}));
+    EXPECT_EQ(solver.columns[1].entries, (Entries{{1, 1.0}, {2, coefficient}, {3, 1.0}}));
 
     ASSERT_EQ(master.number_of_columns(), 2U);
     const MasterColumn& second = master.columns()[1];
     EXPECT_EQ(second.id, 1U);
     EXPECT_EQ(second.pricer, k);
     EXPECT_EQ(second.tag, ColumnTag::Real);
-    EXPECT_EQ(second.solution.cost, -4.0);
-    EXPECT_EQ(second.solution.column.cost, 9.0);
+    EXPECT_EQ(second.solution.cost, second_reduced_cost);
+    EXPECT_EQ(second.solution.column.cost, second_cost);
     EXPECT_TRUE(master.artificial_column_ids().empty());
 }
 
@@ -134,7 +144,8 @@ TEST(MasterProblemColumns, AddColumnsWithoutConvexityRow) {
     master.add_rows(1, RowSense::GreaterEqual, 1.0);
     ScriptedPricer pricer;
     master.add_pricer(pricer);
-    master.add_columns(0, {make_path(5.0, {{0, 1.0}})});
+    constexpr double cost = 5.0;
+    master.add_columns(0, {make_path(cost, {{.index = 0, .coefficient = 1.0}})});
     ASSERT_EQ(solver.columns.size(), 1U);
     EXPECT_EQ(solver.columns[0].entries.size(), 1U);
 }
@@ -146,9 +157,12 @@ TEST(MasterProblemColumns, AddColumnsRejectsBadInput) {
     ScriptedPricer pricer;
     master.add_pricer(pricer, ConvexityRow{.max_paths = 1.0});  // row 1
 
-    EXPECT_THROW(master.add_columns(1, {make_path(1.0, {{0, 1.0}})}), std::out_of_range);
-    EXPECT_THROW(master.add_columns(0, {make_path(1.0, {{2, 1.0}})}), std::out_of_range);
-    EXPECT_THROW(master.add_columns(0, {make_path(1.0, {{1, 1.0}})}), std::invalid_argument);
+    EXPECT_THROW(master.add_columns(1, {make_path(1.0, {{.index = 0, .coefficient = 1.0}})}),
+                 std::out_of_range);
+    EXPECT_THROW(master.add_columns(0, {make_path(1.0, {{.index = 2, .coefficient = 1.0}})}),
+                 std::out_of_range);
+    EXPECT_THROW(master.add_columns(0, {make_path(1.0, {{.index = 1, .coefficient = 1.0}})}),
+                 std::invalid_argument);
     master.add_columns(0, {});
     EXPECT_EQ(solver.add_columns_calls, 0U);
     EXPECT_EQ(master.number_of_columns(), 0U);
@@ -163,14 +177,16 @@ TEST(MasterProblemColumns, AddArtificialColumns) {
     const std::vector<double> one_coefficient{1.0};
     const std::vector<size_t> bad_row{2};
 
-    EXPECT_THROW(master.add_artificial_columns(rows, one_coefficient, 5.0), std::invalid_argument);
-    EXPECT_THROW(master.add_artificial_columns(bad_row, one_coefficient, 5.0), std::out_of_range);
+    constexpr double cost = 5.0;
 
-    master.add_artificial_columns(rows, coefficients, 5.0);
+    EXPECT_THROW(master.add_artificial_columns(rows, one_coefficient, cost), std::invalid_argument);
+    EXPECT_THROW(master.add_artificial_columns(bad_row, one_coefficient, cost), std::out_of_range);
+
+    master.add_artificial_columns(rows, coefficients, cost);
     ASSERT_EQ(master.number_of_columns(), 2U);
     EXPECT_EQ(master.columns()[1].tag, ColumnTag::Artificial);
     EXPECT_EQ(master.columns()[1].pricer, MasterProblem::no_pricer);
-    EXPECT_EQ(solver.columns[1].cost, 5.0);
+    EXPECT_EQ(solver.columns[1].cost, cost);
     using Entries = std::vector<std::pair<std::uint32_t, double>>;
     EXPECT_EQ(solver.columns[1].entries, (Entries{{1, -1.0}}));
     EXPECT_EQ(std::vector<ColumnId>(master.artificial_column_ids().begin(),

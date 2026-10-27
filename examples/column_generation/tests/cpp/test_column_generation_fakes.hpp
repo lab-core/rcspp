@@ -59,11 +59,10 @@ class ScriptedMasterSolver final : public MasterSolver {
         void add_columns(const ColumnBatch& batch) override {
             ++add_columns_calls;
             for (size_t column = 0; column < batch.size(); ++column) {
-                ReceivedColumn received{batch.ids[column],
-                                        batch.cost[column],
-                                        batch.lower[column],
-                                        batch.upper[column],
-                                        {}};
+                ReceivedColumn received{.id = batch.ids[column],
+                                        .cost = batch.cost[column],
+                                        .lower = batch.lower[column],
+                                        .upper = batch.upper[column]};
                 for (std::uint32_t entry = batch.starts[column]; entry < batch.starts[column + 1];
                      ++entry) {
                     received.entries.emplace_back(batch.row_indices[entry], batch.values[entry]);
@@ -165,7 +164,9 @@ class ScriptedPricer final : public Pricer {
 
         /// @brief No column, proven by an exact stage.
         static PricingResult proven_none() {
-            return PricingResult{{}, PricingStatus::Optimal, 0.0, true};
+            return PricingResult{.status = PricingStatus::Optimal,
+                                 .min_reduced_cost_bound = 0.0,
+                                 .exact_stage = true};
         }
 
         Respond respond;
@@ -195,7 +196,7 @@ class ScaledPricer final : public Pricer {
 
 /// @brief A path whose master column has cost @p cost and the entries @p rows.
 inline Solution make_path(double cost, std::vector<Row> rows, double reduced_cost = -1.0) {
-    return Solution(reduced_cost, {}, {}, Column{cost, std::move(rows)});
+    return Solution(reduced_cost, {}, {}, Column{.cost = cost, .rows = std::move(rows)});
 }
 
 }  // namespace rcspp::column_generation::testing

@@ -21,25 +21,28 @@ using namespace rcspp::column_generation::testing;  // NOLINT(google-build-using
 namespace rcspp::column_generation::testing {
 
 // The smallest master with a real choice: one row "cover ≥ 1"; the pricer offers one path of
-// cost 10 covering it while its dual is above 10. With only the artificial column, the LP pays
-// the artificial cost; once the path is in, it costs 10.
+// cost 10 covering it while its dual is above 10 and the path is allowed. With only the
+// artificial column, the LP pays the artificial cost; once the path is in, it costs 10.
 struct CoverOneRow {
+        static constexpr double path_cost = 10.0;
+
         CoverOneRow() {
             master.add_rows(1, RowSense::GreaterEqual, 1.0);
             master.add_pricer(pricer);
             solver.on_solve = [](ScriptedMasterSolver& lp) {
                 const bool has_path = lp.columns.size() > 1;
                 const double artificial_cost = lp.columns.front().cost;
-                lp.objective_value = has_path ? 10.0 : artificial_cost;
+                lp.objective_value = has_path ? path_cost : artificial_cost;
                 lp.dual_values = {lp.objective_value};
                 lp.values = {{0, has_path ? 0.0 : 1.0}, {1, 1.0}};
                 return SolverStatus::Optimal;
             };
-            pricer.respond = [](std::span<const double> duals, const PricingRequest& request) {
+            pricer.respond = [this](std::span<const double> duals, const PricingRequest& request) {
                 PricingResult result = ScriptedPricer::proven_none();
-                const double reduced_cost = 10.0 - duals[0];
-                if (reduced_cost < request.reduced_cost_threshold) {
-                    result.columns.push_back(make_path(10.0, {{0, 1.0}}, reduced_cost));
+                const double reduced_cost = path_cost - duals[0];
+                if (path_allowed && reduced_cost < request.reduced_cost_threshold) {
+                    result.columns.push_back(
+                        make_path(path_cost, {{.index = 0, .coefficient = 1.0}}, reduced_cost));
                 }
                 return result;
             };
@@ -48,7 +51,46 @@ struct CoverOneRow {
         ScriptedMasterSolver solver;
         MasterProblem master{solver};
         ScriptedPricer pricer;
+        bool path_allowed = true;
 };
+
+// What a convergence hook saw: the loop converges without the path, the hook allows it and
+// restarts the loop, which converges again with the path.
+struct RestartedLoop {
+        std::vector<ConvergenceContext> contexts;
+        std::vector<size_t> value_counts;  // the values' spans do not outlive the hook
+        ColumnGenerationResult result;
+};
+
+inline RestartedLoop restart_once_the_path_is_allowed(CoverOneRow& toy) {
+    RestartedLoop restarted;
+    toy.path_allowed = false;
+    ColumnGenerationParams params;
+    params.on_converged = [&](ConvergenceContext& context) {
+        restarted.contexts.push_back(context);
+        restarted.value_counts.push_back(context.values.size());
+        if (!toy.path_allowed) {
+            toy.path_allowed = true;  // e.g. a pricer changed its problem
+            context.master.pricer(0).update(PricingChanges{.structure = true});
+            return ConvergenceAction::Continue;
+        }
+        return ConvergenceAction::Stop;
+    };
+
+    ColumnGeneration loop(toy.master, params);
+    restarted.result = loop.run();
+    return restarted;
+}
+
+// What the iteration hook saw while the loop solved @p toy.
+inline std::vector<IterationInfo> iterations_seen_by_the_hook(CoverOneRow& toy) {
+    std::vector<IterationInfo> seen;
+    ColumnGenerationParams params;
+    params.on_iteration = [&seen](const IterationInfo& info) { seen.push_back(info); };
+    ColumnGeneration loop(toy.master, params);
+    static_cast<void>(loop.run());
+    return seen;
+}
 
 }  // namespace rcspp::column_generation::testing
 
@@ -75,23 +117,32 @@ TEST(ColumnGenerationLoop, ThresholdIncludesTheConvexityDual) {
     MasterProblem master(solver);
     master.add_rows(1, RowSense::GreaterEqual, 1.0);
     ScriptedPricer pricer;
-    master.add_pricer(pricer, ConvexityRow{.max_paths = 4.0});  // row 1
+    constexpr double max_paths = 4.0;
+    master.add_pricer(pricer, ConvexityRow{.max_paths = max_paths});  // row 1
+    constexpr double cover_dual = 12.0;
+    constexpr double convexity_dual = 3.0;
     solver.on_solve = [](ScriptedMasterSolver& lp) {
-        lp.dual_values = {12.0, 3.0};
+        lp.dual_values = {cover_dual, convexity_dual};
         return SolverStatus::Optimal;
     };
     ColumnGeneration loop(master);
     static_cast<void>(loop.run());
 
     ASSERT_EQ(pricer.requests.size(), 1U);
-    EXPECT_DOUBLE_EQ(pricer.requests[0].reduced_cost_threshold, 3.0 - 1e-9);
-    EXPECT_EQ(pricer.seen_duals[0], (std::vector<double>{12.0, 3.0}));
+    EXPECT_DOUBLE_EQ(pricer.requests[0].reduced_cost_threshold, convexity_dual - 1e-9);
+    EXPECT_EQ(pricer.seen_duals[0], (std::vector<double>{cover_dual, convexity_dual}));
 }
 
 TEST(ColumnGenerationLoop, NotProvenWithoutAnExactOptimalPricing) {
-    for (const PricingResult& answer : {PricingResult{{}, PricingStatus::SolverLimit, 0.0, true},
-                                        PricingResult{{}, PricingStatus::Optimal, 0.0, false},
-                                        PricingResult{{}, PricingStatus::Infeasible, 0.0, false}}) {
+    for (const PricingResult& answer : {PricingResult{.status = PricingStatus::SolverLimit,
+                                                      .min_reduced_cost_bound = 0.0,
+                                                      .exact_stage = true},
+                                        PricingResult{.status = PricingStatus::Optimal,
+                                                      .min_reduced_cost_bound = 0.0,
+                                                      .exact_stage = false},
+                                        PricingResult{.status = PricingStatus::Infeasible,
+                                                      .min_reduced_cost_bound = 0.0,
+                                                      .exact_stage = false}}) {
         ScriptedMasterSolver solver;
         MasterProblem master(solver);
         ScriptedPricer pricer([answer](auto, auto) { return answer; });
@@ -105,7 +156,9 @@ TEST(ColumnGenerationLoop, NotProvenWithoutAnExactOptimalPricing) {
 
 TEST(ColumnGenerationLoop, AnExactPricerWithNoPathProves) {
     // The pricer's problem has no path at all, e.g. a vehicle type that can serve nobody.
-    const PricingResult no_path{{}, PricingStatus::Infeasible, 0.0, true};
+    const PricingResult no_path{.status = PricingStatus::Infeasible,
+                                .min_reduced_cost_bound = 0.0,
+                                .exact_stage = true};
 
     // Its columns are not needed: the master is still optimal.
     CoverOneRow toy;
@@ -146,50 +199,21 @@ TEST(ColumnGenerationLoop, InfeasibleWhenAnArtificialColumnStays) {
 
 TEST(ColumnGenerationLoop, ConvergenceHookCanRestartTheLoop) {
     CoverOneRow toy;
-    bool path_allowed = false;
-    toy.pricer.respond = [&path_allowed](std::span<const double> duals,
-                                         const PricingRequest& request) {
-        PricingResult result = ScriptedPricer::proven_none();
-        const double reduced_cost = 10.0 - duals[0];
-        if (path_allowed && reduced_cost < request.reduced_cost_threshold) {
-            result.columns.push_back(make_path(10.0, {{0, 1.0}}, reduced_cost));
-        }
-        return result;
-    };
+    const RestartedLoop restarted = restart_once_the_path_is_allowed(toy);
 
-    std::vector<ConvergenceContext> contexts;
-    std::vector<size_t> value_counts;
-    ColumnGenerationParams params;
-    params.on_converged = [&](ConvergenceContext& context) {
-        contexts.push_back(context);
-        value_counts.push_back(context.values.size());
-        if (!path_allowed) {
-            path_allowed = true;  // e.g. a pricer changed its problem
-            context.master.pricer(0).update(PricingChanges{.structure = true});
-            return ConvergenceAction::Continue;
-        }
-        return ConvergenceAction::Stop;
-    };
-    ColumnGeneration loop(toy.master, params);
-    const ColumnGenerationResult result = loop.run();
-
-    ASSERT_EQ(contexts.size(), 2U);
-    EXPECT_EQ(contexts[0].iteration, 1U);
-    EXPECT_EQ(contexts[0].objective, ArtificialColumns::automatic_cost_factor);
-    EXPECT_EQ(contexts[0].duals.size(), 1U);
-    EXPECT_EQ(value_counts, (std::vector<size_t>{1, 2}));
-    EXPECT_EQ(contexts[1].iteration, 3U);
-    EXPECT_EQ(result.status, ColumnGenerationStatus::Optimal);
-    EXPECT_DOUBLE_EQ(result.objective, 10.0);
+    ASSERT_EQ(restarted.contexts.size(), 2U);
+    EXPECT_EQ(restarted.contexts[0].iteration, 1U);
+    EXPECT_EQ(restarted.contexts[0].objective, ArtificialColumns::automatic_cost_factor);
+    EXPECT_EQ(restarted.contexts[0].duals.size(), 1U);
+    EXPECT_EQ(restarted.value_counts, (std::vector<size_t>{1, 2}));
+    EXPECT_EQ(restarted.contexts[1].iteration, 3U);
+    EXPECT_EQ(restarted.result.status, ColumnGenerationStatus::Optimal);
+    EXPECT_DOUBLE_EQ(restarted.result.objective, CoverOneRow::path_cost);
 }
 
 TEST(ColumnGenerationLoop, IterationHookSeesEveryIteration) {
     CoverOneRow toy;
-    std::vector<IterationInfo> seen;
-    ColumnGenerationParams params;
-    params.on_iteration = [&seen](const IterationInfo& info) { seen.push_back(info); };
-    ColumnGeneration loop(toy.master, params);
-    static_cast<void>(loop.run());
+    const std::vector<IterationInfo> seen = iterations_seen_by_the_hook(toy);
 
     ASSERT_EQ(seen.size(), 2U);
     EXPECT_EQ(seen[0].iteration, 1U);
@@ -197,7 +221,7 @@ TEST(ColumnGenerationLoop, IterationHookSeesEveryIteration) {
     EXPECT_EQ(seen[0].total_columns, 2U);
     EXPECT_EQ(seen[1].iteration, 2U);
     EXPECT_EQ(seen[1].new_columns, 0U);
-    EXPECT_DOUBLE_EQ(seen[1].objective, 10.0);
+    EXPECT_DOUBLE_EQ(seen[1].objective, CoverOneRow::path_cost);
     EXPECT_GE(seen[1].elapsed_seconds, seen[0].elapsed_seconds);
 }
 
@@ -259,7 +283,10 @@ TEST(ColumnGenerationLoop, UnboundedMasterHasItsOwnStatus) {
 
     // A value outside the enum (e.g. from a buggy master solver) is a solver error.
     CoverOneRow unknown;
-    unknown.solver.on_solve = [](ScriptedMasterSolver&) { return static_cast<SolverStatus>(99); };
+    constexpr int outside_the_enum = 99;
+    unknown.solver.on_solve = [](ScriptedMasterSolver&) {
+        return static_cast<SolverStatus>(outside_the_enum);
+    };
     ColumnGeneration unknown_loop(unknown.master);
     EXPECT_EQ(unknown_loop.run().status, ColumnGenerationStatus::SolverError);
 }
@@ -267,10 +294,11 @@ TEST(ColumnGenerationLoop, UnboundedMasterHasItsOwnStatus) {
 TEST(ColumnGenerationLoop, NoInitializationKeepsAFeasibleModelAsItIs) {
     // The user's model is feasible on its own: one starting column covers the row.
     CoverOneRow toy;
-    toy.master.add_columns(0, {make_path(12.0, {{0, 1.0}}, 0.0)});
+    constexpr double starting_cost = 12.0;  // above the path's
+    toy.master.add_columns(0, {make_path(starting_cost, {{.index = 0, .coefficient = 1.0}}, 0.0)});
     toy.solver.on_solve = [](ScriptedMasterSolver& lp) {
         const bool cheaper_path = lp.columns.size() > 1;
-        lp.objective_value = cheaper_path ? 10.0 : 12.0;
+        lp.objective_value = cheaper_path ? CoverOneRow::path_cost : starting_cost;
         lp.dual_values = {lp.objective_value};
         lp.values = {{0, cheaper_path ? 0.0 : 1.0}, {1, 1.0}};
         return SolverStatus::Optimal;
@@ -281,7 +309,7 @@ TEST(ColumnGenerationLoop, NoInitializationKeepsAFeasibleModelAsItIs) {
     const ColumnGenerationResult result = loop.run();
 
     EXPECT_EQ(result.status, ColumnGenerationStatus::Optimal);
-    EXPECT_DOUBLE_EQ(result.objective, 10.0);
+    EXPECT_DOUBLE_EQ(result.objective, CoverOneRow::path_cost);
     EXPECT_EQ(result.statistics.artificial_columns, 0U);
     EXPECT_TRUE(toy.master.artificial_column_ids().empty());
     EXPECT_EQ(toy.master.number_of_columns(), 2U);  // the starting column and the generated one
@@ -322,10 +350,13 @@ TEST(ColumnGenerationLoop, DefaultComponentsAndACustomInitialization) {
               nullptr);
 
     // A custom initialization that brings the starting columns instead of artificial ones.
+    static constexpr double starting_cost = 10.0;
     class StartingColumns final : public MasterInitialization {
         public:
             void initialize(MasterProblem& master, const ToleranceContext& /*context*/) override {
-                master.add_columns(0, {make_path(10.0, {{0, 1.0}}, 0.0)});
+                master.add_columns(
+                    0,
+                    {make_path(starting_cost, {{.index = 0, .coefficient = 1.0}}, 0.0)});
             }
     };
     ScriptedMasterSolver solver;
@@ -334,7 +365,7 @@ TEST(ColumnGenerationLoop, DefaultComponentsAndACustomInitialization) {
     ScriptedPricer pricer;
     master.add_pricer(pricer);
     solver.on_solve = [](ScriptedMasterSolver& lp) {
-        lp.objective_value = 10.0;
+        lp.objective_value = starting_cost;
         lp.values = {{0, 1.0}};
         return SolverStatus::Optimal;
     };
@@ -345,7 +376,7 @@ TEST(ColumnGenerationLoop, DefaultComponentsAndACustomInitialization) {
     const ColumnGenerationResult result = loop.run();
 
     EXPECT_EQ(result.status, ColumnGenerationStatus::Optimal);
-    EXPECT_DOUBLE_EQ(result.objective, 10.0);
+    EXPECT_DOUBLE_EQ(result.objective, starting_cost);
     EXPECT_EQ(result.statistics.artificial_columns, 0U);
     EXPECT_TRUE(master.artificial_column_ids().empty());
 }
@@ -365,24 +396,27 @@ TEST(ColumnGenerationLoop, CostScaleFromPricersAndStartingColumns) {
     ScriptedMasterSolver solver;
     MasterProblem master(solver);
     master.add_rows(1, RowSense::GreaterEqual, 1.0);
-    ScaledPricer small(0.5);
-    ScaledPricer large(5.0);
+    constexpr double small_scale = 0.5;
+    constexpr double large_scale = 5.0;
+    ScaledPricer small(small_scale);
+    ScaledPricer large(large_scale);
     master.add_pricer(small);
     master.add_pricer(large);
 
     ColumnGeneration from_pricers(master);
     static_cast<void>(from_pricers.run());
-    EXPECT_DOUBLE_EQ(from_pricers.tolerance_context().cost_scale, 5.0);
+    EXPECT_DOUBLE_EQ(from_pricers.tolerance_context().cost_scale, large_scale);
 
     ScriptedMasterSolver other_solver;
     MasterProblem with_columns(other_solver);
     with_columns.add_rows(1, RowSense::GreaterEqual, 1.0);
-    ScaledPricer unit(0.5);
+    ScaledPricer unit(small_scale);
     with_columns.add_pricer(unit);
-    with_columns.add_columns(0, {make_path(-20.0, {{0, 1.0}})});
+    constexpr double starting_cost = -20.0;  // its magnitude is the largest cost
+    with_columns.add_columns(0, {make_path(starting_cost, {{.index = 0, .coefficient = 1.0}})});
     ColumnGeneration from_columns(with_columns);
     static_cast<void>(from_columns.run());
-    EXPECT_DOUBLE_EQ(from_columns.tolerance_context().cost_scale, 20.0);
+    EXPECT_DOUBLE_EQ(from_columns.tolerance_context().cost_scale, -starting_cost);
     EXPECT_EQ(unit.updates, 0);
 }
 
