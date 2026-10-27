@@ -362,6 +362,7 @@ cmake --build build --parallel
 # USE_VRP=ON      — build VRP benchmark (needs Gurobi)
 # USE_COLUMN_GENERATION_EXAMPLE=ON        — the C++ column generation example (examples/column_generation)
 # USE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON — its Gurobi master solver; finds Gurobi (fails without it)
+# USE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON  — its HiGHS master solver: HiGHS installed, else v1.15.1 fetched
 # USE_COVERAGE=ON — instrument with gcov (gcc only)
 ```
 
