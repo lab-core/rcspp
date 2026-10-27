@@ -10,5 +10,6 @@
 #include "test_column_generation_interfaces.hpp"
 #include "test_column_generation_loop.hpp"
 #include "test_column_generation_master.hpp"
+#include "test_column_generation_master_solver_support.hpp"
 #include "test_column_generation_self_test.hpp"
 #include "test_column_generation_tolerances.hpp"

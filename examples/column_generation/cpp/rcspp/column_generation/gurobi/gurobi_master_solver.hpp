@@ -8,11 +8,11 @@
 #include <cstddef>
 #include <span>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "rcspp/column_generation/master_solver.hpp"
+#include "rcspp/column_generation/master_solver_support.hpp"
 #include "rcspp/column_generation/types.hpp"
 
 namespace rcspp::column_generation {
@@ -103,8 +103,7 @@ class GurobiMasterSolver final : public MasterSolver {
 
         GRBModel& model_;
         std::vector<GRBConstr> rows_;
-        std::vector<GRBVar> columns_;
-        std::unordered_map<ColumnId, size_t> column_index_;
+        SolverColumns<GRBVar> columns_;
         // The user's non-continuous variables and their types, once recorded.
         std::vector<std::pair<GRBVar, char>> user_types_;
         bool user_types_known_ = false;
