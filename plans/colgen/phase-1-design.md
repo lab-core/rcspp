@@ -275,11 +275,13 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 1 | 1.7 | `refactor(column_generation): name the default tolerances and gap` | named constants instead of literals (clang-tidy) |
 | 1 | 1.8 | `fix(column_generation): include pricer.hpp where it is used` | an include left in the header after the `.cpp` split |
 | 1 | 1.9 | `fix(column_generation): an exact pricer with no path at all proves convergence` | exact `Infeasible` counts as proof, like exact `Optimal` |
+| 1 | 1.10 | `test(column_generation): clear the clang-tidy warnings in the tests` | done (`fba69f2e` here, `ba2191a0` on core): the 48 warnings of the PR 1 test headers; named numbers, designated initializers, hook lambdas moved to helpers. Warnings in code older than this layer (examples, Python bindings, `tests/cpp/util/`) are left alone |
 | 2 | 2.1 | `build: FindGUROBI.cmake shared, USE_GUROBI` | done (`c0aaaa70`): moved from `examples/cpp/vrp/cmake/` to `cmake/`, the VRP example still finds it; newer library names (`gurobi140`…); off by default (`D-52`) |
 | 2 | 2.2 | `feat(column_generation): Gurobi master solver` | done (`a7be28a0` here): `GurobiMasterSolver` wrapping a user's `GRBModel` and their row list (`D-54`): columns, LP solve, normalized duals, primal by id, integer solve (`D-61`, `D-62`); fixes the comment at `master_problem.hpp:72`. Primal simplex while `Method` is automatic (`D-65`); Gurobi tests in their own executable, skipped without a license |
 | 2 | 2.2b | `fix(column_generation): refuse Gurobi rows that no constraint holds` | done (review): `add_rows` refused ranges only; an infinite equality, `lower = +∞`, `upper = −∞` or NaN now refuse the batch too |
 | 1, 2 | 2.2c | (no commit) rename `SolverBackend` to `MasterSolver` | done (`D-67`, `D-69`): every code commit rewritten; hashes above are the new ones. 2.3 uses the new names |
 | 2 | 2.3 | `feat(column_generation): master solver self-test` | done (`0bf9c257` here, `D-70`): `master_solver_self_test.{hpp,cpp}`; run on Gurobi, skipped without a license; a scripted master solver making one mistake at a time (run everywhere) shows each is reported; 100 % of the lines covered |
+| 2 | 2.3b | `test(column_generation): split the Gurobi refused-rows test` | done (`bdc236a5` here): its clang-tidy complexity warning |
 | 2 | 2.4 | `test(column_generation): the toy on Gurobi` | the toy (described in the test, `D-64`) built as a user would, in a `GRBModel`, then wrapped: LP 37.5 and its duals; restricted master MIP 44 (section 5) |
 | 3 | 3.1 | `feat(column_generation): pricing strategy with stages` | `PricingStrategy` (`D-23`), one exact stage by default |
 | 3 | 3.2 | `feat(column_generation): graph pricer` | `GraphPricer` over `ResourceGraph`; `cost_scale` = max \|arc cost\| |
@@ -295,7 +297,7 @@ Tests: one `tests/cpp/test_column_generation_<part>.hpp` per commit, included by
 | 6 | 6.1 | `feat(python): highspy master` | `HighspyMaster` |
 | 6 | 6.2 | `feat(python): gurobipy master` | `GurobipyMaster`; `.coveragerc` `omit` (`D-50`) |
 | 6 | 6.3 | `build(python): highs and gurobi extras` | `pyproject.toml` extras; wheel with `USE_HIGHS=ON` |
-| 7 | 7.1 | `docs: column generation` | `docs/advanced/column-generation.md` (T-1.7) |
+| 7 | 7.1 | `docs: column generation` | `docs/advanced/column-generation.md` (T-1.7); includes the Gurobi LP method (`D-65`): primal simplex while `Method` is automatic, why, the measurement (`F-19`), how to choose another |
 | 8 | 8.1 | `refactor(vrp): C++ example and benchmark on the layer` | T-1.5 |
 | 8 | 8.2 | `refactor(vrp): Python example on a user-model master` | |
 | 8 | 8.3 | `docs(plans): golden baselines` | T-0.1 |
