@@ -29,7 +29,9 @@ namespace rcspp::column_generation {
 /// - **Integrality:** LP solves set HiGHS's `solve_relaxation` option, so the model's integer
 ///   columns stay integer and are solved as continuous; the integer solve unsets it and gives the
 ///   generated columns the requested type (a binary column is an integer one with an upper bound
-///   of at most 1, until the next LP solve).
+///   of at most 1, until the next LP solve). The upper bounds that LP solve puts back are those
+///   the columns had when added: a change the user makes to a generated column's upper bound
+///   during the run is undone after a binary integer solve.
 /// - **Solver options:** every solve sets `time_limit` (counted from the solve: HiGHS counts it
 ///   over all the model's solves), `threads` and `output_flag` from its parameters. HiGHS fixes
 ///   its thread count at its first solve in the process and refuses a run asking for another: the
