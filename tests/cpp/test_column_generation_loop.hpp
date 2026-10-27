@@ -398,10 +398,10 @@ TEST(ColumnGenerationLoop, CostScaleFromPricersAndStartingColumns) {
     master.add_rows(1, RowSense::GreaterEqual, 1.0);
     constexpr double small_scale = 0.5;
     constexpr double large_scale = 5.0;
-    ScaledPricer small(small_scale);
-    ScaledPricer large(large_scale);
-    master.add_pricer(small);
-    master.add_pricer(large);
+    ScaledPricer small_costs(small_scale);
+    ScaledPricer large_costs(large_scale);
+    master.add_pricer(small_costs);
+    master.add_pricer(large_costs);
 
     ColumnGeneration from_pricers(master);
     static_cast<void>(from_pricers.run());
