@@ -290,25 +290,31 @@ double GurobiMasterSolver::sense_sign() const {
 }
 
 void GurobiMasterSolver::relax() {
-    if (relaxed_) {
+    const size_t known = user_types_.size();
+    record_new_user_types();
+
+    // Relaxed already: only the user's variables added since are not.
+    std::vector<GRBVar> variables;
+    if (!relaxed_) {
+        variables.assign(columns_.all().begin(), columns_.all().end());
+    }
+    for (size_t index = relaxed_ ? known : 0; index < user_types_.size(); ++index) {
+        variables.push_back(user_types_[index].first);
+    }
+    relaxed_ = true;
+    if (variables.empty()) {
         return;
     }
-    remember_user_types();
 
-    std::vector<GRBVar> variables(columns_.all().begin(), columns_.all().end());
-    for (const auto& [user_variable, type] : user_types_) {
-        variables.push_back(user_variable);
-    }
     const std::vector<char> types(variables.size(), GRB_CONTINUOUS);
     model_.set(GRB_CharAttr_VType,
                variables.data(),
                types.data(),
                static_cast<int>(variables.size()));
-    relaxed_ = true;
 }
 
 void GurobiMasterSolver::restore(char type) {
-    remember_user_types();
+    record_new_user_types();
 
     std::vector<GRBVar> variables(columns_.all().begin(), columns_.all().end());
     std::vector<char> types(variables.size(), type);
@@ -323,27 +329,29 @@ void GurobiMasterSolver::restore(char type) {
     relaxed_ = false;
 }
 
-void GurobiMasterSolver::remember_user_types() {
-    if (user_types_known_) {
+void GurobiMasterSolver::record_new_user_types() {
+    // Variables the user added are pending until an update.
+    model_.update();
+    const auto count = static_cast<size_t>(model_.get(GRB_IntAttr_NumVars));
+    if (count <= recorded_variables_) {
         return;
     }
-    user_types_known_ = true;
 
-    // Generated columns are all continuous until the first type change, so every other type
-    // belongs to a variable of the user.
-    const int count = model_.get(GRB_IntAttr_NumVars);
-    if (count == 0) {
-        return;
+    // A generated column is continuous whenever this runs: added so, and made integer only by
+    // the integer solve, after this. Every other type belongs to a variable of the user.
+    std::vector<GRBVar> variables;
+    for (size_t index = recorded_variables_; index < count; ++index) {
+        variables.push_back(model_.getVar(static_cast<int>(index)));
     }
-    const auto size = static_cast<size_t>(count);
-    const std::vector<GRBVar> variables = take(model_.getVars(), size);
     const std::vector<char> types =
-        take(model_.get(GRB_CharAttr_VType, variables.data(), count), size);
-    for (size_t index = 0; index < size; ++index) {
+        take(model_.get(GRB_CharAttr_VType, variables.data(), static_cast<int>(variables.size())),
+             variables.size());
+    for (size_t index = 0; index < variables.size(); ++index) {
         if (types[index] != GRB_CONTINUOUS) {
             user_types_.emplace_back(variables[index], types[index]);
         }
     }
+    recorded_variables_ = count;
 }
 
 SolverStatus GurobiMasterSolver::optimize() {

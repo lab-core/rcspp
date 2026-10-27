@@ -26,9 +26,11 @@ namespace rcspp::column_generation {
 ///
 /// - **Sense:** a maximizing model works too: the master solver negates the costs it adds, the
 ///   objective and the duals, so that the master is seen as a minimization.
-/// - **Integrality:** every LP solve relaxes the model's integer variables in place; the integer
-///   solve restores them and gives the generated columns the requested type. The model must
-///   become an LP once relaxed (no SOS or general constraints).
+/// - **Integrality:** every LP solve relaxes the model's integer variables in place, those the
+///   user adds during the run included; the integer solve restores them and gives the generated
+///   columns the requested type. The model must become an LP once relaxed (no SOS or general
+///   constraints). The types restored are those the variables had when first seen: a type the
+///   user changes during the run is overwritten, and variables must not be deleted during it.
 /// - **Solver options:** every solve sets `TimeLimit`, `Threads` and `OutputFlag` from its
 ///   parameters. LP solves use primal simplex while `Method` is automatic (the basis stays primal
 ///   feasible after columns are added), then put `Method` back.
@@ -94,8 +96,9 @@ class GurobiMasterSolver final : public MasterSolver {
         // Gives back the user's types, and @p type to the generated columns.
         void restore(char type);
 
-        // Records the user's non-continuous variables, once, before changing any type.
-        void remember_user_types();
+        // Records the user's non-continuous variables added since the last call; called before
+        // changing any type.
+        void record_new_user_types();
 
         // Optimizes; an "infeasible or unbounded" answer is solved again without dual
         // reductions, to tell the two apart.
@@ -104,9 +107,10 @@ class GurobiMasterSolver final : public MasterSolver {
         GRBModel& model_;
         std::vector<GRBConstr> rows_;
         SolverColumns<GRBVar> columns_;
-        // The user's non-continuous variables and their types, once recorded.
+        // The user's non-continuous variables and their types, and how many of the model's
+        // variables have been looked at.
         std::vector<std::pair<GRBVar, char>> user_types_;
-        bool user_types_known_ = false;
+        size_t recorded_variables_ = 0;
         // Every variable is continuous (an LP solve came last).
         bool relaxed_ = false;
 };
