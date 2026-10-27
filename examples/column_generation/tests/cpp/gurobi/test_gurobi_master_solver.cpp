@@ -122,6 +122,18 @@ struct SingleColumn {
         }
 };
 
+// Whether @p master refuses a batch of a valid row followed by the row lower ≤ a·x ≤ upper.
+bool refuses_after_a_valid_row(MasterProblem& master, double lower, double upper) {
+    const std::vector<double> lowers{0.0, lower};
+    const std::vector<double> uppers{0.0, upper};
+    try {
+        (void)master.add_rows(lowers, uppers);
+    } catch (const std::invalid_argument&) {
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 TEST_F(GurobiMasterSolverTest, RowBoundsFromTheModel) {
@@ -307,7 +319,7 @@ TEST_F(GurobiMasterSolverTest, RefusedRowsAddNothing) {
     MasterProblem master(solver);
     const double not_a_number = std::numeric_limits<double>::quiet_NaN();
 
-    // A range, then bounds no Gurobi row holds; each after a valid row of the same batch.
+    // A range, then bounds no Gurobi row holds.
     const std::vector<std::array<double, 2>> refused{{1.0, 2.0},
                                                      {infinity, infinity},
                                                      {-infinity, -infinity},
@@ -316,11 +328,19 @@ TEST_F(GurobiMasterSolverTest, RefusedRowsAddNothing) {
                                                      {not_a_number, 1.0},
                                                      {-infinity, not_a_number}};
     for (const auto& [lower, upper] : refused) {
-        const std::vector<double> lowers{0.0, lower};
-        const std::vector<double> uppers{0.0, upper};
-        EXPECT_THROW((void)master.add_rows(lowers, uppers), std::invalid_argument)
+        EXPECT_TRUE(refuses_after_a_valid_row(master, lower, upper))
             << lower << " <= a.x <= " << upper;
     }
+
+    model->update();
+    EXPECT_EQ(solver.number_of_rows(), 0U);
+    EXPECT_EQ(model->get(GRB_IntAttr_NumConstrs), 0);
+}
+
+TEST_F(GurobiMasterSolverTest, RefusedRowBySenseAddsNothing) {
+    GurobiMasterSolver solver(*model, {});
+    MasterProblem master(solver);
+
     EXPECT_THROW((void)master.add_rows(1, RowSense::Equal, infinity), std::invalid_argument);
 
     model->update();
