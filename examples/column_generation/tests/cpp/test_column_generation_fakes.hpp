@@ -203,6 +203,41 @@ class ScaledPricer final : public Pricer {
         double scale_;
 };
 
+/// @brief A column batch for a master solver, built directly: column `j` has the id `ids[j]`,
+///        cost 1, bounds `[0, +∞)` and a single entry, 1 in row `rows[j]`. Change any array
+///        before calling @c batch.
+struct OneEntryColumns {
+        std::vector<ColumnId> ids;
+        std::vector<double> cost;
+        std::vector<double> lower;
+        std::vector<double> upper;
+        std::vector<std::uint32_t> starts;
+        std::vector<std::uint32_t> row_indices;
+        std::vector<double> values;
+
+        OneEntryColumns(std::vector<ColumnId> column_ids, std::vector<std::uint32_t> rows)
+            : ids(std::move(column_ids)),
+              cost(ids.size(), 1.0),
+              lower(ids.size(), 0.0),
+              upper(ids.size(), infinity),
+              row_indices(std::move(rows)),
+              values(ids.size(), 1.0) {
+            for (std::uint32_t entry = 0; entry <= ids.size(); ++entry) {
+                starts.push_back(entry);
+            }
+        }
+
+        [[nodiscard]] ColumnBatch batch() const {
+            return ColumnBatch{.ids = ids,
+                               .cost = cost,
+                               .lower = lower,
+                               .upper = upper,
+                               .starts = starts,
+                               .row_indices = row_indices,
+                               .values = values};
+        }
+};
+
 /// @brief A path whose master column has cost @p cost and the entries @p rows.
 inline Solution make_path(double cost, std::vector<Row> rows, double reduced_cost = -1.0) {
     return Solution(reduced_cost, {}, {}, Column{.cost = cost, .rows = std::move(rows)});
