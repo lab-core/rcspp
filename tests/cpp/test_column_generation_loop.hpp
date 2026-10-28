@@ -108,6 +108,7 @@ TEST(ColumnGenerationLoop, ConvergesAndPushesTheArtificialColumnOut) {
     EXPECT_DOUBLE_EQ(result.lower_bound, 10.0);
     EXPECT_EQ(result.statistics.generated_columns, 1U);
     EXPECT_EQ(result.statistics.artificial_columns, 1U);
+    EXPECT_EQ(result.statistics.artificial_cost, ArtificialColumns::automatic_cost_factor);
     EXPECT_GE(result.statistics.total_seconds, 0.0);
     EXPECT_EQ(toy.solver.columns[0].cost, ArtificialColumns::automatic_cost_factor);
     // No convexity row: the threshold is minus the reduced-cost tolerance.
@@ -488,6 +489,20 @@ TEST(ColumnGenerationLoop, CostScaleFromPricersAndStartingColumns) {
     static_cast<void>(from_columns.run());
     EXPECT_DOUBLE_EQ(from_columns.tolerance_context().cost_scale, -starting_cost);
     EXPECT_EQ(unit.updates, 0);
+
+    // Starting columns the user built in their own model count too.
+    constexpr double user_cost = 30.0;
+    ScriptedMasterSolver user_solver;
+    user_solver.largest_user_cost_value = user_cost;
+    MasterProblem user_model(user_solver);
+    user_model.add_rows(1, RowSense::GreaterEqual, 1.0);
+    ScaledPricer user_pricer(small_scale);
+    user_model.add_pricer(user_pricer);
+    ColumnGeneration from_user_model(user_model);
+    static_cast<void>(from_user_model.run());
+    EXPECT_DOUBLE_EQ(from_user_model.tolerance_context().cost_scale, user_cost);
+    EXPECT_DOUBLE_EQ(user_model.artificial_cost(),
+                     ArtificialColumns::automatic_cost_factor * user_cost);
 }
 
 TEST(ColumnGenerationLoop, RestrictedMasterIntegerSolve) {

@@ -152,6 +152,9 @@ class MasterProblem {
             return artificial_column_ids_;
         }
 
+        /// @brief Cost of the artificial columns; 0 when there are none.
+        [[nodiscard]] double artificial_cost() const { return artificial_cost_; }
+
         /// @brief Whether a loop has initialized this master (e.g. added artificial columns).
         [[nodiscard]] bool initialized() const { return initialized_; }
 
@@ -182,6 +185,7 @@ class MasterProblem {
         std::vector<ColumnId> artificial_column_ids_;
         bool warned_repeated_rows_ = false;
         bool initialized_ = false;
+        double artificial_cost_ = 0.0;
 
         // Batch buffers, reused between calls so adding columns does not allocate once warm.
         std::vector<ColumnId> batch_ids_;

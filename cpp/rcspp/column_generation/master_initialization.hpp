@@ -33,7 +33,12 @@ class MasterInitialization {
 /// Each artificial column alone satisfies its row (coefficient +1 when the row's lower bound is
 /// positive, −1 when its upper bound is negative). Pricing then brings cheaper real columns that
 /// push the artificial ones out. An artificial column still used once column generation has
-/// converged means the master is infeasible.
+/// converged means the master is infeasible **at that cost**: a solution whose columns cost more
+/// than it per row they cover is missed. The automatic cost is `automatic_cost_factor` times the
+/// cost scale: the pricers' @c Pricer::cost_scale, the starting columns' costs and the user's own
+/// variables' (@c MasterSolver::largest_user_cost). Give a cost explicitly, or a pricer's cost
+/// scale, when columns can cost more. An exact infeasibility proof needs another initialization
+/// (two phases, or Farkas pricing).
 class ArtificialColumns final : public MasterInitialization {
     public:
         /// @brief Factor of the automatic cost: `automatic_cost_factor × cost_scale`.
