@@ -241,8 +241,10 @@ double HighsMasterSolver::sense_sign() const {
 }
 
 void HighsMasterSolver::set_solve_options(double timeout_s, int threads, bool verbose) {
-    // HiGHS compares its time limit with the run time of all the model's solves so far.
-    highs_.setOptionValue("time_limit", highs_.getRunTime() + std::max(0.0, timeout_s));
+    // HiGHS compares its time limit with a clock that counts all the model's solves, while its
+    // MIP solver has a clock of its own that starts at 0: both count from this solve.
+    highs_.zeroAllClocks();
+    highs_.setOptionValue("time_limit", std::max(0.0, timeout_s));
     highs_.setOptionValue("output_flag", verbose);
 
     requested_threads_ = threads;
