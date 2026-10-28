@@ -152,6 +152,12 @@ class MasterProblem {
             return artificial_column_ids_;
         }
 
+        /// @brief Whether a loop has initialized this master (e.g. added artificial columns).
+        [[nodiscard]] bool initialized() const { return initialized_; }
+
+        /// @brief Records that the master is initialized, so no other loop does it again.
+        void mark_initialized() { initialized_ = true; }
+
         /// @brief The master solver.
         [[nodiscard]] MasterSolver& solver() const { return solver_; }
 
@@ -175,6 +181,7 @@ class MasterProblem {
         std::vector<MasterColumn> columns_;
         std::vector<ColumnId> artificial_column_ids_;
         bool warned_repeated_rows_ = false;
+        bool initialized_ = false;
 
         // Batch buffers, reused between calls so adding columns does not allocate once warm.
         std::vector<ColumnId> batch_ids_;
