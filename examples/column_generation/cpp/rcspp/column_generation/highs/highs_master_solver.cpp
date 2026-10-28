@@ -169,7 +169,6 @@ void HighsMasterSolver::add_columns(const ColumnBatch& columns) {
 
     for (size_t column = 0; column < columns.size(); ++column) {
         columns_.add(columns.ids[column], first + static_cast<HighsInt>(column));
-        upper_bounds_.push_back(columns.upper[column]);
     }
 }
 
@@ -211,14 +210,17 @@ SolverStatus HighsMasterSolver::solve_integer(const IntegerParams& params) {
         const std::vector<HighsVarType> types(generated.size(), HighsVarType::kInteger);
         highs_.changeColsIntegrality(count, generated.data(), types.data());
 
-        // HiGHS has no binary type: an integer column with an upper bound of at most 1.
+        // HiGHS has no binary type: an integer column with an upper bound of at most 1, and of
+        // at most its own, which comes back afterwards.
         if (params.column_type == ColumnType::Binary) {
             const HighsLp& model = highs_.getLp();
             std::vector<double> lower;
             std::vector<double> upper;
-            for (size_t column = 0; column < generated.size(); ++column) {
-                lower.push_back(model.col_lower_[generated[column]]);
-                upper.push_back(std::min(upper_bounds_[column], 1.0));
+            upper_bounds_.clear();
+            for (const HighsInt index : generated) {
+                lower.push_back(model.col_lower_[index]);
+                upper_bounds_.push_back(model.col_upper_[index]);
+                upper.push_back(std::min(model.col_upper_[index], 1.0));
             }
             highs_.changeColsBounds(count, generated.data(), lower.data(), upper.data());
             binary_bounds_ = true;
