@@ -117,7 +117,7 @@ class GurobiMasterSolver final : public MasterSolver {
         void record_new_user_types();
 
         // Optimizes; an "infeasible or unbounded" answer is solved again without dual
-        // reductions, to tell the two apart.
+        // reductions, to tell the two apart, within what is left of the time limit.
         SolverStatus optimize();
 
         GRBModel& model_;
