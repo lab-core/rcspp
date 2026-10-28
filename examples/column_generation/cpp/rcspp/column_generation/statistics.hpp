@@ -20,6 +20,9 @@ struct Statistics {
         size_t generated_columns = 0;
         /// @brief Artificial columns in the master.
         size_t artificial_columns = 0;
+        /// @brief Cost of each artificial column (0 when none): an @c Infeasible run found no
+        ///        solution at this cost.
+        double artificial_cost = 0.0;
         /// @brief Wall-clock time of the run, in seconds.
         double total_seconds = 0.0;
         /// @brief Time spent in LP solves, in seconds (0 when timers are off).

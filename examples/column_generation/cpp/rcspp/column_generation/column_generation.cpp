@@ -169,6 +169,7 @@ ColumnGenerationResult ColumnGeneration::iterate() {
     }
 
     result.statistics.artificial_columns = master_.artificial_column_ids().size();
+    result.statistics.artificial_cost = master_.artificial_cost();
     result.statistics.total_seconds = total_timer.elapsed_seconds();
     result.statistics.relaxation_seconds = relaxation_timer.elapsed_seconds();
     result.statistics.pricing_seconds = pricing_timer.elapsed_seconds();
@@ -224,6 +225,9 @@ ToleranceContext ColumnGeneration::compute_tolerance_context() const {
     for (const MasterColumn& column : master_.columns()) {
         scale = std::max(scale, std::abs(column.solution.column.cost));
     }
+
+    // Starting columns the user built in their own model.
+    scale = std::max(scale, master_.solver().largest_user_cost());
 
     return ToleranceContext{.cost_scale = scale};
 }

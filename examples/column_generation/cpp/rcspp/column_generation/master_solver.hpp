@@ -99,6 +99,14 @@ class MasterSolver {
         /// The loop never asks pricers for less (see @c Tolerances). 0 by default.
         [[nodiscard]] virtual double dual_tolerance() const { return 0.0; }
 
+        /// @brief The largest absolute cost among the variables the master did not add: the
+        ///        user's own, e.g. starting columns built in the model. 0 when there are none (the
+        ///        default).
+        ///
+        /// With the pricers' @c Pricer::cost_scale, it sets the scale of the automatic artificial
+        /// cost and of relative tolerances.
+        [[nodiscard]] virtual double largest_user_cost() const { return 0.0; }
+
         /// @brief Puts back what the LP solves of a run changed in the user's model (relaxed
         ///        variable types, solver options…). @c ColumnGeneration::run calls it when the run
         ///        ends, however it ends.
