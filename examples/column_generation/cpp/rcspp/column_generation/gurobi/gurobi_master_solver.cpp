@@ -313,19 +313,25 @@ void GurobiMasterSolver::restore_user_model() {
 void GurobiMasterSolver::set_option(std::string_view name, const OptionValue& value) {
     const std::string parameter(name);
 
-    std::visit(
-        [&](const auto& option) {
-            using Value = std::decay_t<decltype(option)>;
-            if constexpr (std::is_same_v<Value, bool>) {
-                model_.set(parameter, option ? "1" : "0");
-            } else if constexpr (std::is_same_v<Value, std::string>) {
-                model_.set(parameter, option);
-            } else {
-                // The shortest text that reads back as the same number.
-                model_.set(parameter, std::format("{}", option));
-            }
-        },
-        value);
+    try {
+        std::visit(
+            [&](const auto& option) {
+                using Value = std::decay_t<decltype(option)>;
+                if constexpr (std::is_same_v<Value, bool>) {
+                    model_.set(parameter, option ? "1" : "0");
+                } else if constexpr (std::is_same_v<Value, std::string>) {
+                    model_.set(parameter, option);
+                } else {
+                    // The shortest text that reads back as the same number.
+                    model_.set(parameter, std::format("{}", option));
+                }
+            },
+            value);
+    } catch (const GRBException& error) {
+        throw std::invalid_argument(
+            "GurobiMasterSolver::set_option: Gurobi refused the parameter '" + parameter +
+            "' or its value: " + error.getMessage());
+    }
 }
 
 GRBVar GurobiMasterSolver::variable(ColumnId id) const {

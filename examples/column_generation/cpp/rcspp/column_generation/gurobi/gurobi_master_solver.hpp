@@ -39,7 +39,8 @@ namespace rcspp::column_generation {
 ///   for the integer solve) from its parameters, and puts the user's values back after it. LP
 ///   solves use primal simplex while `Method` is automatic (the basis stays primal feasible after
 ///   columns are added).
-/// - **Errors:** Gurobi's own errors are thrown as @c GRBException.
+/// - **Errors:** Gurobi's own errors are thrown as @c GRBException, except a refused option
+///   (@c std::invalid_argument, as for every master solver).
 ///
 /// Holds the model by reference: the caller keeps it alive.
 class GurobiMasterSolver final : public MasterSolver {
@@ -78,6 +79,7 @@ class GurobiMasterSolver final : public MasterSolver {
         SolverStatus solve_integer(const IntegerParams& params) override;
 
         /// @brief Sets the Gurobi parameter @p name (case-insensitive, as in Gurobi).
+        /// @throws std::invalid_argument When Gurobi refuses the name or the value.
         void set_option(std::string_view name, const OptionValue& value) override;
 
         [[nodiscard]] Capabilities capabilities() const override {
