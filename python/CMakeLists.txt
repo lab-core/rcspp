@@ -17,6 +17,10 @@ set(PY_PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${PYTHON_PACKAGE_NAME}")
 
 # Gather all C++ sources for the Python module
 file(GLOB_RECURSE MODULE_SOURCES "${PY_BINDINGS_DIR}/*.cpp")
+# The HiGHS master solver is bound only with USE_HIGHS.
+if(NOT USE_HIGHS)
+  list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation_highs\\.cpp$")
+endif()
 
 # Add pybind11 module. Under coverage, pass NO_EXTRAS to disable pybind11's LTO:
 # LTO is very slow to link and its -O3 codegen fuses lines, ruining gcov line
@@ -58,6 +62,11 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
+# The HiGHS master solver, and HiGHS itself (static: it ends up in the module).
+if(USE_HIGHS)
+  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_highs)
+  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_HIGHS)
+endif()
 
 # Instrument the binding TUs themselves for coverage (rcspp_objects already
 # propagates the flags for the core, but the bindings/*.cpp are _core's own sources).

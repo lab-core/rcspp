@@ -9,7 +9,8 @@ held. :func:`master_solver_self_test` checks a master solver, e.g. one written i
 Python, against an LP whose answers are known. Arrays
 crossing the boundary (duals, column values, the arrays of a :class:`ColumnBatch`) are
 numpy copies, so a Python object may keep them after the call. A :class:`GraphPricer`
-prices a :class:`~rcspp.graph.ResourceGraph` in C++, without Python.
+prices a :class:`~rcspp.graph.ResourceGraph` in C++, without Python, and a
+:class:`HighsMasterSolver` (when rcspp is built with HiGHS) solves the master in C++ too.
 """
 
 from .._core.column_generation import (
@@ -58,6 +59,12 @@ from .._core.column_generation import (
 )
 from .graph_pricer import GraphPricer, PricingStage
 
+# Built with USE_HIGHS only, as the wheel is.
+try:
+    from .._core.column_generation import HighsMasterSolver
+except ImportError:  # pragma: no cover
+    pass
+
 __all__ = [
     "AbsoluteTolerances",
     "ArtificialColumns",
@@ -73,6 +80,7 @@ __all__ = [
     "ConvergenceContext",
     "ConvexityRow",
     "GraphPricer",
+    "HighsMasterSolver",
     "IntegerParams",
     "IterationInfo",
     "MasterColumn",

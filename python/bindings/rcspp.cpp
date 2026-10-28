@@ -12,6 +12,9 @@
 namespace py = pybind11;
 
 void init_column_generation(py::module_&);
+#ifdef RCSPP_USE_HIGHS
+void init_column_generation_highs(py::module_&);
+#endif
 void init_graph(py::module_&);
 void init_resource(py::module_&);
 void init_solution_pool(py::module_&);
@@ -37,6 +40,9 @@ PYBIND11_MODULE(_core, m) {
     auto column_generation_submodule =
         m.def_submodule("column_generation", "Column generation: master, pricers and loop");
     init_column_generation(column_generation_submodule);
+#ifdef RCSPP_USE_HIGHS
+    init_column_generation_highs(column_generation_submodule);
+#endif
 
     auto logger_submodule = m.def_submodule("logger", "Logging control");
 
