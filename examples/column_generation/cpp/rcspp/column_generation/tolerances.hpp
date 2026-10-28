@@ -22,6 +22,12 @@ struct ToleranceContext {
 };
 
 /// @brief The tolerances of a column generation run, as a swappable component.
+///
+/// The loop never uses a reduced-cost tolerance below the master solver's own
+/// (@c MasterSolver::dual_tolerance): the LP solver would leave a column improving by less out of
+/// its basis, and pricing would return it again and again. LP solvers apply their tolerance to a
+/// scaled model, so this is a strong guard, not a guarantee: for costs far from 1, use
+/// @c RelativeTolerances or a larger tolerance.
 class Tolerances {
     public:
         Tolerances() = default;

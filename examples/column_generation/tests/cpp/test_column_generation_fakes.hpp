@@ -104,6 +104,8 @@ class ScriptedMasterSolver final : public MasterSolver {
 
         void restore_user_model() override { ++restore_calls; }
 
+        [[nodiscard]] double dual_tolerance() const override { return dual_tolerance_value; }
+
         // Rows.
         std::vector<double> lower;
         std::vector<double> upper;
@@ -123,6 +125,7 @@ class ScriptedMasterSolver final : public MasterSolver {
         std::vector<double> dual_values;
         std::unordered_map<ColumnId, double> values;
         Capabilities capabilities_value{.add_rows = true, .integer_solve = true};
+        double dual_tolerance_value = 0.0;
 };
 
 /// @brief The smallest master solver: a wrapped model whose rows already exist, so it keeps the

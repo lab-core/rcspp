@@ -93,6 +93,12 @@ class MasterSolver {
         /// @brief What this master solver supports.
         [[nodiscard]] virtual Capabilities capabilities() const = 0;
 
+        /// @brief The LP solver's own tolerance on reduced costs (e.g. Gurobi's `OptimalityTol`):
+        ///        a column whose reduced cost is above minus this is priced out for the solver.
+        ///
+        /// The loop never asks pricers for less (see @c Tolerances). 0 by default.
+        [[nodiscard]] virtual double dual_tolerance() const { return 0.0; }
+
         /// @brief Puts back what the LP solves of a run changed in the user's model (relaxed
         ///        variable types, solver options…). @c ColumnGeneration::run calls it when the run
         ///        ends, however it ends.
