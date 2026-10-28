@@ -33,9 +33,8 @@ namespace rcspp::column_generation {
 /// - **Integrality:** LP solves set HiGHS's `solve_relaxation` option, so the model's integer
 ///   columns stay integer and are solved as continuous; the integer solve unsets it and gives the
 ///   generated columns the requested type (a binary column is an integer one with an upper bound
-///   of at most 1, until the next LP solve or the end of the run). The upper bounds that LP solve
-///   puts back are those the columns had when added: a change the user makes to a generated
-///   column's upper bound during the run is undone after a binary integer solve.
+///   of at most 1 and at most its own, until the next LP solve or the end of the run, which put its
+///   own back).
 /// - **Solver options:** every solve sets `time_limit`, `threads`, `output_flag`,
 ///   `solve_relaxation` (and `mip_rel_gap` for the integer solve) from its parameters, and puts
 ///   the user's values back after it. HiGHS counts its time limit over all the model's solves:
@@ -124,7 +123,7 @@ class HighsMasterSolver final : public MasterSolver {
         Highs& highs_;
         std::vector<HighsInt> rows_;
         SolverColumns<HighsInt> columns_;
-        // The upper bound of each generated column, as added.
+        // The upper bound of each generated column before a binary integer solve, to put back.
         std::vector<double> upper_bounds_;
         // The last integer solve made the generated columns binary.
         bool binary_bounds_ = false;
