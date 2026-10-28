@@ -12,6 +12,7 @@ option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
 option(USE_GUROBI "Enable the Gurobi master solver of column generation (needs Gurobi)" OFF)
+option(USE_HIGHS "Enable the HiGHS master solver of column generation (installed, else fetched)" OFF)
 
 enable_testing()
 
@@ -91,6 +92,40 @@ if(USE_GUROBI)
             "USE_GUROBI needs the Gurobi C++ library (gurobi_c++); pass -DGUROBI_CXX_LIBRARY=<path>.")
   endif()
   add_subdirectory(cpp/rcspp_backends/gurobi)
+endif()
+
+# HiGHS master solver -----------------------------------------------------------
+# An installed HiGHS when CMake finds one (pass -Dhighs_DIR=<dir> to point at it), else HiGHS
+# v1.15.1, fetched and built with the project. Either way the target is highs::highs.
+if(USE_HIGHS)
+  include(FetchContent)
+  FetchContent_Declare(highs
+    URL https://github.com/ERGO-Code/HiGHS/archive/refs/tags/v1.15.1.tar.gz
+    URL_HASH SHA256=a840d269dff2fafb371dd247df13ad5e026d7ce3b35ad3dc1eedd59bf0c2fb16
+    FIND_PACKAGE_ARGS CONFIG
+  )
+  # Settings for a fetched HiGHS only: the library alone, static and position independent (it
+  # ends up in the Python module too), and not linted as our code is.
+  block(PROPAGATE highs_FOUND highs_VERSION highs_DIR)
+    set(BUILD_SHARED_LIBS OFF)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(BUILD_TESTING OFF)
+    set(BUILD_CXX_EXE OFF)
+    set(BUILD_EXAMPLES OFF)
+    set(BUILD_SHARED_EXTRAS_LIB OFF)
+    set(ZLIB OFF)
+    set(CMAKE_CXX_CLANG_TIDY "")
+    FetchContent_MakeAvailable(highs)
+  endblock()
+  if(NOT TARGET highs::highs)
+    message(FATAL_ERROR "USE_HIGHS: the HiGHS found or fetched has no highs::highs target.")
+  endif()
+  if(highs_FOUND)
+    message(STATUS "HiGHS: installed, ${highs_VERSION} (${highs_DIR})")
+  else()
+    message(STATUS "HiGHS: fetched, v1.15.1")
+  endif()
+  add_subdirectory(cpp/rcspp_backends/highs)
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------

@@ -360,6 +360,7 @@ cmake --build build --parallel
 # USE_TESTS=ON    — build GoogleTest suite (default: ON)
 # USE_VRP=ON      — build VRP benchmark (needs Gurobi)
 # USE_GUROBI=ON   — find Gurobi for the column generation master solver (fails without it)
+# USE_HIGHS=ON    — HiGHS for the column generation master solver: installed, else v1.15.1 fetched
 # USE_COVERAGE=ON — instrument with gcov (gcc only)
 ```
 
