@@ -6,6 +6,7 @@
 #include <Highs.h>
 
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -112,8 +113,8 @@ class HighsMasterSolver final : public MasterSolver {
         // binary.
         void restore_upper_bounds();
 
-        // Runs HiGHS once; a run it refuses is a solve error.
-        HighsModelStatus run_once();
+        // Runs HiGHS once; no status for a run HiGHS refused (it keeps the previous one).
+        std::optional<HighsModelStatus> run_once();
 
         // Runs HiGHS; a run refused for its thread count runs again with the count in force, an
         // "infeasible or unbounded" answer is solved again without presolve, and an LP stopped

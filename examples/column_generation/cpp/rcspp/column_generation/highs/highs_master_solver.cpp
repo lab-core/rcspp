@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -283,30 +284,33 @@ void HighsMasterSolver::restore_upper_bounds() {
     binary_bounds_ = false;
 }
 
-HighsModelStatus HighsMasterSolver::run_once() {
+std::optional<HighsModelStatus> HighsMasterSolver::run_once() {
     // A refused run leaves the previous solve's status in place.
     if (highs_.run() == HighsStatus::kError) {
-        return HighsModelStatus::kSolveError;
+        return std::nullopt;
     }
     return highs_.getModelStatus();
 }
 
 SolverStatus HighsMasterSolver::run(bool integer) {
-    HighsModelStatus status = run_once();
+    std::optional<HighsModelStatus> outcome = run_once();
 
     // HiGHS fixes its thread count at its first solve in the process and refuses a run asking
     // for another; 0 runs with the count in force.
-    if (status == HighsModelStatus::kSolveError && requested_threads_ > 0) {
+    if (!outcome.has_value() && requested_threads_ > 0) {
         if (warned_threads_ != requested_threads_) {
             warned_threads_ = requested_threads_;
             LOG_WARN("HighsMasterSolver: HiGHS keeps the thread count of its first solve in this ",
                      "process; this solve asked for ",
                      requested_threads_,
-                     " threads and runs with that count instead\n");
+                     " threads and runs with the count in force instead\n");
         }
         highs_.setOptionValue("threads", HighsInt{0});
-        status = run_once();
+        outcome = run_once();
     }
+
+    // A run HiGHS refused is a solve error, never the previous solve's status.
+    HighsModelStatus status = outcome.value_or(HighsModelStatus::kSolveError);
 
     // After many rounds of added columns, simplex can wrongly detect cycling and stop with an
     // unknown status; the known way out is to start again from the basis on a cleared solver.
@@ -316,12 +320,12 @@ SolverStatus HighsMasterSolver::run(bool integer) {
         if (basis.valid) {
             highs_.setBasis(basis);
         }
-        status = run_once();
+        status = run_once().value_or(HighsModelStatus::kSolveError);
     }
 
     if (status == HighsModelStatus::kUnboundedOrInfeasible) {
         const TemporaryOption<std::string> presolve(highs_, "presolve", "off");
-        status = run_once();
+        status = run_once().value_or(HighsModelStatus::kSolveError);
     }
     return status_of(status);
 }
