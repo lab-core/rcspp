@@ -68,12 +68,7 @@ ColumnGenerationResult ColumnGeneration::run() {
     Timer pricing_timer;
     const bool timers = params_.statistics.timers;
 
-    // The master is initialized once, by the first run.
-    if (!initialized_) {
-        context_ = compute_tolerance_context();
-        params_.initialization->initialize(master_, context_);
-        initialized_ = true;
-    }
+    initialize();
 
     const double reduced_cost_tolerance = params_.tolerances->reduced_cost(context_);
     MasterSolver& solver = master_.solver();
@@ -164,6 +159,18 @@ ColumnGenerationResult ColumnGeneration::run() {
     result.statistics.relaxation_seconds = relaxation_timer.elapsed_seconds();
     result.statistics.pricing_seconds = pricing_timer.elapsed_seconds();
     return result;
+}
+
+void ColumnGeneration::initialize() {
+    if (initialized_) {
+        return;
+    }
+    context_ = compute_tolerance_context();
+    if (!master_.initialized()) {
+        params_.initialization->initialize(master_, context_);
+        master_.mark_initialized();
+    }
+    initialized_ = true;
 }
 
 ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> duals,
