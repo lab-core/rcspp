@@ -30,10 +30,11 @@ namespace rcspp::column_generation {
 /// - **Sense:** a maximizing model works too: the master solver negates the costs it adds, the
 ///   objective and the duals, so that the master is seen as a minimization.
 /// - **Integrality:** every LP solve relaxes the model's integer variables in place, those the
-///   user adds during the run included; the integer solve restores them and gives the generated
-///   columns the requested type. The model must become an LP once relaxed (no SOS or general
-///   constraints). The types restored are those the variables had when first seen: a type the
-///   user changes during the run is overwritten, and variables must not be deleted during it.
+///   user adds during the run included, a binary kept within 0 and 1 by bounds whatever its own;
+///   the integer solve restores them and gives the generated columns the requested type. The model
+///   must become an LP once relaxed (no SOS or general constraints). The types restored are those
+///   the variables had when first seen: a type the user changes during the run is overwritten, and
+///   variables must not be deleted during it.
 /// - **Solver options:** every solve sets `TimeLimit`, `Threads` and `OutputFlag` (and `MIPGap`
 ///   for the integer solve) from its parameters, and puts the user's values back after it. LP
 ///   solves use primal simplex while `Method` is automatic (the basis stays primal feasible after
@@ -104,6 +105,10 @@ class GurobiMasterSolver final : public MasterSolver {
         // Makes every variable continuous.
         void relax();
 
+        // Bounds the user's @p binaries within 0 and 1 while they are continuous, keeping their
+        // own bounds to put back.
+        void bound_binaries(std::vector<GRBVar>& binaries);
+
         // Gives back the user's types, and @p type to the generated columns.
         void restore(char type);
 
@@ -124,6 +129,13 @@ class GurobiMasterSolver final : public MasterSolver {
         size_t recorded_variables_ = 0;
         // Every variable is continuous (an LP solve came last).
         bool relaxed_ = false;
+        // The user's binaries made continuous, with their own bounds.
+        struct RelaxedBinary {
+                GRBVar variable;
+                double lower;
+                double upper;
+        };
+        std::vector<RelaxedBinary> relaxed_binaries_;
 };
 
 }  // namespace rcspp::column_generation
