@@ -237,20 +237,56 @@ TEST_F(GurobiMasterSolverTest, ZeroTimeLeftIsATimeLimit) {
     EXPECT_EQ(solver.solve_relaxation({.timeout_s = 0.0}), SolverStatus::TimeLimit);
 }
 
-TEST_F(GurobiMasterSolverTest, SolveOptionsAreSetAndAnAutomaticMethodIsKept) {
+TEST_F(GurobiMasterSolverTest, TheUserOptionsComeBackAfterEachSolve) {
+    // The user's own settings.
+    constexpr double user_time_limit = 50.0;
+    constexpr int user_threads = 3;
+    constexpr double user_gap = 0.2;
+    model->set(GRB_DoubleParam_TimeLimit, user_time_limit);
+    model->set(GRB_IntParam_Threads, user_threads);
+    model->set(GRB_DoubleParam_MIPGap, user_gap);
     GurobiMasterSolver solver(*model, lp_rows());
     add_lp_columns(solver);
 
     ASSERT_EQ(solver.solve_relaxation({.timeout_s = 100.0, .threads = 1, .verbose = false}),
               SolverStatus::Optimal);
-    EXPECT_EQ(model->get(GRB_DoubleParam_TimeLimit), 100.0);
-    EXPECT_EQ(model->get(GRB_IntParam_Threads), 1);
-    EXPECT_EQ(model->get(GRB_IntParam_OutputFlag), 0);
+    EXPECT_NEAR(solver.objective(), 3.75, tolerance);  // the solution outlives the options
+    EXPECT_EQ(model->get(GRB_DoubleParam_TimeLimit), user_time_limit);
+    EXPECT_EQ(model->get(GRB_IntParam_Threads), user_threads);
     EXPECT_EQ(model->get(GRB_IntParam_Method), GRB_METHOD_AUTO);
 
-    // No limit: Gurobi's infinity.
+    ASSERT_EQ(solver.solve_integer({.timeout_s = 100.0, .threads = 1}), SolverStatus::Optimal);
+    EXPECT_EQ(model->get(GRB_DoubleParam_MIPGap), user_gap);
+    EXPECT_EQ(model->get(GRB_IntParam_Threads), user_threads);
+}
+
+TEST_F(GurobiMasterSolverTest, TheUserModelIsRestoredAfterARun) {
+    std::vector<GRBConstr> rows = lp_rows();
+    const GRBVar integer = model->addVar(0.0, 5.0, 10.0, GRB_INTEGER);
+    model->update();
+    model->chgCoeff(rows[1], integer, 1.0);
+    GurobiMasterSolver solver(*model, rows);
+    add_lp_columns(solver);
     ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
-    EXPECT_EQ(model->get(GRB_DoubleParam_TimeLimit), GRB_INFINITY);
+    ASSERT_EQ(integer.get(GRB_CharAttr_VType), GRB_CONTINUOUS);
+
+    solver.restore_user_model();
+
+    // The last solve's values can still be read; Gurobi applies the types at the next update.
+    std::array<double, 1> value{};
+    solver.primal(std::array<ColumnId, 1>{0}, value);
+    EXPECT_NEAR(value[0], 1.25, tolerance);
+    model->update();
+
+    // The user's type is back; the generated columns stay, continuous.
+    EXPECT_EQ(integer.get(GRB_CharAttr_VType), GRB_INTEGER);
+    EXPECT_EQ(solver.variable(0).get(GRB_CharAttr_VType), GRB_CONTINUOUS);
+    model->optimize();  // the user's own solve is a MIP again
+    EXPECT_EQ(model->get(GRB_IntAttr_IsMIP), 1);
+
+    // A further LP solve relaxes it again.
+    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    EXPECT_EQ(integer.get(GRB_CharAttr_VType), GRB_CONTINUOUS);
 }
 
 TEST_F(GurobiMasterSolverTest, AMethodTheUserChoseIsKept) {
@@ -307,7 +343,6 @@ TEST_F(GurobiMasterSolverTest, IntegralityIsRelaxedThenRestored) {
 
     ASSERT_EQ(solver.solve_integer({.column_type = ColumnType::Binary}), SolverStatus::Optimal);
     EXPECT_EQ(solver.variable(2).get(GRB_CharAttr_VType), GRB_BINARY);
-    EXPECT_EQ(model->get(GRB_DoubleParam_MIPGap), default_relative_gap);
 
     // And the next LP solve relaxes everything again.
     ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);

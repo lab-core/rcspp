@@ -97,17 +97,11 @@ GurobiRow gurobi_row(double lower, double upper) {
     return {.sense = GRB_LESS_EQUAL, .side = GRB_INFINITY};
 }
 
-// The options every solve sets.
-void set_solve_options(GRBModel& model, double timeout_s, int threads, bool verbose) {
-    model.set(GRB_DoubleParam_TimeLimit, to_gurobi(std::max(0.0, timeout_s)));
-    model.set(GRB_IntParam_Threads, threads);
-    model.set(GRB_IntParam_OutputFlag, verbose ? 1 : 0);
-}
-
-// Sets an integer parameter for the lifetime of the guard, then puts the old value back.
+// Sets a parameter for the lifetime of the guard, then puts the old value back.
+template <typename Parameter, typename Value>
 class TemporaryParameter {
     public:
-        TemporaryParameter(GRBModel& model, GRB_IntParam parameter, int value)
+        TemporaryParameter(GRBModel& model, Parameter parameter, Value value)
             : model_(model), parameter_(parameter), old_value_(model.get(parameter)) {
             model_.set(parameter_, value);
         }
@@ -126,8 +120,23 @@ class TemporaryParameter {
 
     private:
         GRBModel& model_;
-        GRB_IntParam parameter_;
-        int old_value_;
+        Parameter parameter_;
+        Value old_value_;
+};
+
+// The options every solve sets from its parameters, for the lifetime of the solve: the user's
+// values come back after it.
+class SolveOptions {
+    public:
+        SolveOptions(GRBModel& model, double timeout_s, int threads, bool verbose)
+            : time_limit_(model, GRB_DoubleParam_TimeLimit, to_gurobi(std::max(0.0, timeout_s))),
+              threads_(model, GRB_IntParam_Threads, threads),
+              output_(model, GRB_IntParam_OutputFlag, verbose ? 1 : 0) {}
+
+    private:
+        TemporaryParameter<GRB_DoubleParam, double> time_limit_;
+        TemporaryParameter<GRB_IntParam, int> threads_;
+        TemporaryParameter<GRB_IntParam, int> output_;
 };
 
 }  // namespace
@@ -210,7 +219,7 @@ void GurobiMasterSolver::add_columns(const ColumnBatch& columns) {
 
 SolverStatus GurobiMasterSolver::solve_relaxation(const RelaxationParams& params) {
     relax();
-    set_solve_options(model_, params.timeout_s, params.threads, params.verbose);
+    const SolveOptions options(model_, params.timeout_s, params.threads, params.verbose);
 
     // After columns are added the last basis stays primal feasible, so primal simplex resumes
     // from it; a method the user chose is kept.
@@ -258,9 +267,18 @@ void GurobiMasterSolver::primal(std::span<const ColumnId> ids, std::span<double>
 
 SolverStatus GurobiMasterSolver::solve_integer(const IntegerParams& params) {
     restore(params.column_type == ColumnType::Binary ? GRB_BINARY : GRB_INTEGER);
-    set_solve_options(model_, params.timeout_s, params.threads, params.verbose);
-    model_.set(GRB_DoubleParam_MIPGap, params.relative_gap);
+    const SolveOptions options(model_, params.timeout_s, params.threads, params.verbose);
+    const TemporaryParameter gap(model_, GRB_DoubleParam_MIPGap, params.relative_gap);
     return optimize();
+}
+
+void GurobiMasterSolver::restore_user_model() {
+    // The generated columns stay, continuous as they were added. No update here: Gurobi applies
+    // the types at the user's next update or optimize, and the last solve's values stay readable
+    // until then.
+    if (relaxed_) {
+        restore(GRB_CONTINUOUS);
+    }
 }
 
 void GurobiMasterSolver::set_option(std::string_view name, const OptionValue& value) {
