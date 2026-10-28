@@ -6,6 +6,7 @@
 #include <Highs.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -163,20 +164,22 @@ TEST_F(HighsMasterSolverTest, ZeroTimeLeftIsATimeLimit) {
 }
 
 TEST_F(HighsMasterSolverTest, TheTimeLimitCountsFromEachSolve) {
-    // HiGHS compares its time limit with the run time of all the model's solves: each solve sets
-    // it to that run time plus its own limit.
+    // HiGHS counts its time limit over all the model's solves, its MIP solver from the MIP's
+    // start: every solve zeroes the clocks and is given its own limit.
     HighsMasterSolver solver(highs, lp_rows());
     add_lp_columns(solver);
-    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    constexpr int many = 50;
+    constexpr double short_limit_s = 0.05;
+    double longest_s = 0.0;
+    for (int solve = 0; solve < many; ++solve) {
+        ASSERT_EQ(solver.solve_relaxation({.timeout_s = short_limit_s}), SolverStatus::Optimal);
+        longest_s = std::max(longest_s, highs.getRunTime());
+    }
 
-    constexpr double timeout_s = 100.0;
-    const double run_time = highs.getRunTime();
-    ASSERT_EQ(solver.solve_relaxation({.timeout_s = timeout_s}), SolverStatus::Optimal);
-
-    double time_limit = 0.0;
-    highs.getOptionValue("time_limit", time_limit);
-    EXPECT_GE(time_limit, run_time + timeout_s);
-    EXPECT_LE(time_limit, highs.getRunTime() + timeout_s);
+    // The clock counted each solve alone, so it never reached the short limit.
+    EXPECT_LT(longest_s, short_limit_s);
+    ASSERT_EQ(solver.solve_integer({.timeout_s = short_limit_s}), SolverStatus::Optimal);
+    EXPECT_LT(highs.getRunTime(), short_limit_s);
 }
 
 TEST_F(HighsMasterSolverTest, SolveOptionsAreSetAndTheMethodIsLeftToHighs) {

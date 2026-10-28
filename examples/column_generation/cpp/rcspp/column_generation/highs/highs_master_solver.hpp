@@ -32,10 +32,11 @@ namespace rcspp::column_generation {
 ///   of at most 1, until the next LP solve). The upper bounds that LP solve puts back are those
 ///   the columns had when added: a change the user makes to a generated column's upper bound
 ///   during the run is undone after a binary integer solve.
-/// - **Solver options:** every solve sets `time_limit` (counted from the solve: HiGHS counts it
-///   over all the model's solves), `threads` and `output_flag` from its parameters. HiGHS fixes
-///   its thread count at its first solve in the process and refuses a run asking for another: the
-///   master solver then runs with the count in force and logs a warning. The simplex method is
+/// - **Solver options:** every solve sets `time_limit`, `threads` and `output_flag` from its
+///   parameters. HiGHS counts its time limit over all the model's solves: every solve zeroes its
+///   clocks (@c Highs::zeroAllClocks), so @c Highs::getRunTime counts from the last solve. HiGHS
+///   fixes its thread count at its first solve in the process and refuses a run asking for another:
+///   the master solver then runs with the count in force and logs a warning. The simplex method is
 ///   left to HiGHS, which takes primal simplex after added columns.
 /// - **Status:** "infeasible or unbounded" is solved again once without presolve to tell the two
 ///   apart. An LP solve that ends with an unknown status, which HiGHS can give after a false
