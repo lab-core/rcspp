@@ -44,7 +44,9 @@ struct MasterSolverSelfTestReport {
 /// 2. add `x1`, `x2`, `x3` under ids that are neither their positions nor sorted, solve, and
 ///    check the objective, the duals and the values read by id in another order;
 /// 3. add `x4`, solve again, and check the new optimum;
-/// 4. when @c Capabilities::integer_solve is set, solve the integer problem: 1.0 at `x4 = 2`.
+/// 4. when @c Capabilities::integer_solve is set, add `x5` of cost 0.2 with 4 in row 0, which
+///    makes the LP optimum fractional (0.55 at `x4 = 1`, `x5 = 0.25`), and solve the integer
+///    problem: 1.0 at `x4 = 2`, `x5 = 0`. A master solver that solves the relaxation is caught.
 ///
 /// A step whose solve does not end @c SolverStatus::Optimal is reported and ends the checks on
 /// that master solver.
