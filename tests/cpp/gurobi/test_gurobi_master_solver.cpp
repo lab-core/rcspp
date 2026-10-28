@@ -104,53 +104,6 @@ class GurobiMasterSolverTest : public ::testing::Test {
         std::unique_ptr<GRBModel> model;
 };
 
-// A batch of one column with one entry.
-struct SingleColumn {
-        std::array<ColumnId, 1> ids;
-        std::array<double, 1> cost{1.0};
-        std::array<double, 1> lower{0.0};
-        std::array<double, 1> upper{infinity};
-        std::array<std::uint32_t, 2> starts{0, 1};
-        std::array<std::uint32_t, 1> row_indices;
-        std::array<double, 1> values{1.0};
-
-        SingleColumn(ColumnId id, std::uint32_t row) : ids{id}, row_indices{row} {}
-
-        [[nodiscard]] ColumnBatch batch() const {
-            return ColumnBatch{.ids = ids,
-                               .cost = cost,
-                               .lower = lower,
-                               .upper = upper,
-                               .starts = starts,
-                               .row_indices = row_indices,
-                               .values = values};
-        }
-};
-
-// A batch of two columns with one entry each: the first in row 0, the second in @p second_row.
-struct TwoColumns {
-        std::array<ColumnId, 2> ids;
-        std::array<double, 2> cost{1.0, 1.0};
-        std::array<double, 2> lower{0.0, 0.0};
-        std::array<double, 2> upper{infinity, infinity};
-        std::array<std::uint32_t, 3> starts{0, 1, 2};
-        std::array<std::uint32_t, 2> row_indices;
-        std::array<double, 2> values{1.0, 1.0};
-
-        TwoColumns(ColumnId first, ColumnId second, std::uint32_t second_row)
-            : ids{first, second}, row_indices{0, second_row} {}
-
-        [[nodiscard]] ColumnBatch batch() const {
-            return ColumnBatch{.ids = ids,
-                               .cost = cost,
-                               .lower = lower,
-                               .upper = upper,
-                               .starts = starts,
-                               .row_indices = row_indices,
-                               .values = values};
-        }
-};
-
 // Whether @p master refuses a batch of a valid row followed by the row lower ≤ a·x ≤ upper.
 bool refuses_after_a_valid_row(MasterProblem& master, double lower, double upper) {
     const std::vector<double> lowers{0.0, lower};
@@ -476,12 +429,12 @@ TEST_F(GurobiMasterSolverTest, RefusedRowBySenseAddsNothing) {
 
 TEST_F(GurobiMasterSolverTest, UnknownIdsAndRowsThrow) {
     GurobiMasterSolver solver(*model, lp_rows());
-    const SingleColumn first(0, 0);
+    const OneEntryColumns first({0}, {0});
     solver.add_columns(first.batch());
 
     // The same id again, a row that does not exist, an id never received.
     EXPECT_THROW(solver.add_columns(first.batch()), std::invalid_argument);
-    EXPECT_THROW(solver.add_columns(SingleColumn(1, 7).batch()), std::out_of_range);
+    EXPECT_THROW(solver.add_columns(OneEntryColumns({1}, {7}).batch()), std::out_of_range);
     EXPECT_THROW((void)solver.variable(42), std::out_of_range);
 
     const std::vector<ColumnId> ids{42};
@@ -494,15 +447,16 @@ TEST_F(GurobiMasterSolverTest, ARefusedBatchAddsNoColumn) {
 
     // The second column is refused: it repeats the first's id, or enters a row that does not
     // exist.
-    EXPECT_THROW(solver.add_columns(TwoColumns(3, 3, 0).batch()), std::invalid_argument);
-    EXPECT_THROW(solver.add_columns(TwoColumns(2, 4, 7).batch()), std::out_of_range);
+    EXPECT_THROW(solver.add_columns(OneEntryColumns({3, 3}, {0, 0}).batch()),
+                 std::invalid_argument);
+    EXPECT_THROW(solver.add_columns(OneEntryColumns({2, 4}, {0, 7}).batch()), std::out_of_range);
 
     model->update();
     EXPECT_EQ(model->get(GRB_IntAttr_NumVars), 0);
     EXPECT_THROW((void)solver.variable(2), std::out_of_range);
 
     // The ids are still free.
-    solver.add_columns(TwoColumns(2, 3, 1).batch());
+    solver.add_columns(OneEntryColumns({2, 3}, {0, 1}).batch());
     EXPECT_EQ(model->get(GRB_IntAttr_NumVars), 2);
 }
 
