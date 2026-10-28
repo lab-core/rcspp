@@ -62,10 +62,18 @@ class GraphPricer final : public Pricer {
         /// @brief Prices the duals.
         ///
         /// @throws std::logic_error when the graph has no source or no sink.
-        /// @throws std::out_of_range when an arc's row is not a master row.
+        /// @throws std::out_of_range when the cost index is not a cost component of the graph,
+        ///                           or an arc's row is not a master row.
         PricingResult price(std::span<const double> duals, const PricingRequest& request) override {
             if (graph_.get_source_node_ids().empty() || graph_.get_sink_node_ids().empty()) {
                 throw std::logic_error("GraphPricer: the graph has no source or no sink");
+            }
+            // The engine would only warn, and search the costs left from before.
+            if (cost_index_ >=
+                graph_.get_resource_factory().template get_num_resource_type<RealResource>()) {
+                throw std::out_of_range(
+                    "GraphPricer: the cost index is not a cost component of "
+                    "the graph");
             }
 
             // The engine takes the duals as a vector: they are copied into one kept between calls.
