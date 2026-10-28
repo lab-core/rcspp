@@ -16,6 +16,8 @@
 #include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
 #include "test_column_generation_end_to_end.hpp"
 
+namespace rcspp::column_generation::testing {
+
 namespace {
 
 // A Gurobi model whose rows the user builds, then wraps.
@@ -52,3 +54,5 @@ class GurobiUserModel {
 }  // namespace
 
 INSTANTIATE_TYPED_TEST_SUITE_P(Gurobi, ColumnGenerationEndToEnd, GurobiUserModel);
+
+}  // namespace rcspp::column_generation::testing

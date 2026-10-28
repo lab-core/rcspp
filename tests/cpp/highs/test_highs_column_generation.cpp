@@ -14,6 +14,8 @@
 #include "rcspp_backends/highs/highs_master_solver.hpp"
 #include "test_column_generation_end_to_end.hpp"
 
+namespace rcspp::column_generation::testing {
+
 namespace {
 
 // A HiGHS model whose rows the user builds, then wraps.
@@ -46,3 +48,5 @@ class HighsUserModel {
 }  // namespace
 
 INSTANTIATE_TYPED_TEST_SUITE_P(Highs, ColumnGenerationEndToEnd, HighsUserModel);
+
+}  // namespace rcspp::column_generation::testing
