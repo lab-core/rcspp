@@ -3,6 +3,7 @@
 
 #include "rcspp/column_generation/master_problem.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -13,6 +14,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "rcspp/utils/logger.hpp"
 
 namespace rcspp::column_generation {
 
@@ -74,21 +77,7 @@ void MasterProblem::add_columns(size_t pricer, std::vector<Solution> columns) {
     clear_batch();
     for (const Solution& solution : columns) {
         begin_batch_column(solution.column.cost);
-
-        for (const Row& row : solution.column.rows) {
-            if (row.index >= row_count) {
-                throw std::out_of_range(
-                    "MasterProblem::add_columns: a column has a row index that is not a row of "
-                    "the master");
-            }
-            if (convexity.has_value() && row.index == *convexity) {
-                throw std::invalid_argument(
-                    "MasterProblem::add_columns: a column already has an entry in its pricer's "
-                    "convexity row");
-            }
-            add_batch_entry(row.index, static_cast<double>(row.coefficient));
-        }
-
+        add_column_rows(solution.column.rows, row_count, convexity);
         if (convexity.has_value()) {
             add_batch_entry(*convexity, 1.0);
         }
@@ -132,6 +121,55 @@ void MasterProblem::add_artificial_columns(std::span<const size_t> rows,
                             .pricer = no_pricer,
                             .tag = ColumnTag::Artificial,
                             .solution = {}});
+    }
+}
+
+void MasterProblem::add_column_rows(std::span<const Row> rows, size_t row_count,
+                                    std::optional<size_t> convexity) {
+    column_rows_.clear();
+    for (const Row& row : rows) {
+        if (row.index >= row_count) {
+            throw std::out_of_range(
+                "MasterProblem::add_columns: a column has a row index that is not a row of the "
+                "master");
+        }
+        if (convexity.has_value() && row.index == *convexity) {
+            throw std::invalid_argument(
+                "MasterProblem::add_columns: a column already has an entry in its pricer's "
+                "convexity row");
+        }
+        column_rows_.emplace_back(row.index, static_cast<double>(row.coefficient));
+    }
+
+    // A graph pricer gives each row once, in order; other columns are sorted, and a row listed
+    // twice gets the sum, as an LP solver would read it.
+    const auto out_of_order = [](const auto& first, const auto& second) {
+        return first.first >= second.first;
+    };
+    if (std::ranges::adjacent_find(column_rows_, out_of_order) != column_rows_.end()) {
+        std::ranges::sort(column_rows_);
+        size_t kept = 0;
+        bool repeated = false;
+        for (const auto& [row, value] : column_rows_) {
+            if (kept > 0 && column_rows_[kept - 1].first == row) {
+                column_rows_[kept - 1].second += value;
+                repeated = true;
+            } else {
+                column_rows_[kept++] = {row, value};
+            }
+        }
+        column_rows_.resize(kept);
+
+        if (repeated && !warned_repeated_rows_) {
+            warned_repeated_rows_ = true;
+            LOG_WARN(
+                "MasterProblem::add_columns: a column lists a row more than once; its "
+                "entries are added together\n");
+        }
+    }
+
+    for (const auto& [row, value] : column_rows_) {
+        add_batch_entry(row, value);
     }
 }
 

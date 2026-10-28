@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/solution.hpp"
@@ -105,7 +106,9 @@ class MasterProblem {
         /// @brief Adds columns of pricer @p pricer: starting columns or generated ones.
         ///
         /// Each column takes the cost and rows of @c Solution::column, plus a 1 in the pricer's
-        /// convexity row. The solutions are moved into the master.
+        /// convexity row. A row listed more than once in a column gets the sum of its entries (with
+        /// one warning per master: it is usually a mistake). The solutions are moved into the
+        /// master.
         ///
         /// @param pricer  Index of the pricer the columns belong to.
         /// @param columns The pricer's solutions.
@@ -161,6 +164,9 @@ class MasterProblem {
         void clear_batch();
         void begin_batch_column(double cost);
         void add_batch_entry(size_t row, double value);
+        // Adds a column's rows to the batch, checked; a row listed twice gets the sum.
+        void add_column_rows(std::span<const Row> rows, size_t row_count,
+                             std::optional<size_t> convexity);
         // Closes the batch and sends it in one master solver call.
         void send_batch();
 
@@ -168,6 +174,7 @@ class MasterProblem {
         std::vector<PricerEntry> pricers_;
         std::vector<MasterColumn> columns_;
         std::vector<ColumnId> artificial_column_ids_;
+        bool warned_repeated_rows_ = false;
 
         // Batch buffers, reused between calls so adding columns does not allocate once warm.
         std::vector<ColumnId> batch_ids_;
@@ -177,6 +184,7 @@ class MasterProblem {
         std::vector<std::uint32_t> batch_starts_;
         std::vector<std::uint32_t> batch_row_indices_;
         std::vector<double> batch_values_;
+        std::vector<std::pair<size_t, double>> column_rows_;
 };
 
 }  // namespace rcspp::column_generation
