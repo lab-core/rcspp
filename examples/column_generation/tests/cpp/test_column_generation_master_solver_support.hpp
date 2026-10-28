@@ -71,6 +71,29 @@ TEST(ColumnGenerationMasterSolverSupport, ABatchIsCheckedAsAWhole) {
     EXPECT_THROW(columns.check(TwoColumnBatch(2, 3, rows).batch(), rows), std::out_of_range);
 }
 
+TEST(ColumnGenerationMasterSolverSupport, NumbersNoSolverCanHoldAreRefused) {
+    const SolverColumns<int> columns;
+    constexpr size_t rows = 3;
+    constexpr double infinity = std::numeric_limits<double>::infinity();
+    const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+    TwoColumnBatch nan_cost(1, 2, 1);
+    nan_cost.cost[1] = not_a_number;
+    EXPECT_THROW(columns.check(nan_cost.batch(), rows), std::invalid_argument);
+
+    TwoColumnBatch infinite_coefficient(1, 2, 1);
+    infinite_coefficient.values[0] = infinity;
+    EXPECT_THROW(columns.check(infinite_coefficient.batch(), rows), std::invalid_argument);
+
+    TwoColumnBatch crossed_bounds(1, 2, 1);
+    crossed_bounds.lower[0] = 2.0;
+    EXPECT_THROW(columns.check(crossed_bounds.batch(), rows), std::invalid_argument);
+
+    TwoColumnBatch unbounded(1, 2, 1);
+    unbounded.upper[0] = infinity;
+    EXPECT_NO_THROW(columns.check(unbounded.batch(), rows));
+}
+
 TEST(ColumnGenerationMasterSolverSupport, BoundsARowCanHold) {
     constexpr double infinity = std::numeric_limits<double>::infinity();
     const double not_a_number = std::numeric_limits<double>::quiet_NaN();
