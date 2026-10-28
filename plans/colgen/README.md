@@ -1,12 +1,10 @@
 # Column generation layer: plan
 
-Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) on
-`feature/column-generation-gurobi`: 2.1–2.4 done (`MasterSolver` rename `D-69`, self-test `D-70`, the toy on Gurobi),
-open as draft #69; PR 3 (graph pricer) on `feature/column-generation-pricer`: 3.1–3.3 done, open as draft #72; PR 4
-(HiGHS, `D-59`) on `feature/column-generation-highs`: 4.1–4.3 done, open as draft #76 (`F-24`–`F-26`): every column
-generation test runs without a Gurobi license (`D-59`); #72 and #76 rebased on their bases (`D-85`); next: the Python
-layer (PR 5)**.
-Updated: 2026-10-27. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
+Status: **phase 1: the C++ layer is done in code, four stacked drafts: #61 (interfaces, master, loop), #69 (Gurobi
+master solver, self-test), #72 (graph pricer), #76 (HiGHS master solver; every column generation test runs without a
+Gurobi license, `D-59`); stacked by rebase (`D-85`). Next: a review round of #61–#76, then the Python layer (PRs 5–6),
+whose design `phase-1-python.md` awaits the user (`Q-30`–`Q-36`)**.
+Updated: 2026-10-28. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
 
@@ -43,15 +41,16 @@ configurations.
 ## Index
 
 Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfDgEKG37NtHWKCcpj2Ab>, English
-<https://claude.ai/artifact/BZLej9R9NdVA4dcYt6joCf>. Keep both in sync with `decisions.md` (not yet updated for
-`D-58`–`D-68`). Colleague pages of 2026-10-26: SCIP pros and cons, SoPlex vs HiGHS (links in `prior-art.md`).
+<https://claude.ai/artifact/BZLej9R9NdVA4dcYt6joCf>. Keep both in sync with `decisions.md` (not yet updated from
+`D-58` on). Colleague pages of 2026-10-26: SCIP pros and cons, SoPlex vs HiGHS (links in `prior-art.md`).
 
 | file | contains | read when |
 |---|---|---|
 | `inventory.md` | existing pieces `P-`, facts and pitfalls `F-` | before designing or coding anything |
-| `architecture.md` | components, interfaces, how they plug into the existing code, perf and stats design | design and implementation |
-| `api-sketch.md` | what user code would look like (C++, Python, configs, B&P, custom backend) | discussing or reviewing the API |
-| `phase-1-design.md` | detailed design of phase 1: signatures, Python user-model contract, layout, tests, PR breakdown, proposals `DP-` | before implementing phase 1 |
+| `architecture.md` | components, interfaces, how they plug into the existing code, perf and stats design (early proposal: names and details older than the code) | design and implementation |
+| `api-sketch.md` | what user code would look like (C++, Python, configs, B&P, custom backend; early proposal, older than the code) | discussing or reviewing the API |
+| `phase-1-design.md` | detailed design of phase 1 in C++: signatures, layout, tests, PR breakdown and commits, proposals `DP-` | before implementing phase 1 |
+| `phase-1-python.md` | the Python layer (PRs 5–6): bindings, graph pricers, master solvers over the user's model, packaging, tests, commits | before PR 5 |
 | `roadmap.md` | phases, tasks `T-`, acceptance criteria | picking up work |
 | `decisions.md` | decisions `D-` | before proposing something that may already be decided |
 | `questions.md` | open questions `Q-` | before deciding; when blocked |
