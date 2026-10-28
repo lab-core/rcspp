@@ -6,6 +6,7 @@
 // What every master solver needs whatever its solver: which solver column holds each column id,
 // and which bounds a row can hold. Written once, so that master solvers cannot drift apart.
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -41,7 +42,10 @@ class SolverColumns {
         ///
         /// @param batch The columns to add.
         /// @param rows  The number of rows of the master solver.
-        /// @throws std::invalid_argument When an id is already used, or used twice in the batch.
+        /// @throws std::invalid_argument When an id is already used, or used twice in the batch,
+        ///                               or when a cost or a coefficient is not finite, or the
+        ///                               bounds are not ones a column can hold (the rule of
+        ///                               @c row_bounds_can_be_held).
         /// @throws std::out_of_range When a column enters a row that does not exist.
         void check(const ColumnBatch& batch, size_t rows) const {
             std::unordered_set<ColumnId> batch_ids;
@@ -54,6 +58,20 @@ class SolverColumns {
                 if (row >= rows) {
                     throw std::out_of_range(
                         "add_columns: a column enters a row that does not exist");
+                }
+            }
+
+            // A NaN or an infinite cost would poison the LP without an error.
+            const auto finite = [](double value) { return std::isfinite(value); };
+            if (!std::ranges::all_of(batch.cost, finite) ||
+                !std::ranges::all_of(batch.values, finite)) {
+                throw std::invalid_argument(
+                    "add_columns: a column has a cost or a coefficient that is not finite");
+            }
+            for (size_t column = 0; column < batch.size(); ++column) {
+                if (!row_bounds_can_be_held(batch.lower[column], batch.upper[column])) {
+                    throw std::invalid_argument(
+                        "add_columns: a column has bounds that no column can hold");
                 }
             }
         }
