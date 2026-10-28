@@ -22,6 +22,7 @@
 #include "rcspp/column_generation/master_initialization.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
+#include "rcspp/column_generation/master_solver_self_test.hpp"
 #include "rcspp/column_generation/pricer.hpp"
 #include "rcspp/column_generation/statistics.hpp"
 #include "rcspp/column_generation/tolerances.hpp"
@@ -285,6 +286,43 @@ class PythonPricer : public Pricer, public py::trampoline_self_life_support {
 
         [[nodiscard]] double cost_scale() const override {
             PYBIND11_OVERRIDE(double, Pricer, cost_scale, );
+        }
+};
+
+class PythonTolerances : public Tolerances, public py::trampoline_self_life_support {
+    public:
+        [[nodiscard]] double reduced_cost(const ToleranceContext& context) const override {
+            return call_required<double>(this,
+                                         "Tolerances",
+                                         "reduced_cost",
+                                         ToleranceContext(context));
+        }
+
+        [[nodiscard]] double feasibility(const ToleranceContext& context) const override {
+            return call_required<double>(this,
+                                         "Tolerances",
+                                         "feasibility",
+                                         ToleranceContext(context));
+        }
+
+        [[nodiscard]] double optimality_gap(const ToleranceContext& context) const override {
+            return call_required<double>(this,
+                                         "Tolerances",
+                                         "optimality_gap",
+                                         ToleranceContext(context));
+        }
+};
+
+class PythonMasterInitialization : public MasterInitialization,
+                                   public py::trampoline_self_life_support {
+    public:
+        // The master goes by pointer: Python gets the master's own object, not a copy.
+        void initialize(MasterProblem& master, const ToleranceContext& context) override {
+            call_required<void>(this,
+                                "MasterInitialization",
+                                "initialize",
+                                &master,
+                                ToleranceContext(context));
         }
 };
 
@@ -642,7 +680,12 @@ void init_column_generation(py::module_& m) {
              py::arg("cost_scale") = ToleranceContext{}.cost_scale)
         .def_readwrite("cost_scale", &ToleranceContext::cost_scale);
 
-    py::class_<Tolerances, py::smart_holder>(m, "Tolerances", "The tolerances of a run.")
+    py::class_<Tolerances, PythonTolerances, py::smart_holder>(
+        m,
+        "Tolerances",
+        "The tolerances of a run. Subclass it to compute them in Python: override "
+        "reduced_cost, feasibility and optimality_gap, each taking a ToleranceContext.")
+        .def(py::init<>())
         .def("reduced_cost", &Tolerances::reduced_cost, py::arg("context"))
         .def("feasibility", &Tolerances::feasibility, py::arg("context"))
         .def("optimality_gap", &Tolerances::optimality_gap, py::arg("context"));
@@ -762,9 +805,12 @@ void init_column_generation(py::module_& m) {
         .def("mark_initialized", &MasterProblem::mark_initialized)
         .def("solver", &MasterProblem::solver, py::return_value_policy::reference_internal);
 
-    py::class_<MasterInitialization, py::smart_holder>(m,
-                                                       "MasterInitialization",
-                                                       "Makes the first master LP solvable.")
+    py::class_<MasterInitialization, PythonMasterInitialization, py::smart_holder>(
+        m,
+        "MasterInitialization",
+        "Makes the first master LP solvable. Subclass it to do so in Python: override "
+        "initialize(master, context), called once before the first LP solve.")
+        .def(py::init<>())
         .def("initialize",
              &MasterInitialization::initialize,
              py::arg("master"),
@@ -923,4 +969,29 @@ void init_column_generation(py::module_& m) {
             py::arg("params") = IntegerParams{})
         .def("params", &ColumnGeneration::params, py::return_value_policy::reference_internal)
         .def("tolerance_context", &ColumnGeneration::tolerance_context);
+
+    // ── Master solver self-test ───────────────────────────────────────────────
+
+    m.attr("default_self_test_tolerance") = default_self_test_tolerance;
+
+    py::class_<MasterSolverSelfTestReport>(m,
+                                           "MasterSolverSelfTestReport",
+                                           "Outcome of master_solver_self_test.")
+        .def_readonly("failures",
+                      &MasterSolverSelfTestReport::failures,
+                      "One line per failed check: the model, the step, what was checked, the "
+                      "expected value and the value the master solver gave.")
+        .def("passed", &MasterSolverSelfTestReport::passed);
+
+    m.def("master_solver_self_test",
+          &master_solver_self_test,
+          py::arg("minimizing"),
+          py::arg("maximizing"),
+          py::arg("tolerance") = default_self_test_tolerance,
+          py::call_guard<py::gil_scoped_release>(),
+          "Checks that a master solver follows the conventions of MasterSolver, on an LP whose "
+          "answers are known. minimizing and maximizing are two master solvers of the same kind "
+          "over empty models, one minimizing and one maximizing, able to add rows; both must give "
+          "the same answers. Returns every failed check; raises ValueError when a master solver "
+          "already has rows or cannot add rows.");
 }

@@ -60,6 +60,7 @@ default_relative_gap: float
 default_reduced_cost_tolerance: float
 default_feasibility_tolerance: float
 default_optimality_gap: float
+default_self_test_tolerance: float
 
 class Capabilities:
     add_rows: bool
@@ -212,6 +213,12 @@ class ToleranceContext:
     def __init__(self, *, cost_scale: float = 1.0) -> None: ...
 
 class Tolerances:
+    """The tolerances of a run.
+
+    Subclass it to compute them in Python: override the three methods below.
+    """
+
+    def __init__(self) -> None: ...
     def reduced_cost(self, context: ToleranceContext) -> float: ...
     def feasibility(self, context: ToleranceContext) -> float: ...
     def optimality_gap(self, context: ToleranceContext) -> float: ...
@@ -280,6 +287,13 @@ class MasterProblem:
     def solver(self) -> MasterSolver: ...
 
 class MasterInitialization:
+    """Makes the first master LP solvable.
+
+    Subclass it to do so in Python: override initialize, called once before the
+    first LP solve.
+    """
+
+    def __init__(self) -> None: ...
     def initialize(self, master: MasterProblem, context: ToleranceContext) -> None: ...
 
 class ArtificialColumns(MasterInitialization):
@@ -376,3 +390,20 @@ class ColumnGeneration:
     def solve_restricted_master_integer(self, params: IntegerParams = ...) -> SolverStatus: ...
     def params(self) -> ColumnGenerationParams: ...
     def tolerance_context(self) -> ToleranceContext: ...
+
+class MasterSolverSelfTestReport:
+    """Outcome of master_solver_self_test."""
+
+    @property
+    def failures(self) -> list[str]: ...
+    def passed(self) -> bool: ...
+
+def master_solver_self_test(
+    minimizing: MasterSolver, maximizing: MasterSolver, tolerance: float = ...
+) -> MasterSolverSelfTestReport:
+    """Checks that a master solver follows the conventions of MasterSolver, on an LP whose
+    answers are known.
+
+    minimizing and maximizing are two master solvers of the same kind over empty models,
+    able to add rows. Raises ValueError when one already has rows or cannot add rows.
+    """
