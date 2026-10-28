@@ -207,6 +207,15 @@ TEST(ColumnGenerationLoop, AnExactPricerWithNoPathProves) {
     EXPECT_EQ(needed.run().status, ColumnGenerationStatus::Infeasible);
 }
 
+TEST(ColumnGenerationLoop, APricerWithNothingToPriceDoesNotBlockTheProof) {
+    CoverOneRow toy;
+    ScriptedPricer switched_off(
+        [](auto, auto) { return PricingResult{.status = PricingStatus::NotApplicable}; });
+    toy.master.add_pricer(switched_off);
+    ColumnGeneration loop(toy.master);
+    EXPECT_EQ(loop.run().status, ColumnGenerationStatus::Optimal);
+}
+
 TEST(ColumnGenerationLoop, InfeasibleWhenAnArtificialColumnStays) {
     ScriptedMasterSolver solver;
     MasterProblem master(solver);
