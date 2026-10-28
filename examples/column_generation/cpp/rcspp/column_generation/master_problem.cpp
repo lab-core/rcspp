@@ -117,6 +117,7 @@ void MasterProblem::add_artificial_columns(std::span<const size_t> rows,
 
     for (size_t i = 0; i < rows.size(); ++i) {
         artificial_column_ids_.push_back(columns_.size());
+        artificial_cost_ = cost;
         columns_.push_back({.id = columns_.size(),
                             .pricer = no_pricer,
                             .tag = ColumnTag::Artificial,

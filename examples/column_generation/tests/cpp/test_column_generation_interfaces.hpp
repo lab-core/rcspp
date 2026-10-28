@@ -57,4 +57,5 @@ TEST(ColumnGenerationInterfaces, AddingRowsIsOptional) {
     EXPECT_EQ(solver.number_of_rows(), 0U);
     solver.restore_user_model();  // changes nothing, so restores nothing
     EXPECT_EQ(solver.dual_tolerance(), 0.0);
+    EXPECT_EQ(solver.largest_user_cost(), 0.0);
 }

@@ -63,9 +63,12 @@ struct ColumnGenerationParams {
 
 /// @brief How a run ended.
 enum class ColumnGenerationStatus {
-    Optimal,     ///< proven: no improving column exists, and no artificial column is used
-    NotProven,   ///< no new column, but some pricer did not prove it found the best ones
-    Infeasible,  ///< converged with an artificial column still in use: no solution exists
+    Optimal,    ///< proven: no improving column exists, and no artificial column is used
+    NotProven,  ///< no new column, but some pricer did not prove it found the best ones
+    /// Converged with an artificial column still in use: no solution exists at the artificial
+    /// cost used (@c Statistics::artificial_cost). A solution whose columns cost more than that
+    /// per row could still exist: see @c ArtificialColumns.
+    Infeasible,
     /// The master LP, with the columns it has so far, has no feasible solution. This does not
     /// prove the problem infeasible. Add starting columns, or use @c ArtificialColumns.
     RestrictedMasterInfeasible,
@@ -142,7 +145,8 @@ class ColumnGeneration {
         PricingRound price(std::span<const double> duals, const Timer& total_timer,
                            double reduced_cost_tolerance);
 
-        // At least 1: the largest pricer cost scale and starting column cost.
+        // At least 1: the largest pricer cost scale, starting column cost and cost of the user's
+        // own variables.
         [[nodiscard]] ToleranceContext compute_tolerance_context() const;
 
         [[nodiscard]] std::vector<double> column_values() const;
