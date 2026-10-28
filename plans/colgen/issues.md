@@ -13,6 +13,7 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-06 | `question(vrp): default route relaxation of the VRP example` | question | #55 | `F-05`, `Q-09` |
 | I-07 | `fix(ci): benchmark workflow can't build without Gurobi on ubuntu-latest` | bug | draft, inferred (never run); deferred (`D-52`) | `P-20` |
 | I-08 | `feat: column generation layer (tracking issue)` | enhancement | after colleague review (`Q-12`) | this plan |
+| I-09 | `docs(cpp): the "Choosing an algorithm" example of the C++ quickstart does not compile` | documentation | draft (found 2026-10-28 checking the docs for the Python plan) | — |
 
 ## Files
 
@@ -30,6 +31,7 @@ the heading into the title field and the rest into the body. Checked on `main` @
 | I-06 | `issues/I-06-vrp-default-relaxation.md` |
 | I-07 | `issues/I-07-benchmark-workflow-gurobi.md` |
 | I-08 | not drafted: after colleague review (`Q-12`) |
+| I-09 | `issues/I-09-quickstart-choosing-an-algorithm.md` |
 
 ## Existing issues closed
 
