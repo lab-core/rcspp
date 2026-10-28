@@ -63,6 +63,9 @@ class HighsMasterSolver final : public MasterSolver {
         ///                               no row.
         void add_rows(const RowBatch& rows) override;
 
+        /// @copydoc MasterSolver::add_columns
+        /// @throws std::invalid_argument Also when HiGHS refuses the batch (e.g. a row listed
+        ///                               twice in a column); the batch then adds nothing.
         void add_columns(const ColumnBatch& columns) override;
 
         SolverStatus solve_relaxation(const RelaxationParams& params) override;
