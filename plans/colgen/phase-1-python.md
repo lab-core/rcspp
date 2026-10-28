@@ -132,7 +132,7 @@ cannot build one.
 | 5 | 5.1 | `feat(python): column generation types, master and loop` | bindings; `MasterSolver` and `Pricer` trampolines (needed to test anything without a solver); scripted Python fakes. Done: `d1541637`, typed for a strict check in `e8ed2b81` and `05209cc2` (24 tests; pure overrides fail under the GIL, `F-30`) |
 | 5 | 5.2 | `feat(python): tolerances and initializations from Python` | their trampolines; the self-test. Done: `af741808` (30 tests; a Python object held by the params' `shared_ptr` stays alive) |
 | 5 | 5.3 | `feat(python): graph pricers` | `_make_pricer`, `PricingStage`, `GraphPricer`. Done: `60acebaf` (`solve`'s algorithm and direction rules shared), `5a063470` (10 tests). Built differently: each graph type registers a factory looked up by its Python type, instead of a `_make_pricer` method; a stage's direction is passed separately, so two stages may share params. Ctrl-C measured: `D-100` |
-| 5 | 5.4 | `feat(python): HiGHS master solver` | `USE_HIGHS` binding over a copied model; `_core` links `rcspp_highs` |
+| 5 | 5.4 | `feat(python): HiGHS master solver` | `USE_HIGHS` binding over a copied model; `_core` links `rcspp_highs`. Done: `33cfd3d1` (7 tests, the self-test included). `HighsMasterSolver(column_cost=…, starts=…, rows=…, maximize=…)`: keyword arrays, empty by default; integrality as booleans. Not checked yet: a build without `USE_HIGHS`, and CI, whose builds do not set `USE_HIGHS` (the tests skip there) |
 | 5 | 5.5 | `test(python): column generation end to end` | section 5 on the C++ HiGHS master solver |
 | 5 | 5.6 | `feat(python): components by name` | registry (`D-89`) |
 | 6 | 6.1 | `feat(python): master solver over a highspy model` | `HighspyMasterSolver`, `write_back` |
