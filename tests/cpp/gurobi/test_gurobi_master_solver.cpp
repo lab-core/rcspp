@@ -352,6 +352,24 @@ TEST_F(GurobiMasterSolverTest, ARelaxedBinaryStaysWithinZeroAndOne) {
     EXPECT_EQ(binary.get(GRB_CharAttr_VType), GRB_BINARY);
 }
 
+TEST_F(GurobiMasterSolverTest, ToleranceAndTheUserCostsComeFromTheModel) {
+    constexpr double optimality_tolerance = 1e-7;
+    model->set(GRB_DoubleParam_OptimalityTol, optimality_tolerance);
+    // A starting column of the user's, costlier than every generated one.
+    constexpr double user_cost = -40.0;
+    model->addVar(0.0, GRB_INFINITY, user_cost, GRB_CONTINUOUS);
+    GurobiMasterSolver solver(*model, lp_rows());
+    EXPECT_EQ(solver.largest_user_cost(), -user_cost);
+
+    // The generated columns do not count, however costly.
+    MasterProblem master(solver);
+    ScriptedPricer pricer;
+    constexpr double generated_cost = 100.0;
+    master.add_columns(master.add_pricer(pricer), {make_path(generated_cost, covering({0}))});
+    EXPECT_EQ(solver.largest_user_cost(), -user_cost);
+    EXPECT_EQ(solver.dual_tolerance(), optimality_tolerance);
+}
+
 TEST_F(GurobiMasterSolverTest, AVariableTheUserAddsDuringTheRunIsRelaxedToo) {
     std::vector<GRBConstr> rows = lp_rows();
     GurobiMasterSolver solver(*model, rows);
