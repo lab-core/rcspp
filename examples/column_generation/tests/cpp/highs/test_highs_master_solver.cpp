@@ -458,6 +458,26 @@ TEST_F(HighsMasterSolverTest, NoSolutionIsReadWithoutASolveThatGaveOne) {
     EXPECT_THROW(solver.primal(added, values), std::logic_error);
 }
 
+TEST_F(HighsMasterSolverTest, ToleranceAndTheUserCostsComeFromTheModel) {
+    constexpr double feasibility_tolerance = 1e-8;
+    highs.setOptionValue("dual_feasibility_tolerance", feasibility_tolerance);
+    // A starting column of the user's, costlier than every generated one.
+    constexpr double user_cost = -40.0;
+    const double zero = 0.0;
+    const double unbounded = kHighsInf;
+    highs.addCols(1, &user_cost, &zero, &unbounded, 0, nullptr, nullptr, nullptr);
+    HighsMasterSolver solver(highs, lp_rows());
+    EXPECT_EQ(solver.largest_user_cost(), -user_cost);
+
+    // The generated columns do not count, however costly.
+    MasterProblem master(solver);
+    ScriptedPricer pricer;
+    constexpr double generated_cost = 100.0;
+    master.add_columns(master.add_pricer(pricer), {make_path(generated_cost, covering({0}))});
+    EXPECT_EQ(solver.largest_user_cost(), -user_cost);
+    EXPECT_EQ(solver.dual_tolerance(), feasibility_tolerance);
+}
+
 TEST_F(HighsMasterSolverTest, OptionsByHighsName) {
     HighsMasterSolver solver(highs, {});
 
