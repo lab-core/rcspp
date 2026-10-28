@@ -17,6 +17,7 @@
 #include <tuple>
 
 #include "active_call.hpp"
+#include "graph_pricer.hpp"
 #include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
 
@@ -464,6 +465,64 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             "The clone has an independent remove/restore state.");
 }
 
+// ─── Graph pricer ─────────────────────────────────────────────────────────────
+// Builds the C++ GraphPricer over a bound graph from Python's stages: (Algorithm, params,
+// SearchDirection, exact) tuples. Each stage searches as solve() does, with its own copy of the
+// params, in its direction, with a time limit the request caps; the cost is the real resource,
+// whose slot update_reduced_costs writes.
+
+template <typename RG, typename RC, typename... ResourceTypes>
+std::unique_ptr<column_generation::Pricer> make_graph_pricer(RG& graph, const py::list& stages,
+                                                             size_t cost_index, bool preprocess) {
+    using Stage = column_generation::PricingStage<ResourceTypes...>;
+    using LC = LabelList<RC>;
+    std::vector<Stage> cpp_stages;
+    cpp_stages.reserve(stages.size());
+    for (const py::handle stage : stages) {
+        const auto [algorithm, params, direction, exact] =
+            stage.cast<std::tuple<SolverAlgorithm, py::object, SearchDirection, bool>>();
+        if (py::isinstance<PyBucketAlgorithmParams>(params)) {
+            auto bucket_params = params.cast<PyBucketAlgorithmParams>();
+            bucket_params.direction = direction;
+            cpp_stages.emplace_back(
+                [algorithm, bucket_params](RG& searched,
+                                           const column_generation::StageRequest& request) {
+                    PyBucketAlgorithmParams capped = bucket_params;
+                    capped.timeout_s = std::min(capped.timeout_s, request.timeout_s);
+                    return run_bucket_solve<RG, RC, RealResource, ResourceTypes...>(
+                        algorithm,
+                        searched,
+                        request.upper_bound,
+                        capped,
+                        request.preprocess,
+                        request.cost_index);
+                },
+                exact);
+        } else {
+            auto list_params = params.cast<PyAlgorithmParams>().template to_params<LC>();
+            list_params.direction = direction;
+            cpp_stages.emplace_back(
+                [algorithm, list_params](RG& searched,
+                                         const column_generation::StageRequest& request) {
+                    AlgorithmParams<LC> capped = list_params;
+                    capped.timeout_s = std::min(capped.timeout_s, request.timeout_s);
+                    return dispatch_algorithm<RG, RealResource, LC>(algorithm,
+                                                                    searched,
+                                                                    request.upper_bound,
+                                                                    std::move(capped),
+                                                                    request.preprocess,
+                                                                    request.cost_index);
+                },
+                exact);
+        }
+    }
+    return std::make_unique<column_generation::GraphPricer<ResourceTypes...>>(
+        graph,
+        column_generation::PricingStrategy<ResourceTypes...>(std::move(cpp_stages)),
+        cost_index,
+        preprocess);
+}
+
 // ─── Helper: bind one add_resource method ────────────────────────────────────
 
 template <typename RG, typename RC, typename ResourceType>
@@ -548,6 +607,14 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
             },
             py::arg("duals"),
             py::arg("cost_index") = 0);
+
+        graph_pricer_factories()[reinterpret_cast<PyTypeObject*>(rg.ptr())] =
+            [](py::handle graph, const py::list& stages, size_t cost_index, bool preprocess) {
+                return make_graph_pricer<RG, RC, ResourceTypes...>(graph.cast<RG&>(),
+                                                                   stages,
+                                                                   cost_index,
+                                                                   preprocess);
+            };
     }
 }
 

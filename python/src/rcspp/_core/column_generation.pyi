@@ -5,7 +5,7 @@ from typing import Any, Callable, Sequence, TypeAlias, overload
 
 import numpy as np
 
-from .graph import Solution
+from .graph import Algorithm, SearchDirection, Solution
 
 # What a method receives or returns: duals, values, bounds.
 FloatArray: TypeAlias = np.ndarray[Any, np.dtype[np.float64]]
@@ -207,6 +207,20 @@ class Pricer:
     def price(self, duals: FloatArray, request: PricingRequest = ...) -> PricingResult: ...
     def update(self, changes: PricingChanges) -> None: ...
     def cost_scale(self) -> float: ...
+
+class GraphPricer(Pricer):
+    """A pricer over a bound resource graph, run in C++.
+
+    Built by rcspp.column_generation.GraphPricer.
+    """
+
+    def __init__(
+        self,
+        graph: Any,
+        stages: list[tuple[Algorithm, Any, SearchDirection, bool]],
+        cost_index: int = 0,
+        preprocess: bool = True,
+    ) -> None: ...
 
 class ToleranceContext:
     cost_scale: float

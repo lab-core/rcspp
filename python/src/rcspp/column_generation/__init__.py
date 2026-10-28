@@ -8,7 +8,8 @@ written in Python is a subclass of :class:`MasterSolver`, :class:`Pricer`,
 held. :func:`master_solver_self_test` checks a master solver, e.g. one written in
 Python, against an LP whose answers are known. Arrays
 crossing the boundary (duals, column values, the arrays of a :class:`ColumnBatch`) are
-numpy copies, so a Python object may keep them after the call.
+numpy copies, so a Python object may keep them after the call. A :class:`GraphPricer`
+prices a :class:`~rcspp.graph.ResourceGraph` in C++, without Python.
 """
 
 from .._core.column_generation import (
@@ -55,6 +56,7 @@ from .._core.column_generation import (
     default_self_test_tolerance,
     master_solver_self_test,
 )
+from .graph_pricer import GraphPricer, PricingStage
 
 __all__ = [
     "AbsoluteTolerances",
@@ -70,6 +72,7 @@ __all__ = [
     "ConvergenceAction",
     "ConvergenceContext",
     "ConvexityRow",
+    "GraphPricer",
     "IntegerParams",
     "IterationInfo",
     "MasterColumn",
@@ -82,6 +85,7 @@ __all__ = [
     "PricingChanges",
     "PricingRequest",
     "PricingResult",
+    "PricingStage",
     "PricingStatus",
     "RelativeTolerances",
     "RelaxationParams",
