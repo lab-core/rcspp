@@ -128,8 +128,11 @@ ColumnGenerationResult ColumnGeneration::run() {
             continue;
         }
 
+        // Unproven: the run's time limit may have cut pricing short.
         if (!proven) {
-            result.status = ColumnGenerationStatus::NotProven;
+            result.status = total_timer.elapsed_seconds() >= params_.timeout_s
+                                ? ColumnGenerationStatus::TimeLimit
+                                : ColumnGenerationStatus::NotProven;
             break;
         }
 

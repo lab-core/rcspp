@@ -7,8 +7,10 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <memory>
 #include <span>
+#include <thread>
 #include <vector>
 
 #include "rcspp/column_generation/column_generation.hpp"
@@ -260,6 +262,20 @@ TEST(ColumnGenerationLoop, TimeLimitAndSolverErrors) {
     const ColumnGenerationResult result = failing.run();
     EXPECT_EQ(result.status, ColumnGenerationStatus::SolverError);
     EXPECT_EQ(result.iterations, 0U);
+}
+
+TEST(ColumnGenerationLoop, TimeLimitReachedDuringPricing) {
+    // The pricer uses up the run's time and proves nothing: the run hit its limit.
+    constexpr double run_limit_s = 0.05;
+    CoverOneRow toy;
+    toy.pricer.respond = [](std::span<const double> /*duals*/, const PricingRequest& request) {
+        std::this_thread::sleep_for(std::chrono::duration<double>(request.timeout_s * 2));
+        return PricingResult{.status = PricingStatus::SolverLimit, .exact_stage = true};
+    };
+    ColumnGenerationParams params;
+    params.timeout_s = run_limit_s;
+    ColumnGeneration loop(toy.master, params);
+    EXPECT_EQ(loop.run().status, ColumnGenerationStatus::TimeLimit);
 }
 
 TEST(ColumnGenerationLoop, InfeasibleStartingMasterHasItsOwnStatus) {

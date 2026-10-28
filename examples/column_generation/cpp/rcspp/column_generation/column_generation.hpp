@@ -73,7 +73,7 @@ enum class ColumnGenerationStatus {
     /// More columns cannot bound it, so the problem itself is unbounded; look for a missing
     /// convexity row or bound.
     Unbounded,
-    TimeLimit,       ///< stopped by @c ColumnGenerationParams::timeout_s
+    TimeLimit,       ///< stopped by @c ColumnGenerationParams::timeout_s, in LP or pricing
     IterationLimit,  ///< stopped by @c ColumnGenerationParams::max_iterations
     SolverError,     ///< an LP solve failed for another reason (numerical trouble, interruption…)
 };
