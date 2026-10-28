@@ -150,6 +150,31 @@ TEST(MasterProblemColumns, AddColumnsWithoutConvexityRow) {
     EXPECT_EQ(solver.columns[0].entries.size(), 1U);
 }
 
+TEST(MasterProblemColumns, ARowListedTwiceGetsTheSum) {
+    ScriptedMasterSolver solver;
+    MasterProblem master(solver);
+    master.add_rows(2, RowSense::GreaterEqual, 1.0);
+    ScriptedPricer pricer;
+    master.add_pricer(pricer);
+
+    // A hand-built column, out of order and with row 1 twice: every master solver gets it merged.
+    master.add_columns(0,
+                       {make_path(1.0,
+                                  {{.index = 1, .coefficient = 0.5},
+                                   {.index = 0, .coefficient = 2.0},
+                                   {.index = 1, .coefficient = 0.5}})});
+    ASSERT_EQ(solver.columns.size(), 1U);
+    const std::vector<std::pair<std::uint32_t, double>> merged{{0, 2.0}, {1, 1.0}};
+    EXPECT_EQ(solver.columns[0].entries, merged);
+
+    // Out of order only: sorted, nothing added together.
+    master.add_columns(
+        0,
+        {make_path(1.0, {{.index = 1, .coefficient = 3.0}, {.index = 0, .coefficient = 4.0}})});
+    const std::vector<std::pair<std::uint32_t, double>> sorted{{0, 4.0}, {1, 3.0}};
+    EXPECT_EQ(solver.columns[1].entries, sorted);
+}
+
 TEST(MasterProblemColumns, AddColumnsRejectsBadInput) {
     ScriptedMasterSolver solver;
     MasterProblem master(solver);
