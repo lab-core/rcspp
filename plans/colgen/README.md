@@ -3,8 +3,9 @@
 Status: **phase 1: PR 1 (interfaces, master, loop) open as draft #61; PR 2 (Gurobi backend, `D-58`) on
 `feature/column-generation-gurobi`: 2.1–2.4 done (`MasterSolver` rename `D-69`, self-test `D-70`, the toy on Gurobi),
 open as draft #69; PR 3 (graph pricer) on `feature/column-generation-pricer`: 3.1–3.3 done, open as draft #72; PR 4
-(HiGHS, `D-59`) on `feature/column-generation-highs`: 4.1–4.3 done, pushed, not opened (`F-24`–`F-26`): every column
-generation test runs without a Gurobi license (`D-59`); next: PR 4 opened by the user, then the Python layer (PR 5)**.
+(HiGHS, `D-59`) on `feature/column-generation-highs`: 4.1–4.3 done, open as draft #76 (`F-24`–`F-26`): every column
+generation test runs without a Gurobi license (`D-59`); #72 and #76 rebased on their bases (`D-85`); next: the Python
+layer (PR 5)**.
 Updated: 2026-10-27. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
