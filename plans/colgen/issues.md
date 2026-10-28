@@ -14,6 +14,7 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-07 | `fix(ci): benchmark workflow can't build without Gurobi on ubuntu-latest` | bug | draft, inferred (never run); deferred (`D-52`) | `P-20` |
 | I-08 | `feat: column generation layer (tracking issue)` | enhancement | after colleague review (`Q-12`) | this plan |
 | I-09 | `docs(cpp): the "Choosing an algorithm" example of the C++ quickstart does not compile` | documentation | draft (found 2026-10-28 checking the docs for the Python plan) | — |
+| I-10 | `fix(python): on Windows, the second Ctrl-C kills Python instead of raising KeyboardInterrupt` | bug | draft (found 2026-10-28 measuring `D-87`) | `F-31` |
 
 ## Files
 
@@ -32,6 +33,7 @@ the heading into the title field and the rest into the body. Checked on `main` @
 | I-07 | `issues/I-07-benchmark-workflow-gurobi.md` |
 | I-08 | not drafted: after colleague review (`Q-12`) |
 | I-09 | `issues/I-09-quickstart-choosing-an-algorithm.md` |
+| I-10 | `issues/I-10-windows-second-ctrl-c.md` |
 
 ## Existing issues closed
 
