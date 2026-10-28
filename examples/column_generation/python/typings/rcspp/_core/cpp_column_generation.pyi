@@ -222,6 +222,32 @@ class GraphPricer(Pricer):
         preprocess: bool = True,
     ) -> None: ...
 
+class HighsMasterSolver(MasterSolver):
+    """A master solver over a HiGHS model it owns, built from arrays: empty by default, or
+    the user's model, its columns in compressed sparse column form.
+
+    rows are the rows that pricing columns enter, in master row order; every row by default.
+    Available when rcspp is built with HiGHS.
+    """
+
+    def __init__(
+        self,
+        *,
+        column_cost: ArrayLike = ...,
+        column_lower: ArrayLike = ...,
+        column_upper: ArrayLike = ...,
+        integer: Sequence[bool] | np.ndarray[Any, Any] = ...,
+        row_lower: ArrayLike = ...,
+        row_upper: ArrayLike = ...,
+        starts: IntArrayLike = ...,
+        row_indices: IntArrayLike = ...,
+        values: ArrayLike = ...,
+        rows: Sequence[int] | None = None,
+        maximize: bool = False,
+        offset: float = 0.0,
+    ) -> None: ...
+    def column(self, id: int) -> int: ...
+
 class ToleranceContext:
     cost_scale: float
     def __init__(self, *, cost_scale: float = 1.0) -> None: ...
