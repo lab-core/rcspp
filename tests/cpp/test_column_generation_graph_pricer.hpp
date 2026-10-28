@@ -163,6 +163,15 @@ TEST(ColumnGenerationGraphPricer, CostScaleIsTheLargestArcCost) {
     EXPECT_DOUBLE_EQ(pricer.cost_scale(), TwoPathGraph::direct_cost);
 }
 
+TEST(ColumnGenerationGraphPricer, RefusesACostIndexTheGraphDoesNotHave) {
+    // One cost component: index 1 would leave the costs as they are and search them.
+    auto graph = TwoPathGraph::make();
+    TwoPathPricer pricer(*graph, TwoPathPricer::Strategy(), /*cost_index=*/1);
+
+    EXPECT_THROW(static_cast<void>(pricer.price(through_improves, PricingRequest{})),
+                 std::out_of_range);
+}
+
 TEST(ColumnGenerationGraphPricer, RefusesAGraphWithoutSink) {
     ResourceGraph<RealResource> graph;
     graph.add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
