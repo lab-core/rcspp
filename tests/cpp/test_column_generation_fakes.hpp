@@ -102,6 +102,8 @@ class ScriptedMasterSolver final : public MasterSolver {
 
         [[nodiscard]] Capabilities capabilities() const override { return capabilities_value; }
 
+        void restore_user_model() override { ++restore_calls; }
+
         // Rows.
         std::vector<double> lower;
         std::vector<double> upper;
@@ -113,6 +115,7 @@ class ScriptedMasterSolver final : public MasterSolver {
         std::vector<RelaxationParams> relaxation_calls;
         std::vector<IntegerParams> integer_calls;
         std::vector<std::pair<std::string, OptionValue>> options;
+        size_t restore_calls = 0;
 
         // The script: called by every LP solve, it sets the answers below.
         std::function<SolverStatus(ScriptedMasterSolver&)> on_solve;
