@@ -4,6 +4,7 @@
 #include "rcspp_backends/highs/highs_master_solver.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -282,6 +283,26 @@ double HighsMasterSolver::sense_sign() const {
     ObjSense sense = ObjSense::kMinimize;
     highs_.getObjectiveSense(sense);
     return sense == ObjSense::kMaximize ? -1.0 : 1.0;
+}
+
+double HighsMasterSolver::dual_tolerance() const {
+    return highs_.getOptions().dual_feasibility_tolerance;
+}
+
+double HighsMasterSolver::largest_user_cost() const {
+    const std::vector<double>& costs = highs_.getLp().col_cost_;
+    std::vector<bool> generated(costs.size(), false);
+    for (const HighsInt index : columns_.all()) {
+        generated[static_cast<size_t>(index)] = true;
+    }
+
+    double largest = 0.0;
+    for (size_t index = 0; index < costs.size(); ++index) {
+        if (!generated[index]) {
+            largest = std::max(largest, std::abs(costs[index]));
+        }
+    }
+    return largest;
 }
 
 void HighsMasterSolver::restore_user_model() {
