@@ -84,6 +84,13 @@ class GurobiMasterSolver final : public MasterSolver {
             return Capabilities{.add_rows = true, .integer_solve = true};
         }
 
+        /// @brief Gurobi's `OptimalityTol`, read from the model.
+        [[nodiscard]] double dual_tolerance() const override;
+
+        /// @brief The largest absolute objective coefficient of the model's variables that this
+        ///        master solver did not add.
+        [[nodiscard]] double largest_user_cost() const override;
+
         /// @brief Puts back the types of the user's variables, after an LP solve relaxed them;
         ///        the generated columns stay continuous.
         ///
