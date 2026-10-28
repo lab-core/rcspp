@@ -16,7 +16,7 @@ enum class PricingStatus {
     Optimal,        ///< the search finished: no column better than those returned exists
     SolverLimit,    ///< stopped early (time, label or solution limit)
     Infeasible,     ///< the pricing problem has no path at all
-    NotApplicable,  ///< this pricer has nothing to price in this state
+    NotApplicable,  ///< nothing to price in this state, so no improving column either
     Unknown,        ///< anything else
 };
 
@@ -37,8 +37,9 @@ struct PricingResult {
         PricingStatus status = PricingStatus::Unknown;
         /// @brief A lower bound on the best reduced cost (`−∞` when unknown).
         double min_reduced_cost_bound = -std::numeric_limits<double>::infinity();
-        /// @brief Whether the call ran an exact stage: only an exact call that is @c Optimal or
-        ///        @c Infeasible (no path at all) proves that no improving column exists.
+        /// @brief Whether the stage that gave this result is exact: only an exact call that is
+        ///        @c Optimal or @c Infeasible (no path at all), or a call answering
+        ///        @c NotApplicable, proves that no improving column exists.
         bool exact_stage = false;
 };
 
