@@ -136,6 +136,28 @@ TEST(ColumnGenerationLoop, ThresholdIncludesTheConvexityDual) {
     EXPECT_EQ(pricer.seen_duals[0], (std::vector<double>{cover_dual, convexity_dual}));
 }
 
+TEST(ColumnGenerationLoop, TheLpSolverToleranceBoundsTheThreshold) {
+    // The LP solver treats a reduced cost above −1e-6 as zero: asking for less would bring back,
+    // forever, columns the solver leaves out.
+    constexpr double solver_tolerance = 1e-6;
+    CoverOneRow toy;
+    toy.solver.dual_tolerance_value = solver_tolerance;
+    ColumnGeneration loop(toy.master);
+    static_cast<void>(loop.run());
+    ASSERT_FALSE(toy.pricer.requests.empty());
+    EXPECT_DOUBLE_EQ(toy.pricer.requests[0].reduced_cost_threshold, -solver_tolerance);
+
+    // A larger tolerance of the user's is kept.
+    constexpr double user_tolerance = 1e-4;
+    CoverOneRow larger;
+    larger.solver.dual_tolerance_value = solver_tolerance;
+    ColumnGenerationParams params;
+    params.tolerances = std::make_shared<AbsoluteTolerances>(user_tolerance);
+    ColumnGeneration user_loop(larger.master, params);
+    static_cast<void>(user_loop.run());
+    EXPECT_DOUBLE_EQ(larger.pricer.requests[0].reduced_cost_threshold, -user_tolerance);
+}
+
 TEST(ColumnGenerationLoop, NotProvenWithoutAnExactOptimalPricing) {
     for (const PricingResult& answer : {PricingResult{.status = PricingStatus::SolverLimit,
                                                       .min_reduced_cost_bound = 0.0,
