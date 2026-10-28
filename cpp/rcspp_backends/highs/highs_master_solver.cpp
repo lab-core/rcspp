@@ -242,6 +242,11 @@ void HighsMasterSolver::set_option(std::string_view name, const OptionValue& val
                 if (type == HighsOptionType::kDouble) {
                     return highs_.setOptionValue(option, static_cast<double>(option_value));
                 }
+                // HiGHS integers may be narrower: a value they cannot hold is refused, not wrapped.
+                if (option_value < std::numeric_limits<HighsInt>::min() ||
+                    option_value > std::numeric_limits<HighsInt>::max()) {
+                    return HighsStatus::kError;
+                }
                 return highs_.setOptionValue(option, static_cast<HighsInt>(option_value));
             } else {
                 return highs_.setOptionValue(option, option_value);
