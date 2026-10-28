@@ -429,6 +429,14 @@ TEST_F(HighsMasterSolverTest, ABatchHighsRefusesAddsNoColumn) {
     EXPECT_EQ(solver.column(2), 2);
 }
 
+TEST_F(HighsMasterSolverTest, AnIntegerOptionHighsCannotHoldIsRefused) {
+    HighsMasterSolver solver(highs, {});
+    if constexpr (sizeof(HighsInt) < sizeof(std::int64_t)) {
+        constexpr std::int64_t too_large = std::int64_t{1} << 40;
+        EXPECT_THROW(solver.set_option("mip_max_nodes", too_large), std::invalid_argument);
+    }
+}
+
 TEST_F(HighsMasterSolverTest, OptionsByHighsName) {
     HighsMasterSolver solver(highs, {});
 
