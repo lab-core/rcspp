@@ -10,6 +10,7 @@ NetworkX integration.
 """
 
 import math
+from typing import Any
 
 import networkx as nx
 
@@ -48,6 +49,23 @@ def _search_direction(direction):
             )
         return factory()
     return direction
+
+
+def _algorithm(algorithm: Any) -> Any:
+    """The ``Algorithm`` that *algorithm* names, a string or the enum itself."""
+    if isinstance(algorithm, str):
+        factory = _ALGORITHM_MAP.get(algorithm)
+        if factory is None:
+            raise ValueError(
+                f"Unknown algorithm {algorithm!r}. Choose from: {', '.join(ALGORITHMS)}"
+            )
+        return factory()
+    return algorithm
+
+
+def _chosen_direction(params: Any, direction: Any) -> Any:
+    """The direction a search runs in: *direction* when given, else ``params.direction``."""
+    return params.direction if direction is None else _search_direction(direction)
 
 
 # Canonical resource type names exposed through add_<type>_resource methods.
@@ -310,12 +328,12 @@ class ResourceGraph:
 
     def add_arc(
         self,
-        resource_consumption,
+        resource_consumption: Any,
         origin_node_id: int,
         destination_node_id: int,
         cost: float = 0.0,
-        rows=None,
-    ):
+        rows: Any = None,
+    ) -> int:
         """Buffer an arc for insertion.
 
         The arc is not sent to C++ immediately; call :meth:`update` or any read
@@ -595,14 +613,8 @@ class ResourceGraph:
         self._flush()
         if isinstance(params, BucketAlgorithmParams):
             params = params._to_cpp(self._full_registration_order)
-        if isinstance(algorithm, str):
-            factory = _ALGORITHM_MAP.get(algorithm)
-            if factory is None:
-                raise ValueError(
-                    f"Unknown algorithm {algorithm!r}. Choose from: {', '.join(ALGORITHMS)}"
-                )
-            algorithm = factory()
-        chosen = params.direction if direction is None else _search_direction(direction)
+        algorithm = _algorithm(algorithm)
+        chosen = _chosen_direction(params, direction)
         # Set for this call only: the caller's params keep their own direction.
         previous = params.direction
         params.direction = chosen
@@ -951,7 +963,7 @@ class BucketAlgorithmParams:
         else:
             setattr(self._cpp, name, value)
 
-    def _to_cpp(self, full_registration_order: list) -> "_CppBucketAlgorithmParams":
+    def _to_cpp(self, full_registration_order: list[str]) -> Any:
         """Resolve resource positions and return the underlying C++ params object.
 
         Args:
