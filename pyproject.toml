@@ -78,7 +78,15 @@ known_first_party = ["rcspp"]
 # Strict, as the editors' Pylance; the package is read from the sources, its compiled core from
 # the virtual environment (whose stubs sit next to the sources, hence no missing-source warning).
 typeCheckingMode = "strict"
-extraPaths = ["python/src", "tests/python"]
+extraPaths = [
+  "python/src",
+  "tests/python",
+  "examples/column_generation/python",
+  "examples/column_generation/tests/python",
+]
+# The stubs of the column generation example's bindings (rcspp._core.cpp_column_generation, built
+# with USE_COLUMN_GENERATION_EXAMPLE): kept in the example, beside the rest of rcspp's stubs.
+stubPath = "examples/column_generation/python/typings"
 venvPath = "."
 venv = ".venv"
 exclude = ["build*", "**/__pycache__", ".venv", "venv", "third_party"]

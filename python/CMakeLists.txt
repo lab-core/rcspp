@@ -58,6 +58,10 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
+# The C++ column generation example's bindings, from its own folder: not part of the library.
+if(USE_COLUMN_GENERATION_EXAMPLE)
+  include("${CMAKE_SOURCE_DIR}/examples/column_generation/bindings/bindings.cmake")
+endif()
 
 # Instrument the binding TUs themselves for coverage (rcspp_objects already
 # propagates the flags for the core, but the bindings/*.cpp are _core's own sources).
