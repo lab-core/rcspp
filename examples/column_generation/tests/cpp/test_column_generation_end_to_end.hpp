@@ -15,6 +15,8 @@
 //       MasterSolver& solver();                    // the master solver over the rows added
 //   };
 //   INSTANTIATE_TYPED_TEST_SUITE_P(Solver, ColumnGenerationEndToEnd, UserModel);
+//
+// in the namespace rcspp::column_generation::testing, where the tests are.
 
 #include <gtest/gtest.h>
 
@@ -158,12 +160,6 @@ ColumnGenerationResult from_scratch(UserModel& model, RoutingGraph& graph, size_
     return loop.run();
 }
 
-}  // namespace rcspp::column_generation::testing
-
-using namespace rcspp;                              // NOLINT(google-build-using-namespace)
-using namespace rcspp::column_generation;           // NOLINT(google-build-using-namespace)
-using namespace rcspp::column_generation::testing;  // NOLINT(google-build-using-namespace)
-
 template <typename UserModel>
 class ColumnGenerationEndToEnd : public ::testing::Test {
     protected:
@@ -255,3 +251,5 @@ TYPED_TEST_P(ColumnGenerationEndToEnd, RoutesThatVisitEachCustomerOnce) {
 REGISTER_TYPED_TEST_SUITE_P(ColumnGenerationEndToEnd, TheToyLpAndItsDuals,
                             TheRestrictedMasterMipFindsTheBestPlan, TheToyFromScratch,
                             TheToyWithAFleetLimit, RoutesThatVisitEachCustomerOnce);
+
+}  // namespace rcspp::column_generation::testing
