@@ -272,6 +272,35 @@ SolverStatus GurobiMasterSolver::solve_integer(const IntegerParams& params) {
     return optimize();
 }
 
+double GurobiMasterSolver::dual_tolerance() const {
+    return model_.get(GRB_DoubleParam_OptimalityTol);
+}
+
+double GurobiMasterSolver::largest_user_cost() const {
+    // Variables added just before are pending until an update.
+    model_.update();
+    const int count = model_.get(GRB_IntAttr_NumVars);
+    if (count == 0) {
+        return 0.0;
+    }
+
+    std::vector<bool> generated(static_cast<size_t>(count), false);
+    for (const GRBVar& column : columns_.all()) {
+        generated[static_cast<size_t>(column.index())] = true;
+    }
+    const std::vector<GRBVar> variables = take(model_.getVars(), static_cast<size_t>(count));
+    const std::vector<double> costs =
+        take(model_.get(GRB_DoubleAttr_Obj, variables.data(), count), static_cast<size_t>(count));
+
+    double largest = 0.0;
+    for (size_t index = 0; index < costs.size(); ++index) {
+        if (!generated[index]) {
+            largest = std::max(largest, std::abs(costs[index]));
+        }
+    }
+    return largest;
+}
+
 void GurobiMasterSolver::restore_user_model() {
     // The generated columns stay, continuous as they were added. No update here: Gurobi applies
     // the types at the user's next update or optimize, and the last solve's values stay readable
