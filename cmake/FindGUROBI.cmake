@@ -9,9 +9,12 @@ set(_GUROBI_HINTS
         $ENV{GUROBI_HOME}
 )
 
-# Auto-discover standard install locations when no hint is provided. Natural order, so that
-# gurobi1301 sorts after gurobi951; newest first.
-if(WIN32)
+# Auto-discover standard install locations only when no hint is provided, so that a hinted
+# install is never mixed with another version. Natural order, so that gurobi1301 sorts after
+# gurobi951; newest first.
+if(_GUROBI_HINTS)
+    # A hint was given: search it only (and the system paths).
+elseif(WIN32)
     file(GLOB _GUROBI_WINDOWS_HINTS
             "C:/gurobi*/win64"
     )
@@ -58,9 +61,11 @@ find_path(GUROBI_INCLUDE_DIRS
         PATH_SUFFIXES include
 )
 
-# Core (C) library (names differ by version)
+# Core (C) library (names differ by version). NAMES_PER_DIR: the first hint wins, whatever the
+# names a later one ships, so the library matches the headers found above.
 find_library(GUROBI_LIBRARY
         NAMES ${_GUROBI_LIBRARY_NAMES} gurobi gurobi130 gurobi120 gurobi110 gurobi100
+        NAMES_PER_DIR
         HINTS ${_GUROBI_HINTS}
         PATH_SUFFIXES lib
 )
