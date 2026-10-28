@@ -35,6 +35,7 @@ enum class Mistake {
     FailsFirstSolve,
     FailsSecondSolve,
     FailsIntegerSolve,
+    SolvesTheRelaxation,
     NoIntegerSolve,
     FlipsLessEqualDual,
     KeepsMaximization,
@@ -50,6 +51,12 @@ constexpr std::array<double, 3> first_values{1.25, 0.75, 0.25};
 constexpr double second_objective = 1.0;
 constexpr std::array<double, 3> second_duals{0.5, 0.0, 0.0};
 constexpr std::array<double, 4> second_values{0.0, 0.0, 0.0, 2.0};
+
+// With x5 too: the integer optimum, and the LP optimum a master solver ignoring integrality gives.
+constexpr double integer_objective = 1.0;
+constexpr std::array<double, 5> integer_values{0.0, 0.0, 0.0, 2.0, 0.0};
+constexpr double relaxed_objective = 0.55;
+constexpr std::array<double, 5> relaxed_values{0.0, 0.0, 0.0, 1.0, 0.25};
 
 // Answers what a correct master solver would, except for its mistake.
 class SelfTestMasterSolver final : public MasterSolver {
@@ -117,9 +124,15 @@ class SelfTestMasterSolver final : public MasterSolver {
         }
 
         SolverStatus solve_integer(const IntegerParams& /*params*/) override {
-            // The LP with x4 already has an integer optimum.
-            return mistake_ == Mistake::FailsIntegerSolve ? SolverStatus::Infeasible
-                                                          : SolverStatus::Optimal;
+            if (mistake_ == Mistake::FailsIntegerSolve) {
+                return SolverStatus::Infeasible;
+            }
+            if (mistake_ == Mistake::SolvesTheRelaxation) {
+                answer(relaxed_objective, {}, relaxed_values);
+            } else {
+                answer(integer_objective, {}, integer_values);
+            }
+            return SolverStatus::Optimal;
         }
 
         void set_option(std::string_view /*name*/, const OptionValue& /*value*/) override {}
@@ -246,6 +259,13 @@ TEST(ColumnGenerationSelfTest, StopsAtASolveThatIsNotOptimal) {
     report = self_test_with(Mistake::FailsIntegerSolve);
     ASSERT_EQ(report.failures.size(), 1U);
     EXPECT_TRUE(mentions(report, "integer solve: status: expected Optimal, got Infeasible"));
+}
+
+TEST(ColumnGenerationSelfTest, ReportsAnIntegerSolveThatSolvesTheRelaxation) {
+    const MasterSolverSelfTestReport report = self_test_with(Mistake::SolvesTheRelaxation);
+
+    EXPECT_TRUE(mentions(report, "integer solve: objective: expected 1, got 0.55"));
+    EXPECT_TRUE(mentions(report, "integer solve: value of x5 (id 11): expected 0, got 0.25"));
 }
 
 TEST(ColumnGenerationSelfTest, SkipsTheIntegerSolveWhenUnsupported) {
