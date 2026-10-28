@@ -10,6 +10,7 @@ through the Python subclasses of MasterSolver and Pricer.
 
 import os
 import sys
+from enum import Enum, auto
 from typing import Any, Callable, NamedTuple, Sequence, TypeAlias
 
 import numpy as np
@@ -235,3 +236,101 @@ class ScaledPricer(Pricer):
 
     def cost_scale(self) -> float:
         return self.scale
+
+
+# The answers of the self-test's LP (see master_solver_self_test), as a minimization; values
+# in the order the columns are added: with x1, x2, x3 (first), then with x4 too (second).
+FIRST_OBJECTIVE = 3.75
+FIRST_DUALS = [1.5, 1.5, -0.5]
+FIRST_VALUES = [1.25, 0.75, 0.25]
+SECOND_OBJECTIVE = 1.0
+SECOND_DUALS = [0.5, 0.0, 0.0]
+SECOND_VALUES = [0.0, 0.0, 0.0, 2.0]
+# With x5 too: the integer optimum.
+INTEGER_OBJECTIVE = 1.0
+INTEGER_VALUES = [0.0, 0.0, 0.0, 2.0, 0.0]
+
+
+class Mistake(Enum):
+    """What SelfTestMasterSolver gets wrong."""
+
+    NONE = auto()
+    CANNOT_ADD_ROWS = auto()
+    FLIPS_LESS_EQUAL_DUAL = auto()
+    KEEPS_MAXIMIZATION = auto()
+    VALUES_BY_POSITION = auto()
+
+
+class SelfTestMasterSolver(MasterSolver):
+    """Answers what a correct master solver would on the self-test's LP, except for its
+    mistake (a Python port of a part of the C++ fake)."""
+
+    def __init__(self, mistake: Mistake = Mistake.NONE, maximizing: bool = False) -> None:
+        super().__init__()
+        self.mistake = mistake
+        self.maximizing = maximizing
+        self.lower: list[float] = []
+        self.upper: list[float] = []
+        self.ids: list[int] = []
+        self.objective_value = 0.0
+        self.dual_values: list[float] = []
+        self.values: list[float] = []
+
+    def number_of_rows(self) -> int:
+        return len(self.lower)
+
+    def row_bounds(self) -> tuple[FloatArray, FloatArray]:
+        return np.array(self.lower, dtype=np.float64), np.array(self.upper, dtype=np.float64)
+
+    def add_rows(self, rows: RowBatch) -> None:
+        self.lower.extend(float(value) for value in rows.lower)
+        self.upper.extend(float(value) for value in rows.upper)
+
+    def add_columns(self, columns: ColumnBatch) -> None:
+        self.ids.extend(int(column_id) for column_id in columns.ids)
+
+    def solve_relaxation(self, params: RelaxationParams = RelaxationParams()) -> SolverStatus:
+        if len(self.ids) == len(FIRST_VALUES):
+            self._answer(FIRST_OBJECTIVE, FIRST_DUALS, FIRST_VALUES)
+        else:
+            self._answer(SECOND_OBJECTIVE, SECOND_DUALS, SECOND_VALUES)
+        return SolverStatus.Optimal
+
+    def objective(self) -> float:
+        return self._sign() * self.objective_value
+
+    def duals(self) -> FloatArray:
+        duals = [self._sign() * dual for dual in self.dual_values]
+        if self.mistake == Mistake.FLIPS_LESS_EQUAL_DUAL:
+            duals[2] = -duals[2]
+        return np.array(duals, dtype=np.float64)
+
+    # An id it never received reads as 0.
+    def primal(self, ids: IdArray) -> FloatArray:
+        out: list[float] = []
+        for index, column_id in enumerate(ids):
+            if self.mistake == Mistake.VALUES_BY_POSITION:
+                position = index
+            else:
+                position = self.ids.index(int(column_id)) if int(column_id) in self.ids else -1
+            out.append(self.values[position] if 0 <= position < len(self.values) else 0.0)
+        return np.array(out, dtype=np.float64)
+
+    def solve_integer(self, params: IntegerParams = IntegerParams()) -> SolverStatus:
+        self._answer(INTEGER_OBJECTIVE, [], INTEGER_VALUES)
+        return SolverStatus.Optimal
+
+    def set_option(self, name: str, value: OptionValue) -> None:
+        pass
+
+    def capabilities(self) -> Capabilities:
+        return Capabilities(add_rows=self.mistake != Mistake.CANNOT_ADD_ROWS, integer_solve=True)
+
+    def _answer(self, objective: float, duals: list[float], values: list[float]) -> None:
+        self.objective_value = objective
+        self.dual_values = list(duals)
+        self.values = list(values)
+
+    # A maximizing model that forgets to negate reports the values of the maximization.
+    def _sign(self) -> float:
+        return -1.0 if self.maximizing and self.mistake == Mistake.KEEPS_MAXIMIZATION else 1.0

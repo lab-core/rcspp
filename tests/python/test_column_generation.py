@@ -16,10 +16,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from column_generation_fakes import (  # noqa: E402
     FloatArray,
+    Mistake,
     OptionValue,
     ScaledPricer,
     ScriptedMasterSolver,
     ScriptedPricer,
+    SelfTestMasterSolver,
     WrappedModelMasterSolver,
     make_path,
     proven_none,
@@ -40,6 +42,7 @@ from rcspp.column_generation import (  # noqa: E402
     ConvexityRow,
     IntegerParams,
     IterationInfo,
+    MasterInitialization,
     MasterProblem,
     MasterSolver,
     NoInitialization,
@@ -55,8 +58,10 @@ from rcspp.column_generation import (  # noqa: E402
     SolverStatus,
     StatisticsParams,
     ToleranceContext,
+    Tolerances,
     default_reduced_cost_tolerance,
     default_relative_gap,
+    master_solver_self_test,
 )
 
 PATH_COST = 10.0
@@ -634,3 +639,122 @@ def test_params_and_options_read_back() -> None:
     integer = IntegerParams()
     assert integer.relative_gap == default_relative_gap
     assert integer.threads == 0 and not integer.verbose
+
+
+# ── Tolerances and initializations written in Python ─────────────────────────
+
+
+class HalfTolerances(Tolerances):
+    """Tolerances computed in Python: a reduced-cost tolerance of half the cost scale."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.contexts: list[ToleranceContext] = []
+
+    def reduced_cost(self, context: ToleranceContext) -> float:
+        self.contexts.append(context)
+        return 0.5 * context.cost_scale
+
+    def feasibility(self, context: ToleranceContext) -> float:
+        return 1e-6
+
+    def optimality_gap(self, context: ToleranceContext) -> float:
+        return 1e-6
+
+
+class StartingPath(MasterInitialization):
+    """An initialization written in Python: the path of CoverOneRow as a starting column."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[tuple[MasterProblem, float]] = []
+
+    def initialize(self, master: MasterProblem, context: ToleranceContext) -> None:
+        self.calls.append((master, context.cost_scale))
+        master.add_columns(0, [make_path(PATH_COST, [(0, 1.0)], 0.0)])
+
+
+def test_python_tolerances_set_the_threshold() -> None:
+    toy = CoverOneRow()
+    loop = ColumnGeneration(toy.master, ColumnGenerationParams(tolerances=HalfTolerances()))
+    gc.collect()
+    loop.run()
+
+    # Only the loop's params refer to the tolerances, and they are still the Python object.
+    tolerances = loop.params().tolerances
+    assert isinstance(tolerances, HalfTolerances)
+    assert tolerances.contexts[0].cost_scale == 1.0
+    assert toy.pricer.requests[0].reduced_cost_threshold == -0.5
+    # Through C++ too.
+    assert Tolerances.reduced_cost(tolerances, ToleranceContext(cost_scale=4.0)) == 2.0
+    assert Tolerances.feasibility(tolerances, ToleranceContext()) == 1e-6
+    assert Tolerances.optimality_gap(tolerances, ToleranceContext()) == 1e-6
+
+
+def test_a_python_initialization_starts_the_master() -> None:
+    toy = CoverOneRow()
+    initialization = StartingPath()
+    loop = ColumnGeneration(toy.master, ColumnGenerationParams(initialization=initialization))
+    result = loop.run()
+
+    # The path is in from the start: no artificial column, and nothing better to price.
+    assert result.status == ColumnGenerationStatus.Optimal
+    assert result.objective == PATH_COST
+    assert result.statistics.artificial_columns == 0
+    assert len(initialization.calls) == 1
+    master, cost_scale = initialization.calls[0]
+    assert master is toy.master and cost_scale == 1.0
+    # Once per master.
+    loop.run()
+    assert len(initialization.calls) == 1
+
+
+def test_missing_tolerance_and_initialization_methods_are_reported() -> None:
+    with pytest.raises(RuntimeError, match='pure virtual function "Tolerances::reduced_cost"'):
+        Tolerances.reduced_cost(Tolerances(), ToleranceContext())
+    master = MasterProblem(ScriptedMasterSolver())
+    with pytest.raises(
+        RuntimeError, match='pure virtual function "MasterInitialization::initialize"'
+    ):
+        MasterInitialization.initialize(MasterInitialization(), master, ToleranceContext())
+
+
+# ── The master solver self-test ──────────────────────────────────────────────
+
+
+def test_a_correct_python_master_solver_passes_the_self_test() -> None:
+    report = master_solver_self_test(SelfTestMasterSolver(), SelfTestMasterSolver(maximizing=True))
+    assert report.passed()
+    assert report.failures == []
+
+
+def test_the_self_test_reports_the_mistakes_of_a_python_master_solver() -> None:
+    maximizing = SelfTestMasterSolver(maximizing=True)
+    report = master_solver_self_test(
+        SelfTestMasterSolver(Mistake.FLIPS_LESS_EQUAL_DUAL), maximizing
+    )
+    assert not report.passed()
+    assert report.failures == [
+        "minimizing model: first LP: dual of row 2 (<=): expected -0.5, got 0.5"
+    ]
+
+    report = master_solver_self_test(
+        SelfTestMasterSolver(),
+        SelfTestMasterSolver(Mistake.KEEPS_MAXIMIZATION, maximizing=True),
+        tolerance=1e-9,
+    )
+    expected = "maximizing model: first LP: objective: expected 3.75, got -3.75"
+    assert any(expected in failure for failure in report.failures)
+
+    report = master_solver_self_test(
+        SelfTestMasterSolver(Mistake.VALUES_BY_POSITION), SelfTestMasterSolver(maximizing=True)
+    )
+    expected = "first LP: value of x3 (id 5): expected 0.25, got 1.25"
+    assert any(expected in failure for failure in report.failures)
+
+
+def test_the_self_test_needs_master_solvers_that_add_rows() -> None:
+    with pytest.raises(ValueError):
+        master_solver_self_test(
+            SelfTestMasterSolver(Mistake.CANNOT_ADD_ROWS), SelfTestMasterSolver(maximizing=True)
+        )

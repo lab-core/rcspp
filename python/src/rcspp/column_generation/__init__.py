@@ -2,8 +2,11 @@
 #  All rights reserved.
 """Column generation: a master problem, its pricers and the loop that runs them.
 
-The loop runs in C++. A master solver or a pricer written in Python is a subclass of
-:class:`MasterSolver` or :class:`Pricer`, called by the loop with the GIL held. Arrays
+The loop runs in C++. A master solver, a pricer, tolerances or an initialization
+written in Python is a subclass of :class:`MasterSolver`, :class:`Pricer`,
+:class:`Tolerances` or :class:`MasterInitialization`, called by the loop with the GIL
+held. :func:`master_solver_self_test` checks a master solver, e.g. one written in
+Python, against an LP whose answers are known. Arrays
 crossing the boundary (duals, column values, the arrays of a :class:`ColumnBatch`) are
 numpy copies, so a Python object may keep them after the call.
 """
@@ -28,6 +31,7 @@ from .._core.column_generation import (
     MasterInitialization,
     MasterProblem,
     MasterSolver,
+    MasterSolverSelfTestReport,
     NoInitialization,
     Pricer,
     PricingChanges,
@@ -48,6 +52,8 @@ from .._core.column_generation import (
     default_optimality_gap,
     default_reduced_cost_tolerance,
     default_relative_gap,
+    default_self_test_tolerance,
+    master_solver_self_test,
 )
 
 __all__ = [
@@ -69,6 +75,7 @@ __all__ = [
     "MasterColumn",
     "MasterInitialization",
     "MasterProblem",
+    "MasterSolverSelfTestReport",
     "MasterSolver",
     "NoInitialization",
     "Pricer",
@@ -90,4 +97,6 @@ __all__ = [
     "default_optimality_gap",
     "default_reduced_cost_tolerance",
     "default_relative_gap",
+    "default_self_test_tolerance",
+    "master_solver_self_test",
 ]
