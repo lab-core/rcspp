@@ -129,8 +129,8 @@ cannot build one.
 | PR | # | commit | contents |
 |---|---|---|---|
 | 5 | 5.0 | `refactor(python): the GIL release and Ctrl-C check in their own header` | `active_call.hpp`, so the column generation bindings need not include the graph templates (`48c4afa1`) |
-| 5 | 5.1 | `feat(python): column generation types, master and loop` | bindings; `MasterSolver` and `Pricer` trampolines (needed to test anything without a solver); scripted Python fakes. Done: `d1541637` (24 tests; pure overrides fail under the GIL, `F-30`) |
-| 5 | 5.2 | `feat(python): tolerances and initializations from Python` | their trampolines; the self-test |
+| 5 | 5.1 | `feat(python): column generation types, master and loop` | bindings; `MasterSolver` and `Pricer` trampolines (needed to test anything without a solver); scripted Python fakes. Done: `d1541637`, typed for a strict check in `e8ed2b81` and `05209cc2` (24 tests; pure overrides fail under the GIL, `F-30`) |
+| 5 | 5.2 | `feat(python): tolerances and initializations from Python` | their trampolines; the self-test. Done: `af741808` (30 tests; a Python object held by the params' `shared_ptr` stays alive) |
 | 5 | 5.3 | `feat(python): graph pricers` | `_make_pricer`, `PricingStage`, `GraphPricer` |
 | 5 | 5.4 | `feat(python): HiGHS master solver` | `USE_HIGHS` binding over a copied model; `_core` links `rcspp_highs` |
 | 5 | 5.5 | `test(python): column generation end to end` | section 5 on the C++ HiGHS master solver |
