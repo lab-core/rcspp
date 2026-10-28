@@ -204,10 +204,12 @@ ColumnGeneration::PricingRound ColumnGeneration::price(std::span<const double> d
         PricingResult priced = master_.pricer(index).price(duals, request);
 
         // Only an exact stage that finished proves there is no improving column. No path at all
-        // (Infeasible) proves it too: no column of any cost exists.
+        // (Infeasible) proves it too: no column of any cost exists. A pricer with nothing to
+        // price holds no improving column.
         const bool finished =
             priced.status == PricingStatus::Optimal || priced.status == PricingStatus::Infeasible;
-        round.proven = round.proven && priced.exact_stage && finished;
+        const bool nothing_to_price = priced.status == PricingStatus::NotApplicable;
+        round.proven = round.proven && (nothing_to_price || (priced.exact_stage && finished));
         round.new_columns += priced.columns.size();
         master_.add_columns(index, std::move(priced.columns));
     }
