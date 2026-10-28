@@ -351,6 +351,26 @@ TEST_F(GurobiMasterSolverTest, IntegralityIsRelaxedThenRestored) {
     EXPECT_EQ(solver.variable(2).get(GRB_CharAttr_VType), GRB_CONTINUOUS);
 }
 
+TEST_F(GurobiMasterSolverTest, ARelaxedBinaryStaysWithinZeroAndOne) {
+    // A binary of the user's, in no row and worth 1. Gurobi stores an upper bound of 1 when a
+    // binary is created, but keeps one set later: once continuous, the variable would make the
+    // LP unbounded.
+    GRBVar binary = model->addVar(0.0, 1.0, -1.0, GRB_BINARY);
+    model->update();
+    binary.set(GRB_DoubleAttr_UB, GRB_INFINITY);
+    GurobiMasterSolver solver(*model, lp_rows());
+    add_lp_columns(solver);
+
+    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    EXPECT_NEAR(solver.objective(), 3.75 - 1.0, tolerance);
+
+    // Its own bounds come back with its type.
+    solver.restore_user_model();
+    model->update();
+    EXPECT_EQ(binary.get(GRB_DoubleAttr_UB), GRB_INFINITY);
+    EXPECT_EQ(binary.get(GRB_CharAttr_VType), GRB_BINARY);
+}
+
 TEST_F(GurobiMasterSolverTest, AVariableTheUserAddsDuringTheRunIsRelaxedToo) {
     std::vector<GRBConstr> rows = lp_rows();
     GurobiMasterSolver solver(*model, rows);

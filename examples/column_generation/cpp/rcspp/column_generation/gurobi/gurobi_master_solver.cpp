@@ -313,11 +313,15 @@ void GurobiMasterSolver::relax() {
 
     // Relaxed already: only the user's variables added since are not.
     std::vector<GRBVar> variables;
+    std::vector<GRBVar> binaries;
     if (!relaxed_) {
         variables.assign(columns_.all().begin(), columns_.all().end());
     }
     for (size_t index = relaxed_ ? known : 0; index < user_types_.size(); ++index) {
         variables.push_back(user_types_[index].first);
+        if (user_types_[index].second == GRB_BINARY) {
+            binaries.push_back(user_types_[index].first);
+        }
     }
     relaxed_ = true;
     if (variables.empty()) {
@@ -329,6 +333,29 @@ void GurobiMasterSolver::relax() {
                variables.data(),
                types.data(),
                static_cast<int>(variables.size()));
+    bound_binaries(binaries);
+}
+
+void GurobiMasterSolver::bound_binaries(std::vector<GRBVar>& binaries) {
+    if (binaries.empty()) {
+        return;
+    }
+
+    // Gurobi keeps a binary within 0 and 1 by its type alone, whatever bounds the user set after
+    // creating it: once continuous, it needs them as bounds.
+    const int count = static_cast<int>(binaries.size());
+    std::vector<double> lower =
+        take(model_.get(GRB_DoubleAttr_LB, binaries.data(), count), binaries.size());
+    std::vector<double> upper =
+        take(model_.get(GRB_DoubleAttr_UB, binaries.data(), count), binaries.size());
+    for (size_t index = 0; index < binaries.size(); ++index) {
+        relaxed_binaries_.push_back(
+            {.variable = binaries[index], .lower = lower[index], .upper = upper[index]});
+        lower[index] = std::max(lower[index], 0.0);
+        upper[index] = std::min(upper[index], 1.0);
+    }
+    model_.set(GRB_DoubleAttr_LB, binaries.data(), lower.data(), count);
+    model_.set(GRB_DoubleAttr_UB, binaries.data(), upper.data(), count);
 }
 
 void GurobiMasterSolver::restore(char type) {
@@ -344,6 +371,14 @@ void GurobiMasterSolver::restore(char type) {
                variables.data(),
                types.data(),
                static_cast<int>(variables.size()));
+
+    // The user's binaries get their own bounds back.
+    for (const RelaxedBinary& binary : relaxed_binaries_) {
+        GRBVar variable = binary.variable;
+        variable.set(GRB_DoubleAttr_LB, binary.lower);
+        variable.set(GRB_DoubleAttr_UB, binary.upper);
+    }
+    relaxed_binaries_.clear();
     relaxed_ = false;
 }
 
