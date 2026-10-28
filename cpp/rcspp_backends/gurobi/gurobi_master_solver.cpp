@@ -412,6 +412,11 @@ SolverStatus GurobiMasterSolver::optimize() {
     int status = model_.get(GRB_IntAttr_Status);
 
     if (status == GRB_INF_OR_UNBD) {
+        // The second solve gets what is left of the time limit, not a limit of its own.
+        const double time_left =
+            std::max(0.0,
+                     model_.get(GRB_DoubleParam_TimeLimit) - model_.get(GRB_DoubleAttr_Runtime));
+        const TemporaryParameter limit(model_, GRB_DoubleParam_TimeLimit, time_left);
         const TemporaryParameter reductions(model_, GRB_IntParam_DualReductions, 0);
         model_.optimize();
         status = model_.get(GRB_IntAttr_Status);
