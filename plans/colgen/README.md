@@ -2,8 +2,9 @@
 
 Status: **phase 1: the C++ layer is done in code, four stacked drafts: #61 (interfaces, master, loop), #69 (Gurobi
 master solver, self-test), #72 (graph pricer), #76 (HiGHS master solver; every column generation test runs without a
-Gurobi license, `D-59`); stacked by rebase (`D-85`). Next: a review round of #61–#76, then the Python layer (PRs 5–6),
-designed in `phase-1-python.md` (accepted, `D-86`–`D-92`)**.
+Gurobi license, `D-59`); stacked by rebase (`D-85`). Review round of 2026-10-28 done: every finding fixed
+(`D-93`–`D-99`, commit table R.0–R.4). Next: the Python layer (PRs 5–6), designed in `phase-1-python.md` (accepted,
+`D-86`–`D-92`)**.
 Updated: 2026-10-28. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
