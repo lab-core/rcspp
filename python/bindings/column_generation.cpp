@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "active_call.hpp"
+#include "graph_pricer.hpp"
 #include "rcspp/column_generation/master_initialization.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
@@ -664,13 +665,37 @@ void init_column_generation(py::module_& m) {
             "price",
             [](Pricer& pricer, const InputArray<double>& duals, const PricingRequest& request) {
                 const auto dual_view = to_span(duals, "Pricer.price");
-                const py::gil_scoped_release release;
-                return pricer.price(dual_view, request);
+                return ActiveCall::run_interruptible(
+                    [&] { return pricer.price(dual_view, request); });
             },
             py::arg("duals"),
             py::arg("request") = PricingRequest{})
         .def("update", &Pricer::update, py::arg("changes"))
         .def("cost_scale", &Pricer::cost_scale);
+
+    py::class_<AnyGraphPricer, Pricer, py::smart_holder>(
+        m,
+        "GraphPricer",
+        "A pricer over a bound ResourceGraph, run in C++: each call writes the reduced costs into "
+        "the graph, then runs the stages from the first until one finds a path below the "
+        "threshold or proves that none exists. Built by rcspp.column_generation.GraphPricer.")
+        .def(py::init([](const py::handle& graph,
+                         const py::list& stages,
+                         size_t cost_index,
+                         bool preprocess) {
+                 const auto found = graph_pricer_factories().find(Py_TYPE(graph.ptr()));  // NOLINT
+                 if (found == graph_pricer_factories().end()) {
+                     throw py::type_error(
+                         "GraphPricer: expected a bound resource graph with a real resource");
+                 }
+                 return std::make_unique<AnyGraphPricer>(
+                     found->second(graph, stages, cost_index, preprocess));
+             }),
+             py::arg("graph"),
+             py::arg("stages"),
+             py::arg("cost_index") = 0,
+             py::arg("preprocess") = true,
+             py::keep_alive<1, 2>());
 
     // ── Tolerances and initializations ────────────────────────────────────────
 
