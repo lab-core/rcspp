@@ -500,4 +500,8 @@ TEST_F(GurobiMasterSolverTest, OptionsBySolverName) {
     EXPECT_EQ(model->get(GRB_DoubleParam_MIPGap), gap);
     EXPECT_EQ(model->get(GRB_IntParam_OutputFlag), 0);
     EXPECT_EQ(model->get(GRB_IntParam_Method), GRB_METHOD_DUAL);
+
+    // A name or a value Gurobi refuses.
+    EXPECT_THROW(solver.set_option("NoSuchParameter", std::int64_t{1}), std::invalid_argument);
+    EXPECT_THROW(solver.set_option("Threads", std::string("many")), std::invalid_argument);
 }
