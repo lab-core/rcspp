@@ -55,6 +55,18 @@ constexpr double added_objective = 1.0;
 constexpr std::array<double, 3> added_duals{0.5, 0.0, 0.0};
 constexpr double added_x4 = 2.0;
 
+// x5: cost 0.2, and 4 in row 0, added before the integer solve. The LP optimum becomes 0.55 at
+// x4 = 1, x5 = 0.25, while the integer optimum stays 1.0 at x4 = 2: a master solver that solves
+// the relaxation instead is caught.
+constexpr std::array<ColumnId, 1> fractional_id{11};
+constexpr std::array<double, 1> fractional_cost{0.2};
+constexpr std::array<double, 1> fractional_lower{0.0};
+constexpr std::array<double, 1> fractional_upper{infinity};
+constexpr std::array<std::uint32_t, 2> fractional_starts{0, 1};
+constexpr std::array<std::uint32_t, 1> fractional_rows{0};
+constexpr std::array<double, 1> fractional_values{4.0};
+constexpr double integer_objective = 1.0;
+
 // The values are read in an order that differs from the order the columns were added in.
 constexpr std::array<ColumnId, 3> first_read_ids{5, 7, 3};
 constexpr std::array<std::string_view, 3> first_read_names{"x3", "x1", "x2"};
@@ -62,6 +74,9 @@ constexpr std::array<double, 3> first_read_values{0.25, 1.25, 0.75};
 constexpr std::array<ColumnId, 2> added_read_ids{9, 7};
 constexpr std::array<std::string_view, 2> added_read_names{"x4", "x1"};
 constexpr std::array<double, 2> added_read_values{added_x4, 0.0};
+constexpr std::array<ColumnId, 3> integer_read_ids{11, 9, 7};
+constexpr std::array<std::string_view, 3> integer_read_names{"x5", "x4", "x1"};
+constexpr std::array<double, 3> integer_read_values{0.0, added_x4, 0.0};
 
 constexpr std::array<std::string_view, 5> status_names{
     "Optimal", "Infeasible", "Unbounded", "TimeLimit", "Other"};
@@ -178,11 +193,18 @@ void check_master_solver(MasterSolver& solver, std::string_view model, double to
         return;
     }
     check.set_step("integer solve");
+    solver.add_columns(ColumnBatch{.ids = fractional_id,
+                                   .cost = fractional_cost,
+                                   .lower = fractional_lower,
+                                   .upper = fractional_upper,
+                                   .starts = fractional_starts,
+                                   .row_indices = fractional_rows,
+                                   .values = fractional_values});
     if (!check.optimal(solver.solve_integer(IntegerParams{}))) {
         return;
     }
-    check.near("objective", added_objective, solver.objective());
-    check_values(check, solver, added_read_ids, added_read_names, added_read_values);
+    check.near("objective", integer_objective, solver.objective());
+    check_values(check, solver, integer_read_ids, integer_read_names, integer_read_values);
 }
 
 void require_empty_and_extensible(const MasterSolver& solver, std::string_view model) {
