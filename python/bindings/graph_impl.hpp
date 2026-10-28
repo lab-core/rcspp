@@ -520,6 +520,12 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             "The clone has an independent remove/restore state.");
 }
 
+#ifdef RCSPP_USE_COLUMN_GENERATION_EXAMPLE
+// The C++ column generation example's graph pricer, built over the helpers above
+// (examples/column_generation/bindings, with USE_COLUMN_GENERATION_EXAMPLE).
+#include "graph_pricer_factory.hpp"
+#endif
+
 // ─── Helper: bind one add_resource method ────────────────────────────────────
 
 template <typename ResourceGraphType, typename CompositionType, typename ResourceType>
@@ -608,6 +614,10 @@ void bind_resource_graph_impl(py::class_<ResourceGraphType, Graph<CompositionTyp
             },
             py::arg("duals"),
             py::arg("cost_index") = 0);
+
+#ifdef RCSPP_USE_COLUMN_GENERATION_EXAMPLE
+        register_graph_pricer<ResourceGraphType, CompositionType, ResourceTypes...>(rg);
+#endif
     }
 }
 
