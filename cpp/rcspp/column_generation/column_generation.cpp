@@ -63,6 +63,18 @@ ColumnGeneration::ColumnGeneration(MasterProblem& master, ColumnGenerationParams
 
 ColumnGenerationResult ColumnGeneration::run() {
     ColumnGenerationResult result;
+    try {
+        result = iterate();
+    } catch (...) {
+        master_.solver().restore_user_model();
+        throw;
+    }
+    master_.solver().restore_user_model();
+    return result;
+}
+
+ColumnGenerationResult ColumnGeneration::iterate() {
+    ColumnGenerationResult result;
     Timer total_timer(true);
     Timer relaxation_timer;
     Timer pricing_timer;

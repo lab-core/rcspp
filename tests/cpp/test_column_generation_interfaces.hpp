@@ -55,4 +55,5 @@ TEST(ColumnGenerationInterfaces, AddingRowsIsOptional) {
     EXPECT_EQ(solver.solve_integer(IntegerParams{}), SolverStatus::Optimal);
     solver.set_option("threads", OptionValue{std::int64_t{1}});
     EXPECT_EQ(solver.number_of_rows(), 0U);
+    solver.restore_user_model();  // changes nothing, so restores nothing
 }
