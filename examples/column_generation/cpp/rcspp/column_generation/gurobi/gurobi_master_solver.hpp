@@ -22,7 +22,10 @@ namespace rcspp::column_generation {
 /// The user creates the master in Gurobi (its rows, and any variables of their own, such as
 /// slacks or starting columns) and passes the rows that pricing columns enter, in the order that
 /// @c Row::index refers to. The master solver adds the generated columns to that model and reads
-/// its duals, so the user can keep working with the model after the run.
+/// its duals. During a run the model is the master solver's: what it holds between two solves
+/// must not be relied on. When the run ends, @c ColumnGeneration has it put back the user's
+/// variable types (@c restore_user_model), so the user can keep working with the model, which
+/// then holds the generated columns too, continuous.
 ///
 /// - **Sense:** a maximizing model works too: the master solver negates the costs it adds, the
 ///   objective and the duals, so that the master is seen as a minimization.
@@ -31,9 +34,10 @@ namespace rcspp::column_generation {
 ///   columns the requested type. The model must become an LP once relaxed (no SOS or general
 ///   constraints). The types restored are those the variables had when first seen: a type the
 ///   user changes during the run is overwritten, and variables must not be deleted during it.
-/// - **Solver options:** every solve sets `TimeLimit`, `Threads` and `OutputFlag` from its
-///   parameters. LP solves use primal simplex while `Method` is automatic (the basis stays primal
-///   feasible after columns are added), then put `Method` back.
+/// - **Solver options:** every solve sets `TimeLimit`, `Threads` and `OutputFlag` (and `MIPGap`
+///   for the integer solve) from its parameters, and puts the user's values back after it. LP
+///   solves use primal simplex while `Method` is automatic (the basis stays primal feasible after
+///   columns are added).
 /// - **Errors:** Gurobi's own errors are thrown as @c GRBException.
 ///
 /// Holds the model by reference: the caller keeps it alive.
@@ -78,6 +82,13 @@ class GurobiMasterSolver final : public MasterSolver {
         [[nodiscard]] Capabilities capabilities() const override {
             return Capabilities{.add_rows = true, .integer_solve = true};
         }
+
+        /// @brief Puts back the types of the user's variables, after an LP solve relaxed them;
+        ///        the generated columns stay continuous.
+        ///
+        /// Gurobi applies the types at the model's next update (or optimize): until then, the
+        /// last solve's values can still be read.
+        void restore_user_model() override;
 
         /// @brief The wrapped model.
         [[nodiscard]] GRBModel& model() const { return model_; }
