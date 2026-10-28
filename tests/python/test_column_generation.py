@@ -7,6 +7,7 @@ import gc
 import math
 import os
 import sys
+from typing import Any
 
 import numpy as np
 import pytest
@@ -14,6 +15,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from column_generation_fakes import (  # noqa: E402
+    FloatArray,
+    OptionValue,
     ScaledPricer,
     ScriptedMasterSolver,
     ScriptedPricer,
@@ -22,7 +25,6 @@ from column_generation_fakes import (  # noqa: E402
     proven_none,
 )
 
-import rcspp  # noqa: E402
 from rcspp.column_generation import (  # noqa: E402
     AbsoluteTolerances,
     ArtificialColumns,
@@ -34,8 +36,10 @@ from rcspp.column_generation import (  # noqa: E402
     ColumnTag,
     ColumnType,
     ConvergenceAction,
+    ConvergenceContext,
     ConvexityRow,
     IntegerParams,
+    IterationInfo,
     MasterProblem,
     MasterSolver,
     NoInitialization,
@@ -52,6 +56,7 @@ from rcspp.column_generation import (  # noqa: E402
     StatisticsParams,
     ToleranceContext,
     default_reduced_cost_tolerance,
+    default_relative_gap,
 )
 
 PATH_COST = 10.0
@@ -65,8 +70,8 @@ class CoverOneRow:
     costs 10.
     """
 
-    def __init__(self):
-        self.solver = ScriptedMasterSolver()
+    def __init__(self, solver: ScriptedMasterSolver | None = None) -> None:
+        self.solver = solver if solver else ScriptedMasterSolver()
         self.master = MasterProblem(self.solver)
         self.master.add_rows(1, RowSense.GreaterEqual, 1.0)
         self.pricer = ScaledPricerWithPath(self)
@@ -75,9 +80,9 @@ class CoverOneRow:
         self.solver.on_solve = self._solve
 
     @staticmethod
-    def _solve(lp):
+    def _solve(lp: ScriptedMasterSolver) -> SolverStatus:
         has_path = len(lp.columns) > 1
-        artificial_cost = lp.columns[0][1]
+        artificial_cost = lp.columns[0].cost
         lp.objective_value = PATH_COST if has_path else artificial_cost
         lp.dual_values = [lp.objective_value]
         lp.values = {0: 0.0 if has_path else 1.0, 1: 1.0}
@@ -87,26 +92,44 @@ class CoverOneRow:
 class ScaledPricerWithPath(ScriptedPricer):
     """The pricer of CoverOneRow: counts updates too."""
 
-    def __init__(self, toy):
+    def __init__(self, toy: CoverOneRow) -> None:
         super().__init__(self._respond)
         self.toy = toy
-        self.updates = []
+        self.updates: list[PricingChanges] = []
 
-    def _respond(self, duals, request):
+    def _respond(self, duals: FloatArray, request: PricingRequest) -> PricingResult:
         result = proven_none()
-        reduced_cost = PATH_COST - duals[0]
+        reduced_cost = PATH_COST - float(duals[0])
         if self.toy.path_allowed and reduced_cost < request.reduced_cost_threshold:
             result.columns = [make_path(PATH_COST, [(0, 1.0)], reduced_cost)]
         return result
 
-    def update(self, changes):
+    def update(self, changes: PricingChanges) -> None:
         self.updates.append(changes)
+
+
+class MisbehavingMasterSolver(ScriptedMasterSolver):
+    """A scripted master solver whose duals and row bounds can be replaced by wrong
+    answers."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.duals_answer: Any = None
+        self.row_bounds_answer: Any = None
+
+    def duals(self) -> FloatArray:
+        return super().duals() if self.duals_answer is None else self.duals_answer
+
+    def row_bounds(self) -> tuple[FloatArray, FloatArray]:
+        if self.row_bounds_answer is None:
+            return super().row_bounds()
+        return self.row_bounds_answer
 
 
 # ── The loop over Python components ──────────────────────────────────────────
 
 
-def test_converges_and_pushes_the_artificial_column_out():
+def test_converges_and_pushes_the_artificial_column_out() -> None:
     toy = CoverOneRow()
     result = ColumnGeneration(toy.master).run()
 
@@ -131,12 +154,12 @@ def test_converges_and_pushes_the_artificial_column_out():
     # No convexity row: the threshold is minus the reduced-cost tolerance.
     assert len(toy.pricer.requests) == 2
     assert toy.pricer.requests[0].reduced_cost_threshold == -default_reduced_cost_tolerance
-    assert isinstance(toy.pricer.seen_duals[0], np.ndarray)
+    assert toy.pricer.seen_duals[0].dtype == np.float64
     assert toy.pricer.seen_duals[1].tolist() == [PATH_COST]
     assert toy.solver.restore_calls == 1
 
 
-def test_threshold_includes_the_convexity_dual():
+def test_threshold_includes_the_convexity_dual() -> None:
     solver = ScriptedMasterSolver()
     master = MasterProblem(solver)
     master.add_rows(1, RowSense.GreaterEqual, 1.0)
@@ -145,7 +168,7 @@ def test_threshold_includes_the_convexity_dual():
     assert master.convexity_row(0) == 1
     assert solver.upper == [math.inf, 4.0]
 
-    def solve(lp):
+    def solve(lp: ScriptedMasterSolver) -> SolverStatus:
         lp.dual_values = [12.0, 3.0]
         return SolverStatus.Optimal
 
@@ -156,9 +179,9 @@ def test_threshold_includes_the_convexity_dual():
     assert pricer.seen_duals[0].tolist() == [12.0, 3.0]
 
 
-def test_the_iteration_hook_keeps_what_it_is_given():
+def test_the_iteration_hook_keeps_what_it_is_given() -> None:
     toy = CoverOneRow()
-    seen = []
+    seen: list[IterationInfo] = []
     params = ColumnGenerationParams(on_iteration=seen.append)
     ColumnGeneration(toy.master, params).run()
 
@@ -170,12 +193,12 @@ def test_the_iteration_hook_keeps_what_it_is_given():
     assert seen[1].elapsed_seconds >= 0.0
 
 
-def test_the_convergence_hook_can_restart_the_loop():
+def test_the_convergence_hook_can_restart_the_loop() -> None:
     toy = CoverOneRow()
     toy.path_allowed = False
-    seen = []
+    seen: list[tuple[int, float, FloatArray, FloatArray]] = []
 
-    def on_converged(context):
+    def on_converged(context: ConvergenceContext) -> ConvergenceAction:
         seen.append((context.iteration, context.objective, context.duals, context.values))
         if not toy.path_allowed:
             toy.path_allowed = True  # e.g. a pricer changed its problem
@@ -198,7 +221,7 @@ def test_the_convergence_hook_can_restart_the_loop():
     assert len(toy.pricer.updates) == 1 and toy.pricer.updates[0].structure
 
 
-def test_limits_statistics_and_the_integer_solve():
+def test_limits_statistics_and_the_integer_solve() -> None:
     toy = CoverOneRow()
     params = ColumnGenerationParams(
         max_iterations=1,
@@ -223,7 +246,7 @@ def test_limits_statistics_and_the_integer_solve():
     assert (received.relative_gap, received.timeout_s) == (0.01, 5.0)
 
 
-def test_no_initialization_keeps_the_model_as_it_is():
+def test_no_initialization_keeps_the_model_as_it_is() -> None:
     solver = ScriptedMasterSolver()
     master = MasterProblem(solver)
     master.add_rows(1, RowSense.GreaterEqual, 1.0)
@@ -237,7 +260,7 @@ def test_no_initialization_keeps_the_model_as_it_is():
     assert master.initialized()
 
 
-def test_components_and_the_scale_reach_the_loop():
+def test_components_and_the_scale_reach_the_loop() -> None:
     solver = ScriptedMasterSolver()
     solver.largest_user_cost_value = 50.0
     solver.dual_tolerance_value = 1e-3
@@ -257,12 +280,12 @@ def test_components_and_the_scale_reach_the_loop():
     assert isinstance(loop.params().tolerances, RelativeTolerances)
     assert isinstance(loop.params().initialization, ArtificialColumns)
     assert result.statistics.artificial_cost == 7.0
-    assert solver.columns[0][1] == 7.0
+    assert solver.columns[0].cost == 7.0
     assert master.artificial_cost() == 7.0
     assert master.artificial_column_ids().tolist() == [0]
 
 
-def test_the_default_components_are_filled_in():
+def test_the_default_components_are_filled_in() -> None:
     toy = CoverOneRow()
     loop = ColumnGeneration(toy.master)
     assert isinstance(loop.params().tolerances, AbsoluteTolerances)
@@ -274,10 +297,10 @@ def test_the_default_components_are_filled_in():
 # ── Errors ───────────────────────────────────────────────────────────────────
 
 
-def test_a_python_exception_leaves_run_and_the_model_is_restored():
+def test_a_python_exception_leaves_run_and_the_model_is_restored() -> None:
     toy = CoverOneRow()
 
-    def respond(duals, request):
+    def respond(duals: FloatArray, request: PricingRequest) -> PricingResult:
         raise ValueError("pricing failed")
 
     toy.pricer.respond = respond
@@ -286,37 +309,39 @@ def test_a_python_exception_leaves_run_and_the_model_is_restored():
     assert toy.solver.restore_calls == 1
 
 
-def test_a_hook_exception_leaves_run():
+def test_a_hook_exception_leaves_run() -> None:
     toy = CoverOneRow()
 
-    def on_iteration(info):
+    def on_iteration(info: IterationInfo) -> None:
         raise KeyError("hook")
 
     with pytest.raises(KeyError):
         ColumnGeneration(toy.master, ColumnGenerationParams(on_iteration=on_iteration)).run()
 
 
-def test_answers_of_the_wrong_size_are_refused():
-    toy = CoverOneRow()
-    toy.solver.duals = lambda: []
+def test_answers_of_the_wrong_size_are_refused() -> None:
+    solver = MisbehavingMasterSolver()
+    toy = CoverOneRow(solver)
+    solver.duals_answer = np.zeros(0)
     with pytest.raises(ValueError, match=r"MasterSolver.duals: expected 1 values, got 0"):
         ColumnGeneration(toy.master).run()
 
-    toy = CoverOneRow()
-    toy.solver.duals = lambda: "not numbers"
+    solver = MisbehavingMasterSolver()
+    toy = CoverOneRow(solver)
+    solver.duals_answer = "not numbers"
     with pytest.raises(TypeError, match="MasterSolver.duals"):
         ColumnGeneration(toy.master).run()
 
-    toy.solver.row_bounds = lambda: ([1.0],)
+    solver.row_bounds_answer = ([1.0],)
     with pytest.raises(ValueError, match=r"\(lower, upper\)"):
-        MasterSolver.row_bounds(toy.solver)
+        MasterSolver.row_bounds(solver)
 
-    toy.solver.duals = lambda: [[1.0]]
+    solver.duals_answer = [[1.0]]
     with pytest.raises(ValueError, match="one-dimensional"):
-        MasterSolver.duals(toy.solver)
+        MasterSolver.duals(solver)
 
 
-def test_a_missing_method_is_reported():
+def test_a_missing_method_is_reported() -> None:
     solver = MasterSolver()
     with pytest.raises(RuntimeError, match='pure virtual function "MasterSolver::objective"'):
         MasterSolver.objective(solver)
@@ -324,10 +349,10 @@ def test_a_missing_method_is_reported():
     with pytest.raises(RuntimeError, match='pure virtual function "MasterSolver::add_columns"'):
         MasterSolver.add_columns(solver, batch)
     with pytest.raises(RuntimeError, match='pure virtual function "Pricer::price"'):
-        Pricer.price(Pricer(), [1.0])
+        Pricer.price(Pricer(), np.array([1.0]))
 
 
-def test_errors_of_the_master_map_to_python_exceptions():
+def test_errors_of_the_master_map_to_python_exceptions() -> None:
     master = MasterProblem(WrappedModelMasterSolver())
     with pytest.raises(RuntimeError, match="cannot add rows"):
         master.add_rows(1, RowSense.Equal, 1.0)
@@ -340,7 +365,7 @@ def test_errors_of_the_master_map_to_python_exceptions():
 # ── The master solver's methods from Python ──────────────────────────────────
 
 
-def test_the_bound_methods_reach_a_python_master_solver_through_cpp():
+def test_the_bound_methods_reach_a_python_master_solver_through_cpp() -> None:
     # MasterSolver.<method>(solver) runs the binding, which calls the C++ virtual method,
     # which calls the Python override: both directions of every conversion.
     solver = ScriptedMasterSolver()
@@ -381,7 +406,8 @@ def test_the_bound_methods_reach_a_python_master_solver_through_cpp():
     assert solver.integer_calls[0].column_type == ColumnType.Integer
     assert MasterSolver.farkas(solver) is None
 
-    for value in (True, 3, 0.5, "dual"):
+    values: list[OptionValue] = [True, 3, 0.5, "dual"]
+    for value in values:
         MasterSolver.set_option(solver, "option", value)
     assert solver.options == [("option", True), ("option", 3), ("option", 0.5), ("option", "dual")]
     assert [type(value) for _, value in solver.options] == [bool, int, float, str]
@@ -397,7 +423,7 @@ def test_the_bound_methods_reach_a_python_master_solver_through_cpp():
     assert solver.restore_calls == 1
 
 
-def test_the_optional_methods_have_defaults():
+def test_the_optional_methods_have_defaults() -> None:
     solver = WrappedModelMasterSolver()
     with pytest.raises(RuntimeError, match="cannot add rows"):
         MasterSolver.add_rows(solver, RowBatch([0.0], [1.0]))
@@ -408,18 +434,19 @@ def test_the_optional_methods_have_defaults():
     assert MasterSolver.duals(solver).tolist() == []
 
 
-def test_a_farkas_ray_comes_back_as_an_array():
+def test_a_farkas_ray_comes_back_as_an_array() -> None:
     class WithRay(ScriptedMasterSolver):
-        def farkas(self):
-            return [1.0, -2.0]
+        def farkas(self) -> FloatArray | None:
+            return np.array([1.0, -2.0])
 
     solver = WithRay()
     MasterSolver.add_rows(solver, RowBatch([0.0, 0.0], [1.0, 1.0]))
-    assert MasterSolver.farkas(solver).tolist() == [1.0, -2.0]
+    ray = MasterSolver.farkas(solver)
+    assert ray is not None and ray.tolist() == [1.0, -2.0]
 
 
-def test_batches_are_checked():
-    good = dict(
+def test_batches_are_checked() -> None:
+    good: dict[str, Any] = dict(
         ids=[0], cost=[1.0], lower=[0.0], upper=[1.0], starts=[0, 1], row_indices=[0], values=[1.0]
     )
     batch = ColumnBatch(**good)
@@ -428,14 +455,16 @@ def test_batches_are_checked():
     assert batch.cost.tolist() == [1.0] and batch.lower.tolist() == [0.0]
     assert batch.upper.tolist() == [1.0] and batch.row_indices.tolist() == [0]
     assert batch.values.tolist() == [1.0]
-    for name, value in (("cost", [1.0, 2.0]), ("starts", [0]), ("values", [])):
+    wrong_sizes: list[dict[str, Any]] = [{"cost": [1.0, 2.0]}, {"starts": [0]}, {"values": []}]
+    for change in wrong_sizes:
         with pytest.raises(ValueError, match="one value per id"):
-            ColumnBatch(**{**good, name: value})
+            ColumnBatch(**(good | change))
     for starts in ([1, 1], [0, 0]):
         with pytest.raises(ValueError, match="starts must rise"):
-            ColumnBatch(**{**good, "starts": starts})
+            ColumnBatch(**(good | {"starts": starts}))
     with pytest.raises(ValueError, match="one-dimensional"):
-        ColumnBatch(**{**good, "cost": [[1.0]]})
+        batch_input: dict[str, Any] = good | {"cost": [[1.0]]}
+        ColumnBatch(**batch_input)
 
     rows = RowBatch([0.0, 1.0], [2.0, 3.0])
     assert len(rows) == 2 and rows.names == []
@@ -449,10 +478,10 @@ def test_batches_are_checked():
 # ── Pricers ──────────────────────────────────────────────────────────────────
 
 
-def test_a_python_pricer_through_cpp():
+def test_a_python_pricer_through_cpp() -> None:
     pricer = ScriptedPricer()
     result = Pricer.price(
-        pricer, [1.0, 2.0], PricingRequest(reduced_cost_threshold=-1.0, timeout_s=2.0)
+        pricer, np.array([1.0, 2.0]), PricingRequest(reduced_cost_threshold=-1.0, timeout_s=2.0)
     )
     assert result.status == PricingStatus.Optimal and result.exact_stage
     assert result.min_reduced_cost_bound == 0.0 and result.columns == []
@@ -468,7 +497,7 @@ def test_a_python_pricer_through_cpp():
     assert scaled.updates[0].costs and scaled.updates[0].bounds and not scaled.updates[0].structure
 
 
-def test_pricing_result_defaults_and_columns():
+def test_pricing_result_defaults_and_columns() -> None:
     result = PricingResult()
     assert result.status == PricingStatus.Unknown
     assert result.min_reduced_cost_bound == -math.inf
@@ -484,7 +513,7 @@ def test_pricing_result_defaults_and_columns():
 # ── The master problem ───────────────────────────────────────────────────────
 
 
-def test_the_master_problem_from_python():
+def test_the_master_problem_from_python() -> None:
     solver = ScriptedMasterSolver()
     master = MasterProblem(solver)
     rows = master.add_rows([1.0, 0.0], [1.0, 5.0], ["visit", "load"])
@@ -513,7 +542,7 @@ def test_the_master_problem_from_python():
     assert columns[1].pricer == 0 and columns[2].pricer == MasterProblem.no_pricer
     assert columns[1].solution.column.cost == 6.0
     # The convexity row gets the 1 of each column.
-    assert solver.columns[0][4] == [(0, 1.0), (2, 1.0)]
+    assert solver.columns[0].entries == [(0, 1.0), (2, 1.0)]
     assert master.artificial_column_ids().tolist() == [2]
     assert master.artificial_cost() == 99.0
 
@@ -522,10 +551,10 @@ def test_the_master_problem_from_python():
     assert master.initialized()
 
 
-def test_the_loop_keeps_its_master_solver_and_pricers_alive():
-    calls = []
+def test_the_loop_keeps_its_master_solver_and_pricers_alive() -> None:
+    calls: list[str] = []
 
-    def build():
+    def build() -> MasterProblem:
         solver = ScriptedMasterSolver()
         solver.on_solve = lambda lp: calls.append("solve") or SolverStatus.Optimal
         master = MasterProblem(solver)
@@ -546,7 +575,7 @@ def test_the_loop_keeps_its_master_solver_and_pricers_alive():
 # ── Tolerances and initializations ───────────────────────────────────────────
 
 
-def test_tolerances():
+def test_tolerances() -> None:
     context = ToleranceContext(cost_scale=10.0)
     absolute = AbsoluteTolerances(1e-6, 1e-5, 1e-4)
     assert absolute.reduced_cost(context) == 1e-6
@@ -566,7 +595,7 @@ def test_tolerances():
     assert params.tolerances is None
 
 
-def test_initializations():
+def test_initializations() -> None:
     context = ToleranceContext(cost_scale=2.0)
     assert ArtificialColumns().cost(context) == 2.0 * ArtificialColumns.automatic_cost_factor
     assert ArtificialColumns(5.0).cost(context) == 5.0
@@ -575,12 +604,12 @@ def test_initializations():
     master = MasterProblem(solver)
     master.add_rows(2, RowSense.GreaterEqual, 1.0)
     ArtificialColumns(3.0).initialize(master, context)
-    assert [column[4] for column in solver.columns] == [[(0, 1.0)], [(1, 1.0)]]
+    assert [column.entries for column in solver.columns] == [[(0, 1.0)], [(1, 1.0)]]
     NoInitialization().initialize(master, context)
     assert len(solver.columns) == 2
 
 
-def test_params_and_options_read_back():
+def test_params_and_options_read_back() -> None:
     params = ColumnGenerationParams(max_iterations=5, timeout_s=60.0)
     assert (params.max_iterations, params.timeout_s) == (5, 60.0)
     params.max_iterations = 7
@@ -591,7 +620,7 @@ def test_params_and_options_read_back():
     assert params.relaxation.timeout_s == 1.0 and not params.statistics.timers
     assert isinstance(params.initialization, NoInitialization)
 
-    seen = []
+    seen: list[IterationInfo] = []
     params.on_iteration = seen.append
     assert callable(params.on_iteration)
     params.on_iteration = None
@@ -603,5 +632,5 @@ def test_params_and_options_read_back():
     convexity = ConvexityRow()
     assert convexity.existing_row is None and convexity.max_paths == math.inf
     integer = IntegerParams()
-    assert integer.relative_gap == rcspp.column_generation.default_relative_gap
+    assert integer.relative_gap == default_relative_gap
     assert integer.threads == 0 and not integer.verbose
