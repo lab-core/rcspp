@@ -10,7 +10,7 @@ NetworkX integration.
 """
 
 import math
-from typing import Optional
+from typing import Any, Optional
 
 import networkx as nx
 
@@ -50,6 +50,36 @@ def _search_direction(direction):
             )
         return factory()
     return direction
+
+
+def _algorithm(algorithm: Any) -> Any:
+    """The ``Algorithm`` that *algorithm* names, a string or the enum itself."""
+    if isinstance(algorithm, str):
+        factory = _ALGORITHM_MAP.get(algorithm)
+        if factory is None:
+            raise ValueError(
+                f"Unknown algorithm {algorithm!r}. Choose from: {', '.join(ALGORITHMS)}"
+            )
+        return factory()
+    return algorithm
+
+
+def _chosen_direction(algorithm: Any, params: Any, direction: Any) -> Any:
+    """The direction a search runs in: *direction* when given, else ``params.direction``, or
+    bidirectional for the ``Bidirectional`` algorithm, which accepts no other."""
+    is_bidirectional_alias = algorithm == _ext.graph.Algorithm.Bidirectional
+    if direction is None:
+        chosen = (
+            _ext.graph.SearchDirection.Bidirectional if is_bidirectional_alias else params.direction
+        )
+    else:
+        chosen = _search_direction(direction)
+    if is_bidirectional_alias and chosen != _ext.graph.SearchDirection.Bidirectional:
+        raise ValueError(
+            "algorithm='bidirectional' searches bidirectionally; for another direction, "
+            "use algorithm='simple' with that direction"
+        )
+    return chosen
 
 
 # Canonical resource type names exposed through add_<type>_resource methods.
@@ -325,12 +355,12 @@ class ResourceGraph:
 
     def add_arc(
         self,
-        resource_consumption,
+        resource_consumption: Any,
         origin_id: int,
         destination_id: int,
         cost: float = 0.0,
-        rows=None,
-    ):
+        rows: Any = None,
+    ) -> int:
         """Buffer an arc for insertion.
 
         The arc is not sent to C++ immediately; call :meth:`update` or any read
@@ -630,27 +660,8 @@ class ResourceGraph:
         self._flush()
         if isinstance(params, BucketAlgorithmParams):
             params = params._to_cpp(self._full_registration_order)
-        if isinstance(algorithm, str):
-            factory = _ALGORITHM_MAP.get(algorithm)
-            if factory is None:
-                raise ValueError(
-                    f"Unknown algorithm {algorithm!r}. Choose from: {', '.join(ALGORITHMS)}"
-                )
-            algorithm = factory()
-        is_bidirectional_alias = algorithm == _ext.graph.Algorithm.Bidirectional
-        if direction is None:
-            chosen = (
-                _ext.graph.SearchDirection.Bidirectional
-                if is_bidirectional_alias
-                else params.direction
-            )
-        else:
-            chosen = _search_direction(direction)
-        if is_bidirectional_alias and chosen != _ext.graph.SearchDirection.Bidirectional:
-            raise ValueError(
-                "algorithm='bidirectional' searches bidirectionally; for another direction, "
-                "use algorithm='simple' with that direction"
-            )
+        algorithm = _algorithm(algorithm)
+        chosen = _chosen_direction(algorithm, params, direction)
         # Set for this call only: the caller's params keep their own direction.
         previous = params.direction
         params.direction = chosen
@@ -986,7 +997,7 @@ class BucketAlgorithmParams:
         else:
             setattr(self._cpp, name, value)
 
-    def _to_cpp(self, full_registration_order: list) -> "_CppBucketAlgorithmParams":
+    def _to_cpp(self, full_registration_order: list[str]) -> Any:
         """Resolve resource positions and return the underlying C++ params object.
 
         Args:
