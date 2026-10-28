@@ -1,6 +1,6 @@
-# Phase 1 Python layer: design (PRs 5 and 6; proposed 2026-10-28)
+# Phase 1 Python layer: design (PRs 5 and 6)
 
-Replaces `phase-1-design.md` §3. Status: **proposed**; the open points are `Q-30`–`Q-36` (`questions.md`). Built on
+Replaces `phase-1-design.md` §3. Status: **accepted 2026-10-28** (`Q-30`–`Q-36` → `D-86`–`D-92`). Built on
 `D-36`–`D-39`, `D-47`–`D-49`, `D-53`, `D-54`, `D-60`, `D-68`, `D-71`, `D-75`; facts `F-03`, `F-14`, `F-16`, `F-17`,
 `F-27`. The C++ API is the code on `feature/column-generation-highs` (PRs 1–4).
 
@@ -12,7 +12,7 @@ Replaces `phase-1-design.md` §3. Status: **proposed**; the open points are `Q-3
 | user-model masters are Python subclasses called by the C++ loop | by default the user's model is **copied** into a C++ master solver and the run stays in C++ (`D-60` B); a Python subclass stays the extension point (`D-60` A) |
 | stages `{algorithm, AlgorithmParams, exact}` | a C++ stage holds a search function (`D-71`); the Python graph builds that function from the algorithm it already picks at run time |
 | `_make_pricer(stages, cost_index)` | also `preprocess` (`D-75`) |
-| — | Gurobi from a wheel: `D-60` B needs a C++ Gurobi master solver the wheel cannot ship (`F-27`): `Q-30` |
+| — | Gurobi from a wheel: `D-60` B needs a C++ Gurobi master solver the wheel cannot ship (`F-27`); route A first, B tested later (`D-86`, T-1.11) |
 | — | the Python loop of `D-68` |
 
 ## 2. What a user writes (sketch)
@@ -27,7 +27,7 @@ for _ in customers:
     model.addRow(1, 1, 0, [], [])                            # "visited once": the columns fill it
 model.addRow(-highspy.kHighsInf, vehicles, 0, [], [])        # fleet (addRow returns a status, not an index)
 
-solver = HighspyMasterSolver(model, rows=range(model.getNumRow()))   # copies the model into C++ (Q-36)
+solver = HighspyMasterSolver(model, rows=range(model.getNumRow()))   # copies the model into C++ (D-92)
 master = MasterProblem(solver)
 pricer = GraphPricer(graph, stages=[PricingStage("greedy"), PricingStage("simple")])
 master.add_pricer(pricer, ConvexityRow(existing_row=len(customers)))
@@ -43,13 +43,13 @@ solver.write_back()                                          # optional: the gen
 | trampolines | same file | `MasterSolver`, `Pricer`, `Tolerances`, `MasterInitialization` subclassable from Python |
 | graph pricers | `bind_rg_methods` in `python/bindings/graph_impl.hpp` gains `_make_pricer(stages, cost_index, preprocess)` (`D-48`) | every bound graph type gets it; Python `GraphPricer` calls it |
 | C++ HiGHS master solver | `python/bindings/column_generation_highs.cpp`, built with `USE_HIGHS` | a `Highs` owned by the binding, filled from arrays, wrapped by `HighsMasterSolver` |
-| Python API | `python/src/rcspp/column_generation/` | re-exports, `PricingStage`, `GraphPricer`, registry (`Q-33`) |
-| master solvers over the user's model | `python/src/rcspp/column_generation/master_solvers/` | `HighspyMasterSolver`; Gurobi per `Q-30`; names `Q-36` |
-| Python loop (`D-68`) | `Q-34` | written with the bound pieces |
+| Python API | `python/src/rcspp/column_generation/` | re-exports, `PricingStage`, `GraphPricer`, registry (`D-89`) |
+| master solvers over the user's model | `python/src/rcspp/column_generation/master_solvers/` | `HighspyMasterSolver`, `GurobipyMasterSolver` (`D-86`, `D-92`) |
+| Python loop (`D-68`) | `examples/python/` (`D-90`) | written with the bound pieces |
 
 ### Bindings
 
-- **Arrays (`D-16`, `Q-35`):** duals, column values and results as numpy `float64`. A `ColumnBatch` reaches a Python
+- **Arrays (`D-16`, `D-91`):** duals, column values and results as numpy `float64`. A `ColumnBatch` reaches a Python
   master solver as numpy arrays (`starts`, `row_indices`, `values`: the CSC layout of `D-53`).
 - **Ownership (`D-38`):** `keep_alive` from the master to its master solver, from the master to every pricer added,
   from the loop to the master, and from a `GraphPricer` to its graph. Tolerances and initializations are
@@ -59,7 +59,7 @@ solver.write_back()                                          # optional: the gen
   calls Python.
 - **Ctrl-C:** each stage gets `should_stop`, as `solve` does. An interrupted stage is not `COMPLETE`, so it proves
   nothing: with no column, the run ends `NotProven`, then `KeyboardInterrupt` is raised. A stage interrupted after it
-  found columns, or an LP solve, does not stop the run at once (`Q-31`).
+  found columns, or an LP solve, does not stop the run at once (`D-87`).
 - **Exceptions:** C++ ones map as in the graph bindings (`invalid_argument` → `ValueError`…). A Python exception
   raised in a trampoline or a hook leaves `run()` unchanged.
 - **Self-test:** bound, so a user checks their own Python master solver: `master_solver_self_test(minimizing,
@@ -69,7 +69,7 @@ solver.write_back()                                          # optional: the gen
 
 - `PricingStage(algorithm="simple", params=None, direction=None, exact=None)`: the arguments of `ResourceGraph.solve`
   (`params` is `AlgorithmParams` or `BucketAlgorithmParams`) and whether the stage is exact. `exact=None` takes it
-  from the algorithm (`Q-32`).
+  from the algorithm (`D-88`).
 - `GraphPricer(graph, stages=None, cost_index=0, preprocess=True)`: flushes the Python graph's buffered nodes and arcs,
   then calls `_make_pricer` on its C++ graph (`F-03`); the result is a C++ `GraphPricer<ResourceTypes...>` seen as a
   `Pricer`. No stage given: one exact `simple` stage, the C++ default.
@@ -85,15 +85,15 @@ solver.write_back()                                          # optional: the gen
 | solver | route | how |
 |---|---|---|
 | HiGHS | B, default | `HighspyMasterSolver(model, rows)` reads `model.getLp()` (costs, bounds, matrix, types, sense, row bounds; a row-wise matrix is converted) and builds the C++ HiGHS master solver over a copy. `write_back()` adds the generated columns (cost, bounds, entries, type) to the user's model in one `addCols` (`F-17`); values come from the results |
-| Gurobi | `Q-30` | — |
+| Gurobi | A (`D-86`) | `GurobipyMasterSolver`, a Python subclass (section 7); B1 and B2 tested and compared later (T-1.11) |
 | any solver | A | a Python `MasterSolver` subclass (trampoline): CPLEX, Xpress, or gurobipy itself; must pass the self-test |
 
-- The copy is the model as it was copied: later changes to the user's model are not seen (`Q-36`). Options of the
+- The copy is the model as it was copied: later changes to the user's model are not seen (`D-92`). Options of the
   user's `Highs` (time limit, threads…) are not copied; `set_option` reaches the copy.
 - HiGHS is in the wheel (`D-14`), so `HighspyMasterSolver` needs `highspy` only because the user's model is a
   `highspy.Highs`.
 
-### Registry (`D-39`, `D-49`, `Q-33`)
+### Registry (`D-39`, `D-49`, `D-89`)
 
 Names accepted where an object is: tolerances `"absolute"`, `"relative"`; initializations `"artificial_columns"`,
 `"none"`; stage algorithms (the graph's names). Master solvers by class only: each wraps a model, so a name alone
@@ -120,9 +120,9 @@ cannot build one.
 | self-test on every master solver above | report passed |
 | scripted Python master solver and pricers (as the C++ fakes) | the loop's statuses reach Python; hooks called; a Python exception leaves `run()` |
 | Python `Tolerances` and `MasterInitialization` | used by the loop |
-| graph pricer stages | heuristic then exact; bucket params; `exact` default (`Q-32`) |
+| graph pricer stages | heuristic then exact; bucket params; `exact` default (`D-88`) |
 | `write_back()` | the user's model holds the columns, its LP gives the same value |
-| both loops (`Q-34`) | same results |
+| both loops (`D-90`) | same results |
 
 ## 6. PRs and commits
 
@@ -133,11 +133,11 @@ cannot build one.
 | 5 | 5.3 | `feat(python): graph pricers` | `_make_pricer`, `PricingStage`, `GraphPricer` |
 | 5 | 5.4 | `feat(python): HiGHS master solver` | `USE_HIGHS` binding over a copied model; `_core` links `rcspp_highs` |
 | 5 | 5.5 | `test(python): column generation end to end` | section 5 on the C++ HiGHS master solver |
-| 5 | 5.6 | `feat(python): components by name` | registry (`Q-33`) |
+| 5 | 5.6 | `feat(python): components by name` | registry (`D-89`) |
 | 6 | 6.1 | `feat(python): master solver over a highspy model` | `HighspyMasterSolver`, `write_back` |
-| 6 | 6.2 | Gurobi | per `Q-30` |
+| 6 | 6.2 | `feat(python): master solver over a gurobipy model` | `GurobipyMasterSolver` (route A, `D-86`); tests skip without a license (`D-50`) |
 | 6 | 6.3 | `build(python): the wheel with HiGHS, extras` | `pyproject.toml`; the symbol check of section 4 |
-| 6 | 6.4 | Python loop | per `Q-34` |
+| 6 | 6.4 | `docs(examples): a column generation loop written in Python` | `D-90`; a test that it matches the C++ loop on the toy |
 
 ## 7. Research: route A over gurobipy or highspy (2026-10-21, was `phase-1-design.md` §3)
 
