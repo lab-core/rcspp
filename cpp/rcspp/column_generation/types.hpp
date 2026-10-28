@@ -76,7 +76,7 @@ struct ColumnBatch {
 
 /// @brief What a master solver can do beyond the required operations.
 struct Capabilities {
-        /// @brief Rows can be added through the master solver (false for a wrapped user model).
+        /// @brief Rows can be added through the master solver (@c MasterSolver::add_rows).
         bool add_rows = false;
         /// @brief @c MasterSolver::solve_integer is available.
         bool integer_solve = false;

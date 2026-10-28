@@ -42,15 +42,20 @@ class MasterSolver {
         /// @brief Appends rows. Optional: only master solvers that set @c Capabilities::add_rows
         ///        override it; a master solver wrapping a user's model, whose rows exist, does not.
         ///
-        /// New rows get the next row numbers.
+        /// New rows get the next row numbers. A master solver may refuse rows its solver cannot
+        /// hold, e.g. ranges: the batch then adds nothing.
         /// @throws std::logic_error Unless overridden.
+        /// @throws std::invalid_argument For a row the solver cannot hold.
         virtual void add_rows(const RowBatch& /*rows*/) {
             throw std::logic_error("MasterSolver::add_rows: this master solver cannot add rows");
         }
 
         /// @brief Appends columns.
         ///
+        /// A batch the solver cannot hold is refused as a whole and adds nothing.
         /// @param columns The columns to add, with their ids.
+        /// @throws std::invalid_argument For an id already used, or a number the solver refuses.
+        /// @throws std::out_of_range     For a column entering a row that does not exist.
         virtual void add_columns(const ColumnBatch& columns) = 0;
 
         /// @brief Solves the LP relaxation; integer variables are relaxed in place.
@@ -60,6 +65,9 @@ class MasterSolver {
         virtual SolverStatus solve_relaxation(const RelaxationParams& params) = 0;
 
         /// @brief Objective value of the last solve (minimization).
+        ///
+        /// This and the other accessors of a solution read the last solve, which must have
+        /// returned @c SolverStatus::Optimal; after another status a master solver may throw.
         [[nodiscard]] virtual double objective() const = 0;
 
         /// @brief Duals of the last LP solve, normalized as described above.
@@ -88,6 +96,7 @@ class MasterSolver {
         ///
         /// @param name  The solver's own option name.
         /// @param value The value.
+        /// @throws std::invalid_argument When the solver refuses the name or the value.
         virtual void set_option(std::string_view name, const OptionValue& value) = 0;
 
         /// @brief What this master solver supports.

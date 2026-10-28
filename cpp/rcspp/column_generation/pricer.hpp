@@ -35,7 +35,8 @@ struct PricingResult {
         std::vector<Solution> columns;
         /// @brief How the call ended.
         PricingStatus status = PricingStatus::Unknown;
-        /// @brief A lower bound on the best reduced cost (`−∞` when unknown).
+        /// @brief A lower bound on the best reduced cost (`−∞` when unknown); not read by the
+        ///        loop yet, kept for a Lagrangian bound.
         double min_reduced_cost_bound = -std::numeric_limits<double>::infinity();
         /// @brief Whether the stage that gave this result is exact: only an exact call that is
         ///        @c Optimal or @c Infeasible (no path at all), or a call answering

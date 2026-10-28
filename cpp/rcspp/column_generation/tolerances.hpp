@@ -12,7 +12,8 @@ inline constexpr double default_reduced_cost_tolerance = 1e-9;
 /// @brief Default feasibility tolerance: smaller values count as zero.
 inline constexpr double default_feasibility_tolerance = 1e-6;
 
-/// @brief Default gap between the bound and the LP value at which the loop may stop early.
+/// @brief Default gap between the bound and the LP value at which the loop may stop early (not
+///        used yet: reserved for an early stop on the gap).
 inline constexpr double default_optimality_gap = 1e-6;
 
 /// @brief What a tolerance may depend on.
@@ -43,7 +44,8 @@ class Tolerances {
         /// @brief Values below this are zero (artificial columns, integrality).
         [[nodiscard]] virtual double feasibility(const ToleranceContext& context) const = 0;
 
-        /// @brief Gap between the bound and the LP value at which the loop may stop early.
+        /// @brief Gap between the bound and the LP value at which the loop may stop early (not
+        ///        read by the loop yet: reserved for an early stop on the gap).
         [[nodiscard]] virtual double optimality_gap(const ToleranceContext& context) const = 0;
 };
 
