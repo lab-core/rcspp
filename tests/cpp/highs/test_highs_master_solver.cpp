@@ -308,6 +308,15 @@ TEST_F(HighsMasterSolverTest, LpSolvesLeaveTheIntegralityAsItIs) {
     ASSERT_EQ(solver.solve_integer({.column_type = ColumnType::Binary}), SolverStatus::Optimal);
     solver.restore_user_model();
     EXPECT_EQ(highs.getLp().col_upper_[solver.column(2)], kHighsInf);
+
+    // A bound the user tightened holds during the binary solve, and stays.
+    highs.changeColBounds(solver.column(2), 0.0, 0.0);
+    ASSERT_EQ(solver.solve_integer({.column_type = ColumnType::Binary}), SolverStatus::Optimal);
+    EXPECT_EQ(highs.getLp().col_upper_[solver.column(2)], 0.0);
+    EXPECT_EQ(highs.getLp().col_upper_[solver.column(1)], 1.0);
+    solver.restore_user_model();
+    EXPECT_EQ(highs.getLp().col_upper_[solver.column(2)], 0.0);
+    EXPECT_EQ(highs.getLp().col_upper_[solver.column(1)], kHighsInf);
 }
 
 TEST_F(HighsMasterSolverTest, AddsRowsWithNamesRangesIncluded) {
