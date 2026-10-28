@@ -11,8 +11,12 @@ option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
+option(USE_GUROBI "Enable the Gurobi master solver of column generation (needs Gurobi)" OFF)
 
 enable_testing()
+
+# Find modules (FindGUROBI.cmake) shared by the library and the examples.
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Coverage instrumentation -----------------------------------------------------
 # When enabled, every target that compiles cpp/rcspp or python/bindings code links
@@ -76,6 +80,18 @@ file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR})
 
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
+
+# Gurobi master solver ----------------------------------------------------------
+# Asked for explicitly, so a missing Gurobi or a missing C++ library is an error, not a skip.
+if(USE_GUROBI)
+  set(GUROBI_REQUIRE_CXX ON)
+  find_package(GUROBI REQUIRED)
+  if(NOT TARGET GUROBI::gurobi_cxx)
+    message(FATAL_ERROR
+            "USE_GUROBI needs the Gurobi C++ library (gurobi_c++); pass -DGUROBI_CXX_LIBRARY=<path>.")
+  endif()
+  add_subdirectory(cpp/rcspp_backends/gurobi)
+endif()
 
 # VRP column generation example + benchmarks -----------------------------------
 # The VRP application is an example consumer of the rcspp library; it and its
