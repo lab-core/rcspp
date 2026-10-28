@@ -95,7 +95,8 @@ struct ColumnGenerationResult {
 /// @brief The column generation loop: solve the master LP, price its duals, add columns.
 ///
 /// Holds the master by reference: the caller keeps it alive. @c run() may be called again, e.g.
-/// after the master or a pricer changed; the master is initialized only by the first call.
+/// after the master or a pricer changed. The master is initialized once, by the first run of any
+/// loop over it.
 class ColumnGeneration {
     public:
         /// @brief Constructs the loop.
@@ -127,6 +128,10 @@ class ColumnGeneration {
                 size_t new_columns;
                 bool proven;
         };
+
+        // On this loop's first run: sets the tolerances' inputs, and initializes the master unless
+        // another loop did.
+        void initialize();
 
         // Prices every pricer once and adds what they find.
         PricingRound price(std::span<const double> duals, const Timer& total_timer,
