@@ -39,10 +39,11 @@ SolverStatus status_of(HighsModelStatus status) {
     }
 }
 
-// Sets a string option for the lifetime of the guard, then puts the old value back.
+// Sets an option for the lifetime of the guard, then puts the old value back.
+template <typename Value>
 class TemporaryOption {
     public:
-        TemporaryOption(Highs& highs, std::string name, const std::string& value)
+        TemporaryOption(Highs& highs, std::string name, const Value& value)
             : highs_(highs), name_(std::move(name)) {
             highs_.getOptionValue(name_, old_value_);
             highs_.setOptionValue(name_, value);
@@ -58,7 +59,28 @@ class TemporaryOption {
     private:
         Highs& highs_;
         std::string name_;
-        std::string old_value_;
+        Value old_value_;
+};
+
+// The options every solve sets from its parameters, for the lifetime of the solve: the user's
+// values come back after it. HiGHS compares its time limit with a clock that counts all the
+// model's solves, while its MIP solver has a clock of its own that starts at 0: the clocks are
+// zeroed, so both count from this solve.
+class SolveOptions {
+    public:
+        SolveOptions(Highs& highs, double timeout_s, int threads, bool verbose, bool relaxation)
+            : time_limit_(highs, "time_limit", std::max(0.0, timeout_s)),
+              threads_(highs, "threads", static_cast<HighsInt>(threads)),
+              output_(highs, "output_flag", verbose),
+              relaxation_(highs, "solve_relaxation", relaxation) {
+            highs.zeroAllClocks();
+        }
+
+    private:
+        TemporaryOption<double> time_limit_;
+        TemporaryOption<HighsInt> threads_;
+        TemporaryOption<bool> output_;
+        TemporaryOption<bool> relaxation_;
 };
 
 }  // namespace
@@ -152,8 +174,8 @@ void HighsMasterSolver::add_columns(const ColumnBatch& columns) {
 
 SolverStatus HighsMasterSolver::solve_relaxation(const RelaxationParams& params) {
     restore_upper_bounds();
-    highs_.setOptionValue("solve_relaxation", true);
-    set_solve_options(params.timeout_s, params.threads, params.verbose);
+    const SolveOptions options(highs_, params.timeout_s, params.threads, params.verbose, true);
+    requested_threads_ = params.threads;
     return run(false);
 }
 
@@ -178,9 +200,9 @@ void HighsMasterSolver::primal(std::span<const ColumnId> ids, std::span<double> 
 
 SolverStatus HighsMasterSolver::solve_integer(const IntegerParams& params) {
     restore_upper_bounds();
-    highs_.setOptionValue("solve_relaxation", false);
-    set_solve_options(params.timeout_s, params.threads, params.verbose);
-    highs_.setOptionValue("mip_rel_gap", params.relative_gap);
+    const SolveOptions options(highs_, params.timeout_s, params.threads, params.verbose, false);
+    const TemporaryOption<double> gap(highs_, "mip_rel_gap", params.relative_gap);
+    requested_threads_ = params.threads;
 
     const std::span<const HighsInt> generated = columns_.all();
     const auto count = static_cast<HighsInt>(generated.size());
@@ -240,15 +262,8 @@ double HighsMasterSolver::sense_sign() const {
     return sense == ObjSense::kMaximize ? -1.0 : 1.0;
 }
 
-void HighsMasterSolver::set_solve_options(double timeout_s, int threads, bool verbose) {
-    // HiGHS compares its time limit with a clock that counts all the model's solves, while its
-    // MIP solver has a clock of its own that starts at 0: both count from this solve.
-    highs_.zeroAllClocks();
-    highs_.setOptionValue("time_limit", std::max(0.0, timeout_s));
-    highs_.setOptionValue("output_flag", verbose);
-
-    requested_threads_ = threads;
-    highs_.setOptionValue("threads", static_cast<HighsInt>(threads));
+void HighsMasterSolver::restore_user_model() {
+    restore_upper_bounds();
 }
 
 void HighsMasterSolver::restore_upper_bounds() {
@@ -305,7 +320,7 @@ SolverStatus HighsMasterSolver::run(bool integer) {
     }
 
     if (status == HighsModelStatus::kUnboundedOrInfeasible) {
-        const TemporaryOption presolve(highs_, "presolve", "off");
+        const TemporaryOption<std::string> presolve(highs_, "presolve", "off");
         status = run_once();
     }
     return status_of(status);

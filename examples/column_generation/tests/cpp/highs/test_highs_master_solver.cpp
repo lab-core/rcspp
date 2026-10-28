@@ -182,26 +182,62 @@ TEST_F(HighsMasterSolverTest, TheTimeLimitCountsFromEachSolve) {
     EXPECT_LT(highs.getRunTime(), short_limit_s);
 }
 
-TEST_F(HighsMasterSolverTest, SolveOptionsAreSetAndTheMethodIsLeftToHighs) {
+TEST_F(HighsMasterSolverTest, TheUserOptionsComeBackAfterEachSolveAndTheMethodIsLeftToHighs) {
+    // The user's own settings.
+    constexpr double user_time_limit = 50.0;
+    constexpr double user_gap = 0.2;
+    highs.setOptionValue("time_limit", user_time_limit);
+    highs.setOptionValue("mip_rel_gap", user_gap);
+    highs.setOptionValue("output_flag", true);  // the solves themselves run quietly
     HighsMasterSolver solver(highs, lp_rows());
     add_lp_columns(solver);
     HighsInt strategy = 0;
     highs.getOptionValue("simplex_strategy", strategy);
 
-    highs.setOptionValue("output_flag", true);
-    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
-    bool output = true;
+    ASSERT_EQ(solver.solve_relaxation({.timeout_s = 100.0}), SolverStatus::Optimal);
+    EXPECT_NEAR(solver.objective(), 3.75, tolerance);  // the solution outlives the options
+    double time_limit = 0.0;
+    highs.getOptionValue("time_limit", time_limit);
+    EXPECT_EQ(time_limit, user_time_limit);
+    bool output = false;
     highs.getOptionValue("output_flag", output);
-    EXPECT_FALSE(output);
+    EXPECT_TRUE(output);
+    bool relaxation = true;
+    highs.getOptionValue("solve_relaxation", relaxation);
+    EXPECT_FALSE(relaxation);
     HighsInt strategy_after = 0;
     highs.getOptionValue("simplex_strategy", strategy_after);
     EXPECT_EQ(strategy_after, strategy);
 
-    // No limit: HiGHS's infinity.
+    ASSERT_EQ(solver.solve_integer({}), SolverStatus::Optimal);
+    double gap = 0.0;
+    highs.getOptionValue("mip_rel_gap", gap);
+    EXPECT_EQ(gap, user_gap);
+    highs.setOptionValue("output_flag", false);
+}
+
+TEST_F(HighsMasterSolverTest, TheUserSolvesTheirIntegerModelAfterARun) {
+    // max x + y  s.t. 2x + 2y ≤ 3, x and y integer: 1 as a MIP, 1.5 as an LP.
+    highs.changeObjectiveSense(ObjSense::kMaximize);
+    const std::array<double, 2> cost{1.0, 1.0};
+    const std::array<double, 2> lower{0.0, 0.0};
+    const std::array<double, 2> upper{kHighsInf, kHighsInf};
+    highs.addCols(2, cost.data(), lower.data(), upper.data(), 0, nullptr, nullptr, nullptr);
+    highs.changeColIntegrality(0, HighsVarType::kInteger);
+    highs.changeColIntegrality(1, HighsVarType::kInteger);
+    const std::array<HighsInt, 2> columns{0, 1};
+    const std::array<double, 2> twos{2.0, 2.0};
+    const double at_most = 3.0;
+    const double no_lower = -kHighsInf;
+    highs.addRow(no_lower, at_most, 2, columns.data(), twos.data());
+    HighsMasterSolver solver(highs, {0});
+
     ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
-    double time_limit = 0.0;
-    highs.getOptionValue("time_limit", time_limit);
-    EXPECT_EQ(time_limit, kHighsInf);
+    EXPECT_NEAR(solver.objective(), -1.5, tolerance);
+    solver.restore_user_model();
+
+    ASSERT_EQ(highs.run(), HighsStatus::kOk);
+    EXPECT_NEAR(highs.getInfo().objective_function_value, 1.0, 1e-6);
 }
 
 TEST_F(HighsMasterSolverTest, AnotherThreadCountIsWarnedAbout) {
@@ -260,15 +296,17 @@ TEST_F(HighsMasterSolverTest, LpSolvesLeaveTheIntegralityAsItIs) {
     ASSERT_EQ(solver.solve_integer({}), SolverStatus::Optimal);
     EXPECT_NEAR(solver.objective(), 4.0, 1e-6);
     EXPECT_EQ(highs.getLp().integrality_[solver.column(0)], HighsVarType::kInteger);
-    double gap = 0.0;
-    highs.getOptionValue("mip_rel_gap", gap);
-    EXPECT_EQ(gap, default_relative_gap);
 
     // Binary: an upper bound of 1 during the MIP, the column's own back for the next LP.
     ASSERT_EQ(solver.solve_integer({.column_type = ColumnType::Binary}), SolverStatus::Optimal);
     EXPECT_EQ(highs.getLp().col_upper_[solver.column(2)], 1.0);
     ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
     EXPECT_NEAR(solver.objective(), 3.75, tolerance);
+    EXPECT_EQ(highs.getLp().col_upper_[solver.column(2)], kHighsInf);
+
+    // The end of a run gives them back too.
+    ASSERT_EQ(solver.solve_integer({.column_type = ColumnType::Binary}), SolverStatus::Optimal);
+    solver.restore_user_model();
     EXPECT_EQ(highs.getLp().col_upper_[solver.column(2)], kHighsInf);
 }
 
