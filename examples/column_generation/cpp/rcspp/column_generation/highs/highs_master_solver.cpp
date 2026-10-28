@@ -184,17 +184,31 @@ double HighsMasterSolver::objective() const {
 }
 
 void HighsMasterSolver::duals(std::span<double> out) const {
+    const HighsSolution& solution = highs_.getSolution();
+    if (!solution.dual_valid) {
+        throw std::logic_error("HighsMasterSolver::duals: the last solve gave no duals");
+    }
+
     const double sign = sense_sign();
-    const std::vector<double>& values = highs_.getSolution().row_dual;
+    const std::vector<double>& values = solution.row_dual;
     for (size_t row = 0; row < rows_.size(); ++row) {
         out[row] = sign * values[rows_[row]];
     }
 }
 
 void HighsMasterSolver::primal(std::span<const ColumnId> ids, std::span<double> out) const {
-    const std::vector<double>& values = highs_.getSolution().col_value;
+    const HighsSolution& solution = highs_.getSolution();
+    const std::vector<double>& values = solution.col_value;
     for (size_t index = 0; index < ids.size(); ++index) {
-        out[index] = values[column(ids[index])];
+        const auto position = static_cast<size_t>(column(ids[index]));
+        if (!solution.value_valid) {
+            throw std::logic_error("HighsMasterSolver::primal: the last solve gave no values");
+        }
+        if (position >= values.size()) {
+            throw std::logic_error(
+                "HighsMasterSolver::primal: a column was added after the last solve");
+        }
+        out[index] = values[position];
     }
 }
 

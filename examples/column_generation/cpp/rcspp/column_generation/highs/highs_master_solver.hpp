@@ -77,10 +77,14 @@ class HighsMasterSolver final : public MasterSolver {
 
         [[nodiscard]] double objective() const override;
 
+        /// @copydoc MasterSolver::duals
+        /// @throws std::logic_error When the last solve gave no duals.
         void duals(std::span<double> out) const override;
 
         /// @copydoc MasterSolver::primal
         /// @throws std::out_of_range For an id this master solver did not receive.
+        /// @throws std::logic_error  When the last solve gave no values, or a column was added
+        ///                           after it.
         void primal(std::span<const ColumnId> ids, std::span<double> out) const override;
 
         SolverStatus solve_integer(const IntegerParams& params) override;

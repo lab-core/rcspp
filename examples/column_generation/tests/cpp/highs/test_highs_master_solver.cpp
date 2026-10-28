@@ -437,6 +437,27 @@ TEST_F(HighsMasterSolverTest, AnIntegerOptionHighsCannotHoldIsRefused) {
     }
 }
 
+TEST_F(HighsMasterSolverTest, NoSolutionIsReadWithoutASolveThatGaveOne) {
+    HighsMasterSolver solver(highs, lp_rows());
+    MasterProblem master(solver);
+    ScriptedPricer pricer;
+    const size_t index = master.add_pricer(pricer);
+    master.add_columns(index, lp_columns());
+
+    // No solve yet.
+    std::vector<double> duals(3);
+    std::vector<double> values(1);
+    const std::vector<ColumnId> first{0};
+    EXPECT_THROW(solver.duals(duals), std::logic_error);
+    EXPECT_THROW(solver.primal(first, values), std::logic_error);
+
+    // A column added after the solve has no value yet.
+    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    master.add_columns(index, {make_path(1.0, covering({0}))});
+    const std::vector<ColumnId> added{3};
+    EXPECT_THROW(solver.primal(added, values), std::logic_error);
+}
+
 TEST_F(HighsMasterSolverTest, OptionsByHighsName) {
     HighsMasterSolver solver(highs, {});
 
