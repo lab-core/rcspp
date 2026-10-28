@@ -105,7 +105,9 @@ class ColumnGeneration {
         /// @param params Options.
         explicit ColumnGeneration(MasterProblem& master, ColumnGenerationParams params = {});
 
-        /// @brief Runs column generation until convergence or a limit.
+        /// @brief Runs column generation until convergence or a limit, then has the master
+        ///        solver restore the user's model (@c MasterSolver::restore_user_model), also when
+        ///        the run ends with an exception.
         [[nodiscard]] ColumnGenerationResult run();
 
         /// @brief Solves the master as a MIP over the columns it holds (a heuristic: the best
@@ -128,6 +130,9 @@ class ColumnGeneration {
                 size_t new_columns;
                 bool proven;
         };
+
+        // The loop itself: solve, price, add columns, until convergence or a limit.
+        [[nodiscard]] ColumnGenerationResult iterate();
 
         // On this loop's first run: sets the tolerances' inputs, and initializes the master unless
         // another loop did.

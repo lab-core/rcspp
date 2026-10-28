@@ -10,6 +10,7 @@
 #include <chrono>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -406,6 +407,22 @@ TEST(ColumnGenerationLoop, SecondRunDoesNotInitializeAgain) {
     EXPECT_EQ(again.iterations, 1U);
     EXPECT_EQ(again.statistics.artificial_columns, 1U);
     EXPECT_EQ(toy.master.number_of_columns(), 2U);
+}
+
+TEST(ColumnGenerationLoop, TheUserModelIsRestoredHoweverTheRunEnds) {
+    CoverOneRow converged;
+    ColumnGeneration loop(converged.master);
+    static_cast<void>(loop.run());
+    EXPECT_EQ(converged.solver.restore_calls, 1U);
+
+    CoverOneRow failing;
+    failing.pricer.respond = [](std::span<const double> /*duals*/,
+                                const PricingRequest& /*request*/) -> PricingResult {
+        throw std::runtime_error("a pricer failed");
+    };
+    ColumnGeneration failing_loop(failing.master);
+    EXPECT_THROW(static_cast<void>(failing_loop.run()), std::runtime_error);
+    EXPECT_EQ(failing.solver.restore_calls, 1U);
 }
 
 TEST(ColumnGenerationLoop, ASecondLoopDoesNotInitializeTheMasterAgain) {

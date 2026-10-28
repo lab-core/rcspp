@@ -92,6 +92,15 @@ class MasterSolver {
 
         /// @brief What this master solver supports.
         [[nodiscard]] virtual Capabilities capabilities() const = 0;
+
+        /// @brief Puts back what the LP solves of a run changed in the user's model (relaxed
+        ///        variable types, solver options…). @c ColumnGeneration::run calls it when the run
+        ///        ends, however it ends.
+        ///
+        /// During a run the model is in the master solver's hands: what it holds between two
+        /// solves must not be relied on. Optional: a master solver that changes nothing keeps this
+        /// default, which does nothing.
+        virtual void restore_user_model() {}
 };
 
 }  // namespace rcspp::column_generation
