@@ -105,7 +105,8 @@ class PricingStage {
 /// @brief The stages of a pricer, from the cheapest to the most exact.
 ///
 /// A pricer starts at the first stage, moves to the next one while a stage finds nothing, and
-/// comes back to the first after a stage found columns. Only an exact stage that finds nothing
+/// comes back to the first after a stage found columns (@c GraphPricer starts from the first on
+/// every call, so its cursor shows the last stage it ran). Only an exact stage that finds nothing
 /// lets the loop stop with a proof, so the last stage is usually exact. The default is one exact
 /// stage: @c SimpleDominanceAlgorithm with its default parameters.
 ///
