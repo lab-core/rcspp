@@ -82,8 +82,10 @@ ColumnGenerationResult ColumnGeneration::iterate() {
 
     initialize();
 
-    const double reduced_cost_tolerance = params_.tolerances->reduced_cost(context_);
+    // Never below the LP solver's own tolerance, or a column it leaves out would come back forever.
     MasterSolver& solver = master_.solver();
+    const double reduced_cost_tolerance =
+        std::max(params_.tolerances->reduced_cost(context_), solver.dual_tolerance());
     std::vector<double> duals;
 
     while (true) {
