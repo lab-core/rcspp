@@ -375,32 +375,8 @@ TEST_F(HighsMasterSolverTest, UnknownIdsAndRowsThrow) {
     master.add_columns(index, {make_path(1.0, covering({0}))});
 
     // The same id again, a row that does not exist, an id never received.
-    const std::array<ColumnId, 1> ids{0};
-    const std::array<double, 1> cost{1.0};
-    const std::array<double, 1> lower{0.0};
-    const std::array<double, 1> upper{infinity};
-    const std::array<std::uint32_t, 2> starts{0, 1};
-    const std::array<std::uint32_t, 1> first_row{0};
-    const std::array<double, 1> values{1.0};
-    const ColumnBatch same_id{.ids = ids,
-                              .cost = cost,
-                              .lower = lower,
-                              .upper = upper,
-                              .starts = starts,
-                              .row_indices = first_row,
-                              .values = values};
-    EXPECT_THROW(solver.add_columns(same_id), std::invalid_argument);
-
-    const std::array<ColumnId, 1> new_id{1};
-    const std::array<std::uint32_t, 1> missing_row{7};
-    const ColumnBatch bad_row{.ids = new_id,
-                              .cost = cost,
-                              .lower = lower,
-                              .upper = upper,
-                              .starts = starts,
-                              .row_indices = missing_row,
-                              .values = values};
-    EXPECT_THROW(solver.add_columns(bad_row), std::out_of_range);
+    EXPECT_THROW(solver.add_columns(OneEntryColumns({0}, {0}).batch()), std::invalid_argument);
+    EXPECT_THROW(solver.add_columns(OneEntryColumns({1}, {7}).batch()), std::out_of_range);
     EXPECT_EQ(highs.getNumCol(), 1);
 
     EXPECT_THROW((void)solver.column(42), std::out_of_range);
