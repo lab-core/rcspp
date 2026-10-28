@@ -97,6 +97,13 @@ class HighsMasterSolver final : public MasterSolver {
             return Capabilities{.add_rows = true, .integer_solve = true};
         }
 
+        /// @brief HiGHS's `dual_feasibility_tolerance`, read from the model.
+        [[nodiscard]] double dual_tolerance() const override;
+
+        /// @brief The largest absolute cost of the model's columns that this master solver did
+        ///        not add.
+        [[nodiscard]] double largest_user_cost() const override;
+
         /// @brief Gives the generated columns their upper bounds back, after a binary integer
         ///        solve; the solve options already come back after each solve.
         void restore_user_model() override;
