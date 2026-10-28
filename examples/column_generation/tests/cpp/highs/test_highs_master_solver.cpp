@@ -359,6 +359,26 @@ TEST_F(HighsMasterSolverTest, UnknownIdsAndRowsThrow) {
     EXPECT_THROW(solver.primal(unknown, out), std::out_of_range);
 }
 
+TEST_F(HighsMasterSolverTest, ABatchHighsRefusesAddsNoColumn) {
+    HighsMasterSolver solver(highs, lp_rows());
+    solver.add_columns(OneEntryColumns({0}, {0}).batch());
+
+    // A column listing row 1 twice: HiGHS refuses the whole batch (the master merges such rows
+    // before a master solver sees them; this batch is given directly).
+    OneEntryColumns repeated_row({1, 2}, {0, 1});
+    repeated_row.starts = {0, 1, 3};
+    repeated_row.row_indices = {0, 1, 1};
+    repeated_row.values = {1.0, 0.5, 0.5};
+    EXPECT_THROW(solver.add_columns(repeated_row.batch()), std::invalid_argument);
+
+    EXPECT_EQ(highs.getNumCol(), 1);
+    EXPECT_THROW((void)solver.column(1), std::out_of_range);
+
+    // The ids are still free, and later columns get the right indices.
+    solver.add_columns(OneEntryColumns({1, 2}, {0, 1}).batch());
+    EXPECT_EQ(solver.column(2), 2);
+}
+
 TEST_F(HighsMasterSolverTest, OptionsByHighsName) {
     HighsMasterSolver solver(highs, {});
 

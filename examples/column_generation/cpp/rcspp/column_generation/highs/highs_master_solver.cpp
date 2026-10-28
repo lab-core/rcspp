@@ -129,15 +129,20 @@ void HighsMasterSolver::add_columns(const ColumnBatch& columns) {
     }
     const std::vector<HighsInt> starts(columns.starts.begin(), columns.starts.end() - 1);
 
+    // HiGHS refuses some batches the shared checks let through (e.g. a row listed twice in a
+    // column); it then adds none of the columns, and none is recorded.
     const HighsInt first = highs_.getNumCol();
-    highs_.addCols(static_cast<HighsInt>(columns.size()),
-                   costs.data(),
-                   columns.lower.data(),
-                   columns.upper.data(),
-                   static_cast<HighsInt>(model_rows.size()),
-                   starts.data(),
-                   model_rows.data(),
-                   columns.values.data());
+    const HighsStatus status = highs_.addCols(static_cast<HighsInt>(columns.size()),
+                                              costs.data(),
+                                              columns.lower.data(),
+                                              columns.upper.data(),
+                                              static_cast<HighsInt>(model_rows.size()),
+                                              starts.data(),
+                                              model_rows.data(),
+                                              columns.values.data());
+    if (status == HighsStatus::kError) {
+        throw std::invalid_argument("HighsMasterSolver::add_columns: HiGHS refused the columns");
+    }
 
     for (size_t column = 0; column < columns.size(); ++column) {
         columns_.add(columns.ids[column], first + static_cast<HighsInt>(column));
