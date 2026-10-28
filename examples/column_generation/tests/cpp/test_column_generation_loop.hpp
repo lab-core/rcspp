@@ -408,6 +408,21 @@ TEST(ColumnGenerationLoop, SecondRunDoesNotInitializeAgain) {
     EXPECT_EQ(toy.master.number_of_columns(), 2U);
 }
 
+TEST(ColumnGenerationLoop, ASecondLoopDoesNotInitializeTheMasterAgain) {
+    CoverOneRow toy;
+    ColumnGeneration first(toy.master);
+    static_cast<void>(first.run());
+    EXPECT_TRUE(toy.master.initialized());
+
+    ColumnGenerationParams longer;
+    longer.max_iterations = 100;
+    ColumnGeneration second(toy.master, longer);
+    const ColumnGenerationResult again = second.run();
+    EXPECT_EQ(again.status, ColumnGenerationStatus::Optimal);
+    EXPECT_EQ(again.statistics.artificial_columns, 1U);
+    EXPECT_EQ(toy.master.number_of_columns(), 2U);
+}
+
 TEST(ColumnGenerationLoop, CostScaleFromPricersAndStartingColumns) {
     ScriptedMasterSolver solver;
     MasterProblem master(solver);
