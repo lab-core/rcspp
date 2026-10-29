@@ -8,4 +8,10 @@ try:
 except ImportError:  # pragma: no cover
     pass
 
-__all__ = ["HighspyMasterSolver"]
+# With gurobipy installed only.
+try:
+    from .gurobipy_master_solver import GurobipyMasterSolver
+except ImportError:  # pragma: no cover
+    pass
+
+__all__ = ["GurobipyMasterSolver", "HighspyMasterSolver"]
