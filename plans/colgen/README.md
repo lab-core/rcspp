@@ -4,8 +4,10 @@ Status: **phase 1: the C++ layer is done in code, four stacked drafts: #61 (inte
 master solver, self-test), #72 (graph pricer), #76 (HiGHS master solver; every column generation test runs without a
 Gurobi license, `D-59`); stacked by rebase (`D-85`). Review round of 2026-10-28 done: every finding fixed
 (`D-93`–`D-99`, commit table R.0–R.4). Now: the Python layer (PRs 5–6), designed in `phase-1-python.md` (accepted,
-`D-86`–`D-92`); PR 5 (5.1 to 5.6) done, branch `feature/column-generation-python` on PR 4; `D-87` measured (`D-100`)**.
-Updated: 2026-10-28. Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
+`D-86`–`D-92`); PR 5 (5.1 to 5.6) done, branch `feature/column-generation-python` on PR 4; `D-87` measured (`D-100`); PR
+6: 6.1 to 6.3 done (`D-101`), branch `feature/column-generation-python-masters` on PR 5. Packaging studied
+(`packaging.md`, open: `Q-37`–`Q-40`); C++ packaging after 6.4 (`D-102`, `T-1.12`)**. Updated: 2026-10-29. Baseline:
+`main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
 
@@ -58,6 +60,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `prior-art.md` | SCIP, GCG, Coluna, RouteOpt, HiGHS, python-mip…: comparison + proposals `PA-` | before designing a component |
 | `issues.md` + `issues/` | GitHub issues to create (`I-`, one paste-ready file each) and to close | when a finding is outside the plan's code |
 | `baseline.md` | measured benchmark results (informative and golden) | before and after perf-sensitive changes |
+| `packaging.md` | study notes: Gurobi from Python (B1, B2, C API, adapters), Python packages, C++ packaging and flags | before `T-1.11`, `T-1.12`, or any packaging change |
 
 ## Project conventions that apply here
 
