@@ -3,6 +3,8 @@
 """The HiGHS master solver from Python, over a model built from arrays (rcspp built with
 HiGHS)."""
 
+import ctypes
+import importlib
 import math
 import os
 import sys
@@ -41,6 +43,15 @@ SELF_TEST_LP: dict[str, Any] = dict(
     row_indices=[0, 2, 0, 1, 1, 2],
     values=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
 )
+
+
+def test_the_module_exports_no_highs_symbol() -> None:
+    # Another HiGHS in the process, such as highspy's, must keep its own: the module links
+    # HiGHS in with its symbols hidden. Highs::run() in the mangling of Linux and macOS; a
+    # Windows module exports only what it marks, so there the test holds anyway.
+    module = ctypes.CDLL(importlib.import_module("rcspp._core").__file__)
+    assert not hasattr(module, "_ZN5Highs3runEv")
+    assert hasattr(module, "PyInit__core")
 
 
 def test_passes_the_master_solver_self_test() -> None:
