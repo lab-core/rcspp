@@ -188,9 +188,51 @@ class HighspyModel:
         return self._solver
 
 
+class GurobipyModel:
+    """The user's rows in a gurobipy model, which GurobipyMasterSolver works on from
+    Python."""
+
+    def __init__(self) -> None:
+        import gurobipy
+
+        self.model = gurobipy.Model()
+        self.model.Params.OutputFlag = 0
+        self._solver: MasterSolver | None = None
+
+    def add_row(self, lower: float, upper: float, name: str) -> None:
+        import gurobipy
+
+        assert self._solver is None, "rows come before the master solver"
+        expression = gurobipy.LinExpr()
+        if lower == upper:
+            self.model.addLConstr(expression, gurobipy.GRB.EQUAL, lower, name)
+        elif math.isinf(upper):
+            self.model.addLConstr(expression, gurobipy.GRB.GREATER_EQUAL, lower, name)
+        else:
+            self.model.addLConstr(expression, gurobipy.GRB.LESS_EQUAL, upper, name)
+
+    def solver(self) -> MasterSolver:
+        if self._solver is None:
+            self._solver = column_generation.GurobipyMasterSolver(self.model)
+        return self._solver
+
+
 def has_highspy() -> bool:
     """Whether highspy is installed."""
     return importlib.util.find_spec("highspy") is not None
+
+
+def has_gurobi_license() -> bool:
+    """Whether gurobipy is installed and Gurobi can build a model on this machine."""
+    if importlib.util.find_spec("gurobipy") is None:
+        return False
+    import gurobipy
+
+    try:
+        gurobipy.Model().dispose()
+    except gurobipy.GurobiError:
+        return False
+    return True
 
 
 @pytest.fixture(
@@ -210,6 +252,13 @@ def has_highspy() -> bool:
                 reason="rcspp built without HiGHS, or highspy not installed",
             ),
             id="highspy",
+        ),
+        pytest.param(
+            GurobipyModel,
+            marks=pytest.mark.skipif(
+                not has_gurobi_license(), reason="gurobipy not installed, or no Gurobi license"
+            ),
+            id="gurobipy",
         ),
     ]
 )
