@@ -8,6 +8,7 @@ UserModel, and every test runs over each of them. A solver missing from this bui
 skipped.
 """
 
+import importlib.util
 import math
 import os
 import sys
@@ -166,6 +167,32 @@ class HighsFromArrays:
         return self._solver
 
 
+class HighspyModel:
+    """The user's rows in a highspy model, copied by HighspyMasterSolver."""
+
+    def __init__(self) -> None:
+        import highspy
+
+        self.model = highspy.Highs()
+        self.model.setOptionValue("output_flag", False)
+        self._solver: MasterSolver | None = None
+
+    def add_row(self, lower: float, upper: float, name: str) -> None:
+        assert self._solver is None, "rows come before the master solver"
+        self.model.addRow(lower, upper, 0, [], [])
+        self.model.passRowName(self.model.getNumRow() - 1, name)
+
+    def solver(self) -> MasterSolver:
+        if self._solver is None:
+            self._solver = column_generation.HighspyMasterSolver(self.model)
+        return self._solver
+
+
+def has_highspy() -> bool:
+    """Whether highspy is installed."""
+    return importlib.util.find_spec("highspy") is not None
+
+
 @pytest.fixture(
     params=[
         pytest.param(
@@ -175,6 +202,14 @@ class HighsFromArrays:
                 reason="rcspp built without HiGHS",
             ),
             id="highs-from-arrays",
+        ),
+        pytest.param(
+            HighspyModel,
+            marks=pytest.mark.skipif(
+                not hasattr(column_generation, "HighspyMasterSolver") or not has_highspy(),
+                reason="rcspp built without HiGHS, or highspy not installed",
+            ),
+            id="highspy",
         ),
     ]
 )

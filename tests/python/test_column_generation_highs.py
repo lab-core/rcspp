@@ -20,6 +20,7 @@ from rcspp.column_generation import (  # noqa: E402
     ColumnBatch,
     IntegerParams,
     RelaxationParams,
+    RowBatch,
     SolverStatus,
     master_solver_self_test,
 )
@@ -87,6 +88,42 @@ def test_the_rows_that_columns_enter() -> None:
     assert solver.column(7) == 3
     with pytest.raises(IndexError):
         solver.column(8)
+
+
+def test_the_columns_and_rows_of_the_model() -> None:
+    solver = column_generation.HighsMasterSolver(**SELF_TEST_LP, rows=[2, 0])
+    solver.add_rows(RowBatch(lower=[-math.inf], upper=[4.0], names=["fleet"]))
+    solver.add_columns(
+        ColumnBatch(
+            ids=[0, 1],
+            cost=[0.5, 2.0],
+            lower=[0.0, 0.0],
+            upper=[math.inf, 3.0],
+            starts=[0, 2, 3],
+            row_indices=[0, 2, 1],
+            values=[1.0, 1.0, 2.0],
+        )
+    )
+
+    # Column 1 first; the entries are in the model's rows: master row 0 is model row 2,
+    # and the added master row 2 is model row 3.
+    cost, lower, upper, starts, row_indices, values = solver.model_columns([1, 0])
+    assert cost.tolist() == [2.0, 0.5]
+    assert lower.tolist() == [0.0, 0.0]
+    assert upper.tolist() == [3.0, math.inf]
+    assert starts.tolist() == [0, 1, 3]
+    assert row_indices.tolist() == [0, 2, 3]
+    assert values.tolist() == [2.0, 1.0, 1.0]
+
+    lower, upper, names = solver.model_rows(2)
+    assert lower.tolist() == [-math.inf, -math.inf]
+    assert upper.tolist() == [1.5, 4.0]
+    assert names == ["", "fleet"]
+    assert len(solver.model_rows()[2]) == 4
+    assert solver.model_rows(4)[2] == []
+    for first in (-1, 5):
+        with pytest.raises(IndexError, match="first must be between"):
+            solver.model_rows(first)
 
 
 def test_integer_columns_are_relaxed_by_lp_solves_only() -> None:
