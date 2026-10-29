@@ -105,10 +105,15 @@ if(USE_HIGHS)
     FIND_PACKAGE_ARGS CONFIG
   )
   # Settings for a fetched HiGHS only: the library alone, static and position independent (it
-  # ends up in the Python module too), and not linted as our code is.
+  # ends up in the Python module too), and not linted as our code is. Its symbols are hidden, so
+  # that the Python module does not export them on Linux and macOS: another HiGHS in the same
+  # process, such as highspy's, keeps its own.
   block(PROPAGATE highs_FOUND highs_VERSION highs_DIR)
     set(BUILD_SHARED_LIBS OFF)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_C_VISIBILITY_PRESET hidden)
+    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+    set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
     set(BUILD_TESTING OFF)
     set(BUILD_CXX_EXE OFF)
     set(BUILD_EXAMPLES OFF)
