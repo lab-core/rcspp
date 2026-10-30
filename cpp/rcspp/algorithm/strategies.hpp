@@ -31,8 +31,6 @@ struct Simple {
 
 /// @brief Labels taken by cost plus completion bound, lowest first (A*).
 struct AStar {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::BestFirstSchedule<ResourceType>;
 };
