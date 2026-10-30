@@ -179,6 +179,11 @@ New features are summarised, with a pointer to where they are documented.
   fails. `rcspp::testing::expect_same_optimum<Strategy>(graph, params)`
   (`rcspp/testing/expect_same_optimum.hpp`) checks an exact strategy against forward Simple, in
   every direction it searches. See "A strategy of one's own" in `docs/advanced/algorithms.md`.
+- **Backward A\*, Pushing and Pulling**: `direction = SearchDirection::Backward` now works with
+  `strategy::AStar`, `strategy::Pushing` and `strategy::Pulling` (in Python, `direction="backward"`
+  with `astar`, `pushing` and `pulling`), as with Simple. Each finds the forward optimum; backward,
+  Pushing and Pulling sweep the nodes in descending order, and A\* bounds the cost from a source.
+  See "Search directions" in `docs/advanced/algorithms.md`.
 - **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
   `strategy::Simple` searches backward, from the sinks; `create_algorithm` and `solve` build the

@@ -74,6 +74,43 @@ void expect_backward_refused(const char* name) {
         << name;
 }
 
+/// @brief Expects @p Strategy to search backward when its params say so: the class it builds says
+///        so, and finds the forward optimum along the same path.
+template <typename Strategy>
+void expect_runs_backward(const char* name) {
+    auto g = graph();
+    const auto forward = g->template solve<Strategy>(AlgorithmBaseParams{});
+    AlgorithmBaseParams base;
+    base.direction = SearchDirection::Backward;
+    const auto backward = g->template solve<Strategy>(base);
+
+    ASSERT_FALSE(forward.solutions.empty()) << name;
+    ASSERT_FALSE(backward.solutions.empty()) << name;
+    EXPECT_NEAR(backward.solutions.front().cost, -4.0, kTolerance) << name;
+    EXPECT_EQ(backward.solutions.front().path_arc_ids, forward.solutions.front().path_arc_ids)
+        << name;
+    EXPECT_EQ(g->template create_algorithm<Strategy>(params(SearchDirection::Backward))
+                  ->supported_directions(),
+              std::vector<SearchDirection>{SearchDirection::Backward})
+        << name;
+}
+
+/// @brief Expects @p Strategy, searching backward, to take buckets and to refuse a container that
+///        declares no with_direction of its own.
+template <typename Strategy>
+void expect_backward_containers(const char* name) {
+    auto g = graph();
+    AlgorithmParams<Buckets> buckets(Buckets(1, 0, 0));
+    buckets.direction = SearchDirection::Backward;
+    EXPECT_NO_THROW((void)(g->template create_algorithm<Strategy, Buckets>(buckets))) << name;
+
+    AlgorithmParams<InheritsListOnly> own;
+    own.direction = SearchDirection::Backward;
+    EXPECT_THROW((void)(g->template create_algorithm<Strategy, InheritsListOnly>(own)),
+                 std::invalid_argument)
+        << name;
+}
+
 }  // namespace search_direction_test
 
 /// @brief Params search forward unless told otherwise, and an algorithm says what it supports.
@@ -116,12 +153,12 @@ TEST(SearchDirection, SimpleRunsBackward) {
     }
 }
 
-/// @brief A*, Pushing and Pulling search forward only, and say so when they are created.
-TEST(SearchDirection, AStarPushingAndPullingRefuseBackward) {
+/// @brief A*, Pushing and Pulling search backward when their params say so, as Simple does.
+TEST(SearchDirection, EveryLabellingStrategyRunsBackward) {
     namespace sdt = search_direction_test;
-    sdt::expect_backward_refused<strategy::AStar>("A*");
-    sdt::expect_backward_refused<strategy::Pushing>("Pushing");
-    sdt::expect_backward_refused<strategy::Pulling>("Pulling");
+    sdt::expect_runs_backward<strategy::AStar>("A*");
+    sdt::expect_runs_backward<strategy::Pushing>("Pushing");
+    sdt::expect_runs_backward<strategy::Pulling>("Pulling");
 }
 
 /// @brief Greedy and Tabu search forward only, and say so when they are created.
@@ -173,6 +210,10 @@ TEST(SearchDirection, BackwardNeedsAContainerThatTurnsBackward) {
                  std::invalid_argument);
     own.direction = SearchDirection::Forward;
     EXPECT_NO_THROW((void)(g->create_algorithm<strategy::Simple, sdt::InheritsListOnly>(own)));
+
+    sdt::expect_backward_containers<strategy::AStar>("A*");
+    sdt::expect_backward_containers<strategy::Pushing>("Pushing");
+    sdt::expect_backward_containers<strategy::Pulling>("Pulling");
 }
 
 /// @brief A refusal names the class refused: the algorithm that does not search in a direction, or

@@ -562,12 +562,13 @@ class ResourceGraph:
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
             direction: ``'forward'``, ``'backward'`` or ``'bidirectional'`` (or a
-                ``SearchDirection``). Only ``'simple'`` searches backward or
-                bidirectionally; the other algorithms raise ``ValueError``. A
-                bidirectional search goes forward from the sources and backward
-                from the sinks, and joins the two halves in the middle: set
-                ``params.critical_resource_index`` (the clock) and
-                ``params.half_way_point`` (where the halves meet; with 0, the
+                ``SearchDirection``). Every labelling algorithm (``'simple'``,
+                ``'pushing'``, ``'pulling'``, ``'astar'``) searches backward, and
+                ``'simple'`` also bidirectionally; any other pairing raises
+                ``ValueError``. A bidirectional search goes forward from the
+                sources and backward from the sinks, and joins the two halves in
+                the middle: set ``params.critical_resource_index`` (the clock)
+                and ``params.half_way_point`` (where the halves meet; with 0, the
                 default, the solve is correct but slower than a forward one), and
                 see :doc:`the algorithms guide </advanced/algorithms>`.
                 ``None`` (the default) uses ``params.direction`` (forward unless
