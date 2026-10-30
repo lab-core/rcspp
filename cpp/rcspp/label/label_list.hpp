@@ -38,7 +38,7 @@ class LabelList {
         /// @brief Returns an empty list that compares labels in direction @p TargetDirection.
         ///
         /// A search in another direction keeps its labels in this copy (see
-        /// @c detail::rebind_direction).
+        /// @c detail::make_directed_container).
         ///
         /// @tparam TargetDirection The direction policy of the copy.
         template <class TargetDirection>

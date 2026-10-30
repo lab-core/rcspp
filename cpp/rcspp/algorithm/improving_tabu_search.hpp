@@ -120,7 +120,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
         }
 
         void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
-            if (this->params_.max_iterations >= MAX_INT) {
+            if (this->params_.max_iterations >= kNoLimit) {
                 LOG_ERROR(
                     "ImprovingTabuSearch: max_iterations must be finite for the improvement "
                     "phase.\n");
@@ -147,9 +147,9 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
 
             auto* init_label = this->path_.back().first;
             double best_cost = init_label->get_cost();
-            if (best_cost < this->cost_upper_bound_) {
-                this->best_cost_upper_bound_ = best_cost;
-                this->extract_solution(*init_label);
+            if (best_cost < this->upper_bound_) {
+                this->incumbent_ = best_cost;
+                this->record_solution(*init_label);
                 apply_tabu(*init_label);
             }
             this->clear_path();
@@ -179,12 +179,12 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                     auto* sink_label = this->path_.back().first;
                     double cost = sink_label->get_cost();
 
-                    if (cost < this->cost_upper_bound_) {
-                        this->extract_solution(*sink_label);
+                    if (cost < this->upper_bound_) {
+                        this->record_solution(*sink_label);
                         if (cost + this->params_.tolerance < best_cost) {
                             // Strictly improving solution — intensify.
                             best_cost = cost;
-                            this->best_cost_upper_bound_ = best_cost;
+                            this->incumbent_ = best_cost;
                             no_improve_count = 0;
                             tabu_.shrink_extra();
                         } else {

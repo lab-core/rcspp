@@ -68,7 +68,7 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     auto algorithm =
         run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
-    run.bounded = run.result.bidirectional->bounded_by_half_way;
+    run.bounded = run.result.bidirectional->half_way_used;
 
     equivalence_test::expect_consistent_ref_counts(algorithm->get_label_pool());
 
