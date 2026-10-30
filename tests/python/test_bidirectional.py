@@ -393,9 +393,23 @@ def test_simple_runs_in_every_direction(direction):
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
 
 
-@pytest.mark.parametrize("algorithm", ["pushing", "pulling", "astar", "greedy", "tabu"])
-def test_other_algorithms_refuse_backward(algorithm):
-    """Only ``simple`` searches backward; the others raise ValueError."""
+@pytest.mark.parametrize("algorithm", ["pushing", "pulling", "astar"])
+def test_every_labelling_algorithm_runs_backward(algorithm):
+    """``pushing``, ``pulling`` and ``astar`` search backward, as ``simple`` does.
+
+    They find the forward optimum.
+    """
+    expected = _time_window_graph(_WINDOWS, _ARCS).solve(algorithm=algorithm).solutions[0].cost
+
+    result = _time_window_graph(_WINDOWS, _ARCS).solve(algorithm=algorithm, direction="backward")
+    assert len(result.solutions) > 0
+    assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
+
+
+@pytest.mark.parametrize("algorithm", ["greedy", "tabu"])
+def test_greedy_and_tabu_refuse_backward(algorithm):
+    """``greedy`` and ``tabu`` search forward only; asked to search backward, they raise
+    ValueError."""
     params = AlgorithmParams()
     params.max_iterations = 10  # the tabu search refuses to run without a finite budget
     with pytest.raises(ValueError, match="does not support the backward direction"):
