@@ -22,4 +22,5 @@ target_include_directories(rcspp_column_generation PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_link_libraries(rcspp_column_generation PUBLIC rcspp)
+set_target_properties(rcspp_column_generation PROPERTIES EXPORT_NAME column_generation)
 add_library(rcspp::column_generation ALIAS rcspp_column_generation)

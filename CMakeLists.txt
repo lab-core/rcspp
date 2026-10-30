@@ -209,6 +209,28 @@ install(DIRECTORY cpp/rcspp/
     PATTERN "column_generation" EXCLUDE
     PATTERN "column_generation.hpp" EXCLUDE
 )
+# Column generation's headers with it, each master solver's with it.
+if(USE_COLUMN_GENERATION)
+  install(FILES cpp/rcspp/column_generation.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp)
+  install(DIRECTORY cpp/rcspp/column_generation/
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp/column_generation
+      FILES_MATCHING PATTERN "*.hpp"
+      PATTERN "gurobi" EXCLUDE
+      PATTERN "highs" EXCLUDE
+  )
+endif()
+foreach(solver gurobi highs)
+  string(TOUPPER ${solver} option)
+  if(USE_COLUMN_GENERATION_${option})
+    install(FILES cpp/rcspp/column_generation/${solver}/${solver}_master_solver.hpp
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp/column_generation/${solver}
+    )
+  endif()
+endforeach()
+# Gurobi's find module, for the Gurobi master solver's users.
+if(USE_COLUMN_GENERATION_GUROBI)
+  install(FILES cmake/FindGUROBI.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rcspp)
+endif()
 
 # The CMake package, to be used with:
 # find_package(rcspp)
@@ -235,11 +257,40 @@ install(FILES
     DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
 )
 
-# A check that the installed package works: install into a folder of the build, then build a small
-# program against it with find_package(rcspp).
+# The components (rcsppConfig.cmake): each built library with its headers and its own targets file,
+# which rcsppConfig.cmake loads when the component is asked for. A fetched HiGHS installs itself in
+# the same prefix (its own install rules), where find_package(rcspp) finds it.
+set(RCSPP_COMPONENT_TARGETS
+    column_generation rcspp_column_generation
+    column_generation_highs rcspp_column_generation_highs
+    column_generation_gurobi rcspp_column_generation_gurobi
+)
+set(RCSPP_COMPONENTS_BUILT)
+while(RCSPP_COMPONENT_TARGETS)
+  list(POP_FRONT RCSPP_COMPONENT_TARGETS component target)
+  if(NOT TARGET ${target})
+    continue()
+  endif()
+  list(APPEND RCSPP_COMPONENTS_BUILT ${component})
+  # Not rcsppTargets-*.cmake: rcsppTargets.cmake loads those as its own per-configuration files.
+  install(TARGETS ${target}
+      EXPORT rcspp-${component}-targets
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+  install(EXPORT rcspp-${component}-targets
+      FILE rcspp-${component}-targets.cmake
+      NAMESPACE rcspp::
+      DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+  )
+endwhile()
+
+# A check that the installed package works: install into a folder of the build, then build small
+# programs against it with find_package(rcspp), one per component built.
 if(USE_TESTS)
+  string(REPLACE ";" "|" RCSPP_COMPONENTS_ARGUMENT "${RCSPP_COMPONENTS_BUILT}")
   add_test(NAME install_and_find_package
       COMMAND ${CMAKE_COMMAND}
+          "-DCOMPONENTS=${RCSPP_COMPONENTS_ARGUMENT}"
           -DBUILD_DIR=${CMAKE_BINARY_DIR}
           -DCONFIG=$<CONFIG>
           -DPREFIX=${CMAKE_BINARY_DIR}/install-check/prefix
