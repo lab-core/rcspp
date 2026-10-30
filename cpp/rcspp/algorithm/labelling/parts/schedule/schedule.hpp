@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <list>
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
@@ -75,6 +76,25 @@ concept LabelSchedule =
     Schedule<ScheduleType, ResourceType> &&
     requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context) {
         { schedule.next(context) } -> std::same_as<StoredLabel<ResourceType>>;
+    };
+
+/// @brief A schedule that hands out one node at a time: Pulling.
+///
+/// @c visit_next_node moves to the next node and pulls into it: it calls `extend(label, arc)` for
+/// each label waiting at the node an arc comes from, along each arc into the node, in the
+/// direction's sense. @c current is the node's new labels, which the caller then filters, taking
+/// a label off with @c remove_current.
+template <typename ScheduleType, typename ResourceType>
+concept PullingSchedule =
+    Schedule<ScheduleType, ResourceType> &&
+    requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context,
+             void (*extend)(Label<ResourceType>*, const Arc<ResourceType>*),
+             typename std::list<StoredLabel<ResourceType>>::iterator position) {
+        schedule.visit_next_node(context, extend);
+        schedule.current();
+        {
+            schedule.remove_current(position)
+        } -> std::same_as<typename std::list<StoredLabel<ResourceType>>::iterator>;
     };
 
 /// @brief Whether @p ScheduleType's order reads the search's completion bound: a schedule says so

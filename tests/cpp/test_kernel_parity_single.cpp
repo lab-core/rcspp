@@ -235,13 +235,15 @@ TEST(Parity, PushingForward) {
         /*buckets=*/true);
 }
 
+/// @brief The frozen Pulling against the kernel's search on the forward pull, which Pulling is
+///        built from.
 TEST(Parity, PullingForward) {
     parity::sweep<parity::Traced<ref::PullingDominanceAlgorithm<Composed, List>>,
-                  parity::Traced<rcspp::PullingDominanceAlgorithm<Composed, List>>>(
+                  parity::TracedLabellingAlgorithm<parity::ForwardPull, List>>(
         SearchDirection::Forward,
         List{});
     parity::sweep<parity::Traced<ref::PullingDominanceAlgorithm<Composed, Buckets>>,
-                  parity::Traced<rcspp::PullingDominanceAlgorithm<Composed, Buckets>>>(
+                  parity::TracedLabellingAlgorithm<parity::ForwardPull, Buckets>>(
         SearchDirection::Forward,
         Buckets(10, 1, 0),
         /*buckets=*/true);

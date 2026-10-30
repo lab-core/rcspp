@@ -23,12 +23,10 @@ CheckOptions:
   # from an alias at namespace scope, so it lets any snake_case alias pass; review checks that an
   # alias at namespace scope is CamelCase.
   readability-identifier-naming.TypeAliasIgnoredRegexp: '^[a-z][a-z0-9_]*$'
-  # Functions and members: snake_case; non-public data members end in _. The public fields of the
-  # internal NodeUnprocessedLabelsManager (dominance_algorithm.hpp) keep their trailing _.
+  # Functions and members: snake_case; non-public data members end in _.
   readability-identifier-naming.FunctionCase: lower_case
   readability-identifier-naming.MethodCase: lower_case
   readability-identifier-naming.MemberCase: lower_case
-  readability-identifier-naming.MemberIgnoredRegexp: '^(num_unprocessed_labels|current_unprocessed_node_pos|num_loops|current_unprocessed_labels|unprocessed_labels_by_node_pos|truncated_unprocessed_labels_by_node_pos)_$'
   readability-identifier-naming.PrivateMemberSuffix: _
   readability-identifier-naming.ProtectedMemberSuffix: _
   # Constants: kCamelCase. The static members of traits and policies follow the standard library
