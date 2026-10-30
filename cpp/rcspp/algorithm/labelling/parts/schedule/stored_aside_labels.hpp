@@ -5,6 +5,7 @@
 
 #include <vector>
 
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/label/label_pool.hpp"
