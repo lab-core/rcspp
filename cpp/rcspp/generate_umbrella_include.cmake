@@ -3,7 +3,7 @@
 # Expects two variables passed on the command line:
 #  -DREPO_SRC_DIR: absolute path to the repository "src" folder
 #  -DOUT_FILE: absolute path to the output umbrella header to write
-# and optionally -DEXCLUDED_DIRS: "|"-separated folders under REPO_SRC_DIR whose headers are left out
+# and optionally -DEXCLUDED: "|"-separated folders and headers under REPO_SRC_DIR that are left out
 
 if(NOT REPO_SRC_DIR)
   message(FATAL_ERROR "generate_umbrella_include.cmake requires -DREPO_SRC_DIR to be set")
@@ -23,11 +23,15 @@ file(GLOB_RECURSE ALL_HEADERS "${REPO_SRC_DIR}/*.hpp")
 # Remove the umbrella header itself if present to avoid self-include
 list(REMOVE_ITEM ALL_HEADERS "${OUT_FILE}")
 
-# Leave out the folders of EXCLUDED_DIRS ("|"-separated): libraries of their own.
-string(REPLACE "|" ";" excluded_dirs "${EXCLUDED_DIRS}")
-foreach(directory ${excluded_dirs})
-  file(GLOB_RECURSE excluded_headers "${directory}/*.hpp")
-  list(REMOVE_ITEM ALL_HEADERS ${excluded_headers})
+# Leave out the folders and headers of EXCLUDED ("|"-separated): libraries of their own.
+string(REPLACE "|" ";" excluded "${EXCLUDED}")
+foreach(path ${excluded})
+  if(IS_DIRECTORY "${path}")
+    file(GLOB_RECURSE excluded_headers "${path}/*.hpp")
+    list(REMOVE_ITEM ALL_HEADERS ${excluded_headers})
+  else()
+    list(REMOVE_ITEM ALL_HEADERS "${path}")
+  endif()
 endforeach()
 
 # Sort the list for deterministic output

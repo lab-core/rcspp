@@ -11,6 +11,7 @@ option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
+option(USE_COLUMN_GENERATION "Build column generation (rcspp::column_generation)" ON)
 option(USE_GUROBI "Enable the Gurobi master solver of column generation (needs Gurobi)" OFF)
 option(USE_HIGHS "Enable the HiGHS master solver of column generation (installed, else fetched)" OFF)
 
@@ -77,16 +78,21 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .so, .dylib
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")   # executables
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin")   # .pdb (Windows)
 
-# The master solvers of column generation: libraries of their own, built only when asked for, so
-# the globs over cpp/rcspp (core library, umbrella header, test sources, installed headers) skip
-# these folders.
-set(RCSPP_MASTER_SOLVER_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation/gurobi
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation/highs
-)
+# Column generation and its master solvers: libraries of their own, so the globs over cpp/rcspp
+# (core library, umbrella header, test sources, installed headers) skip its folder and its
+# umbrella header.
+set(RCSPP_COLUMN_GENERATION_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation)
+set(RCSPP_COLUMN_GENERATION_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation.hpp)
 
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
+
+# Column generation ------------------------------------------------------------
+if(USE_COLUMN_GENERATION)
+  add_subdirectory(cpp/rcspp/column_generation)
+elseif(USE_GUROBI OR USE_HIGHS)
+  message(FATAL_ERROR "USE_GUROBI and USE_HIGHS build master solvers of column generation: they need USE_COLUMN_GENERATION.")
+endif()
 
 # Gurobi master solver ----------------------------------------------------------
 # Asked for explicitly, so a missing Gurobi or a missing C++ library is an error, not a skip.
@@ -195,8 +201,8 @@ install(TARGETS rcspp
 install(DIRECTORY cpp/rcspp/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp
     FILES_MATCHING PATTERN "*.hpp"
-    PATTERN "column_generation/gurobi" EXCLUDE
-    PATTERN "column_generation/highs" EXCLUDE
+    PATTERN "column_generation" EXCLUDE
+    PATTERN "column_generation.hpp" EXCLUDE
 )
 
 # The CMake package, to be used with:

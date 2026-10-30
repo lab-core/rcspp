@@ -14,10 +14,17 @@ from enum import Enum, auto
 from typing import Any, Callable, NamedTuple, Sequence, TypeAlias
 
 import numpy as np
+import pytest
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "python", "src")
 )
+
+import rcspp  # noqa: E402
+
+# Built without column generation (USE_COLUMN_GENERATION off): the tests that use these skip.
+if not hasattr(rcspp, "column_generation"):
+    pytest.skip("rcspp built without column generation", allow_module_level=True)
 
 from rcspp._core.graph import Column, Row, Solution  # noqa: E402
 from rcspp.column_generation import (  # noqa: E402

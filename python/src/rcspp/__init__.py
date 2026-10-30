@@ -54,7 +54,7 @@ if not _os.path.exists(_os.path.join(_pkg_dir, f"_core{_ext_suffix}")):
 
 del _imputil, _os, _sys, _sysconfig, _pkg_dir, _ext_suffix
 
-from . import column_generation, graph, logger, presets, resource  # noqa: E402
+from . import _core, graph, logger, presets, resource  # noqa: E402
 from ._core import available_memory_bytes, process_memory_bytes  # noqa: E402
 from ._core.graph import (  # noqa: E402
     AlgorithmStatus,
@@ -72,7 +72,6 @@ __all__ = [
     "available_memory_bytes",
     "SolveResult",
     "check_interrupted",
-    "column_generation",
     "graph",
     "presets",
     "process_memory_bytes",
@@ -83,3 +82,9 @@ __all__ = [
     "get_log_level",
     "init_logger",
 ]
+
+# Built with USE_COLUMN_GENERATION only, as the wheel is.
+if hasattr(_core, "column_generation"):
+    from . import column_generation  # noqa: E402
+
+    __all__.append("column_generation")
