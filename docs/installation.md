@@ -38,6 +38,15 @@ pip install python/
 
 ### Include in your CMake project
 
+Install the library (headers, library and CMake package) into a prefix:
+
+```bash
+cmake --install build --prefix /path/to/prefix
+```
+
+then find it from your project, with `-DCMAKE_PREFIX_PATH=/path/to/prefix` if the prefix is not
+a standard one:
+
 ```cmake
 find_package(rcspp REQUIRED)
 target_link_libraries(my_target PRIVATE rcspp::rcspp)

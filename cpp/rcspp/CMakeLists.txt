@@ -28,7 +28,6 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND}
           -DREPO_SRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
           -DREPO_REL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/..
-          -DREPO_BUILD_DIR=${BUILD_INCLUDE_DIR}
           -DOUT_FILE=${RCSPP_UMBRELLA_HEADER}
           -P "${CMAKE_CURRENT_SOURCE_DIR}/generate_umbrella_include.cmake"
   COMMENT "Generating umbrella header ${RCSPP_UMBRELLA_HEADER}"
@@ -72,3 +71,10 @@ target_link_libraries(${LIB} PRIVATE rcspp_objects)
 add_dependencies(${LIB} generate_umbrella_header)
 set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
+# "rcspp/...": the source folder in a build, the installed headers once installed.
+target_include_directories(${LIB} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+# The name an installed rcspp has (find_package), also for projects that add rcspp's sources.
+add_library(rcspp::rcspp ALIAS ${LIB})

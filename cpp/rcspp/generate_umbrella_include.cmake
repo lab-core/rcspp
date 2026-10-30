@@ -10,9 +10,6 @@ endif()
 if(NOT REPO_REL_DIR)
   message(FATAL_ERROR "generate_umbrella_include.cmake requires -DREPO_REL_DIR to be set")
 endif()
-if(NOT REPO_BUILD_DIR)
-  message(FATAL_ERROR "generate_umbrella_include.cmake requires -DREPO_BUILD_DIR to be set")
-endif()
 if(NOT OUT_FILE)
   message(FATAL_ERROR "generate_umbrella_include.cmake requires -DOUT_FILE to be set")
 endif()
@@ -62,19 +59,3 @@ foreach(h ${ALL_HEADERS})
 endforeach()
 
 message(STATUS "Umbrella header generation complete: ${OUT_FILE}")
-
-# Copy headers to build/include preserving folder structure --------------------
-# add the umbrella header to the list
-foreach(h ${ALL_HEADERS} ${OUT_FILE})
-  # Compute relative path inside
-  file(RELATIVE_PATH rel_path "${REPO_REL_DIR}" "${h}")
-  set(dest "${REPO_REL_DIR}/${rel_path}")
-
-  # Make sure destination folder exists
-  get_filename_component(dest_dir "${dest}" DIRECTORY)
-  file(MAKE_DIRECTORY "${dest_dir}")
-
-  # Copy header
-  configure_file("${h}" "${dest}" COPYONLY)
-  message(STATUS "Copied header: ${rel_path} to build include directory: ${dest}")
-endforeach()
