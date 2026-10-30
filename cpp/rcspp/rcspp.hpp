@@ -53,6 +53,7 @@
 #include "rcspp/algorithm/labelling/parts/schedule/per_node_quota.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/stored_aside_labels.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/sweep_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/algorithm/labelling/search.hpp"
 #include "rcspp/algorithm/labelling/step.hpp"

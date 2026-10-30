@@ -221,13 +221,15 @@ TEST(Parity, AStarForward) {
         /*buckets=*/true);
 }
 
+/// @brief The frozen Pushing against the kernel's search on the forward sweep, which Pushing is
+///        built from.
 TEST(Parity, PushingForward) {
     parity::sweep<parity::Traced<ref::PushingDominanceAlgorithm<Composed, List>>,
-                  parity::Traced<rcspp::PushingDominanceAlgorithm<Composed, List>>>(
+                  parity::TracedLabellingAlgorithm<parity::ForwardSweep, List>>(
         SearchDirection::Forward,
         List{});
     parity::sweep<parity::Traced<ref::PushingDominanceAlgorithm<Composed, Buckets>>,
-                  parity::Traced<rcspp::PushingDominanceAlgorithm<Composed, Buckets>>>(
+                  parity::TracedLabellingAlgorithm<parity::ForwardSweep, Buckets>>(
         SearchDirection::Forward,
         Buckets(10, 1, 0),
         /*buckets=*/true);
