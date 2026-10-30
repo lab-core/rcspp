@@ -20,7 +20,7 @@
 #include "rcspp/algorithm/half_way_policy.hpp"
 #include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
-#include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
+#include "rcspp/algorithm/labelling/bounds.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 
 namespace rcspp::detail {
@@ -596,13 +596,8 @@ class BidirectionalDominanceAlgorithm
                                                       : std::numeric_limits<double>::infinity();
         }
 
-        /// @brief Computes both completion bounds (cost-to-sink and cost-from-source).
-        ///
-        /// The bounds are shortest distances over each arc's share of the label cost, the cost
-        /// the search itself compares, so they hold whichever component or components the cost
-        /// function reads. That share is well defined because the model checks require an
-        /// additive cost before any bidirectional solve. Unlike A*, this reads neither `arc.cost`
-        /// (the original weight, not a bound under reduced costs) nor a cost slot index.
+        /// @brief Computes both completion bounds (cost-to-sink and cost-from-source), with
+        ///        @ref detail::completion_bounds.
         void compute_completion_bounds(const Graph<ResourceType>& graph) {
             const size_t num_nodes = graph.get_number_of_nodes();
             h_to_sink_.assign(num_nodes, 0.0);
@@ -614,73 +609,8 @@ class BidirectionalDominanceAlgorithm
                 return;
             }
 
-            const auto weights = arc_cost_shares(graph);
-            fill_bound(graph, weights, graph.get_sink_node_ids(), /*forward=*/false, &h_to_sink_);
-            fill_bound(graph,
-                       weights,
-                       graph.get_source_node_ids(),
-                       /*forward=*/true,
-                       &h_from_source_);
-        }
-
-        /// @brief Each live arc's share of the label cost: what extending a label along it adds.
-        ///
-        /// Extends the origin's start value along the arc, as a label is extended, and takes the
-        /// difference of the two costs. Under an additive cost the difference does not depend on
-        /// the value extended from.
-        ///
-        /// @param graph The graph.
-        /// @return One weighted arc per live arc with an extender.
-        [[nodiscard]] static std::vector<BellmanFordAlgorithm::WeightedArc> arc_cost_shares(
-            const Graph<ResourceType>& graph) {
-            std::vector<BellmanFordAlgorithm::WeightedArc> weights;
-            std::unique_ptr<Resource<ResourceType>> start;
-            std::unique_ptr<Resource<ResourceType>> extended;
-            graph.for_each_arc([&](const Arc<ResourceType>& arc) {
-                if (arc.extender == nullptr || arc.origin->resource == nullptr ||
-                    arc.destination->resource == nullptr) {
-                    return;
-                }
-                if (start == nullptr) {
-                    start = std::make_unique<Resource<ResourceType>>(*arc.origin->resource);
-                    extended = std::make_unique<Resource<ResourceType>>(*arc.destination->resource);
-                }
-                // reset() adopts a node's function objects without cloning them, as a pooled
-                // label does.
-                start->reset(*arc.origin->resource);
-                extended->reset(*arc.destination->resource);
-                arc.extender->extend(*start, extended.get());
-                weights.push_back({.origin_id = arc.origin->id,
-                                   .destination_id = arc.destination->id,
-                                   .weight = extended->get_cost() - start->get_cost()});
-            });
-            return weights;
-        }
-
-        /// @brief Fills @p out with the shortest distances to (or from) @p targets over
-        ///        @p weights, by node position.
-        ///
-        /// A negative-cost cycle leaves no finite bound: @p out is then minus infinity, which
-        /// prunes nothing.
-        void fill_bound(const Graph<ResourceType>& graph,
-                        const std::vector<BellmanFordAlgorithm::WeightedArc>& weights,
-                        const std::vector<size_t>& targets, bool forward,
-                        std::vector<double>* out) {
-            try {
-                auto distance =
-                    BellmanFordAlgorithm::solve_weighted(graph, targets, weights, forward);
-                for (size_t node_id : graph.get_node_ids()) {
-                    const auto* node = graph.get_node(node_id);
-                    auto it = distance.find(node_id);
-                    out->at(node->pos()) = (it != distance.end())
-                                               ? it->second
-                                               : std::numeric_limits<double>::infinity();
-                }
-            } catch (const std::runtime_error&) {
-                // Negative-cost cycle: no finite lower bound, so use -inf, which prunes nothing
-                // (0 would prune on the half's own cost).
-                std::ranges::fill(*out, -std::numeric_limits<double>::infinity());
-            }
+            h_to_sink_ = detail::completion_bounds<ForwardDirection>(graph).by_position;
+            h_from_source_ = detail::completion_bounds<BackwardDirection>(graph).by_position;
         }
 
         std::vector<BackwardContainer> backward_labels_by_node_pos_;

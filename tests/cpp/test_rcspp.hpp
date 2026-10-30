@@ -85,7 +85,7 @@ void test_rcspp_non_integer_dual_row_coef() {
 DEFINE_RCSPP_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_RCSPP_TESTS(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_RCSPP_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_RCSPP_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+DEFINE_RCSPP_TESTS(AStarDominance, AStarDominanceAlgorithm)
 
 #undef DEFINE_RCSPP_TESTS
 
@@ -231,7 +231,7 @@ void test_memory_limit_total_ram() {
 DEFINE_MEMORY_LIMIT_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_MEMORY_LIMIT_TESTS(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_MEMORY_LIMIT_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarDominanceAlgorithm)
 
 #undef DEFINE_MEMORY_LIMIT_TESTS
 
@@ -277,7 +277,7 @@ void test_ref_count_consistency_after_solve() {
 DEFINE_REFCOUNT_TEST(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_REFCOUNT_TEST(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_REFCOUNT_TEST(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_REFCOUNT_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+DEFINE_REFCOUNT_TEST(AStarDominance, AStarDominanceAlgorithm)
 
 #undef DEFINE_REFCOUNT_TEST
 
@@ -368,7 +368,7 @@ void test_solve_status_timeout() {
 DEFINE_STATUS_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_STATUS_TESTS(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_STATUS_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_STATUS_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+DEFINE_STATUS_TESTS(AStarDominance, AStarDominanceAlgorithm)
 
 #undef DEFINE_STATUS_TESTS
 
@@ -413,7 +413,7 @@ void test_status_complete_beats_memory_flag() {
 DEFINE_M2_TEST(SimpleDominance, SimpleDominanceAlgorithm)
 DEFINE_M2_TEST(PushingDominance, PushingDominanceAlgorithm)
 DEFINE_M2_TEST(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_M2_TEST(AStarDominance, AStarAlgoBound<RealResource>::Algo)
+DEFINE_M2_TEST(AStarDominance, AStarDominanceAlgorithm)
 #undef DEFINE_M2_TEST
 
 // ── A* heuristic fallback on a negative-cost cycle ──────────────────────────────
@@ -477,8 +477,7 @@ TEST(AStarHeuristic, NegativeCycleFallbackPreservesOptimum) {
     // must fire (no exception escapes) and the disabled-heuristic search must match the optimum.
     auto astar_graph = make_negative_cycle_graph();
     SolveResult astar;
-    ASSERT_NO_THROW(
-        { astar = solve_no_preprocess<AStarAlgoBound<RealResource>::Algo>(astar_graph.get()); });
+    ASSERT_NO_THROW({ astar = solve_no_preprocess<AStarDominanceAlgorithm>(astar_graph.get()); });
     ASSERT_FALSE(astar.solutions.empty());
     EXPECT_EQ(astar.status, AlgorithmStatus::Complete);
     EXPECT_NEAR(astar.solutions[0].cost, ref.solutions[0].cost, 1e-9);

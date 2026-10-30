@@ -255,15 +255,6 @@ struct AlgorithmBaseParams {
 
         int seed = 0;
 
-        /// @brief Index of the cost component, within its resource type, on which the lower
-        ///        bounds on the remaining cost are computed.
-        ///
-        /// Read by @c AStarDominanceAlgorithm only; ignored otherwise. The Python bindings set it
-        /// to the solve's cost index for A*; @c ResourceGraph::solve does not, so C++ callers
-        /// set it themselves. The bidirectional search does not read it: its completion bound is
-        /// computed from the cost function itself.
-        size_t heuristic_cost_index = 0;
-
         /// @brief Index of the critical resource: the "clock" on which the bidirectional search
         ///        sets its half-way point.
         ///
