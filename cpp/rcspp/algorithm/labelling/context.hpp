@@ -8,6 +8,7 @@
 #include <limits>
 #include <unordered_set>
 
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"

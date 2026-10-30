@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <list>
@@ -41,6 +42,12 @@ using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
 namespace detail {
+
+template <typename ResourceType>
+struct SearchContext;
+template <typename ResourceType>
+class HalfWay;
+enum class Role : std::uint8_t;
 
 /// @brief The label an entry of a queue holds: a @c parts::StoredLabel's @c label, or a pair's
 ///        first member.
@@ -388,6 +395,60 @@ class Algorithm {
             }
             const size_t end_node_id = graph_->get_arc(arc_ids.back())->destination->id;
             record_path(label.get_cost(), std::move(arc_ids), end_node_id);
+        }
+
+        /// @brief The context of one search of this solve: every pointer is this algorithm's
+        ///        member, or the search's bound.
+        ///
+        /// @param search    The search (a @c detail::Search); its bound is the one the context
+        ///                  reads.
+        /// @param role      Whether it runs alone or as a side of a bidirectional search.
+        /// @param number_of_abandoned_labels A side: counts the labels its cuts abandon.
+        /// @param half_way  A side: where it stops.
+        template <typename SearchType>
+        detail::SearchContext<ResourceType> make_context(
+            // NOLINTNEXTLINE(readability-non-const-parameter): stored in the context
+            SearchType& search, detail::Role role, size_t* number_of_abandoned_labels = nullptr,
+            const detail::HalfWay<ResourceType>* half_way = nullptr) {
+            return {
+                .graph = graph_,
+                .pool = &label_pool_,
+                .params = &params_,
+                .upper_bound = upper_bound_,
+                .incumbent = &incumbent_,
+                .quota = &quota_,
+                .solutions = &solutions_,
+                .admission = {},
+                .completion_bound = &search.completion_bound,
+                .role = role,
+                .number_of_abandoned_labels = number_of_abandoned_labels,
+                .half_way = half_way,
+            };
+        }
+
+        /// @brief Relieves memory pressure on one search: tightens the per-node quota to
+        ///        @c memory_pressure_max_labels_per_node (never loosening it), releases what an
+        ///        earlier call stored aside, sets the pressure flag, and has the schedule trim.
+        ///
+        /// What the trim cuts is stored aside, or abandoned and counted on a bidirectional side.
+        /// The result may be non-optimal; @ref memory_pressure_was_triggered reports it.
+        ///
+        /// @param search The search (a @c detail::Search).
+        /// @param context    Its context.
+        template <typename SearchType>
+        void relieve_memory_pressure(SearchType& search,
+                                     detail::SearchContext<ResourceType>& context) {
+            const size_t limit = params_.memory_pressure_max_labels_per_node;
+            quota_ = std::min(quota_, limit);
+            if (memory_pressure_triggered_) {
+                search.schedule.release_stored_aside(
+                    context,
+                    [&search](const LabelIterator<ResourceType>& position) {
+                        search.erase(position);
+                    });
+            }
+            memory_pressure_triggered_ = true;
+            search.schedule.trim(context, limit);
         }
 
         /// @brief Release all label memory held by the pool and label containers.
