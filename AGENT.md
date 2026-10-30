@@ -485,8 +485,7 @@ Whether a name is spelled out, and says what it does, is left to review.
   trait struct in `CamelCase` keeps its words in its `_v` or `_t` (`DirectionalResourceKindOf` /
   `directional_resource_kind_of_v`, `ComponentTypeIndex` / `component_type_index_v`).
 - **Members.** Non-public data members end in `_` (`back_dominance_reversed_`); public fields of a
-  struct do not (`AlgorithmBaseParams::max_solutions`). The fields of the internal
-  `NodeUnprocessedLabelsManager` are the one exception, exempt by name in `.clang-tidy-naming`.
+  struct do not (`AlgorithmBaseParams::max_solutions`).
 - **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). The static members of
   traits and policies follow the standard library instead (`value`, `kind`, `has_backward`). A
   few older constants are still in SCREAMING_CASE: the `FNV_*` constants,
