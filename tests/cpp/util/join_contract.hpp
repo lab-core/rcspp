@@ -225,7 +225,7 @@ template <typename Composed>
 /// @brief Checks the join contract over every pair the joiner could be handed.
 ///
 /// The verdict is `extended.is_feasible() && extended.can_be_joined(backward)`, as in
-/// `Joiner::join`. Cost and the crossing rule are excluded so they cannot mask a join-rule defect.
+/// `detail::join`. Cost and the crossing rule are excluded so they cannot mask a join-rule defect.
 ///
 /// @tparam Composed The graph's resource composition.
 /// @param graph        The model to check (non-const: the CSR is built here).
