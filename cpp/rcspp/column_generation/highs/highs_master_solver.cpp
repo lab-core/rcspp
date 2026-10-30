@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-#include "rcspp_backends/highs/highs_master_solver.hpp"
+#include "rcspp/column_generation/highs/highs_master_solver.hpp"
 
 #include <algorithm>
 #include <cmath>

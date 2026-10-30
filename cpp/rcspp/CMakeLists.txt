@@ -3,6 +3,13 @@ project(rcspp VERSION 0.1 LANGUAGES CXX)
 # Gather all C++ sources/headers for the library -------------------------------
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 file(GLOB_RECURSE HEADERS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
+# Without the master solvers, built apart (RCSPP_MASTER_SOLVER_DIRS). Their files are removed by
+# name: a pattern on the full path could also match the folders a checkout sits in.
+foreach(directory ${RCSPP_MASTER_SOLVER_DIRS})
+  file(GLOB_RECURSE master_solver_files "${directory}/*")
+  list(REMOVE_ITEM SOURCE_FILES ${master_solver_files})
+  list(REMOVE_ITEM HEADERS_FILES ${master_solver_files})
+endforeach()
 
 # Generate the umbrella header rcspp.hpp ---------------------------------------
 set(RCSPP_UMBRELLA_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/rcspp.hpp")
@@ -20,6 +27,9 @@ list(REMOVE_ITEM HEADERS_FILES "${RCSPP_UMBRELLA_HEADER}")
 # Create a small helper CMake script (generate_umbrella.cmake) that will be invoked by the
 # custom command to produce the umbrella header. The script lives next to this CMakeLists.
 
+# The folders the umbrella header leaves out, as one argument (a list would be split).
+string(REPLACE ";" "|" RCSPP_MASTER_SOLVER_DIRS_ARGUMENT "${RCSPP_MASTER_SOLVER_DIRS}")
+
 # Custom command that generates the umbrella header using the helper script
 add_custom_command(
   OUTPUT "${RCSPP_UMBRELLA_HEADER}"
@@ -28,6 +38,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND}
           -DREPO_SRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
           -DREPO_REL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/..
+          "-DEXCLUDED_DIRS=${RCSPP_MASTER_SOLVER_DIRS_ARGUMENT}"
           -DOUT_FILE=${RCSPP_UMBRELLA_HEADER}
           -P "${CMAKE_CURRENT_SOURCE_DIR}/generate_umbrella_include.cmake"
   COMMENT "Generating umbrella header ${RCSPP_UMBRELLA_HEADER}"

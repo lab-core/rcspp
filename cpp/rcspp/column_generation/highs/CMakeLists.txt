@@ -12,9 +12,9 @@ set_target_properties(rcspp_highs PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 target_compile_features(rcspp_highs PUBLIC cxx_std_23)
-# The folder above rcspp/ and rcspp_backends/, found from here so that the library also builds
-# when rcspp is part of a larger project.
+# The folder above rcspp/, found from here so that the library also builds when rcspp is part of
+# a larger project.
 target_include_directories(rcspp_highs PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../..  # "rcspp/..." and "rcspp_backends/..."
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../..  # "rcspp/..."
 )
 target_link_libraries(rcspp_highs PUBLIC highs::highs)
