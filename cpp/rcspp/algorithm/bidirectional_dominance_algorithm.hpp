@@ -259,34 +259,40 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief Processes one label from @p frontier.
+        /// @brief Processes one label from @p frontier: the first that is neither dominated nor
+        ///        over its node's quota, which is counted against the quota.
         ///
-        /// Abandoning a label (dominated, over quota, beyond the completion bound, past `H`) never
-        /// stops the solve; run-level stops are checked in `main_loop`.
+        /// A dominated label is released and one over the quota abandoned, within the same call:
+        /// neither costs the search an iteration. Abandoning a label later (beyond the completion
+        /// bound, past `H`) ends the iteration but never stops the solve; run-level stops are
+        /// checked in `main_loop`.
         template <typename Direction, typename Container>
         void step(std::vector<Container>& containers, LabelFrontier<ResourceType>* frontier,
                   std::vector<size_t>* extended_per_node) {
-            auto label_iterator_pair = frontier->pop();
-
+            LabelIteratorPair<ResourceType> label_iterator_pair{};
+            while (!frontier->empty()) {
+                const auto popped = frontier->pop();
+                if (popped.first->dominated) {
+                    this->label_pool_.release_with_ref_count(popped.first);
+                    continue;
+                }
+                size_t& extended_count = extended_per_node->at(popped.first->get_end_node()->pos());
+                if (extended_count >= this->quota_) {
+                    // Known gap: an abandoned label never yields a boundary label, so the join
+                    // sees fewer forward halves. Only reachable under truncated labeling or memory
+                    // pressure, and such labels are never revisited.
+                    ++abandoned_labels_;
+                    continue;
+                }
+                ++extended_count;
+                label_iterator_pair = popped;
+                break;
+            }
             auto* label_ptr = label_iterator_pair.first;
             if (label_ptr == nullptr) {
                 return;
             }
-            if (label_ptr->dominated) {
-                this->label_pool_.release_with_ref_count(label_ptr);
-                return;
-            }
-
             const size_t node_pos = label_ptr->get_end_node()->pos();
-            size_t& extended_count = extended_per_node->at(node_pos);
-            if (extended_count >= this->quota_) {
-                // Known gap: an abandoned label never yields a boundary label, so the join sees
-                // fewer forward halves. Only reachable under truncated labeling or memory pressure,
-                // and such labels are never revisited.
-                ++abandoned_labels_;
-                return;
-            }
-            ++extended_count;
 
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
