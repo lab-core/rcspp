@@ -135,6 +135,7 @@
 #include "rcspp/resource/presets.hpp"
 #include "rcspp/resource/resource_graph.hpp"
 #include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/test_support/optimum_problem.hpp"
 #include "rcspp/utils/logger.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/utils/timer.hpp"
