@@ -1,0 +1,51 @@
+[ CG ] ng off (inert) against ng on, full column generation
+       lp_cost is the bound -- higher is tighter, and the point of ng.
+
+  C101_50
+[32m[2026-10-30 16:25:02.747][INFO ] nb_iter=0 | obj=2411.46 | min_reduced_cost=-596.95356502373147123 | paths_generated=191
+[0m[32m[2026-10-30 16:25:02.764][INFO ] nb_iter=1 | obj=1325.76 | min_reduced_cost=-547.03767502970299574 | paths_generated=176
+[0m[32m[2026-10-30 16:25:02.780][INFO ] nb_iter=2 | obj=1090.26 | min_reduced_cost=-520.41919221826879038 | paths_generated=148
+[0m[32m[2026-10-30 16:25:02.796][INFO ] nb_iter=3 | obj=1049.17 | min_reduced_cost=-337.54304997686563183 | paths_generated=93
+[0m[32m[2026-10-30 16:25:02.809][INFO ] nb_iter=4 | obj=486.065 | min_reduced_cost=-265.13485256263385281 | paths_generated=144
+[0m[32m[2026-10-30 16:25:02.821][INFO ] nb_iter=5 | obj=453.819 | min_reduced_cost=-129.35726844396825186 | paths_generated=64
+[0m[32m[2026-10-30 16:25:02.832][INFO ] nb_iter=6 | obj=430.299 | min_reduced_cost=-89.30329605107772295 | paths_generated=64
+[0m[32m[2026-10-30 16:25:02.842][INFO ] nb_iter=7 | obj=412.94 | min_reduced_cost=-117.34564912402814230 | paths_generated=26
+[0m[32m[2026-10-30 16:25:02.852][INFO ] nb_iter=8 | obj=412.94 | min_reduced_cost=-50.67058703105630713 | paths_generated=38
+[0m[32m[2026-10-30 16:25:02.864][INFO ] nb_iter=9 | obj=411.7 | min_reduced_cost=-66.41800430562238944 | paths_generated=32
+[0m[32m[2026-10-30 16:25:02.875][INFO ] nb_iter=10 | obj=411.594 | min_reduced_cost=-61.69148293454152565 | paths_generated=41
+[0m[32m[2026-10-30 16:25:02.886][INFO ] nb_iter=11 | obj=411.594 | min_reduced_cost=-53.63848093748531909 | paths_generated=50
+[0m[32m[2026-10-30 16:25:02.898][INFO ] nb_iter=12 | obj=408.663 | min_reduced_cost=-47.86147942920392495 | paths_generated=54
+[0m[32m[2026-10-30 16:25:02.909][INFO ] nb_iter=13 | obj=407.135 | min_reduced_cost=-32.26296992191299751 | paths_generated=52
+[0m[32m[2026-10-30 16:25:02.920][INFO ] nb_iter=14 | obj=400.255 | min_reduced_cost=-29.00339469297844985 | paths_generated=50
+[0m[32m[2026-10-30 16:25:02.932][INFO ] nb_iter=15 | obj=396.851 | min_reduced_cost=-23.67598823875643177 | paths_generated=17
+[0m[32m[2026-10-30 16:25:02.944][INFO ] nb_iter=16 | obj=395.233 | min_reduced_cost=-31.91595680402411972 | paths_generated=47
+[0m[32m[2026-10-30 16:25:02.958][INFO ] nb_iter=17 | obj=394.851 | min_reduced_cost=-16.76065204560790534 | paths_generated=21
+[0m[32m[2026-10-30 16:25:02.972][INFO ] nb_iter=18 | obj=375.768 | min_reduced_cost=-29.37603354421075963 | paths_generated=26
+[0m[32m[2026-10-30 16:25:02.985][INFO ] nb_iter=19 | obj=374.517 | min_reduced_cost=-16.55300809690761454 | paths_generated=20
+[0m[32m[2026-10-30 16:25:02.998][INFO ] nb_iter=20 | obj=372.873 | min_reduced_cost=-13.85947493632775362 | paths_generated=40
+[0m[32m[2026-10-30 16:25:03.009][INFO ] nb_iter=21 | obj=372.873 | min_reduced_cost=-15.25213407701231105 | paths_generated=34
+[0m[32m[2026-10-30 16:25:03.021][INFO ] nb_iter=22 | obj=372.468 | min_reduced_cost=-10.40443558378177791 | paths_generated=28
+[0m[32m[2026-10-30 16:25:03.033][INFO ] nb_iter=23 | obj=372.468 | min_reduced_cost=-11.35697468289051670 | paths_generated=33
+[0m[32m[2026-10-30 16:25:03.049][INFO ] nb_iter=24 | obj=370.653 | min_reduced_cost=-10.95320078142746567 | paths_generated=27
+[0m[32m[2026-10-30 16:25:03.070][INFO ] nb_iter=25 | obj=369.119 | min_reduced_cost=-7.93175595834769531 | paths_generated=20
+[0m[32m[2026-10-30 16:25:03.092][INFO ] nb_iter=26 | obj=369.119 | min_reduced_cost=-7.41791590367435738 | paths_generated=25
+[0m[32m[2026-10-30 16:25:03.107][INFO ] nb_iter=27 | obj=363.247 | min_reduced_cost=-8.52155428182444297 | paths_generated=18
+[0m[32m[2026-10-30 16:25:03.125][INFO ] nb_iter=28 | obj=363.247 | min_reduced_cost=-13.22327675107180767 | paths_generated=19
+[0m[32m[2026-10-30 16:25:03.139][INFO ] nb_iter=29 | obj=363.247 | min_reduced_cost=-7.87987170167038897 | paths_generated=27
+[0m[32m[2026-10-30 16:25:03.156][INFO ] nb_iter=30 | obj=363.247 | min_reduced_cost=-4.66477256798594198 | paths_generated=21
+[0m[32m[2026-10-30 16:25:03.170][INFO ] nb_iter=31 | obj=363.247 | min_reduced_cost=-3.47815772016936720 | paths_generated=18
+[0m[32m[2026-10-30 16:25:03.190][INFO ] nb_iter=32 | obj=363.247 | min_reduced_cost=-4.58861165046922004 | paths_generated=14
+[0m[32m[2026-10-30 16:25:03.215][INFO ] nb_iter=33 | obj=363.247 | min_reduced_cost=-2.67477106412419374 | paths_generated=14
+[0m[32m[2026-10-30 16:25:03.241][INFO ] nb_iter=34 | obj=363.247 | min_reduced_cost=-4.20293428323138585 | paths_generated=16
+[0m[32m[2026-10-30 16:25:03.268][INFO ] nb_iter=35 | obj=363.247 | min_reduced_cost=-3.55699346756887813 | paths_generated=20
+[0m[32m[2026-10-30 16:25:03.284][INFO ] nb_iter=36 | obj=363.247 | min_reduced_cost=-2.15621733286119621 | paths_generated=13
+[0m[32m[2026-10-30 16:25:03.305][INFO ] nb_iter=37 | obj=363.247 | min_reduced_cost=-1.87098083372436719 | paths_generated=10
+[0m[32m[2026-10-30 16:25:03.320][INFO ] nb_iter=38 | obj=363.247 | min_reduced_cost=-1.99841358391778812 | paths_generated=4
+[0m[32m[2026-10-30 16:25:03.336][INFO ] nb_iter=39 | obj=363.247 | min_reduced_cost=-1.81578330776452646 | paths_generated=11
+[0m[32m[2026-10-30 16:25:03.351][INFO ] nb_iter=40 | obj=363.247 | min_reduced_cost=-0.91587095669760998 | paths_generated=2
+[0m[32m[2026-10-30 16:25:03.365][INFO ] nb_iter=41 | obj=363.247 | min_reduced_cost=-0.60447793632144986 | paths_generated=2
+[0m[32m[2026-10-30 16:25:03.377][INFO ] nb_iter=42 | obj=363.247 | min_reduced_cost=-0.38361553912976376 | paths_generated=2
+[0m[32m[2026-10-30 16:25:03.390][INFO ] nb_iter=43 | obj=363.247 | min_reduced_cost=inf | paths_generated=0
+[0m    ng=0    lp_cost=363.2468  iterations=44  seconds=0.68
+
+RESULT {"status": "Optimal", "lp": 363.2468, "iterations": 44, "solve_s": 0.68}

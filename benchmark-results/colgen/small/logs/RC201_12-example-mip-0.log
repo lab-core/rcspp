@@ -1,0 +1,114 @@
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 2 ms
+*********************************************
+iter=0  min_rc=-inf
+*********************************************
+[MasterProblem] solver: GRB
+solution.cost=1291.1949790667038
+Solve: 0.031s
+best RCSPP reduced cost: -1147.310538
+*********************************************
+iter=1  min_rc=-1147.310538
+*********************************************
+solution.cost=670.9676076796251
+Solve: 0.013s
+best RCSPP reduced cost: -411.941304
+*********************************************
+iter=2  min_rc=-411.941304
+*********************************************
+solution.cost=580.6486585671455
+Solve: 0.001s
+best RCSPP reduced cost: -178.593992
+*********************************************
+iter=3  min_rc=-178.593992
+*********************************************
+solution.cost=523.2837429353908
+Solve: 0.001s
+best RCSPP reduced cost: -123.981907
+*********************************************
+iter=4  min_rc=-123.981907
+*********************************************
+solution.cost=486.6869879278648
+Solve: 0.002s
+best RCSPP reduced cost: -57.788900
+*********************************************
+iter=5  min_rc=-57.788900
+*********************************************
+solution.cost=470.3186773038211
+Solve: 0.001s
+best RCSPP reduced cost: -49.039439
+*********************************************
+iter=6  min_rc=-49.039439
+*********************************************
+solution.cost=456.60065578707867
+Solve: 0.001s
+best RCSPP reduced cost: -32.521875
+*********************************************
+iter=7  min_rc=-32.521875
+*********************************************
+solution.cost=447.6641013293703
+Solve: 0.001s
+best RCSPP reduced cost: -38.460333
+*********************************************
+iter=8  min_rc=-38.460333
+*********************************************
+solution.cost=437.9680832253143
+Solve: 0.001s
+best RCSPP reduced cost: -32.827638
+*********************************************
+iter=9  min_rc=-32.827638
+*********************************************
+solution.cost=432.23408612860544
+Solve: 0.001s
+best RCSPP reduced cost: -10.522246
+*********************************************
+iter=10  min_rc=-10.522246
+*********************************************
+solution.cost=432.2340861286055
+Solve: 0.001s
+best RCSPP reduced cost: -5.261123
+*********************************************
+iter=11  min_rc=-5.261123
+*********************************************
+solution.cost=432.23408612860544
+Solve: 0.001s
+best RCSPP reduced cost: -5.261123
+*********************************************
+iter=12  min_rc=-5.261123
+*********************************************
+solution.cost=428.328444756194
+Solve: 0.001s
+best RCSPP reduced cost: -3.825038
+*********************************************
+iter=13  min_rc=-3.825038
+*********************************************
+solution.cost=428.328444756194
+Solve: 0.001s
+best RCSPP reduced cost: -3.825038
+*********************************************
+iter=14  min_rc=-3.825038
+*********************************************
+solution.cost=427.782010796089
+Solve: 0.001s
+best RCSPP reduced cost: -1.912519
+*********************************************
+iter=15  min_rc=-1.912519
+*********************************************
+solution.cost=427.23557683598403
+Solve: 0.000s
+best RCSPP reduced cost: -0.000000
+
+iter=16  min_rc=-0.000000
+
+solution.cost=663.7889075336009
+RESULT {"status": "optimal", "lp": 427.23557683598403, "iterations": 16, "columns": 1058, "master_s": 0.15316589997382835, "pricing_s": 0.061998605728149414, "rest_s": 0.07051499429508112, "integer_s": 0.03411910000431817}
