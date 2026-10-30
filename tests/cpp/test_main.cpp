@@ -21,6 +21,7 @@
 //   test_kernel_parity_single.cpp         the single-direction searches against their frozen copies
 //   test_kernel_parity_bidirectional.cpp  the bidirectional search against its frozen copy
 //   test_kernel_properties.cpp            what every exact search agrees on
+//   test_kernel_timing.cpp                pricing times, printed when RCSPP_TIMING is set
 
 #include <gtest/gtest.h>
 
