@@ -122,30 +122,42 @@ using LabelIteratorPair =
 
 namespace detail {
 
+/// @brief The label an entry of a queue holds: a @c parts::StoredLabel's @c label, or a pair's
+///        first member.
+template <typename EntryType>
+[[nodiscard]] auto* label_of(const EntryType& entry) {
+    if constexpr (requires { entry.label; }) {
+        return entry.label;
+    } else {
+        return entry.first;
+    }
+}
+
 /// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
 ///        meaning non-dominated first, then cheaper first.
 ///
 /// What happens to the entries cut is the caller's: a dominated one is usually released, a
 /// non-dominated one kept aside for a later phase or dropped.
 ///
+/// @tparam EntryType A queue entry: a label and its position in its node's container.
 /// @param queue The queue; sorted, best first, when anything is cut (and @p sort is set).
 /// @param keep  How many entries stay.
 /// @param sort  Whether to sort first; without it the queue's own order decides what stays.
 /// @return The entries cut, best first; empty when @p queue held at most @p keep.
-template <typename ResourceType>
-std::list<LabelIteratorPair<ResourceType>> split_off_excess(
-    std::list<LabelIteratorPair<ResourceType>>* queue, size_t keep, bool sort = true) {
-    std::list<LabelIteratorPair<ResourceType>> excess;
+template <typename EntryType>
+std::list<EntryType> split_off_excess(std::list<EntryType>* queue, size_t keep, bool sort = true) {
+    std::list<EntryType> excess;
     if (queue->size() <= keep) {
         return excess;
     }
     if (sort) {
-        queue->sort([](const LabelIteratorPair<ResourceType>& lhs,
-                       const LabelIteratorPair<ResourceType>& rhs) {
-            if (lhs.first->dominated != rhs.first->dominated) {
-                return !lhs.first->dominated;  // non-dominated first
+        queue->sort([](const EntryType& lhs, const EntryType& rhs) {
+            const auto* left = label_of(lhs);
+            const auto* right = label_of(rhs);
+            if (left->dominated != right->dominated) {
+                return !left->dominated;  // non-dominated first
             }
-            return lhs.first->get_cost() < rhs.first->get_cost();  // then cheaper first
+            return left->get_cost() < right->get_cost();  // then cheaper first
         });
     }
     excess.splice(excess.end(),
