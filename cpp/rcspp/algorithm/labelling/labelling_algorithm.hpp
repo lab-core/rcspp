@@ -15,10 +15,7 @@
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
-#include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
-#include "rcspp/algorithm/labelling/parts/schedule/per_node_quota.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/schedule.hpp"
-#include "rcspp/algorithm/labelling/parts/schedule/stored_aside_labels.hpp"
 #include "rcspp/algorithm/labelling/search.hpp"
 #include "rcspp/algorithm/labelling/step.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -65,17 +62,21 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
     protected:
-        /// @brief Starts the solve: an empty search and its context.
+        /// @brief Starts the solve: an empty search and its context, and the completion bound
+        ///        when the schedule's order or the incumbent prune reads it
+        ///        (@ref compute_completion_bound).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
             search_.reset(graph->get_number_of_nodes(),
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
             // The incumbent prune adds the completion bound whenever it is valid (an additive
-            // cost), so the bound is computed then.
-            search_.completion_bound = context_.prune_adds_completion_bound
-                                           ? compute_completion_bound<Direction>(*graph)
-                                           : CompletionBound<ResourceType>{};
+            // cost), so the bound is computed then, as well as for an order that reads it (A*).
+            const bool reads_bound =
+                parts::reads_completion_bound_v<typename search_type::schedule_type> ||
+                context_.prune_adds_completion_bound;
+            search_.completion_bound = reads_bound ? compute_completion_bound<Direction>(*graph)
+                                                   : CompletionBound<ResourceType>{};
             search_.schedule.initialize(context_);
         }
 
