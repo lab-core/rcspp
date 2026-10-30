@@ -236,7 +236,7 @@ cannot express backward semantics cannot produce a correct answer at all.
 
 In C++, a bidirectional search is `SimpleDominanceAlgorithm` with `params.direction =
 SearchDirection::Bidirectional`; the class behind it is internal
-(`rcspp::detail::BidirectionalDominanceAlgorithm`). An int clock beside a real cost is
+(`rcspp::detail::BidirectionalLabellingAlgorithm`). An int clock beside a real cost is
 `solve<SimpleDominanceAlgorithm, RealResource, LabelContainerType, IntResource>`: the clock's
 type is the last template parameter and defaults to the cost's. `SolveResult::bidirectional`,
 empty from every other algorithm, reports `half_way_used`, `half_way_off_reason` and

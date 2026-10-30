@@ -40,7 +40,7 @@ constexpr double kTolerance = 1e-9;
 /// @brief The cost bound every bidirectional run here passes: finite, but far above any cost
 ///        this generator produces, so it filters nothing.
 ///
-/// Finite on purpose: with an infinite bound `Joiner::join` enables its incumbent cutoff and
+/// Finite on purpose: with an infinite bound `detail::join` enables its incumbent cutoff and
 /// returns few joined paths, leaving `any_path_problem` little join output to replay.
 constexpr double kNonBindingUpperBound = 1e9;
 

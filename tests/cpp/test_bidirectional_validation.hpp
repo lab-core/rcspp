@@ -36,7 +36,7 @@ namespace bidirectional_validation_test {
 using Composed = ResourceTypeComposition<RealResource>;
 /// The bidirectional search `create_algorithm` builds for these graphs.
 using Bidir =
-    rcspp::detail::BidirectionalDominanceAlgorithm<Composed, LabelList<Composed>, RealResource>;
+    rcspp::detail::BidirectionalLabellingAlgorithm<Composed, LabelList<Composed>, RealResource>;
 
 constexpr double kTolerance = 1e-9;
 
