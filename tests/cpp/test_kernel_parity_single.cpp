@@ -103,10 +103,10 @@ parity::Case golden_s1_n11() {
 
 }  // namespace
 
-/// @brief The library's Simple against itself: the harness sees no difference, in either release
-///        mode.
+/// @brief The library's Simple (traced) against itself: the harness sees no difference, in either
+///        release mode.
 TEST(Parity, HarnessSeesNoDifference) {
-    using SimpleType = parity::Traced<rcspp::SimpleDominanceAlgorithm<Composed, List>>;
+    using SimpleType = parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule, List>;
     const auto c = golden_s1_n11();
     for (const bool release : {false, true}) {
         const auto first = parity::observe<SimpleType>(c, setting("exact"), release);
@@ -126,7 +126,7 @@ TEST(Parity, HarnessSeesADifference) {
                                                                          setting("early"),
                                                                          false);
     const auto library =
-        parity::observe<parity::Traced<rcspp::SimpleDominanceAlgorithm<Composed, List>>>(
+        parity::observe<parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule, List>>(
             c,
             setting("early"),
             false);
@@ -138,7 +138,7 @@ TEST(Parity, HarnessSeesADifference) {
 /// @brief Pressure forced on the first memory check reaches the result through a real solve, and
 ///        the trim it makes leaves fewer labels extended.
 TEST(Parity, ForcedPressureTrims) {
-    using SimpleType = parity::Traced<rcspp::SimpleDominanceAlgorithm<Composed, List>>;
+    using SimpleType = parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule, List>;
     const auto c = golden_s1_n11();
     const auto exact = parity::observe<SimpleType>(c, setting("exact"), true);
     auto pressed = setting("exact");
