@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/labelling.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
@@ -133,8 +134,8 @@ class Fixture {
 
 /// @brief Simple, with the two Algorithm members the kernel calls made public, and a way in to
 ///        set up a solve.
-class Exposed : public SimpleDominanceAlgorithm<Composed, List> {
-        using Base = SimpleDominanceAlgorithm<Composed, List>;
+class Exposed : public test_util::Labelling<strategy::Simple, Composed, List> {
+        using Base = test_util::Labelling<strategy::Simple, Composed, List>;
 
     public:
         using Base::Base;

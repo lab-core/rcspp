@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Tests for GreedyAlgorithm, TabuSearchAlgorithm, and BacktrackingDiveAlgorithm.
+// Tests for GreedyAlgorithm, strategy::Tabu, and BacktrackingDiveAlgorithm.
 // Each test builds a small ResourceGraph<RealResource> from a unique_ptr to
 // avoid the deleted copy/move constructors of ResourceGraph.
 
@@ -87,7 +87,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_two_path_graph() {
 /// The graph has only one path (0->1->2), so the algorithm must find it.
 TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
     auto g = make_linear_graph();
-    const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty()) << "Greedy must find the single path";
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
@@ -95,14 +95,14 @@ TEST(GreedyAlgorithmTest, SinglePathGraphFindsSolution) {
 /// @brief GreedyAlgorithm on single-path graph reports Complete status.
 TEST(GreedyAlgorithmTest, SinglePathGraphStatusComplete) {
     auto g = make_linear_graph();
-    const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 /// @brief GreedyAlgorithm on single-path graph visits nodes in order.
 TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
     auto g = make_linear_graph();
-    const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     ASSERT_EQ(result.solutions[0].path_node_ids.size(), 3U);
     EXPECT_EQ(result.solutions[0].path_node_ids[0], 0U);
@@ -113,7 +113,7 @@ TEST(GreedyAlgorithmTest, SinglePathGraphNodeSequence) {
 /// @brief GreedyAlgorithm on a two-path graph returns at least one solution.
 TEST(GreedyAlgorithmTest, TwoPathGraphNonEmpty) {
     auto g = make_two_path_graph();
-    const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     EXPECT_FALSE(result.solutions.empty());
 }
 
@@ -124,7 +124,7 @@ TEST(GreedyAlgorithmTest, TwoPathGraphNonEmpty) {
 /// so the best solution 0->1->3 (total -6) is found first.
 TEST(GreedyAlgorithmTest, TwoPathGraphPicksBestFirst) {
     auto g = make_two_path_graph();
-    const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
 }
@@ -134,7 +134,7 @@ TEST(GreedyAlgorithmTest, StopAfterOneSolution) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_solutions = 1;
-    const auto result = g->solve<GreedyAlgorithm>(params);
+    const auto result = g->solve<strategy::Greedy>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
     EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
@@ -144,7 +144,7 @@ TEST(GreedyAlgorithmTest, StopAfterOneSolutionBound) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_solutions = 1;
-    const auto result = g->solve<GreedyAlgorithm>(params);
+    const auto result = g->solve<strategy::Greedy>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
@@ -153,7 +153,7 @@ TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
-    const auto result = g->solve<GreedyAlgorithm>(params);
+    const auto result = g->solve<strategy::Greedy>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
@@ -162,7 +162,7 @@ TEST(GreedyAlgorithmTest, PruneBasedOnUpperBound) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.prune_by_incumbent = true;
-    const auto result = g->solve<GreedyAlgorithm>(params, /*upper_bound=*/-1.0);
+    const auto result = g->solve<strategy::Greedy>(params, /*upper_bound=*/-1.0);
     // upper_bound=-1 prunes all solutions (all paths have cost <= -4 < -1 is false)
     // Actually solutions cost -6 and -4, so upper_bound=-1: -6 < -1 yes, so the
     // solution is accepted. Both paths have cost < -1, so at least one solution found.
@@ -172,7 +172,7 @@ TEST(GreedyAlgorithmTest, PruneBasedOnUpperBound) {
 /// @brief GreedyAlgorithm finds both solutions when max solutions is large.
 TEST(GreedyAlgorithmTest, TwoPathGraphFindsBothSolutions) {
     auto g = make_two_path_graph();
-    const auto result = g->solve<GreedyAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     // Both paths are distinct, so both solutions should be returned.
     EXPECT_EQ(result.solutions.size(), 2U);
 }
@@ -187,7 +187,7 @@ TEST(TabuSearchAlgorithmTest, DefaultParamsReturnsEmpty) {
     auto g = make_linear_graph();
     // Default AlgorithmBaseParams has max_iterations = kNoLimit, which triggers
     // the early-return guard in TabuSearchAlgorithm::main_loop.
-    const auto result = g->solve<TabuSearchAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Tabu>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty())
         << "TabuSearch with kNoLimit iterations must return empty";
 }
@@ -197,7 +197,7 @@ TEST(TabuSearchAlgorithmTest, FiniteIterationsFindsSolution) {
     auto g = make_linear_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     ASSERT_FALSE(result.solutions.empty()) << "TabuSearch must find the single-path solution";
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
@@ -210,7 +210,7 @@ TEST(TabuSearchAlgorithmTest, TwoPathFindsSolutions) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
 
@@ -229,7 +229,7 @@ TEST(TabuSearchAlgorithmTest, NoFeasiblePathReturnsEmpty) {
     g->add_node(1, /*source=*/false, /*sink=*/true);
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -244,7 +244,7 @@ TEST(TabuSearchAlgorithmTest, AspirationUsesTabuArcs) {
     // Two iterations: iteration 1 finds the path and adds arcs to tabu;
     // iteration 2 has all arcs tabu -> aspiration kicks in.
     params.max_iterations = 2;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     // Should still find a solution (same path via aspiration).
     EXPECT_FALSE(result.solutions.empty());
 }
@@ -255,7 +255,7 @@ TEST(TabuSearchAlgorithmTest, StopAfterOneSolution) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.max_solutions = 1;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
     EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
@@ -266,7 +266,7 @@ TEST(TabuSearchAlgorithmTest, ZeroTimeoutReportsTimeout) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.timeout_s = 0.0;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
@@ -277,7 +277,7 @@ TEST(TabuSearchAlgorithmTest, ReturnDominatedSolutions) {
     params.max_iterations = kTabuIters;
     params.return_dominated_solutions = true;
     params.max_solutions = 2;
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
 
@@ -287,7 +287,7 @@ TEST(TabuSearchAlgorithmTest, ForbiddenTabuExcludesArcs) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.tabu_exempt_node_ids = {0U, 3U};  // source and sink node ids
-    const auto result = g->solve<TabuSearchAlgorithm>(params);
+    const auto result = g->solve<strategy::Tabu>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
 
@@ -298,7 +298,7 @@ TEST(TabuSearchAlgorithmTest, ForbiddenTabuExcludesArcs) {
 /// @brief ImprovingTabuSearch with kNoLimit max_iterations returns empty.
 TEST(ImprovingTabuSearchTest, DefaultMaxIterationsReturnsEmpty) {
     auto g = make_linear_graph();
-    const auto result = g->solve<ImprovingTabuSearch>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::ImprovingTabu>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -307,7 +307,7 @@ TEST(ImprovingTabuSearchTest, SinglePathFindsOptimal) {
     auto g = make_linear_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
@@ -317,7 +317,7 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsSolutions) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
 
@@ -327,7 +327,7 @@ TEST(ImprovingTabuSearchTest, ZeroTimeoutReportsTimeout) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.timeout_s = 0.0;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
@@ -337,7 +337,7 @@ TEST(ImprovingTabuSearchTest, StopAfterOneSolution) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.max_solutions = 1;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
@@ -352,7 +352,7 @@ TEST(ImprovingTabuSearchTest, NoFeasiblePathReturnsEmpty) {
     g->add_node(1, /*source=*/false, /*sink=*/true);
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -363,7 +363,7 @@ TEST(ImprovingTabuSearchTest, ReturnDominatedSolutions) {
     params.max_iterations = kTabuIters;
     params.return_dominated_solutions = true;
     params.max_solutions = 3;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
 
@@ -372,7 +372,7 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsBestPath) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters * 2U;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
 }
@@ -384,7 +384,7 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsBestPath) {
 /// @brief DiversificationSearch with kNoLimit max_iterations returns empty.
 TEST(DiversificationSearchTest, DefaultMaxIterationsReturnsEmpty) {
     auto g = make_linear_graph();
-    const auto result = g->solve<DiversificationSearch>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Diversification<>>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -393,7 +393,7 @@ TEST(DiversificationSearchTest, SinglePathFindsSolution) {
     auto g = make_linear_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kDivItersSmall;
-    const auto result = g->solve<DiversificationSearch>(params);
+    const auto result = g->solve<strategy::Diversification<>>(params);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
@@ -403,7 +403,7 @@ TEST(DiversificationSearchTest, TwoPathFindsSolutions) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
-    const auto result = g->solve<DiversificationSearch>(params);
+    const auto result = g->solve<strategy::Diversification<>>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
 
@@ -413,7 +413,7 @@ TEST(DiversificationSearchTest, ZeroTimeoutReportsTimeout) {
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
     params.timeout_s = 0.0;
-    const auto result = g->solve<DiversificationSearch>(params);
+    const auto result = g->solve<strategy::Diversification<>>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
@@ -423,7 +423,7 @@ TEST(DiversificationSearchTest, StopAfterOneSolution) {
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
     params.max_solutions = 1;
-    const auto result = g->solve<DiversificationSearch>(params);
+    const auto result = g->solve<strategy::Diversification<>>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
@@ -433,7 +433,7 @@ TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     AlgorithmBaseParams params;
     params.max_iterations = kDivIters;
     params.tabu_exempt_node_ids = {0U, 3U};  // source and sink
-    const auto result = g->solve<DiversificationSearch>(params);
+    const auto result = g->solve<strategy::Diversification<>>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
 
@@ -497,7 +497,7 @@ TEST(TabuStatusTest, TabuThatRunsOutOfPathsIsComplete) {
     auto g = make_dead_end_graph(3);
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    auto algorithm = g->create_algorithm<TabuSearchAlgorithm>(
+    auto algorithm = g->create_algorithm<strategy::Tabu>(
         params.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
     const auto result = g->solve(algorithm.get());
     EXPECT_TRUE(result.solutions.empty());
@@ -512,7 +512,7 @@ TEST(TabuStatusTest, TabuThatRunsOutOfPathsIsComplete) {
 TEST(TabuStatusTest, TabuInterruptedInItsFirstDiveIsInterrupted) {
     auto g = make_dead_end_graph(kDeadEndLayers);
     size_t calls = 0;
-    auto algorithm = g->create_algorithm<TabuSearchAlgorithm>(
+    auto algorithm = g->create_algorithm<strategy::Tabu>(
         interrupted_inside_the_first_dive(2, &calls)
             .with_container<LabelList<ResourceTypeComposition<RealResource>>>());
     const auto result = g->solve(algorithm.get());
@@ -525,7 +525,8 @@ TEST(TabuStatusTest, TabuInterruptedInItsFirstDiveIsInterrupted) {
 TEST(TabuStatusTest, ImprovingTabuInterruptedInItsFirstDiveIsInterrupted) {
     auto g = make_dead_end_graph(kDeadEndLayers);
     size_t calls = 0;
-    const auto result = g->solve<ImprovingTabuSearch>(interrupted_inside_the_first_dive(1, &calls));
+    const auto result =
+        g->solve<strategy::ImprovingTabu>(interrupted_inside_the_first_dive(1, &calls));
     EXPECT_GT(calls, 1U) << "the interrupt did not fire";
     EXPECT_EQ(result.status, AlgorithmStatus::Interrupted);
 }
@@ -538,7 +539,7 @@ TEST(TabuStatusTest, ImprovingTabuThatSpendsItsIterationsIsTruncated) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_FALSE(result.solutions.empty());
     EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
 }
@@ -549,7 +550,7 @@ TEST(TabuStatusTest, ImprovingTabuThatReachesMaxSolutionsIsMaxSolutions) {
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
     params.max_solutions = 1;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_EQ(result.solutions.size(), 1U);
     EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
@@ -559,7 +560,7 @@ TEST(TabuStatusTest, ImprovingTabuThatRunsOutOfPathsIsComplete) {
     auto g = make_dead_end_graph(3);
     AlgorithmBaseParams params;
     params.max_iterations = kTabuIters;
-    const auto result = g->solve<ImprovingTabuSearch>(params);
+    const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_TRUE(result.solutions.empty());
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }

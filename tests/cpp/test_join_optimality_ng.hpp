@@ -66,7 +66,7 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     constexpr double kNonBindingUpperBound = 1e9;
 
     auto algorithm =
-        run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        run.graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
     run.bounded = run.result.bidirectional->half_way_used;
 

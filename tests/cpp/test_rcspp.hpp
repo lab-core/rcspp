@@ -13,7 +13,7 @@
 
 using namespace rcspp;
 
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* vrp_subproblem,
                     double optimal_cost) {
     auto solutions = vrp_subproblem->solve<AlgorithmType>(dual_by_id);
@@ -21,7 +21,7 @@ void test_vrp_solve(const std::map<size_t, double>& dual_by_id, VRPSubproblem* v
     EXPECT_NEAR(solutions[0].cost, optimal_cost, 1e-9);
 }
 
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_rcspp() {
     std::string instance_name = "R101";
     std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -43,7 +43,7 @@ void test_rcspp() {
     test_vrp_solve<AlgorithmType>(dual_by_id, &vrp_subproblem, OPTIMAL_COST_ITER_1);
 }
 
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_rcspp_non_integer_dual_row_coef() {
     std::string instance_name = "R101";
     std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -82,10 +82,10 @@ void test_rcspp_non_integer_dual_row_coef() {
         test_rcspp_non_integer_dual_row_coef<AlgoType>(); \
     }
 
-DEFINE_RCSPP_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
-DEFINE_RCSPP_TESTS(PushingDominance, PushingDominanceAlgorithm)
-DEFINE_RCSPP_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_RCSPP_TESTS(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_RCSPP_TESTS(SimpleDominance, strategy::Simple)
+DEFINE_RCSPP_TESTS(PushingDominance, strategy::Pushing)
+DEFINE_RCSPP_TESTS(PullingDominance, strategy::Pulling)
+DEFINE_RCSPP_TESTS(AStarDominance, strategy::AStar)
 
 #undef DEFINE_RCSPP_TESTS
 
@@ -95,7 +95,7 @@ DEFINE_RCSPP_TESTS(AStarDominance, AStarDominanceAlgorithm)
 /// check) causes solve() to stop cleanly without crashing or hanging, and
 /// returns either an empty result or whatever solutions were found before the
 /// limit fired.
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_memory_limit_immediate_stop() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -120,7 +120,7 @@ void test_memory_limit_immediate_stop() {
 
 /// Verify that enabling limit_to_available_ram causes solve() to complete
 /// without crashing regardless of whether the limit is hit.
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_memory_limit_available_ram() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -148,7 +148,7 @@ void test_memory_limit_available_ram() {
 /// Verify that memory-pressure pruning fires (pressure_fraction = 0 → always
 /// triggered) without corrupting results: the optimal solution must still be
 /// found when the hard limit is not reached.
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_memory_pressure_pruning() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -181,7 +181,7 @@ void test_memory_pressure_pruning() {
 
 /// Verify that limit_to_total_ram with a very generous fraction finds the
 /// optimal solution, and that the explicit kGB unit constant is usable.
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_memory_limit_total_ram() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -228,10 +228,10 @@ void test_memory_limit_total_ram() {
         test_memory_pressure_pruning<AlgoType>();        \
     }
 
-DEFINE_MEMORY_LIMIT_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
-DEFINE_MEMORY_LIMIT_TESTS(PushingDominance, PushingDominanceAlgorithm)
-DEFINE_MEMORY_LIMIT_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_MEMORY_LIMIT_TESTS(SimpleDominance, strategy::Simple)
+DEFINE_MEMORY_LIMIT_TESTS(PushingDominance, strategy::Pushing)
+DEFINE_MEMORY_LIMIT_TESTS(PullingDominance, strategy::Pulling)
+DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, strategy::AStar)
 
 #undef DEFINE_MEMORY_LIMIT_TESTS
 
@@ -244,7 +244,7 @@ DEFINE_MEMORY_LIMIT_TESTS(AStarDominance, AStarDominanceAlgorithm)
 // internally consistent: every in-use label's ref_count equals the number of in-use
 // labels naming it as predecessor, and no in-use label points to a recycled predecessor.
 // (PushingDominance routes dominated labels through release_with_ref_count; it is a control.)
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_ref_count_consistency_after_solve() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -274,10 +274,10 @@ void test_ref_count_consistency_after_solve() {
         test_ref_count_consistency_after_solve<AlgoType>();   \
     }
 
-DEFINE_REFCOUNT_TEST(SimpleDominance, SimpleDominanceAlgorithm)
-DEFINE_REFCOUNT_TEST(PushingDominance, PushingDominanceAlgorithm)
-DEFINE_REFCOUNT_TEST(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_REFCOUNT_TEST(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_REFCOUNT_TEST(SimpleDominance, strategy::Simple)
+DEFINE_REFCOUNT_TEST(PushingDominance, strategy::Pushing)
+DEFINE_REFCOUNT_TEST(PullingDominance, strategy::Pulling)
+DEFINE_REFCOUNT_TEST(AStarDominance, strategy::AStar)
 
 #undef DEFINE_REFCOUNT_TEST
 
@@ -290,7 +290,7 @@ DEFINE_REFCOUNT_TEST(AStarDominance, AStarDominanceAlgorithm)
 // end-to-end through the real pricing solver — the signal column generation relies on. (The
 // CG-loop branch itself runs only in the Gurobi-backed VRP build, which CI does not compile.)
 
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_solve_status_complete() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -313,7 +313,7 @@ void test_solve_status_complete() {
     EXPECT_NEAR(result.solutions[0].cost, kOptimal, 1e-9);
 }
 
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_solve_status_memory_limit() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -334,7 +334,7 @@ void test_solve_status_memory_limit() {
         << "a tiny memory limit must report MemoryLimit, got '" << result.status_string() << "'";
 }
 
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_solve_status_timeout() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -365,10 +365,10 @@ void test_solve_status_timeout() {
         test_solve_status_timeout<AlgoType>();         \
     }
 
-DEFINE_STATUS_TESTS(SimpleDominance, SimpleDominanceAlgorithm)
-DEFINE_STATUS_TESTS(PushingDominance, PushingDominanceAlgorithm)
-DEFINE_STATUS_TESTS(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_STATUS_TESTS(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_STATUS_TESTS(SimpleDominance, strategy::Simple)
+DEFINE_STATUS_TESTS(PushingDominance, strategy::Pushing)
+DEFINE_STATUS_TESTS(PullingDominance, strategy::Pulling)
+DEFINE_STATUS_TESTS(AStarDominance, strategy::AStar)
 
 #undef DEFINE_STATUS_TESTS
 
@@ -380,7 +380,7 @@ DEFINE_STATUS_TESTS(AStarDominance, AStarDominanceAlgorithm)
 // memory_limit_.is_exceeded() is true when the status is computed) combined with an enormous
 // memory_check_interval (so the periodic check never fires during the solve and the search runs
 // to completion). The status must then be Complete, not MemoryLimit.
-template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+template <typename AlgorithmType = strategy::Simple>
 void test_status_complete_beats_memory_flag() {
     const std::string instance_name = "R101";
     const std::string root_dir = file_parent_dir(__FILE__, 3);
@@ -410,21 +410,21 @@ void test_status_complete_beats_memory_flag() {
     TEST(Rcspp_##AlgoSuffix, StatusCompleteBeatsMemoryFlag) { \
         test_status_complete_beats_memory_flag<AlgoType>();   \
     }
-DEFINE_M2_TEST(SimpleDominance, SimpleDominanceAlgorithm)
-DEFINE_M2_TEST(PushingDominance, PushingDominanceAlgorithm)
-DEFINE_M2_TEST(PullingDominance, PullingDominanceAlgorithm)
-DEFINE_M2_TEST(AStarDominance, AStarDominanceAlgorithm)
+DEFINE_M2_TEST(SimpleDominance, strategy::Simple)
+DEFINE_M2_TEST(PushingDominance, strategy::Pushing)
+DEFINE_M2_TEST(PullingDominance, strategy::Pulling)
+DEFINE_M2_TEST(AStarDominance, strategy::AStar)
 #undef DEFINE_M2_TEST
 
 // ── A* heuristic fallback on a negative-cost cycle ──────────────────────────────
 //
-// AStarDominanceAlgorithm seeds f = g + h from a backward Bellman-Ford over the (reduced) cost
+// strategy::AStar seeds f = g + h from a backward Bellman-Ford over the (reduced) cost
 // slot. When that slot contains a negative-cost cycle the Bellman-Ford cannot converge and
 // throws; the algorithm catches it and disables the heuristic (h = 0); see
 // astar_dominance_algorithm.hpp. This builds a graph whose cost slot has a
 // negative-cost cycle A<->B (sum -20), made finite by a capacity resource, and checks that A*:
 //   (a) does NOT propagate the Bellman-Ford exception (i.e. the catch fires), and
-//   (b) still returns the exact optimum found by the plain SimpleDominanceAlgorithm.
+//   (b) still returns the exact optimum found by the plain strategy::Simple.
 //
 // Resource 0 (RealResource) is the cost; resource 1 (IntResource) is a hop budget in [0, 3] that
 // caps the path length so the negative-cost cycle cannot be traversed forever.
@@ -455,7 +455,7 @@ inline std::unique_ptr<ResourceGraph<RealResource, IntResource>> make_negative_c
     return graph;
 }
 
-template <template <typename, typename> class AlgorithmType>
+template <typename AlgorithmType>
 SolveResult solve_no_preprocess(ResourceGraph<RealResource, IntResource>* graph) {
     // preprocess=false: skip the preprocessing Bellman-Ford / arc removal so the negative-cost
     // cycle is hit only by the A* heuristic seeding (the code path under test), not by
@@ -468,7 +468,7 @@ SolveResult solve_no_preprocess(ResourceGraph<RealResource, IntResource>* graph)
 TEST(AStarHeuristic, NegativeCycleFallbackPreservesOptimum) {
     // Reference optimum from the plain label-correcting algorithm (no heuristic).
     auto ref_graph = make_negative_cycle_graph();
-    const SolveResult ref = solve_no_preprocess<SimpleDominanceAlgorithm>(ref_graph.get());
+    const SolveResult ref = solve_no_preprocess<strategy::Simple>(ref_graph.get());
     ASSERT_FALSE(ref.solutions.empty());
     EXPECT_EQ(ref.status, AlgorithmStatus::Complete);
     EXPECT_NEAR(ref.solutions[0].cost, -5.0, 1e-9);  // S -> A -> B -> T (3 hops)
@@ -477,7 +477,7 @@ TEST(AStarHeuristic, NegativeCycleFallbackPreservesOptimum) {
     // must fire (no exception escapes) and the disabled-heuristic search must match the optimum.
     auto astar_graph = make_negative_cycle_graph();
     SolveResult astar;
-    ASSERT_NO_THROW({ astar = solve_no_preprocess<AStarDominanceAlgorithm>(astar_graph.get()); });
+    ASSERT_NO_THROW({ astar = solve_no_preprocess<strategy::AStar>(astar_graph.get()); });
     ASSERT_FALSE(astar.solutions.empty());
     EXPECT_EQ(astar.status, AlgorithmStatus::Complete);
     EXPECT_NEAR(astar.solutions[0].cost, ref.solutions[0].cost, 1e-9);
