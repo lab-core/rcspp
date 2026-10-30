@@ -20,6 +20,7 @@
 //   test_backward_coherence.cpp           what add_resource accepts, and the coherence trait
 //   test_kernel_parity_single.cpp         the single-direction searches against their frozen copies
 //   test_kernel_parity_bidirectional.cpp  the bidirectional search against its frozen copy
+//   test_kernel_properties.cpp            what every exact search agrees on
 
 #include <gtest/gtest.h>
 
