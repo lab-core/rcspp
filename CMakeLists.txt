@@ -12,8 +12,10 @@ option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
 option(USE_COLUMN_GENERATION "Build column generation (rcspp::column_generation)" ON)
-option(USE_GUROBI "Enable the Gurobi master solver of column generation (needs Gurobi)" OFF)
-option(USE_HIGHS "Enable the HiGHS master solver of column generation (installed, else fetched)" OFF)
+option(USE_COLUMN_GENERATION_GUROBI
+       "Build the Gurobi master solver of column generation (needs Gurobi)" OFF)
+option(USE_COLUMN_GENERATION_HIGHS
+       "Build the HiGHS master solver of column generation (installed, else fetched)" OFF)
 
 enable_testing()
 
@@ -90,18 +92,20 @@ add_subdirectory(cpp/rcspp)
 # Column generation ------------------------------------------------------------
 if(USE_COLUMN_GENERATION)
   add_subdirectory(cpp/rcspp/column_generation)
-elseif(USE_GUROBI OR USE_HIGHS)
-  message(FATAL_ERROR "USE_GUROBI and USE_HIGHS build master solvers of column generation: they need USE_COLUMN_GENERATION.")
+elseif(USE_COLUMN_GENERATION_GUROBI OR USE_COLUMN_GENERATION_HIGHS)
+  message(FATAL_ERROR "USE_COLUMN_GENERATION_GUROBI and USE_COLUMN_GENERATION_HIGHS build master "
+                      "solvers of column generation: they need USE_COLUMN_GENERATION.")
 endif()
 
 # Gurobi master solver ----------------------------------------------------------
 # Asked for explicitly, so a missing Gurobi or a missing C++ library is an error, not a skip.
-if(USE_GUROBI)
+if(USE_COLUMN_GENERATION_GUROBI)
   set(GUROBI_REQUIRE_CXX ON)
   find_package(GUROBI REQUIRED)
   if(NOT TARGET GUROBI::gurobi_cxx)
     message(FATAL_ERROR
-            "USE_GUROBI needs the Gurobi C++ library (gurobi_c++); pass -DGUROBI_CXX_LIBRARY=<path>.")
+            "USE_COLUMN_GENERATION_GUROBI needs the Gurobi C++ library (gurobi_c++); "
+            "pass -DGUROBI_CXX_LIBRARY=<path>.")
   endif()
   add_subdirectory(cpp/rcspp/column_generation/gurobi)
 endif()
@@ -109,7 +113,7 @@ endif()
 # HiGHS master solver -----------------------------------------------------------
 # An installed HiGHS when CMake finds one (pass -Dhighs_DIR=<dir> to point at it), else HiGHS
 # v1.15.1, fetched and built with the project. Either way the target is highs::highs.
-if(USE_HIGHS)
+if(USE_COLUMN_GENERATION_HIGHS)
   include(FetchContent)
   FetchContent_Declare(highs
     URL https://github.com/ERGO-Code/HiGHS/archive/refs/tags/v1.15.1.tar.gz
@@ -135,7 +139,8 @@ if(USE_HIGHS)
     FetchContent_MakeAvailable(highs)
   endblock()
   if(NOT TARGET highs::highs)
-    message(FATAL_ERROR "USE_HIGHS: the HiGHS found or fetched has no highs::highs target.")
+    message(FATAL_ERROR
+            "USE_COLUMN_GENERATION_HIGHS: the HiGHS found or fetched has no highs::highs target.")
   endif()
   if(highs_FOUND)
     message(STATUS "HiGHS: installed, ${highs_VERSION} (${highs_DIR})")

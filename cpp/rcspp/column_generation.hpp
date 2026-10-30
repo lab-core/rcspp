@@ -6,8 +6,8 @@
 ///
 /// Column generation is a library of its own, so rcspp.hpp does not include it. This header pulls
 /// in all of it but its master solvers, which have headers and libraries of their own:
-/// rcspp/column_generation/highs/highs_master_solver.hpp (rcspp_highs) and
-/// rcspp/column_generation/gurobi/gurobi_master_solver.hpp (rcspp_gurobi).
+/// rcspp/column_generation/highs/highs_master_solver.hpp (rcspp::column_generation_highs) and
+/// rcspp/column_generation/gurobi/gurobi_master_solver.hpp (rcspp::column_generation_gurobi).
 ///
 /// @code
 /// #include "rcspp/column_generation.hpp"

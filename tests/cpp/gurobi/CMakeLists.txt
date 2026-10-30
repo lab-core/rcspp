@@ -1,4 +1,5 @@
-# Tests of the Gurobi master solver (USE_GUROBI). Without a license they are skipped, not failed.
+# Tests of the Gurobi master solver (USE_COLUMN_GENERATION_GUROBI). Without a license they are
+# skipped, not failed.
 
 project(tests-rcspp-gurobi LANGUAGES CXX)
 
@@ -15,7 +16,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # The core's and column generation's objects, compiled once for the libraries and every executable
 # that needs them.
 target_link_libraries(${PROJECT_NAME}
-    rcspp_objects rcspp_column_generation_objects rcspp_gurobi GTest::gtest_main)
+    rcspp_objects rcspp_column_generation_objects rcspp_column_generation_gurobi GTest::gtest_main)
 if(USE_COVERAGE)
   target_link_libraries(${PROJECT_NAME} rcspp_coverage)
 endif()

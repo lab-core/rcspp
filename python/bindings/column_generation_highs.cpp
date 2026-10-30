@@ -1,8 +1,8 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// The HiGHS master solver from Python (USE_HIGHS): a HiGHS model the binding owns, filled from
-// arrays, so the whole run stays in C++.
+// The HiGHS master solver from Python (USE_COLUMN_GENERATION_HIGHS): a HiGHS model the binding
+// owns, filled from arrays, so the whole run stays in C++.
 
 #include <Highs.h>
 #include <pybind11/numpy.h>
