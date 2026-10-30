@@ -1190,7 +1190,6 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
 
     auto graph = bv::clocked_graph(windows, arcs);
     auto params = bv::clocked_params(5.0);
-    params.heuristic_cost_index = 5;
     params.prune_by_incumbent = true;
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
