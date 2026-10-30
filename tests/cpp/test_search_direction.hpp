@@ -121,7 +121,7 @@ TEST(SearchDirection, OtherAlgorithmsRefuseBackward) {
     namespace sdt = search_direction_test;
     sdt::expect_backward_refused<PushingDominanceAlgorithm>("Pushing");
     sdt::expect_backward_refused<PullingDominanceAlgorithm>("Pulling");
-    sdt::expect_backward_refused<AStarAlgoBound<RealResource>::Algo>("A*");
+    sdt::expect_backward_refused<AStarDominanceAlgorithm>("A*");
     sdt::expect_backward_refused<GreedyAlgorithm>("Greedy");
     sdt::expect_backward_refused<TabuSearchAlgorithm>("Tabu");
 }
@@ -280,7 +280,7 @@ TEST(BidirectionalSelection, PullingAndAStarRefuseBidirectional) {
     EXPECT_THROW((void)g->create_algorithm<PullingDominanceAlgorithm>(
                      sdt::params(SearchDirection::Bidirectional)),
                  std::invalid_argument);
-    EXPECT_THROW((void)g->create_algorithm<AStarAlgoBound<RealResource>::Algo>(
+    EXPECT_THROW((void)g->create_algorithm<AStarDominanceAlgorithm>(
                      sdt::params(SearchDirection::Bidirectional)),
                  std::invalid_argument);
 }

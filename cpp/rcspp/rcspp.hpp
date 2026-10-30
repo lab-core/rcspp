@@ -33,6 +33,7 @@
 #include "rcspp/algorithm/improving_tabu_search.hpp"
 #include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
+#include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
