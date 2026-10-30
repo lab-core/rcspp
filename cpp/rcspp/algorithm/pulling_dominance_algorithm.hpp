@@ -29,7 +29,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
-            this->initialize_unprocessed_labels(graph->get_number_of_nodes());
+            this->reset(graph->get_number_of_nodes());
+            first_loop_ = true;
         }
 
         void main_loop() override {  // NOLINT

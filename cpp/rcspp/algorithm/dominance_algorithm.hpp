@@ -406,6 +406,15 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
 template <typename ResourceType>
 struct NodeUnprocessedLabelsManager {
+        /// @brief Empties every queue and sizes them for @p num_nodes nodes, for a new solve: what
+        ///        an earlier solve left in them names labels the new one is about to recycle.
+        void reset(size_t num_nodes) {
+            clear_all_queues();
+            unprocessed_labels_by_node_pos_.resize(num_nodes);
+            truncated_unprocessed_labels_by_node_pos_.resize(num_nodes);
+            initialize_unprocessed_labels(num_nodes);
+        }
+
         void initialize_unprocessed_labels(size_t num_nodes) {
             if (unprocessed_labels_by_node_pos_.empty()) {
                 for (size_t i = 0; i < num_nodes; i++) {

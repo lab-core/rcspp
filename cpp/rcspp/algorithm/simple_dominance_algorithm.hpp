@@ -33,7 +33,11 @@ class DirectedSimpleDominanceAlgorithm
     private:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
-            number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
+            // A solve starts with empty queues: what an earlier solve left in them (labels held
+            // back, or never reached) names labels initialize_labels() is about to recycle.
+            unprocessed_labels_.clear();
+            unprocessed_truncated_labels_.clear();
+            number_of_extended_labels_per_node_.assign(graph->get_number_of_nodes(), 0);
         }
         LabelIteratorPair<ResourceType> next_label_iterator() override {
             while (!unprocessed_labels_.empty()) {

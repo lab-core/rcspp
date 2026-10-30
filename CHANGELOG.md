@@ -227,6 +227,11 @@ New features are summarised, with a pointer to where they are documented.
 - **`Algorithm::is_optimal()` answers for the last solve**: whether it ended `Complete`. It used to
   read the label queues, which `release_after_solve` empties when the solve ends, so it answered
   `true` after a timeout or any other early stop. It answers `false` before the first solve.
+- **A second solve on the same Simple, Pushing or Pulling object no longer reads labels the first
+  one left queued.** With `release_after_solve = false`, a solve that held labels back
+  (`max_extended_labels_per_node`, memory pressure) or stopped early left them in its queues; the
+  next solve recycled those labels and then took them from the queue, which could return wrong
+  solutions or crash. Each solve now starts with empty queues. A\* already did.
 - **A bidirectional search that abandons labels reports `Truncated`, not `Complete`**, and
   `is_optimal()` answers `false`. It runs one phase, so the labels that
   `max_extended_labels_per_node` or memory pressure takes off its frontiers are never extended;
