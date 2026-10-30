@@ -64,6 +64,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `issues.md` + `issues/` | GitHub issues to create (`I-`, one paste-ready file each) and to close | when a finding is outside the plan's code |
 | `baseline.md` | measured benchmark results (informative and golden) | before and after perf-sensitive changes |
 | `packaging.md` | study notes: Gurobi from Python (B1, B2, C API, adapters), Python packages, C++ packaging and flags | before `T-1.11`, `T-1.12`, or any packaging change |
+| `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
 
