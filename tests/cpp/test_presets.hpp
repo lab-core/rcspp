@@ -85,9 +85,8 @@ TEST(Presets, CostResourceMatchesTheHandBuiltModel) {
         std::make_unique<ValueDominanceFunction<RealResource>>());
     presets_test::finish<ResourceGraph<RealResource>, RealResource>(by_hand.get(), 10.0);
 
-    presets_test::expect_same_solutions(
-        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
-        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    presets_test::expect_same_solutions(by_preset->solve<strategy::Simple>(AlgorithmBaseParams{}),
+                                        by_hand->solve<strategy::Simple>(AlgorithmBaseParams{}));
 }
 
 TEST(Presets, WindowResourceMatchesTheHandBuiltModel) {
@@ -103,9 +102,8 @@ TEST(Presets, WindowResourceMatchesTheHandBuiltModel) {
         std::make_unique<ValueDominanceFunction<RealResource>>());
     presets_test::finish<ResourceGraph<RealResource>, RealResource>(by_hand.get(), 10.0);
 
-    presets_test::expect_same_solutions(
-        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
-        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    presets_test::expect_same_solutions(by_preset->solve<strategy::Simple>(AlgorithmBaseParams{}),
+                                        by_hand->solve<strategy::Simple>(AlgorithmBaseParams{}));
 }
 
 // Hand-built with the correct pairing: CapacityExtensionFunction(cap) +
@@ -125,9 +123,8 @@ TEST(Presets, CapacityResourceMatchesTheHandBuiltModel) {
         std::make_unique<ValueDominanceFunction<IntResource>>());
     presets_test::finish<ResourceGraph<IntResource>, IntResource>(by_hand.get(), 10);
 
-    presets_test::expect_same_solutions(
-        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
-        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    presets_test::expect_same_solutions(by_preset->solve<strategy::Simple>(AlgorithmBaseParams{}),
+                                        by_hand->solve<strategy::Simple>(AlgorithmBaseParams{}));
 }
 
 // Per-node caps: one NodeBounds, shared by the extension and the feasibility function.
@@ -153,9 +150,8 @@ TEST(Presets, PerNodeCapacityMatchesTheHandBuiltModel) {
         std::make_unique<ValueDominanceFunction<RealResource>>());
     presets_test::add_two_routes(by_hand.get());
 
-    presets_test::expect_same_solutions(
-        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
-        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    presets_test::expect_same_solutions(by_preset->solve<strategy::Simple>(AlgorithmBaseParams{}),
+                                        by_hand->solve<strategy::Simple>(AlgorithmBaseParams{}));
 }
 
 // Per-node caps bind forward and at every H; at H = 5 the answer needs the backward clamp at
@@ -172,7 +168,7 @@ TEST(Presets, PerNodeCapacitiesBindInBothDirections) {
     };
     const std::vector<size_t> dear_route{2, 3};
 
-    const auto forward = build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto forward = build()->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(forward.solutions.empty());
     EXPECT_DOUBLE_EQ(forward.solutions.front().cost, -1.0);
     EXPECT_EQ(forward.solutions.front().path_arc_ids, dear_route);
@@ -184,7 +180,7 @@ TEST(Presets, PerNodeCapacitiesBindInBothDirections) {
         params.critical_resource_index = 1;
         params.half_way_point = half_way_point;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         const auto result = graph->solve(algorithm.get());
         ASSERT_FALSE(result.solutions.empty()) << "H = " << half_way_point;
         EXPECT_DOUBLE_EQ(result.solutions.front().cost, -1.0) << "H = " << half_way_point;
@@ -214,9 +210,8 @@ TEST(Presets, NgPathResourceMatchesTheHandBuiltModel) {
     by_hand->add_node(1, /*source=*/false, /*sink=*/true);
     by_hand->add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}), 0, 1, 10.0);
 
-    presets_test::expect_same_solutions(
-        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
-        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    presets_test::expect_same_solutions(by_preset->solve<strategy::Simple>(AlgorithmBaseParams{}),
+                                        by_hand->solve<strategy::Simple>(AlgorithmBaseParams{}));
 }
 
 /// @brief The elementary preset is the ng preset with nothing ever forgotten.
@@ -262,9 +257,8 @@ TEST(Presets, ElementaryResourceIsNgPathWithUniversalNeighborhoods) {
         std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     build_arcs(by_hand.get());
 
-    presets_test::expect_same_solutions(
-        by_preset->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}),
-        by_hand->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    presets_test::expect_same_solutions(by_preset->solve<strategy::Simple>(AlgorithmBaseParams{}),
+                                        by_hand->solve<strategy::Simple>(AlgorithmBaseParams{}));
 }
 
 // The ng preset forbids `{v}` at every node its neighborhoods mention, not just the keys. Node 1
@@ -289,7 +283,7 @@ TEST(Presets, NgPathPresetForbidsEveryNodeItsNeighborhoodsMention) {
     graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({-5.0, 1.0, none}, 2, 1, -5.0);
     graph->add_arc<RealResource, RealResource, SizeTBitsetResource>({1.0, 1.0, none}, 1, 3, 1.0);
 
-    const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_DOUBLE_EQ(result.solutions.front().cost, 2.0);
     EXPECT_EQ(result.solutions.front().path_arc_ids, (std::vector<size_t>{0, 3}));
@@ -325,7 +319,7 @@ TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
     params.critical_resource_index = 1;
     params.half_way_point = 50.0;
     auto algorithm =
-        by_preset->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        by_preset->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = by_preset->solve(algorithm.get());
     EXPECT_FALSE(result.solutions.empty())
         << "a preset-built model must be solvable bidirectionally; if the derived reversal were "
@@ -352,8 +346,7 @@ TEST(Presets, CapacityPresetDeclaresThreshold) {
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource, IntResource>>> params;
     params.critical_resource_index = 0;
     params.half_way_point = 0.0;
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
     EXPECT_FALSE(result.solutions.empty())
         << "a capacity preset must be coherent backwards; finding nothing means the backward "
@@ -389,7 +382,7 @@ TEST(Presets, CapacityOnARealResourceKeepsFractionalConsumption) {
     presets::add_capacity_resource<RealResource>(*graph, 5);
     presets_test::add_fractional_routes(graph.get());
 
-    const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_EQ(result.solutions.size(), 1U) << "the 5.8 route breaks a capacity of 5";
     EXPECT_DOUBLE_EQ(result.solutions.front().cost, 10.0);
 }
@@ -403,7 +396,7 @@ TEST(Presets, IntegerWindowsOnARealResourceKeepFractionalTimes) {
     presets::add_window_resource<RealResource>(*graph, windows);
     presets_test::add_fractional_routes(graph.get());
 
-    const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_EQ(result.solutions.size(), 1U) << "0-1-2 arrives at 5.8, after node 2 closes at 5";
     EXPECT_DOUBLE_EQ(result.solutions.front().cost, 10.0);
 }

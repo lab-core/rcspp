@@ -110,12 +110,9 @@ class Algorithm:
       Tabu
 
       AStar
-
-      Bidirectional
     """
 
     AStar: typing.ClassVar[Algorithm]
-    Bidirectional: typing.ClassVar[Algorithm]
     Greedy: typing.ClassVar[Algorithm]
     Pulling: typing.ClassVar[Algorithm]
     Pushing: typing.ClassVar[Algorithm]
@@ -294,7 +291,7 @@ class AlgorithmParams:
     @property
     def direction(self) -> SearchDirection:
         """
-        Which way the search runs: SearchDirection.Forward (default), Backward or Bidirectional. Only the simple algorithm searches backward or bidirectionally; the others raise ValueError. ResourceGraph.solve's `direction` argument, or algorithm='bidirectional', overrides it for that call only.
+        Which way the search runs: SearchDirection.Forward (default), Backward or Bidirectional. Only the simple algorithm searches backward or bidirectionally; the others raise ValueError. ResourceGraph.solve's `direction` argument overrides it for that call only.
         """
 
     @direction.setter
