@@ -34,4 +34,5 @@
 #include "test_preprocessor_coverage.hpp"
 #include "test_solution_pool.hpp"
 #include "test_tabu_list.hpp"
+#include "test_take_rule.hpp"
 #include "test_timer.hpp"

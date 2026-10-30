@@ -45,6 +45,7 @@
 #include "rcspp/algorithm/labelling/parts/retention/keep_at_nodes.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
+#include "rcspp/algorithm/labelling/take_rule.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
