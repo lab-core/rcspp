@@ -124,3 +124,13 @@ User and colleague: HiGHS, maybe Gurobi, maybe all of column generation in a sep
 - Importing `_core` takes ~310 ms with or without HiGHS (pybind11 registering the graph types); HiGHS adds nothing
   measurable. gurobipy installed adds ~16 ms to `import rcspp.column_generation` (6.2 imports it eagerly, `Q-39`).
 - No run-time cost: HiGHS code runs only when a `HighsMasterSolver` is built.
+
+### Commits (`T-1.12`, branch `feature/column-generation-packaging` on PR 6; `D-107`–`D-109`)
+
+| # | commit | state |
+|---|---|---|
+| 1 | `fix(build): install the rcspp headers and a findable CMake package` (#79) | done: `e621c505`, on the branch as its own cherry-pick. Also found: no `rcsppConfig.cmake` was installed, `rcspp` had no include folder and no `rcspp::rcspp` alias in a build. Check: CTest `install_and_find_package` (`tests/find_package/`; `tests/install` is ignored by `.gitignore`'s `INSTALL*` on Windows). On `main`: two mechanical conflicts (`python/CMakeLists.txt`'s install block from 6.3; the template lands in `examples/cpp/vrp/cmake/` by rename detection, belongs in a new `cmake/`) |
+| 2 | `refactor(column_generation): the master solvers in column generation's folder` | todo (`D-108`) |
+| 3 | `build(column_generation): column generation as a library of its own` | todo (`USE_COLUMN_GENERATION`, static: `D-109`) |
+| 4 | `build(column_generation): the master solver options named after column generation` | todo |
+| 5 | `build(column_generation): install rules and CMake components` | todo (a fetched HiGHS installs itself in the prefix) |
