@@ -34,6 +34,8 @@
 #include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
+#include "rcspp/algorithm/labelling/context.hpp"
+#include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/admission.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/dominance_admission.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
