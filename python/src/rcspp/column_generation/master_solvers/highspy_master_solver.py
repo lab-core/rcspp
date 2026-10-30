@@ -29,7 +29,12 @@ class HighspyMasterSolver(HighsMasterSolver):
     """
 
     def __init__(self, model: "highspy.Highs", rows: Sequence[int] | None = None) -> None:
-        import highspy
+        try:
+            import highspy
+        except ImportError as error:
+            raise ImportError(
+                "HighspyMasterSolver needs highspy: pip install rcspp[highspy]"
+            ) from error
 
         lp = model.getLp()
         integrality = list(lp.integrality_)
