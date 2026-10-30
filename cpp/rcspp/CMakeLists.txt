@@ -3,6 +3,11 @@ project(rcspp VERSION 0.1 LANGUAGES CXX)
 # Gather all C++ sources/headers for the library -------------------------------
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 file(GLOB_RECURSE HEADERS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
+# Without column generation, a library of its own (RCSPP_COLUMN_GENERATION_DIR). Its files are
+# removed by name: a pattern on the full path could also match the folders a checkout sits in.
+file(GLOB_RECURSE column_generation_files "${RCSPP_COLUMN_GENERATION_DIR}/*")
+list(REMOVE_ITEM SOURCE_FILES ${column_generation_files})
+list(REMOVE_ITEM HEADERS_FILES ${column_generation_files} ${RCSPP_COLUMN_GENERATION_HEADER})
 
 # Generate the umbrella header rcspp.hpp ---------------------------------------
 set(RCSPP_UMBRELLA_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/rcspp.hpp")
@@ -20,6 +25,9 @@ list(REMOVE_ITEM HEADERS_FILES "${RCSPP_UMBRELLA_HEADER}")
 # Create a small helper CMake script (generate_umbrella.cmake) that will be invoked by the
 # custom command to produce the umbrella header. The script lives next to this CMakeLists.
 
+# What the umbrella header leaves out, as one argument (a list would be split).
+set(RCSPP_UMBRELLA_EXCLUDED "${RCSPP_COLUMN_GENERATION_DIR}|${RCSPP_COLUMN_GENERATION_HEADER}")
+
 # Custom command that generates the umbrella header using the helper script
 add_custom_command(
   OUTPUT "${RCSPP_UMBRELLA_HEADER}"
@@ -28,7 +36,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND}
           -DREPO_SRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
           -DREPO_REL_DIR=${CMAKE_CURRENT_SOURCE_DIR}/..
-          -DREPO_BUILD_DIR=${BUILD_INCLUDE_DIR}
+          "-DEXCLUDED=${RCSPP_UMBRELLA_EXCLUDED}"
           -DOUT_FILE=${RCSPP_UMBRELLA_HEADER}
           -P "${CMAKE_CURRENT_SOURCE_DIR}/generate_umbrella_include.cmake"
   COMMENT "Generating umbrella header ${RCSPP_UMBRELLA_HEADER}"
@@ -72,3 +80,10 @@ target_link_libraries(${LIB} PRIVATE rcspp_objects)
 add_dependencies(${LIB} generate_umbrella_header)
 set_target_properties(${LIB} PROPERTIES VERSION ${PROJECT_VERSION})
 target_compile_features(${LIB} PUBLIC cxx_std_23)
+# "rcspp/...": the source folder in a build, the installed headers once installed.
+target_include_directories(${LIB} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+# The name an installed rcspp has (find_package), also for projects that add rcspp's sources.
+add_library(rcspp::rcspp ALIAS ${LIB})

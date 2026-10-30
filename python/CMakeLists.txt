@@ -17,8 +17,11 @@ set(PY_PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${PYTHON_PACKAGE_NAME}")
 
 # Gather all C++ sources for the Python module
 file(GLOB_RECURSE MODULE_SOURCES "${PY_BINDINGS_DIR}/*.cpp")
-# The HiGHS master solver is bound only with USE_HIGHS.
-if(NOT USE_HIGHS)
+# Column generation is bound only with USE_COLUMN_GENERATION, its HiGHS master solver only with
+# USE_COLUMN_GENERATION_HIGHS.
+if(NOT USE_COLUMN_GENERATION)
+  list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation(_highs)?\\.cpp$")
+elseif(NOT USE_COLUMN_GENERATION_HIGHS)
   list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation_highs\\.cpp$")
 endif()
 
@@ -62,10 +65,15 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
+# Column generation, as objects too.
+if(USE_COLUMN_GENERATION)
+  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_column_generation_objects)
+  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_COLUMN_GENERATION)
+endif()
 # The HiGHS master solver, and HiGHS itself (static: it ends up in the module).
-if(USE_HIGHS)
-  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_highs)
-  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_HIGHS)
+if(USE_COLUMN_GENERATION_HIGHS)
+  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_column_generation_highs)
+  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_COLUMN_GENERATION_HIGHS)
   # HiGHS is built with hidden symbols, but the standard library templates it instantiates keep
   # theirs; on Linux the linker hides those too, so that the module exports nothing of HiGHS and
   # another HiGHS in the process (highspy's) keeps its own. macOS binds each module's symbols to
@@ -116,18 +124,21 @@ endforeach()
 add_custom_target(copy_python_sources ALL DEPENDS ${PYTHON_COPY_OUTPUTS})
 add_dependencies(${PYTHON_EXTENSION_NAME} copy_python_sources)
 
-# The wheel installs this component only (pyproject.toml): a fetched HiGHS has install rules of
-# its own, for its library and headers, which the module does not need.
-install(TARGETS ${PYTHON_EXTENSION_NAME}
-    LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
-    RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
-)
+# The Python package is installed by the wheel build only: a plain cmake --install installs the C++
+# library alone. The wheel installs this component only (pyproject.toml): a fetched HiGHS has
+# install rules of its own, for its library and headers, which the module does not need.
+if(SKBUILD)
+  install(TARGETS ${PYTHON_EXTENSION_NAME}
+      LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
+      RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
+  )
 
-install(DIRECTORY "${PY_PACKAGE_DIR}/"
-    DESTINATION ${PYTHON_PACKAGE_NAME}
-    COMPONENT python
-    FILES_MATCHING
-    PATTERN "*.py"
-    PATTERN "*.pyi"
-    PATTERN "py.typed"
-)
+  install(DIRECTORY "${PY_PACKAGE_DIR}/"
+      DESTINATION ${PYTHON_PACKAGE_NAME}
+      COMPONENT python
+      FILES_MATCHING
+      PATTERN "*.py"
+      PATTERN "*.pyi"
+      PATTERN "py.typed"
+  )
+endif()

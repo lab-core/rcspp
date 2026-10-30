@@ -3,15 +3,13 @@
 # Expects two variables passed on the command line:
 #  -DREPO_SRC_DIR: absolute path to the repository "src" folder
 #  -DOUT_FILE: absolute path to the output umbrella header to write
+# and optionally -DEXCLUDED: "|"-separated folders and headers under REPO_SRC_DIR that are left out
 
 if(NOT REPO_SRC_DIR)
   message(FATAL_ERROR "generate_umbrella_include.cmake requires -DREPO_SRC_DIR to be set")
 endif()
 if(NOT REPO_REL_DIR)
   message(FATAL_ERROR "generate_umbrella_include.cmake requires -DREPO_REL_DIR to be set")
-endif()
-if(NOT REPO_BUILD_DIR)
-  message(FATAL_ERROR "generate_umbrella_include.cmake requires -DREPO_BUILD_DIR to be set")
 endif()
 if(NOT OUT_FILE)
   message(FATAL_ERROR "generate_umbrella_include.cmake requires -DOUT_FILE to be set")
@@ -24,6 +22,17 @@ file(GLOB_RECURSE ALL_HEADERS "${REPO_SRC_DIR}/*.hpp")
 
 # Remove the umbrella header itself if present to avoid self-include
 list(REMOVE_ITEM ALL_HEADERS "${OUT_FILE}")
+
+# Leave out the folders and headers of EXCLUDED ("|"-separated): libraries of their own.
+string(REPLACE "|" ";" excluded "${EXCLUDED}")
+foreach(path ${excluded})
+  if(IS_DIRECTORY "${path}")
+    file(GLOB_RECURSE excluded_headers "${path}/*.hpp")
+    list(REMOVE_ITEM ALL_HEADERS ${excluded_headers})
+  else()
+    list(REMOVE_ITEM ALL_HEADERS "${path}")
+  endif()
+endforeach()
 
 # Sort the list for deterministic output
 list(SORT ALL_HEADERS)
@@ -62,19 +71,3 @@ foreach(h ${ALL_HEADERS})
 endforeach()
 
 message(STATUS "Umbrella header generation complete: ${OUT_FILE}")
-
-# Copy headers to build/include preserving folder structure --------------------
-# add the umbrella header to the list
-foreach(h ${ALL_HEADERS} ${OUT_FILE})
-  # Compute relative path inside
-  file(RELATIVE_PATH rel_path "${REPO_REL_DIR}" "${h}")
-  set(dest "${REPO_REL_DIR}/${rel_path}")
-
-  # Make sure destination folder exists
-  get_filename_component(dest_dir "${dest}" DIRECTORY)
-  file(MAKE_DIRECTORY "${dest_dir}")
-
-  # Copy header
-  configure_file("${h}" "${dest}" COPYONLY)
-  message(STATUS "Copied header: ${rel_path} to build include directory: ${dest}")
-endforeach()

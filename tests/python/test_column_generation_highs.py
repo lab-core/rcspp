@@ -17,6 +17,12 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "python", "src")
 )
 
+import rcspp  # noqa: E402
+
+# Built without column generation (USE_COLUMN_GENERATION off): these tests skip.
+if not hasattr(rcspp, "column_generation"):
+    pytest.skip("rcspp built without column generation", allow_module_level=True)
+
 import rcspp.column_generation as column_generation  # noqa: E402
 from rcspp.column_generation import (  # noqa: E402
     ColumnBatch,

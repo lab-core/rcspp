@@ -11,8 +11,11 @@ option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
-option(USE_GUROBI "Enable the Gurobi master solver of column generation (needs Gurobi)" OFF)
-option(USE_HIGHS "Enable the HiGHS master solver of column generation (installed, else fetched)" OFF)
+option(USE_COLUMN_GENERATION "Build column generation (rcspp::column_generation)" ON)
+option(USE_COLUMN_GENERATION_GUROBI
+       "Build the Gurobi master solver of column generation (needs Gurobi)" OFF)
+option(USE_COLUMN_GENERATION_HIGHS
+       "Build the HiGHS master solver of column generation (installed, else fetched)" OFF)
 
 enable_testing()
 
@@ -76,28 +79,41 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .a, .lib
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .so, .dylib
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")   # executables
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin")   # .pdb (Windows)
-set(BUILD_INCLUDE_DIR          "${CMAKE_BINARY_DIR}/include")   # for headers
-file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR})
+
+# Column generation and its master solvers: libraries of their own, so the globs over cpp/rcspp
+# (core library, umbrella header, test sources, installed headers) skip its folder and its
+# umbrella header.
+set(RCSPP_COLUMN_GENERATION_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation)
+set(RCSPP_COLUMN_GENERATION_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation.hpp)
 
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
 
+# Column generation ------------------------------------------------------------
+if(USE_COLUMN_GENERATION)
+  add_subdirectory(cpp/rcspp/column_generation)
+elseif(USE_COLUMN_GENERATION_GUROBI OR USE_COLUMN_GENERATION_HIGHS)
+  message(FATAL_ERROR "USE_COLUMN_GENERATION_GUROBI and USE_COLUMN_GENERATION_HIGHS build master "
+                      "solvers of column generation: they need USE_COLUMN_GENERATION.")
+endif()
+
 # Gurobi master solver ----------------------------------------------------------
 # Asked for explicitly, so a missing Gurobi or a missing C++ library is an error, not a skip.
-if(USE_GUROBI)
+if(USE_COLUMN_GENERATION_GUROBI)
   set(GUROBI_REQUIRE_CXX ON)
   find_package(GUROBI REQUIRED)
   if(NOT TARGET GUROBI::gurobi_cxx)
     message(FATAL_ERROR
-            "USE_GUROBI needs the Gurobi C++ library (gurobi_c++); pass -DGUROBI_CXX_LIBRARY=<path>.")
+            "USE_COLUMN_GENERATION_GUROBI needs the Gurobi C++ library (gurobi_c++); "
+            "pass -DGUROBI_CXX_LIBRARY=<path>.")
   endif()
-  add_subdirectory(cpp/rcspp_backends/gurobi)
+  add_subdirectory(cpp/rcspp/column_generation/gurobi)
 endif()
 
 # HiGHS master solver -----------------------------------------------------------
 # An installed HiGHS when CMake finds one (pass -Dhighs_DIR=<dir> to point at it), else HiGHS
 # v1.15.1, fetched and built with the project. Either way the target is highs::highs.
-if(USE_HIGHS)
+if(USE_COLUMN_GENERATION_HIGHS)
   include(FetchContent)
   FetchContent_Declare(highs
     URL https://github.com/ERGO-Code/HiGHS/archive/refs/tags/v1.15.1.tar.gz
@@ -123,14 +139,15 @@ if(USE_HIGHS)
     FetchContent_MakeAvailable(highs)
   endblock()
   if(NOT TARGET highs::highs)
-    message(FATAL_ERROR "USE_HIGHS: the HiGHS found or fetched has no highs::highs target.")
+    message(FATAL_ERROR
+            "USE_COLUMN_GENERATION_HIGHS: the HiGHS found or fetched has no highs::highs target.")
   endif()
   if(highs_FOUND)
     message(STATUS "HiGHS: installed, ${highs_VERSION} (${highs_DIR})")
   else()
     message(STATUS "HiGHS: fetched, v1.15.1")
   endif()
-  add_subdirectory(cpp/rcspp_backends/highs)
+  add_subdirectory(cpp/rcspp/column_generation/highs)
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------
@@ -185,15 +202,104 @@ install(TARGETS rcspp
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY ${BUILD_INCLUDE_DIR}/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# The headers, from the source folder (the umbrella header rcspp.hpp is generated there too).
+install(DIRECTORY cpp/rcspp/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp
+    FILES_MATCHING PATTERN "*.hpp"
+    PATTERN "column_generation" EXCLUDE
+    PATTERN "column_generation.hpp" EXCLUDE
+)
+# Column generation's headers with it, each master solver's with it.
+if(USE_COLUMN_GENERATION)
+  install(FILES cpp/rcspp/column_generation.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp)
+  install(DIRECTORY cpp/rcspp/column_generation/
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp/column_generation
+      FILES_MATCHING PATTERN "*.hpp"
+      PATTERN "gurobi" EXCLUDE
+      PATTERN "highs" EXCLUDE
+  )
+endif()
+foreach(solver gurobi highs)
+  string(TOUPPER ${solver} option)
+  if(USE_COLUMN_GENERATION_${option})
+    install(FILES cpp/rcspp/column_generation/${solver}/${solver}_master_solver.hpp
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp/column_generation/${solver}
+    )
+  endif()
+endforeach()
+# Gurobi's find module, for the Gurobi master solver's users.
+if(USE_COLUMN_GENERATION_GUROBI)
+  install(FILES cmake/FindGUROBI.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rcspp)
+endif()
 
-# set cmake file for package
-# to be used with:
+# The CMake package, to be used with:
 # find_package(rcspp)
 # target_link_libraries(app PRIVATE rcspp::rcspp)
+include(CMakePackageConfigHelpers)
+set(RCSPP_CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/rcspp)
 install(EXPORT rcsppTargets
     FILE rcsppTargets.cmake
     NAMESPACE rcspp::
-    DESTINATION lib/cmake/rcspp
+    DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
 )
+configure_package_config_file(cmake/rcsppConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfig.cmake"
+    INSTALL_DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+)
+get_target_property(RCSPP_VERSION rcspp VERSION)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/rcsppConfigVersion.cmake"
+    VERSION ${RCSPP_VERSION}
+    COMPATIBILITY SameMinorVersion
+)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfigVersion.cmake"
+    DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+)
+
+# The components (rcsppConfig.cmake): each built library with its headers and its own targets file,
+# which rcsppConfig.cmake loads when the component is asked for. A fetched HiGHS installs itself in
+# the same prefix (its own install rules), where find_package(rcspp) finds it.
+set(RCSPP_COMPONENT_TARGETS
+    column_generation rcspp_column_generation
+    column_generation_highs rcspp_column_generation_highs
+    column_generation_gurobi rcspp_column_generation_gurobi
+)
+set(RCSPP_COMPONENTS_BUILT)
+while(RCSPP_COMPONENT_TARGETS)
+  list(POP_FRONT RCSPP_COMPONENT_TARGETS component target)
+  if(NOT TARGET ${target})
+    continue()
+  endif()
+  list(APPEND RCSPP_COMPONENTS_BUILT ${component})
+  # Not rcsppTargets-*.cmake: rcsppTargets.cmake loads those as its own per-configuration files.
+  install(TARGETS ${target}
+      EXPORT rcspp-${component}-targets
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+  install(EXPORT rcspp-${component}-targets
+      FILE rcspp-${component}-targets.cmake
+      NAMESPACE rcspp::
+      DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+  )
+endwhile()
+
+# A check that the installed package works: install into a folder of the build, then build small
+# programs against it with find_package(rcspp), one per component built.
+if(USE_TESTS)
+  string(REPLACE ";" "|" RCSPP_COMPONENTS_ARGUMENT "${RCSPP_COMPONENTS_BUILT}")
+  add_test(NAME install_and_find_package
+      COMMAND ${CMAKE_COMMAND}
+          "-DCOMPONENTS=${RCSPP_COMPONENTS_ARGUMENT}"
+          -DBUILD_DIR=${CMAKE_BINARY_DIR}
+          -DCONFIG=$<CONFIG>
+          -DPREFIX=${CMAKE_BINARY_DIR}/install-check/prefix
+          -DCONSUMER_SOURCE_DIR=${CMAKE_SOURCE_DIR}/tests/find_package
+          -DCONSUMER_BUILD_DIR=${CMAKE_BINARY_DIR}/install-check/build
+          -DGENERATOR=${CMAKE_GENERATOR}
+          -DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
+          -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+          -P ${CMAKE_SOURCE_DIR}/tests/find_package/check_install.cmake
+  )
+endif()
 endif()

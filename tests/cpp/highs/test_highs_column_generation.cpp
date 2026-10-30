@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include "rcspp_backends/highs/highs_master_solver.hpp"
+#include "rcspp/column_generation/highs/highs_master_solver.hpp"
 #include "test_column_generation_end_to_end.hpp"
 
 namespace rcspp::column_generation::testing {

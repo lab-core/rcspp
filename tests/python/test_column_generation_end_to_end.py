@@ -24,6 +24,12 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "examples", "python")
 )
 
+import rcspp  # noqa: E402
+
+# Built without column generation (USE_COLUMN_GENERATION off): these tests skip.
+if not hasattr(rcspp, "column_generation"):
+    pytest.skip("rcspp built without column generation", allow_module_level=True)
+
 import column_generation_loop  # noqa: E402
 from column_generation_fakes import ScriptedPricer, make_path  # noqa: E402
 

@@ -38,9 +38,27 @@ pip install python/
 
 ### Include in your CMake project
 
+Install the library (headers, library and CMake package) into a prefix:
+
+```bash
+cmake --install build --prefix /path/to/prefix
+```
+
+then find it from your project, with `-DCMAKE_PREFIX_PATH=/path/to/prefix` if the prefix is not
+a standard one:
+
 ```cmake
 find_package(rcspp REQUIRED)
 target_link_libraries(my_target PRIVATE rcspp::rcspp)
+```
+
+Column generation and its master solvers are components, installed when rcspp was built with
+them (`USE_COLUMN_GENERATION`, on by default; `USE_COLUMN_GENERATION_HIGHS`,
+`USE_COLUMN_GENERATION_GUROBI`). A master solver brings column generation with it:
+
+```cmake
+find_package(rcspp REQUIRED COMPONENTS column_generation_highs)
+target_link_libraries(my_target PRIVATE rcspp::column_generation_highs)
 ```
 
 Or via FetchContent:

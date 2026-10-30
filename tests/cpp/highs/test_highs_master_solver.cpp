@@ -16,9 +16,9 @@
 #include <string>
 #include <vector>
 
+#include "rcspp/column_generation/highs/highs_master_solver.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver_self_test.hpp"
-#include "rcspp_backends/highs/highs_master_solver.hpp"
 #include "test_column_generation_fakes.hpp"
 
 using namespace rcspp;                              // NOLINT(google-build-using-namespace)

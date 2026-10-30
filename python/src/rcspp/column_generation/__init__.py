@@ -78,7 +78,7 @@ from .registry import (
     tolerance_names,
 )
 
-# Built with USE_HIGHS only, as the wheel is.
+# Built with USE_COLUMN_GENERATION_HIGHS only, as the wheel is.
 try:
     from .._core.column_generation import HighsMasterSolver
     from .master_solvers import HighspyMasterSolver

@@ -1,4 +1,4 @@
-# Tests of the HiGHS master solver (USE_HIGHS).
+# Tests of the HiGHS master solver (USE_COLUMN_GENERATION_HIGHS).
 
 project(tests-rcspp-highs LANGUAGES CXX)
 
@@ -12,8 +12,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/..  # the test fakes
 )
-# The core library's objects, compiled once for the library and every executable that needs them.
-target_link_libraries(${PROJECT_NAME} rcspp_objects rcspp_highs GTest::gtest_main)
+# The core's and column generation's objects, compiled once for the libraries and every executable
+# that needs them.
+target_link_libraries(${PROJECT_NAME}
+    rcspp_objects rcspp_column_generation_objects rcspp_column_generation_highs GTest::gtest_main)
 if(USE_COVERAGE)
   target_link_libraries(${PROJECT_NAME} rcspp_coverage)
 endif()

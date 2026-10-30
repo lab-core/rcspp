@@ -8,6 +8,8 @@ FetchContent_Declare(
   URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+# GoogleTest is for the tests only: rcspp's install leaves it out.
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 # Disable clang-tidy for GTest/GMock targets — they are third-party sources.
 set_target_properties(gtest gtest_main gmock gmock_main PROPERTIES CXX_CLANG_TIDY "")
@@ -22,6 +24,16 @@ file(GLOB SOLVER_TEST_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/gurobi/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/highs/*.cpp")
 list(REMOVE_ITEM TEST_SOURCES ${SOLVER_TEST_SOURCES})
 file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
+# Column generation's own sources with USE_COLUMN_GENERATION only; its master solvers are libraries
+# of their own, linked by their tests below.
+file(GLOB_RECURSE column_generation_sources CONFIGURE_DEPENDS "${RCSPP_COLUMN_GENERATION_DIR}/*.cpp")
+list(REMOVE_ITEM LIB_SOURCES ${column_generation_sources})
+if(USE_COLUMN_GENERATION)
+  file(GLOB column_generation_sources CONFIGURE_DEPENDS "${RCSPP_COLUMN_GENERATION_DIR}/*.cpp")
+  list(APPEND LIB_SOURCES ${column_generation_sources})
+else()
+  list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_column_generation.cpp")
+endif()
 
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
 # The vrp_subproblem test reuses a few VRP data classes from the VRP example.
@@ -57,10 +69,10 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME} DISCOVERY_TIMEOUT 30)
 
-if(USE_GUROBI)
+if(USE_COLUMN_GENERATION_GUROBI)
   add_subdirectory(gurobi)
 endif()
 
-if(USE_HIGHS)
+if(USE_COLUMN_GENERATION_HIGHS)
   add_subdirectory(highs)
 endif()

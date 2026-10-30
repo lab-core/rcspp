@@ -131,6 +131,9 @@ repos:
       # -------------------------
       - id: clang-tidy
         files: ^cpp/rcspp/.*\.(cpp|hpp)$
+        # The master solvers need their solver's headers, which these arguments do not give; the
+        # build lints them (CMAKE_CXX_CLANG_TIDY) when they are built.
+        exclude: ^cpp/rcspp/column_generation/(gurobi|highs)/
         pass_filenames: true
         args:
           - -fix
@@ -144,6 +147,7 @@ repos:
       - id: cppcheck
         entry: cppcheck
         files: ^cpp/rcspp/.*\.(cpp|hpp|c|h)$
+        exclude: ^cpp/rcspp/column_generation/(gurobi|highs)/  # as clang-tidy
         args:
           - --enable=all
           - --inconclusive
