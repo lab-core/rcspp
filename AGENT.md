@@ -553,8 +553,8 @@ class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 ```
 
 A new *labelling* search needs no loop of its own: it is a descriptor of its parts, as
-`strategy::Simple`, `AStar`, `Pushing` and `Pulling` are (`docs/advanced/algorithms.md`, "How
-the labelling algorithms are built"). The kernel's files:
+`strategy::Simple`, `AStar`, `Pushing` and `Pulling` are (`docs/advanced/algorithms.md`, "A
+strategy of one's own"). The kernel's files:
 
 ```text
 cpp/rcspp/algorithm/
@@ -579,4 +579,7 @@ cpp/rcspp/algorithm/
     labelling_algorithm.hpp      LabellingAlgorithm: one search, forward or backward
     bidirectional_labelling_algorithm.hpp
                                  BidirectionalLabellingAlgorithm: two searches and the join
+cpp/rcspp/testing/
+  expect_same_optimum.hpp        rcspp::testing::expect_same_optimum: an exact strategy against
+                                 forward Simple
 ```

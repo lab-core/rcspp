@@ -158,7 +158,7 @@ New features are summarised, with a pointer to where they are documented.
 - **Removed: the strategy classes' hooks, and `DominanceAlgorithm`.** Simple, A\*, Pushing and
   Pulling, in every direction, are built from the labelling kernel's parts: a schedule, an
   admission rule, a retention and an observer, which a strategy's descriptor names (see "How the
-  labelling algorithms are built" in the algorithms guide). There is
+  labelling algorithms are built" and "A strategy of one's own" in the algorithms guide). There is
   no `extend`, `extend_label`, `update_non_dominated_labels`, `remove_label`,
   `add_new_unprocessed_label` or `next_label_iterator` to override, no
   `non_dominated_labels_by_node_pos_`, and no class to derive from: a search of one's own is a
@@ -171,6 +171,14 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **A strategy of one's own**: a descriptor that names its schedule, and optionally its
+  admission rule, retention, observer and interleave, from `rcspp::parts` or of one's own, solves
+  as a built-in strategy does, in every direction it does not refuse (`backward = false`,
+  `bidirectional = false`). `create_algorithm` checks each part against its concept
+  (`parts::Schedule`, `Admission`, `Retention`, `Observer`, `Interleave`) and names the first that
+  fails. `rcspp::testing::expect_same_optimum<Strategy>(graph, params)`
+  (`rcspp/testing/expect_same_optimum.hpp`) checks an exact strategy against forward Simple, in
+  every direction it searches. See "A strategy of one's own" in `docs/advanced/algorithms.md`.
 - **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
   `strategy::Simple` searches backward, from the sinks; `create_algorithm` and `solve` build the
