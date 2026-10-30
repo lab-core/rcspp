@@ -57,8 +57,6 @@ struct Simple {
 /// each solve by one Bellman–Ford run from the end nodes, each arc weighted by the cost a label
 /// gains along it (@c detail::compute_completion_bound, in labelling/completion_bound.hpp).
 struct AStar {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::BestFirstSchedule<ResourceType>;
 };

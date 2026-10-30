@@ -21,6 +21,7 @@
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/labelling/parts/interleave/least_work_first.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/schedule.hpp"
 #include "rcspp/algorithm/labelling/search.hpp"
 #include "rcspp/algorithm/labelling/step.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
@@ -113,8 +114,8 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
 
     protected:
         /// @brief Starts the solve: the half-way point (off, with a reason, when it does not fit
-        ///        the model), both sides' completion bounds when the prune reads them, and the
-        ///        two contexts.
+        ///        the model), both sides' completion bounds when a side reads one, and the two
+        ///        contexts.
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
 
@@ -134,12 +135,18 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                 half_way_off_reason_ = *reason;
             }
 
-            // The sides' bounds are read by the completion-bound prune. Without it, both sides
-            // keep an empty bound, and no relaxation runs.
+            // A side's bound is read by the completion-bound prune, and by its schedule when the
+            // order reads it (A*'s). A side neither reads keeps an empty bound, and no relaxation
+            // runs for it.
+            const bool prune = this->params_.prune_by_incumbent;
             forward_.completion_bound = {};
             backward_.completion_bound = {};
-            if (this->params_.prune_by_incumbent) {
+            if (prune ||
+                parts::reads_completion_bound_v<typename forward_search_type::schedule_type>) {
                 forward_.completion_bound = compute_completion_bound<ForwardDirection>(*graph);
+            }
+            if (prune ||
+                parts::reads_completion_bound_v<typename backward_search_type::schedule_type>) {
                 backward_.completion_bound = compute_completion_bound<BackwardDirection>(*graph);
             }
 
