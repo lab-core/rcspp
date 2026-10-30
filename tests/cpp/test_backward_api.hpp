@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/labelling.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
@@ -51,10 +52,11 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_backward_api_graph() {
     return graph;
 }
 
-/// @brief SimpleDominanceAlgorithm exposing the protected record_solution and record_path.
+/// @brief Simple's forward search, exposing the protected record_path.
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
-class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, LabelContainerType> {
-        using Base = SimpleDominanceAlgorithm<ResourceType, LabelContainerType>;
+class SolutionProbeAlgorithm
+    : public test_util::Labelling<strategy::Simple, ResourceType, LabelContainerType> {
+        using Base = test_util::Labelling<strategy::Simple, ResourceType, LabelContainerType>;
 
     public:
         using Base::Base;

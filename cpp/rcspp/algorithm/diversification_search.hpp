@@ -10,6 +10,7 @@
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/make_algorithm.hpp"
 #include "rcspp/algorithm/tabu_list.hpp"
 
 namespace rcspp {
@@ -32,29 +33,29 @@ namespace rcspp {
  *   - Escaping local optima in iterative improvement algorithms.
  *   - Generating a set of diverse solutions for post-processing or ensemble methods.
  *
- * Usage: Construct with a resource factory, algorithm parameters, and a unique_ptr to the wrapped
- * algorithm.
+ * Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
+ * algorithm is built from this algorithm's params, searching forward, with one solution and at
+ * most 20 iterations per solve.
+ *
+ * @tparam ResourceType       The resource type carried by labels.
+ * @tparam LabelContainerType The per-node container.
+ * @tparam Inner              The strategy solved each time (a descriptor, as @c strategy::Greedy).
  */
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+template <typename ResourceType, typename LabelContainerType, typename Inner>
 class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType> {
     public:
-        DiversificationSearch(
-            ResourceFactory<ResourceType>* resource_factory,
-            AlgorithmParams<LabelContainerType> params,
-            std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> algo = nullptr)
+        DiversificationSearch(ResourceFactory<ResourceType>* resource_factory,
+                              AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)),
-              algo_(std::move(algo)),
               tabu_(this->params_.seed) {
-            if (algo_ == nullptr) {
-                // create algorithm params
-                auto alg_params = this->params_;
-                alg_params.max_solutions = 1;    // only need one solution per iteration
-                alg_params.max_iterations = 20;  // ensure early termination if needed // NOLINT
-                alg_params.release_after_solve = false;  // pool reused each iteration; skip shrink
-                algo_ = std::make_unique<GreedyAlgorithm<ResourceType, LabelContainerType>>(
-                    resource_factory,
-                    alg_params);
-            }
+            auto inner_params = this->params_;
+            inner_params.direction = SearchDirection::Forward;
+            inner_params.max_solutions = 1;    // only need one solution per iteration
+            inner_params.max_iterations = 20;  // ensure early termination if needed // NOLINT
+            inner_params.release_after_solve = false;  // pool reused each iteration; skip shrink
+            algo_ = detail::make_algorithm<Inner, ResourceType, LabelContainerType>(
+                resource_factory,
+                std::move(inner_params));
         }
 
         [[nodiscard]] bool is_optimal() const override { return false; }

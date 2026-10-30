@@ -35,7 +35,7 @@ constexpr double kTolerance = 1e-9;
 
 /// @brief Solves with the ordinary forward algorithm, for comparison.
 inline double forward_optimum(ResourceGraph<RealResource>* graph) {
-    const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     return result.solutions.empty() ? std::numeric_limits<double>::infinity()
                                     : result.solutions.front().cost;
 }
@@ -138,8 +138,8 @@ TEST(Bidirectional, CostOnlyLineMatchesHandComputedOptimum) {
     namespace bt = bidirectional_test;
     auto graph = bt::line_graph({1.0, 2.0, 3.0, 4.0});
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(5.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(5.0)));
     const auto result = graph->solve(algorithm.get());
 
     EXPECT_FALSE(result.bidirectional->half_way_used)
@@ -158,8 +158,8 @@ TEST(Bidirectional, DiamondMatchesForwardOptimum) {
     const double expected = bt::forward_optimum(forward_graph.get());
     ASSERT_NEAR(expected, 3.0, bt::kTolerance);  // 1 + 2 beats 4 + 4
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(2.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(2.0)));
     const auto result = graph->solve(algorithm.get());
 
     ASSERT_FALSE(result.solutions.empty());
@@ -200,7 +200,7 @@ TEST(Bidirectional, CapacityInstanceMatchesForwardOptimum) {
 
     auto graph = build();
     // Slot 1 is the capacity, a valid clock.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, /*critical_resource_index=*/1)));
     const auto result = graph->solve(algorithm.get());
 
@@ -250,7 +250,7 @@ TEST(Bidirectional, TimeWindowInstanceMatchesForwardOptimum) {
     ASSERT_NEAR(expected, 20.0, bt::kTolerance);  // the cheap route arrives at 6 > 5
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
     const auto result = graph->solve(algorithm.get());
 
@@ -273,7 +273,7 @@ TEST(Bidirectional, ShortPathIsFoundWithBoundEnabled) {
     // Total clock 2, but H = 50: the path never comes close to crossing.
     auto graph = bt::clock_line_graph({{1.0, 1.0}, {1.0, 1.0}}, /*capacity=*/100.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(50.0, bt::kClockIndex)));
     const auto result = graph->solve(algorithm.get());
 
@@ -323,8 +323,8 @@ TEST(Bidirectional, AnAccumulationStartsAtTheEmptySuffixWhateverItsBound) {
     graph->add_node(1, /*source=*/false, /*sink=*/true);
     graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 0, 1, 1.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(1.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(1.0)));
 
     const auto result = graph->solve(algorithm.get());
     ASSERT_EQ(result.solutions.size(), 1U);
@@ -385,8 +385,7 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
 
     // Required values: a prefix question, so the model is refused and the component is named.
     auto required = build(/*forbidden=*/false, /*values=*/{0});
-    auto refused =
-        required->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto refused = required->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     try {
         required->solve(refused.get());
         FAIL() << "a required-values component asks a prefix question and must be refused";
@@ -402,14 +401,13 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
     // carried by an ArcEndpoints memory. Forbidding another node, or using a Union memory, would be
     // refused.
     auto forbidding = build(/*forbidden=*/true, /*values=*/{1}, /*arc_endpoints=*/true);
-    auto solving =
-        forbidding->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto solving = forbidding->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     EXPECT_NO_THROW({ forbidding->solve(solving.get()); });
 
     // The forward search is unaffected in both cases; the refusal is bidirectional-only.
     EXPECT_NO_THROW({
         auto forward_only = build(/*forbidden=*/false, /*values=*/{0});
-        forward_only->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        forward_only->solve<strategy::Simple>(AlgorithmBaseParams{});
     });
 }
 
@@ -470,8 +468,8 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
         AlgorithmParams<LabelList<Composed>> params;
         params.critical_resource_index = 1;
         params.half_way_point = half_way;
-        auto algorithm = graph->template create_algorithm<SimpleDominanceAlgorithm>(
-            test_util::bidirectional(params));
+        auto algorithm =
+            graph->template create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         try {
             graph->solve(algorithm.get());
             FAIL() << "a forbidden set that is not the node's own has no backward reading and "
@@ -507,7 +505,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
 
         // Forward-only is unchanged, and returns what the model actually means.
         auto forward = build(/*num_nodes=*/5, /*sink=*/4, /*horizon=*/100.0, {{3, {1}}}, arcs);
-        const auto result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        const auto result = forward->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, -2.0, 1e-9);
         EXPECT_EQ(result.solutions.front().path_node_ids, (std::vector<size_t>{0, 2, 3, 4}));
@@ -532,7 +530,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
         expect_refused(over_strict.get(), /*half_way=*/25.0);
 
         auto forward = build(/*num_nodes=*/4, /*sink=*/3, /*horizon=*/60.0, {{2, {9}}}, arcs);
-        const auto result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        const auto result = forward->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, -24.0, 1e-9);
     }
@@ -576,7 +574,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
         params.critical_resource_index = 1;
         params.half_way_point = 15.0;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         SolveResult result;
         EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
         ASSERT_FALSE(result.solutions.empty());
@@ -655,7 +653,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
     {
         auto graph = build(Memory::VisitedSet);
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         try {
             graph->solve(algorithm.get());
             FAIL() << "a visited set cannot carry the elementary condition backwards";
@@ -674,7 +672,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
     {
         auto graph = build(Memory::Elementary);
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         SolveResult result;
         EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
         ASSERT_FALSE(result.solutions.empty());
@@ -697,7 +695,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
     // Forward-only is unaffected: the visited set is a valid forward model.
     for (const Memory memory : {Memory::VisitedSet, Memory::Elementary}) {
         auto graph = build(memory);
-        const auto result = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        const auto result = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, -13.0, 1e-9);
     }
@@ -718,7 +716,7 @@ TEST(Bidirectional, AZeroHalfWayPointTurnsTheBoundOff) {
 
     // Control: the same clock with a real H engages the bound.
     auto bounded_graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
-    auto bounded = bounded_graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto bounded = bounded_graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(5.0, bt::kClockIndex)));
     const auto bounded_result = bounded_graph->solve(bounded.get());
     ASSERT_TRUE(bounded_result.bidirectional->half_way_used)
@@ -726,7 +724,7 @@ TEST(Bidirectional, AZeroHalfWayPointTurnsTheBoundOff) {
 
     // The same model and the same clock, with H = 0.
     auto graph = bt::clock_line_graph(arcs, /*capacity=*/20.0);
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(0.0, bt::kClockIndex)));
     const auto result = graph->solve(algorithm.get());
 
@@ -777,7 +775,7 @@ TEST(Bidirectional, NonMonotoneClockDisablesTheBoundAndStillSolves) {
     non_monotone->add_arc<RealResource, RealResource>({2.0, -2.0}, 1, 2, 2.0);
     non_monotone->add_arc<RealResource, RealResource>({3.0, 3.0}, 2, 3, 3.0);
 
-    auto monotone_algorithm = monotone->create_algorithm<SimpleDominanceAlgorithm>(
+    auto monotone_algorithm = monotone->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
     const auto monotone_result = monotone->solve(monotone_algorithm.get());
     ASSERT_FALSE(monotone_result.solutions.empty());
@@ -785,7 +783,7 @@ TEST(Bidirectional, NonMonotoneClockDisablesTheBoundAndStillSolves) {
 
     // Preprocessing off: it extends from default values, so the -2 would put node 2 below the
     // clock's floor of 0 and remove its arcs.
-    auto algorithm = non_monotone->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = non_monotone->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
     SolveResult result;
     EXPECT_NO_THROW({
@@ -825,7 +823,7 @@ TEST(Bidirectional, ATrivialDominanceOnTheClockDisablesTheBound) {
     graph->add_arc<RealResource, RealResource>({2.0, 2.0}, 1, 2, 2.0);
     graph->add_arc<RealResource, RealResource>({3.0, 3.0}, 2, 3, 3.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
     SolveResult result;
     EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
@@ -846,7 +844,7 @@ TEST(Bidirectional, AnAbsentCriticalResourceTypeDisablesTheBound) {
 
     // IntResource is NOT in this graph's pack.
     auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm,
+        graph->create_algorithm<strategy::Simple,
                                 LabelList<bt::Composed>,
                                 RealResource,
                                 IntResource>(test_util::bidirectional(bt::params(2.0)));
@@ -874,8 +872,8 @@ TEST(Bidirectional, HalfPathPruningKeepsNegativeReducedCosts) {
     ASSERT_NEAR(expected, -20.0, bt::kTolerance);
 
     auto graph = bt::diamond_graph(30.0, -50.0, 5.0, 5.0);
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(10.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(10.0)));
     const auto result = graph->solve(algorithm.get());
 
     ASSERT_FALSE(result.solutions.empty());
@@ -916,7 +914,7 @@ TEST(Bidirectional, CompletionBoundIsAdmissibleUnderReducedCosts) {
     auto graph = build();
     auto p = bt::params(/*half_way_point=*/0.0);
     p.prune_by_incumbent = true;
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(p));
 
     // Preprocessing off: it would remove arcs on original weights and change what is measured.
     const auto result = graph->solve(algorithm.get(),
@@ -988,8 +986,8 @@ TEST(Bidirectional, RefCountsStayConsistentAfterSolve) {
     namespace bt = bidirectional_test;
     auto graph = bt::diamond_graph(4.0, 4.0, 1.0, 2.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(2.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(2.0)));
     graph->solve(algorithm.get());
 
     EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency())
@@ -1001,7 +999,7 @@ TEST(Bidirectional, BackwardSearchReachesTheSource) {
     namespace bt = bidirectional_test;
     auto graph = bt::clock_line_graph({{1.0, 1.0}, {1.0, 1.0}}, /*capacity=*/100.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(50.0, bt::kClockIndex)));
     graph->solve(algorithm.get());
 
@@ -1034,7 +1032,7 @@ TEST(Bidirectional, MemoryPressureTrimsBothFrontiers) {
     };
 
     // A generous cap: pressure is reported but nothing is trimmed.
-    auto roomy = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto roomy = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(under_pressure(/*max_labels_per_node=*/1000)));
     SolveResult roomy_result;
     EXPECT_NO_THROW({ roomy_result = graph->solve(roomy.get()); });
@@ -1043,7 +1041,7 @@ TEST(Bidirectional, MemoryPressureTrimsBothFrontiers) {
     EXPECT_TRUE(roomy->get_label_pool().check_ref_count_consistency());
 
     // A cap of zero drops every frontier entry on the first check.
-    auto squeezed = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto squeezed = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(under_pressure(/*max_labels_per_node=*/0)));
     EXPECT_NO_THROW({ graph->solve(squeezed.get()); });
     EXPECT_TRUE(squeezed->get_label_pool().check_ref_count_consistency())
@@ -1092,8 +1090,7 @@ TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
             p.memory_check_interval = 1;
             p.memory_pressure_max_labels_per_node = 1;
         }
-        auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
+        auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(p));
         graph->solve(algorithm.get());
         return std::make_pair(algorithm->get_number_of_extended_labels(),
                               algorithm->memory_pressure_was_triggered());
@@ -1127,8 +1124,7 @@ TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
             p.memory_check_interval = 1;
             p.memory_pressure_max_labels_per_node = 0;
         }
-        auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
+        auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(p));
         const SolveResult result = graph->solve(algorithm.get());
         return std::make_pair(result, algorithm->memory_pressure_was_triggered());
     };
@@ -1160,9 +1156,8 @@ TEST(Bidirectional, MemoryPressureIsReportedByForwardAlgorithmsToo) {
     pressed.memory_check_interval = 1;
     pressed.memory_pressure_max_labels_per_node = 0;
 
-    EXPECT_TRUE(graph->solve<SimpleDominanceAlgorithm>(pressed).memory_pressure_triggered);
-    EXPECT_FALSE(
-        graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}).memory_pressure_triggered);
+    EXPECT_TRUE(graph->solve<strategy::Simple>(pressed).memory_pressure_triggered);
+    EXPECT_FALSE(graph->solve<strategy::Simple>(AlgorithmBaseParams{}).memory_pressure_triggered);
 }
 
 /// @brief The default `release_after_solve` frees the backward containers too.
@@ -1176,7 +1171,7 @@ TEST(Bidirectional, ReleasingAfterSolveClearsTheBackwardContainers) {
     p.half_way_point = 3.0;
     p.critical_resource_index = bt::kClockIndex;
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(p));
     const auto result = graph->solve(algorithm.get());
 
     ASSERT_FALSE(result.solutions.empty()) << "releasing the labels must not lose the answer";
@@ -1205,8 +1200,8 @@ TEST(Bidirectional, AGraphWithNoArcsReturnsAnEmptyResult) {
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1, /*source=*/false, /*sink=*/true);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(1.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(1.0)));
 
     SolveResult result;
     EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
@@ -1224,14 +1219,14 @@ TEST(Bidirectional, PreprocessingAwayEveryArcIsNotAModellingError) {
     // Reference: the forward search returns nothing.
     auto forward_graph = bt::line_graph({2.0, 3.0});
     const auto forward =
-        forward_graph->solve<SimpleDominanceAlgorithm>(kBindingUpperBound,
-                                                       AlgorithmParams<LabelList<bt::Composed>>{},
-                                                       /*preprocess=*/true);
+        forward_graph->solve<strategy::Simple>(kBindingUpperBound,
+                                               AlgorithmParams<LabelList<bt::Composed>>{},
+                                               /*preprocess=*/true);
     ASSERT_TRUE(forward.solutions.empty());
 
     auto graph = bt::line_graph({2.0, 3.0});
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(1.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(1.0)));
 
     SolveResult result;
     EXPECT_NO_THROW(
@@ -1254,12 +1249,12 @@ TEST(Bidirectional, ReturnDominatedSolutionsIsHonoured) {
     auto p = bt::params(2.0);
     p.return_dominated_solutions = true;
     p.max_solutions = 100;  // check() warns when this is left at MAX with the flag on
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(p));
     const auto with_dominated = graph->solve(algorithm.get());
 
     auto plain_graph = bt::diamond_graph(4.0, 4.0, 1.0, 2.0);
-    auto plain = plain_graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(2.0)));
+    auto plain =
+        plain_graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(2.0)));
     const auto without = plain_graph->solve(plain.get());
 
     EXPECT_GE(with_dominated.solutions.size(), without.solutions.size());
@@ -1317,8 +1312,7 @@ TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
         auto graph = build();
         auto p = bt::params(8.0, bt::kClockIndex);
         p.prune_by_incumbent = prune;
-        auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
+        auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(p));
         const auto result = graph->solve(algorithm.get(), upper_bound);
         return std::make_pair(result.solutions.size(), result.bidirectional->joined_paths);
     };
@@ -1358,7 +1352,7 @@ TEST(Bidirectional, SolveResultCarriesTheDiagnostics) {
 
     // A clock the bound can use: the capacity slot of clock_line_graph.
     auto clocked = bt::clock_line_graph({{1.0, 5.0}, {2.0, 2.0}, {3.0, 3.0}}, /*capacity=*/20.0);
-    auto with_clock = clocked->create_algorithm<SimpleDominanceAlgorithm>(
+    auto with_clock = clocked->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, bt::kClockIndex)));
     const auto bounded = clocked->solve(with_clock.get());
     ASSERT_TRUE(bounded.bidirectional.has_value());
@@ -1366,14 +1360,14 @@ TEST(Bidirectional, SolveResultCarriesTheDiagnostics) {
 
     // A cost-only model has no clock, so the bound refuses to engage.
     auto cost_only = bt::line_graph({1.0, 2.0, 3.0});
-    auto without_clock = cost_only->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(3.0)));
+    auto without_clock =
+        cost_only->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(3.0)));
     const auto unbounded = cost_only->solve(without_clock.get());
     EXPECT_FALSE(unbounded.bidirectional->half_way_used);
 
     // Every other algorithm leaves them empty.
     auto forward_graph = bt::line_graph({1.0, 2.0, 3.0});
-    const auto forward = forward_graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto forward = forward_graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     EXPECT_FALSE(forward.bidirectional.has_value());
 }
 
@@ -1392,14 +1386,14 @@ TEST(Bidirectional, NoSolutionExceedsTheCallerUpperBound) {
     // Reference: every path costs +5, so the forward search returns nothing.
     auto forward_graph = bt::line_graph({2.0, 3.0});
     const auto forward =
-        forward_graph->solve<SimpleDominanceAlgorithm>(kUpperBound,
-                                                       AlgorithmParams<LabelList<bt::Composed>>{},
-                                                       /*preprocess=*/false);
+        forward_graph->solve<strategy::Simple>(kUpperBound,
+                                               AlgorithmParams<LabelList<bt::Composed>>{},
+                                               /*preprocess=*/false);
     ASSERT_TRUE(forward.solutions.empty());
 
     auto graph = bt::line_graph({2.0, 3.0});
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(1.0)));
+    auto algorithm =
+        graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(1.0)));
     // Preprocessing off, or it would remove every arc and the case would never arise.
     const auto result = graph->solve(algorithm.get(), kUpperBound, /*preprocess=*/false);
 
@@ -1457,7 +1451,7 @@ TEST(Bidirectional, PerNodeCapsSharedByBothFunctionsBindBackward) {
     EXPECT_NEAR(bt::forward_optimum(build().get()), -2.0, bt::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(5.0, bt::kClockIndex)));
     const auto result = graph->solve(algorithm.get());
     ASSERT_TRUE(result.bidirectional->half_way_used);
@@ -1504,7 +1498,7 @@ TEST(Bidirectional, ARelaxedDominanceCannotLetAnInfeasibleSpliceJoin) {
     graph->add_arc<RealResource, RealResource, RealResource>({-1.0, 0.0, 5.0}, 2, 3, -1.0);
     graph->add_arc<RealResource, RealResource, RealResource>({-1.0, 1.0, 1.0}, 3, 4, -1.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(3.0, /*critical_resource_index=*/2)));
     const auto result = graph->solve(algorithm.get());
     for (const auto& solution : result.solutions) {
@@ -1550,17 +1544,16 @@ TEST(Bidirectional, ANegativeCycleTurnsTheCompletionPruneOffRatherThanZeroingIt)
 
     // Preprocessing off throughout: this is about the search's own prune.
     const auto forward =
-        build()->solve<SimpleDominanceAlgorithm>(std::numeric_limits<double>::infinity(),
-                                                 AlgorithmParams<LabelList<bt::Composed>>{},
-                                                 /*preprocess=*/false);
+        build()->solve<strategy::Simple>(std::numeric_limits<double>::infinity(),
+                                         AlgorithmParams<LabelList<bt::Composed>>{},
+                                         /*preprocess=*/false);
     ASSERT_FALSE(forward.solutions.empty());
     EXPECT_NEAR(forward.solutions.front().cost, kOptimum, bt::kTolerance);
 
     auto graph = build();
     auto params = bt::params(3.0, /*critical_resource_index=*/1);
     params.prune_by_incumbent = true;
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get(),
                                      std::numeric_limits<double>::infinity(),
                                      /*preprocess=*/false);
@@ -1576,7 +1569,7 @@ TEST(Bidirectional, TheReasonTheBoundIsOffIsReported) {
     namespace bt = bidirectional_test;
 
     auto unbounded_graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}}, /*capacity=*/20.0);
-    auto unbounded = unbounded_graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto unbounded = unbounded_graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(0.0, bt::kClockIndex)));
     const auto off = unbounded_graph->solve(unbounded.get()).bidirectional.value();
     EXPECT_FALSE(off.half_way_used);
@@ -1584,7 +1577,7 @@ TEST(Bidirectional, TheReasonTheBoundIsOffIsReported) {
         << off.half_way_off_reason;
 
     auto bounded_graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}}, /*capacity=*/20.0);
-    auto bounded = bounded_graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto bounded = bounded_graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(1.5, bt::kClockIndex)));
     const auto on = bounded_graph->solve(bounded.get()).bidirectional.value();
     EXPECT_TRUE(on.half_way_used);
@@ -1592,8 +1585,8 @@ TEST(Bidirectional, TheReasonTheBoundIsOffIsReported) {
 
     // The cost is an accumulation, not a clock: an explicit H does not rescue it.
     auto cost_graph = bt::line_graph({1.0, 2.0});
-    auto cost_clock = cost_graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(bt::params(1.5)));
+    auto cost_clock =
+        cost_graph->create_algorithm<strategy::Simple>(test_util::bidirectional(bt::params(1.5)));
     const auto cost = cost_graph->solve(cost_clock.get()).bidirectional.value();
     EXPECT_FALSE(cost.half_way_used);
     EXPECT_NE(cost.half_way_off_reason.find("threshold"), std::string::npos)
@@ -1646,7 +1639,7 @@ TEST(Bidirectional, AnIntClockWithARealCostKeepsTheOptimum) {
         return graph;
     };
 
-    const auto forward = build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto forward = build()->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(forward.solutions.empty());
     ASSERT_NEAR(forward.solutions.front().cost, 3.0, bt::kTolerance);
 
@@ -1657,7 +1650,7 @@ TEST(Bidirectional, AnIntClockWithARealCostKeepsTheOptimum) {
             params.critical_resource_index = 0;
             params.half_way_point = half_way_point;
             params.prune_by_incumbent = true;
-            auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm,
+            auto algorithm = graph->create_algorithm<strategy::Simple,
                                                      LabelList<Composition>,
                                                      RealResource,
                                                      IntResource>(test_util::bidirectional(params));
@@ -1715,8 +1708,7 @@ inline size_t extended_labels(bool under_pressure) {
         params.memory_check_interval = 1;
         params.memory_pressure_max_labels_per_node = 200;
     }
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
     EXPECT_EQ(result.memory_pressure_triggered, under_pressure);
     return algorithm->get_number_of_extended_labels();
@@ -1752,8 +1744,7 @@ inline std::pair<AlgorithmStatus, bool> solve(size_t quota, bool squeeze) {
         params.memory_check_interval = 1;
         params.memory_pressure_max_labels_per_node = 0;
     }
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
     return {result.status, algorithm->is_optimal()};
 }
@@ -1793,8 +1784,7 @@ TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
     params.half_way_point = 6.0;
     params.max_iterations = 8;           // a handful of pops: neither half can finish
     params.release_after_solve = false;  // the backward labels are counted below
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
 
     ASSERT_NE(result.status, AlgorithmStatus::Complete) << "the stop must land mid-search";
@@ -1838,8 +1828,7 @@ inline AlgorithmStatus solve(size_t max_iterations) {
 
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
     params.max_iterations = max_iterations;
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get(),
                                      std::numeric_limits<double>::infinity(),
                                      /*preprocess=*/false);
@@ -1868,7 +1857,7 @@ TEST(BidirectionalDiagnostics, ExtendedLabelCountIsPerSolve) {
     namespace bt = bidirectional_test;
     auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}}, /*capacity=*/20.0);
 
-    auto simple = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto simple = graph->create_algorithm<strategy::Simple>(
         AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{});
     static_cast<void>(graph->solve(simple.get()));
     const size_t first_simple = simple->get_number_of_extended_labels();
@@ -1876,7 +1865,7 @@ TEST(BidirectionalDiagnostics, ExtendedLabelCountIsPerSolve) {
     EXPECT_GT(first_simple, 0U);
     EXPECT_EQ(simple->get_number_of_extended_labels(), first_simple);
 
-    auto bidirectional = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto bidirectional = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(1.5, bt::kClockIndex)));
     static_cast<void>(graph->solve(bidirectional.get()));
     const size_t first_bidirectional = bidirectional->get_number_of_extended_labels();
@@ -1894,7 +1883,7 @@ TEST(BidirectionalDiagnostics, JoinedPathsCountsDistinctPaths) {
     namespace bt = bidirectional_test;
     auto graph = bt::clock_line_graph({{1.0, 1.0}, {2.0, 1.0}, {3.0, 1.0}, {4.0, 1.0}},
                                       /*capacity=*/20.0);
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bt::params(0.0, bt::kClockIndex)));
     // A finite bound, so the join does not prune against the incumbent and runs every pair.
     const auto result = graph->solve(algorithm.get(), 1e9);
@@ -1973,8 +1962,7 @@ TEST(Bidirectional, BucketsHoldBothHalves) {
         params.half_way_point = 13.5;
         params.critical_resource_index = bt::kClockIndex;
         auto graph = build();
-        const auto result =
-            graph->solve<SimpleDominanceAlgorithm, RealResource, Buckets>(std::move(params));
+        const auto result = graph->solve<strategy::Simple, Buckets>(std::move(params));
         ASSERT_TRUE(result.bidirectional.has_value()) << layout;
         EXPECT_TRUE(result.bidirectional->half_way_used) << layout;
         ASSERT_FALSE(result.solutions.empty()) << layout;
