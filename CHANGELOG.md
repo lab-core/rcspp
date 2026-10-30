@@ -19,13 +19,19 @@ New features are summarised, with a pointer to where they are documented.
   buffered with it and keeps later arc ids matching. A model with such an arc used to build,
   and now fails when it is built. Model a depot that a route passes through as separate source and
   sink nodes, as the VRP example does.
-- **Breaking: `ResourceGraph::create_algorithm<Strategy>(params)` returns
-  `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`**, not
-  `std::unique_ptr<Strategy<ResourceType, LabelContainerType>>`: the class that searches in
-  `params.direction` is not always `Strategy` itself. Code that stored the result in a
-  `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
-  `auto`, or build the algorithm directly. With constructor arguments beyond the params,
-  `create_algorithm` still returns the type it names.
+- **Breaking: a strategy is a descriptor, not a class.** A solve names a struct of
+  `rcspp::strategy`: `graph.solve<strategy::Simple>(params)`, likewise `strategy::AStar`,
+  `Pushing`, `Pulling`, `Greedy`, `Tabu`, `ImprovingTabu` and `Diversification<Inner>` (Greedy by
+  default). `SimpleDominanceAlgorithm`, `AStarDominanceAlgorithm`, `PushingDominanceAlgorithm` and
+  `PullingDominanceAlgorithm` are gone, with no alias; the heuristics keep their classes, which
+  their descriptors name. `ResourceGraph::create_algorithm<Strategy, LabelContainerType,
+  CostResourceType, CriticalResourceType>(params)` returns
+  `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`, built for `params.direction`
+  from the strategy's parts; `solve` takes its template parameters in the same order, so the
+  container now comes before the cost type. `create_algorithm` takes no constructor arguments
+  besides the params: `DiversificationSearch` gets its inner strategy from its descriptor. In
+  Python, `algorithm="bidirectional"` and `Algorithm.Bidirectional` are gone: use
+  `direction="bidirectional"` with any labelling algorithm.
 - **`preprocess` only says whether a solve may reduce the graph.** A backward or bidirectional
   search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
   says, and also when `Algorithm::solve` is called directly; a model that fails them is refused
@@ -140,9 +146,8 @@ New features are summarised, with a pointer to where they are documented.
   `heuristic_cost_index` of type `CostResourceType`, or `arc.cost` when that type was not in the
   composition. Where the objective is that slot, as in every model built in Python, nothing
   changes. On a negative-cost cycle A\* still orders by cost alone.
-- **Removed with it:** `AStarAlgoBound<C>::Algo` (name `AStarDominanceAlgorithm`, which now takes
-  `<ResourceType, LabelContainerType>`), A\*'s `CostResourceType` parameter and
-  `AlgorithmBaseParams::heuristic_cost_index`.
+- **Removed with it:** `AStarAlgoBound<C>::Algo` (name `strategy::AStar`), A\*'s
+  `CostResourceType` parameter and `AlgorithmBaseParams::heuristic_cost_index`.
 - **Pulling checks whether a label ends at a sink before whether its cost is infinite**, as
   Simple and Pushing do. A label of infinite cost at a sink now stays in its container instead of
   being released. It is still never a solution, so no result changes.
@@ -150,25 +155,26 @@ New features are summarised, with a pointer to where they are documented.
   over the per-node quota), so `max_iterations` counts labels taken, as in the other searches. A
   search stopped by `max_iterations` does more work before it stops, and the memory checks, every
   `memory_check_interval` iterations, fall at other labels.
-- **Removed: the strategy classes' hooks, and `DominanceAlgorithm`.** Simple, in every direction,
-  A\*, Pushing and Pulling are built from the labelling kernel's parts: a schedule, an admission
-  rule, a retention and an observer. Each is a `detail::LabellingAlgorithm`, and the bidirectional
-  search a `detail::BidirectionalLabellingAlgorithm` of two kernel searches. There is no `extend`,
-  `extend_label`, `update_non_dominated_labels`, `remove_label`, `add_new_unprocessed_label` or
-  `next_label_iterator` to override, and no `non_dominated_labels_by_node_pos_`. A subclass that
-  overrides one of the hooks with `override` no longer compiles; one that overrides it without
-  `override` still compiles, but the function is no longer called. What they return, and the labels
-  they extend, do not change. Gone with them, with no alias: `DominanceAlgorithm` and its body,
-  `NodeUnprocessedLabelsManager`, `LabelIteratorPair`, `HalfWayPolicy`, `Joiner` and `JoinOptions`,
-  and `DominanceAlgorithm`'s write-only counters (`nb_infeasible_labels_`,
-  `nb_update_non_dom_iter_`, `nb_extend_iter_`, `total_extend_time_`, `total_update_non_dom_time_`).
+- **Removed: the strategy classes' hooks, and `DominanceAlgorithm`.** Simple, A\*, Pushing and
+  Pulling, in every direction, are built from the labelling kernel's parts: a schedule, an
+  admission rule, a retention and an observer, which a strategy's descriptor names (see "How the
+  labelling algorithms are built" in the algorithms guide). There is
+  no `extend`, `extend_label`, `update_non_dominated_labels`, `remove_label`,
+  `add_new_unprocessed_label` or `next_label_iterator` to override, no
+  `non_dominated_labels_by_node_pos_`, and no class to derive from: a search of one's own is a
+  descriptor, from the public parts of `rcspp::parts` or from parts of one's own. What the four
+  strategies return, and the labels they extend, do not change. Gone with them:
+  `DominanceAlgorithm` and its body, `NodeUnprocessedLabelsManager`, `LabelIteratorPair`,
+  `HalfWayPolicy`, `Joiner` and `JoinOptions`, and `DominanceAlgorithm`'s write-only counters
+  (`nb_infeasible_labels_`, `nb_update_non_dom_iter_`, `nb_extend_iter_`, `total_extend_time_`,
+  `total_update_non_dom_time_`).
 
 ### Added
 
 - **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
-  `SimpleDominanceAlgorithm` searches backward, from the sinks; `create_algorithm` and `solve`
-  build the class that does it.
+  `strategy::Simple` searches backward, from the sinks; `create_algorithm` and `solve` build the
+  class that does it.
   In Python, `solve(direction="forward" | "backward" | "bidirectional")`; an unsupported
   direction raises `ValueError`.
   An algorithm asked for a direction it does not search (`Algorithm::supported_directions()`)
@@ -177,10 +183,10 @@ New features are summarised, with a pointer to where they are documented.
   `LabelBuckets` both do).
   A backward search returns complete paths in forward order. See "Search directions" in
   `docs/advanced/algorithms.md`.
-- **Bidirectional labelling**: `SimpleDominanceAlgorithm` with
+- **Bidirectional labelling**: `strategy::Simple` with
   `direction = SearchDirection::Bidirectional`, the clock's type being the last template parameter
   of `solve` and `create_algorithm`, after the cost's, and defaulting to it.
-  In Python, `algorithm="bidirectional"`, the same as `simple` with `direction="bidirectional"`.
+  In Python, `simple` with `direction="bidirectional"`.
   Give it a `critical_resource_index` and a `half_way_point`: with the default `half_way_point = 0`
   the half-way bound is off, and the solve does more work than a forward one and logs a warning
   saying so. A bidirectional search runs one phase, and its two searches interleave: the next label
@@ -189,9 +195,8 @@ New features are summarised, with a pointer to where they are documented.
   `join_after_early_stop = false` skips it, and so does an interrupt. With
   `prune_by_incumbent`, it prunes on lower bounds of the cost still to come, computed from
   the cost function itself, so they hold whichever components the objective reads. What it
-  reports about its
-  bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
-  other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
+  reports about its bound and its join is in `SolveResult::bidirectional`, a
+  `BidirectionalStats`, empty from every other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
@@ -292,7 +297,7 @@ New features are summarised, with a pointer to where they are documented.
   every resource's, while a default graph's cost is its first resource's alone; a graph built
   with custom composition functions lost them too. Nodes and arcs present when the graph was
   cloned were not affected, so a clone that is only solved, or whose arcs are only removed and
-  restored (as `DiversificationSearch` does), gave the same results.
+  restored (as diversification does), gave the same results.
 - `ResourceGraph::is_connected()` no longer makes the next solve skip the feasibility reduction.
   It cleared the modified flag that a solve reads to decide whether to run it, so arcs no feasible
   path uses stayed in the graph. Results were the same, but the search was slower. The
@@ -308,8 +313,8 @@ New features are summarised, with a pointer to where they are documented.
 - `PricingPool.populate_from_cpp_pool()` no longer copies all of the C++ pool's LP data, which it
   did not use. The docs of `SharedPricingPool.add_from_lp_arrays` no longer promise zero copy: it
   converts the index arrays to int32.
-- `SimpleDominanceAlgorithm` (forward and backward) and `AStarDominanceAlgorithm` no longer
-  release a label twice or extend one over the per-node quota. When a search's queue ran out
+- Simple (forward and backward) and A\* no longer release a label twice or extend one over the
+  per-node quota. When a search's queue ran out
   while it was skipping dominated or over-quota labels, the last of them went back to the main
   loop. A dominated one was then released a second time, so the label pool could hand the same
   label out twice; an over-quota one was extended anyway. Under `max_extended_labels_per_node`

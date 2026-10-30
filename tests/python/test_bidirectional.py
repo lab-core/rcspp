@@ -87,22 +87,21 @@ def _bidirectional_params(half_way_point, critical_resource_index=0):
 # -- Reachability and agreement with the forward search -----------------------
 
 
-def test_bidirectional_is_reachable_by_name():
-    """The string maps to the enum, and the enum value is the last one."""
-    assert "bidirectional" in ALGORITHMS
-    assert Algorithm.Bidirectional is not None
-    # New values go at the end so persisted integer values stay stable.
-    assert list(Algorithm.__members__)[-1] == "Bidirectional"
+def test_bidirectional_is_a_direction_not_an_algorithm():
+    """A bidirectional search is a direction of any labelling algorithm; no algorithm is
+    named so."""
+    assert "bidirectional" not in ALGORITHMS
+    assert not hasattr(Algorithm, "Bidirectional")
 
     rg = _cost_only_graph([1.0, 2.0, 3.0])
-    result = rg.solve(algorithm="bidirectional", params=_bidirectional_params(5.0))
+    result = rg.solve(direction="bidirectional", params=_bidirectional_params(5.0))
     assert len(result.solutions) > 0
 
 
-def test_unknown_algorithm_message_lists_bidirectional():
-    """The error listing valid names mentions bidirectional."""
+def test_unknown_algorithm_message_lists_the_algorithms():
+    """The error lists the valid names."""
     rg = _cost_only_graph([1.0])
-    with pytest.raises(ValueError, match="bidirectional"):
+    with pytest.raises(ValueError, match="simple"):
         rg.solve(algorithm="not-an-algorithm")
 
 
@@ -119,7 +118,7 @@ def test_matches_simple_on_a_small_instance(arc_costs, half_way_point):
     expected = _cost_only_graph(arc_costs).solve(algorithm="simple").solutions[0].cost
 
     result = _cost_only_graph(arc_costs).solve(
-        algorithm="bidirectional", params=_bidirectional_params(half_way_point)
+        direction="bidirectional", params=_bidirectional_params(half_way_point)
     )
     assert len(result.solutions) > 0
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
@@ -141,7 +140,7 @@ def test_matches_simple_with_a_time_window_clock():
     assert expected == pytest.approx(20.0, abs=1e-9)
 
     result = _time_window_graph(windows, arcs).solve(
-        algorithm="bidirectional",
+        direction="bidirectional",
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
     assert len(result.solutions) > 0
@@ -155,7 +154,7 @@ def test_short_route_is_found():
     arcs = [(1.0, 1.0, 0, 1), (1.0, 1.0, 1, 2)]
 
     result = _time_window_graph(windows, arcs).solve(
-        algorithm="bidirectional",
+        direction="bidirectional",
         params=_bidirectional_params(50.0, critical_resource_index=1),
     )
     assert len(result.solutions) > 0
@@ -186,7 +185,7 @@ def test_result_reports_whether_the_bound_was_in_force():
     arcs = [(1.0, 10.0, i, i + 1) for i in range(4)]
 
     result = _time_window_graph(windows, arcs).solve(
-        algorithm="bidirectional",
+        direction="bidirectional",
         params=_bidirectional_params(20.0, critical_resource_index=1),
     )
     assert result.bidirectional.half_way_used is True
@@ -197,7 +196,7 @@ def test_a_cost_only_model_reports_the_bound_off():
     """Cost cannot be a clock (reduced costs go negative), so the bound switches off and
     the result says so."""
     result = _cost_only_graph([1.0, 2.0, 3.0]).solve(
-        algorithm="bidirectional",
+        direction="bidirectional",
         params=_bidirectional_params(3.0),
     )
     assert result.bidirectional.half_way_used is False
@@ -216,7 +215,7 @@ def test_half_way_point_reaches_the_algorithm():
 
     for half_way_point in (5.0, 20.0, 500.0):
         result = _time_window_graph(windows, arcs).solve(
-            algorithm="bidirectional",
+            direction="bidirectional",
             params=_bidirectional_params(half_way_point, critical_resource_index=1),
         )
         assert len(result.solutions) > 0
@@ -256,7 +255,7 @@ def test_undeclared_resource_raises_at_setup():
     assert len(rg.solve(algorithm="simple").solutions) > 0
 
     with pytest.raises(RuntimeError, match="component 1: its feasibility function rejects"):
-        rg.solve(algorithm="bidirectional", params=_bidirectional_params(1.0))
+        rg.solve(direction="bidirectional", params=_bidirectional_params(1.0))
 
 
 # -- CapacityExtensionFunction --------------------------------------------------
@@ -307,7 +306,7 @@ def test_a_capacity_that_differs_from_its_feasibility_function_is_refused():
     with pytest.raises(
         RuntimeError, match="clamped to 4.0+, below the largest value its feasibility function"
     ):
-        rg.solve(algorithm="bidirectional", params=_bidirectional_params(1.0))
+        rg.solve(direction="bidirectional", params=_bidirectional_params(1.0))
 
 
 def test_capacity_model_solves_with_a_capacity_clock():
@@ -339,7 +338,7 @@ def test_capacity_model_solves_with_a_capacity_clock():
     assert expected == pytest.approx(6.0, abs=1e-9)
 
     result = rg.solve(
-        algorithm="bidirectional",
+        direction="bidirectional",
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
     assert len(result.solutions) > 0
@@ -403,15 +402,6 @@ def test_other_algorithms_refuse_backward(algorithm):
         _cost_only_graph([1.0, 2.0]).solve(algorithm=algorithm, direction="backward", params=params)
 
 
-def test_the_bidirectional_alias_refuses_another_direction():
-    """``algorithm='bidirectional'`` searches bidirectionally.
-
-    So another direction is an error rather than ignored.
-    """
-    with pytest.raises(ValueError, match="algorithm='bidirectional'"):
-        _cost_only_graph([1.0]).solve(algorithm="bidirectional", direction="backward")
-
-
 def test_an_unknown_direction_is_refused():
     """A misspelt direction names the valid ones."""
     with pytest.raises(ValueError, match="forward, backward, bidirectional"):
@@ -425,24 +415,6 @@ def test_the_direction_is_set_for_the_call_only():
     rg = _cost_only_graph([1.0, 2.0])
     rg.solve(algorithm="simple", direction=SearchDirection.Backward, params=params)
     assert params.direction == SearchDirection.Forward
-
-
-def test_the_alias_is_simple_bidirectional():
-    """``algorithm='bidirectional'`` and ``simple`` with ``direction='bidirectional'``
-    return the same thing."""
-    alias = _time_window_graph(_WINDOWS, _ARCS).solve(
-        algorithm="bidirectional",
-        params=_bidirectional_params(3.0, critical_resource_index=1),
-    )
-    simple = _time_window_graph(_WINDOWS, _ARCS).solve(
-        algorithm="simple",
-        direction="bidirectional",
-        params=_bidirectional_params(3.0, critical_resource_index=1),
-    )
-    assert [s.cost for s in alias.solutions] == [s.cost for s in simple.solutions]
-    assert alias.bidirectional.half_way_used == simple.bidirectional.half_way_used
-    assert alias.bidirectional.joined_paths == simple.bidirectional.joined_paths
-    assert alias.bidirectional.half_way_off_reason == simple.bidirectional.half_way_off_reason
 
 
 # -- The model checks, and why the bound was off ---------------------------------
@@ -473,13 +445,13 @@ def test_a_backward_solve_is_refused_by_the_checks_too():
 def test_half_way_off_reason():
     """The result says why the bound was off, and nothing when it was in force."""
     off = _cost_only_graph([1.0, 2.0]).solve(
-        algorithm="bidirectional", params=_bidirectional_params(0.0)
+        direction="bidirectional", params=_bidirectional_params(0.0)
     )
     assert off.bidirectional.half_way_used is False
     assert "no half_way_point" in off.bidirectional.half_way_off_reason
 
     on = _time_window_graph(_WINDOWS, _ARCS).solve(
-        algorithm="bidirectional",
+        direction="bidirectional",
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
     assert on.bidirectional.half_way_used is True

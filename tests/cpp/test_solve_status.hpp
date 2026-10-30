@@ -53,7 +53,7 @@ struct Outcome {
 
 /// @brief Solves @ref two_routes with @p AlgorithmType and @p params, and reads is_optimal()
 ///        after the solve.
-template <template <typename, typename> class AlgorithmType>
+template <typename AlgorithmType>
 inline Outcome solve(const AlgorithmBaseParams& params) {
     auto graph = two_routes();
     auto algorithm =
@@ -72,7 +72,7 @@ inline AlgorithmBaseParams truncated(bool release_after_solve) {
 }
 
 /// @brief The status and is_optimal() of a truncated run, with and without releasing the labels.
-template <template <typename, typename> class AlgorithmType>
+template <typename AlgorithmType>
 inline void expect_release_changes_nothing() {
     const Outcome released = solve<AlgorithmType>(truncated(true));
     const Outcome kept = solve<AlgorithmType>(truncated(false));
@@ -104,7 +104,7 @@ inline Run run(ResourceGraph<RealResource, IntResource>* graph, AlgorithmPtr& al
 
 /// @brief Solves @ref two_routes three times on one object that keeps its labels, under a quota
 ///        that holds labels back, and expects each solve to match a fresh object's.
-template <template <typename, typename> class AlgorithmType>
+template <typename AlgorithmType>
 inline void expect_each_solve_starts_afresh() {
     const auto params =
         truncated(/*release_after_solve=*/false).with_container<LabelList<Resources>>();
@@ -128,7 +128,7 @@ inline void expect_each_solve_starts_afresh() {
 
 TEST(SolveStatus, AFullSolveIsCompleteAndOptimal) {
     namespace sst = solve_status_test;
-    const sst::Outcome outcome = sst::solve<rcspp::SimpleDominanceAlgorithm>({});
+    const sst::Outcome outcome = sst::solve<rcspp::strategy::Simple>({});
     EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::Complete);
     EXPECT_TRUE(outcome.optimal);
 }
@@ -136,7 +136,7 @@ TEST(SolveStatus, AFullSolveIsCompleteAndOptimal) {
 TEST(SolveStatus, IsOptimalIsFalseBeforeAnySolve) {
     namespace sst = solve_status_test;
     auto graph = sst::two_routes();
-    auto algorithm = graph->create_algorithm<rcspp::SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<rcspp::strategy::Simple>(
         rcspp::AlgorithmBaseParams{}.with_container<rcspp::LabelList<sst::Resources>>());
     EXPECT_FALSE(algorithm->is_optimal());
 }
@@ -146,7 +146,7 @@ TEST(SolveStatus, ATimedOutSolveIsNotOptimal) {
     namespace sst = solve_status_test;
     rcspp::AlgorithmBaseParams params;
     params.timeout_s = 0.0;  // stops before the first extension
-    const sst::Outcome outcome = sst::solve<rcspp::SimpleDominanceAlgorithm>(params);
+    const sst::Outcome outcome = sst::solve<rcspp::strategy::Simple>(params);
     EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::Timeout);
     EXPECT_FALSE(outcome.optimal);
 }
@@ -154,33 +154,33 @@ TEST(SolveStatus, ATimedOutSolveIsNotOptimal) {
 // Releasing the labels used to hide the ones a phase held back: Complete instead of Truncated.
 TEST(SolveStatus, ATruncatedRunThatUsesUpItsPhasesIsNotComplete) {
     namespace sst = solve_status_test;
-    const sst::Outcome outcome = sst::solve<rcspp::SimpleDominanceAlgorithm>(sst::truncated(true));
+    const sst::Outcome outcome = sst::solve<rcspp::strategy::Simple>(sst::truncated(true));
     EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::Truncated);
     EXPECT_FALSE(outcome.optimal);
 }
 
 TEST(SolveStatus, ReleasingTheLabelsChangesNeitherStatusNorOptimality) {
     namespace sst = solve_status_test;
-    sst::expect_release_changes_nothing<rcspp::SimpleDominanceAlgorithm>();
-    sst::expect_release_changes_nothing<rcspp::PushingDominanceAlgorithm>();
-    sst::expect_release_changes_nothing<rcspp::PullingDominanceAlgorithm>();
-    sst::expect_release_changes_nothing<rcspp::AStarDominanceAlgorithm>();
+    sst::expect_release_changes_nothing<rcspp::strategy::Simple>();
+    sst::expect_release_changes_nothing<rcspp::strategy::Pushing>();
+    sst::expect_release_changes_nothing<rcspp::strategy::Pulling>();
+    sst::expect_release_changes_nothing<rcspp::strategy::AStar>();
 }
 
 // A solve that held labels back, on an object that keeps its labels, used to leave them queued;
 // the next solve recycled them and then took them from the queue.
 TEST(SolveStatus, SimpleStartsEachSolveAfresh) {
-    solve_status_test::expect_each_solve_starts_afresh<rcspp::SimpleDominanceAlgorithm>();
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::strategy::Simple>();
 }
 
 TEST(SolveStatus, PushingStartsEachSolveAfresh) {
-    solve_status_test::expect_each_solve_starts_afresh<rcspp::PushingDominanceAlgorithm>();
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::strategy::Pushing>();
 }
 
 TEST(SolveStatus, PullingStartsEachSolveAfresh) {
-    solve_status_test::expect_each_solve_starts_afresh<rcspp::PullingDominanceAlgorithm>();
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::strategy::Pulling>();
 }
 
 TEST(SolveStatus, AStarStartsEachSolveAfresh) {
-    solve_status_test::expect_each_solve_starts_afresh<rcspp::AStarDominanceAlgorithm>();
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::strategy::AStar>();
 }

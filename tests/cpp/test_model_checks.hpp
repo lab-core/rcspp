@@ -624,10 +624,9 @@ TEST(ModelChecks, AFloorOnAThresholdResourceIsRefused) {
     graph->add_arc<RealResource, RealResource>({-5.0, 1.0}, 0, 1, -5.0);
     graph->add_arc<RealResource, RealResource>({-5.0, 1.0}, 1, 2, -5.0);
 
-    const auto forward =
-        graph->solve<SimpleDominanceAlgorithm>(std::numeric_limits<double>::infinity(),
-                                               AlgorithmParams<LabelList<mc::Composed>>{},
-                                               /*preprocess=*/false);
+    const auto forward = graph->solve<strategy::Simple>(std::numeric_limits<double>::infinity(),
+                                                        AlgorithmParams<LabelList<mc::Composed>>{},
+                                                        /*preprocess=*/false);
     EXPECT_TRUE(forward.solutions.empty()) << "node 1 is below the floor on the only path";
 
     const std::string message = mc::problems(*graph, SearchDirection::Bidirectional);
@@ -694,7 +693,7 @@ TEST(ModelChecks, AForwardOnlyCompositionDominanceIsRefused) {
     graph->add_node(1, /*source=*/false, /*sink=*/true);
     graph->add_arc<RealResource>(std::make_tuple(2.0), 0, 1, 2.0);
 
-    const auto forward = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto forward = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(forward.solutions.empty());
     EXPECT_NEAR(forward.solutions.front().cost, 2.0, mc::kTolerance);
 
@@ -757,7 +756,7 @@ TEST(ModelChecks, ANonAdditiveCostIsRefused) {
     auto graph =
         mc::distance_plus_time_graph(std::make_unique<CompositionCostFunction<RealResource>>(),
                                      std::make_unique<ValueCostFunction<RealResource>>());
-    ASSERT_NEAR(mc::best_cost(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    ASSERT_NEAR(mc::best_cost(graph->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 12.0,
                 mc::kTolerance);
     for (const auto direction : {SearchDirection::Backward, SearchDirection::Bidirectional}) {
@@ -802,10 +801,10 @@ TEST(ModelChecks, ABottleneckWhoseHalvesAreAddedIsRefused) {
     auto capped = mc::load_line(std::make_unique<mc::Bottleneck>(),
                                 std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 6.0),
                                 std::make_unique<TrivialCostFunction<RealResource>>());
-    EXPECT_NEAR(mc::best_cost(priced->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    EXPECT_NEAR(mc::best_cost(priced->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 7.0,
                 mc::kTolerance);
-    EXPECT_NEAR(mc::best_cost(capped->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    EXPECT_NEAR(mc::best_cost(capped->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 2.0,
                 mc::kTolerance);
 
@@ -871,7 +870,7 @@ TEST(ModelChecks, ABackwardFloorWithoutAForwardClampIsRefused) {
             3,
             {{1.0, 2.0, 0, 1}, {-4.0, 2.0, 1, 2}});
     };
-    ASSERT_NEAR(mc::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    ASSERT_NEAR(mc::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 -3.0,
                 mc::kTolerance);
 
@@ -901,7 +900,7 @@ TEST(ModelChecks, AHandWrittenFloorIsCheckedByWhatItTests) {
             3,
             {{1.0, 2.0, 0, 1}, {-4.0, 2.0, 1, 2}});
     };
-    ASSERT_NEAR(mc::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    ASSERT_NEAR(mc::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 -3.0,
                 mc::kTolerance);
 
@@ -925,7 +924,7 @@ TEST(ModelChecks, ANegativeLoadUnderAFloorIsRefused) {
     for (const bool capacity : {true, false}) {
         const auto graph = mc::negative_load_graph(capacity, /*detour=*/true);
         ASSERT_NEAR(mc::best_cost(mc::negative_load_graph(capacity, /*detour=*/true)
-                                      ->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+                                      ->solve<strategy::Simple>(AlgorithmBaseParams{})),
                     0.0,
                     mc::kTolerance)
             << "capacity = " << capacity;
@@ -949,7 +948,7 @@ TEST(ModelChecks, ANegativeLoadOnARemovedArcIsStillRefused) {
         for (const bool removed_first : {false, true}) {
             auto graph = mc::negative_load_graph(capacity, /*detour=*/false);
             if (removed_first) {
-                static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+                static_cast<void>(graph->solve<strategy::Simple>(AlgorithmBaseParams{}));
                 const auto removed = graph->get_removed_arc_ids();
                 ASSERT_NE(std::ranges::find(removed, kNegativeArc), removed.end())
                     << "preprocessing no longer removes arc 1->2, so this test no longer "
@@ -986,10 +985,9 @@ TEST(ModelChecks, AnArcOfInfiniteTimeIsNotProbedForAClamp) {
              {-5.0, kForbidden, 2, 3}});
         if (removed_first) {
             // The feasibility preprocessing of a forward solve removes the forbidden arcs.
-            ASSERT_NEAR(
-                mc::best_cost(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
-                2.0,
-                mc::kTolerance);
+            ASSERT_NEAR(mc::best_cost(graph->solve<strategy::Simple>(AlgorithmBaseParams{})),
+                        2.0,
+                        mc::kTolerance);
         }
         EXPECT_TRUE(graph->check_model(SearchDirection::Bidirectional).ok())
             << "removed first = " << removed_first << ": "
@@ -1161,7 +1159,7 @@ TEST(ModelChecks, ABackwardStartTheFeasibilityFunctionDoesNotShareIsRefused) {
             3,
             {{-1.0, 10.0, 0, 1}, {-1.0, 10.0, 1, 2}});
     };
-    ASSERT_NEAR(mc::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    ASSERT_NEAR(mc::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 -2.0,
                 mc::kTolerance);
 
@@ -1306,11 +1304,10 @@ TEST(ModelChecks, APerNodeWindowOnAnAccumulationIsRefusedForABackwardSearch) {
                       std::string::npos)
                 << where << ", " << to_string(direction);
         }
-        EXPECT_THROW(
-            (void)graph->solve<SimpleDominanceAlgorithm>(mc::searching(SearchDirection::Backward)),
-            ModelRefused)
+        EXPECT_THROW((void)graph->solve<strategy::Simple>(mc::searching(SearchDirection::Backward)),
+                     ModelRefused)
             << where;
-        EXPECT_NEAR(mc::best_cost(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+        EXPECT_NEAR(mc::best_cost(graph->solve<strategy::Simple>(AlgorithmBaseParams{})),
                     forward_optimum,
                     mc::kTolerance)
             << where;
@@ -1323,8 +1320,7 @@ TEST(ModelChecks, AUniformWindowOnAnAccumulationStillSearchesBackward) {
     namespace mc = model_checks_test;
     auto graph = mc::accumulating_load_graph({});
     EXPECT_EQ(mc::problems(*graph, SearchDirection::Backward), "");
-    const auto backward =
-        graph->solve<SimpleDominanceAlgorithm>(mc::searching(SearchDirection::Backward));
+    const auto backward = graph->solve<strategy::Simple>(mc::searching(SearchDirection::Backward));
     EXPECT_NEAR(mc::best_cost(backward), -10.0, mc::kTolerance);
 }
 
@@ -1342,23 +1338,22 @@ TEST(ModelChecks, ASourceWindowOpeningAfterTheStartIsRefusedForABackwardSearch) 
     EXPECT_NE(backward.find("component 1: a forward label leaves source 0 at 0.000000"),
               std::string::npos)
         << backward;
-    EXPECT_THROW(
-        (void)late->solve<SimpleDominanceAlgorithm>(mc::searching(SearchDirection::Backward)),
-        ModelRefused);
+    EXPECT_THROW((void)late->solve<strategy::Simple>(mc::searching(SearchDirection::Backward)),
+                 ModelRefused);
     EXPECT_EQ(mc::problems(*late, SearchDirection::Bidirectional), "");
-    EXPECT_NEAR(mc::best_cost(late->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})),
+    EXPECT_NEAR(mc::best_cost(late->solve<strategy::Simple>(AlgorithmBaseParams{})),
                 -10.0,
                 mc::kTolerance);
-    EXPECT_NEAR(mc::best_cost(late->solve<SimpleDominanceAlgorithm>(
-                    mc::searching(SearchDirection::Bidirectional))),
-                -10.0,
-                mc::kTolerance);
+    EXPECT_NEAR(
+        mc::best_cost(late->solve<strategy::Simple>(mc::searching(SearchDirection::Bidirectional))),
+        -10.0,
+        mc::kTolerance);
 
     // Opened at the start value, the source passes, and the backward search finds the path.
     auto open = mc::clocked_graph({{0, {0.0, 100.0}}, {1, {0.0, 100.0}}, {2, {0.0, 3.0}}}, arcs);
     EXPECT_EQ(mc::problems(*open, SearchDirection::Backward), "");
-    EXPECT_NEAR(mc::best_cost(open->solve<SimpleDominanceAlgorithm>(
-                    mc::searching(SearchDirection::Backward))),
-                -10.0,
-                mc::kTolerance);
+    EXPECT_NEAR(
+        mc::best_cost(open->solve<strategy::Simple>(mc::searching(SearchDirection::Backward))),
+        -10.0,
+        mc::kTolerance);
 }

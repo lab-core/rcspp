@@ -591,7 +591,7 @@ TEST(ResourceGraph, FeasibilityRemovalsOutliveTheSolve) {
     g->add_arc<RealResource>(std::make_tuple(kTwoHundredVal), 0, 1, /*cost=*/kTwoHundredVal);
     ASSERT_EQ(count_arcs(*g), 2U);
 
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}, kTwoHundredVal);
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{}, kTwoHundredVal);
     ASSERT_EQ(result.solutions.size(), 1U);
     EXPECT_EQ(count_arcs(*g), 1U) << "the infeasible arc came back";
     EXPECT_NE(g->get_arc(0), nullptr) << "the feasible arc stayed removed";

@@ -146,7 +146,7 @@ result.solutions            # list[Solution], best-first
 result.status               # AlgorithmStatus enum
 result.status_string()      # "complete" | "timeout" | "max_solutions" | …
 # How many labels the search extended is on the algorithm, not on SolveResult:
-#   auto algo = graph.create_algorithm<Algo>(params);
+#   auto algo = graph.create_algorithm<strategy::Simple>(params);
 #   graph.solve(algo.get());
 #   algo->get_number_of_extended_labels();
 
@@ -197,7 +197,7 @@ p.critical_resource_index = 1      # the clock's slot within the cost resource t
 p.half_way_point          = 500.0  # H; the clock's range is taken as [0, 2H]
 ```
 
-### `algorithm="bidirectional"`
+### `direction="bidirectional"`
 
 Searches forward from the sources and backward from the sinks, stops each
 direction at a half-way point `H` on one designated resource, and joins the halves
@@ -234,10 +234,11 @@ at the node where that resource crosses `H`. The requirements:
 Unlike the clock, the other requirements are refusals rather than slowdowns: a model that
 cannot express backward semantics cannot produce a correct answer at all.
 
-In C++, a bidirectional search is `SimpleDominanceAlgorithm` with `params.direction =
-SearchDirection::Bidirectional`; the class behind it is internal
+Every labelling algorithm searches bidirectionally: in Python
+`rg.solve(algorithm="simple", direction="bidirectional", params=p)`, in C++
+`params.direction = SearchDirection::Bidirectional`; the class behind it is internal
 (`rcspp::detail::BidirectionalLabellingAlgorithm`). An int clock beside a real cost is
-`solve<SimpleDominanceAlgorithm, RealResource, LabelContainerType, IntResource>`: the clock's
+`solve<strategy::Simple, LabelContainerType, RealResource, IntResource>`: the clock's
 type is the last template parameter and defaults to the cost's. `SolveResult::bidirectional`,
 empty from every other algorithm, reports `half_way_used`, `half_way_off_reason` and
 `joined_paths`.
@@ -420,7 +421,7 @@ line. A fragment states what it takes from the reader in a comment above it, suc
 4. **`update_reduced_costs` does not rebuild the graph** — it only changes arc
    costs.  You do NOT need to rebuild nodes/arcs between CG iterations.
 
-5. **`DiversificationSearch` requires `max_iterations`** — without a finite
+5. **`strategy::Diversification` requires `max_iterations`** — without a finite
    limit the outer loop never terminates.
 
 6. **Label containers** — `LabelList` (default) is O(N) per dominance check.
@@ -448,9 +449,10 @@ line. A fragment states what it takes from the reader in a comment above it, suc
 11. **The search direction is a parameter** — `params.direction` in C++.
     `solve(direction=...)` in Python, which raises `ValueError` for a direction the algorithm
     does not search.
-    `SearchDirection::Backward` makes `SimpleDominanceAlgorithm` search backward.
-    `SearchDirection::Bidirectional` makes it search both ways.
-    An algorithm asked for a direction it does not search throws `std::invalid_argument`, so
+    `SearchDirection::Backward` makes `strategy::Simple` search backward, and
+    `SearchDirection::Bidirectional` both ways. A strategy is a descriptor (`rcspp::strategy`),
+    and the library builds the class for each direction from its parts. A strategy asked for a
+    direction it does not search throws `std::invalid_argument`, and
     `create_algorithm<Strategy>(params)` returns
     `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
     A backward or bidirectional solve runs the model checks before any preprocessing and throws
@@ -475,8 +477,8 @@ clang-tidy --config-file=.clang-tidy-naming cpp/rcspp/rcspp.hpp -- -xc++ -std=c+
 - **Members.** Non-public data members end in `_` (`back_dominance_reversed_`); public fields of a
   struct do not (`AlgorithmBaseParams::max_solutions`).
 - **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). The static members of
-  traits and policies follow the standard library instead (`value`, `kind`, `has_backward`). A
-  few older constants are still in SCREAMING_CASE: the `FNV_*` constants,
+  traits and policies follow the standard library instead (`value`, `kind`, `collects_at_take`).
+  A few older constants are still in SCREAMING_CASE: the `FNV_*` constants,
   `DEFAULT_LABEL_POOL_SIZE`, and the `timer.cpp` constants.
 - **Template parameters** are spelled out and end in `Type` when they stand for a type
   (`ResourceType`, `LabelContainerType`, `GraphType`); direction policies are `TargetDirection` or
@@ -550,25 +552,31 @@ class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 };
 ```
 
-A new *labelling* search needs no loop of its own: it is a preset of the kernel's parts on
-`detail::LabellingAlgorithm`, as Simple, A\*, Pushing and Pulling are. The kernel's files:
+A new *labelling* search needs no loop of its own: it is a descriptor of its parts, as
+`strategy::Simple`, `AStar`, `Pushing` and `Pulling` are (`docs/advanced/algorithms.md`, "How
+the labelling algorithms are built"). The kernel's files:
 
 ```text
-cpp/rcspp/algorithm/labelling/
-  policies.hpp                   rcspp::parts: StoredLabel, ExtensionOutcome, DominanceAdmission,
+cpp/rcspp/algorithm/
+  strategies.hpp                 rcspp::strategy: Simple, AStar, Pushing, Pulling; Greedy, Tabu,
+                                 ImprovingTabu, Diversification<Inner>
+  make_algorithm.hpp             make_algorithm, preset_t, searches, check_strategy: from a
+                                 descriptor and a direction to a class
+  labelling/
+    policies.hpp                 rcspp::parts: StoredLabel, ExtensionOutcome, DominanceAdmission,
                                  KeepAtNodes, NodeView, NoObserver, LeastWorkFirst, their concepts
-  schedules.hpp                  rcspp::parts: the schedule concepts, PerNodeQuota, CutLabels,
+    schedules.hpp                rcspp::parts: the schedule concepts, PerNodeQuota, CutLabels,
                                  FifoSchedule, BestFirstSchedule, CostKey, CompletionKey
-  node_schedules.hpp             rcspp::parts: NodeQueues, SweepSchedule, PullSchedule
-  context.hpp                    SearchContext, Role: what every part reads of its solve
-  take_rule.hpp                  TakeRule, Decision, Verdict: the checks a label goes through
+    node_schedules.hpp           rcspp::parts: NodeQueues, SweepSchedule, PullSchedule
+    context.hpp                  SearchContext, Role: what every part reads of its solve
+    take_rule.hpp                TakeRule, Decision, Verdict: the checks a label goes through
                                  when it is taken
-  step.hpp                       step, step_node: one unit of work
-  search.hpp                     Search, Preset: one direction's labels, parts, bound and work
-  bounds.hpp                     NodeBound, completion_bounds: the cost still to pay, by node
-  half_way.hpp                   HalfWay, make_half_way, half_way_off_reason and its checks
-  join.hpp                       JoinOptions, join: pairs the two halves
-  labelling_algorithm.hpp        LabellingAlgorithm: one search, forward or backward
-  bidirectional_labelling_algorithm.hpp
+    step.hpp                     step, step_node: one unit of work
+    search.hpp                   Search, Preset: one direction's labels, parts, bound and work
+    bounds.hpp                   NodeBound, completion_bounds: the cost still to pay, by node
+    half_way.hpp                 HalfWay, make_half_way, half_way_off_reason and its checks
+    join.hpp                     JoinOptions, join: pairs the two halves
+    labelling_algorithm.hpp      LabellingAlgorithm: one search, forward or backward
+    bidirectional_labelling_algorithm.hpp
                                  BidirectionalLabellingAlgorithm: two searches and the join
 ```

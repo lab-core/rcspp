@@ -87,8 +87,7 @@ void init_graph(py::module_& m) {
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu)
-        .value("AStar", SolverAlgorithm::AStar)
-        .value("Bidirectional", SolverAlgorithm::Bidirectional);
+        .value("AStar", SolverAlgorithm::AStar);
 
     // ── SearchDirection enum ──────────────────────────────────────────────────
 
@@ -259,7 +258,7 @@ void init_graph(py::module_& m) {
                        "Which way the search runs: SearchDirection.Forward (default), Backward or "
                        "Bidirectional. Only the simple algorithm searches backward or "
                        "bidirectionally; the others raise ValueError. ResourceGraph.solve's "
-                       "`direction` argument, or algorithm='bidirectional', overrides it for that "
+                       "`direction` argument overrides it for that "
                        "call only.")
         // -- Bidirectional parameters ------------------------------------
         .def_readwrite("critical_resource_index",

@@ -18,7 +18,7 @@ class VRPSubproblem {
                       const std::map<size_t, double>* row_coefficient_by_id = nullptr);
 
         // Given a the duals by node id, solve the subproblem and return a vector of solutions.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         std::vector<Solution> solve(const std::map<size_t, double>& dual_by_id,
                                     AlgorithmBaseParams params = AlgorithmBaseParams()) {
             LOG_TRACE(__FUNCTION__, '\n');
@@ -42,7 +42,7 @@ class VRPSubproblem {
         // inspect the label pool's prev_label/ref_count bookkeeping after the solve. Returns true
         // iff the pool is internally consistent; writes the best solution cost to *out_cost when a
         // solution is found. Mirrors solve_with_rcspp()'s default (infinite upper bound) path.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         bool solve_and_check_ref_counts(const std::map<size_t, double>& dual_by_id,
                                         double* out_cost = nullptr) {
             using RC = ResourceTypeComposition<RealResource, IntResource>;
@@ -75,7 +75,7 @@ class VRPSubproblem {
                 size_t joined_paths = 0;
         };
 
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         RunMeasurement solve_and_measure(const std::map<size_t, double>& dual_by_id,
                                          AlgorithmBaseParams params = AlgorithmBaseParams()) {
             using RC = ResourceTypeComposition<RealResource, IntResource>;
@@ -114,7 +114,7 @@ class VRPSubproblem {
         // @param upper_bound Passed through to solve(). An infinite bound enables the joiner's
         //        incumbent cutoff, which makes the solution set order-dependent; tests comparing
         //        solution sets should pass a finite non-binding bound.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         SolveResult solve_result(const std::map<size_t, double>& dual_by_id,
                                  AlgorithmBaseParams params = AlgorithmBaseParams(),
                                  double upper_bound = std::numeric_limits<double>::infinity()) {
@@ -164,7 +164,7 @@ class VRPSubproblem {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
+        template <typename AlgorithmType = strategy::Simple>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id,
             AlgorithmBaseParams params = AlgorithmBaseParams()) {

@@ -11,7 +11,7 @@ title: Algorithms
 | `Simple` | ✓ | medium | Default; correct answer needed |
 | `Pushing` | ✓ | medium–fast | Dense graphs; pushing dominance forward |
 | `Pulling` | ✓ | medium–fast | Dense graphs; pulling dominance from in-arcs |
-| `Bidirectional` | ✓ | fast–slow | Long routes with a tight, monotone clock |
+| `Simple`, `direction="bidirectional"` | ✓ | fast–slow | Long routes with a tight, monotone clock |
 | `AStar` | ✓ | fast–slow | Good heuristic available |
 | `Greedy` | ✗ | fast | Quick feasible solution; large graphs |
 | `Tabu` | ✗ | medium | Metaheuristic diversity |
@@ -70,7 +70,7 @@ p = AlgorithmParams()
 p.critical_resource_index = 1     # slot 1 is the clock (time), not the cost
 p.half_way_point          = 500.0 # H; the resource range is taken as [0, 2H]
 
-result = rg.solve(algorithm="bidirectional", params=p)
+result = rg.solve(direction="bidirectional", params=p)
 ```
 
 `half_way_point` has no useful default: **0 turns the bound off**, it does not derive one.  The
@@ -137,7 +137,7 @@ params.direction = rcspp::SearchDirection::Bidirectional;
 params.critical_resource_index = 0;  // the first int component
 params.half_way_point = 500;
 // cost type RealResource, clock type IntResource
-auto result = graph.solve<rcspp::SimpleDominanceAlgorithm, rcspp::RealResource, Labels,
+auto result = graph.solve<rcspp::strategy::Simple, Labels, rcspp::RealResource,
                           rcspp::IntResource>(std::move(params));
 ```
 
@@ -489,7 +489,7 @@ So it is **not a default**.  It does not pay when:
   `Simple`.  The result reports it:
 
   ```python
-  result = rg.solve(algorithm="bidirectional", params=p)
+  result = rg.solve(direction="bidirectional", params=p)
   stats = result.bidirectional  # None from every other algorithm
   if not stats.half_way_used:
       print("the clock was rejected; this solve was slower than a forward one")
@@ -511,7 +511,7 @@ what survived the trim*.  There is no status value for "exhausted but lossy", an
 `memory_limit` would conflate a hard stop with a soft trim, so it is reported as a flag:
 
 ```python
-result = rg.solve(algorithm="bidirectional", params=p)
+result = rg.solve(direction="bidirectional", params=p)
 if result.memory_pressure_triggered:
     print("memory pressure trimmed this solve; the answer is not a proof")
 ```
@@ -561,7 +561,7 @@ params.max_iterations         = 100
 params.seed                   = 42
 
 result = rg.solve(algorithm="greedy", params=params)
-# In C++, use DiversificationSearch explicitly to wrap any inner algorithm
+# In C++, strategy::Diversification<Inner> diversifies any inner strategy
 ```
 
 ## Search directions
@@ -574,7 +574,7 @@ C++, the direction is a parameter, `AlgorithmBaseParams::direction`:
 ```cpp
 rcspp::AlgorithmBaseParams params;
 params.direction = rcspp::SearchDirection::Backward;
-const rcspp::SolveResult result = graph.solve<rcspp::SimpleDominanceAlgorithm>(params);
+const rcspp::SolveResult result = graph.solve<rcspp::strategy::Simple>(params);
 ```
 
 In Python, it is an argument of `solve`, and a direction the algorithm does not search raises
@@ -584,8 +584,8 @@ In Python, it is an argument of `solve`, and a direction the algorithm does not 
 result = rg.solve(algorithm="simple", direction="backward")  # "forward" (default), "bidirectional"
 ```
 
-`algorithm="bidirectional"` is `simple` with `direction="bidirectional"`, and refuses any other
-direction.
+With `direction="bidirectional"`, `simple` searches both ways; `astar`, `pushing` and
+`pulling` raise `ValueError`.
 
 Whatever its direction, a search returns the same kind of paths, in forward order: each starts at a
 source and ends at a sink.
@@ -604,9 +604,9 @@ An algorithm asked for a direction it does not support throws `std::invalid_argu
 the container you pass, turned backward: `LabelList` and `LabelBuckets` each declare
 `with_direction<TargetDirection>()`, an empty copy of themselves that compares in direction
 `TargetDirection`. A container of your own that does not declare it is refused for a backward
-search. Since the class that searches backward is not the one you name,
-`create_algorithm<Strategy>(params)` returns a
-`std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
+search. `create_algorithm<Strategy>(params)` returns a
+`std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`: the class that searches is built
+from the strategy's parts, in the direction the params ask for.
 
 **The model checks run first, always.** A backward or bidirectional solve runs the checks its
 direction needs ([Model checks](#model-checks)) on the whole model before anything else: before any
@@ -784,5 +784,59 @@ using Resources = ResourceTypeComposition<RealResource>;  // the graph's resourc
 using Buckets = LabelBuckets<RealResource, RealResource, Resources>;
 AlgorithmParams<Buckets> params(Buckets(/*bucket_width=*/200, /*bucket_resource_index=*/0,
                                         /*sort_resource_index=*/1));
-auto result = graph.solve<SimpleDominanceAlgorithm, RealResource, Buckets>(ub, params);
+auto result = graph.solve<strategy::Simple, Buckets>(ub, params);
+```
+
+## How the labelling algorithms are built
+
+The labelling searches (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) share one
+kernel, in `cpp/rcspp/algorithm/labelling/`. A strategy is not a class with its own loop but a
+*descriptor*: a struct in `rcspp::strategy` that names its parts. The parts a descriptor may name
+are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::detail`).
+
+- **The search** holds one direction's labels, one container per node, and is the only code that
+  extends them. Extending a label along an arc checks that the arc is reachable, extends the
+  label, tests its feasibility, asks the admission rule, and stores the new label and hands it to
+  the schedule. Every outcome (unreachable, infeasible, dominated, accepted) goes to the search's
+  observer, which by default records nothing.
+- **Admission and retention.** The admission rule (`parts::DominanceAdmission`) decides whether a
+  new label is kept at its node: under exact dominance, when no label there dominates it, and then
+  the labels it dominates are removed. The retention (`parts::KeepAtNodes`) decides where kept
+  labels live: in their node's container, until dominated or until the solve ends, when the labels
+  at the end nodes are read as the solutions.
+- **Schedules** decide the order labels are taken in. `parts::FifoSchedule` (`Simple`) hands them
+  out first in, first out; `parts::BestFirstSchedule` (`AStar`) lowest cost plus completion bound
+  first; `parts::SweepSchedule` (`Pushing`) node by node; `parts::PullSchedule` (`Pulling`) visits
+  one node at a time and pulls into it from its neighbours. A schedule also applies the per-node
+  quota (`max_extended_labels_per_node`) and trims itself under memory pressure. What it cuts is
+  stored aside for the next phase in a single-direction search, and abandoned (left in its
+  container, never extended, and counted) on a side of a bidirectional one, which runs one phase.
+- **The take rule** is the checks a label goes through when it is taken, written once for every
+  search. First come those whose answer can change while the label waits: dominated since it was
+  queued, the prune against the best cost found so far. Then come those whose answer never
+  changes: a label at an end node lowers that best cost and may be recorded; one of infinite cost
+  is dropped; on a side of a bidirectional search, one past the half-way point is kept but not
+  extended.
+- **The step** is one unit of a search's work: take a label, run the take rule, then extend the
+  label along every arc its direction walks, or drop it as the rule says. With a schedule that
+  visits nodes, it pulls into the next node and runs the rule on each new label.
+- **Two classes run the searches.** One runs a single search, forward or backward: the loop, the
+  memory checks and the phases, and the completion bound when its schedule's order reads one. The
+  other runs two, one per direction, sharing one label pool and one best cost; its interleave
+  (`parts::LeastWorkFirst`) takes the next unit of work from the side that has extended fewer arcs,
+  and the join pairs the two halves at the end. `create_algorithm<Strategy>(params)` builds the one
+  `params.direction` asks for, from the parts the descriptor names in each direction.
+
+`Simple` names only its schedule; every other part is the exact search's:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+namespace my {
+// strategy::Simple, as the library writes it.
+struct Simple {
+        template <typename ResourceType, typename Direction>
+        using schedule = rcspp::parts::FifoSchedule<ResourceType>;
+};
+}  // namespace my
 ```

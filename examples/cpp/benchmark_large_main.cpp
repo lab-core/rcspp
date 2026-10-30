@@ -45,12 +45,12 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost, b
     constructive_tabu_params.max_solutions = 20;    // NOLINT
     constructive_tabu_params.max_iterations = 1e6;  // NOLINT
     auto constructive_tabu_algo =
-        vrp.get_graph().create_algorithm<DiversificationSearch>(constructive_tabu_params);
+        vrp.get_graph().create_algorithm<strategy::Diversification<>>(constructive_tabu_params);
 
     AlgorithmParams<LabelList<ResourceType>> tabu_params;
     tabu_params.max_solutions = 20;    // NOLINT(readability-magic-numbers)
     tabu_params.max_iterations = 1e3;  // NOLINT(readability-magic-numbers)
-    auto tabu_algo = vrp.get_graph().create_algorithm<ImprovingTabuSearch>(tabu_params);
+    auto tabu_algo = vrp.get_graph().create_algorithm<strategy::ImprovingTabu>(tabu_params);
 
     std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {
         constructive_tabu_algo.get(),
@@ -60,12 +60,12 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost, b
     BucketLC bucket_container_s(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
     AlgorithmParams<BucketLC> bucket_params_s(std::move(bucket_container_s));
     auto bucket_simple =
-        vrp.get_graph().create_algorithm<SimpleDominanceAlgorithm, BucketLC>(bucket_params_s);
+        vrp.get_graph().create_algorithm<strategy::Simple, BucketLC>(bucket_params_s);
 
     BucketLC bucket_container_p(kBucketRange, kBucketResourceIdx, kSortResourceIdx);
     AlgorithmParams<BucketLC> bucket_params_p(std::move(bucket_container_p));
     auto bucket_pulling =
-        vrp.get_graph().create_algorithm<PullingDominanceAlgorithm, BucketLC>(bucket_params_p);
+        vrp.get_graph().create_algorithm<strategy::Pulling, BucketLC>(bucket_params_p);
 
     std::vector<ExtraSolver> extra_solvers = {
         {[&vrp, algo = bucket_simple.get()](const std::map<size_t, double>& dual) {
@@ -80,7 +80,7 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost, b
     std::unique_ptr<Algorithm<ResourceType, LabelList<ResourceType>>> astar_algo;
     if (run_astar) {
         AlgorithmParams<LabelList<ResourceType>> astar_params;
-        astar_algo = vrp.get_graph().create_algorithm<AStarDominanceAlgorithm>(astar_params);
+        astar_algo = vrp.get_graph().create_algorithm<strategy::AStar>(astar_params);
         extra_solvers.push_back(
             {[&vrp, algo = astar_algo.get()](const std::map<size_t, double>& dual) {
                  return vrp.run_algorithm(dual, algo);
@@ -89,13 +89,12 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost, b
     }
 
     AlgorithmParams<LabelList<ResourceType>> list_params;
-    return vrp
-        .solve<SimpleDominanceAlgorithm, PushingDominanceAlgorithm, PullingDominanceAlgorithm>(
-            list_params,
-            std::nullopt,
-            list_algorithms,
-            run_boost,
-            extra_solvers);  // NOLINT
+    return vrp.solve<strategy::Simple, strategy::Pushing, strategy::Pulling>(
+        list_params,
+        std::nullopt,
+        list_algorithms,
+        run_boost,
+        extra_solvers);  // NOLINT
 }
 
 int main(int argc, char* argv[]) {  // NOLINT

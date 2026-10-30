@@ -77,7 +77,7 @@ class VRP {
             bool use_boost = false,
             std::optional<std::map<size_t, double>> optimal_dual_by_var_id = std::nullopt);
 
-        template <template <typename, typename> class... AlgorithmTypes,
+        template <typename... AlgorithmTypes,
                   typename LabelContainerType>
         CGSolveResult solve(                             // NOLINT
             AlgorithmParams<LabelContainerType> params,  // NOLINT
@@ -353,8 +353,7 @@ class VRP {
 
         [[nodiscard]] double calculate_solution_cost(const Solution& solution) const;
 
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename LabelContainerType>
+        template <typename AlgorithmType = strategy::Simple, typename LabelContainerType>
         [[nodiscard]] std::vector<Solution> solve_with_rcspp(
             const std::map<size_t, double>& dual_by_id, AlgorithmParams<LabelContainerType> params,
             AlgorithmStatus* out_status = nullptr) {

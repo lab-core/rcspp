@@ -100,50 +100,31 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
 // Append new values at the end: the integer values are exposed to Python.
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, Bidirectional };
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
 
-// Dispatch entry for the algorithms that read the search direction from params. An algorithm that
-// does not support the requested direction throws std::invalid_argument (ValueError in Python).
-template <SolverAlgorithm SolverId, template <typename, typename> class AlgorithmType>
+// Dispatch entry: the strategy, searching in params.direction. A strategy that does not search in
+// that direction throws std::invalid_argument (ValueError in Python). The clock's type is the
+// cost's; a clock of another type needs the C++ API.
+template <SolverAlgorithm SolverId, typename Strategy>
 struct AlgoEntry {
         static constexpr SolverAlgorithm value = SolverId;
         template <typename ResourceGraphType, typename CostResourceType,
                   typename LabelContainerType>
         static SolveResult run(ResourceGraphType& rg, double ub,
                                AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
-            return rg.template solve<AlgorithmType, CostResourceType, LabelContainerType>(
-                ub,
-                std::move(p),
-                pre,
-                ci);
+            return rg.template solve<Strategy, LabelContainerType, CostResourceType>(ub,
+                                                                                     std::move(p),
+                                                                                     pre,
+                                                                                     ci);
         }
 };
 
-// Dispatch entry for `algorithm="bidirectional"`: the simple search with direction Bidirectional,
-// the clock's type being the cost's. `critical_resource_index` comes from params untouched. A clock
-// whose type differs from the cost's needs the C++ API.
-template <SolverAlgorithm SolverId>
-struct BidirectionalAlgoEntry {
-        static constexpr SolverAlgorithm value = SolverId;
-        template <typename ResourceGraphType, typename CostResourceType,
-                  typename LabelContainerType>
-        static SolveResult run(ResourceGraphType& rg, double ub,
-                               AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
-            p.direction = SearchDirection::Bidirectional;
-            return rg.template solve<SimpleDominanceAlgorithm,
-                                     CostResourceType,
-                                     LabelContainerType,
-                                     CostResourceType>(ub, std::move(p), pre, ci);
-        }
-};
-
-using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDominanceAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Pushing, PushingDominanceAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AlgoEntry<SolverAlgorithm::AStar, AStarDominanceAlgorithm>,
-                                  BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
+using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, strategy::Simple>,
+                                  AlgoEntry<SolverAlgorithm::Pushing, strategy::Pushing>,
+                                  AlgoEntry<SolverAlgorithm::Pulling, strategy::Pulling>,
+                                  AlgoEntry<SolverAlgorithm::Greedy, strategy::Greedy>,
+                                  AlgoEntry<SolverAlgorithm::Tabu, strategy::Tabu>,
+                                  AlgoEntry<SolverAlgorithm::AStar, strategy::AStar>>;
 
 template <typename ResourceGraphType, typename CostResourceType, typename LabelContainerType,
           typename... Entries>
