@@ -40,9 +40,9 @@ class BackwardOnlyAlgorithm
         ~BackwardOnlyAlgorithm() override = default;
 
         /// @brief Read-only access to the per-node backward label sets, for assertions on values.
-        [[nodiscard]] const std::vector<typename Base::DirectedContainer>& get_labels_by_node_pos()
+        [[nodiscard]] const std::vector<typename Base::container_type>& get_labels_by_node_pos()
             const {
-            return this->non_dominated_labels_by_node_pos_;
+            return this->search_.labels.containers();
         }
 
         /// @brief The labels at this search's terminal nodes, i.e. the graph's *sources*
