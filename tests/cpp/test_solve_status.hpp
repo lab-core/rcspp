@@ -105,11 +105,11 @@ TEST(SolveStatus, ATimedOutSolveIsNotOptimal) {
     EXPECT_FALSE(outcome.optimal);
 }
 
-// Releasing the labels used to hide the ones a phase held back: Complete instead of MaxPhases.
+// Releasing the labels used to hide the ones a phase held back: Complete instead of Truncated.
 TEST(SolveStatus, ATruncatedRunThatUsesUpItsPhasesIsNotComplete) {
     namespace sst = solve_status_test;
     const sst::Outcome outcome = sst::solve<rcspp::SimpleDominanceAlgorithm>(sst::truncated(true));
-    EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::MaxPhases);
+    EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::Truncated);
     EXPECT_FALSE(outcome.optimal);
 }
 

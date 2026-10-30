@@ -42,7 +42,7 @@ enum class AlgorithmStatus {
     Complete,      ///< All labels processed; result is optimal (given other params).
     Timeout,       ///< Wall-clock timeout reached before completion.
     MaxSolutions,  ///< max_solutions reached.
-    MaxPhases,     ///< max_phases exhausted with labels still remaining.
+    Truncated,     ///< max_phases used up with labels unextended, or a dive's budget spent.
     Interrupted,   ///< External should_stop callback returned true.
     MemoryLimit,   ///< RSS memory limit reached.
 };
@@ -60,8 +60,8 @@ enum class AlgorithmStatus {
             return "timeout";
         case AlgorithmStatus::MaxSolutions:
             return "max_solutions";
-        case AlgorithmStatus::MaxPhases:
-            return "max_phases";
+        case AlgorithmStatus::Truncated:
+            return "truncated";
         case AlgorithmStatus::Interrupted:
             return "interrupted";
         case AlgorithmStatus::MemoryLimit:
@@ -406,7 +406,10 @@ class Algorithm {
          * @c AlgorithmStatus::Complete. It is recorded when the solve ends, before
          * @c release_after_solve (the default) empties the label queues: reading
          * @ref number_of_labels afterwards would answer 0 after a timeout or any other early stop.
-         * @c false before the first solve. Heuristics override it to answer @c false.
+         * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
+         * paths to try: @c GreedyAlgorithm then enumerated every path, and
+         * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
+         * @c DiversificationSearch override it to answer @c false.
          *
          * @return true if the last solve processed every label, false otherwise.
          */
@@ -488,7 +491,7 @@ class Algorithm {
 
             // Put back the labels a phase held back (truncated labeling, memory pressure) before
             // the status is read: they were never extended, so a run that used up its phases with
-            // labels held back is MaxPhases, not Complete, whether or not the labels are released
+            // labels held back is Truncated, not Complete, whether or not the labels are released
             // below. When they are kept, this also readies the next solve().
             prepare_next_phase();
 
@@ -514,9 +517,11 @@ class Algorithm {
             // memory_limit_.is_exceeded() are re-evaluated here — the external stop callback may
             // have flipped, or RSS may exceed the limit because of the retained solutions — even
             // though the loop actually exited by exhausting all labels. The remaining branches
-            // describe why the search stopped *early* (labels still remain).
+            // describe why the search stopped *early* (labels still remain). A search that
+            // abandoned labels it will never extend (has_abandoned_labels()) did not process every
+            // label, even with an empty queue.
             AlgorithmStatus status;
-            if (number_of_labels() == 0) {
+            if (number_of_labels() == 0 && !has_abandoned_labels()) {
                 status = AlgorithmStatus::Complete;
             } else if (timed_out_) {
                 status = AlgorithmStatus::Timeout;
@@ -527,7 +532,7 @@ class Algorithm {
             } else if (solutions.size() >= params_.max_solutions) {
                 status = AlgorithmStatus::MaxSolutions;
             } else {
-                status = AlgorithmStatus::MaxPhases;
+                status = AlgorithmStatus::Truncated;
             }
             // Recorded now: releasing the label memory below empties the queues, after which
             // number_of_labels() would read 0 whatever the run did.
@@ -657,6 +662,17 @@ class Algorithm {
         virtual void initialize_labels() = 0;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
+
+        /// @brief Whether the last solve abandoned labels it will never extend.
+        ///
+        /// Such labels are not in the queues, so @ref number_of_labels does not count them, and
+        /// an empty queue does not mean that every label was processed. A search that stores
+        /// the labels a quota or memory pressure cuts (for a later phase) needs nothing here:
+        /// @ref prepare_next_phase puts them back before the status is read. The default answers
+        /// @c false.
+        ///
+        /// @return @c true when a label was cut and left unextended.
+        [[nodiscard]] virtual bool has_abandoned_labels() const { return false; }
 
         virtual void prepare_next_phase() {}
 
