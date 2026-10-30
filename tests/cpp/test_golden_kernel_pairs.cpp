@@ -4,7 +4,7 @@
 // The golden rows of the strategy and direction pairs the labelling kernel adds, which have no
 // frozen copy to compare with: what each did when it was first recorded.
 //
-// Its own translation unit: the backward instantiations of three more strategies.
+// Its own translation unit: the backward and bidirectional instantiations of more strategies.
 
 #include <gtest/gtest.h>
 
@@ -19,7 +19,7 @@ namespace gl = golden_labelling;
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
 /// @brief The strategy and direction pairs the kernel adds.
-enum class Pair { AStarBackward, PushingBackward, PullingBackward };
+enum class Pair { AStarBackward, PushingBackward, PullingBackward, AStarBidirectional };
 
 /// @brief The name of @p pair in a row key.
 inline const char* pair_name(Pair pair) {
@@ -30,6 +30,8 @@ inline const char* pair_name(Pair pair) {
             return "pushing_backward";
         case Pair::PullingBackward:
             return "pulling_backward";
+        case Pair::AStarBidirectional:
+            return "astar_bidirectional";
     }
     return "?";
 }
@@ -53,8 +55,195 @@ inline gl::Outcome run_pair(Pair pair, const gl::Variant& v, ResourceGraph<RealR
             return backward_outcome<strategy::Pushing>(p, v, g);
         case Pair::PullingBackward:
             return backward_outcome<strategy::Pulling>(p, v, g);
+        case Pair::AStarBidirectional:
+            return gl::bidirectional_outcome<strategy::AStar>(p, v, g);
     }
     return {};
+}
+
+/// @brief Bidirectional A*, under every bidirectional setting, on every instance.
+inline const std::vector<gl::Row>& golden_bidirectional_pairs() {
+    static const std::vector<gl::Row> rows{
+        // clang-format off
+        {"s1_n8_t1_exact_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_pre_astar_bidirectional", {18u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_quota_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_phases_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_dominated_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_prune_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_early_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n8_t1_early_nojoin_astar_bidirectional", {21u, 2u, -27000LL, 0x294d0cf11ac72771ULL, 0u, 1u, 0u}},
+        {"s1_n11_t1_exact_astar_bidirectional", {170u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 1u, 0u}},
+        {"s1_n11_t1_pre_astar_bidirectional", {154u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 1u, 0u}},
+        {"s1_n11_t1_quota_astar_bidirectional", {81u, 2u, -25000LL, 0x43b8f40483415048ULL, 0u, 1u, 3u}},
+        {"s1_n11_t1_phases_astar_bidirectional", {81u, 2u, -25000LL, 0x43b8f40483415048ULL, 0u, 1u, 3u}},
+        {"s1_n11_t1_dominated_astar_bidirectional", {170u, 5u, -25000LL, 0xfbf911e509565e99ULL, 0u, 1u, 0u}},
+        {"s1_n11_t1_prune_astar_bidirectional", {170u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 1u, 0u}},
+        {"s1_n11_t1_early_astar_bidirectional", {58u, 2u, -25000LL, 0x43b8f40483415048ULL, 0u, 1u, 3u}},
+        {"s1_n11_t1_early_nojoin_astar_bidirectional", {58u, 2u, -25000LL, 0x43b8f40483415048ULL, 0u, 1u, 3u}},
+        {"s2_n8_t1_exact_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_pre_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_quota_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_phases_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_dominated_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_prune_astar_bidirectional", {1u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_early_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n8_t1_early_nojoin_astar_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
+        {"s2_n11_t1_exact_astar_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 0u}},
+        {"s2_n11_t1_pre_astar_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 0u}},
+        {"s2_n11_t1_quota_astar_bidirectional", {25u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 3u}},
+        {"s2_n11_t1_phases_astar_bidirectional", {25u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 3u}},
+        {"s2_n11_t1_dominated_astar_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 0u}},
+        {"s2_n11_t1_prune_astar_bidirectional", {35u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 1u, 0u}},
+        {"s2_n11_t1_early_astar_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 0u}},
+        {"s2_n11_t1_early_nojoin_astar_bidirectional", {35u, 2u, 15000LL, 0xa7891ecbfe2a55eeULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_exact_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_pre_astar_bidirectional", {30u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_quota_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_phases_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_dominated_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_prune_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_early_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n8_t1_early_nojoin_astar_bidirectional", {34u, 1u, -13000LL, 0x4b1c53f478b3d7bdULL, 0u, 1u, 0u}},
+        {"s3_n11_t1_exact_astar_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 0u}},
+        {"s3_n11_t1_pre_astar_bidirectional", {121u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 0u}},
+        {"s3_n11_t1_quota_astar_bidirectional", {65u, 2u, -23000LL, 0x95c075c8827611b8ULL, 0u, 1u, 3u}},
+        {"s3_n11_t1_phases_astar_bidirectional", {65u, 2u, -23000LL, 0x95c075c8827611b8ULL, 0u, 1u, 3u}},
+        {"s3_n11_t1_dominated_astar_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 0u}},
+        {"s3_n11_t1_prune_astar_bidirectional", {128u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 0u}},
+        {"s3_n11_t1_early_astar_bidirectional", {71u, 2u, -23000LL, 0x38a5bda264be4397ULL, 0u, 1u, 3u}},
+        {"s3_n11_t1_early_nojoin_astar_bidirectional", {71u, 2u, -23000LL, 0x38a5bda264be4397ULL, 0u, 1u, 3u}},
+        {"s4_n8_t1_exact_astar_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_pre_astar_bidirectional", {10u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_quota_astar_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_phases_astar_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_dominated_astar_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_prune_astar_bidirectional", {11u, 1u, -13000LL, 0x1068778935bd2cd0ULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_early_astar_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n8_t1_early_nojoin_astar_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
+        {"s4_n11_t1_exact_astar_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 0u}},
+        {"s4_n11_t1_pre_astar_bidirectional", {67u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 0u}},
+        {"s4_n11_t1_quota_astar_bidirectional", {49u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 3u}},
+        {"s4_n11_t1_phases_astar_bidirectional", {49u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 3u}},
+        {"s4_n11_t1_dominated_astar_bidirectional", {78u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 0u}},
+        {"s4_n11_t1_prune_astar_bidirectional", {78u, 2u, -8000LL, 0xa33b8d9d09f03321ULL, 0u, 1u, 0u}},
+        {"s4_n11_t1_early_astar_bidirectional", {54u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 3u}},
+        {"s4_n11_t1_early_nojoin_astar_bidirectional", {54u, 3u, -8000LL, 0x9ade3884b8e2faeaULL, 0u, 1u, 3u}},
+        {"s5_n8_t1_exact_astar_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 0u}},
+        {"s5_n8_t1_pre_astar_bidirectional", {15u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 0u}},
+        {"s5_n8_t1_quota_astar_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 3u}},
+        {"s5_n8_t1_phases_astar_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 3u}},
+        {"s5_n8_t1_dominated_astar_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 0u}},
+        {"s5_n8_t1_prune_astar_bidirectional", {12u, 2u, -22000LL, 0x8303fce3aa6298c5ULL, 0u, 1u, 0u}},
+        {"s5_n8_t1_early_astar_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 0u}},
+        {"s5_n8_t1_early_nojoin_astar_bidirectional", {18u, 3u, -22000LL, 0x5da3f98e0d6ba45fULL, 0u, 1u, 0u}},
+        {"s5_n11_t1_exact_astar_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 0u}},
+        {"s5_n11_t1_pre_astar_bidirectional", {42u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 0u}},
+        {"s5_n11_t1_quota_astar_bidirectional", {39u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 3u}},
+        {"s5_n11_t1_phases_astar_bidirectional", {39u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 3u}},
+        {"s5_n11_t1_dominated_astar_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 0u}},
+        {"s5_n11_t1_prune_astar_bidirectional", {46u, 1u, -12000LL, 0xfbcaddeb39e9ee89ULL, 1u, 1u, 0u}},
+        {"s5_n11_t1_early_astar_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 0u}},
+        {"s5_n11_t1_early_nojoin_astar_bidirectional", {46u, 3u, -12000LL, 0x277ffee4013b1397ULL, 1u, 1u, 0u}},
+        {"s6_n8_t1_exact_astar_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n8_t1_pre_astar_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n8_t1_quota_astar_bidirectional", {26u, 2u, -37000LL, 0xe85ce3fc35e42f42ULL, 0u, 1u, 3u}},
+        {"s6_n8_t1_phases_astar_bidirectional", {26u, 2u, -37000LL, 0xe85ce3fc35e42f42ULL, 0u, 1u, 3u}},
+        {"s6_n8_t1_dominated_astar_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n8_t1_prune_astar_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n8_t1_early_astar_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n8_t1_early_nojoin_astar_bidirectional", {41u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n11_t1_exact_astar_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
+        {"s6_n11_t1_pre_astar_bidirectional", {18u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
+        {"s6_n11_t1_quota_astar_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 3u}},
+        {"s6_n11_t1_phases_astar_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 3u}},
+        {"s6_n11_t1_dominated_astar_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
+        {"s6_n11_t1_prune_astar_bidirectional", {2u, 0u, 0LL, 0x14650fb0739d0383ULL, 0u, 1u, 0u}},
+        {"s6_n11_t1_early_astar_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
+        {"s6_n11_t1_early_nojoin_astar_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_exact_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_pre_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_quota_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_phases_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_dominated_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_prune_astar_bidirectional", {6u, 1u, -10000LL, 0x11b56bf6e57032d7ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_early_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n8_t1_early_nojoin_astar_bidirectional", {20u, 2u, -10000LL, 0x5eafa7048f0dca99ULL, 0u, 1u, 0u}},
+        {"s7_n11_t1_exact_astar_bidirectional", {85u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 0u}},
+        {"s7_n11_t1_pre_astar_bidirectional", {73u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 0u}},
+        {"s7_n11_t1_quota_astar_bidirectional", {52u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 3u}},
+        {"s7_n11_t1_phases_astar_bidirectional", {52u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 3u}},
+        {"s7_n11_t1_dominated_astar_bidirectional", {85u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 0u}},
+        {"s7_n11_t1_prune_astar_bidirectional", {85u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 0u}},
+        {"s7_n11_t1_early_astar_bidirectional", {50u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 3u}},
+        {"s7_n11_t1_early_nojoin_astar_bidirectional", {50u, 3u, -25000LL, 0x11f8f47a35cf8689ULL, 0u, 1u, 3u}},
+        {"s8_n8_t1_exact_astar_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 1u, 0u}},
+        {"s8_n8_t1_pre_astar_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 1u, 0u}},
+        {"s8_n8_t1_quota_astar_bidirectional", {28u, 5u, -20000LL, 0x6dbe89221a43a6f2ULL, 0u, 1u, 3u}},
+        {"s8_n8_t1_phases_astar_bidirectional", {28u, 5u, -20000LL, 0x6dbe89221a43a6f2ULL, 0u, 1u, 3u}},
+        {"s8_n8_t1_dominated_astar_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 1u, 0u}},
+        {"s8_n8_t1_prune_astar_bidirectional", {30u, 2u, -20000LL, 0x335d5500959a1ea5ULL, 0u, 1u, 0u}},
+        {"s8_n8_t1_early_astar_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 1u, 0u}},
+        {"s8_n8_t1_early_nojoin_astar_bidirectional", {30u, 4u, -20000LL, 0x1f5e0381bc4b4dfaULL, 0u, 1u, 0u}},
+        {"s8_n11_t1_exact_astar_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 0u}},
+        {"s8_n11_t1_pre_astar_bidirectional", {50u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 0u}},
+        {"s8_n11_t1_quota_astar_bidirectional", {49u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 3u}},
+        {"s8_n11_t1_phases_astar_bidirectional", {49u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 3u}},
+        {"s8_n11_t1_dominated_astar_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 0u}},
+        {"s8_n11_t1_prune_astar_bidirectional", {54u, 1u, -20000LL, 0x7dad111c696f13b7ULL, 0u, 1u, 0u}},
+        {"s8_n11_t1_early_astar_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 0u}},
+        {"s8_n11_t1_early_nojoin_astar_bidirectional", {54u, 2u, -20000LL, 0xd9635c6a791b0347ULL, 0u, 1u, 0u}},
+        {"s9_n11_t2_exact_astar_bidirectional", {40u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 1u, 0u}},
+        {"s9_n11_t2_pre_astar_bidirectional", {37u, 5u, -17000LL, 0x62a707e88ee53805ULL, 1u, 1u, 0u}},
+        {"s9_n11_t2_quota_astar_bidirectional", {33u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 1u, 3u}},
+        {"s9_n11_t2_phases_astar_bidirectional", {33u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 1u, 3u}},
+        {"s9_n11_t2_dominated_astar_bidirectional", {40u, 6u, -17000LL, 0x7b95cfe7225aa291ULL, 1u, 1u, 0u}},
+        {"s9_n11_t2_prune_astar_bidirectional", {40u, 4u, -17000LL, 0x53a6f2e77d879183ULL, 1u, 1u, 0u}},
+        {"s9_n11_t2_early_astar_bidirectional", {37u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 1u, 3u}},
+        {"s9_n11_t2_early_nojoin_astar_bidirectional", {37u, 4u, -17000LL, 0x44f3b39b16c63fcaULL, 1u, 1u, 3u}},
+        {"s10_n11_t2_exact_astar_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 1u, 0u}},
+        {"s10_n11_t2_pre_astar_bidirectional", {61u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 1u, 0u}},
+        {"s10_n11_t2_quota_astar_bidirectional", {59u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 1u, 3u}},
+        {"s10_n11_t2_phases_astar_bidirectional", {59u, 7u, -18000LL, 0x35ad0a0975a29a0aULL, 0u, 1u, 3u}},
+        {"s10_n11_t2_dominated_astar_bidirectional", {61u, 9u, -18000LL, 0xa66e9eadb472c2c9ULL, 0u, 1u, 0u}},
+        {"s10_n11_t2_prune_astar_bidirectional", {61u, 5u, -18000LL, 0xa06b654a229379d0ULL, 0u, 1u, 0u}},
+        {"s10_n11_t2_early_astar_bidirectional", {44u, 6u, -18000LL, 0x73d5660041184a9aULL, 0u, 1u, 3u}},
+        {"s10_n11_t2_early_nojoin_astar_bidirectional", {44u, 6u, -18000LL, 0x73d5660041184a9aULL, 0u, 1u, 3u}},
+        {"s11_n11_t2_exact_astar_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 1u, 0u}},
+        {"s11_n11_t2_pre_astar_bidirectional", {78u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 1u, 0u}},
+        {"s11_n11_t2_quota_astar_bidirectional", {70u, 10u, -33000LL, 0x83cda03b2de83644ULL, 0u, 1u, 3u}},
+        {"s11_n11_t2_phases_astar_bidirectional", {70u, 10u, -33000LL, 0x83cda03b2de83644ULL, 0u, 1u, 3u}},
+        {"s11_n11_t2_dominated_astar_bidirectional", {81u, 11u, -33000LL, 0x9ffc01d45d4aa337ULL, 0u, 1u, 0u}},
+        {"s11_n11_t2_prune_astar_bidirectional", {81u, 10u, -33000LL, 0xe89700d1803e2dd0ULL, 0u, 1u, 0u}},
+        {"s11_n11_t2_early_astar_bidirectional", {51u, 9u, -33000LL, 0xe6e9ba39bf641930ULL, 0u, 1u, 3u}},
+        {"s11_n11_t2_early_nojoin_astar_bidirectional", {51u, 9u, -33000LL, 0xe6e9ba39bf641930ULL, 0u, 1u, 3u}},
+        {"s12_n11_t2_exact_astar_bidirectional", {19u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 1u, 0u}},
+        {"s12_n11_t2_pre_astar_bidirectional", {18u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 1u, 0u}},
+        {"s12_n11_t2_quota_astar_bidirectional", {16u, 3u, -1000LL, 0xc56e183eecef35e0ULL, 1u, 1u, 3u}},
+        {"s12_n11_t2_phases_astar_bidirectional", {16u, 3u, -1000LL, 0xc56e183eecef35e0ULL, 1u, 1u, 3u}},
+        {"s12_n11_t2_dominated_astar_bidirectional", {19u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 1u, 0u}},
+        {"s12_n11_t2_prune_astar_bidirectional", {19u, 1u, -1000LL, 0x491075c92f7cb864ULL, 0u, 1u, 0u}},
+        {"s12_n11_t2_early_astar_bidirectional", {19u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 1u, 0u}},
+        {"s12_n11_t2_early_nojoin_astar_bidirectional", {19u, 2u, -1000LL, 0x50a0ca62a7c30280ULL, 0u, 1u, 0u}},
+        {"s13_n16_t1_exact_astar_bidirectional", {1016u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 1u, 0u}},
+        {"s13_n16_t1_pre_astar_bidirectional", {958u, 7u, -32000LL, 0xd4a04f4b08fdc94eULL, 0u, 1u, 0u}},
+        {"s13_n16_t1_quota_astar_bidirectional", {153u, 4u, -16000LL, 0x98be778c3be93ffdULL, 1u, 1u, 3u}},
+        {"s13_n16_t1_phases_astar_bidirectional", {153u, 4u, -16000LL, 0x98be778c3be93ffdULL, 1u, 1u, 3u}},
+        {"s13_n16_t1_dominated_astar_bidirectional", {1016u, 10u, -32000LL, 0xee0a849924cf116dULL, 0u, 1u, 0u}},
+        {"s13_n16_t1_prune_astar_bidirectional", {1016u, 6u, -32000LL, 0xbb06962f86c69be5ULL, 0u, 1u, 0u}},
+        {"s13_n16_t1_early_astar_bidirectional", {82u, 4u, -19000LL, 0xac5ceace5dd69796ULL, 1u, 1u, 3u}},
+        {"s13_n16_t1_early_nojoin_astar_bidirectional", {82u, 4u, -19000LL, 0xac5ceace5dd69796ULL, 1u, 1u, 3u}},
+        {"s14_n16_t1_exact_astar_bidirectional", {415u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 1u, 0u}},
+        {"s14_n16_t1_pre_astar_bidirectional", {369u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 1u, 0u}},
+        {"s14_n16_t1_quota_astar_bidirectional", {119u, 4u, -29000LL, 0x8ea8e3bfcc77efa5ULL, 0u, 1u, 3u}},
+        {"s14_n16_t1_phases_astar_bidirectional", {119u, 4u, -29000LL, 0x8ea8e3bfcc77efa5ULL, 0u, 1u, 3u}},
+        {"s14_n16_t1_dominated_astar_bidirectional", {415u, 6u, -35000LL, 0xa6d781efb52e6367ULL, 0u, 1u, 0u}},
+        {"s14_n16_t1_prune_astar_bidirectional", {415u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 1u, 0u}},
+        {"s14_n16_t1_early_astar_bidirectional", {91u, 3u, -29000LL, 0xcc447a9f161662e6ULL, 1u, 1u, 3u}},
+        {"s14_n16_t1_early_nojoin_astar_bidirectional", {91u, 3u, -29000LL, 0xcc447a9f161662e6ULL, 1u, 1u, 3u}},
+        // clang-format on
+    };
+    return rows;
 }
 
 /// @brief Backward A*, Pushing and Pulling, under every setting, on every instance.
@@ -472,6 +661,16 @@ TEST(GoldenLabelling, BackwardPairsMatchTheRecordedRuns) {
                                                        gk::Pair::PullingBackward},
                                  golden_labelling::variants(),
                                  gk::golden_backward_pairs(),
+                                 gk::run_pair,
+                                 gk::pair_name);
+}
+
+/// @brief Bidirectional A* reproduces its recorded rows.
+TEST(GoldenLabelling, BidirectionalPairsMatchTheRecordedRuns) {
+    namespace gk = golden_kernel_pairs;
+    golden_labelling::sweep_with(std::vector<gk::Pair>{gk::Pair::AStarBidirectional},
+                                 golden_labelling::bidirectional_variants(),
+                                 gk::golden_bidirectional_pairs(),
                                  gk::run_pair,
                                  gk::pair_name);
 }

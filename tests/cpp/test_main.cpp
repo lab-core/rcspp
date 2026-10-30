@@ -23,6 +23,7 @@
 //   test_kernel_properties.cpp            what every exact search agrees on
 //   test_kernel_timing.cpp                pricing times, printed when RCSPP_TIMING is set
 //   test_golden_kernel_pairs.cpp          the golden rows of the pairs the kernel adds
+//   test_bidirectional_strategies.cpp     every labelling strategy, searching bidirectionally
 //   test_strategies.cpp                   a strategy of one's own
 
 #include <gtest/gtest.h>
