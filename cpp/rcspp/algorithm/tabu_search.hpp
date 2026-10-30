@@ -98,8 +98,13 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
             while (!this->should_stop(i)) {
                 ++i;
 
-                bool reached_sink = dive_to_sink();
-                if (reached_sink) {
+                const detail::DiveEnd end = dive_to_sink();
+                if (end == detail::DiveEnd::Stopped) {
+                    // A budget, an interrupt or the memory limit stopped the dive. The path stays,
+                    // so the status says why the search stopped rather than that it finished.
+                    return;
+                }
+                if (end == detail::DiveEnd::Sink) {
                     auto* sink_label = this->path_.back().first;
                     bool added = false;
                     if (sink_label->get_cost() < this->cost_upper_bound_) {
@@ -117,7 +122,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                     apply_tabu(*sink_label, added);
                 } else {
                     if (tabu_.empty()) {
-                        // truly no feasible path exists
+                        // The dive ran out of paths with no arc tabu: no feasible path exists.
                         LOG_DEBUG("TabuSearchAlgorithm: no feasible path, stopping.\n");
                         this->clear_path();
                         return;
@@ -138,7 +143,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
         // dive
         // ------------------------------------------------------------------
 
-        bool dive_to_sink() {
+        detail::DiveEnd dive_to_sink() {
             // A single dive can enumerate exponentially many partial paths
             // between main_loop()'s per-iteration checks — and each extension
             // allocates a label — so poll should_stop() and the memory limit
@@ -147,20 +152,20 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
             while (!this->path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
                     (this->should_stop() || this->memory_limit_.is_exceeded())) {
-                    return false;
+                    return detail::DiveEnd::Stopped;
                 }
                 auto* current = this->path_.back().first;
                 if (current->get_end_node()->sink) {
-                    return true;
+                    return detail::DiveEnd::Sink;
                 }
                 if (this->extend_label(current)) {
                     continue;
                 }
                 if (!this->backtrack()) {
-                    return false;
+                    return detail::DiveEnd::Exhausted;
                 }
             }
-            return false;
+            return detail::DiveEnd::Exhausted;
         }
 
         // ------------------------------------------------------------------

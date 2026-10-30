@@ -133,8 +133,14 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                 return;
             }
 
-            bool reached = dive_to_sink();
-            if (!reached) {
+            const detail::DiveEnd first = dive_to_sink();
+            if (first == detail::DiveEnd::Stopped) {
+                // A budget, an interrupt or the memory limit stopped the dive. The path stays,
+                // so the status says why the search stopped rather than that it finished.
+                return;
+            }
+            if (first == detail::DiveEnd::Exhausted) {
+                // The dive ran out of paths with no arc tabu: no feasible path exists.
                 this->clear_path();
                 return;
             }
@@ -149,6 +155,8 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             this->clear_path();
 
             if (this->should_stop()) {
+                // Work is left: a fresh path keeps the status from reading Complete.
+                this->seed_path_from_sources();
                 return;
             }
 
@@ -162,9 +170,12 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                     break;
                 }
 
-                reached = dive_to_sink();
+                const detail::DiveEnd end = dive_to_sink();
+                if (end == detail::DiveEnd::Stopped) {
+                    return;  // the path stays: see the first dive
+                }
 
-                if (reached) {
+                if (end == detail::DiveEnd::Sink) {
                     auto* sink_label = this->path_.back().first;
                     double cost = sink_label->get_cost();
 
@@ -192,8 +203,9 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                     }
                 } else {
                     if (tabu_.empty()) {
+                        // Out of paths with no arc tabu: nothing is left to find.
                         this->clear_path();
-                        break;
+                        return;
                     }
                     tabu_.grow_extra();
                     no_improve_count++;
@@ -208,11 +220,15 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                 tabu_.age();
                 this->clear_path();
             }
+
+            // A budget ended the search (iterations, solutions, time): work is left, and a fresh
+            // path keeps the status from reading Complete, as in TabuSearchAlgorithm.
+            this->seed_path_from_sources();
         }
 
     private:
         // ─── helpers ─────────────────────────────────────────────────────────
-        bool dive_to_sink() {
+        detail::DiveEnd dive_to_sink() {
             // A single dive can enumerate exponentially many partial paths
             // between main_loop()'s per-iteration checks — and each extension
             // allocates a label — so poll should_stop() and the memory limit
@@ -221,20 +237,20 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             while (!this->path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
                     (this->should_stop() || this->memory_limit_.is_exceeded())) {
-                    return false;
+                    return detail::DiveEnd::Stopped;
                 }
                 auto* current = this->path_.back().first;
                 if (current->get_end_node()->sink) {
-                    return true;
+                    return detail::DiveEnd::Sink;
                 }
                 if (this->extend_label(current)) {
                     continue;
                 }
                 if (!this->backtrack()) {
-                    return false;
+                    return detail::DiveEnd::Exhausted;
                 }
             }
-            return false;
+            return detail::DiveEnd::Exhausted;
         }
 
         void apply_tabu(const Label<ResourceType>& sink_label) {

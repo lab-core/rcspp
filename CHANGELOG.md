@@ -60,7 +60,9 @@ New features are summarised, with a pointer to where they are documented.
   - `Preprocessor::remove_arc` is `should_remove_arc`: it only answers, where
     `Graph::remove_arc` removes.
   - The values of `AlgorithmStatus` are in CapWords, as in Python: `Complete`, `Timeout`,
-    `MaxSolutions`, `MaxPhases`, `Interrupted` and `MemoryLimit`.
+    `MaxSolutions`, `Interrupted` and `MemoryLimit`. `MAX_PHASES` is `Truncated` (`to_string`:
+    `"truncated"`): a solve that left labels unextended, because it used up its phases, a
+    bidirectional search abandoned labels, or a dive spent its budget.
   - `Algorithm::prepareNextPhase` is `prepare_next_phase`. Rename your overrides.
   - `Algorithm::get_labels_at_sinks` is `get_labels_at_terminals`: going backward, it returns
     the labels at the sources.
@@ -217,14 +219,26 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Fixed
 
-- **A truncated run that uses up its phases reports `MaxPhases`, not `Complete`**, in C++ and in
+- **A truncated run that uses up its phases reports `Truncated`, not `Complete`**, in C++ and in
   Python. With `release_after_solve`, the default, the labels a phase held back (truncated
   labelling, memory pressure) were not counted when the status was read, so such a run reported
   `Complete` although labels were never extended; with `release_after_solve = false` it already
-  reported `MaxPhases`. The status no longer depends on that setting.
+  reported `Truncated`. The status no longer depends on that setting.
 - **`Algorithm::is_optimal()` answers for the last solve**: whether it ended `Complete`. It used to
   read the label queues, which `release_after_solve` empties when the solve ends, so it answered
   `true` after a timeout or any other early stop. It answers `false` before the first solve.
+- **A bidirectional search that abandons labels reports `Truncated`, not `Complete`**, and
+  `is_optimal()` answers `false`. It runs one phase, so the labels that
+  `max_extended_labels_per_node` or memory pressure takes off its frontiers are never extended;
+  its frontiers could still end empty, which read as a finished search.
+- **A tabu search stopped during a dive reports why it stopped.** `TabuSearchAlgorithm` and
+  `ImprovingTabuSearch` took a dive that a timeout, an interrupt or the memory limit cut short,
+  with no arc tabu yet, for a proof that no feasible path exists: the status was `Complete`, and
+  `TabuSearchAlgorithm::is_optimal()` answered `true`. Only a dive that runs out of paths is that
+  proof now.
+- **`ImprovingTabuSearch` reports `Truncated` when it spends `max_iterations`**, as
+  `TabuSearchAlgorithm` does, and `MaxSolutions` when it reaches `max_solutions`. It reported
+  `Complete`.
 - `ResourceCompositionFactory::clone()` copies the per-type sub-factories too. The inherited
   `ResourceFactory::clone()` it used to fall back on copied only the composed prototype.
 - **A node or arc added to a cloned `ResourceGraph` is priced as in the original**, in C++ and in
