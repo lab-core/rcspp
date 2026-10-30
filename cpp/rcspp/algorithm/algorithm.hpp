@@ -37,10 +37,6 @@ namespace rcspp {
 template <typename ResourceType>
 using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 
-template <typename ResourceType>
-using LabelIteratorPair =
-    std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
-
 namespace detail {
 
 template <typename ResourceType>

@@ -507,7 +507,7 @@ Whether a name is spelled out, and says what it does, is left to review.
   `check_dominance` / `check_back_dominance`. Everything else says `backward`: types
   (`BackwardDirection`, `SearchDirection::Backward`), names paired with an explicit `forward_`
   (`forward_value` / `backward_value`), and the backward search's own state
-  (`backward_frontier_`).
+  (`backward_`, `backward_labels`).
 - **Limits and counts.** A cap is `max_…` (`max_solutions`, `max_phases`,
   `max_extended_labels_per_node`); a count is `number_of_…` (`get_number_of_extended_labels`).
 - **Say what a name does.** A predicate that only answers is `should_…` or `is_…`
@@ -566,4 +566,33 @@ class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
   protected:
     void main_loop() override { /* custom label expansion */ }
 };
+```
+
+A new *labelling* search needs no loop of its own: it is a preset of the kernel's parts on
+`detail::LabellingAlgorithm`, as Simple, A\*, Pushing and Pulling are. The kernel's files:
+
+```text
+cpp/rcspp/algorithm/labelling/
+  parts/                         rcspp::parts: the parts a strategy is built from, one header per
+                                 kind, each with its concept
+    common.hpp                   StoredLabel, ExtensionOutcome
+    node_view.hpp                NodeView: a node as an admission rule sees it
+    admission.hpp                DominanceAdmission
+    retention.hpp                KeepAtNodes
+    observer.hpp                 NoObserver
+    interleave.hpp               LeastWorkFirst
+    schedules.hpp                the schedule concepts, PerNodeQuota, StoredAsideLabels, FifoSchedule,
+                                 BestFirstSchedule, CostKey, CostPlusBoundKey
+    node_schedules.hpp           NodeQueues, SweepSchedule, PullSchedule
+  context.hpp                    SearchContext, Role: what every part reads of its solve
+  take_rule.hpp                  TakeRule, Decision, Verdict: the checks a label goes through
+                                 when it is taken
+  step.hpp                       step, step_node: one unit of work
+  search.hpp                     Search, SearchParts: one direction's labels, parts, bound and work
+  bounds.hpp                     CompletionBound, compute_completion_bound: the cost still to pay, by node
+  half_way.hpp                   HalfWay, make_half_way, half_way_off_reason and its checks
+  join.hpp                       JoinOptions, join: pairs the two halves
+  labelling_algorithm.hpp        LabellingAlgorithm: one search, forward or backward
+  bidirectional_labelling_algorithm.hpp
+                                 BidirectionalLabellingAlgorithm: two searches and the join
 ```
