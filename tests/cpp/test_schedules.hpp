@@ -29,6 +29,7 @@ using Entry = parts::StoredLabel<Composed>;
 using Fifo = parts::FifoSchedule<Composed>;
 
 static_assert(parts::LabelSchedule<Fifo, Composed>);
+static_assert(!parts::NodeSchedule<Fifo, Composed>);
 
 /// @brief A line 0 -> 1 -> 2 whose one resource is the cost, a pool for its labels, and a
 ///        context pointing at the fixture's own state.
