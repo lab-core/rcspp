@@ -103,5 +103,12 @@ TEST(KernelTiming, SolomonPricingIsPrintedWhenAsked) {
         kt::time_one<rcspp::strategy::Pulling>("pulling_forward",
                                                pricing,
                                                SearchDirection::Forward);
+        kt::time_one<rcspp::strategy::AStar>("astar_backward", pricing, SearchDirection::Backward);
+        kt::time_one<rcspp::strategy::Pushing>("pushing_backward",
+                                               pricing,
+                                               SearchDirection::Backward);
+        kt::time_one<rcspp::strategy::Pulling>("pulling_backward",
+                                               pricing,
+                                               SearchDirection::Backward);
     }
 }

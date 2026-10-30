@@ -134,7 +134,8 @@ result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
                   params=AlgorithmParams(),
                   preprocess=True,
                   cost_index=0,
-                  direction=None)            # or "forward", "backward",
+                  direction=None)            # or "forward", "backward" (the
+                                             # labelling algorithms),
                                              # "bidirectional" (simple only)
 problems = rg.check_model("backward")        # the model checks, without solving
 ```
@@ -449,11 +450,11 @@ line. A fragment states what it takes from the reader in a comment above it, suc
 11. **The search direction is a parameter** — `params.direction` in C++.
     `solve(direction=...)` in Python, which raises `ValueError` for a direction the algorithm
     does not search.
-    `SearchDirection::Backward` makes `strategy::Simple` search backward, and
-    `SearchDirection::Bidirectional` both ways. A strategy is a descriptor (`rcspp::strategy`),
-    and the library builds the class for each direction from its parts. A strategy asked for a
-    direction it does not search throws `std::invalid_argument`, and
-    `create_algorithm<Strategy>(params)` returns
+    `SearchDirection::Backward` makes every labelling algorithm (Simple, A\*, Pushing, Pulling)
+    search backward. `SearchDirection::Bidirectional` makes `strategy::Simple` search both
+    ways. A strategy is a descriptor (`rcspp::strategy`), and the library builds the class for
+    each direction from its parts. A strategy asked for a direction it does not search throws
+    `std::invalid_argument`, and `create_algorithm<Strategy>(params)` returns
     `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`.
     A backward or bidirectional solve runs the model checks before any preprocessing and throws
     `ModelRefused` on a failing model, with `preprocess=false` too, and on a direct
