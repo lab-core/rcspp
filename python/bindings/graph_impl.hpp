@@ -17,9 +17,14 @@
 #include <tuple>
 
 #include "active_call.hpp"
-#include "graph_pricer.hpp"
 #include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
+
+#ifdef RCSPP_USE_COLUMN_GENERATION
+#include "graph_pricer.hpp"
+#include "rcspp/column_generation/graph_pricer.hpp"
+#include "rcspp/column_generation/pricing_strategy.hpp"
+#endif
 
 namespace py = pybind11;
 
@@ -465,6 +470,7 @@ py::class_<RG, Graph<RC>>& bind_rg_methods(py::class_<RG, Graph<RC>>& c) {
             "The clone has an independent remove/restore state.");
 }
 
+#ifdef RCSPP_USE_COLUMN_GENERATION
 // ─── Graph pricer ─────────────────────────────────────────────────────────────
 // Builds the C++ GraphPricer over a bound graph from Python's stages: (Algorithm, params,
 // SearchDirection, exact) tuples. Each stage searches as solve() does, with its own copy of the
@@ -522,6 +528,7 @@ std::unique_ptr<column_generation::Pricer> make_graph_pricer(RG& graph, const py
         cost_index,
         preprocess);
 }
+#endif
 
 // ─── Helper: bind one add_resource method ────────────────────────────────────
 
@@ -608,6 +615,7 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
             py::arg("duals"),
             py::arg("cost_index") = 0);
 
+#ifdef RCSPP_USE_COLUMN_GENERATION
         graph_pricer_factories()[reinterpret_cast<PyTypeObject*>(rg.ptr())] =
             [](py::handle graph, const py::list& stages, size_t cost_index, bool preprocess) {
                 return make_graph_pricer<RG, RC, ResourceTypes...>(graph.cast<RG&>(),
@@ -615,6 +623,7 @@ void bind_resource_graph_impl(py::class_<RG, Graph<RC>>& rg) {
                                                                    cost_index,
                                                                    preprocess);
             };
+#endif
     }
 }
 

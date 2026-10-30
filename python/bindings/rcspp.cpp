@@ -11,7 +11,9 @@
 
 namespace py = pybind11;
 
+#ifdef RCSPP_USE_COLUMN_GENERATION
 void init_column_generation(py::module_&);
+#endif
 #ifdef RCSPP_USE_HIGHS
 void init_column_generation_highs(py::module_&);
 #endif
@@ -36,12 +38,14 @@ PYBIND11_MODULE(_core, m) {
     auto solution_pool_submodule = m.def_submodule("solution_pool", "Solution pool classes");
     init_solution_pool(solution_pool_submodule);
 
+#ifdef RCSPP_USE_COLUMN_GENERATION
     // After graph: its Solution is part of the column generation API.
     auto column_generation_submodule =
         m.def_submodule("column_generation", "Column generation: master, pricers and loop");
     init_column_generation(column_generation_submodule);
 #ifdef RCSPP_USE_HIGHS
     init_column_generation_highs(column_generation_submodule);
+#endif
 #endif
 
     auto logger_submodule = m.def_submodule("logger", "Logging control");

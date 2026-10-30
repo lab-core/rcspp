@@ -17,8 +17,11 @@ set(PY_PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${PYTHON_PACKAGE_NAME}")
 
 # Gather all C++ sources for the Python module
 file(GLOB_RECURSE MODULE_SOURCES "${PY_BINDINGS_DIR}/*.cpp")
-# The HiGHS master solver is bound only with USE_HIGHS.
-if(NOT USE_HIGHS)
+# Column generation is bound only with USE_COLUMN_GENERATION, its HiGHS master solver only with
+# USE_HIGHS.
+if(NOT USE_COLUMN_GENERATION)
+  list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation(_highs)?\\.cpp$")
+elseif(NOT USE_HIGHS)
   list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation_highs\\.cpp$")
 endif()
 
@@ -62,6 +65,11 @@ target_include_directories(${PYTHON_EXTENSION_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/
 
 # Link the core C++ library
 target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
+# Column generation, as objects too.
+if(USE_COLUMN_GENERATION)
+  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_column_generation_objects)
+  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_COLUMN_GENERATION)
+endif()
 # The HiGHS master solver, and HiGHS itself (static: it ends up in the module).
 if(USE_HIGHS)
   target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_highs)

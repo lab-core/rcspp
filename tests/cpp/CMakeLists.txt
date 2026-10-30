@@ -24,11 +24,16 @@ file(GLOB SOLVER_TEST_SOURCES CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/gurobi/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/highs/*.cpp")
 list(REMOVE_ITEM TEST_SOURCES ${SOLVER_TEST_SOURCES})
 file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/cpp/rcspp/*.cpp")
-# The master solvers are libraries of their own, linked by their tests below.
-foreach(directory ${RCSPP_MASTER_SOLVER_DIRS})
-  file(GLOB master_solver_sources CONFIGURE_DEPENDS "${directory}/*.cpp")
-  list(REMOVE_ITEM LIB_SOURCES ${master_solver_sources})
-endforeach()
+# Column generation's own sources with USE_COLUMN_GENERATION only; its master solvers are libraries
+# of their own, linked by their tests below.
+file(GLOB_RECURSE column_generation_sources CONFIGURE_DEPENDS "${RCSPP_COLUMN_GENERATION_DIR}/*.cpp")
+list(REMOVE_ITEM LIB_SOURCES ${column_generation_sources})
+if(USE_COLUMN_GENERATION)
+  file(GLOB column_generation_sources CONFIGURE_DEPENDS "${RCSPP_COLUMN_GENERATION_DIR}/*.cpp")
+  list(APPEND LIB_SOURCES ${column_generation_sources})
+else()
+  list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_column_generation.cpp")
+endif()
 
 set(SOURCE_FILES ${TEST_SOURCES} ${LIB_SOURCES})
 # The vrp_subproblem test reuses a few VRP data classes from the VRP example.
