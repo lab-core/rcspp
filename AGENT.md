@@ -491,6 +491,9 @@ Whether a name is spelled out, and says what it does, is left to review.
   traits and policies follow the standard library instead (`value`, `kind`, `has_backward`). A
   few older constants are still in SCREAMING_CASE: the `FNV_*` constants,
   `DEFAULT_LABEL_POOL_SIZE`, and the `timer.cpp` constants.
+- **Member types** follow the standard library too: `snake_case` (`value_type`, `container_type`,
+  and a preset's `schedule`, `admission` and `retention`), so that code can read them from any
+  type it is given. A type alias at namespace scope is `CamelCase`.
 - **Template parameters** are spelled out, and usually end in `Type` when they stand for a type
   (`ResourceType`, `LabelContainerType`, `GraphType`); a full word also does (`Container`, `Base`,
   `Compare`). Direction policies are `TargetDirection` or `LabelDirection`. Two idioms stay short:
