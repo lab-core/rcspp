@@ -38,6 +38,8 @@
 #include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/labelling/schedules.hpp"
+#include "rcspp/algorithm/labelling/search.hpp"
+#include "rcspp/algorithm/labelling/step.hpp"
 #include "rcspp/algorithm/labelling/take_rule.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"

@@ -262,3 +262,202 @@ TEST(NodeBound, ReadsTheBoundForAPruneAndForAnOrder) {
     EXPECT_EQ(bound(*entry.label), -std::numeric_limits<double>::infinity());
     EXPECT_EQ(bound.for_order(*entry.label), 0.0);
 }
+
+namespace search_step_test {
+
+using Composed = ResourceTypeComposition<RealResource>;
+using List = LabelList<Composed>;
+constexpr double kInfinity = std::numeric_limits<double>::infinity();
+
+/// @brief Source 0, sink 3. Arcs: 0 -> 3 (5), 0 -> 1 (1), 1 -> 2 (0), 2 -> 3 (1), 1 -> 3 (3), with
+///        ids 0 to 4. The optimum, 0 -> 1 -> 2 -> 3, costs 2; the others cost 5 and 4.
+inline std::unique_ptr<ResourceGraph<RealResource>> four_nodes() {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>({5.0}, 0, 3, 5.0);
+    graph->add_arc<RealResource>({1.0}, 0, 1, 1.0);
+    graph->add_arc<RealResource>({0.0}, 1, 2, 0.0);
+    graph->add_arc<RealResource>({1.0}, 2, 3, 1.0);
+    graph->add_arc<RealResource>({3.0}, 1, 3, 3.0);
+    graph->sort_nodes();
+    graph->build_csr();
+    return graph;
+}
+
+/// @brief One search in @p Direction with a first-in, first-out schedule, and what an algorithm
+///        would give it: the context, a record callable and a count callable.
+template <typename Direction>
+class Driven {
+    public:
+        using Container = detail::directed_container_t<List, Direction>;
+        using SearchType = detail::Search<Composed, Direction, Container,
+                                          detail::Preset<parts::FifoSchedule<Composed>>>;
+
+        explicit Driven(const AlgorithmBaseParams& params)
+            : graph_(four_nodes()),
+              pool_(std::make_unique<LabelFactory<Composed>>(&graph_->get_resource_factory())),
+              params_(params) {}
+
+        /// @brief Runs the search to its end, or until a step says a budget is spent.
+        ///
+        /// @return Whether a budget was spent.
+        bool run() {
+            search.reset(graph_->get_number_of_nodes(),
+                         detail::make_directed_container<Direction>(List{}));
+            ctx = {.graph = graph_.get(),
+                   .pool = &pool_,
+                   .params = &params_,
+                   .upper_bound = kInfinity,
+                   .incumbent = &incumbent_,
+                   .quota = &quota_,
+                   .solutions = &solutions_,
+                   .bound = &search.bound};
+            search.schedule.initialize(ctx);
+            search.create_start_labels(*graph_, &pool_);
+            const auto record = [this](const Label<Composed>& label) {
+                std::vector<size_t> arc_ids;
+                if constexpr (Direction::backward) {
+                    append_suffix_arc_ids(label, &arc_ids);
+                } else {
+                    arc_ids = prefix_arc_ids(label);
+                }
+                solutions_.insert(Solution(label.get_cost(), {}, arc_ids));
+                recorded.push_back(label.get_cost());
+            };
+            const auto count = [this](parts::ExtensionOutcome /*outcome*/) { ++extensions; };
+            while (search.schedule.size() > 0) {
+                if (detail::step(search, ctx, record, count)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// @brief The costs of the labels left at the end nodes of @p Direction.
+        [[nodiscard]] std::vector<double> end_node_costs() const {
+            std::vector<double> costs;
+            for (const auto* label : search.labels_at_end_nodes(*graph_)) {
+                costs.push_back(label->get_cost());
+            }
+            return costs;
+        }
+
+        /// @brief The costs of the labels left at node @p node_id.
+        [[nodiscard]] std::vector<double> costs_at(size_t node_id) const {
+            std::vector<double> costs;
+            for (const auto* label : search.labels.labels_at(graph_->get_node(node_id)->pos())) {
+                costs.push_back(label->get_cost());
+            }
+            return costs;
+        }
+
+        [[nodiscard]] const std::unordered_set<Solution>& solutions() const { return solutions_; }
+        [[nodiscard]] bool ref_counts_consistent() const {
+            return pool_.check_ref_count_consistency();
+        }
+
+        SearchType search;
+        detail::SearchContext<Composed> ctx;
+        std::vector<double> recorded;
+        size_t extensions = 0;
+
+    private:
+        std::unique_ptr<ResourceGraph<RealResource>> graph_;
+        LabelPool<Composed> pool_;
+        AlgorithmBaseParams params_;
+        double incumbent_ = kInfinity;
+        size_t quota_ = std::numeric_limits<size_t>::max();
+        std::unordered_set<Solution> solutions_;
+};
+
+}  // namespace search_step_test
+
+/// @brief Run step by step, a forward search keeps the non-dominated labels at each node, records
+///        nothing during the search, and extends every label once along each of its arcs.
+TEST(Search, AForwardSearchKeepsTheNonDominatedLabels) {
+    namespace sst = search_step_test;
+    sst::Driven<ForwardDirection> driven{AlgorithmBaseParams{}};
+    EXPECT_FALSE(driven.run());
+    EXPECT_EQ(driven.end_node_costs(), (std::vector<double>{2.0}));
+    EXPECT_EQ(driven.costs_at(1), (std::vector<double>{1.0}));
+    EXPECT_EQ(driven.costs_at(2), (std::vector<double>{1.0}));
+    EXPECT_TRUE(driven.recorded.empty());
+    EXPECT_EQ(driven.extensions, 5U);   // 2 arcs out of 0, 2 out of 1, 1 out of 2
+    EXPECT_EQ(driven.search.work, 5U);  // the labels at the sink are not extended
+    EXPECT_TRUE(driven.ref_counts_consistent());
+}
+
+/// @brief With dominated solutions returned, each end-node label is recorded when it is taken,
+///        the cheapest among them; a step says the budget is spent once max_solutions are
+///        recorded.
+TEST(Search, EndNodeLabelsAreRecordedWhenTakenUntilTheBudgetIsSpent) {
+    namespace sst = search_step_test;
+    AlgorithmBaseParams params;
+    params.return_dominated_solutions = true;
+    params.max_solutions = 1000;
+    sst::Driven<ForwardDirection> driven{params};
+    EXPECT_FALSE(driven.run());
+    ASSERT_GE(driven.recorded.size(), 2U);
+    EXPECT_EQ(*std::ranges::min_element(driven.recorded), 2.0);
+    EXPECT_EQ(driven.solutions().size(), driven.recorded.size());
+    EXPECT_TRUE(driven.solutions().contains(Solution(2.0, {}, {1, 2, 3})));
+
+    params.max_solutions = 1;
+    sst::Driven<ForwardDirection> stopped{params};
+    EXPECT_TRUE(stopped.run());
+    EXPECT_EQ(stopped.recorded.size(), 1U);
+    EXPECT_GT(stopped.search.schedule.size(), 0U) << "the stop leaves labels to take";
+    EXPECT_TRUE(stopped.ref_counts_consistent());
+}
+
+/// @brief Run step by step backward, the search ends at the source with the optimum, whose path
+///        reads from the source to the sink.
+TEST(Search, ABackwardSearchEndsAtTheSourceWithTheOptimum) {
+    namespace sst = search_step_test;
+    AlgorithmBaseParams params;
+    params.return_dominated_solutions = true;
+    params.max_solutions = 1000;
+    sst::Driven<BackwardDirection> driven{params};
+    EXPECT_FALSE(driven.run());
+    EXPECT_EQ(driven.end_node_costs(), (std::vector<double>{2.0}));
+    ASSERT_FALSE(driven.recorded.empty());
+    EXPECT_EQ(*std::ranges::min_element(driven.recorded), 2.0);
+    EXPECT_TRUE(driven.solutions().contains(Solution(2.0, {}, {1, 2, 3})));
+    EXPECT_TRUE(driven.ref_counts_consistent());
+}
+
+/// @brief One Bellman-Ford run over each arc's share of the cost fills the bound by node
+///        position: to the sinks for a forward search, from the sources for a backward one; a
+///        negative-cost cycle leaves minus infinity everywhere.
+TEST(CompletionBounds, FillTheBoundFromOneBellmanFordRun) {
+    namespace sst = search_step_test;
+    auto graph = sst::four_nodes();
+    EXPECT_EQ(detail::completion_bounds<ForwardDirection>(*graph).by_position,
+              (std::vector<double>{2.0, 1.0, 1.0, 0.0}));
+    EXPECT_EQ(detail::completion_bounds<BackwardDirection>(*graph).by_position,
+              (std::vector<double>{0.0, 1.0, 1.0, 2.0}));
+
+    auto cyclic = std::make_unique<ResourceGraph<RealResource>>();
+    cyclic->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                       std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                       std::make_unique<ValueCostFunction<RealResource>>(),
+                                       std::make_unique<ValueDominanceFunction<RealResource>>());
+    cyclic->add_node(0, /*source=*/true, /*sink=*/false);
+    cyclic->add_node(1);
+    cyclic->add_node(2);
+    cyclic->add_node(3, /*source=*/false, /*sink=*/true);
+    cyclic->add_arc<RealResource>({0.0}, 0, 1, 0.0);
+    cyclic->add_arc<RealResource>({-1.0}, 1, 2, -1.0);
+    cyclic->add_arc<RealResource>({-1.0}, 2, 1, -1.0);
+    cyclic->add_arc<RealResource>({0.0}, 2, 3, 0.0);
+    cyclic->sort_nodes();
+    EXPECT_EQ(detail::completion_bounds<ForwardDirection>(*cyclic).by_position,
+              (std::vector<double>(4, -std::numeric_limits<double>::infinity())));
+}

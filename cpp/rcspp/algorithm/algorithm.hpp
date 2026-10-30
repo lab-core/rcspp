@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/label_buckets.hpp"
+#include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -651,6 +652,39 @@ class Algorithm {
                     return false;
             }
             return false;
+        }
+
+        /// @brief Counts one extension of a label along an arc, and logs the progress every
+        ///        100 000.
+        ///
+        /// Every extension that drew a label counts towards @ref get_number_of_extended_labels:
+        /// all but the unreachable ones.
+        ///
+        /// @param outcome How the extension ended.
+        void count_extension(parts::ExtensionOutcome outcome) {
+            if (outcome == parts::ExtensionOutcome::Unreachable) {
+                return;
+            }
+            if (++num_extended_labels_ % 100000 == 0) {  // NOLINT
+                print_labels();
+                LOG_DEBUG("Processed ", num_extended_labels_, " labels so far...\n");
+            }
+        }
+
+        /// @brief Records the path a label extended **backward** holds.
+        ///
+        /// Such a label ends at a source, and its path ends at the sink its chain started from:
+        /// the destination of its last arc.
+        ///
+        /// @param label A backward label at a source.
+        void record_backward_solution(const Label<ResourceType>& label) {
+            std::vector<size_t> arc_ids;
+            append_suffix_arc_ids(label, &arc_ids);
+            if (arc_ids.empty()) {
+                return;
+            }
+            const size_t end_node_id = graph_->get_arc(arc_ids.back())->destination->id;
+            record_path(label.get_cost(), std::move(arc_ids), end_node_id);
         }
 
         /// @brief Release all label memory held by the pool and label containers.
