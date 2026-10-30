@@ -136,7 +136,7 @@ class Algorithm:
 
 class SearchDirection:
     """
-    Which way a search runs: Forward from the sources, Backward from the sinks, or Bidirectional (both at once, joined in the middle). Every labelling algorithm (simple, pushing, pulling, astar) supports Backward; only simple supports Bidirectional.
+    Which way a search runs: Forward from the sources, Backward from the sinks, or Bidirectional (both at once, joined in the middle). Every labelling algorithm (simple, pushing, pulling, astar) supports all three; greedy and tabu search Forward only.
 
     Members:
 
@@ -291,7 +291,7 @@ class AlgorithmParams:
     @property
     def direction(self) -> SearchDirection:
         """
-        Which way the search runs: SearchDirection.Forward (default), Backward or Bidirectional. Every labelling algorithm (simple, pushing, pulling, astar) searches backward, and simple also bidirectionally; any other pairing raises ValueError. ResourceGraph.solve's `direction` argument overrides it for that call only.
+        Which way the search runs: SearchDirection.Forward (default), Backward or Bidirectional. Every labelling algorithm (simple, pushing, pulling, astar) searches in each; greedy and tabu raise ValueError for any but Forward. ResourceGraph.solve's `direction` argument overrides it for that call only.
         """
 
     @direction.setter
