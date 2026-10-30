@@ -5,6 +5,7 @@
 
 #include <cstddef>
 
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label.hpp"
