@@ -30,6 +30,8 @@ classifiers = [
 ]
 dependencies = [
   "networkx>=3,<4",
+  # Column generation returns numpy arrays (duals, column values, column batches).
+  "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
