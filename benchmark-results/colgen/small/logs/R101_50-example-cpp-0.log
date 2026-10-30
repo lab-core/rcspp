@@ -1,0 +1,22 @@
+[ CG ] ng off (inert) against ng on, full column generation
+       lp_cost is the bound -- higher is tighter, and the point of ng.
+
+  R101_50
+[32m[2026-10-30 16:25:14.069][INFO ] nb_iter=0 | obj=2624.75 | min_reduced_cost=-270.94725242698882539 | paths_generated=55
+[0m[32m[2026-10-30 16:25:14.079][INFO ] nb_iter=1 | obj=1960.09 | min_reduced_cost=-232.93683948077463697 | paths_generated=107
+[0m[32m[2026-10-30 16:25:14.086][INFO ] nb_iter=2 | obj=1506.65 | min_reduced_cost=-146.34891576595072138 | paths_generated=64
+[0m[32m[2026-10-30 16:25:14.094][INFO ] nb_iter=3 | obj=1141.46 | min_reduced_cost=-84.09655644321527745 | paths_generated=52
+[0m[32m[2026-10-30 16:25:14.102][INFO ] nb_iter=4 | obj=1102.41 | min_reduced_cost=-29.79264953624825552 | paths_generated=20
+[0m[32m[2026-10-30 16:25:14.110][INFO ] nb_iter=5 | obj=1062.36 | min_reduced_cost=-15.50094437745292097 | paths_generated=27
+[0m[32m[2026-10-30 16:25:14.118][INFO ] nb_iter=6 | obj=1053.33 | min_reduced_cost=-12.78057546011156731 | paths_generated=14
+[0m[32m[2026-10-30 16:25:14.125][INFO ] nb_iter=7 | obj=1053.33 | min_reduced_cost=-18.14454026472348502 | paths_generated=7
+[0m[32m[2026-10-30 16:25:14.135][INFO ] nb_iter=8 | obj=1053.33 | min_reduced_cost=-9.77672321116649456 | paths_generated=8
+[0m[32m[2026-10-30 16:25:14.143][INFO ] nb_iter=9 | obj=1052.22 | min_reduced_cost=-7.49307302480687909 | paths_generated=15
+[0m[32m[2026-10-30 16:25:14.150][INFO ] nb_iter=10 | obj=1047.41 | min_reduced_cost=-4.35822807130038115 | paths_generated=8
+[0m[32m[2026-10-30 16:25:14.158][INFO ] nb_iter=11 | obj=1047.41 | min_reduced_cost=-6.28622003773992688 | paths_generated=6
+[0m[32m[2026-10-30 16:25:14.165][INFO ] nb_iter=12 | obj=1047.41 | min_reduced_cost=-1.85775558289902776 | paths_generated=7
+[0m[32m[2026-10-30 16:25:14.173][INFO ] nb_iter=13 | obj=1046.7 | min_reduced_cost=-0.70725904628049818 | paths_generated=3
+[0m[32m[2026-10-30 16:25:14.179][INFO ] nb_iter=14 | obj=1046.7 | min_reduced_cost=inf | paths_generated=0
+[0m    ng=0    lp_cost=1046.7011  iterations=15  seconds=0.14
+
+RESULT {"status": "Optimal", "lp": 1046.7011, "iterations": 15, "solve_s": 0.14}

@@ -1,0 +1,108 @@
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\R101_50.txt
+nb_customers: 51
+construct_graph: 11 ms
+*********************************************
+iter=0  min_rc=-inf
+*********************************************
+[MasterProblem] solver: GRB
+solution.cost=2624.7518802950044
+Solve: 0.017s
+best RCSPP reduced cost: -270.947252
+*********************************************
+iter=1  min_rc=-270.947252
+*********************************************
+solution.cost=1960.0911281696526
+Solve: 0.003s
+best RCSPP reduced cost: -232.936839
+*********************************************
+iter=2  min_rc=-232.936839
+*********************************************
+solution.cost=1484.7333294482214
+Solve: 0.002s
+best RCSPP reduced cost: -146.348916
+*********************************************
+iter=3  min_rc=-146.348916
+*********************************************
+solution.cost=1125.413090543253
+Solve: 0.002s
+best RCSPP reduced cost: -84.096556
+*********************************************
+iter=4  min_rc=-84.096556
+*********************************************
+solution.cost=1089.618303903475
+Solve: 0.001s
+best RCSPP reduced cost: -28.088746
+*********************************************
+iter=5  min_rc=-28.088746
+*********************************************
+solution.cost=1059.906781712567
+Solve: 0.001s
+best RCSPP reduced cost: -18.164207
+*********************************************
+iter=6  min_rc=-18.164207
+*********************************************
+solution.cost=1059.906781712567
+Solve: 0.002s
+best RCSPP reduced cost: -15.936667
+*********************************************
+iter=7  min_rc=-15.936667
+*********************************************
+solution.cost=1057.5811357360585
+Solve: 0.001s
+best RCSPP reduced cost: -12.075075
+*********************************************
+iter=8  min_rc=-12.075075
+*********************************************
+solution.cost=1054.88484688174
+Solve: 0.001s
+best RCSPP reduced cost: -11.558351
+*********************************************
+iter=9  min_rc=-11.558351
+*********************************************
+solution.cost=1051.7725336230608
+Solve: 0.001s
+best RCSPP reduced cost: -7.759899
+*********************************************
+iter=10  min_rc=-7.759899
+*********************************************
+solution.cost=1051.7725336230608
+Solve: 0.001s
+best RCSPP reduced cost: -6.994639
+*********************************************
+iter=11  min_rc=-6.994639
+*********************************************
+solution.cost=1050.3738439147805
+Solve: 0.001s
+best RCSPP reduced cost: -7.032986
+*********************************************
+iter=12  min_rc=-7.032986
+*********************************************
+solution.cost=1047.3723383182485
+Solve: 0.002s
+best RCSPP reduced cost: -3.491200
+*********************************************
+iter=13  min_rc=-3.491200
+*********************************************
+solution.cost=1047.3723383182485
+Solve: 0.002s
+best RCSPP reduced cost: -1.047814
+*********************************************
+iter=14  min_rc=-1.047814
+*********************************************
+solution.cost=1046.7010643496817
+Solve: 0.001s
+best RCSPP reduced cost: -0.000000
+
+iter=15  min_rc=-0.000000
+
+solution.cost=1046.7010643496817
+RESULT {"status": "optimal", "lp": 1046.7010643496817, "iterations": 15, "columns": 406, "master_s": 0.13414299995929468, "pricing_s": 0.05565810203552246, "rest_s": 0.027868498014868237, "integer_s": 0.022459100000560284}

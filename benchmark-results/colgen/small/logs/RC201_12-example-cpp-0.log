@@ -1,0 +1,29 @@
+[ CG ] ng off (inert) against ng on, full column generation
+       lp_cost is the bound -- higher is tighter, and the point of ng.
+
+  RC201_12
+[32m[2026-10-30 16:24:53.390][INFO ] nb_iter=0 | obj=1291.19 | min_reduced_cost=-1147.31053838377351894 | paths_generated=423
+[0m[32m[2026-10-30 16:24:53.405][INFO ] nb_iter=1 | obj=843.5 | min_reduced_cost=-753.61878179533516686 | paths_generated=242
+[0m[32m[2026-10-30 16:24:53.424][INFO ] nb_iter=2 | obj=677.28 | min_reduced_cost=-666.27641595404099917 | paths_generated=360
+[0m[32m[2026-10-30 16:24:53.438][INFO ] nb_iter=3 | obj=621.532 | min_reduced_cost=-392.62299470947442614 | paths_generated=357
+[0m[32m[2026-10-30 16:24:53.445][INFO ] nb_iter=4 | obj=600.685 | min_reduced_cost=-298.55175861268651261 | paths_generated=140
+[0m[32m[2026-10-30 16:24:53.453][INFO ] nb_iter=5 | obj=521.924 | min_reduced_cost=-227.84138011490102826 | paths_generated=110
+[0m[32m[2026-10-30 16:24:53.462][INFO ] nb_iter=6 | obj=495.994 | min_reduced_cost=-125.33512157777192897 | paths_generated=138
+[0m[32m[2026-10-30 16:24:53.468][INFO ] nb_iter=7 | obj=486.921 | min_reduced_cost=-97.54242090895365891 | paths_generated=43
+[0m[32m[2026-10-30 16:24:53.476][INFO ] nb_iter=8 | obj=466.554 | min_reduced_cost=-67.19556337926887579 | paths_generated=108
+[0m[32m[2026-10-30 16:24:53.482][INFO ] nb_iter=9 | obj=452.528 | min_reduced_cost=-52.92061507512897123 | paths_generated=30
+[0m[32m[2026-10-30 16:24:53.488][INFO ] nb_iter=10 | obj=442.704 | min_reduced_cost=-32.38614262288717782 | paths_generated=51
+[0m[32m[2026-10-30 16:24:53.494][INFO ] nb_iter=11 | obj=434.641 | min_reduced_cost=-15.04740624991649867 | paths_generated=26
+[0m[32m[2026-10-30 16:24:53.499][INFO ] nb_iter=12 | obj=433.248 | min_reduced_cost=-8.64078837927304377 | paths_generated=18
+[0m[32m[2026-10-30 16:24:53.504][INFO ] nb_iter=13 | obj=430.076 | min_reduced_cost=-7.17364195995219944 | paths_generated=10
+[0m[32m[2026-10-30 16:24:53.509][INFO ] nb_iter=14 | obj=428.26 | min_reduced_cost=-3.58682097997614058 | paths_generated=3
+[0m[32m[2026-10-30 16:24:53.514][INFO ] nb_iter=15 | obj=428.26 | min_reduced_cost=-3.58682097997609617 | paths_generated=2
+[0m[32m[2026-10-30 16:24:53.519][INFO ] nb_iter=16 | obj=428.171 | min_reduced_cost=-3.27457232325292757 | paths_generated=6
+[0m[32m[2026-10-30 16:24:53.523][INFO ] nb_iter=17 | obj=428.171 | min_reduced_cost=-3.27457232325293113 | paths_generated=6
+[0m[32m[2026-10-30 16:24:53.528][INFO ] nb_iter=18 | obj=427.236 | min_reduced_cost=-2.44005667983237018 | paths_generated=2
+[0m[32m[2026-10-30 16:24:53.533][INFO ] nb_iter=19 | obj=427.236 | min_reduced_cost=-0.17051926469019030 | paths_generated=1
+[0m[32m[2026-10-30 16:24:53.538][INFO ] nb_iter=20 | obj=427.236 | min_reduced_cost=-0.08525963234509248 | paths_generated=1
+[0m[32m[2026-10-30 16:24:53.542][INFO ] nb_iter=21 | obj=427.236 | min_reduced_cost=inf | paths_generated=0
+[0m    ng=0    lp_cost=427.2356  iterations=22  seconds=0.20
+
+RESULT {"status": "Optimal", "lp": 427.2356, "iterations": 22, "solve_s": 0.2}

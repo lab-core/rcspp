@@ -1,0 +1,18 @@
+[ CG ] ng off (inert) against ng on, full column generation
+       lp_cost is the bound -- higher is tighter, and the point of ng.
+
+  R101_25
+[32m[2026-10-30 16:24:40.595][INFO ] nb_iter=0 | obj=1246.16 | min_reduced_cost=-174.47100199857356984 | paths_generated=60
+[0m[32m[2026-10-30 16:24:40.600][INFO ] nb_iter=1 | obj=699.185 | min_reduced_cost=-66.81730552584357952 | paths_generated=16
+[0m[32m[2026-10-30 16:24:40.604][INFO ] nb_iter=2 | obj=673.043 | min_reduced_cost=-28.98444494277442018 | paths_generated=9
+[0m[32m[2026-10-30 16:24:40.608][INFO ] nb_iter=3 | obj=636.59 | min_reduced_cost=-9.45712408603663945 | paths_generated=2
+[0m[32m[2026-10-30 16:24:40.612][INFO ] nb_iter=4 | obj=636.59 | min_reduced_cost=-8.68710069668352958 | paths_generated=7
+[0m[32m[2026-10-30 16:24:40.615][INFO ] nb_iter=5 | obj=618.33 | min_reduced_cost=-6.35232786534993288 | paths_generated=1
+[0m[32m[2026-10-30 16:24:40.619][INFO ] nb_iter=6 | obj=618.33 | min_reduced_cost=-4.53978142073348323 | paths_generated=1
+[0m[32m[2026-10-30 16:24:40.623][INFO ] nb_iter=7 | obj=618.33 | min_reduced_cost=-4.53978142073348323 | paths_generated=2
+[0m[32m[2026-10-30 16:24:40.626][INFO ] nb_iter=8 | obj=618.33 | min_reduced_cost=-2.00092417379341470 | paths_generated=1
+[0m[32m[2026-10-30 16:24:40.630][INFO ] nb_iter=9 | obj=618.33 | min_reduced_cost=-1.00046208689669669 | paths_generated=1
+[0m[32m[2026-10-30 16:24:40.633][INFO ] nb_iter=10 | obj=618.33 | min_reduced_cost=inf | paths_generated=0
+[0m    ng=0    lp_cost=618.3299  iterations=11  seconds=0.05
+
+RESULT {"status": "Optimal", "lp": 618.3299, "iterations": 11, "solve_s": 0.05}
