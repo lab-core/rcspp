@@ -35,6 +35,19 @@ struct ForwardDirection {
             return arc.destination;
         }
 
+        /// @brief The arcs a pull into @p node reads: incoming, going forward.
+        template <typename ResourceType>
+        static auto in_arcs(const Graph<ResourceType>& graph,
+                            const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+            return graph.get_in_arcs(node);
+        }
+
+        /// @brief The node a pull along @p arc takes labels from: its origin, going forward.
+        template <typename ResourceType>
+        static auto tail(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
+            return arc.origin;
+        }
+
         /// @brief Extends @p label along @p arc into @p extended_label.
         template <typename ResourceType>
         static void extend(const Label<ResourceType>& label, const Arc<ResourceType>& arc,
@@ -122,6 +135,20 @@ struct BackwardDirection {
         template <typename ResourceType>
         static auto head(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
             return arc.origin;
+        }
+
+        /// @brief The arcs a pull into @p node reads: outgoing, going backward.
+        template <typename ResourceType>
+        static auto in_arcs(const Graph<ResourceType>& graph,
+                            const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+            return graph.get_out_arcs(node);
+        }
+
+        /// @brief The node a pull along @p arc takes labels from: its destination, going
+        ///        backward.
+        template <typename ResourceType>
+        static auto tail(const Arc<ResourceType>& arc) -> Node<ResourceType>* {
+            return arc.destination;
         }
 
         /// @brief Extends @p label backward along @p arc into @p extended_label.
@@ -230,6 +257,10 @@ concept DirectionPolicy =
             Direction::template out_arcs<ResourceType>(graph, node)
         } -> std::same_as<std::span<Arc<ResourceType>*>>;
         { Direction::template head<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
+        {
+            Direction::template in_arcs<ResourceType>(graph, node)
+        } -> std::same_as<std::span<Arc<ResourceType>*>>;
+        { Direction::template tail<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
         Direction::template extend<ResourceType>(label, arc, extended_label);
         { Direction::template feasible<ResourceType>(label) } -> std::same_as<bool>;
         { Direction::template dominates<ResourceType>(label, label) } -> std::same_as<bool>;
