@@ -4,7 +4,10 @@
 
 The loop runs in C++. A :class:`GraphPricer` prices a :class:`~rcspp.graph.ResourceGraph`
 in C++, and a :class:`HighsMasterSolver` (when rcspp is built with HiGHS) solves the master
-in C++, so a run over them never calls Python.
+in C++, so a run over them never calls Python. A :class:`HighspyMasterSolver` is one over a
+copy of the user's ``highspy`` model. A :class:`GurobipyMasterSolver` works on the user's
+``gurobipy`` model itself, from Python. Each imports its LP solver's package when it is
+used, so that importing rcspp does not load it.
 
 A master solver, a pricer, tolerances or an initialization written in Python is a subclass
 of :class:`MasterSolver`, :class:`Pricer`, :class:`Tolerances` or
@@ -63,6 +66,7 @@ from .._core.column_generation import (
 )
 from . import registry
 from .graph_pricer import GraphPricer, PricingStage
+from .master_solvers import GurobipyMasterSolver
 from .params import ColumnGenerationParams
 from .registry import (
     algorithm_names,
@@ -77,6 +81,7 @@ from .registry import (
 # Built with USE_HIGHS only, as the wheel is.
 try:
     from .._core.column_generation import HighsMasterSolver
+    from .master_solvers import HighspyMasterSolver
 except ImportError:  # pragma: no cover
     pass
 
@@ -95,7 +100,9 @@ __all__ = [
     "ConvergenceContext",
     "ConvexityRow",
     "GraphPricer",
+    "GurobipyMasterSolver",
     "HighsMasterSolver",
+    "HighspyMasterSolver",
     "IntegerParams",
     "IterationInfo",
     "MasterColumn",

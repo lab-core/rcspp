@@ -66,6 +66,13 @@ target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_objects)
 if(USE_HIGHS)
   target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_highs)
   target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_HIGHS)
+  # HiGHS is built with hidden symbols, but the standard library templates it instantiates keep
+  # theirs; on Linux the linker hides those too, so that the module exports nothing of HiGHS and
+  # another HiGHS in the process (highspy's) keeps its own. macOS binds each module's symbols to
+  # that module already.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(${PYTHON_EXTENSION_NAME} PRIVATE "LINKER:--exclude-libs,ALL")
+  endif()
 endif()
 
 # Instrument the binding TUs themselves for coverage (rcspp_objects already
@@ -109,13 +116,16 @@ endforeach()
 add_custom_target(copy_python_sources ALL DEPENDS ${PYTHON_COPY_OUTPUTS})
 add_dependencies(${PYTHON_EXTENSION_NAME} copy_python_sources)
 
+# The wheel installs this component only (pyproject.toml): a fetched HiGHS has install rules of
+# its own, for its library and headers, which the module does not need.
 install(TARGETS ${PYTHON_EXTENSION_NAME}
-    LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME}
-    RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME}
+    LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
+    RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
 )
 
 install(DIRECTORY "${PY_PACKAGE_DIR}/"
     DESTINATION ${PYTHON_PACKAGE_NAME}
+    COMPONENT python
     FILES_MATCHING
     PATTERN "*.py"
     PATTERN "*.pyi"

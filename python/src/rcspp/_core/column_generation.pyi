@@ -11,6 +11,8 @@ from .graph import Algorithm, SearchDirection, Solution
 FloatArray: TypeAlias = np.ndarray[Any, np.dtype[np.float64]]
 # Column ids, as a Python master solver receives them in primal.
 IdArray: TypeAlias = np.ndarray[Any, np.dtype[np.uint64]]
+# Positions in a solver's own model: its columns' starts, its rows.
+ModelIndexArray: TypeAlias = np.ndarray[Any, np.dtype[np.int64]]
 # What an argument accepts: anything numpy turns into an array of numbers.
 ArrayLike: TypeAlias = Sequence[float] | np.ndarray[Any, Any]
 IntArrayLike: TypeAlias = Sequence[int] | np.ndarray[Any, Any]
@@ -247,6 +249,12 @@ class HighsMasterSolver(MasterSolver):
         offset: float = 0.0,
     ) -> None: ...
     def column(self, id: int) -> int: ...
+    def model_columns(
+        self, ids: IntArrayLike
+    ) -> tuple[
+        FloatArray, FloatArray, FloatArray, ModelIndexArray, ModelIndexArray, FloatArray
+    ]: ...
+    def model_rows(self, first: int = 0) -> tuple[FloatArray, FloatArray, list[str]]: ...
 
 class ToleranceContext:
     cost_scale: float

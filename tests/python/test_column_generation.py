@@ -6,6 +6,7 @@ Python, and the arrays, options and results that cross the boundary."""
 import gc
 import math
 import os
+import subprocess
 import sys
 from typing import Any
 
@@ -27,6 +28,7 @@ from column_generation_fakes import (  # noqa: E402
     proven_none,
 )
 
+import rcspp.column_generation as column_generation  # noqa: E402
 from rcspp.column_generation import (  # noqa: E402
     AbsoluteTolerances,
     ArtificialColumns,
@@ -758,3 +760,39 @@ def test_the_self_test_needs_master_solvers_that_add_rows() -> None:
         master_solver_self_test(
             SelfTestMasterSolver(Mistake.CANNOT_ADD_ROWS), SelfTestMasterSolver(maximizing=True)
         )
+
+
+# ── Master solvers over a model ──────────────────────────────────────────────
+
+
+def test_importing_rcspp_loads_no_lp_solver_package() -> None:
+    # A new process: this one may have loaded them already.
+    code = (
+        "import sys, rcspp.column_generation as column_generation;"
+        "column_generation.GurobipyMasterSolver;"
+        "getattr(column_generation, 'HighspyMasterSolver', None);"
+        "print('gurobipy' in sys.modules, 'highspy' in sys.modules)"
+    )
+    loaded = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
+    )
+    assert loaded.stdout.strip() == "False False"
+
+
+@pytest.mark.parametrize(
+    ("master_solver", "package"),
+    [("GurobipyMasterSolver", "gurobipy"), ("HighspyMasterSolver", "highspy")],
+)
+def test_a_master_solver_without_its_package_names_the_extra(
+    monkeypatch: pytest.MonkeyPatch, master_solver: str, package: str
+) -> None:
+    if not hasattr(column_generation, master_solver):
+        pytest.skip(f"rcspp built without {master_solver}")
+    monkeypatch.setitem(sys.modules, package, None)  # as if it were not installed
+
+    with pytest.raises(ImportError, match=rf"pip install rcspp\[{package}\]"):
+        getattr(column_generation, master_solver)(object())

@@ -30,7 +30,14 @@ classifiers = [
 ]
 dependencies = [
   "networkx>=3,<4",
+  # Column generation returns numpy arrays (duals, column values, column batches).
+  "numpy>=1.24",
 ]
+
+[project.optional-dependencies]
+# The master solvers over a model the user builds with these packages.
+highspy = ["highspy>=1.15"]
+gurobipy = ["gurobipy>=13"]
 
 [project.urls]
 Homepage = "https://github.com/lab-core/rcspp"
@@ -44,13 +51,19 @@ cmake.args = [
   "-DUSE_PYTHON=ON",
   "-DUSE_TESTS=OFF",
   "-DUSE_VRP=OFF",
+  # The HiGHS master solver is in the wheel, with HiGHS fetched and linked in statically: a
+  # HiGHS installed on the build machine could be a shared library the wheel does not carry.
+  "-DUSE_HIGHS=ON",
+  "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER",
 ]
+# The Python package only, without the fetched HiGHS's library and headers.
+install.components = ["python"]
 
 [tool.cibuildwheel]
 build = ["cp311-*", "cp312-*"]
 skip = ["pp*", "*-musllinux_*", "*-win32", "*_i686"]
 build-verbosity = 1
-test-command = "python -c \"import rcspp; from rcspp.graph import ResourceGraph\""
+test-command = "python -c \"import rcspp; from rcspp.graph import ResourceGraph; from rcspp.column_generation import HighsMasterSolver\""
 
 [tool.cibuildwheel.linux]
 archs = ["x86_64"]

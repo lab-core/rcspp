@@ -5,9 +5,11 @@
 
 The master is a model the user built for their LP solver; each kind of model is a
 UserModel, and every test runs over each of them. A solver missing from this build is
-skipped.
+skipped. The column generation loop written in Python
+(examples/python/column_generation_loop.py) must give the C++ loop's results.
 """
 
+import importlib.util
 import math
 import os
 import sys
@@ -18,6 +20,11 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "examples", "python")
+)
+
+import column_generation_loop  # noqa: E402
 from column_generation_fakes import ScriptedPricer, make_path  # noqa: E402
 
 import rcspp.column_generation as column_generation  # noqa: E402
@@ -166,6 +173,74 @@ class HighsFromArrays:
         return self._solver
 
 
+class HighspyModel:
+    """The user's rows in a highspy model, copied by HighspyMasterSolver."""
+
+    def __init__(self) -> None:
+        import highspy
+
+        self.model = highspy.Highs()
+        self.model.setOptionValue("output_flag", False)
+        self._solver: MasterSolver | None = None
+
+    def add_row(self, lower: float, upper: float, name: str) -> None:
+        assert self._solver is None, "rows come before the master solver"
+        self.model.addRow(lower, upper, 0, [], [])
+        self.model.passRowName(self.model.getNumRow() - 1, name)
+
+    def solver(self) -> MasterSolver:
+        if self._solver is None:
+            self._solver = column_generation.HighspyMasterSolver(self.model)
+        return self._solver
+
+
+class GurobipyModel:
+    """The user's rows in a gurobipy model, which GurobipyMasterSolver works on from
+    Python."""
+
+    def __init__(self) -> None:
+        import gurobipy
+
+        self.model = gurobipy.Model()
+        self.model.Params.OutputFlag = 0
+        self._solver: MasterSolver | None = None
+
+    def add_row(self, lower: float, upper: float, name: str) -> None:
+        import gurobipy
+
+        assert self._solver is None, "rows come before the master solver"
+        expression = gurobipy.LinExpr()
+        if lower == upper:
+            self.model.addLConstr(expression, gurobipy.GRB.EQUAL, lower, name)
+        elif math.isinf(upper):
+            self.model.addLConstr(expression, gurobipy.GRB.GREATER_EQUAL, lower, name)
+        else:
+            self.model.addLConstr(expression, gurobipy.GRB.LESS_EQUAL, upper, name)
+
+    def solver(self) -> MasterSolver:
+        if self._solver is None:
+            self._solver = column_generation.GurobipyMasterSolver(self.model)
+        return self._solver
+
+
+def has_highspy() -> bool:
+    """Whether highspy is installed."""
+    return importlib.util.find_spec("highspy") is not None
+
+
+def has_gurobi_license() -> bool:
+    """Whether gurobipy is installed and Gurobi can build a model on this machine."""
+    if importlib.util.find_spec("gurobipy") is None:
+        return False
+    import gurobipy
+
+    try:
+        gurobipy.Model().dispose()
+    except gurobipy.GurobiError:
+        return False
+    return True
+
+
 @pytest.fixture(
     params=[
         pytest.param(
@@ -175,6 +250,21 @@ class HighsFromArrays:
                 reason="rcspp built without HiGHS",
             ),
             id="highs-from-arrays",
+        ),
+        pytest.param(
+            HighspyModel,
+            marks=pytest.mark.skipif(
+                not hasattr(column_generation, "HighspyMasterSolver") or not has_highspy(),
+                reason="rcspp built without HiGHS, or highspy not installed",
+            ),
+            id="highspy",
+        ),
+        pytest.param(
+            GurobipyModel,
+            marks=pytest.mark.skipif(
+                not has_gurobi_license(), reason="gurobipy not installed, or no Gurobi license"
+            ),
+            id="gurobipy",
         ),
     ]
 )
@@ -199,12 +289,12 @@ def column_values(solver: MasterSolver, count: int) -> list[float]:
     return values
 
 
-def from_scratch(
+def master_from_scratch(
     model: UserModel, graph: ResourceGraph, customers: int, vehicles: float | None = None
-) -> ColumnGenerationResult:
-    """Column generation over `graph`, from no route at all: the user's customer rows
-    and, with `vehicles`, their row "at most that many routes", which the master fills
-    as the pricer's convexity row."""
+) -> MasterProblem:
+    """A master priced over `graph`, with no route at all: the user's customer rows and,
+    with `vehicles`, their row "at most that many routes", which the master fills as the
+    pricer's convexity row."""
     add_customer_rows(model, customers)
     fleet = ConvexityRow()
     if vehicles is not None:
@@ -212,7 +302,14 @@ def from_scratch(
         fleet = ConvexityRow(existing_row=customers)
     master = MasterProblem(model.solver())
     master.add_pricer(GraphPricer(graph), fleet)
-    return ColumnGeneration(master).run()
+    return master
+
+
+def from_scratch(
+    model: UserModel, graph: ResourceGraph, customers: int, vehicles: float | None = None
+) -> ColumnGenerationResult:
+    """Column generation over `graph` from no route at all (see master_from_scratch)."""
+    return ColumnGeneration(master_from_scratch(model, graph, customers, vehicles)).run()
 
 
 def toy_with_every_route(model: UserModel) -> tuple[ColumnGeneration, ScriptedPricer]:
@@ -282,3 +379,39 @@ def test_routes_that_visit_each_customer_once(make_model: Callable[[], UserModel
 
     assert result.status == ColumnGenerationStatus.Optimal
     assert result.objective == pytest.approx(FourCustomers.lp, abs=TOLERANCE)
+
+
+@pytest.mark.parametrize("vehicles", [None, 2.0, 1.0], ids=["no-fleet", "two", "one"])
+def test_the_python_loop_gives_the_cpp_loops_results(
+    make_model: Callable[[], UserModel], vehicles: float | None
+) -> None:
+    # The same toy twice, from scratch: once for each loop.
+    masters = [
+        master_from_scratch(
+            make_model(),
+            routing_graph(Toy.capacity, Toy.demands, Toy.distances),
+            Toy.customers,
+            vehicles,
+        )
+        for _ in range(2)
+    ]
+    cpp = ColumnGeneration(masters[0]).run()
+    python = column_generation_loop.run(masters[1])
+
+    assert python.status == cpp.status
+    assert python.objective == pytest.approx(cpp.objective, abs=TOLERANCE)
+    assert python.lower_bound == pytest.approx(cpp.lower_bound, abs=TOLERANCE)
+    assert python.iterations == cpp.iterations
+    assert python.generated_columns == cpp.statistics.generated_columns
+    assert python.artificial_columns == cpp.statistics.artificial_columns
+    assert python.artificial_cost == pytest.approx(cpp.statistics.artificial_cost)
+
+    # The same columns, with the same values in the last LP.
+    cpp_columns, python_columns = (master.columns() for master in masters)
+    assert [column.solution.column.cost for column in python_columns] == pytest.approx(
+        [column.solution.column.cost for column in cpp_columns]
+    )
+    cpp_values, python_values = (
+        column_values(master.solver(), master.number_of_columns()) for master in masters
+    )
+    assert python_values == pytest.approx(cpp_values, abs=TOLERANCE)
