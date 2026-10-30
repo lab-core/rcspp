@@ -76,8 +76,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .a, .lib
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .so, .dylib
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")   # executables
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin")   # .pdb (Windows)
-set(BUILD_INCLUDE_DIR          "${CMAKE_BINARY_DIR}/include")   # for headers
-file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR})
 
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
@@ -185,15 +183,51 @@ install(TARGETS rcspp
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY ${BUILD_INCLUDE_DIR}/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# The headers, from the source folder (the umbrella header rcspp.hpp is generated there too).
+install(DIRECTORY cpp/rcspp/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp
+    FILES_MATCHING PATTERN "*.hpp"
+)
 
-# set cmake file for package
-# to be used with:
+# The CMake package, to be used with:
 # find_package(rcspp)
 # target_link_libraries(app PRIVATE rcspp::rcspp)
+include(CMakePackageConfigHelpers)
+set(RCSPP_CMAKE_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/rcspp)
 install(EXPORT rcsppTargets
     FILE rcsppTargets.cmake
     NAMESPACE rcspp::
-    DESTINATION lib/cmake/rcspp
+    DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
 )
+configure_package_config_file(cmake/rcsppConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfig.cmake"
+    INSTALL_DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+)
+get_target_property(RCSPP_VERSION rcspp VERSION)
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/rcsppConfigVersion.cmake"
+    VERSION ${RCSPP_VERSION}
+    COMPATIBILITY SameMinorVersion
+)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/rcsppConfigVersion.cmake"
+    DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
+)
+
+# A check that the installed package works: install into a folder of the build, then build a small
+# program against it with find_package(rcspp).
+if(USE_TESTS)
+  add_test(NAME install_and_find_package
+      COMMAND ${CMAKE_COMMAND}
+          -DBUILD_DIR=${CMAKE_BINARY_DIR}
+          -DCONFIG=$<CONFIG>
+          -DPREFIX=${CMAKE_BINARY_DIR}/install-check/prefix
+          -DCONSUMER_SOURCE_DIR=${CMAKE_SOURCE_DIR}/tests/find_package
+          -DCONSUMER_BUILD_DIR=${CMAKE_BINARY_DIR}/install-check/build
+          -DGENERATOR=${CMAKE_GENERATOR}
+          -DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
+          -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+          -P ${CMAKE_SOURCE_DIR}/tests/find_package/check_install.cmake
+  )
+endif()
 endif()
