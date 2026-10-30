@@ -143,6 +143,9 @@ New features are summarised, with a pointer to where they are documented.
 - **Removed with it:** `AStarAlgoBound<C>::Algo` (name `AStarDominanceAlgorithm`, which now takes
   `<ResourceType, LabelContainerType>`), A\*'s `CostResourceType` parameter and
   `AlgorithmBaseParams::heuristic_cost_index`.
+- **Pulling checks whether a label ends at a sink before whether its cost is infinite**, as
+  Simple and Pushing do. A label of infinite cost at a sink now stays in its container instead of
+  being released. It is still never a solution, so no result changes.
 
 ### Added
 

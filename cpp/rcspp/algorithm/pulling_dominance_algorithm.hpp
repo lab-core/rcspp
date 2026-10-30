@@ -69,30 +69,30 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                         this->remove_label(it->second);
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
+                    } else if (label.get_end_node()->sink) {
+                        // sink -> update best solution; the label stays among the new labels
+                        LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
+                        if (label.get_cost() < this->upper_bound_) {
+                            if (label.get_cost() < this->incumbent_) {
+                                this->incumbent_ = label.get_cost();
+                            }
+                            if (this->params_.return_dominated_solutions) {
+                                this->record_solution(label);
+                                if (this->solutions_.size() >= this->params_.max_solutions) {
+                                    LOG_DEBUG("Stopping after ",
+                                              this->solutions_.size(),
+                                              " solutions.\n");
+                                    return;
+                                }
+                            }
+                        }
+                        ++it;  // move to next label
                     } else if (std::isinf(label.get_cost())) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
                     } else {
-                        // check if sink and update best solution
-                        if (label.get_end_node()->sink) {
-                            LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
-                            if (label.get_cost() < this->upper_bound_) {
-                                if (label.get_cost() < this->incumbent_) {
-                                    this->incumbent_ = label.get_cost();
-                                }
-                                if (this->params_.return_dominated_solutions) {
-                                    this->record_solution(label);
-                                    if (this->solutions_.size() >= this->params_.max_solutions) {
-                                        LOG_DEBUG("Stopping after ",
-                                                  this->solutions_.size(),
-                                                  " solutions.\n");
-                                        return;
-                                    }
-                                }
-                            }
-                        }
                         ++it;  // move to next label
                     }
                 }
