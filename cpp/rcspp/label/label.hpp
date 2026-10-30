@@ -3,11 +3,13 @@
 
 #pragma once
 
+#include <algorithm>
 #include <concepts>
 #include <cstdint>
 #include <iostream>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/graph/node.hpp"
@@ -206,4 +208,41 @@ class Label {
         // Pointer to the arc from which this label was backward extended.
         const Arc<ResourceType>* out_arc_;
 };
+
+/// @brief The arcs of the path a forward label ends, from its source, in path order.
+///
+/// Follows the @c prev_label chain through each label's in-arc, in O(hops), and reverses it.
+/// Every accepted label keeps its predecessor alive (see @c Label::ref_count) until it is
+/// released.
+///
+/// @param label A label extended forward.
+/// @return The arc ids, from the source to @p label's node; empty for a start label.
+template <typename ResourceType>
+[[nodiscard]] std::vector<size_t> prefix_arc_ids(const Label<ResourceType>& label) {
+    std::vector<size_t> arc_ids;
+    for (const Label<ResourceType>* current = &label;
+         current != nullptr && current->get_in_arc() != nullptr;
+         current = current->prev_label) {
+        arc_ids.push_back(current->get_in_arc()->id);
+    }
+    std::ranges::reverse(arc_ids);
+    return arc_ids;
+}
+
+/// @brief Appends the arcs of the path a backward label starts, from its node to its sink.
+///
+/// Follows the @c prev_label chain through each label's out-arc, which already runs in path
+/// order.
+///
+/// @param label   A label extended backward.
+/// @param arc_ids Receives the arc ids, after what it already holds: a forward prefix ending at
+///                @p label's node makes the whole path.
+template <typename ResourceType>
+void append_suffix_arc_ids(const Label<ResourceType>& label, std::vector<size_t>* arc_ids) {
+    for (const Label<ResourceType>* current = &label;
+         current != nullptr && current->get_out_arc() != nullptr;
+         current = current->prev_label) {
+        arc_ids->push_back(current->get_out_arc()->id);
+    }
+}
 }  // namespace rcspp
