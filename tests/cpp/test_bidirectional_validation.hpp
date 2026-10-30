@@ -200,7 +200,7 @@ TEST(BidirectionalValidation, ShortPathIsFoundByTerminalCollectionNotByTheJoin) 
         test_util::bidirectional(bv::clocked_params(50.0)));
     const auto result = graph->solve(algorithm.get());
 
-    ASSERT_TRUE(result.bidirectional->bounded_by_half_way)
+    ASSERT_TRUE(result.bidirectional->half_way_used)
         << "with the bound off this proves nothing: every pair would be joined";
     ASSERT_FALSE(result.solutions.empty())
         << "a route that crosses H on no arc must still be found";
@@ -232,7 +232,7 @@ TEST(BidirectionalValidation, ALongRouteIsJoinedOnItsCrossingArc) {
         test_util::bidirectional(bv::clocked_params(20.0)));
     const auto result = graph->solve(algorithm.get());
 
-    ASSERT_TRUE(result.bidirectional->bounded_by_half_way);
+    ASSERT_TRUE(result.bidirectional->half_way_used);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions.front().cost, 4.0, bv::kTolerance);
     EXPECT_GT(result.bidirectional->number_of_joined_paths, 0U)
@@ -267,7 +267,7 @@ TEST(BidirectionalValidation, APathThatCrossesHOnItsLastArcIsNotJoined) {
         test_util::bidirectional(bv::clocked_params(5.0)));
     const auto result = graph->solve(algorithm.get(), /*upper_bound=*/100.0, /*preprocess=*/false);
 
-    ASSERT_TRUE(result.bidirectional->bounded_by_half_way);
+    ASSERT_TRUE(result.bidirectional->half_way_used);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions.front().cost, 2.0, bv::kTolerance);
     EXPECT_EQ(result.bidirectional->number_of_joined_paths, 0U)
@@ -425,7 +425,7 @@ TEST(BidirectionalValidation, TheJoinerDoesNotPruneAHalfOnItsOwnCost) {
         test_util::bidirectional(bv::clocked_params(20.0)));
     const auto result = graph->solve(algorithm.get());
 
-    ASSERT_TRUE(result.bidirectional->bounded_by_half_way);
+    ASSERT_TRUE(result.bidirectional->half_way_used);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions.front().cost, -70.0, bv::kTolerance)
         << "a forward half costing 30 completes to -70; pruning it against an incumbent of -10 "
@@ -468,7 +468,7 @@ TEST(BidirectionalValidation, ReverseGraphOracleAgreesOnAdditiveInstances) {
 
         EXPECT_NEAR(oracle, reference, bv::kTolerance) << "the reversed graph disagrees";
         EXPECT_NEAR(candidate, reference, bv::kTolerance) << "bidirectional disagrees";
-        EXPECT_FALSE(result.bidirectional->bounded_by_half_way)
+        EXPECT_FALSE(result.bidirectional->half_way_used)
             << "an additive-only model has no clock, so the bound must be off";
         EXPECT_GT(algorithm->get_label_pool().get_nb_total_labels(), 0U);
         EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
@@ -1141,7 +1141,7 @@ TEST(BidirectionalValidation, BackwardStartsFollowThePairedExtension) {
 
         if (start_case == StartCase::CapacityWithTrivial ||
             start_case == StartCase::WindowsWithTrivial) {
-            EXPECT_TRUE(result.bidirectional->bounded_by_half_way)
+            EXPECT_TRUE(result.bidirectional->half_way_used)
                 << "case " << label << ": " << result.bidirectional->half_way_off_reason;
         }
     }
@@ -1180,7 +1180,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
         SolveResult result;
         ASSERT_NO_THROW(result = graph->solve(algorithm.get())) << "H = " << half_way_point;
         EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance) << "H = " << half_way_point;
-        EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+        EXPECT_FALSE(result.bidirectional->half_way_used);
         if (half_way_point > 0.0) {
             EXPECT_NE(result.bidirectional->half_way_off_reason.find("does not exist"),
                       std::string::npos)
@@ -1191,7 +1191,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
     auto graph = bv::clocked_graph(windows, arcs);
     auto params = bv::clocked_params(5.0);
     params.heuristic_cost_index = 5;
-    params.prune_by_upper_bound = true;
+    params.prune_by_incumbent = true;
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     SolveResult result;
@@ -1219,8 +1219,7 @@ TEST(BidirectionalValidation, RemovingEveryArcDoesNotHideTheClock) {
         test_util::bidirectional(bv::clocked_params(5.0)));
     const auto result = graph->solve(algorithm.get());
     EXPECT_TRUE(result.solutions.empty());
-    EXPECT_TRUE(result.bidirectional->bounded_by_half_way)
-        << result.bidirectional->half_way_off_reason;
+    EXPECT_TRUE(result.bidirectional->half_way_used) << result.bidirectional->half_way_off_reason;
 }
 
 // ============================================================================
@@ -1262,7 +1261,7 @@ TEST(BidirectionalValidation, TheJoinBuildsAtMostStopAfterXSolutions) {
         return graph->solve(algorithm.get(), 1e9);
     };
 
-    const auto all = solve(MAX_INT);
+    const auto all = solve(kNoLimit);
     ASSERT_EQ(all.solutions.size(), kParallel * kParallel);
     // Some are also reached by the backward search alone, so the join adds fewer than 64.
     ASSERT_GT(all.bidirectional->number_of_joined_paths, kBudget);
@@ -1464,7 +1463,7 @@ TEST(BidirectionalValidation, AClockWithoutABackwardStartTurnsTheBoundOff) {
         test_util::bidirectional(bv::clocked_params(2.0)));
     const auto result = graph->solve(algorithm.get());
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);
-    EXPECT_FALSE(result.bidirectional->bounded_by_half_way);
+    EXPECT_FALSE(result.bidirectional->half_way_used);
     EXPECT_NE(result.bidirectional->half_way_off_reason.find("no ceiling at sink 4"),
               std::string::npos)
         << result.bidirectional->half_way_off_reason;

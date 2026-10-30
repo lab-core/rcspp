@@ -72,7 +72,7 @@ class LabelFrontier {
         ///
         /// @return How many non-dominated entries were dropped.
         size_t trim(std::list<Entry>* queue, size_t keep, LabelPool<ResourceType>* pool) {
-            const auto excess = split_off_excess_labels(queue, keep);
+            const auto excess = split_off_excess(queue, keep);
             size_t non_dominated_dropped = 0;
             // Worst first, as they come off the back of the queue.
             for (auto it = excess.rbegin(); it != excess.rend(); ++it) {

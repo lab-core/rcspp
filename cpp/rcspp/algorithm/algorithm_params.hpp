@@ -10,6 +10,7 @@
 #include <set>
 #include <utility>
 
+#include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/utils/memory.hpp"
 #include "rcspp/validation/pre_solve_plan.hpp"
@@ -19,8 +20,6 @@ namespace rcspp {
 // Forward declaration so AlgorithmBaseParams::with_container can name the return type.
 template <typename LabelContainerType>
 struct AlgorithmParams;
-
-constexpr size_t MAX_INT = std::numeric_limits<int>::max() / 2;  // to avoid overflow
 
 // ── Memory-limit algorithm defaults ──────────────────────────────────────────
 /// Default fraction of RAM to use as the memory limit.
@@ -32,13 +31,13 @@ constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
 
 struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
-            if (max_phases > 1 && max_extended_labels_per_node >= MAX_INT) {
+            if (max_phases > 1 && max_extended_labels_per_node >= kNoLimit) {
                 LOG_WARN(
                     "AlgorithmParams: max_extended_labels_per_node == MAX and max_phases > 1. "
                     "max_phases will not have any effects, set max_extended_labels_per_node to "
                     "a lower value.\n");
             }
-            if (max_phases > 1 && max_solutions >= MAX_INT) {
+            if (max_phases > 1 && max_solutions >= kNoLimit) {
                 LOG_WARN(
                     "AlgorithmParams: max_solutions == MAX and max_phases > 1. "
                     "max_phases will not have any effects, set max_solutions to a "
@@ -49,7 +48,7 @@ struct AlgorithmBaseParams {
                     "AlgorithmParams: max_phases > 1 has no effect on a bidirectional search, "
                     "which runs one phase.\n");
             }
-            if (return_dominated_solutions && max_solutions >= MAX_INT) {
+            if (return_dominated_solutions && max_solutions >= kNoLimit) {
                 LOG_WARN(
                     "AlgorithmParams: max_solutions == MAX and return_dominated_solutions "
                     "is set to true. return_dominated_solutions will not have any effects, set "
@@ -58,28 +57,28 @@ struct AlgorithmBaseParams {
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
-            return ((max_solutions < MAX_INT) || (max_extended_labels_per_node < MAX_INT) ||
+            return ((max_solutions < kNoLimit) || (max_extended_labels_per_node < kNoLimit) ||
                     std::isfinite(timeout_s));
         }
 
         // stop after finding this many solutions (not going to optimality)
-        size_t max_solutions = MAX_INT;
+        size_t max_solutions = kNoLimit;
 
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
 
         // if true, prune label if greater than the best upper bound
-        bool prune_by_upper_bound = false;
+        bool prune_by_incumbent = false;
 
         // truncated labeling: at most this many labels extended per node in each phase
-        size_t max_extended_labels_per_node = MAX_INT;
+        size_t max_extended_labels_per_node = kNoLimit;
 
         // maximum number of passes for the resolution if previous pass ended early with not enough
         // solutions
         size_t max_phases = 1;
 
         // maximum number of iterations/loops (for algorithms that use it)
-        size_t max_iterations = MAX_INT;
+        size_t max_iterations = kNoLimit;
 
         // wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s
         double timeout_s = std::numeric_limits<double>::infinity();
@@ -139,7 +138,7 @@ struct AlgorithmBaseParams {
         ///
         /// Forward labels stop above `H`, backward labels below it. Set it to about half the
         /// clock's range. With 0, both searches run unbounded: correct but slower.
-        /// @c BidirectionalStats::bounded_by_half_way, in @c SolveResult::bidirectional, reports
+        /// @c BidirectionalStats::half_way_used, in @c SolveResult::bidirectional, reports
         /// which happened.
         double half_way_point = 0.0;
 

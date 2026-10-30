@@ -9,7 +9,6 @@
 #include <limits>
 #include <list>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -18,6 +17,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
@@ -39,6 +39,8 @@ template <typename ResourceType>
 using LabelIteratorPair =
     std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
 
+namespace detail {
+
 /// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
 ///        meaning non-dominated first, then cheaper first.
 ///
@@ -50,7 +52,7 @@ using LabelIteratorPair =
 /// @param sort  Whether to sort first; without it the queue's own order decides what stays.
 /// @return The entries cut, best first; empty when @p queue held at most @p keep.
 template <typename ResourceType>
-std::list<LabelIteratorPair<ResourceType>> split_off_excess_labels(
+std::list<LabelIteratorPair<ResourceType>> split_off_excess(
     std::list<LabelIteratorPair<ResourceType>>* queue, size_t keep, bool sort = true) {
     std::list<LabelIteratorPair<ResourceType>> excess;
     if (queue->size() <= keep) {
@@ -72,6 +74,8 @@ std::list<LabelIteratorPair<ResourceType>> split_off_excess_labels(
     return excess;
 }
 
+}  // namespace detail
+
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
 class Algorithm {
@@ -92,7 +96,8 @@ class Algorithm {
          * The default implementation answers whether the last solve ended with status
          * @c AlgorithmStatus::Complete. It is recorded when the solve ends, before
          * @c release_after_solve (the default) empties the label queues: reading
-         * @ref number_of_labels afterwards would answer 0 after a timeout or any other early stop.
+         * @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any other
+         * early stop.
          * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
          * paths to try: @c GreedyAlgorithm then enumerated every path, and
          * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
@@ -101,26 +106,6 @@ class Algorithm {
          * @return true if the last solve processed every label, false otherwise.
          */
         [[nodiscard]] virtual bool is_optimal() const { return last_solve_complete_; }
-
-        virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
-            if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
-                LOG_FATAL(
-                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
-                    "manipulate the pos index of the nodes.\n");
-                throw std::runtime_error(
-                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
-                    "manipulate the pos index of the nodes.");
-            }
-
-            graph_ = graph;
-            cost_upper_bound_ = cost_upper_bound;
-            best_cost_upper_bound_ = cost_upper_bound;
-            label_pool_.clear();
-            solutions_.clear();
-            number_of_extended_labels_ = 0;
-            effective_max_labels_per_node_ = params_.max_extended_labels_per_node;
-            memory_pressure_triggered_ = false;
-        }
 
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             require_supported_direction();
@@ -147,12 +132,12 @@ class Algorithm {
             this->initialize_labels();
 
             size_t num_phases = 0;
-            while (!should_end_loop() && number_of_labels() > 0) {
+            while (!should_end_loop() && number_of_waiting_labels() > 0) {
                 // main labeling loop
                 main_loop();
 
                 // extract solutions any remaining solutions
-                extract_remaining_solutions();
+                record_remaining_solutions();
 
                 // prepare next phase (if any)
                 if (++num_phases < params_.max_phases) {
@@ -197,8 +182,8 @@ class Algorithm {
                 solutions.resize(params_.max_solutions);
             }
 
-            // Determine the exit status. "All labels processed" (number_of_labels() == 0) means
-            // the search finished and the result is optimal, so it takes precedence over the
+            // Determine the exit status. "All labels processed" (number_of_waiting_labels() == 0)
+            // means the search finished and the result is optimal, so it takes precedence over the
             // early-stop reasons below: a timeout / interrupt / memory flag must NOT downgrade a
             // finished, optimal run. This matters because is_interrupted() and
             // memory_limit_.is_exceeded() are re-evaluated here — the external stop callback may
@@ -208,7 +193,7 @@ class Algorithm {
             // abandoned labels it will never extend (has_abandoned_labels()) did not process every
             // label, even with an empty queue.
             AlgorithmStatus status;
-            if (number_of_labels() == 0 && !has_abandoned_labels()) {
+            if (number_of_waiting_labels() == 0 && !has_abandoned_labels()) {
                 status = AlgorithmStatus::Complete;
             } else if (timed_out_) {
                 status = AlgorithmStatus::Timeout;
@@ -222,7 +207,7 @@ class Algorithm {
                 status = AlgorithmStatus::Truncated;
             }
             // Recorded now: releasing the label memory below empties the queues, after which
-            // number_of_labels() would read 0 whatever the run did.
+            // number_of_waiting_labels() would read 0 whatever the run did.
             last_solve_complete_ = status == AlgorithmStatus::Complete;
 
             // Optionally release label memory so RAM is reclaimed when the caller returns.
@@ -268,7 +253,25 @@ class Algorithm {
         }
 
     protected:
-        bool print_{false};
+        virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
+            if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
+                LOG_FATAL(
+                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
+                    "manipulate the pos index of the nodes.\n");
+                throw std::runtime_error(
+                    "Graph has a sorted nodes structure that is not correctly sorted. Do not "
+                    "manipulate the pos index of the nodes.");
+            }
+
+            graph_ = graph;
+            upper_bound_ = cost_upper_bound;
+            incumbent_ = cost_upper_bound;
+            label_pool_.clear();
+            solutions_.clear();
+            number_of_extended_labels_ = 0;
+            quota_ = params_.max_extended_labels_per_node;
+            memory_pressure_triggered_ = false;
+        }
 
         /// @brief Throws unless this algorithm supports the direction its params ask for.
         ///
@@ -315,7 +318,7 @@ class Algorithm {
         ///
         /// @param iteration The main loop's iteration count.
         /// @return @c true when the memory limit is exceeded.
-        bool memory_limit_reached(size_t iteration) {
+        bool check_memory(size_t iteration) {
             switch (memory_limit_.check(iteration)) {
                 case MemoryState::Exceeded:
                     LOG_WARN("Memory limit (",
@@ -350,12 +353,12 @@ class Algorithm {
 
         virtual void initialize_labels() = 0;
 
-        [[nodiscard]] virtual size_t number_of_labels() const = 0;
+        [[nodiscard]] virtual size_t number_of_waiting_labels() const = 0;
 
         /// @brief Whether the last solve abandoned labels it will never extend.
         ///
-        /// Such labels are not in the queues, so @ref number_of_labels does not count them, and
-        /// an empty queue does not mean that every label was processed. A search that stores
+        /// Such labels are not in the queues, so @ref number_of_waiting_labels does not count them,
+        /// and an empty queue does not mean that every label was processed. A search that stores
         /// the labels a quota or memory pressure cuts (for a later phase) needs nothing here:
         /// @ref prepare_next_phase puts them back before the status is read. The default answers
         /// @c false.
@@ -367,52 +370,43 @@ class Algorithm {
 
         virtual void main_loop() = 0;
 
-        /// @brief Records the solutions still sitting at terminal nodes when the loop ends.
+        /// @brief Records the solutions still sitting at the end nodes when the loop ends.
         ///
         /// Virtual so a bidirectional search can add backward and joined paths.
-        virtual void extract_remaining_solutions() {
-            auto labels_at_terminals = this->get_labels_at_terminals();
-            for (const auto* terminal_label : labels_at_terminals) {
-                this->extract_solution(*terminal_label);
+        virtual void record_remaining_solutions() {
+            auto at_end_nodes = this->labels_at_end_nodes();
+            for (const auto* label : at_end_nodes) {
+                this->record_solution(*label);
             }
         }
 
-        [[nodiscard]] virtual std::list<Label<ResourceType>*> get_labels_at_terminals() const = 0;
+        [[nodiscard]] virtual std::list<Label<ResourceType>*> labels_at_end_nodes() const = 0;
 
         virtual void print_labels() const {}
 
-        virtual std::string path_to_string(const Label<ResourceType>& label) {
-            auto path = get_path_arc_ids(label);
-            std::stringstream ss;
-            for (const size_t arc_id : path) {
-                ss << graph_->get_arc(arc_id)->destination->id << " ";
-            }
-            return ss.str();
-        }
-
         virtual std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
-        virtual void extract_solution(const Label<ResourceType>& end_label) {
-            if (end_label.get_cost() >= cost_upper_bound_) {
+        virtual void record_solution(const Label<ResourceType>& end_label) {
+            if (end_label.get_cost() >= upper_bound_) {
                 return;
             }
 
-            extract_solution(end_label.get_cost(),
-                             this->get_path_arc_ids(end_label),
-                             end_label.get_end_node()->id);
+            record_path(end_label.get_cost(),
+                        this->get_path_arc_ids(end_label),
+                        end_label.get_end_node()->id);
         }
 
         /// @brief Build and record a Solution from an explicit path.
         ///
         /// Used when no single label holds the path (e.g. joined pairs). Paths costing at least
-        /// `cost_upper_bound_` are dropped here, for every caller.
+        /// `upper_bound_` are dropped here, for every caller.
         ///
         /// @param cost         Total cost of the path.
         /// @param path_arc_ids Arc ids of the path, in traversal order.
         /// @param end_node_id  Id of the node the path ends at.
-        virtual void extract_solution(double cost, std::vector<size_t> path_arc_ids,
-                                      size_t end_node_id) {
-            if (cost >= cost_upper_bound_) {
+        virtual void record_path(double cost, std::vector<size_t> path_arc_ids,
+                                 size_t end_node_id) {
+            if (cost >= upper_bound_) {
                 return;
             }
             if (path_arc_ids.empty()) {
@@ -487,7 +481,7 @@ class Algorithm {
         /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node when
         /// @ref on_memory_pressure() fires.  Subclasses use this instead of
         /// @c params_.max_extended_labels_per_node wherever the per-node limit is enforced.
-        size_t effective_max_labels_per_node_ = MAX_INT;
+        size_t quota_ = kNoLimit;
 
         /// @brief True after on_memory_pressure() has been called at least once this solve.
         ///
@@ -495,13 +489,11 @@ class Algorithm {
         /// from subsequent ones (prune & discard stored labels to free more memory).
         bool memory_pressure_triggered_ = false;
 
-        double cost_upper_bound_ = std::numeric_limits<double>::infinity();
-        double best_cost_upper_bound_ = std::numeric_limits<double>::infinity();
+        double upper_bound_ = std::numeric_limits<double>::infinity();
+        double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
 
-        size_t nb_dominated_labels_{0};
         size_t number_of_extended_labels_ = 0;
-        Timer total_full_extend_time_;
 
         bool timed_out_ = false;
         bool last_solve_complete_ = false;    ///< Whether the last solve() ended Complete.

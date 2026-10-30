@@ -43,7 +43,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     protected:
         void main_loop() override {
             size_t i = 0;
-            while (this->number_of_labels() > 0 && !this->should_end_loop(i)) {
+            while (this->number_of_waiting_labels() > 0 && !this->should_end_loop(i)) {
                 ++i;
 
                 // get the label
@@ -51,11 +51,11 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
                 // check if we can update the best label or extend
                 if (label->get_end_node()->sink) {
-                    if (label->get_cost() < this->cost_upper_bound_) {
-                        if (label->get_cost() < this->best_cost_upper_bound_) {
-                            this->best_cost_upper_bound_ = label->get_cost();
+                    if (label->get_cost() < this->upper_bound_) {
+                        if (label->get_cost() < this->incumbent_) {
+                            this->incumbent_ = label->get_cost();
                         }
-                        this->extract_solution(*label);
+                        this->record_solution(*label);
                         if (this->solutions_.size() >= this->params_.max_solutions) {
                             LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
                             break;
@@ -87,7 +87,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             add_labels_to_path(std::move(sources));
         }
 
-        [[nodiscard]] size_t number_of_labels() const override { return path_.size(); }
+        [[nodiscard]] size_t number_of_waiting_labels() const override { return path_.size(); }
 
         void extend() {
             // Note: do NOT keep a reference to path_.back() across pop_back() calls
@@ -175,7 +175,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return true;
         }
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
             return {};
         }
 
