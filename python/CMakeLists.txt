@@ -116,18 +116,21 @@ endforeach()
 add_custom_target(copy_python_sources ALL DEPENDS ${PYTHON_COPY_OUTPUTS})
 add_dependencies(${PYTHON_EXTENSION_NAME} copy_python_sources)
 
-# The wheel installs this component only (pyproject.toml): a fetched HiGHS has install rules of
-# its own, for its library and headers, which the module does not need.
-install(TARGETS ${PYTHON_EXTENSION_NAME}
-    LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
-    RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
-)
+# The Python package is installed by the wheel build only: a plain cmake --install installs the C++
+# library alone. The wheel installs this component only (pyproject.toml): a fetched HiGHS has
+# install rules of its own, for its library and headers, which the module does not need.
+if(SKBUILD)
+  install(TARGETS ${PYTHON_EXTENSION_NAME}
+      LIBRARY DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
+      RUNTIME DESTINATION ${PYTHON_PACKAGE_NAME} COMPONENT python
+  )
 
-install(DIRECTORY "${PY_PACKAGE_DIR}/"
-    DESTINATION ${PYTHON_PACKAGE_NAME}
-    COMPONENT python
-    FILES_MATCHING
-    PATTERN "*.py"
-    PATTERN "*.pyi"
-    PATTERN "py.typed"
-)
+  install(DIRECTORY "${PY_PACKAGE_DIR}/"
+      DESTINATION ${PYTHON_PACKAGE_NAME}
+      COMPONENT python
+      FILES_MATCHING
+      PATTERN "*.py"
+      PATTERN "*.pyi"
+      PATTERN "py.typed"
+  )
+endif()

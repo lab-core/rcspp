@@ -1,0 +1,7 @@
+# rcspp's CMake package: find_package(rcspp), then link rcspp::rcspp.
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/rcsppTargets.cmake")
+
+check_required_components(rcspp)
