@@ -242,4 +242,105 @@ class SweepSchedule {
         NodeQueues<ResourceType, Direction> queues_;
 };
 
+/// @brief Visits the nodes one at a time, in the sweep order of @p Direction, pulling into each
+///        from the labels waiting at the nodes its in-arcs come from (Pulling's order).
+///
+/// A visit first puts the last node's new labels back in that node's queue, where its successors
+/// pull them from; then moves to the next node; on the first loop over the nodes it keeps the
+/// labels already waiting there, on later loops it drops them (they have been pulled from); then
+/// pulls along each of the node's in-arcs (@c Direction::in_arcs, from @c Direction::tail) and
+/// cuts the node's new labels to the per-node quota, unless the node is an end node. The caller
+/// then filters those labels (@ref current, @ref erase_current).
+///
+/// @tparam ResourceType The resource type carried by labels.
+/// @tparam Direction    @ref ForwardDirection or @ref BackwardDirection.
+template <typename ResourceType, typename Direction>
+class PullSchedule {
+    public:
+        using Queue = typename NodeQueues<ResourceType, Direction>::Queue;
+
+        /// @brief Empties the queues and sizes them for the graph being solved, and starts on the
+        ///        first loop.
+        void initialize(detail::SearchContext<ResourceType>& ctx) {
+            queues_.reset(ctx.graph->get_number_of_nodes());
+            first_loop_ = true;
+        }
+
+        /// @brief Moves to the next node and pulls into it, calling `extend(label, arc)` for each
+        ///        waiting label of each node an in-arc comes from, arc by arc.
+        template <typename ExtendCallable>
+        void visit_next_node(detail::SearchContext<ResourceType>& ctx,
+                             const ExtendCallable& extend) {
+            if (queues_.move_to_next_node()) {
+                first_loop_ = false;  // a new loop starts
+            }
+            if (!first_loop_) {
+                // Once a loop has been made, the labels waiting here have been pulled from.
+                queues_.drop_current();
+            }
+
+            const auto* node = ctx.graph->get_sorted_nodes().at(queues_.position());
+            for (const auto* arc : Direction::in_arcs(*ctx.graph, node)) {
+                // A path never continues past an end node: the graph refuses an arc that leaves a
+                // sink or enters a source.
+                assert(!Direction::is_end_node(Direction::tail(*arc)) &&
+                       "an in-arc comes from an end node");
+                for (const auto& stored : queues_.waiting_at(Direction::tail(*arc)->pos())) {
+                    extend(stored.label, arc);
+                }
+            }
+
+            // Cut the number of labels extended per node (unless an end node).
+            if (!Direction::is_end_node(node)) {
+                queues_.cut_to(ctx, *ctx.quota);
+            }
+        }
+
+        /// @brief The new labels of the node being visited.
+        Queue& current() { return queues_.current(); }
+
+        /// @brief Takes the label at @p position off the node's new labels.
+        ///
+        /// @return The position after it.
+        typename Queue::iterator erase_current(typename Queue::iterator position) {
+            return queues_.erase_current(position);
+        }
+
+        /// @brief The labels waiting.
+        [[nodiscard]] size_t size() const { return queues_.waiting_count(); }
+
+        /// @brief Queues a newly kept label at its node.
+        void push(const StoredLabel<ResourceType>& stored) { queues_.push(stored); }
+
+        /// @brief Starts a new first loop and queues again what the cuts stored aside.
+        void prepare_next_phase(detail::SearchContext<ResourceType>& /*ctx*/) {
+            first_loop_ = true;
+            queues_.restore_stored_aside();
+        }
+
+        /// @brief Cuts every node's queue to its @p limit cheapest labels.
+        void trim(detail::SearchContext<ResourceType>& ctx, size_t limit) {
+            queues_.trim(ctx, limit);
+        }
+
+        /// @brief Erases (through @p erase) and releases what the cuts stored aside.
+        template <typename EraseCallable>
+        void release_stored_aside(detail::SearchContext<ResourceType>& ctx,
+                                  const EraseCallable& erase) {
+            queues_.release_stored_aside(ctx.pool, erase);
+        }
+
+        /// @brief Forgets every label, releasing none (the pool owns them), and starts on the
+        ///        first loop again.
+        void clear() {
+            queues_.clear();
+            first_loop_ = true;
+        }
+
+    private:
+        NodeQueues<ResourceType, Direction> queues_;
+        /// @brief Whether the visits are still on the first loop over the nodes.
+        bool first_loop_ = true;
+};
+
 }  // namespace rcspp::parts

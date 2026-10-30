@@ -256,6 +256,10 @@ using CompletionOrder = rcspp::parts::BestFirstSchedule<ResourceType>;
 template <typename ResourceType>
 using ForwardSweep = rcspp::parts::SweepSchedule<ResourceType, rcspp::ForwardDirection>;
 
+/// @brief Pulling's order, as a one-parameter schedule template.
+template <typename ResourceType>
+using ForwardPull = rcspp::parts::PullSchedule<ResourceType, rcspp::ForwardDirection>;
+
 /// @brief An instance a parity run solves, and where its bidirectional clock is.
 struct Case {
         std::string name;
