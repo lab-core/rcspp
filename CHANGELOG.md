@@ -64,7 +64,7 @@ New features are summarised, with a pointer to where they are documented.
     `"truncated"`): a solve that left labels unextended, because it used up its phases, a
     bidirectional search abandoned labels, or a dive spent its budget.
   - `Algorithm::prepareNextPhase` is `prepare_next_phase`. Rename your overrides.
-  - `Algorithm::get_labels_at_sinks` is `get_labels_at_terminals`: going backward, it returns
+  - `Algorithm::get_labels_at_sinks` is `labels_at_end_nodes`: going backward, it returns
     the labels at the sources.
   - `Graph::track_modifications` is `mark_unmodified`: it clears the modified flag.
   - `ResourceGraph::process_feasibility` is `remove_infeasible_arcs`, in C++ and in Python, where
@@ -73,7 +73,7 @@ New features are summarised, with a pointer to where they are documented.
     `max_solutions` and `num_max_phases` is `max_phases`, after the statuses they cause;
     `num_labels_to_extend_by_node` is `max_extended_labels_per_node`, a cap that applies in each
     phase; `forbidden_tabu` is `tabu_exempt_node_ids`: it lists the nodes whose arcs are never made
-    tabu. In C++ only, `prune_based_on_upper_bound_` is `prune_by_upper_bound`.
+    tabu. In C++ only, `prune_based_on_upper_bound_` is `prune_by_incumbent`.
   - `range_buckets` is `bucket_width`, on `BucketAlgorithmParams` in Python and on the
     `LabelBuckets` constructor, and `LabelBuckets::suggest_range` is `suggest_bucket_width`: it is
     the width of a bucket along its resource, not a number of buckets.
@@ -90,6 +90,17 @@ New features are summarised, with a pointer to where they are documented.
     `row_coefficients`. That changes the keywords of `SharedPricingPool.add_from_lp_arrays`,
     which were `col_costs`, `row_starts`, `col_indices` and `col_values`, and its views
     (`column_costs_view`, `column_starts_view`, `row_indices_view`, `row_coefficients_view`).
+  - `Algorithm`'s members and hooks, which a subclass overrides or reads: `number_of_labels` is
+    `waiting_labels`, `extract_remaining_solutions` is `record_remaining_solutions`,
+    `extract_solution(label)` is `record_solution` and `extract_solution(cost, arc_ids, end)` is
+    `record_path`, `memory_limit_reached` is `check_memory`; `best_cost_upper_bound_` is
+    `incumbent_`, `cost_upper_bound_` is `upper_bound_` and `effective_max_labels_per_node_` is
+    `quota_`. `initialize` is protected: only `solve` calls it.
+  - The params' "no limit", `MAX_INT`, is `kNoLimit`.
+  - The direction policies' `arcs`, `terminals`, `is_terminal` and `apply_start` are `out_arcs`,
+    `end_nodes`, `is_end_node` and `set_start`, named for what they are in the direction's own
+    sense.
+  - `split_off_excess_labels` is `detail::split_off_excess`.
 - **Removed: API that did nothing, could not be used, or duplicated another name.**
   - `AlgorithmBaseParams::use_pool`, in C++ and Python: nothing read it, so setting it to `false`
     changed nothing.
@@ -101,6 +112,8 @@ New features are summarised, with a pointer to where they are documented.
   - `FilteredSolutionPool.size()` in Python: use `len()`.
   - `Algorithm::all_labels_processed()`, `is_resource_base_composition_v` and
     `ResourceCompositionTypeConcept`, which nothing used.
+  - `Algorithm::path_to_string()`, `print_`, `nb_dominated_labels_` and `total_full_extend_time_`,
+    which nothing called or read.
 - **`FilteredSolutionPool::price` keeps only reduced costs below `-1e-9` by default**, in C++ and
   in the binding, where it used to be `0.0`. The Python pools already used `-1e-9`. The value is
   now one constant, `kDefaultPriceThreshold`, bound to Python as
@@ -146,7 +159,7 @@ New features are summarised, with a pointer to where they are documented.
   comes from whichever has extended fewer arcs. After a timeout or the memory limit it still runs
   its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
   `join_after_early_stop = false` skips it, and so does an interrupt. With
-  `prune_by_upper_bound`, it prunes on lower bounds of the cost still to come, computed from
+  `prune_by_incumbent`, it prunes on lower bounds of the cost still to come, computed from
   the cost function itself, so they hold whichever components the objective reads;
   `heuristic_cost_index` is not read. What it reports about its
   bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
@@ -193,7 +206,7 @@ New features are summarised, with a pointer to where they are documented.
   a backward search a source whose window opens after the value a forward label starts with. See
   "Model checks" in `docs/advanced/algorithms.md`.
 - **`SolveResult.bidirectional`** (C++ and Python): a bidirectional solve's diagnostics,
-  `bounded_by_half_way`, `half_way_off_reason` and `number_of_joined_paths`, as a
+  `half_way_used`, `half_way_off_reason` and `joined_paths`, as a
   `BidirectionalStats`; empty (`None` in Python) from every other algorithm.
 - **ng-path in bidirectional solves.** `NgPathExtensionFunction` joins exactly with an
   `IntersectionFeasibilityFunction` that forbids `{v}` at each node; a visited set built with
@@ -214,7 +227,7 @@ New features are summarised, with a pointer to where they are documented.
 - **The C++ pool classes have a public Python home**: `SolutionPool`, `FilteredSolutionPool`,
   `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
   `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
-- **`AlgorithmParams.prune_by_upper_bound` in Python.** The C++ field was not bound, so Python
+- **`AlgorithmParams.prune_by_incumbent` in Python.** The C++ field was not bound, so Python
   users could not turn pruning by the upper bound on.
 
 ### Fixed

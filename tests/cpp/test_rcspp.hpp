@@ -374,7 +374,7 @@ DEFINE_STATUS_TESTS(AStarDominance, AStarAlgoBound<RealResource>::Algo)
 
 // ── Complete status precedence ──────────────────────────────────────────────────
 //
-// A finished run (number_of_labels() == 0) must be reported Complete even if a timeout /
+// A finished run (waiting_labels() == 0) must be reported Complete even if a timeout /
 // interrupt / memory flag is (re-)true at status-determination time — completion takes precedence
 // over the early-stop reasons. We exercise this with a tiny memory limit (so
 // memory_limit_.is_exceeded() is true when the status is computed) combined with an enormous

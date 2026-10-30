@@ -44,8 +44,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                 this->current_unprocessed_labels_ = std::move(
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_));
                 // truncate/limit the number of labels extended per node
-                this->resize_current_unprocessed_labels(this->effective_max_labels_per_node_,
-                                                        &this->label_pool_);
+                this->resize_current_unprocessed_labels(this->quota_, &this->label_pool_);
             }
 
             // get the next label
@@ -57,7 +56,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             return label_iterator_pair;
         }
 
-        [[nodiscard]] size_t number_of_labels() const override {
+        [[nodiscard]] size_t waiting_labels() const override {
             return this->num_unprocessed_labels_;
         }
 
@@ -84,8 +83,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
 
             // Permanently tighten the per-node extension cap.
-            this->effective_max_labels_per_node_ =
-                std::min(this->effective_max_labels_per_node_, limit);
+            this->quota_ = std::min(this->quota_, limit);
 
             if (this->memory_pressure_triggered_) {
                 // Second+ call: labels stored aside are still consuming memory.

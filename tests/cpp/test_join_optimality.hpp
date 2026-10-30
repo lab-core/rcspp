@@ -58,8 +58,8 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     outcome.cost = result.solutions.empty() ? std::numeric_limits<double>::infinity()
                                             : result.solutions.front().cost;
     outcome.solutions = result.solutions.size();
-    outcome.joined_paths = result.bidirectional->number_of_joined_paths;
-    outcome.bounded = result.bidirectional->bounded_by_half_way;
+    outcome.joined_paths = result.bidirectional->joined_paths;
+    outcome.bounded = result.bidirectional->half_way_used;
     return outcome;
 }
 

@@ -102,7 +102,7 @@ TEST(Equivalence, NgPathBindsOnCyclicInstancesAndBidirectionalMatchesTheOracle) 
                 << "bound=" << with_bound << " " << where;
             EXPECT_EQ(eq::any_path_problem(bidi), "")
                 << "a joined path violated ng-feasibility: " << where;
-            joined += bidi.result.bidirectional->number_of_joined_paths;
+            joined += bidi.result.bidirectional->joined_paths;
         }
     }
 

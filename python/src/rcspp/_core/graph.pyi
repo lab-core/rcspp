@@ -215,19 +215,19 @@ class BidirectionalStats:
 
     def __repr__(self) -> str: ...
     @property
-    def bounded_by_half_way(self) -> bool:
-        """
-        Whether the half-way bound was in force. When it is off (see half_way_off_reason), both searches run in full and the solve is slower than a forward one, so check this rather than assume it.
-        """
-
-    @property
     def half_way_off_reason(self) -> str:
         """
         Why the half-way bound was off for this solve; empty when it was in force.
         """
 
     @property
-    def number_of_joined_paths(self) -> int:
+    def half_way_used(self) -> bool:
+        """
+        Whether the half-way bound was in force. When it is off (see half_way_off_reason), both searches run in full and the solve is slower than a forward one, so check this rather than assume it.
+        """
+
+    @property
+    def joined_paths(self) -> int:
         """
         How many distinct complete paths came only from the join, that is, paths neither search completed on its own. Zero means every solution came from the forward search reaching a sink or the backward one reaching a source.
         """
@@ -277,7 +277,7 @@ class Row:
     def index(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
 
 class AlgorithmParams:
-    prune_by_upper_bound: bool
+    prune_by_incumbent: bool
     return_dominated_solutions: bool
     tabu_random_noise: bool
     def __init__(self) -> None: ...
@@ -302,7 +302,7 @@ class AlgorithmParams:
     @property
     def half_way_point(self) -> float:
         """
-        The clock value H where the two searches meet (the clock is chosen by critical_resource_index). The forward search drops labels whose clock is above H, the backward search drops those below H, and the join combines the rest. Set H to about half the clock's largest value. 0 (the default) turns this bound off; it does not choose one. Both searches then run in full, which is correct but slower than a forward solve. result.bidirectional.bounded_by_half_way says whether it was in force.
+        The clock value H where the two searches meet (the clock is chosen by critical_resource_index). The forward search drops labels whose clock is above H, the backward search drops those below H, and the join combines the rest. Set H to about half the clock's largest value. 0 (the default) turns this bound off; it does not choose one. Both searches then run in full, which is correct but slower than a forward solve. result.bidirectional.half_way_used says whether it was in force.
         """
 
     @half_way_point.setter

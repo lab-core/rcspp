@@ -189,8 +189,8 @@ def test_result_reports_whether_the_bound_was_in_force():
         algorithm="bidirectional",
         params=_bidirectional_params(20.0, critical_resource_index=1),
     )
-    assert result.bidirectional.bounded_by_half_way is True
-    assert result.bidirectional.number_of_joined_paths >= 0
+    assert result.bidirectional.half_way_used is True
+    assert result.bidirectional.joined_paths >= 0
 
 
 def test_a_cost_only_model_reports_the_bound_off():
@@ -200,7 +200,7 @@ def test_a_cost_only_model_reports_the_bound_off():
         algorithm="bidirectional",
         params=_bidirectional_params(3.0),
     )
-    assert result.bidirectional.bounded_by_half_way is False
+    assert result.bidirectional.half_way_used is False
 
 
 def test_a_forward_solve_has_no_bidirectional_diagnostics():
@@ -440,8 +440,8 @@ def test_the_alias_is_simple_bidirectional():
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
     assert [s.cost for s in alias.solutions] == [s.cost for s in simple.solutions]
-    assert alias.bidirectional.bounded_by_half_way == simple.bidirectional.bounded_by_half_way
-    assert alias.bidirectional.number_of_joined_paths == simple.bidirectional.number_of_joined_paths
+    assert alias.bidirectional.half_way_used == simple.bidirectional.half_way_used
+    assert alias.bidirectional.joined_paths == simple.bidirectional.joined_paths
     assert alias.bidirectional.half_way_off_reason == simple.bidirectional.half_way_off_reason
 
 
@@ -475,14 +475,14 @@ def test_half_way_off_reason():
     off = _cost_only_graph([1.0, 2.0]).solve(
         algorithm="bidirectional", params=_bidirectional_params(0.0)
     )
-    assert off.bidirectional.bounded_by_half_way is False
+    assert off.bidirectional.half_way_used is False
     assert "no half_way_point" in off.bidirectional.half_way_off_reason
 
     on = _time_window_graph(_WINDOWS, _ARCS).solve(
         algorithm="bidirectional",
         params=_bidirectional_params(3.0, critical_resource_index=1),
     )
-    assert on.bidirectional.bounded_by_half_way is True
+    assert on.bidirectional.half_way_used is True
     assert on.bidirectional.half_way_off_reason == ""
 
     assert _cost_only_graph([1.0]).solve(algorithm="simple").bidirectional is None
