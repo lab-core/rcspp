@@ -931,9 +931,8 @@ TEST(Bidirectional, CompletionBoundIsAdmissibleUnderReducedCosts) {
 /// @brief The completion bound is computed on the objective, whichever component it reads.
 ///
 /// The objective here reads slot 1 (`ComponentCostFunction(1)`); slot 0 is a distance that costs
-/// nothing, and slot 2 the clock. A bound computed on slot 0, the default
-/// `heuristic_cost_index`, would charge route B its 30 units of distance and prune it against
-/// route A's -1, losing the -10 optimum.
+/// nothing, and slot 2 the clock. A bound computed on slot 0 would charge route B its 30 units of
+/// distance and prune it against route A's -1, losing the -10 optimum.
 TEST(Bidirectional, CompletionBoundReadsTheObjectiveNotASlot) {
     namespace bt = bidirectional_test;
     auto graph = std::make_unique<ResourceGraph<RealResource>>(
