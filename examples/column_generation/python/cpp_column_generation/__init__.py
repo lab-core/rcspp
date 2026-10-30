@@ -6,7 +6,8 @@ The loop runs in C++. A :class:`GraphPricer` prices a :class:`~rcspp.graph.Resou
 in C++, and a :class:`HighsMasterSolver` (when rcspp is built with HiGHS) solves the master
 in C++, so a run over them never calls Python. A :class:`HighspyMasterSolver` is one over a
 copy of the user's ``highspy`` model. A :class:`GurobipyMasterSolver` works on the user's
-``gurobipy`` model itself, from Python; gurobipy is imported when it is first used.
+``gurobipy`` model itself, from Python. Each imports its LP solver's package when it is
+used, so that importing rcspp does not load it.
 
 A master solver, a pricer, tolerances or an initialization written in Python is a subclass
 of :class:`MasterSolver`, :class:`Pricer`, :class:`Tolerances` or
@@ -19,8 +20,6 @@ the call.
 Tolerances and initializations can also be given by name
 (:mod:`cpp_column_generation.registry`).
 """
-
-from typing import TYPE_CHECKING, Any
 
 from rcspp._core.cpp_column_generation import (
     AbsoluteTolerances,
@@ -66,8 +65,9 @@ from rcspp._core.cpp_column_generation import (
     master_solver_self_test,
 )
 
-from . import master_solvers, registry
+from . import registry
 from .graph_pricer import GraphPricer, PricingStage
+from .master_solvers import GurobipyMasterSolver
 from .params import ColumnGenerationParams
 from .registry import (
     algorithm_names,
@@ -86,18 +86,6 @@ try:
     from .master_solvers import HighspyMasterSolver
 except ImportError:  # pragma: no cover
     pass
-
-if TYPE_CHECKING:
-    from .master_solvers import GurobipyMasterSolver
-
-
-def __getattr__(name: str) -> Any:
-    """GurobipyMasterSolver, imported with gurobipy when it is first used (see
-    :mod:`cpp_column_generation.master_solvers`)."""
-    if name == "GurobipyMasterSolver":
-        return master_solvers.GurobipyMasterSolver
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 __all__ = [
     "AbsoluteTolerances",
