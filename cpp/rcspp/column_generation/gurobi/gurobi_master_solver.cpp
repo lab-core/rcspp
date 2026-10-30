@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-#include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
+#include "rcspp/column_generation/gurobi/gurobi_master_solver.hpp"
 
 #include <algorithm>
 #include <cmath>

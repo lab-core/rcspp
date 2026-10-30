@@ -18,9 +18,9 @@
 #include <vector>
 
 #include "gurobi_environment.hpp"
+#include "rcspp/column_generation/gurobi/gurobi_master_solver.hpp"
 #include "rcspp/column_generation/master_problem.hpp"
 #include "rcspp/column_generation/master_solver_self_test.hpp"
-#include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
 #include "test_column_generation_fakes.hpp"
 
 using namespace rcspp;                              // NOLINT(google-build-using-namespace)

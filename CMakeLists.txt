@@ -77,6 +77,14 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")   # .so, .dylib
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")   # executables
 set(CMAKE_PDB_OUTPUT_DIRECTORY     "${CMAKE_BINARY_DIR}/bin")   # .pdb (Windows)
 
+# The master solvers of column generation: libraries of their own, built only when asked for, so
+# the globs over cpp/rcspp (core library, umbrella header, test sources, installed headers) skip
+# these folders.
+set(RCSPP_MASTER_SOLVER_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation/gurobi
+    ${CMAKE_CURRENT_SOURCE_DIR}/cpp/rcspp/column_generation/highs
+)
+
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
 
@@ -89,7 +97,7 @@ if(USE_GUROBI)
     message(FATAL_ERROR
             "USE_GUROBI needs the Gurobi C++ library (gurobi_c++); pass -DGUROBI_CXX_LIBRARY=<path>.")
   endif()
-  add_subdirectory(cpp/rcspp_backends/gurobi)
+  add_subdirectory(cpp/rcspp/column_generation/gurobi)
 endif()
 
 # HiGHS master solver -----------------------------------------------------------
@@ -128,7 +136,7 @@ if(USE_HIGHS)
   else()
     message(STATUS "HiGHS: fetched, v1.15.1")
   endif()
-  add_subdirectory(cpp/rcspp_backends/highs)
+  add_subdirectory(cpp/rcspp/column_generation/highs)
 endif()
 
 # VRP column generation example + benchmarks -----------------------------------
@@ -187,6 +195,8 @@ install(TARGETS rcspp
 install(DIRECTORY cpp/rcspp/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rcspp
     FILES_MATCHING PATTERN "*.hpp"
+    PATTERN "column_generation/gurobi" EXCLUDE
+    PATTERN "column_generation/highs" EXCLUDE
 )
 
 # The CMake package, to be used with:

@@ -22,9 +22,9 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/column_generation/highs/highs_master_solver.hpp"
 #include "rcspp/column_generation/master_solver.hpp"
 #include "rcspp/column_generation/types.hpp"
-#include "rcspp_backends/highs/highs_master_solver.hpp"
 
 namespace py = pybind11;
 

@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "gurobi_environment.hpp"
-#include "rcspp_backends/gurobi/gurobi_master_solver.hpp"
+#include "rcspp/column_generation/gurobi/gurobi_master_solver.hpp"
 #include "test_column_generation_end_to_end.hpp"
 
 namespace rcspp::column_generation::testing {
