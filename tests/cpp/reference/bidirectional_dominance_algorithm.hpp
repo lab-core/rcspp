@@ -480,7 +480,7 @@ class BidirectionalDominanceAlgorithm
                                           "below H");
                     return;
                 }
-                const std::vector<double> probes{0.0, half_way_.point()};
+                const std::vector<double> probes{0.0, half_way_.h()};
                 if (!critical_resource_is_monotone<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index,

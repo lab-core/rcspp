@@ -29,7 +29,7 @@ using List = LabelList<Composed>;
 using Buckets = LabelBuckets<RealResource, RealResource, Composed>;
 /// The internal bidirectional search on these graphs, with a clock of type @p Clock.
 template <typename Clock>
-using Bidir = detail::BidirectionalDominanceAlgorithm<Composed, List, Clock>;
+using Bidir = detail::BidirectionalLabellingAlgorithm<Composed, List, Clock>;
 
 /// @brief A user's container derived from LabelList that declares no with_direction of its own.
 class InheritsListOnly : public LabelList<Composed> {
