@@ -146,6 +146,10 @@ New features are summarised, with a pointer to where they are documented.
 - **Pulling checks whether a label ends at a sink before whether its cost is infinite**, as
   Simple and Pushing do. A label of infinite cost at a sink now stays in its container instead of
   being released. It is still never a solution, so no result changes.
+- **A bidirectional search no longer spends an iteration on a label it drops** (dominated, or
+  over the per-node quota), so `max_iterations` counts labels taken, as in the other searches. A
+  search stopped by `max_iterations` does more work before it stops, and the memory checks, every
+  `memory_check_interval` iterations, fall at other labels.
 
 ### Added
 

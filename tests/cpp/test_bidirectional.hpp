@@ -1808,6 +1808,58 @@ TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
     EXPECT_GT(backward, 1U) << "the backward search never started";
 }
 
+namespace dropped_label_test {
+
+/// @brief The status of a bidirectional solve, with no half-way point, of a diamond whose two
+///        routes meet at a middle node before the sink, under @p max_iterations.
+///
+/// Nodes: source 0, 1 and 2, middle 3, sink 4. The route through 1 costs 2 and the one through
+/// 2 costs 0, so each search's label for the costly route is dominated while it waits: the
+/// forward one at 3, the backward one at 0. Ten labels pass the dominated and quota checks:
+/// 0, 1, 2, 3 and 4 forward, 4, 3, 1, 2 and 0 backward.
+inline AlgorithmStatus solve(size_t max_iterations) {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3);
+    graph->add_node(4, /*source=*/false, /*sink=*/true);
+    const std::vector<std::tuple<size_t, size_t, double>> arcs{{0, 1, 2.0},
+                                                               {0, 2, 0.0},
+                                                               {1, 3, 0.0},
+                                                               {2, 3, 0.0},
+                                                               {3, 4, 0.0}};
+    for (const auto& [origin, destination, cost] : arcs) {
+        graph->add_arc<RealResource>(std::make_tuple(cost), origin, destination, cost);
+    }
+
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.max_iterations = max_iterations;
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get(),
+                                     std::numeric_limits<double>::infinity(),
+                                     /*preprocess=*/false);
+    return result.status;
+}
+
+}  // namespace dropped_label_test
+
+/// @brief A label the bidirectional search drops when it takes it (dominated, or over the
+///        per-node quota) costs no iteration: `max_iterations` counts the labels that pass.
+///
+/// The labels dropped here are dominated ones.
+TEST(BidirectionalScheduling, ADroppedLabelCostsNoIteration) {
+    namespace dlt = dropped_label_test;
+    EXPECT_EQ(dlt::solve(kNoLimit), AlgorithmStatus::Complete);
+    EXPECT_EQ(dlt::solve(10), AlgorithmStatus::Complete) << "ten labels pass the checks";
+    EXPECT_EQ(dlt::solve(9), AlgorithmStatus::Truncated) << "one label is left";
+}
+
 // ============================================================================
 // Per-solve diagnostics
 // ============================================================================
