@@ -21,6 +21,7 @@
 #include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
 #include "rcspp/algorithm/labelling/bounds.hpp"
+#include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 
 namespace rcspp::detail {
