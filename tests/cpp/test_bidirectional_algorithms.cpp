@@ -13,6 +13,6 @@
 
 #include "test_backward_search.hpp"
 #include "test_bidirectional.hpp"
+#include "test_join.hpp"
 #include "test_join_optimality.hpp"
 #include "test_label_frontier.hpp"
-#include "test_label_join.hpp"
