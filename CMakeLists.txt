@@ -179,9 +179,23 @@ install(FILES
     DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
 )
 
-# A check that the installed package works: install into a folder of the build, then build a small
+# A check that the installed package works: install into a folder of the build, then build small
 # program against it with find_package(rcspp).
 if(USE_TESTS)
+  # With the column generation example on, the check also builds it on its own against the
+  # install, as its users would, and runs its tests: the layer only (its master solvers would fetch
+  # and build HiGHS a second time), with the googletest already downloaded.
+  set(example_check_arguments)
+  if(USE_COLUMN_GENERATION_EXAMPLE)
+    set(example_configure_arguments
+        -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=${FETCHCONTENT_BASE_DIR}/googletest-src
+        -DCMAKE_CXX_CLANG_TIDY=)
+    list(JOIN example_configure_arguments "|" example_configure_arguments)
+    set(example_check_arguments
+        -DEXAMPLE_SOURCE_DIR=${CMAKE_SOURCE_DIR}/examples/column_generation
+        -DEXAMPLE_BUILD_DIR=${CMAKE_BINARY_DIR}/install-check/example
+        "-DEXAMPLE_ARGUMENTS=${example_configure_arguments}")
+  endif()
   add_test(NAME install_and_find_package
       COMMAND ${CMAKE_COMMAND}
           -DBUILD_DIR=${CMAKE_BINARY_DIR}
@@ -192,6 +206,7 @@ if(USE_TESTS)
           -DGENERATOR=${CMAKE_GENERATOR}
           -DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
           -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+          ${example_check_arguments}
           -P ${CMAKE_SOURCE_DIR}/tests/find_package/check_install.cmake
   )
 endif()
