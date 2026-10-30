@@ -32,3 +32,15 @@ python examples/python/solve_vrp.py instances/C101_5.txt --subproblem-only
 # Full column generation — requires Gurobi + mip
 python examples/python/solve_vrp.py instances/C101_5.txt
 ```
+
+[`column_generation_loop.py`](python/column_generation_loop.py) is the column
+generation loop of `rcspp.column_generation.ColumnGeneration`, written in Python
+from the same pieces (master, master solver, pricers, tolerances), with the same
+results. Copy it to change the loop itself. Its `main()` runs it on a toy
+master built in a `highspy` model; it needs rcspp built with HiGHS (as the
+wheel is) and `highspy`:
+
+```bash
+pip install rcspp[highspy]
+python examples/python/column_generation_loop.py
+```
