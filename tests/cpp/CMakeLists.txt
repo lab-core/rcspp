@@ -69,10 +69,10 @@ endif()
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME} DISCOVERY_TIMEOUT 30)
 
-if(USE_GUROBI)
+if(USE_COLUMN_GENERATION_GUROBI)
   add_subdirectory(gurobi)
 endif()
 
-if(USE_HIGHS)
+if(USE_COLUMN_GENERATION_HIGHS)
   add_subdirectory(highs)
 endif()

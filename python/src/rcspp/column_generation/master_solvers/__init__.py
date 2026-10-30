@@ -4,7 +4,7 @@
 
 from .gurobipy_master_solver import GurobipyMasterSolver
 
-# Built with USE_HIGHS only, as the wheel is.
+# Built with USE_COLUMN_GENERATION_HIGHS only, as the wheel is.
 try:
     from .highspy_master_solver import HighspyMasterSolver
 except ImportError:  # pragma: no cover

@@ -53,7 +53,7 @@ cmake.args = [
   "-DUSE_VRP=OFF",
   # The HiGHS master solver is in the wheel, with HiGHS fetched and linked in statically: a
   # HiGHS installed on the build machine could be a shared library the wheel does not carry.
-  "-DUSE_HIGHS=ON",
+  "-DUSE_COLUMN_GENERATION_HIGHS=ON",
   "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER",
 ]
 # The Python package only, without the fetched HiGHS's library and headers.

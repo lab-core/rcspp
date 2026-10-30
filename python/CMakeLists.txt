@@ -18,10 +18,10 @@ set(PY_PACKAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${PYTHON_PACKAGE_NAME}")
 # Gather all C++ sources for the Python module
 file(GLOB_RECURSE MODULE_SOURCES "${PY_BINDINGS_DIR}/*.cpp")
 # Column generation is bound only with USE_COLUMN_GENERATION, its HiGHS master solver only with
-# USE_HIGHS.
+# USE_COLUMN_GENERATION_HIGHS.
 if(NOT USE_COLUMN_GENERATION)
   list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation(_highs)?\\.cpp$")
-elseif(NOT USE_HIGHS)
+elseif(NOT USE_COLUMN_GENERATION_HIGHS)
   list(FILTER MODULE_SOURCES EXCLUDE REGEX "column_generation_highs\\.cpp$")
 endif()
 
@@ -71,9 +71,9 @@ if(USE_COLUMN_GENERATION)
   target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_COLUMN_GENERATION)
 endif()
 # The HiGHS master solver, and HiGHS itself (static: it ends up in the module).
-if(USE_HIGHS)
-  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_highs)
-  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_HIGHS)
+if(USE_COLUMN_GENERATION_HIGHS)
+  target_link_libraries(${PYTHON_EXTENSION_NAME} PRIVATE rcspp_column_generation_highs)
+  target_compile_definitions(${PYTHON_EXTENSION_NAME} PRIVATE RCSPP_USE_COLUMN_GENERATION_HIGHS)
   # HiGHS is built with hidden symbols, but the standard library templates it instantiates keep
   # theirs; on Linux the linker hides those too, so that the module exports nothing of HiGHS and
   # another HiGHS in the process (highspy's) keeps its own. macOS binds each module's symbols to
