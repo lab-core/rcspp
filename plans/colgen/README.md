@@ -5,8 +5,8 @@ master solver, self-test), #72 (graph pricer), #76 (HiGHS master solver; every c
 Gurobi license, `D-59`); stacked by rebase (`D-85`). Review round of 2026-10-28 done: every finding fixed
 (`D-93`–`D-99`, commit table R.0–R.4). Now: the Python layer (PRs 5–6), designed in `phase-1-python.md` (accepted,
 `D-86`–`D-92`); PR 5 (5.1 to 5.6) done, branch `feature/column-generation-python` on PR 4; `D-87` measured (`D-100`); PR
-6: 6.1 to 6.3 done (`D-101`), branch `feature/column-generation-python-masters` on PR 5. Packaging studied
-(`packaging.md`, open: `Q-37`–`Q-40`); C++ packaging after 6.4 (`D-102`, `T-1.12`)**. Updated: 2026-10-29. Baseline:
+6: 6.1 to 6.7 done (`D-101`, `D-104`, `D-105`), branch `feature/column-generation-python-masters` on PR 5. Packaging studied
+(`packaging.md`; `D-103`–`D-106`); next: C++ packaging (`D-102`, `T-1.12`)**. Updated: 2026-10-30. Baseline:
 `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol
