@@ -346,31 +346,13 @@ TEST(DominanceAlgorithms, ExtendedLabelCountIsPerSolve) {
 }
 
 // ============================================================================
-// A subclass override of update_non_dominated_labels runs
+// An observer sees what the admission rule decides
 // ============================================================================
 
 namespace dominance_override_test {
 
-/// @brief How many times a counting override ran, or how many outcomes the counting observer
-///        saw.
+/// @brief How many outcomes the counting observer saw.
 inline int calls = 0;
-
-/// @brief Counts the calls to the protected virtual on top of @p Base.
-template <template <typename, typename> class Base>
-struct Counting {
-        template <typename ResourceType, typename LabelContainerType>
-        class Algo : public Base<ResourceType, LabelContainerType> {
-            public:
-                using Base<ResourceType, LabelContainerType>::Base;
-
-            protected:
-                bool update_non_dominated_labels(const Label<ResourceType>& label) override {
-                    ++calls;
-                    return Base<ResourceType, LabelContainerType>::update_non_dominated_labels(
-                        label);
-                }
-        };
-};
 
 /// @brief A three-arc line, so three labels are tested for dominance.
 inline std::unique_ptr<ResourceGraph<RealResource>> line() {
@@ -407,26 +389,26 @@ using CountedSimple = detail::LabellingAlgorithm<
     detail::Preset<parts::FifoSchedule<ResourceType>, parts::DominanceAdmission, parts::KeepAtNodes,
                    CountingObserver>>;
 
+/// @brief Pushing's search, with the counting observer.
+template <typename ResourceType, typename LabelContainerType>
+using CountedPushing = detail::LabellingAlgorithm<
+    ResourceType, LabelContainerType, ForwardDirection,
+    detail::Preset<parts::SweepSchedule<ResourceType, ForwardDirection>, parts::DominanceAdmission,
+                   parts::KeepAtNodes, CountingObserver>>;
+
 }  // namespace dominance_override_test
 
-/// @brief Simple's search, built with an observer, tells it of each feasible candidate its
-///        admission rule decides on: three on the three-arc line.
+/// @brief Simple's and Pushing's searches, built with an observer, tell it of each feasible
+///        candidate their admission rule decides on: three on the three-arc line.
 TEST(DominanceAlgorithms, TheAdmissionRuleSeesEveryFeasibleCandidate) {
     namespace dot = dominance_override_test;
     dot::calls = 0;
     auto simple = dot::line()->solve<dot::CountedSimple>(AlgorithmBaseParams{});
     EXPECT_EQ(simple.solutions.size(), 1U);
-    EXPECT_EQ(dot::calls, 3);
-}
-
-/// @brief A subclass override of the protected virtual `update_non_dominated_labels(const Label&)`
-///        runs, for `Pushing`.
-TEST(DominanceAlgorithms, ASubclassOverrideOfUpdateNonDominatedLabelsRuns) {
-    namespace dot = dominance_override_test;
+    EXPECT_EQ(dot::calls, 3) << "Simple";
 
     dot::calls = 0;
-    auto pushing =
-        dot::line()->solve<dot::Counting<PushingDominanceAlgorithm>::Algo>(AlgorithmBaseParams{});
+    auto pushing = dot::line()->solve<dot::CountedPushing>(AlgorithmBaseParams{});
     EXPECT_EQ(pushing.solutions.size(), 1U);
     EXPECT_EQ(dot::calls, 3) << "Pushing";
 }
