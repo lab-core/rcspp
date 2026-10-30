@@ -595,8 +595,13 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 | Direction | Searched by |
 |---|---|
 | Forward | every algorithm |
-| Backward | `Simple` |
+| Backward | `Simple`, `AStar`, `Pushing`, `Pulling` |
 | Bidirectional | `Simple` |
+
+Backward, each labelling algorithm runs as it does forward, on the graph read in reverse. `Pushing`
+and `Pulling` sweep the nodes in descending position order, and `Pulling` pulls into a node from
+its successors. `AStar` bounds the cost still to pay from a source to a node, with a Bellman-Ford
+run from the sources.
 
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves
