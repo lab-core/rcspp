@@ -840,3 +840,98 @@ struct Simple {
 };
 }  // namespace my
 ```
+
+## A strategy of one's own
+
+A search the library does not name is a descriptor of your own, from the library's parts or from
+parts of your own, solved as a built-in strategy is: `graph.solve<MyStrategy>(params)`. Every member
+but the schedule is optional, and each is given the resource type and the direction, so a strategy
+can choose a different part forward and backward, and a bidirectional search gets a different part
+on each side.
+
+| Member | What it decides | Built in (`rcspp::parts`) | Concept |
+|---|---|---|---|
+| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule` | `Schedule` |
+| `admission<R, Dir>` | whether a new label is kept at its node | `DominanceAdmission` (default) | `Admission` |
+| `retention<R, Dir>` | where kept labels live, as `template <C> using type` | `KeepAtNodes` (default) | `Retention` |
+| `observer<R, Dir>` | told of every extension | `NoObserver` (default) | `Observer` |
+| `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
+| `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
+
+This strategy takes labels best first forward and first in, first out backward; a bidirectional
+solve then runs a best-first forward side and a FIFO backward side:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct BestFirstForward {
+        template <typename R, typename Dir>
+        using schedule = std::conditional_t<Dir::backward, rcspp::parts::FifoSchedule<R>,
+                                            rcspp::parts::BestFirstSchedule<R>>;
+};
+```
+
+This one keeps Simple's order and replaces the admission rule with a rule that keeps at most three
+labels per node. It is not exact, and says so:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct AtMostThree {
+        static bool exact(const rcspp::parts::AdmissionContext& /*ctx*/) { return false; }
+
+        template <typename ResourceType, typename NodeView>
+        bool admit(const rcspp::Label<ResourceType>& candidate, NodeView& node,
+                   const rcspp::parts::AdmissionContext& /*ctx*/) const {
+            if (node.is_dominated(candidate) || node.size() >= 3) {
+                return false;
+            }
+            node.evict_dominated_by(candidate);
+            return true;
+        }
+};
+
+struct SimpleAtMostThree {
+        template <typename R, typename Dir>
+        using schedule = rcspp::parts::FifoSchedule<R>;
+        template <typename R, typename Dir>
+        using admission = AtMostThree;
+        static constexpr bool bidirectional = false;  // forward and backward only
+};
+```
+
+**The contract.** `create_algorithm` checks every part of a descriptor against its concept before it
+builds anything, and names the first that fails. Three rules the concepts cannot check are part of
+the contract:
+
+- **An admission rule says whether it is exact.** `exact(ctx)` answers `true` only for a rule that
+  keeps every label exact dominance keeps; a search whose rule is not exact is not a proof.
+- **A schedule loses no label silently.** Every label pushed is handed out, released as dominated,
+  or cut through `parts::CutLabels`, so that the solve's status sees the cut and reports
+  `Truncated`.
+- **A part touches only what its interface gives it.** An admission rule reads and evicts through
+  the node view (`is_dominated`, `evict_dominated_by`, `size`); a schedule releases through the pool
+  and erases through the callable it is handed. The reference counts depend on it.
+
+**Testing a strategy.** `rcspp::testing::expect_same_optimum<Strategy>(graph, params)`
+(`rcspp/testing/expect_same_optimum.hpp`) solves `graph` with the strategy in every direction it
+searches, and returns `""` when each finds forward Simple's optimum (or, like it, nothing) along
+paths that replay through the model, and otherwise what went wrong first. An exact strategy must
+pass on every model:
+
+<!-- docs-check: skip -->
+
+```cpp
+EXPECT_EQ(rcspp::testing::expect_same_optimum<BestFirstForward>(graph, params), "");
+```
+
+Write the namespace out in full: with `using namespace rcspp;`, a bare `testing::` is ambiguous
+with GoogleTest's.
+
+**What stays internal.** The take rule, the step, the classes that run the searches, the completion
+bound, the half-way point and its checks, and the join are the same for every strategy, and are
+where correctness lives; they are not parts, and a strategy cannot replace them.
+
+**From Python.** A descriptor is a C++ type, so a strategy of your own is a C++ strategy. Python
+offers the built-in strategies by name; one that should be reachable from Python is a line of the
+bindings' dispatch table.
