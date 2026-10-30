@@ -25,7 +25,7 @@ TEST(Parity, SimpleBidirectional) {
         parity::Observed<
             ref::detail::BidirectionalDominanceAlgorithm<Composed, List, RealResource>>,
         parity::Observed<
-            rcspp::detail::BidirectionalDominanceAlgorithm<Composed, List, RealResource>>>(
+            rcspp::detail::BidirectionalLabellingAlgorithm<Composed, List, RealResource>>>(
         SearchDirection::Bidirectional,
         List{});
     // Both sides keep buckets, the backward side's turned backward.
@@ -33,7 +33,7 @@ TEST(Parity, SimpleBidirectional) {
         parity::Observed<
             ref::detail::BidirectionalDominanceAlgorithm<Composed, Buckets, RealResource>>,
         parity::Observed<
-            rcspp::detail::BidirectionalDominanceAlgorithm<Composed, Buckets, RealResource>>>(
+            rcspp::detail::BidirectionalLabellingAlgorithm<Composed, Buckets, RealResource>>>(
         SearchDirection::Bidirectional,
         Buckets(10, 1, 0),
         /*buckets=*/true);
