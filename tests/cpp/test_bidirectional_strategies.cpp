@@ -101,6 +101,7 @@ TEST(BidirectionalStrategies, AQuotaAbandonsAndTheResultStaysAPath) {
     namespace bst = bidirectional_strategies_test;
     bst::expect_a_quota_abandons_and_the_result_stays_a_path<strategy::Simple>("Simple");
     bst::expect_a_quota_abandons_and_the_result_stays_a_path<strategy::AStar>("A*");
+    bst::expect_a_quota_abandons_and_the_result_stays_a_path<strategy::Pushing>("Pushing");
 }
 
 /// @brief Every bidirectional search starts each solve afresh: kept labels change no optimum.
@@ -108,4 +109,5 @@ TEST(BidirectionalStrategies, ASecondSolveWithoutReleaseFindsTheSameOptimum) {
     namespace bst = bidirectional_strategies_test;
     bst::expect_a_second_solve_finds_the_same_optimum<strategy::Simple>("Simple");
     bst::expect_a_second_solve_finds_the_same_optimum<strategy::AStar>("A*");
+    bst::expect_a_second_solve_finds_the_same_optimum<strategy::Pushing>("Pushing");
 }
