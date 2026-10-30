@@ -157,11 +157,11 @@ TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief GreedyAlgorithm with prune_by_upper_bound covers that branch.
+/// @brief GreedyAlgorithm with prune_by_incumbent covers that branch.
 TEST(GreedyAlgorithmTest, PruneBasedOnUpperBound) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
-    params.prune_by_upper_bound = true;
+    params.prune_by_incumbent = true;
     const auto result = g->solve<GreedyAlgorithm>(params, /*upper_bound=*/-1.0);
     // upper_bound=-1 prunes all solutions (all paths have cost <= -4 < -1 is false)
     // Actually solutions cost -6 and -4, so upper_bound=-1: -6 < -1 yes, so the
@@ -181,14 +181,15 @@ TEST(GreedyAlgorithmTest, TwoPathGraphFindsBothSolutions) {
 // TabuSearchAlgorithm tests
 // ============================================================================
 
-/// @brief TabuSearchAlgorithm with default params (max_iterations=MAX_INT)
+/// @brief TabuSearchAlgorithm with default params (max_iterations=kNoLimit)
 ///        returns immediately with empty result and logs an error.
 TEST(TabuSearchAlgorithmTest, DefaultParamsReturnsEmpty) {
     auto g = make_linear_graph();
-    // Default AlgorithmBaseParams has max_iterations = MAX_INT, which triggers
+    // Default AlgorithmBaseParams has max_iterations = kNoLimit, which triggers
     // the early-return guard in TabuSearchAlgorithm::main_loop.
     const auto result = g->solve<TabuSearchAlgorithm>(AlgorithmBaseParams{});
-    EXPECT_TRUE(result.solutions.empty()) << "TabuSearch with MAX_INT iterations must return empty";
+    EXPECT_TRUE(result.solutions.empty())
+        << "TabuSearch with kNoLimit iterations must return empty";
 }
 
 /// @brief TabuSearchAlgorithm with finite max_iterations finds the path.
@@ -294,7 +295,7 @@ TEST(TabuSearchAlgorithmTest, ForbiddenTabuExcludesArcs) {
 // ImprovingTabuSearch tests
 // ============================================================================
 
-/// @brief ImprovingTabuSearch with MAX_INT max_iterations returns empty.
+/// @brief ImprovingTabuSearch with kNoLimit max_iterations returns empty.
 TEST(ImprovingTabuSearchTest, DefaultMaxIterationsReturnsEmpty) {
     auto g = make_linear_graph();
     const auto result = g->solve<ImprovingTabuSearch>(AlgorithmBaseParams{});
@@ -380,7 +381,7 @@ TEST(ImprovingTabuSearchTest, TwoPathFindsBestPath) {
 // DiversificationSearch tests
 // ============================================================================
 
-/// @brief DiversificationSearch with MAX_INT max_iterations returns empty.
+/// @brief DiversificationSearch with kNoLimit max_iterations returns empty.
 TEST(DiversificationSearchTest, DefaultMaxIterationsReturnsEmpty) {
     auto g = make_linear_graph();
     const auto result = g->solve<DiversificationSearch>(AlgorithmBaseParams{});

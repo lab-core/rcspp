@@ -55,9 +55,9 @@ class BacktrackingDiveAlgorithm : public Algorithm<ResourceType, LabelContainerT
 
         void initialize_labels() override { seed_path_from_sources(); }
 
-        [[nodiscard]] size_t number_of_labels() const override { return path_.empty() ? 0 : 1; }
+        [[nodiscard]] size_t waiting_labels() const override { return path_.empty() ? 0 : 1; }
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
             return {};
         }
 

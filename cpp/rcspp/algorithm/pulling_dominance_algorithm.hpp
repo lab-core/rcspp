@@ -35,9 +35,9 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (number_of_labels() > 0 && !this->should_stop(i)) {
+            while (waiting_labels() > 0 && !this->should_stop(i)) {
                 // Pulling: each iteration processes one node.
-                if (this->memory_limit_reached(i)) {
+                if (this->check_memory(i)) {
                     break;
                 }
 
@@ -63,8 +63,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                     if (label.dominated) {
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
-                    } else if (this->params_.prune_by_upper_bound &&
-                               label.get_cost() >= this->best_cost_upper_bound_) {
+                    } else if (this->params_.prune_by_incumbent &&
+                               label.get_cost() >= this->incumbent_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
                         this->label_pool_.release_with_ref_count(&label);
@@ -78,12 +78,12 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                         // check if sink and update best solution
                         if (label.get_end_node()->sink) {
                             LOG_DEBUG("Found a solution with cost ", label.get_cost(), "\n");
-                            if (label.get_cost() < this->cost_upper_bound_) {
-                                if (label.get_cost() < this->best_cost_upper_bound_) {
-                                    this->best_cost_upper_bound_ = label.get_cost();
+                            if (label.get_cost() < this->upper_bound_) {
+                                if (label.get_cost() < this->incumbent_) {
+                                    this->incumbent_ = label.get_cost();
                                 }
                                 if (this->params_.return_dominated_solutions) {
-                                    this->extract_solution(label);
+                                    this->record_solution(label);
                                     if (this->solutions_.size() >= this->params_.max_solutions) {
                                         LOG_DEBUG("Stopping after ",
                                                   this->solutions_.size(),
@@ -139,7 +139,6 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
         void pull_labels() {
             // in pulling, we do not extend to nodes
-            this->total_full_extend_time_.start();
 
             const auto& current_node =
                 this->graph_->get_sorted_nodes().at(this->current_unprocessed_node_pos_);
@@ -156,13 +155,11 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
             // truncate/limit the number of labels extended per node (only if not a sink)
             if (!current_node->sink) {
-                this->resize_current_unprocessed_labels(this->effective_max_labels_per_node_,
-                                                        &this->label_pool_);
+                this->resize_current_unprocessed_labels(this->quota_, &this->label_pool_);
             }
-            this->total_full_extend_time_.stop();
         }
 
-        [[nodiscard]] size_t number_of_labels() const override {
+        [[nodiscard]] size_t waiting_labels() const override {
             return this->num_unprocessed_labels_;
         }
 
@@ -189,8 +186,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
 
-            this->effective_max_labels_per_node_ =
-                std::min(this->effective_max_labels_per_node_, limit);
+            this->quota_ = std::min(this->quota_, limit);
 
             if (this->memory_pressure_triggered_) {
                 this->release_truncated_labels(

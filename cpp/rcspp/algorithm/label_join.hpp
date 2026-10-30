@@ -24,7 +24,7 @@ namespace rcspp {
 
 /// @brief What one join pass may pair and keep.
 ///
-/// A @ref max_solutions at or above @c MAX_INT (the params' "no limit") means no cap.
+/// A @ref max_solutions at or above @c kNoLimit (the params' "no limit") means no cap.
 struct JoinOptions {
         /// @brief The half-way policy; consulted only when enabled. Off by default: every stored
         ///        non-start forward label is then paired.
@@ -41,10 +41,10 @@ struct JoinOptions {
         /// @brief The caller's fixed bound. Always applied.
         double cost_upper_bound = std::numeric_limits<double>::infinity();
 
-        /// @brief When below @c MAX_INT, keep only this many cheapest distinct joined paths and
+        /// @brief When below @c kNoLimit, keep only this many cheapest distinct joined paths and
         ///        hand them on at the end of the pass. A pair too expensive to be among them is
         ///        skipped before its path is built.
-        size_t max_solutions = MAX_INT;
+        size_t max_solutions = kNoLimit;
 };
 
 /// @brief Pairs surviving forward and backward labels at the node they meet on to form complete
@@ -93,7 +93,7 @@ class Joiner {
             // means "every column below this bound".
             const bool prune_against_incumbent =
                 options.prune_requested || !std::isfinite(cost_upper_bound);
-            const bool capped = options.max_solutions < MAX_INT;
+            const bool capped = options.max_solutions < kNoLimit;
             Cheapest cheapest(options.max_solutions);
             // A budget of zero keeps nothing; stop before `out_of_range` reads an empty heap.
             if (capped && options.max_solutions == 0) {

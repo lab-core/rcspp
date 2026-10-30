@@ -55,7 +55,7 @@ inline AlgorithmParams<BackwardList> inspectable_params() {
     return params;
 }
 
-/// @brief The cheapest backward path, read from the labels at the backward terminals.
+/// @brief The cheapest backward path, read from the labels at the backward end nodes.
 inline double backward_optimum(ResourceGraph<RealResource>* graph) {
     auto algorithm = test_util::make_backward_only(graph, inspectable_params());
     graph->solve(algorithm.get());

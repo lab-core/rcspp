@@ -185,7 +185,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 } else {
                     size_t& num_extended = number_of_extended_labels_per_node_.at(
                         label_iterator_pair.first->get_end_node()->pos());
-                    if (num_extended < this->effective_max_labels_per_node_) {
+                    if (num_extended < this->quota_) {
                         ++num_extended;
                         return label_iterator_pair;
                     }
@@ -198,9 +198,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             return {};
         }
 
-        [[nodiscard]] size_t number_of_labels() const override {
-            return unprocessed_labels_.size();
-        }
+        [[nodiscard]] size_t waiting_labels() const override { return unprocessed_labels_.size(); }
 
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
@@ -229,8 +227,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// excess in @ref unprocessed_truncated_labels_ for the next phase.
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
-            this->effective_max_labels_per_node_ =
-                std::min(this->effective_max_labels_per_node_, limit);
+            this->quota_ = std::min(this->quota_, limit);
 
             if (this->memory_pressure_triggered_) {
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {

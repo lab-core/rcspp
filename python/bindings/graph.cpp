@@ -118,23 +118,23 @@ void init_graph(py::module_& m) {
                                    "What a bidirectional solve reports: whether the half-way bound "
                                    "was in force, why it was off if it was, and how many paths the "
                                    "join produced. Read it from SolveResult.bidirectional.")
-        .def_readonly("bounded_by_half_way",
-                      &BidirectionalStats::bounded_by_half_way,
+        .def_readonly("half_way_used",
+                      &BidirectionalStats::half_way_used,
                       "Whether the half-way bound was in force. When it is off (see "
                       "half_way_off_reason), both searches run in full and the solve is slower "
                       "than a forward one, so check this rather than assume it.")
         .def_readonly("half_way_off_reason",
                       &BidirectionalStats::half_way_off_reason,
                       "Why the half-way bound was off for this solve; empty when it was in force.")
-        .def_readonly("number_of_joined_paths",
-                      &BidirectionalStats::number_of_joined_paths,
+        .def_readonly("joined_paths",
+                      &BidirectionalStats::joined_paths,
                       "How many distinct complete paths came only from the join, that is, paths "
                       "neither search completed on its own. Zero means every solution came from "
                       "the forward search reaching a sink or the backward one reaching a source.")
         .def("__repr__", [](const BidirectionalStats& s) {
-            return "BidirectionalStats(bounded_by_half_way=" +
-                   std::string(s.bounded_by_half_way ? "True" : "False") +
-                   ", joined=" + std::to_string(s.number_of_joined_paths) + ")";
+            return "BidirectionalStats(half_way_used=" +
+                   std::string(s.half_way_used ? "True" : "False") +
+                   ", joined=" + std::to_string(s.joined_paths) + ")";
         });
 
     // ── SolveResult ───────────────────────────────────────────────────────────
@@ -180,9 +180,9 @@ void init_graph(py::module_& m) {
             std::string text = "SolveResult(status=" + r.status_string() +
                                ", solutions=" + std::to_string(r.solutions.size());
             if (r.bidirectional) {
-                text += ", bounded_by_half_way=" +
-                        std::string(r.bidirectional->bounded_by_half_way ? "True" : "False") +
-                        ", joined=" + std::to_string(r.bidirectional->number_of_joined_paths);
+                text += ", half_way_used=" +
+                        std::string(r.bidirectional->half_way_used ? "True" : "False") +
+                        ", joined=" + std::to_string(r.bidirectional->joined_paths);
             }
             // Shown only when set, so it stands out.
             if (r.memory_pressure_triggered) {
@@ -209,7 +209,7 @@ void init_graph(py::module_& m) {
         .def("could_be_non_optimal", &PyAlgorithmParams::could_be_non_optimal)
         .def_readwrite("max_solutions", &PyAlgorithmParams::max_solutions)
         .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)
-        .def_readwrite("prune_by_upper_bound", &PyAlgorithmParams::prune_by_upper_bound)
+        .def_readwrite("prune_by_incumbent", &PyAlgorithmParams::prune_by_incumbent)
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)
@@ -278,7 +278,7 @@ void init_graph(py::module_& m) {
                        "the rest. Set H to about half the clock's largest value. 0 (the default) "
                        "turns this bound off; it does not choose one. Both searches then run in "
                        "full, which is correct but slower than a forward solve. "
-                       "result.bidirectional.bounded_by_half_way says whether it was in force.")
+                       "result.bidirectional.half_way_used says whether it was in force.")
         .def_readwrite("join_after_early_stop",
                        &PyAlgorithmParams::join_after_early_stop,
                        "Bidirectional only: whether the join still runs after a timeout or the "

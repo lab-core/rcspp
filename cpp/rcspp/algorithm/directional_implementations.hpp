@@ -80,7 +80,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
                                                                                 std::move(params));
         case SearchDirection::Backward:
             if constexpr (Impl::has_backward) {
-                if constexpr (can_rebind_direction_v<LabelContainerType, BackwardDirection>) {
+                if constexpr (has_directed_container_v<LabelContainerType, BackwardDirection>) {
                     return std::make_unique<
                         typename Impl::template Backward<ResourceType, LabelContainerType>>(
                         resource_factory,
@@ -97,7 +97,7 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_directional_al
         case SearchDirection::Bidirectional:
             if constexpr (Impl::has_bidirectional) {
                 // The backward half keeps its labels in the same container, turned backward.
-                if constexpr (can_rebind_direction_v<LabelContainerType, BackwardDirection>) {
+                if constexpr (has_directed_container_v<LabelContainerType, BackwardDirection>) {
                     return std::make_unique<
                         typename Impl::template Bidirectional<ResourceType,
                                                               LabelContainerType,

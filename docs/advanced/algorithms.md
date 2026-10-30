@@ -79,7 +79,7 @@ has to go on — it takes the range to be `[0, 2H]` rather than the other way ro
 off both searches run to completion and the join considers every pair, which is correct but
 *slower* than a forward solve rather than faster, since it is a forward search plus a backward
 search plus a join.  That is the supported way to ask for an unbounded run, and
-`result.bidirectional.bounded_by_half_way` tells you which of the two you got.  A solve that wants
+`result.bidirectional.half_way_used` tells you which of the two you got.  A solve that wants
 the speed-up sets `H` explicitly, to roughly half the clock's range.
 
 Because the default gets you the slow case without asking for it, a solve that runs with the
@@ -332,7 +332,7 @@ under-rejecting quietly.
 |---|---|---|
 | `return_dominated_solutions` | a path reaching a sink is recorded immediately, so paths later dominated are still returned | the same, in both directions: a forward path reaching a sink and a backward path reaching a source are both recorded when they are found.  Joined paths are **not** filtered by dominance at the sink, whatever the flag says: see below |
 | `max_solutions` | stops the search once that many solutions exist | stops the *search* the same way, but never cuts the join short: the join still considers every pair, splices only the cheapest `max_solutions` distinct joined paths, and the result list is resized afterwards, so a `complete` status still means the search was exhaustive |
-| `prune_by_upper_bound` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
+| `prune_by_incumbent` | drops a label whose own cost is at or above the incumbent — valid for a complete path, not for a frontier | drops a half whose cost *plus a lower bound on its completion* is at or above the incumbent, and drops a join that is no better than the incumbent. When the reduced-cost graph has a negative cycle there is no finite lower bound, and no half is dropped for its cost. With it off **and a finite `upper_bound`**, every join that bound admits is returned — which is what a pricing pool wants. With no `upper_bound` at all the join keeps pruning against the incumbent whatever the flag says: see below |
 | `timeout_s`, the memory limit | stop the search; whatever was found is returned | stop the search, then **still run the join**, with the incumbent cutoff forced on. With the half-way bound in force few forward labels reach a sink, so without the join a truncated solve would return almost nothing, and a pricing loop would stall on it. The join hands back the improving paths the two halves already hold — both halves, since the two searches are interleaved by the work each has done, so a stop finds each partly built; the status still says the run was cut short. `join_after_early_stop = false` skips the join instead |
 | `should_stop` | stops the search | stops the search **and skips the join**: an interrupt means stop now |
 
@@ -491,12 +491,12 @@ So it is **not a default**.  It does not pay when:
   ```python
   result = rg.solve(algorithm="bidirectional", params=p)
   stats = result.bidirectional  # None from every other algorithm
-  if not stats.bounded_by_half_way:
+  if not stats.half_way_used:
       print("the clock was rejected; this solve was slower than a forward one")
-  print(stats.number_of_joined_paths, "paths came from the join")
+  print(stats.joined_paths, "paths came from the join")
   ```
 
-  `bounded_by_half_way` is worth checking rather than assuming. `number_of_joined_paths`
+  `half_way_used` is worth checking rather than assuming. `joined_paths`
   tells the two payoff failures apart: zero with a correct answer means the answer came
   from a search reaching a terminal rather than from the join, so `H` is placed such that
   nothing crosses it.

@@ -139,13 +139,13 @@ inline std::unique_ptr<ResourceGraph<RealResource>> build(const Instance& in) {
 /// One setting of the params a sweep runs every search under.
 struct Variant {
         const char* name;
-        size_t quota = MAX_INT;
+        size_t quota = kNoLimit;
         size_t phases = 1;
         bool dominated = false;
         bool preprocess = false;
         double upper_bound = kInf;
         bool prune = false;
-        size_t max_iterations = MAX_INT;
+        size_t max_iterations = kNoLimit;
         bool join_after_early_stop = true;
 };
 /// @brief The settings every search is swept under.
@@ -177,7 +177,7 @@ ParamsType params_for(const Variant& v) {
         p.max_solutions = 1000;
     }
     p.return_dominated_solutions = v.dominated;
-    p.prune_by_upper_bound = v.prune;
+    p.prune_by_incumbent = v.prune;
     p.max_iterations = v.max_iterations;
     p.join_after_early_stop = v.join_after_early_stop;
     return p;
@@ -284,8 +284,8 @@ Outcome bidirectional_outcome(AlgorithmParams<ForwardList> p, const Variant& v,
     auto a = g->create_algorithm<Strategy>(p);
     const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
     Outcome o = summarise(r, a->get_number_of_extended_labels());
-    o.joined = r.bidirectional->number_of_joined_paths;
-    o.bounded = r.bidirectional->bounded_by_half_way ? 1 : 0;
+    o.joined = r.bidirectional->joined_paths;
+    o.bounded = r.bidirectional->half_way_used ? 1 : 0;
     o.status = static_cast<size_t>(r.status);
     return o;
 }
