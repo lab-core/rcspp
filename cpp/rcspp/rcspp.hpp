@@ -41,6 +41,8 @@
 #include "rcspp/algorithm/labelling/parts/admission/dominance_admission.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
+#include "rcspp/algorithm/labelling/parts/interleave/interleave.hpp"
+#include "rcspp/algorithm/labelling/parts/interleave/least_work_first.hpp"
 #include "rcspp/algorithm/labelling/parts/observer/no_observer.hpp"
 #include "rcspp/algorithm/labelling/parts/observer/observer.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/keep_at_nodes.hpp"
