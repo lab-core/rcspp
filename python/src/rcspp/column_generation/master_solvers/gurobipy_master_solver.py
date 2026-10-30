@@ -4,11 +4,9 @@
 
 import math
 from contextlib import contextmanager
-from typing import Any, Iterator, Sequence, TypeAlias
+from typing import TYPE_CHECKING, Any, Iterator, Sequence, TypeAlias
 
-import gurobipy as gp
 import numpy as np
-from gurobipy import GRB
 
 from ..._core.column_generation import (
     Capabilities,
@@ -21,24 +19,38 @@ from ..._core.column_generation import (
     SolverStatus,
 )
 
+# gurobipy is imported where it is used, so that importing rcspp does not load it.
+if TYPE_CHECKING:
+    import gurobipy as gp
+
 # What a method receives or returns: duals, values, bounds; column ids.
 FloatArray: TypeAlias = np.ndarray[Any, np.dtype[np.float64]]
 IdArray: TypeAlias = np.ndarray[Any, np.dtype[np.uint64]]
 
-_STATUSES = {
-    GRB.OPTIMAL: SolverStatus.Optimal,
-    GRB.INFEASIBLE: SolverStatus.Infeasible,
-    GRB.UNBOUNDED: SolverStatus.Unbounded,
-    GRB.TIME_LIMIT: SolverStatus.TimeLimit,
-}
+
+def _status(gurobi_status: int) -> SolverStatus:
+    """Our status for a Gurobi status."""
+    from gurobipy import GRB
+
+    statuses = {
+        GRB.OPTIMAL: SolverStatus.Optimal,
+        GRB.INFEASIBLE: SolverStatus.Infeasible,
+        GRB.UNBOUNDED: SolverStatus.Unbounded,
+        GRB.TIME_LIMIT: SolverStatus.TimeLimit,
+    }
+    return statuses.get(gurobi_status, SolverStatus.Other)
 
 
 # Gurobi writes infinity as ±GRB.INFINITY (1e100).
 def _to_gurobi(value: float) -> float:
+    from gurobipy import GRB
+
     return min(max(value, -GRB.INFINITY), GRB.INFINITY)
 
 
 def _from_gurobi(value: float) -> float:
+    from gurobipy import GRB
+
     if value >= GRB.INFINITY:
         return math.inf
     if value <= -GRB.INFINITY:
@@ -61,6 +73,8 @@ def _bounds_can_be_held(lower: float, upper: float) -> bool:
 def _gurobi_row(lower: float, upper: float) -> tuple[str, float]:
     """The Gurobi row (sense, side) for lower ≤ a·x ≤ upper: ``=`` for equal finite
     bounds, ``≥`` or ``≤`` for one finite bound, ``≤ ∞`` for a free row."""
+    from gurobipy import GRB
+
     if not _bounds_can_be_held(lower, upper):
         raise ValueError(
             "GurobipyMasterSolver.add_rows: row bounds must be numbers, with lower < +inf and "
@@ -84,7 +98,7 @@ def _gurobi_row(lower: float, upper: float) -> tuple[str, float]:
 
 
 @contextmanager
-def _temporary_parameters(model: gp.Model, **values: Any) -> Iterator[None]:
+def _temporary_parameters(model: "gp.Model", **values: Any) -> Iterator[None]:
     """Sets parameters for the duration of the block, then puts the old values back."""
     old_values = {name: model.getParamInfo(name)[2] for name in values}
     try:
@@ -105,7 +119,7 @@ class GurobipyMasterSolver(MasterSolver):
     and reads its duals: when the run ends, the model holds the generated columns,
     continuous. During a run the model is the master solver's: what it holds between two
     solves must not be relied on. When the run ends, the user's variable types come back
-    (:meth:`restore_user_model`). Available when gurobipy is installed.
+    (:meth:`restore_user_model`). Needs gurobipy (``pip install rcspp[gurobipy]``).
 
     - **Sense:** a maximizing model works too: the master solver negates the costs it adds,
       the objective and the duals, so that the master is seen as a minimization.
@@ -128,29 +142,36 @@ class GurobipyMasterSolver(MasterSolver):
             default.
     """
 
-    def __init__(self, model: gp.Model, rows: Sequence[gp.Constr] | None = None) -> None:
+    def __init__(self, model: "gp.Model", rows: "Sequence[gp.Constr] | None" = None) -> None:
+        try:
+            import gurobipy  # noqa: F401  # pyright: ignore[reportUnusedImport]
+        except ImportError as error:
+            raise ImportError(
+                "GurobipyMasterSolver needs gurobipy: pip install rcspp[gurobipy]"
+            ) from error
+
         super().__init__()
         # Rows created just before are pending until an update.
         model.update()
         self._model = model
-        self._rows: list[gp.Constr] = list(rows) if rows is not None else model.getConstrs()
+        self._rows: "list[gp.Constr]" = list(rows) if rows is not None else model.getConstrs()
         # The Gurobi variable of each column id, in the order they came.
-        self._columns: dict[int, gp.Var] = {}
+        self._columns: "dict[int, gp.Var]" = {}
         # The user's non-continuous variables and their types, and how many of the model's
         # variables have been looked at.
-        self._user_types: list[tuple[gp.Var, str]] = []
+        self._user_types: "list[tuple[gp.Var, str]]" = []
         self._recorded_variables = 0
         # Every variable is continuous (an LP solve came last).
         self._relaxed = False
         # The user's binaries made continuous, with their own bounds.
-        self._relaxed_binaries: list[tuple[gp.Var, float, float]] = []
+        self._relaxed_binaries: "list[tuple[gp.Var, float, float]]" = []
 
     @property
-    def model(self) -> gp.Model:
+    def model(self) -> "gp.Model":
         """The user's model."""
         return self._model
 
-    def variable(self, column_id: int) -> gp.Var:
+    def variable(self, column_id: int) -> "gp.Var":
         """The Gurobi variable of column ``column_id``.
 
         Raises:
@@ -167,6 +188,8 @@ class GurobipyMasterSolver(MasterSolver):
         return len(self._rows)
 
     def row_bounds(self) -> tuple[FloatArray, FloatArray]:
+        from gurobipy import GRB
+
         senses = self._model.getAttr(GRB.Attr.Sense, self._rows) if self._rows else []
         sides = self._model.getAttr(GRB.Attr.RHS, self._rows) if self._rows else []
         lower = [
@@ -187,6 +210,8 @@ class GurobipyMasterSolver(MasterSolver):
                 the model instead), or bounds no Gurobi row holds. A refused batch adds no
                 row.
         """
+        import gurobipy as gp
+
         # Convert every row first, so that a refused batch adds nothing.
         converted = [
             _gurobi_row(float(lower), float(upper)) for lower, upper in zip(rows.lower, rows.upper)
@@ -201,6 +226,9 @@ class GurobipyMasterSolver(MasterSolver):
     # ── The columns ───────────────────────────────────────────────────────────
 
     def add_columns(self, columns: ColumnBatch) -> None:
+        import gurobipy as gp
+        from gurobipy import GRB
+
         ids = [int(column_id) for column_id in columns.ids]
         self._check(columns, ids)
 
@@ -243,6 +271,8 @@ class GurobipyMasterSolver(MasterSolver):
     # ── The solves ────────────────────────────────────────────────────────────
 
     def solve_relaxation(self, params: RelaxationParams = RelaxationParams()) -> SolverStatus:
+        from gurobipy import GRB
+
         self._relax()
         with self._solve_options(params.timeout_s, params.threads, params.verbose):
             # After columns are added the last basis stays primal feasible, so primal simplex
@@ -253,6 +283,8 @@ class GurobipyMasterSolver(MasterSolver):
             return self._optimize()
 
     def solve_integer(self, params: IntegerParams = IntegerParams()) -> SolverStatus:
+        from gurobipy import GRB
+
         self._restore(GRB.BINARY if params.column_type == ColumnType.Binary else GRB.INTEGER)
         with self._solve_options(params.timeout_s, params.threads, params.verbose):
             with _temporary_parameters(self._model, MIPGap=params.relative_gap):
@@ -263,12 +295,16 @@ class GurobipyMasterSolver(MasterSolver):
         return self._sense_sign() * objective
 
     def duals(self) -> FloatArray:
+        from gurobipy import GRB
+
         if not self._rows:
             return np.zeros(0)
         duals = np.array(self._model.getAttr(GRB.Attr.Pi, self._rows), dtype=np.float64)
         return self._sense_sign() * duals
 
     def primal(self, ids: IdArray) -> FloatArray:
+        from gurobipy import GRB
+
         variables = [self.variable(int(column_id)) for column_id in ids]
         if not variables:
             return np.zeros(0)
@@ -283,6 +319,8 @@ class GurobipyMasterSolver(MasterSolver):
         Raises:
             ValueError: When Gurobi refuses the name or the value.
         """
+        import gurobipy as gp
+
         try:
             kind = self._model.getParamInfo(name)[1]
             if isinstance(value, bool) or (isinstance(value, str) and kind is not str):
@@ -305,6 +343,8 @@ class GurobipyMasterSolver(MasterSolver):
     def largest_user_cost(self) -> float:
         """The largest absolute objective coefficient of the model's variables that this
         master solver did not add."""
+        from gurobipy import GRB
+
         # Variables added just before are pending until an update.
         self._model.update()
         generated = {variable.index for variable in self._columns.values()}
@@ -322,6 +362,8 @@ class GurobipyMasterSolver(MasterSolver):
         Gurobi applies the types at the model's next update (or optimize): until then,
         the last solve's values can still be read.
         """
+        from gurobipy import GRB
+
         if self._relaxed:
             self._restore(GRB.CONTINUOUS)
 
@@ -330,6 +372,8 @@ class GurobipyMasterSolver(MasterSolver):
     def _sense_sign(self) -> float:
         """+1 for a minimizing model, −1 for a maximizing one: turns its values into
         ours."""
+        from gurobipy import GRB
+
         return -1.0 if self._model.ModelSense == GRB.MAXIMIZE else 1.0
 
     @contextmanager
@@ -346,6 +390,8 @@ class GurobipyMasterSolver(MasterSolver):
 
     def _relax(self) -> None:
         """Makes every variable continuous."""
+        from gurobipy import GRB
+
         known = len(self._user_types)
         self._record_new_user_types()
 
@@ -363,9 +409,11 @@ class GurobipyMasterSolver(MasterSolver):
         self._model.setAttr(GRB.Attr.VType, variables, [GRB.CONTINUOUS] * len(variables))
         self._bound_binaries(binaries)
 
-    def _bound_binaries(self, binaries: list[gp.Var]) -> None:
+    def _bound_binaries(self, binaries: "list[gp.Var]") -> None:
         """Bounds the user's binaries within 0 and 1 while they are continuous, keeping
         their own bounds to put back."""
+        from gurobipy import GRB
+
         if not binaries:
             return
 
@@ -379,6 +427,8 @@ class GurobipyMasterSolver(MasterSolver):
 
     def _restore(self, kind: str) -> None:
         """Gives back the user's types, and ``kind`` to the generated columns."""
+        from gurobipy import GRB
+
         self._record_new_user_types()
 
         variables = list(self._columns.values())
@@ -399,6 +449,8 @@ class GurobipyMasterSolver(MasterSolver):
     def _record_new_user_types(self) -> None:
         """Records the user's non-continuous variables added since the last call; called
         before changing any type."""
+        from gurobipy import GRB
+
         # Variables the user added are pending until an update.
         self._model.update()
         variables = self._model.getVars()[self._recorded_variables :]
@@ -416,6 +468,8 @@ class GurobipyMasterSolver(MasterSolver):
     def _optimize(self) -> SolverStatus:
         """Optimizes; an "infeasible or unbounded" answer is solved again without dual
         reductions, to tell the two apart, within what is left of the time limit."""
+        from gurobipy import GRB
+
         self._model.optimize()
         status = self._model.Status
 
@@ -425,4 +479,4 @@ class GurobipyMasterSolver(MasterSolver):
             with _temporary_parameters(self._model, TimeLimit=time_left, DualReductions=0):
                 self._model.optimize()
             status = self._model.Status
-        return _STATUSES.get(status, SolverStatus.Other)
+        return _status(status)

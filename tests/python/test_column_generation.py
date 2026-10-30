@@ -762,41 +762,37 @@ def test_the_self_test_needs_master_solvers_that_add_rows() -> None:
         )
 
 
-# The module of GurobipyMasterSolver, loaded on first use.
-gurobipy_master_solver_module = "rcspp.column_generation.master_solvers.gurobipy_master_solver"
-
-
 # ── Master solvers over a model ──────────────────────────────────────────────
 
 
-def test_importing_rcspp_does_not_load_gurobipy() -> None:
-    # A new process: this one may have loaded gurobipy already.
+def test_importing_rcspp_loads_no_lp_solver_package() -> None:
+    # A new process: this one may have loaded them already.
+    code = (
+        "import sys, rcspp.column_generation as column_generation;"
+        "column_generation.GurobipyMasterSolver;"
+        "getattr(column_generation, 'HighspyMasterSolver', None);"
+        "print('gurobipy' in sys.modules, 'highspy' in sys.modules)"
+    )
     loaded = subprocess.run(
-        [sys.executable, "-c", "import sys, rcspp; print('gurobipy' in sys.modules)"],
+        [sys.executable, "-c", code],
         capture_output=True,
         text=True,
         check=True,
         env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
     )
-    assert loaded.stdout.strip() == "False"
+    assert loaded.stdout.strip() == "False False"
 
 
-def test_the_gurobipy_master_solver_without_gurobipy_names_the_extra(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("master_solver", "package"),
+    [("GurobipyMasterSolver", "gurobipy"), ("HighspyMasterSolver", "highspy")],
+)
+def test_a_master_solver_without_its_package_names_the_extra(
+    monkeypatch: pytest.MonkeyPatch, master_solver: str, package: str
 ) -> None:
-    # As if the class had never been loaded, then as if gurobipy were not installed (last:
-    # delattr reads the attribute, which loads the class).
-    monkeypatch.delattr(column_generation.master_solvers, "GurobipyMasterSolver", raising=False)
-    monkeypatch.delattr(column_generation.master_solvers, "gurobipy_master_solver", raising=False)
-    monkeypatch.delitem(sys.modules, gurobipy_master_solver_module, raising=False)
-    monkeypatch.setitem(sys.modules, "gurobipy", None)
+    if not hasattr(column_generation, master_solver):
+        pytest.skip(f"rcspp built without {master_solver}")
+    monkeypatch.setitem(sys.modules, package, None)  # as if it were not installed
 
-    with pytest.raises(ImportError, match=r"pip install rcspp\[gurobipy\]"):
-        column_generation.GurobipyMasterSolver  # noqa: B018
-
-
-def test_an_unknown_name_is_still_an_attribute_error() -> None:
-    with pytest.raises(AttributeError):
-        column_generation.NoSuchMasterSolver  # noqa: B018
-    with pytest.raises(AttributeError):
-        column_generation.master_solvers.NoSuchMasterSolver  # noqa: B018
+    with pytest.raises(ImportError, match=rf"pip install rcspp\[{package}\]"):
+        getattr(column_generation, master_solver)(object())
