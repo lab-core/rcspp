@@ -65,8 +65,6 @@ struct AStar {
 ///        @c sort_nodes_by_connectivity sets it, or by id): ascending forward, descending
 ///        backward, sweep after sweep until no label waits.
 struct Pushing {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::SweepSchedule<ResourceType, Direction>;
 };
