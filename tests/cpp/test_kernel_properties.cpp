@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "util/equivalence_helpers.hpp"
+#include "util/labelling.hpp"
 #include "util/parity.hpp"
 
 namespace kernel_properties {
@@ -69,55 +70,45 @@ struct Row {
         std::function<Outcome(const parity::Case&)> solve;
 };
 
+/// @brief @p Strategy's search in @p direction, as a row named @p name.
+template <typename Strategy>
+Row row(const std::string& name, SearchDirection direction) {
+    return {
+        name + " " + std::string(rcspp::to_string(direction)),
+        direction,
+        [direction](const parity::Case& c) {
+            switch (direction) {
+                case SearchDirection::Forward:
+                    return solve_row<test_util::Labelling<Strategy, Composed, List>>(c, direction);
+                case SearchDirection::Backward:
+                    return solve_row<
+                        test_util::Labelling<Strategy, Composed, List, rcspp::BackwardDirection>>(
+                        c,
+                        direction);
+                case SearchDirection::Bidirectional:
+                    break;
+            }
+            return solve_row<test_util::BidirectionalLabelling<Strategy, Composed, List>>(
+                c,
+                direction);
+        }};
+}
+
 /// @brief The exact searches: forward Simple (first, the reference), A*, Pushing and Pulling;
 ///        backward Simple; bidirectional Simple.
 inline std::vector<Row> rows() {
-    using rcspp::RealResource;
-    return {
-        {"simple forward",
-         SearchDirection::Forward,
-         [](const parity::Case& c) {
-             return solve_row<rcspp::SimpleDominanceAlgorithm<Composed, List>>(
-                 c,
-                 SearchDirection::Forward);
-         }},
-        {"astar forward",
-         SearchDirection::Forward,
-         [](const parity::Case& c) {
-             return solve_row<rcspp::AStarDominanceAlgorithm<Composed, List>>(
-                 c,
-                 SearchDirection::Forward);
-         }},
-        {"pushing forward",
-         SearchDirection::Forward,
-         [](const parity::Case& c) {
-             return solve_row<rcspp::PushingDominanceAlgorithm<Composed, List>>(
-                 c,
-                 SearchDirection::Forward);
-         }},
-        {"pulling forward",
-         SearchDirection::Forward,
-         [](const parity::Case& c) {
-             return solve_row<rcspp::PullingDominanceAlgorithm<Composed, List>>(
-                 c,
-                 SearchDirection::Forward);
-         }},
-        {"simple backward",
-         SearchDirection::Backward,
-         [](const parity::Case& c) {
-             return solve_row<rcspp::detail::BackwardSimpleDominanceAlgorithm<Composed, List>>(
-                 c,
-                 SearchDirection::Backward);
-         }},
-        {"simple bidirectional",
-         SearchDirection::Bidirectional,
-         [](const parity::Case& c) {
-             return solve_row<
-                 rcspp::detail::BidirectionalLabellingAlgorithm<Composed, List, RealResource>>(
-                 c,
-                 SearchDirection::Bidirectional);
-         }},
-    };
+    namespace strategy = rcspp::strategy;
+    std::vector<Row> all;
+    for (const auto direction :
+         {SearchDirection::Forward, SearchDirection::Backward, SearchDirection::Bidirectional}) {
+        all.push_back(row<strategy::Simple>("simple", direction));
+        if (direction == SearchDirection::Forward) {
+            all.push_back(row<strategy::AStar>("astar", direction));
+            all.push_back(row<strategy::Pushing>("pushing", direction));
+            all.push_back(row<strategy::Pulling>("pulling", direction));
+        }
+    }
+    return all;
 }
 
 /// @brief The cases: golden seeds 1–8 at 8 and 11 nodes, and random instances of 12 nodes, seeds
