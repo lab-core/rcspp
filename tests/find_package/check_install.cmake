@@ -1,9 +1,10 @@
-# Installs the built rcspp into PREFIX, then configures and builds the program of this folder
+# Installs the built rcspp into PREFIX, then configures and builds the programs of this folder
 # against it, with find_package(rcspp). Run by CTest (install_and_find_package), after a build.
 #
 # Expects: BUILD_DIR, CONFIG (the build configuration, for multi-configuration generators), PREFIX,
-# CONSUMER_SOURCE_DIR, CONSUMER_BUILD_DIR, GENERATOR, and optionally GENERATOR_PLATFORM and
-# CXX_COMPILER, so that the program is built as rcspp was.
+# CONSUMER_SOURCE_DIR, CONSUMER_BUILD_DIR, GENERATOR, and optionally COMPONENTS (the components
+# built, "|"-separated: a program each), GENERATOR_PLATFORM and CXX_COMPILER, so that the programs
+# are built as rcspp was.
 
 foreach(variable BUILD_DIR PREFIX CONSUMER_SOURCE_DIR CONSUMER_BUILD_DIR GENERATOR)
   if(NOT ${variable})
@@ -29,7 +30,7 @@ endif()
 run("${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${PREFIX}" ${config_arguments})
 
 set(configure_arguments -S "${CONSUMER_SOURCE_DIR}" -B "${CONSUMER_BUILD_DIR}" -G "${GENERATOR}"
-    "-DCMAKE_PREFIX_PATH=${PREFIX}")
+    "-DCMAKE_PREFIX_PATH=${PREFIX}" "-DCOMPONENTS=${COMPONENTS}")
 if(GENERATOR_PLATFORM)
   list(APPEND configure_arguments -A "${GENERATOR_PLATFORM}")
 endif()
