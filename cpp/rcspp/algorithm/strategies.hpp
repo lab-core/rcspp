@@ -38,8 +38,6 @@ struct AStar {
 /// @brief Labels taken node by node, in the direction's sweep order: ascending positions forward,
 ///        descending backward.
 struct Pushing {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::SweepSchedule<ResourceType, Direction>;
 };
