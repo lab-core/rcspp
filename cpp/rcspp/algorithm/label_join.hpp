@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/half_way_policy.hpp"
+#include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -255,7 +256,7 @@ class Joiner {
                 }
                 assert(!label->get_in_arc()->origin->sink &&
                        "the forward search must never extend out of a sink");
-                if (half_way.enabled() && critical_value<CriticalResourceType>(
+                if (half_way.enabled() && detail::critical_value<CriticalResourceType>(
                                               label->get_resource(),
                                               critical_resource_index) <= half_way.point()) {
                     continue;
