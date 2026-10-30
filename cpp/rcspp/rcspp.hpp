@@ -34,6 +34,8 @@
 #include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
 #include "rcspp/algorithm/labelling/bounds.hpp"
+#include "rcspp/algorithm/labelling/context.hpp"
+#include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/pulling_dominance_algorithm.hpp"
 #include "rcspp/algorithm/pushing_dominance_algorithm.hpp"
