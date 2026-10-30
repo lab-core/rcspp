@@ -55,7 +55,7 @@ struct BidirectionalStats {
         ///
         /// Without the bound, a bidirectional solve does more work than a forward search alone.
         /// A disabled bound costs speed, not optimality.
-        bool bounded_by_half_way = false;
+        bool half_way_used = false;
 
         /// @brief Why the half-way point was off for this solve; empty when it was in force.
         std::string half_way_off_reason;

@@ -88,7 +88,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
         // ------------------------------------------------------------------
 
         void main_loop() override {
-            if (this->params_.max_iterations >= MAX_INT) {
+            if (this->params_.max_iterations >= kNoLimit) {
                 LOG_ERROR(
                     "max_iterations must be set to a finite value for TabuSearchAlgorithm.\n");
                 return;
@@ -107,16 +107,15 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                 if (end == detail::DiveEnd::Sink) {
                     auto* sink_label = this->path_.back().first;
                     bool added = false;
-                    if (sink_label->get_cost() < this->cost_upper_bound_) {
-                        if (sink_label->get_cost() + this->params_.tolerance <
-                            this->best_cost_upper_bound_) {
-                            this->best_cost_upper_bound_ = sink_label->get_cost();
+                    if (sink_label->get_cost() < this->upper_bound_) {
+                        if (sink_label->get_cost() + this->params_.tolerance < this->incumbent_) {
+                            this->incumbent_ = sink_label->get_cost();
                             LOG_DEBUG("Found a better solution with cost ",
                                       sink_label->get_cost(),
                                       "\n");
                         }
                         size_t before = this->solutions_.size();
-                        this->extract_solution(*sink_label);
+                        this->record_solution(*sink_label);
                         added = (this->solutions_.size() > before);
                     }
                     apply_tabu(*sink_label, added);

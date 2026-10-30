@@ -11,6 +11,7 @@
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/tabu/tabu_list.hpp"
 
 namespace rcspp {
@@ -69,7 +70,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         }
         void main_loop() override {
             // check stopping criteria
-            if (this->params_.max_iterations >= MAX_INT) {
+            if (this->params_.max_iterations >= kNoLimit) {
                 LOG_ERROR(
                     "max_iterations needs to be set to a finite value for DiversificationSearch in "
                     "order to "
@@ -88,7 +89,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
                 // solve (important to clear the label pool, as the graph is changing)
                 std::vector<Solution> sols =
-                    algo_->solve(graph_copy_.get(), this->cost_upper_bound_).solutions;
+                    algo_->solve(graph_copy_.get(), this->upper_bound_).solutions;
                 if (sols.empty()) {
                     break;
                 }
@@ -138,11 +139,11 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
         void initialize_labels() override {}
 
-        [[nodiscard]] size_t number_of_labels() const override {
+        [[nodiscard]] size_t number_of_waiting_labels() const override {
             return 1;
         }  // dummy -> never stop on labels
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
             return {};
         }
 
