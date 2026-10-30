@@ -72,8 +72,6 @@ struct Pushing {
 /// @brief One node visited at a time, in Pushing's node order, pulling into it the labels
 ///        waiting at its neighbours: its predecessors forward, its successors backward.
 struct Pulling {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };
