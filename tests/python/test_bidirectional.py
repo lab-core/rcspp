@@ -393,27 +393,34 @@ def test_simple_runs_in_every_direction(direction):
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
 
 
+@pytest.mark.parametrize("direction", ["backward", "bidirectional"])
 @pytest.mark.parametrize("algorithm", ["pushing", "pulling", "astar"])
-def test_every_labelling_algorithm_runs_backward(algorithm):
-    """``pushing``, ``pulling`` and ``astar`` search backward, as ``simple`` does.
+def test_every_labelling_algorithm_runs_in_every_direction(algorithm, direction):
+    """``pushing``, ``pulling`` and ``astar`` search backward and bidirectionally, as
+    ``simple`` does.
 
     They find the forward optimum.
     """
     expected = _time_window_graph(_WINDOWS, _ARCS).solve(algorithm=algorithm).solutions[0].cost
 
-    result = _time_window_graph(_WINDOWS, _ARCS).solve(algorithm=algorithm, direction="backward")
+    result = _time_window_graph(_WINDOWS, _ARCS).solve(
+        algorithm=algorithm,
+        direction=direction,
+        params=_bidirectional_params(3.0, critical_resource_index=1),
+    )
     assert len(result.solutions) > 0
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
 
 
+@pytest.mark.parametrize("direction", ["backward", "bidirectional"])
 @pytest.mark.parametrize("algorithm", ["greedy", "tabu"])
-def test_greedy_and_tabu_refuse_backward(algorithm):
-    """``greedy`` and ``tabu`` search forward only; asked to search backward, they raise
-    ValueError."""
+def test_greedy_and_tabu_refuse_another_direction(algorithm, direction):
+    """``greedy`` and ``tabu`` search forward only; asked for another direction, they
+    raise ValueError."""
     params = AlgorithmParams()
     params.max_iterations = 10  # the tabu search refuses to run without a finite budget
-    with pytest.raises(ValueError, match="does not support the backward direction"):
-        _cost_only_graph([1.0, 2.0]).solve(algorithm=algorithm, direction="backward", params=params)
+    with pytest.raises(ValueError, match=f"does not support the {direction} direction"):
+        _cost_only_graph([1.0, 2.0]).solve(algorithm=algorithm, direction=direction, params=params)
 
 
 def test_an_unknown_direction_is_refused():

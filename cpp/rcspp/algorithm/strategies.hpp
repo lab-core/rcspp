@@ -45,8 +45,6 @@ struct Pushing {
 /// @brief One node visited at a time, in the direction's sweep order, pulling from its
 ///        neighbours: its predecessors forward, its successors backward.
 struct Pulling {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };

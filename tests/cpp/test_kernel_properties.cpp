@@ -96,7 +96,7 @@ Row row(const std::string& name, SearchDirection direction) {
 
 /// @brief The exact searches: forward Simple (first, the reference), A*, Pushing and Pulling;
 ///        backward Simple (first in its direction), A*, Pushing and Pulling; bidirectional
-///        Simple (first in its direction), A* and Pushing.
+///        Simple (first in its direction), A*, Pushing and Pulling.
 inline std::vector<Row> rows() {
     namespace strategy = rcspp::strategy;
     std::vector<Row> all;
@@ -105,9 +105,7 @@ inline std::vector<Row> rows() {
         all.push_back(row<strategy::Simple>("simple", direction));
         all.push_back(row<strategy::AStar>("astar", direction));
         all.push_back(row<strategy::Pushing>("pushing", direction));
-        if (direction != SearchDirection::Bidirectional) {
-            all.push_back(row<strategy::Pulling>("pulling", direction));
-        }
+        all.push_back(row<strategy::Pulling>("pulling", direction));
     }
     return all;
 }
