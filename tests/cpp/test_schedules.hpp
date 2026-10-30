@@ -433,6 +433,162 @@ TEST(Search, ABackwardSearchEndsAtTheSourceWithTheOptimum) {
     EXPECT_TRUE(driven.ref_counts_consistent());
 }
 
+namespace best_first_test {
+
+using Composed = ResourceTypeComposition<RealResource>;
+using BestFirst = parts::BestFirstSchedule<Composed>;
+using Cheapest = parts::BestFirstSchedule<Composed, parts::CostKey>;
+
+static_assert(parts::LabelSchedule<BestFirst, Composed>);
+static_assert(parts::LabelSchedule<Cheapest, Composed>);
+static_assert(parts::reads_bound_v<BestFirst> && !parts::reads_bound_v<Cheapest> &&
+              !parts::reads_bound_v<parts::FifoSchedule<Composed>>);
+
+/// @brief Hands out every label @p schedule has, as (node id, cost) pairs.
+template <typename ScheduleType>
+std::vector<std::pair<size_t, double>> drain(ScheduleType* schedule,
+                                             detail::SearchContext<Composed>& ctx) {
+    std::vector<std::pair<size_t, double>> out;
+    for (auto entry = schedule->next(ctx); entry.label != nullptr; entry = schedule->next(ctx)) {
+        out.emplace_back(entry.label->get_end_node()->id, entry.label->get_cost());
+    }
+    return out;
+}
+
+}  // namespace best_first_test
+
+/// @brief Labels come out lowest key first, the key being the cost plus the bound at the
+///        label's node; among equal keys the older label first. CostKey orders by cost alone.
+TEST(BestFirstSchedule, HandsLabelsOutLowestKeyFirstOlderFirstOnTies) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    f.bound.by_position = {0.0, 10.0, 0.0};
+
+    bft::BestFirst best_first;
+    best_first.initialize(f.ctx);
+    EXPECT_EQ(best_first.next(f.ctx).label, nullptr);
+    bft::Cheapest cheapest;
+    cheapest.initialize(f.ctx);
+    for (const auto& [node_id, cost] :
+         std::vector<std::pair<size_t, double>>{{1, 1.0}, {2, 3.0}, {1, 0.5}, {0, 3.0}}) {
+        const auto entry = f.label(node_id, cost);
+        best_first.push(entry);
+        cheapest.push(entry);
+    }
+    EXPECT_EQ(best_first.size(), 4U);
+    // Keys 11, 3, 10.5, 3: the two of key 3 in creation order, then 10.5, then 11.
+    EXPECT_EQ(bft::drain(&best_first, f.ctx),
+              (std::vector<std::pair<size_t, double>>{{2, 3.0}, {0, 3.0}, {1, 0.5}, {1, 1.0}}));
+    EXPECT_EQ(bft::drain(&cheapest, f.ctx),
+              (std::vector<std::pair<size_t, double>>{{1, 0.5}, {1, 1.0}, {2, 3.0}, {0, 3.0}}));
+}
+
+/// @brief A failed bound (-infinity, a negative-cost cycle) counts as 0 in the order.
+TEST(BestFirstSchedule, AFailedBoundCountsAsZero) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    f.bound.by_position = {0.0, -std::numeric_limits<double>::infinity(), 0.0};
+    bft::BestFirst best_first;
+    best_first.initialize(f.ctx);
+    best_first.push(f.label(2, 2.0));
+    best_first.push(f.label(1, 3.0));
+    best_first.push(f.label(1, 1.0));
+    EXPECT_EQ(bft::drain(&best_first, f.ctx),
+              (std::vector<std::pair<size_t, double>>{{1, 1.0}, {2, 2.0}, {1, 3.0}}));
+}
+
+/// @brief Over the quota a label is stored aside until the next phase, or, on a bidirectional
+///        side, counted and dropped; a dominated one is released.
+TEST(BestFirstSchedule, CutsWhatTheQuotaCutsAsTheRoleSays) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    for (const auto role : {detail::Role::Single, detail::Role::BidirectionalSide}) {
+        st::Fixture f(role);
+        f.quota = 1;
+        bft::BestFirst best_first;
+        best_first.initialize(f.ctx);
+        best_first.push(f.label(1, 2.0));
+        best_first.push(f.label(1, 1.0));
+        best_first.push(f.label(1, 0.5, /*dominated=*/true));
+        EXPECT_EQ(bft::drain(&best_first, f.ctx),
+                  (std::vector<std::pair<size_t, double>>{{1, 1.0}}));
+        EXPECT_EQ(f.in_use(), 2U) << "the dominated label is released";
+        best_first.prepare_next_phase(f.ctx);
+        if (role == detail::Role::Single) {
+            EXPECT_EQ(f.abandoned, 0U);
+            EXPECT_EQ(bft::drain(&best_first, f.ctx),
+                      (std::vector<std::pair<size_t, double>>{{1, 2.0}}));
+        } else {
+            EXPECT_EQ(f.abandoned, 1U);
+            EXPECT_EQ(best_first.size(), 0U);
+        }
+    }
+}
+
+/// @brief A trim keeps the best labels: of the excess, best first, the dominated are released and
+///        the rest stored aside (released on request) or abandoned and counted. Below the cap
+///        nothing is trimmed.
+TEST(BestFirstSchedule, ATrimCutsAsTheRoleSays) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    for (const auto role : {detail::Role::Single, detail::Role::BidirectionalSide}) {
+        st::Fixture f(role);
+        f.quota = 5;
+        bft::BestFirst best_first;
+        best_first.initialize(f.ctx);
+        for (const double cost : {5.0, 1.0, 4.0, 2.0}) {
+            best_first.push(f.label(1, cost));
+        }
+        best_first.push(f.label(1, 0.5, /*dominated=*/true));
+        best_first.trim(f.ctx, 1);
+        EXPECT_EQ(best_first.size(), 3U);  // one per node, three nodes
+        EXPECT_EQ(f.in_use(), 4U);         // the dominated one released
+        f.quota = 1;                       // as memory pressure tightens it
+        EXPECT_EQ(bft::drain(&best_first, f.ctx),
+                  (std::vector<std::pair<size_t, double>>{{1, 1.0}}));
+        size_t erased = 0;
+        best_first.release_stored_aside(f.ctx, st::CountingErase{&erased});
+        if (role == detail::Role::Single) {
+            EXPECT_EQ(erased, 3U);  // the 5 by the trim, the 2 and the 4 by the quota
+            EXPECT_EQ(f.in_use(), 1U);
+        } else {
+            EXPECT_EQ(erased, 0U);
+            EXPECT_EQ(f.abandoned, 3U);
+        }
+    }
+
+    st::Fixture f;
+    bft::BestFirst best_first;
+    best_first.initialize(f.ctx);
+    best_first.push(f.label(1, 1.0));
+    best_first.push(f.label(2, 2.0));
+    best_first.trim(f.ctx, 1);
+    EXPECT_EQ(best_first.size(), 2U) << "under the cap: nothing trimmed";
+}
+
+/// @brief clear forgets every label and resets the counts.
+TEST(BestFirstSchedule, ClearForgetsEverything) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    f.quota = 1;
+    bft::BestFirst best_first;
+    best_first.initialize(f.ctx);
+    best_first.push(f.label(1, 1.0));
+    best_first.push(f.label(1, 2.0));
+    EXPECT_EQ(bft::drain(&best_first, f.ctx), (std::vector<std::pair<size_t, double>>{{1, 1.0}}));
+    best_first.push(f.label(1, 3.0));
+    best_first.clear();
+    EXPECT_EQ(best_first.size(), 0U);
+    best_first.prepare_next_phase(f.ctx);
+    EXPECT_EQ(best_first.size(), 0U) << "nothing stored aside survives";
+    best_first.push(f.label(1, 4.0));
+    EXPECT_EQ(bft::drain(&best_first, f.ctx), (std::vector<std::pair<size_t, double>>{{1, 4.0}}))
+        << "the count was reset";
+}
+
 /// @brief One Bellman-Ford run over each arc's share of the cost fills the bound by node
 ///        position: to the sinks for a forward search, from the sources for a backward one; a
 ///        negative-cost cycle leaves minus infinity everywhere.

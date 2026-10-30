@@ -236,4 +236,180 @@ class FifoSchedule {
         PerNodeQuota quota_;
 };
 
+// ─── Best first ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Orders labels by their cost.
+struct CostKey {
+        /// @brief Whether the key reads the search's completion bound.
+        static constexpr bool reads_bound = false;
+
+        template <typename ResourceType>
+        [[nodiscard]] double operator()(const Label<ResourceType>& label,
+                                        const detail::SearchContext<ResourceType>& /*ctx*/) const {
+            return label.get_cost();
+        }
+};
+
+/// @brief Orders labels by their cost plus their completion bound, g + h: A*'s order.
+///
+/// The bound is read as an order reads it (@c detail::NodeBound::for_order), which counts a failed
+/// bound (-infinity, a negative-cost cycle) as 0, so an order never collapses.
+struct CompletionKey {
+        /// @brief Whether the key reads the search's completion bound.
+        static constexpr bool reads_bound = true;
+
+        template <typename ResourceType>
+        [[nodiscard]] double operator()(const Label<ResourceType>& label,
+                                        const detail::SearchContext<ResourceType>& ctx) const {
+            return label.get_cost() + ctx.bound->for_order(label);
+        }
+};
+
+/// @brief Hands labels out lowest key first (by default g + h, A*'s order), up to the per-node
+///        quota.
+///
+/// Among equal keys the older label (smaller id) comes first, so the order is total and the same
+/// with every standard library. As in @ref FifoSchedule, a label taken while dominated is
+/// released, and one over its node's quota is cut; @ref next goes on to the next label either
+/// way.
+///
+/// @tparam ResourceType The resource type carried by labels.
+/// @tparam KeyType      The order: @ref CompletionKey (the default) or @ref CostKey.
+template <typename ResourceType, typename KeyType = CompletionKey>
+class BestFirstSchedule {
+        /// @brief A min-heap on the key, then on the label id.
+        ///
+        /// The id tie-break makes the order total. Without it, which of two labels with the same
+        /// key comes out first depends on the standard library's heap algorithm (libc++'s differs
+        /// from libstdc++'s), and so do the labels extended and, under a truncation, the solutions
+        /// returned. Label ids come from the pool's counter, so they are unique and follow
+        /// creation order.
+        struct Comparator {
+                const detail::SearchContext<ResourceType>* ctx = nullptr;
+                KeyType key;
+
+                bool operator()(const StoredLabel<ResourceType>& a,
+                                const StoredLabel<ResourceType>& b) const {
+                    const double ka = key(*a.label, *ctx);
+                    const double kb = key(*b.label, *ctx);
+                    // std::priority_queue is a max-heap; invert the comparison for a min-heap.
+                    if (ka != kb) {
+                        return ka > kb;
+                    }
+                    return a.label->id > b.label->id;
+                }
+        };
+
+        using Heap = std::priority_queue<StoredLabel<ResourceType>,
+                                         std::vector<StoredLabel<ResourceType>>, Comparator>;
+
+    public:
+        /// @brief Whether the order reads the search's completion bound, which the search must
+        ///        then compute.
+        static constexpr bool reads_bound = KeyType::reads_bound;
+
+        /// @brief Sizes the per-node counts for the graph being solved, and starts an empty heap
+        ///        whose order reads @p ctx (its bound).
+        void initialize(detail::SearchContext<ResourceType>& ctx) {
+            ctx_ = &ctx;
+            quota_.reset(ctx.graph->get_number_of_nodes());
+            heap_ = Heap(Comparator{.ctx = ctx_, .key = {}});
+            cut_.clear();
+        }
+
+        /// @brief The label of lowest key and its position in its node's container; a null label
+        ///        when none is left.
+        StoredLabel<ResourceType> next(detail::SearchContext<ResourceType>& ctx) {
+            while (!heap_.empty()) {
+                const StoredLabel<ResourceType> stored = heap_.top();
+                heap_.pop();
+
+                // A dequeued label still pins the predecessor it was extended from: release it
+                // through the reference counts, or that predecessor leaks.
+                if (stored.label->dominated) {
+                    ctx.pool->release_with_ref_count(stored.label);
+                    continue;
+                }
+                if (quota_.may_take(stored.label->get_end_node()->pos(), *ctx.quota)) {
+                    return stored;
+                }
+                cut_.cut(ctx, stored);
+            }
+            // Every label taken was released or cut: none to process. The last one must not be
+            // handed back, or the caller would release it again or extend a label cut.
+            return {};
+        }
+
+        /// @brief The labels waiting to be handed out.
+        [[nodiscard]] size_t size() const { return heap_.size(); }
+
+        /// @brief Queues a newly kept label.
+        void push(const StoredLabel<ResourceType>& stored) { heap_.push(stored); }
+
+        /// @brief Resets the per-node counts and queues again what the quota stored aside.
+        void prepare_next_phase(detail::SearchContext<ResourceType>& /*ctx*/) {
+            quota_.restart();
+            cut_.restore_into([this](const StoredLabel<ResourceType>& stored) { push(stored); });
+        }
+
+        /// @brief When the heap holds more than @p limit × nodes labels, keeps that many of the
+        ///        best (non-dominated first, then lowest key); of the rest, best first, a dominated
+        ///        label is released and a non-dominated one is cut.
+        void trim(detail::SearchContext<ResourceType>& ctx, size_t limit) {
+            const size_t max_total = limit * ctx.graph->get_number_of_nodes();
+            if (heap_.size() <= max_total) {
+                return;
+            }
+
+            // Drain the heap into a flat vector, in key order, for sorting.
+            std::vector<StoredLabel<ResourceType>> flat;
+            flat.reserve(heap_.size());
+            while (!heap_.empty()) {
+                flat.push_back(heap_.top());
+                heap_.pop();
+            }
+
+            // Non-dominated labels first; among equal dominance, lowest key first.
+            const KeyType key{};
+            std::ranges::sort(flat, [&key, &ctx](const auto& a, const auto& b) {
+                if (a.label->dominated != b.label->dominated) {
+                    return !a.label->dominated;
+                }
+                return key(*a.label, ctx) < key(*b.label, ctx);
+            });
+
+            for (size_t i = max_total; i < flat.size(); ++i) {
+                const auto& stored = flat[i];
+                if (stored.label->dominated) {
+                    ctx.pool->release_with_ref_count(stored.label);
+                } else {
+                    cut_.cut(ctx, stored);
+                }
+            }
+            flat.resize(max_total);
+
+            heap_ = Heap(flat.begin(), flat.end(), Comparator{.ctx = ctx_, .key = {}});
+        }
+
+        /// @brief Erases (through @p erase) and releases what the cuts stored aside.
+        template <typename EraseCallable>
+        void release_stored_aside(detail::SearchContext<ResourceType>& ctx,
+                                  const EraseCallable& erase) {
+            cut_.release(ctx.pool, erase);
+        }
+
+        /// @brief Forgets every label, releasing none (the pool owns them), and resets the counts.
+        void clear() {
+            heap_ = Heap(Comparator{.ctx = ctx_, .key = {}});
+            cut_.clear();
+            quota_.restart();
+        }
+
+    private:
+        const detail::SearchContext<ResourceType>* ctx_ = nullptr;
+        Heap heap_{Comparator{}};
+        CutLabels<ResourceType> cut_;
+        PerNodeQuota quota_;
+};
+
 }  // namespace rcspp::parts
