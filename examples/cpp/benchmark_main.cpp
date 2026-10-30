@@ -117,8 +117,8 @@ int main(int argc, char* argv[]) {
             std::unique_ptr<Algorithm<ResourceType, LabelList<ResourceType>>> astar_algo;
             if (run_astar) {
                 AlgorithmParams<LabelList<ResourceType>> astar_params;
-                astar_algo = vrp.get_graph().create_algorithm<AStarAlgoBound<RealResource>::Algo>(
-                    astar_params);
+                astar_algo =
+                    vrp.get_graph().create_algorithm<AStarDominanceAlgorithm>(astar_params);
                 extra_solvers.push_back(
                     {[&vrp, algo = astar_algo.get()](const std::map<size_t, double>& dual) {
                          return vrp.run_algorithm(dual, algo);

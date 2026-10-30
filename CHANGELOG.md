@@ -134,6 +134,15 @@ New features are summarised, with a pointer to where they are documented.
   no longer exported, nor are their function classes, which could not be used. Neither are the
   three graph classes whose first type is `int`, which a `ResourceGraph` could never pick: its
   first resource is real.
+- **A\* bounds the objective, as the bidirectional search does.** Its lower bound on the cost
+  still to pay is one Bellman–Ford run over each arc's share of the cost the labels carry, so it
+  holds whichever components the cost function reads; it used to relax one cost slot,
+  `heuristic_cost_index` of type `CostResourceType`, or `arc.cost` when that type was not in the
+  composition. Where the objective is that slot, as in every model built in Python, nothing
+  changes. On a negative-cost cycle A\* still orders by cost alone.
+- **Removed with it:** `AStarAlgoBound<C>::Algo` (name `AStarDominanceAlgorithm`, which now takes
+  `<ResourceType, LabelContainerType>`), A\*'s `CostResourceType` parameter and
+  `AlgorithmBaseParams::heuristic_cost_index`.
 
 ### Added
 
@@ -160,8 +169,8 @@ New features are summarised, with a pointer to where they are documented.
   its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
   `join_after_early_stop = false` skips it, and so does an interrupt. With
   `prune_by_incumbent`, it prunes on lower bounds of the cost still to come, computed from
-  the cost function itself, so they hold whichever components the objective reads;
-  `heuristic_cost_index` is not read. What it reports about its
+  the cost function itself, so they hold whichever components the objective reads. What it
+  reports about its
   bound and its join is in `SolveResult::bidirectional`, a `BidirectionalStats`, empty from every
   other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
 

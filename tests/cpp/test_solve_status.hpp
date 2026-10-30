@@ -164,7 +164,7 @@ TEST(SolveStatus, ReleasingTheLabelsChangesNeitherStatusNorOptimality) {
     sst::expect_release_changes_nothing<rcspp::SimpleDominanceAlgorithm>();
     sst::expect_release_changes_nothing<rcspp::PushingDominanceAlgorithm>();
     sst::expect_release_changes_nothing<rcspp::PullingDominanceAlgorithm>();
-    sst::expect_release_changes_nothing<rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>();
+    sst::expect_release_changes_nothing<rcspp::AStarDominanceAlgorithm>();
 }
 
 // A solve that held labels back, on an object that keeps its labels, used to leave them queued;
@@ -182,6 +182,5 @@ TEST(SolveStatus, PullingStartsEachSolveAfresh) {
 }
 
 TEST(SolveStatus, AStarStartsEachSolveAfresh) {
-    solve_status_test::expect_each_solve_starts_afresh<
-        rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>();
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::AStarDominanceAlgorithm>();
 }

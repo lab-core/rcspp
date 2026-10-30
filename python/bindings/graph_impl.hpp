@@ -119,21 +119,6 @@ struct AlgoEntry {
         }
 };
 
-// Dispatch entry for A*: injects cost_index into params and binds CostResourceType.
-template <SolverAlgorithm SolverId>
-struct AStarAlgoEntry {
-        static constexpr SolverAlgorithm value = SolverId;
-        template <typename ResourceGraphType, typename CostResourceType,
-                  typename LabelContainerType>
-        static SolveResult run(ResourceGraphType& rg, double ub,
-                               AlgorithmParams<LabelContainerType> p, bool pre, size_t ci) {
-            p.heuristic_cost_index = ci;
-            return rg.template solve<AStarAlgoBound<CostResourceType>::template Algo,
-                                     CostResourceType,
-                                     LabelContainerType>(ub, std::move(p), pre, ci);
-        }
-};
-
 // Dispatch entry for `algorithm="bidirectional"`: the simple search with direction Bidirectional,
 // the clock's type being the cost's. `critical_resource_index` comes from params untouched. A clock
 // whose type differs from the cost's needs the C++ API.
@@ -157,7 +142,7 @@ using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, SimpleDomin
                                   AlgoEntry<SolverAlgorithm::Pulling, PullingDominanceAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Greedy, GreedyAlgorithm>,
                                   AlgoEntry<SolverAlgorithm::Tabu, TabuSearchAlgorithm>,
-                                  AStarAlgoEntry<SolverAlgorithm::AStar>,
+                                  AlgoEntry<SolverAlgorithm::AStar, AStarDominanceAlgorithm>,
                                   BidirectionalAlgoEntry<SolverAlgorithm::Bidirectional>>;
 
 template <typename ResourceGraphType, typename CostResourceType, typename LabelContainerType,

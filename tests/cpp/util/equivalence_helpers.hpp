@@ -155,8 +155,6 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
     params.critical_resource_index = built.clock_index;
     params.half_way_point = options.with_half_way_bound ? built.clock_upper_bound / 2.0 : 0.0;
     params.prune_by_incumbent = options.prune_by_incumbent;
-    // The completion bounds must relax on the slot the labels accumulate.
-    params.heuristic_cost_index = 0;
     params.release_after_solve = false;
 
     auto algorithm =

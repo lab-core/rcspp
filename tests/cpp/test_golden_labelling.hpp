@@ -307,7 +307,7 @@ inline Outcome run(Kind k, const Variant& v, ResourceGraph<RealResource>* g) {
             return finish(a, g, v);
         }
         case Kind::AStar: {
-            auto a = g->create_algorithm<AStarAlgoBound<RealResource>::Algo>(p);
+            auto a = g->create_algorithm<AStarDominanceAlgorithm>(p);
             return finish(a, g, v);
         }
         case Kind::Backward: {
@@ -1326,9 +1326,7 @@ TEST(GoldenLabelling, EverySearchKeepsTheReferenceCountsConsistent) {
                                                                              gl::build(in).get()))
                 << where << " pulling";
             EXPECT_TRUE(
-                gl::keeps_reference_counts<rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>(
-                    v,
-                    gl::build(in).get()))
+                gl::keeps_reference_counts<rcspp::AStarDominanceAlgorithm>(v, gl::build(in).get()))
                 << where << " astar";
         }
     }
