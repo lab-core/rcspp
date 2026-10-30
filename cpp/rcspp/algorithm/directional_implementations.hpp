@@ -11,7 +11,6 @@
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
-#include "rcspp/algorithm/dominance_algorithm.hpp"
 #include "rcspp/algorithm/labelling/bidirectional_labelling_algorithm.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
