@@ -95,6 +95,7 @@ class BidirectionalDominanceAlgorithm
             backward_extended_per_node_.assign(num_nodes, 0);
             forward_work_ = 0;
             backward_work_ = 0;
+            abandoned_labels_ = 0;
             forward_frontier_.clear();
             backward_frontier_.clear();
 
@@ -134,6 +135,12 @@ class BidirectionalDominanceAlgorithm
         [[nodiscard]] size_t number_of_labels() const override {
             return forward_frontier_.size() + backward_frontier_.size();
         }
+
+        /// @brief Whether the quota or memory pressure abandoned a label this solve.
+        ///
+        /// A bidirectional search runs one phase, so what a cut takes off a frontier is never
+        /// extended: the frontiers can empty without every label having been processed.
+        [[nodiscard]] bool has_abandoned_labels() const override { return abandoned_labels_ > 0; }
 
         /// @brief Interleaves the two searches, taking from whichever has done less work so far.
         ///
@@ -219,8 +226,8 @@ class BidirectionalDominanceAlgorithm
             this->memory_pressure_triggered_ = true;
             const size_t per_node = this->params_.memory_pressure_max_labels_per_node;
             const size_t num_nodes = this->graph_->get_number_of_nodes();
-            forward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
-            backward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
+            abandoned_labels_ += forward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
+            abandoned_labels_ += backward_frontier_.shed(per_node, num_nodes, &this->label_pool_);
         }
 
         void release_label_memory() override {
@@ -279,6 +286,7 @@ class BidirectionalDominanceAlgorithm
                 // Known gap: an abandoned label never yields a boundary label, so the join sees
                 // fewer forward halves. Only reachable under truncated labeling or memory pressure,
                 // and such labels are never revisited.
+                ++abandoned_labels_;
                 return;
             }
             ++extended_count;
@@ -693,6 +701,10 @@ class BidirectionalDominanceAlgorithm
         /// @brief Arcs each search has extended this solve; @ref main_loop takes the smaller.
         size_t forward_work_ = 0;
         size_t backward_work_ = 0;
+
+        /// @brief Labels a quota or memory pressure took off a frontier this solve, never to be
+        ///        extended; see @ref has_abandoned_labels.
+        size_t abandoned_labels_ = 0;
 
         /// @brief Lower bounds, by node position, on the cost from each node to a sink (forward)
         ///        and from a source to each node (backward); see @ref completion_bound.

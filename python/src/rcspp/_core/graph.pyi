@@ -179,7 +179,7 @@ class AlgorithmStatus:
 
       MaxSolutions
 
-      MaxPhases
+      Truncated
 
       Interrupted
 
@@ -188,10 +188,10 @@ class AlgorithmStatus:
 
     Complete: typing.ClassVar[AlgorithmStatus]
     Interrupted: typing.ClassVar[AlgorithmStatus]
-    MaxPhases: typing.ClassVar[AlgorithmStatus]
     MaxSolutions: typing.ClassVar[AlgorithmStatus]
     MemoryLimit: typing.ClassVar[AlgorithmStatus]
     Timeout: typing.ClassVar[AlgorithmStatus]
+    Truncated: typing.ClassVar[AlgorithmStatus]
     __members__: typing.ClassVar[dict[str, AlgorithmStatus]]
     def __eq__(self, other: typing.Any) -> bool: ...
     def __getstate__(self) -> int: ...
