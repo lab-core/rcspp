@@ -1,22 +1,54 @@
-# The C++ column generation example: a column generation layer over rcspp, with its tests. Not
-# part of the library: nothing here is installed. Built from rcspp's root with
-# -DUSE_COLUMN_GENERATION_EXAMPLE=ON, over rcspp's own targets.
+# The C++ column generation example: a column generation layer over rcspp (cpp/), its master
+# solvers over Gurobi and HiGHS, its Python bindings (bindings/) and its tests. Not part of the
+# library: nothing here is installed.
+#
+# Two ways to build it:
+#   - from rcspp's root with -DUSE_COLUMN_GENERATION_EXAMPLE=ON: the layer builds over rcspp's own
+#     targets, and python/CMakeLists.txt adds the bindings to rcspp's Python module;
+#   - on its own over an installed rcspp (cmake -S examples/column_generation, with
+#     CMAKE_PREFIX_PATH at the install): the C++ layer, its master solvers and its tests only.
 
 cmake_minimum_required(VERSION 3.26)
 
 project(rcspp-column-generation-example LANGUAGES CXX)
 
-# The core library the example's targets link: the core's objects, as the Python module links them
-# (so that it does not depend on rcspp's shared library).
-set(RCSPP_EXAMPLE_CORE rcspp_objects)
+# MARK: Standalone build
+
+if(NOT TARGET rcspp::rcspp)
+  option(USE_COLUMN_GENERATION_EXAMPLE_GUROBI "Build the Gurobi master solver (needs Gurobi)" OFF)
+  option(USE_COLUMN_GENERATION_EXAMPLE_HIGHS
+         "Build the HiGHS master solver (installed, else fetched)" OFF)
+  option(USE_TESTS "Build the tests" ON)
+  set(CMAKE_CXX_STANDARD 23)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_EXTENSIONS OFF)
+  enable_testing()
+  find_package(rcspp REQUIRED)
+  # FindGUROBI.cmake, from rcspp's source folder.
+  list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
+endif()
+
+# The core library the example's targets link: in rcspp's build, the core's objects, as the Python
+# module links them (so that it does not depend on rcspp's shared library); else the installed
+# rcspp.
+if(TARGET rcspp_objects)
+  set(RCSPP_EXAMPLE_CORE rcspp_objects)
+else()
+  set(RCSPP_EXAMPLE_CORE rcspp::rcspp)
+endif()
 
 # MARK: Headers
 
 # "rcspp/column_generation/...": the example's cpp/ folder; "rcspp/...": the core's headers.
 add_library(rcspp_column_generation_headers INTERFACE)
 target_include_directories(rcspp_column_generation_headers INTERFACE
-    "${CMAKE_CURRENT_SOURCE_DIR}/cpp"
-    $<TARGET_PROPERTY:rcspp_objects,INTERFACE_INCLUDE_DIRECTORIES>)
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp")
+if(TARGET rcspp_objects)
+  target_include_directories(rcspp_column_generation_headers INTERFACE
+      $<TARGET_PROPERTY:rcspp_objects,INTERFACE_INCLUDE_DIRECTORIES>)
+else()
+  target_link_libraries(rcspp_column_generation_headers INTERFACE rcspp::rcspp)
+endif()
 
 # MARK: Layer
 
