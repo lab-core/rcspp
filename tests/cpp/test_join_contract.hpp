@@ -198,8 +198,7 @@ inline void expect_refused(ResourceGraph<RealResource, SizeTBitsetResource>* gra
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource, SizeTBitsetResource>>> params;
     params.critical_resource_index = 1;
     params.half_way_point = half_way_point;
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     try {
         graph->solve(algorithm.get());
         ADD_FAILURE() << "the model has no backward reading and must be refused at H = "
@@ -239,7 +238,7 @@ TEST(JoinContract, ContainerConstraintsWithoutABackwardReadingAreRefused) {
             mct::expect_refused(graph.get(), half_way);
         }
         auto forward = mct::container_model(5, std::make_unique<IFF>(forbidden, true), five);
-        const auto result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        const auto result = forward->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, -2.0, 1e-9);
     }
@@ -256,7 +255,7 @@ TEST(JoinContract, ContainerConstraintsWithoutABackwardReadingAreRefused) {
             mct::expect_refused(graph.get(), half_way);
         }
         auto forward = mct::container_model(5, std::make_unique<IFF>(self_forbidden, true), five);
-        const auto result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        const auto result = forward->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, -13.0, 1e-9);
     }
@@ -285,9 +284,9 @@ TEST(JoinContract, ContainerConstraintsWithoutABackwardReadingAreRefused) {
         }
         auto forward = mct::container_model(4, make_size(), line);
         const auto result =
-            forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{},
-                                                     std::numeric_limits<double>::infinity(),
-                                                     /*preprocess=*/false);
+            forward->solve<strategy::Simple>(AlgorithmBaseParams{},
+                                             std::numeric_limits<double>::infinity(),
+                                             /*preprocess=*/false);
         ASSERT_FALSE(result.solutions.empty());
         EXPECT_NEAR(result.solutions.front().cost, -3.0, 1e-9);
     }
@@ -307,7 +306,7 @@ TEST(JoinContract, ContainerConstraintsWithoutABackwardReadingAreRefused) {
         params.critical_resource_index = 1;
         params.half_way_point = 5.0;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         SolveResult result;
         EXPECT_NO_THROW({ result = graph->solve(algorithm.get()); });
         ASSERT_FALSE(result.solutions.empty());
@@ -330,10 +329,9 @@ TEST(JoinContract, PerNodeSizeCapsAreRefused) {
     }
 
     auto forward = mct::per_node_cap_model(caps);
-    const auto result =
-        forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{},
-                                                 std::numeric_limits<double>::infinity(),
-                                                 /*preprocess=*/false);
+    const auto result = forward->solve<strategy::Simple>(AlgorithmBaseParams{},
+                                                         std::numeric_limits<double>::infinity(),
+                                                         /*preprocess=*/false);
     ASSERT_EQ(result.solutions.size(), 1U);
     EXPECT_NEAR(result.solutions.front().cost, 7.0, 1e-9);
 
@@ -343,8 +341,7 @@ TEST(JoinContract, PerNodeSizeCapsAreRefused) {
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource, SizeTBitsetResource>>> params;
     params.critical_resource_index = 1;
     params.half_way_point = 2.0;
-    auto algorithm =
-        uniform->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = uniform->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const auto bidirectional = uniform->solve(algorithm.get());
     ASSERT_FALSE(bidirectional.solutions.empty());
     EXPECT_NEAR(bidirectional.solutions.front().cost, 4.0, 1e-9);
@@ -403,8 +400,7 @@ inline std::unique_ptr<Graph> build(double capacity) {
 TEST(JoinContract, ARevisitableNgNodeDoesNotBlockTheJoin) {
     namespace rng = revisitable_ng_test;
     for (const double capacity : {4.0, 10.0}) {
-        const auto forward =
-            rng::build(capacity)->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+        const auto forward = rng::build(capacity)->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(forward.solutions.empty());
         ASSERT_DOUBLE_EQ(forward.solutions.front().cost, -40.0) << "capacity " << capacity;
 
@@ -416,7 +412,7 @@ TEST(JoinContract, ARevisitableNgNodeDoesNotBlockTheJoin) {
             params.critical_resource_index = 1;
             params.half_way_point = half_way_point;
             auto algorithm =
-                graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+                graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
             const auto result = graph->solve(algorithm.get());
             ASSERT_FALSE(result.solutions.empty());
             EXPECT_DOUBLE_EQ(result.solutions.front().cost, -40.0)

@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Tests for SimpleDominanceAlgorithm, AStarDominanceAlgorithm, TrivialCostFunction,
+// Tests for strategy::Simple, strategy::AStar, TrivialCostFunction,
 // and related dominance infrastructure using simple ResourceGraph<RealResource> graphs.
 
 #include <gtest/gtest.h>
@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
+#include "util/labelling.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
@@ -116,53 +117,53 @@ TEST(TrivialCostFunction, GetCostReturnsZero) {
 /// @brief Solve using TrivialCostFunction — solution cost is always 0.
 TEST(TrivialCostFunction, SolveWithTrivialCost) {
     auto g = make_trivial_cost_graph();
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, 0.0, 1e-12);
 }
 
 // ============================================================================
-// SimpleDominanceAlgorithm tests
+// strategy::Simple tests
 // ============================================================================
 
-/// @brief SimpleDominanceAlgorithm finds the optimal path on a single-path graph.
+/// @brief strategy::Simple finds the optimal path on a single-path graph.
 TEST(SimpleDominanceAlgorithmTest, SinglePathFindsOptimal) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kSingleCost, 1e-9);
 }
 
-/// @brief SimpleDominanceAlgorithm on a single-path graph reports Complete status.
+/// @brief strategy::Simple on a single-path graph reports Complete status.
 TEST(SimpleDominanceAlgorithmTest, SinglePathStatusComplete) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief SimpleDominanceAlgorithm finds the best path on a two-path graph.
+/// @brief strategy::Simple finds the best path on a two-path graph.
 TEST(SimpleDominanceAlgorithmTest, TwoPathFindsOptimal) {
     auto g = make_dom_two_path_graph();
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
 
-/// @brief SimpleDominanceAlgorithm: the dominated solution is pruned.
+/// @brief strategy::Simple: the dominated solution is pruned.
 ///
 /// With ValueDominanceFunction, the label at sink with cost -6 dominates the
 /// label with cost -4, so only the better solution should appear.
 TEST(SimpleDominanceAlgorithmTest, DominatedSolutionPruned) {
     auto g = make_dom_two_path_graph();
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{});
     // The non-dominated path cost is -6; the -4 path is dominated.
     EXPECT_EQ(result.solutions.size(), 1U);
 }
 
-/// @brief SimpleDominanceAlgorithm returns empty when no path exists.
+/// @brief strategy::Simple returns empty when no path exists.
 TEST(SimpleDominanceAlgorithmTest, NoPathReturnsEmpty) {
     auto g = make_dom_no_path_graph();
-    const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::Simple>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -171,7 +172,7 @@ TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.max_solutions = 1;
-    const auto result = g->solve<SimpleDominanceAlgorithm>(params);
+    const auto result = g->solve<strategy::Simple>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
@@ -180,7 +181,7 @@ TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
-    const auto result = g->solve<SimpleDominanceAlgorithm>(params);
+    const auto result = g->solve<strategy::Simple>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
@@ -190,7 +191,7 @@ TEST(SimpleDominanceAlgorithmTest, ReturnDominatedSolutions) {
     AlgorithmBaseParams params;
     params.return_dominated_solutions = true;
     params.max_solutions = 2;
-    const auto result = g->solve<SimpleDominanceAlgorithm>(params);
+    const auto result = g->solve<strategy::Simple>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
 
@@ -200,51 +201,51 @@ TEST(SimpleDominanceAlgorithmTest, UpperBoundPrunePoorSolution) {
     // upper_bound=-5 means: only accept cost <= -5. Path 0->2->3 (cost -4) is pruned.
     // Path 0->1->3 (cost -6) is accepted.
     AlgorithmBaseParams params;
-    const auto result = g->solve<SimpleDominanceAlgorithm>(params, /*upper_bound=*/-5.0);
+    const auto result = g->solve<strategy::Simple>(params, /*upper_bound=*/-5.0);
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
 
 // ============================================================================
-// AStarDominanceAlgorithm tests
+// strategy::AStar tests
 // ============================================================================
 
-/// @brief AStarDominanceAlgorithm finds the optimal path on a single-path graph.
+/// @brief strategy::AStar finds the optimal path on a single-path graph.
 TEST(AStarDominanceAlgorithmTest, SinglePathFindsOptimal) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::AStar>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kSingleCost, 1e-9);
 }
 
-/// @brief AStarDominanceAlgorithm on two-path graph finds the best path.
+/// @brief strategy::AStar on two-path graph finds the best path.
 TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
     auto g = make_dom_two_path_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::AStar>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
 
-/// @brief AStarDominanceAlgorithm: Complete status on single-path graph.
+/// @brief strategy::AStar: Complete status on single-path graph.
 TEST(AStarDominanceAlgorithmTest, StatusComplete) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::AStar>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief AStarDominanceAlgorithm: zero timeout gives Timeout status.
+/// @brief strategy::AStar: zero timeout gives Timeout status.
 TEST(AStarDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
-    const auto result = g->solve<AStarDominanceAlgorithm>(params);
+    const auto result = g->solve<strategy::AStar>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief AStarDominanceAlgorithm: no path → empty result.
+/// @brief strategy::AStar: no path → empty result.
 TEST(AStarDominanceAlgorithmTest, NoPathReturnsEmpty) {
     auto g = make_dom_no_path_graph();
-    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto result = g->solve<strategy::AStar>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -288,7 +289,7 @@ inline void put_under_pressure(
 }
 
 /// @brief Labels extended under a per-node quota of 2, with or without memory pressure.
-template <template <typename, typename> class Algorithm>
+template <typename Algorithm>
 size_t extended_labels(bool pressure) {
     auto graph = fan();
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
@@ -311,11 +312,11 @@ size_t extended_labels(bool pressure) {
 /// labels are extended.
 TEST(MemoryPressure, NeverLoosensTheCallersQuota) {
     namespace mp = memory_pressure_test;
-    EXPECT_EQ(mp::extended_labels<SimpleDominanceAlgorithm>(true),
-              mp::extended_labels<SimpleDominanceAlgorithm>(false))
+    EXPECT_EQ(mp::extended_labels<strategy::Simple>(true),
+              mp::extended_labels<strategy::Simple>(false))
         << "Simple";
-    EXPECT_EQ(mp::extended_labels<PushingDominanceAlgorithm>(true),
-              mp::extended_labels<PushingDominanceAlgorithm>(false))
+    EXPECT_EQ(mp::extended_labels<strategy::Pushing>(true),
+              mp::extended_labels<strategy::Pushing>(false))
         << "Pushing";
 }
 
@@ -326,17 +327,16 @@ TEST(MemoryPressure, IsReportedOnTheResult) {
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> pressed;
     mp::put_under_pressure(&pressed);
     pressed.memory_pressure_max_labels_per_node = 0;
-    EXPECT_TRUE(mp::fan()->solve<SimpleDominanceAlgorithm>(pressed).memory_pressure_triggered);
-    EXPECT_FALSE(mp::fan()
-                     ->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})
-                     .memory_pressure_triggered);
+    EXPECT_TRUE(mp::fan()->solve<strategy::Simple>(pressed).memory_pressure_triggered);
+    EXPECT_FALSE(
+        mp::fan()->solve<strategy::Simple>(AlgorithmBaseParams{}).memory_pressure_triggered);
 }
 
 /// @brief The extended-label count describes the last solve, not every solve so far.
 TEST(DominanceAlgorithms, ExtendedLabelCountIsPerSolve) {
     namespace mp = memory_pressure_test;
     auto graph = mp::fan();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>>{});
     static_cast<void>(graph->solve(algorithm.get()));
     const size_t first = algorithm->get_number_of_extended_labels();
@@ -382,19 +382,17 @@ struct CountingObserver {
         }
 };
 
-/// @brief Simple's search, with the counting observer.
-template <typename ResourceType, typename LabelContainerType>
-using CountedSimple = detail::LabellingAlgorithm<
-    ResourceType, LabelContainerType, ForwardDirection,
-    detail::Preset<parts::FifoSchedule<ResourceType>, parts::DominanceAdmission, parts::KeepAtNodes,
-                   CountingObserver>>;
+/// @brief Simple, with the counting observer: a strategy of one's own.
+struct CountedSimple : strategy::Simple {
+        template <typename ResourceType, typename Direction>
+        using observer = CountingObserver;
+};
 
-/// @brief Pushing's search, with the counting observer.
-template <typename ResourceType, typename LabelContainerType>
-using CountedPushing = detail::LabellingAlgorithm<
-    ResourceType, LabelContainerType, ForwardDirection,
-    detail::Preset<parts::SweepSchedule<ResourceType, ForwardDirection>, parts::DominanceAdmission,
-                   parts::KeepAtNodes, CountingObserver>>;
+/// @brief Pushing, with the counting observer.
+struct CountedPushing : strategy::Pushing {
+        template <typename ResourceType, typename Direction>
+        using observer = CountingObserver;
+};
 
 }  // namespace dominance_override_test
 
@@ -422,12 +420,14 @@ namespace infinite_terminal_test {
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
 /// @brief Reads the labels left at the sinks after a solve, on top of @p Base.
-template <template <typename, typename> class Base>
+template <typename Base>
 struct Exposing {
         template <typename ResourceType, typename LabelContainerType>
-        class Algo : public Base<ResourceType, LabelContainerType> {
+        class Algo : public test_util::Labelling<Base, ResourceType, LabelContainerType> {
+                using Search = test_util::Labelling<Base, ResourceType, LabelContainerType>;
+
             public:
-                using Base<ResourceType, LabelContainerType>::Base;
+                using Search::Search;
 
                 /// @brief The costs of the labels at the sinks.
                 [[nodiscard]] std::vector<double> terminal_costs() const {
@@ -442,7 +442,7 @@ struct Exposing {
 
 /// @brief The costs a @p Base solve that keeps its labels leaves at the sink of a one-arc graph
 ///        whose only path costs infinity.
-template <template <typename, typename> class Base>
+template <typename Base>
 std::vector<double> terminal_costs() {
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
@@ -472,7 +472,7 @@ std::vector<double> terminal_costs() {
 TEST(DominanceAlgorithms, AnInfiniteCostLabelAtASinkStays) {
     namespace itt = infinite_terminal_test;
     const std::vector<double> kept{itt::kInfinity};
-    EXPECT_EQ(itt::terminal_costs<SimpleDominanceAlgorithm>(), kept) << "Simple";
-    EXPECT_EQ(itt::terminal_costs<PushingDominanceAlgorithm>(), kept) << "Pushing";
-    EXPECT_EQ(itt::terminal_costs<PullingDominanceAlgorithm>(), kept) << "Pulling";
+    EXPECT_EQ(itt::terminal_costs<strategy::Simple>(), kept) << "Simple";
+    EXPECT_EQ(itt::terminal_costs<strategy::Pushing>(), kept) << "Pushing";
+    EXPECT_EQ(itt::terminal_costs<strategy::Pulling>(), kept) << "Pulling";
 }

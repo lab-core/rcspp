@@ -25,7 +25,6 @@ _ALGORITHM_MAP = {
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
     "tabu": lambda: _ext.graph.Algorithm.Tabu,
     "astar": lambda: _ext.graph.Algorithm.AStar,
-    "bidirectional": lambda: _ext.graph.Algorithm.Bidirectional,
 }
 
 # Kept for backward compatibility
@@ -552,20 +551,10 @@ class ResourceGraph:
 
         Args:
             algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
-                ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.AStar``,
-                ``Algorithm.Bidirectional``, or the equivalent strings
-                ``'simple'``, ``'pushing'``, ``'pulling'``, ``'greedy'``,
-                ``'astar'``, ``'bidirectional'``.
-
-                ``'bidirectional'`` is ``'simple'`` with
-                ``direction='bidirectional'``: it searches forward from the
-                sources and backward from the sinks, and joins the two halves in
-                the middle. Set ``params.critical_resource_index`` (the clock)
-                and ``params.half_way_point`` (where the halves meet; with 0, the
-                default, the solve is correct but slower than a forward one).
-                Every resource must support backward extension, or the model
-                checks raise ``RuntimeError`` before the search starts. See
-                :doc:`the algorithms guide </advanced/algorithms>`.
+                ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.Tabu``,
+                ``Algorithm.AStar``, or the equivalent strings ``'simple'``,
+                ``'pushing'``, ``'pulling'``, ``'greedy'``, ``'tabu'``,
+                ``'astar'``.
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.
@@ -573,12 +562,17 @@ class ResourceGraph:
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
             direction: ``'forward'``, ``'backward'`` or ``'bidirectional'`` (or a
-                ``SearchDirection``). Only ``'simple'`` searches backward or
-                bidirectionally; the other algorithms raise ``ValueError``.
+                ``SearchDirection``). Every labelling algorithm (``'simple'``,
+                ``'pushing'``, ``'pulling'``, ``'astar'``) searches backward, and
+                ``'simple'`` also bidirectionally; any other pairing raises
+                ``ValueError``. A bidirectional search goes forward from the
+                sources and backward from the sinks, and joins the two halves in
+                the middle: set ``params.critical_resource_index`` (the clock)
+                and ``params.half_way_point`` (where the halves meet; with 0, the
+                default, the solve is correct but slower than a forward one), and
+                see :doc:`the algorithms guide </advanced/algorithms>`.
                 ``None`` (the default) uses ``params.direction`` (forward unless
-                set), or ``'bidirectional'`` when ``algorithm='bidirectional'``;
-                that algorithm raises ``ValueError`` with any other direction.
-                The direction applies to this call only: ``params.direction`` is
+                set). The direction applies to this call only: ``params.direction`` is
                 left unchanged. A backward or bidirectional solve runs the model
                 checks first and raises ``RuntimeError`` on a model that fails
                 them (see :meth:`check_model`).
@@ -607,20 +601,7 @@ class ResourceGraph:
                     f"Unknown algorithm {algorithm!r}. Choose from: {', '.join(ALGORITHMS)}"
                 )
             algorithm = factory()
-        is_bidirectional_alias = algorithm == _ext.graph.Algorithm.Bidirectional
-        if direction is None:
-            chosen = (
-                _ext.graph.SearchDirection.Bidirectional
-                if is_bidirectional_alias
-                else params.direction
-            )
-        else:
-            chosen = _search_direction(direction)
-        if is_bidirectional_alias and chosen != _ext.graph.SearchDirection.Bidirectional:
-            raise ValueError(
-                "algorithm='bidirectional' searches bidirectionally; for another direction, "
-                "use algorithm='simple' with that direction"
-            )
+        chosen = params.direction if direction is None else _search_direction(direction)
         # Set for this call only: the caller's params keep their own direction.
         previous = params.direction
         params.direction = chosen

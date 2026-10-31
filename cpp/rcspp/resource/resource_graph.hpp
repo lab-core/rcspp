@@ -14,9 +14,9 @@
 #include <utility>
 #include <vector>
 
-#include "rcspp/algorithm/directional_implementations.hpp"
-#include "rcspp/algorithm/simple_dominance_algorithm.hpp"
+#include "rcspp/algorithm/make_algorithm.hpp"
 #include "rcspp/algorithm/solution.hpp"
+#include "rcspp/algorithm/strategies.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/preprocessor/connectivity_matrix.hpp"
 #include "rcspp/preprocessor/feasibility_preprocessor.hpp"
@@ -282,58 +282,41 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
                                                               cost_index);
         }
 
-        /// @brief Builds an algorithm on this graph's resources.
+        /// @brief Builds the algorithm that searches for @p Strategy in `params.direction`, on this
+        ///        graph's resources.
         ///
-        /// Given only its params, the algorithm searches in `params.direction`: this returns the
-        /// class that does, behind its base class. Given other constructor arguments, it returns
-        /// @p AlgorithmType itself.
-        ///
-        /// @tparam AlgorithmType        The algorithm template, e.g. @c SimpleDominanceAlgorithm.
+        /// @tparam Strategy             The strategy, e.g. @c strategy::Simple (see
+        ///                              @c rcspp::strategy), or one of one's own.
         /// @tparam LabelContainerType   The per-node label container.
         /// @tparam CostResourceType     The cost resource type.
         /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
         ///                              search's two halves stop (its half-way point); defaults to
         ///                              @p CostResourceType.
-        /// @param args The constructor arguments after the resource factory.
-        /// @return The algorithm: a
-        ///         @c std::unique_ptr<Algorithm<ResourceCompositionType, LabelContainerType>>
-        ///         when @p args is the params alone.
-        /// @throws std::invalid_argument when @p AlgorithmType cannot search in the direction the
-        ///         params ask for.
-        template <template <typename, typename> class AlgorithmType,
+        /// @param params The algorithm's params, including the search direction.
+        /// @return The algorithm, behind its base class.
+        /// @throws std::invalid_argument when @p Strategy cannot search in the direction the params
+        ///         ask for.
+        template <typename Strategy = strategy::Simple,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
-                  typename CriticalResourceType = CostResourceType, typename... Args>
-        auto create_algorithm(Args&&... args) {
-            if constexpr (detail::is_params_only_v<LabelContainerType, Args...>) {
-                // Only the params: the class to build depends on params.direction, known at run
-                // time (forward builds AlgorithmType; backward and bidirectional build other
-                // classes), so this returns their common base,
-                // Algorithm<ResourceCompositionType, LabelContainerType>.
-                return detail::make_directional_algorithm<AlgorithmType,
-                                                          ResourceCompositionType,
-                                                          LabelContainerType,
-                                                          CostResourceType,
-                                                          CriticalResourceType>(
-                    &resource_factory_,
-                    std::forward<Args>(args)...);
-            } else {
-                // Extra constructor arguments, which only AlgorithmType takes: build it directly,
-                // and return its own type.
-                return std::make_unique<AlgorithmType<ResourceCompositionType, LabelContainerType>>(
-                    &resource_factory_,
-                    std::forward<Args>(args)...);
-            }
+                  typename CriticalResourceType = CostResourceType>
+        std::unique_ptr<Algorithm<ResourceCompositionType, LabelContainerType>> create_algorithm(
+            AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>()) {
+            return detail::make_algorithm<Strategy,
+                                          ResourceCompositionType,
+                                          LabelContainerType,
+                                          CriticalResourceType>(&resource_factory_,
+                                                                std::move(params));
         }
 
-        /// @brief Builds an @p AlgorithmType algorithm and solves the graph with it.
+        /// @brief Builds a @p Strategy algorithm and solves the graph with it.
         ///
         /// The search runs in `params.direction`. A backward or bidirectional search first runs
         /// the model checks (see @ref check_model).
         ///
-        /// @tparam AlgorithmType        The algorithm template, e.g. @c SimpleDominanceAlgorithm.
-        /// @tparam CostResourceType     The numerical resource type holding the cost slot.
+        /// @tparam Strategy             The strategy, e.g. @c strategy::Simple.
         /// @tparam LabelContainerType   The per-node label container.
+        /// @tparam CostResourceType     The numerical resource type holding the cost slot.
         /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
         ///                              search's two halves stop (its half-way point); defaults to
         ///                              @p CostResourceType.
@@ -343,18 +326,18 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @param cost_index  Index of the cost component to use.
         /// @return The solutions found and the search's status; empty if the graph has no source
         ///         or no sink, or another solve is running.
-        /// @throws std::invalid_argument when @p AlgorithmType cannot search in `params.direction`.
+        /// @throws std::invalid_argument when @p Strategy cannot search in `params.direction`.
         /// @throws ModelRefused when the model checks find a problem; the graph is left unchanged.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource,
+        template <typename Strategy = strategy::Simple,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(
             double upper_bound = std::numeric_limits<double>::infinity(),
             AlgorithmParams<LabelContainerType> params = AlgorithmParams<LabelContainerType>(),
             bool preprocess = true, size_t cost_index = 0) {
-            auto algorithm = create_algorithm<AlgorithmType,
+            auto algorithm = create_algorithm<Strategy,
                                               LabelContainerType,
                                               CostResourceType,
                                               CriticalResourceType>(std::move(params));
@@ -366,14 +349,14 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         }
 
         /// @brief The solve above, with no cost upper bound.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource,
+        template <typename Strategy = strategy::Simple,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmParams<LabelContainerType> params, bool preprocess = true,
                           size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType, CriticalResourceType>(
+            return solve<Strategy, LabelContainerType, CostResourceType, CriticalResourceType>(
                 std::numeric_limits<double>::infinity(),
                 std::move(params),
                 preprocess,
@@ -386,19 +369,19 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// AlgorithmParams so callers only need to set the base fields (e.g. memory
         /// limits, stop conditions) without knowing the internal ResourceCompositionType.
         ///
-        /// @param base_params    Base algorithm parameters (memory limits, stop conditions…).
+        /// @param base_params    Base algorithm parameters (memory limits, stop conditions...).
         /// @param upper_bound    Cost upper bound; solutions above this are discarded.
         /// @param preprocess     Whether to run preprocessing before solving.
         /// @param cost_index     Index of the cost component to use.
-        template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm,
-                  typename CostResourceType = RealResource,
+        template <typename Strategy = strategy::Simple,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
+                  typename CostResourceType = RealResource,
                   typename CriticalResourceType = CostResourceType>
             requires is_numerical_resource_v<CostResourceType>
         SolveResult solve(AlgorithmBaseParams base_params,
                           double upper_bound = std::numeric_limits<double>::infinity(),
                           bool preprocess = true, size_t cost_index = 0) {
-            return solve<AlgorithmType, CostResourceType, LabelContainerType, CriticalResourceType>(
+            return solve<Strategy, LabelContainerType, CostResourceType, CriticalResourceType>(
                 upper_bound,
                 AlgorithmParams<LabelContainerType>(std::move(base_params)),
                 preprocess,

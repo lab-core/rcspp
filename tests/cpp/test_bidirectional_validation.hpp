@@ -196,7 +196,7 @@ TEST(BidirectionalValidation, ShortPathIsFoundByTerminalCollectionNotByTheJoin) 
     auto graph = bv::clocked_graph(windows, {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}});
 
     // Total clock along the only route is 2, against H = 50: no arc crosses the middle.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(50.0)));
     const auto result = graph->solve(algorithm.get());
 
@@ -228,7 +228,7 @@ TEST(BidirectionalValidation, ALongRouteIsJoinedOnItsCrossingArc) {
 
     // Clock runs 0, 10, 20, 30, 40 and H = 20, so the crossing arc is 2 -> 3. Forward stops
     // extending at node 3 and backward stops at node 2, so neither reaches a terminal.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(20.0)));
     const auto result = graph->solve(algorithm.get());
 
@@ -263,7 +263,7 @@ TEST(BidirectionalValidation, APathThatCrossesHOnItsLastArcIsNotJoined) {
     graph->add_arc<RealResource, RealResource>({1.0, 1.0}, 0, 1, 1.0);
     graph->add_arc<RealResource, RealResource>({1.0, 10.0}, 1, 2, 1.0);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(5.0)));
     const auto result = graph->solve(algorithm.get(), /*upper_bound=*/100.0, /*preprocess=*/false);
 
@@ -304,7 +304,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     // Control: uninterrupted, the optimum comes from the join.
     {
         auto graph = bv::join_only_graph();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->create_algorithm<strategy::Simple>(
             test_util::bidirectional(bv::clocked_params(20.0)));
         const SolveResult result = graph->solve(algorithm.get());
         ASSERT_EQ(result.status, AlgorithmStatus::Complete);
@@ -319,8 +319,7 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
     params.should_stop = [&calls]() { return ++calls > 2; };
     params.release_after_solve = false;  // so the pool still holds what the check reads
 
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
     ASSERT_EQ(result.status, AlgorithmStatus::Interrupted)
@@ -358,7 +357,7 @@ TEST(BidirectionalValidation, ASolveStoppedByTheMemoryLimitStillJoins) {
         params.join_after_early_stop = join_after_early_stop;
         params.release_after_solve = false;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         const SolveResult result = graph->solve(algorithm.get());
         EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
         return result;
@@ -389,8 +388,7 @@ TEST(BidirectionalValidation, ASolutionBudgetStillRunsTheJoin) {
     auto params = bv::clocked_params(20.0);
     params.max_solutions = 1;
 
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const SolveResult result = graph->solve(algorithm.get());
 
     EXPECT_GT(result.bidirectional->joined_paths, 0U)
@@ -421,7 +419,7 @@ TEST(BidirectionalValidation, TheJoinerDoesNotPruneAHalfOnItsOwnCost) {
 
     // Forward keeps labels to t = 20, so it stops at node 2 (t = 30); backward keeps deadlines from
     // 20 up, so it stops at node 1 (deadline 15). The crossing arc is 1 -> 2.
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(20.0)));
     const auto result = graph->solve(algorithm.get());
 
@@ -451,18 +449,18 @@ TEST(BidirectionalValidation, ReverseGraphOracleAgreesOnAdditiveInstances) {
 
         auto forward = test_util::build_additive_graph(instance, /*reversed=*/false);
         const double reference =
-            bv::best_cost(forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+            bv::best_cost(forward->solve<strategy::Simple>(AlgorithmBaseParams{}));
 
         auto reversed = test_util::build_additive_graph(instance, /*reversed=*/true);
         const double oracle =
-            bv::best_cost(reversed->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+            bv::best_cost(reversed->solve<strategy::Simple>(AlgorithmBaseParams{}));
 
         auto candidate_graph = test_util::build_additive_graph(instance, /*reversed=*/false);
         AlgorithmParams<LabelList<bv::Composed>> params;
         params.release_after_solve = false;  // so the pool still holds what the check reads
         // Everything accumulates, so there is no clock and the bound switches itself off.
-        auto algorithm = candidate_graph->create_algorithm<SimpleDominanceAlgorithm>(
-            test_util::bidirectional(params));
+        auto algorithm =
+            candidate_graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         const auto result = candidate_graph->solve(algorithm.get());
         const double candidate = bv::best_cost(result);
 
@@ -522,13 +520,13 @@ TEST(BidirectionalValidation, AccumulatingCapacityJoinsOnlyWithinTheCap) {
 
     auto forward_graph = build();
     const double reference =
-        bv::best_cost(forward_graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+        bv::best_cost(forward_graph->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, 6.0, bv::kTolerance) << "the forward search should find 0-1-3-4";
 
     auto candidate_graph = build();
     AlgorithmParams<LabelList<bv::Composed>> params;
-    auto algorithm = candidate_graph->create_algorithm<SimpleDominanceAlgorithm>(
-        test_util::bidirectional(params));
+    auto algorithm =
+        candidate_graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     const SolveResult result = candidate_graph->solve(algorithm.get());
 
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance)
@@ -663,7 +661,7 @@ TEST(BidirectionalValidation, ArcsSurviveARefusedBidirectionalSolve) {
                                      std::make_unique<bv::CapWithoutAJoinRule>());
     ASSERT_EQ(graph->get_number_of_arcs(), 4U);
 
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(1.0)));
     try {
         static_cast<void>(graph->solve(algorithm.get(), /*upper_bound=*/5.0));
@@ -677,7 +675,7 @@ TEST(BidirectionalValidation, ArcsSurviveARefusedBidirectionalSolve) {
     EXPECT_EQ(graph->get_number_of_arcs(), 4U)
         << "the refusal deleted arcs from the caller's graph";
 
-    const auto fallback = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto fallback = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     EXPECT_EQ(fallback.solutions.size(), 2U);
 }
 
@@ -689,18 +687,17 @@ TEST(BidirectionalValidation, ArcsSurviveAUserExceptionDuringASolve) {
                             std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 100.0));
     // A healthy first solve runs the one-off feasibility preprocessing, so the throw below comes
     // from the labelling, after the shortest-path preprocessor removed arcs.
-    static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    static_cast<void>(graph->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_EQ(graph->get_number_of_arcs(), 4U);
 
     bv::ThrowingAddition::armed = true;
-    EXPECT_THROW(
-        static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}, 5.0)),
-        std::runtime_error);
+    EXPECT_THROW(static_cast<void>(graph->solve<strategy::Simple>(AlgorithmBaseParams{}, 5.0)),
+                 std::runtime_error);
     bv::ThrowingAddition::armed = false;
     EXPECT_EQ(graph->get_number_of_arcs(), 4U)
         << "the exception deleted arcs from the caller's graph";
 
-    const auto fallback = graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto fallback = graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     EXPECT_EQ(fallback.solutions.size(), 2U);
 }
 
@@ -761,11 +758,11 @@ TEST(BidirectionalValidation, AnAdditiveCostOverAThresholdClockSolves) {
 
     for (const auto& build : {std::function(zero_time_cost), std::function(default_cost)}) {
         const double reference =
-            bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+            bv::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
         ASSERT_NEAR(reference, 2.0, bv::kTolerance) << "route A's distance is 2";
         for (const double half_way_point : {0.0, 5.0}) {
             auto graph = build();
-            auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+            auto algorithm = graph->create_algorithm<strategy::Simple>(
                 test_util::bidirectional(bv::clocked_params(half_way_point)));
             EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance)
                 << "H = " << half_way_point;
@@ -835,12 +832,11 @@ TEST(BidirectionalValidation, ABottleneckNothingAddsSolves) {
                              std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
                              std::make_unique<TrivialCostFunction<RealResource>>());
     };
-    const double reference =
-        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    const double reference = bv::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, 2.0, bv::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(0.0)));
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
@@ -899,13 +895,13 @@ TEST(BidirectionalValidation, ADeadlineBelowTheOpeningTimeIsUnmeetable) {
 
     for (const bool preprocess : {true, false}) {
         const auto forward =
-            build()->solve<SimpleDominanceAlgorithm>(std::numeric_limits<double>::infinity(),
-                                                     AlgorithmParams<LabelList<bv::Composed>>{},
-                                                     preprocess);
+            build()->solve<strategy::Simple>(std::numeric_limits<double>::infinity(),
+                                             AlgorithmParams<LabelList<bv::Composed>>{},
+                                             preprocess);
         ASSERT_TRUE(forward.solutions.empty()) << "the sink is reached at 9 > 8";
         for (const double half_way_point : {0.0, 3.0}) {
             auto graph = build();
-            auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+            auto algorithm = graph->create_algorithm<strategy::Simple>(
                 test_util::bidirectional(bv::clocked_params(half_way_point)));
             const auto result =
                 graph->solve(algorithm.get(), std::numeric_limits<double>::infinity(), preprocess);
@@ -939,13 +935,13 @@ TEST(BidirectionalValidation, AnArcOfInfiniteTimeIsNotProbedForAClamp) {
 
     for (const bool preprocess : {false, true}) {
         const double reference = bv::best_cost(
-            build()->solve<SimpleDominanceAlgorithm>(std::numeric_limits<double>::infinity(),
-                                                     AlgorithmParams<LabelList<bv::Composed>>{},
-                                                     preprocess));
+            build()->solve<strategy::Simple>(std::numeric_limits<double>::infinity(),
+                                             AlgorithmParams<LabelList<bv::Composed>>{},
+                                             preprocess));
         ASSERT_NEAR(reference, 2.0, bv::kTolerance) << "preprocess = " << preprocess;
 
         auto graph = build();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->create_algorithm<strategy::Simple>(
             test_util::bidirectional(bv::clocked_params(1.0)));
         SolveResult result;
         ASSERT_NO_THROW(
@@ -1014,12 +1010,11 @@ TEST(BidirectionalValidation, TheLibraryCompositionFunctionsSolve) {
             3.0,
             10.0);
     };
-    const double reference =
-        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    const double reference = bv::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, 3.0, bv::kTolerance);
     for (const double half_way_point : {0.0, 5.0}) {
         auto graph = build();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->create_algorithm<strategy::Simple>(
             test_util::bidirectional(bv::clocked_params(half_way_point)));
         EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance)
             << "H = " << half_way_point;
@@ -1128,13 +1123,12 @@ TEST(BidirectionalValidation, BackwardStartsFollowThePairedExtension) {
                                        StartCase::AdditionWithMinMax,
                                        StartCase::AdditionWithMinMaxTrivialDom}) {
         const auto label = static_cast<int>(start_case);
-        const double reference =
-            bv::best_cost(bv::start_case_graph(start_case)
-                              ->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+        const double reference = bv::best_cost(
+            bv::start_case_graph(start_case)->solve<strategy::Simple>(AlgorithmBaseParams{}));
         ASSERT_NEAR(reference, 4.0, bv::kTolerance) << "case " << label;
 
         auto graph = bv::start_case_graph(start_case);
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+        auto algorithm = graph->create_algorithm<strategy::Simple>(
             test_util::bidirectional(bv::clocked_params(2.0)));
         const auto result = graph->solve(algorithm.get());
         EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance) << "case " << label;
@@ -1168,7 +1162,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
                                                                        {5.0, 1.0, 0, 2},
                                                                        {5.0, 1.0, 2, 3}};
     const double reference = bv::best_cost(
-        bv::clocked_graph(windows, arcs)->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+        bv::clocked_graph(windows, arcs)->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, 2.0, bv::kTolerance);
 
     for (const double half_way_point : {0.0, 5.0}) {
@@ -1176,7 +1170,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
         auto params = bv::clocked_params(half_way_point);
         params.critical_resource_index = 2;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         SolveResult result;
         ASSERT_NO_THROW(result = graph->solve(algorithm.get())) << "H = " << half_way_point;
         EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance) << "H = " << half_way_point;
@@ -1191,8 +1185,7 @@ TEST(BidirectionalValidation, AnOutOfRangeIndexTurnsItsBoundOff) {
     auto graph = bv::clocked_graph(windows, arcs);
     auto params = bv::clocked_params(5.0);
     params.prune_by_incumbent = true;
-    auto algorithm =
-        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    auto algorithm = graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     SolveResult result;
     ASSERT_NO_THROW(result = graph->solve(algorithm.get()));
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);
@@ -1214,7 +1207,7 @@ TEST(BidirectionalValidation, RemovingEveryArcDoesNotHideTheClock) {
     for (size_t arc_id = 0; arc_id < arcs.size(); ++arc_id) {
         ASSERT_TRUE(graph->remove_arc(arc_id));
     }
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(5.0)));
     const auto result = graph->solve(algorithm.get());
     EXPECT_TRUE(result.solutions.empty());
@@ -1255,7 +1248,7 @@ TEST(BidirectionalValidation, TheJoinBuildsAtMostStopAfterXSolutions) {
         auto params = bv::clocked_params(1.0);
         params.max_solutions = budget;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         // A finite bound with the prune off asks for every column under it.
         return graph->solve(algorithm.get(), 1e9);
     };
@@ -1329,12 +1322,12 @@ inline std::unique_ptr<ResourceGraph<RealResource>> cached_cap_line(
 TEST(BidirectionalValidation, ACustomPerNodeCapSharedWithTheCapacityBindsAtEachNode) {
     namespace bv = bidirectional_validation_test;
     const auto caps = make_node_bounds(0.0, 10.0, {{2, {0.0, 2.0}}});
-    const double reference = bv::best_cost(
-        bv::cached_cap_line(caps)->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    const double reference =
+        bv::best_cost(bv::cached_cap_line(caps)->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, 3.0, bv::kTolerance);
 
     auto graph = bv::cached_cap_line(caps);
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(1.5)));
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
@@ -1429,12 +1422,11 @@ TEST(BidirectionalValidation, AHandWrittenThresholdThatMatchesItsWindowsSolves) 
             3,
             {{-1.0, 2.0, 0, 1}, {-1.0, 1.0, 1, 2}, {0.0, 1.0, 0, 2}});
     };
-    const double reference =
-        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    const double reference = bv::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, -2.0, bv::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(1.5)));
     EXPECT_NEAR(bv::best_cost(graph->solve(algorithm.get())), reference, bv::kTolerance);
 }
@@ -1453,12 +1445,11 @@ TEST(BidirectionalValidation, AClockWithoutABackwardStartTurnsTheBoundOff) {
             5,
             {{1.0, 1.0, 0, 1}, {1.0, 1.0, 1, 2}, {1.0, 1.0, 2, 3}, {1.0, 1.0, 3, 4}});
     };
-    const double reference =
-        bv::best_cost(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
+    const double reference = bv::best_cost(build()->solve<strategy::Simple>(AlgorithmBaseParams{}));
     ASSERT_NEAR(reference, 4.0, bv::kTolerance);
 
     auto graph = build();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(
+    auto algorithm = graph->create_algorithm<strategy::Simple>(
         test_util::bidirectional(bv::clocked_params(2.0)));
     const auto result = graph->solve(algorithm.get());
     EXPECT_NEAR(bv::best_cost(result), reference, bv::kTolerance);

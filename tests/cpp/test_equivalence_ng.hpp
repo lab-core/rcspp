@@ -307,7 +307,7 @@ TEST(Equivalence, TheJoinAcceptsARevisitTheModelPermits) {
     constexpr double kExpected = -14.0;
 
     auto forward = build();
-    const auto forward_result = forward->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    const auto forward_result = forward->solve<strategy::Simple>(AlgorithmBaseParams{});
     ASSERT_FALSE(forward_result.solutions.empty());
     EXPECT_NEAR(forward_result.solutions.front().cost, kExpected, 1e-9);
 
@@ -317,7 +317,7 @@ TEST(Equivalence, TheJoinAcceptsARevisitTheModelPermits) {
         params.critical_resource_index = 1;  // the time slot
         params.half_way_point = half_way;
         auto algorithm =
-            graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+            graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
         const auto result = graph->solve(algorithm.get());
 
         ASSERT_FALSE(result.solutions.empty()) << "half_way_point = " << half_way;

@@ -87,8 +87,7 @@ void init_graph(py::module_& m) {
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu)
-        .value("AStar", SolverAlgorithm::AStar)
-        .value("Bidirectional", SolverAlgorithm::Bidirectional);
+        .value("AStar", SolverAlgorithm::AStar);
 
     // ── SearchDirection enum ──────────────────────────────────────────────────
 
@@ -96,7 +95,8 @@ void init_graph(py::module_& m) {
                                "SearchDirection",
                                "Which way a search runs: Forward from the sources, Backward from "
                                "the sinks, or Bidirectional (both at once, joined in the middle). "
-                               "Only the simple algorithm supports Backward and Bidirectional.")
+                               "Every labelling algorithm (simple, pushing, pulling, astar) "
+                               "supports Backward; only simple supports Bidirectional.")
         .value("Forward", SearchDirection::Forward)
         .value("Backward", SearchDirection::Backward)
         .value("Bidirectional", SearchDirection::Bidirectional);
@@ -257,9 +257,10 @@ void init_graph(py::module_& m) {
         .def_readwrite("direction",
                        &PyAlgorithmParams::direction,
                        "Which way the search runs: SearchDirection.Forward (default), Backward or "
-                       "Bidirectional. Only the simple algorithm searches backward or "
-                       "bidirectionally; the others raise ValueError. ResourceGraph.solve's "
-                       "`direction` argument, or algorithm='bidirectional', overrides it for that "
+                       "Bidirectional. Every labelling algorithm (simple, pushing, pulling, "
+                       "astar) searches backward, and simple also bidirectionally; any other "
+                       "pairing raises ValueError. ResourceGraph.solve's `direction` argument "
+                       "overrides it for that "
                        "call only.")
         // -- Bidirectional parameters ------------------------------------
         .def_readwrite("critical_resource_index",

@@ -16,9 +16,8 @@ namespace test_util {
 
 /// @brief A backward-only labeling algorithm, for testing the backward machinery in isolation.
 ///
-/// The backward search of `SimpleDominanceAlgorithm`
-/// (`rcspp::detail::BackwardSimpleDominanceAlgorithm`): it starts at the sinks and runs backward to
-/// completion, with no half-way bound and no join. It adds accessors to its labels. Its constructor
+/// Simple's backward search: it starts at the sinks and runs backward to completion, with no
+/// half-way bound and no join. It adds accessors to its labels. Its constructor
 /// sets `direction = Backward`.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
@@ -27,10 +26,12 @@ namespace test_util {
 template <typename ResourceType,
           typename LabelContainerType = rcspp::LabelList<ResourceType, rcspp::BackwardDirection>>
     requires rcspp::ResourceTypeConcept<ResourceType>
-class BackwardOnlyAlgorithm
-    : public rcspp::detail::BackwardSimpleDominanceAlgorithm<ResourceType, LabelContainerType> {
-        using Base =
-            rcspp::detail::BackwardSimpleDominanceAlgorithm<ResourceType, LabelContainerType>;
+class BackwardOnlyAlgorithm : public rcspp::detail::LabellingAlgorithm<
+                                  ResourceType, LabelContainerType, rcspp::BackwardDirection,
+                                  rcspp::detail::Preset<rcspp::parts::FifoSchedule<ResourceType>>> {
+        using Base = rcspp::detail::LabellingAlgorithm<
+            ResourceType, LabelContainerType, rcspp::BackwardDirection,
+            rcspp::detail::Preset<rcspp::parts::FifoSchedule<ResourceType>>>;
 
     public:
         BackwardOnlyAlgorithm(rcspp::ResourceFactory<ResourceType>* resource_factory,
@@ -45,7 +46,7 @@ class BackwardOnlyAlgorithm
             return this->search_.labels.containers();
         }
 
-        /// @brief The labels at this search's terminal nodes, i.e. the graph's *sources*
+        /// @brief The labels at this search's end nodes, i.e. the graph's *sources*
         ///        (the inherited `labels_at_end_nodes()` follows the search direction).
         [[nodiscard]] std::list<rcspp::Label<ResourceType>*> get_terminal_labels() const {
             return this->labels_at_end_nodes();

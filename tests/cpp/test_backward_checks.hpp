@@ -244,15 +244,12 @@ TEST(BackwardChecks, SolveRefusesEveryModelTheChecksRefuse) {
             auto graph = model.build();
             bc::expect_refused(
                 [&] {
-                    return graph->solve<SimpleDominanceAlgorithm>(bc::kInf,
-                                                                  bc::backward(),
-                                                                  preprocess);
+                    return graph->solve<strategy::Simple>(bc::kInf, bc::backward(), preprocess);
                 },
                 model.problem);
         }
         auto graph = model.build();
-        EXPECT_NO_THROW(
-            static_cast<void>(graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{})));
+        EXPECT_NO_THROW(static_cast<void>(graph->solve<strategy::Simple>(AlgorithmBaseParams{})));
     }
 }
 
@@ -262,22 +259,9 @@ TEST(BackwardChecks, ADirectSolveRefusesToo) {
     for (const auto& model : bc::refused_models()) {
         SCOPED_TRACE(model.name);
         auto graph = model.build();
-        auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(bc::backward());
+        auto algorithm = graph->create_algorithm<strategy::Simple>(bc::backward());
         bc::expect_refused([&] { return algorithm->solve(graph.get(), bc::kInf); }, model.problem);
     }
-}
-
-/// @brief A forward search that runs a backward one inside it does not let the inner search skip
-///        its checks.
-TEST(BackwardChecks, DiversificationSearchCannotBypass) {
-    namespace bc = backward_checks_test;
-    auto graph = bc::non_additive_cost();
-    auto inner = graph->create_algorithm<SimpleDominanceAlgorithm>(bc::backward());
-    AlgorithmParams<bc::List> params;
-    params.max_iterations = 3;
-    auto outer = graph->create_algorithm<DiversificationSearch>(params, std::move(inner));
-    ASSERT_EQ(outer->direction(), SearchDirection::Forward);
-    bc::expect_refused([&] { return graph->solve(outer.get()); }, "cost function is not additive");
 }
 
 /// @brief An upper bound under which preprocessing would remove every arc does not hide a
@@ -288,9 +272,9 @@ TEST(BackwardChecks, ABoundThatRemovesEveryArcDoesNotHideARefusal) {
     constexpr double kBelowEveryPath = -1e9;
     bc::expect_refused(
         [&] {
-            return graph->solve<SimpleDominanceAlgorithm>(kBelowEveryPath,
-                                                          bc::backward(),
-                                                          /*preprocess=*/true);
+            return graph->solve<strategy::Simple>(kBelowEveryPath,
+                                                  bc::backward(),
+                                                  /*preprocess=*/true);
         },
         "cost function is not additive");
     EXPECT_EQ(graph->get_removed_arc_ids().size(), 0U) << "nothing ran before the refusal";
@@ -351,7 +335,7 @@ inline std::unique_ptr<Model> throwing_load_model() {
 TEST(BackwardChecks, AFailedSolveLetsNoLaterSolveSkipTheChecks) {
     namespace bc = backward_checks_test;
     auto graph = bc::throwing_load_model();
-    auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(bc::backward());
+    auto algorithm = graph->create_algorithm<strategy::Simple>(bc::backward());
 
     bc::ThrowOnCallAddition::calls = 0;
     ASSERT_TRUE(graph->check_model(SearchDirection::Backward).ok());

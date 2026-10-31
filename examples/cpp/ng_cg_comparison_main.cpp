@@ -72,7 +72,7 @@ CGRun run_cg(const Instance& instance, size_t ng_size) {
     params.timeout_s = kPricingBudgetSeconds;
 
     const auto started = std::chrono::steady_clock::now();
-    const auto result = vrp.solve<SimpleDominanceAlgorithm>(params);
+    const auto result = vrp.solve<strategy::Simple>(params);
     const double seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 

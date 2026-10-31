@@ -622,7 +622,7 @@ class Algorithm {
         /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
         ///
         /// The default implementation does nothing.  Subclasses that own
-        /// unprocessed label queues (e.g. PushingDominanceAlgorithm) override
+        /// unprocessed label queues (the labelling algorithms) override
         /// this to trim those queues, slowing further RSS growth before the
         /// hard limit is hit.
         virtual void on_memory_pressure() {}

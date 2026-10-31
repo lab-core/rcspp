@@ -33,7 +33,7 @@ struct Pricing {
 
 /// @brief Solves @p pricing with @p Strategy in @p direction, and prints
 ///        `TIMING <kind>@<pricing> <customers> <microseconds>`.
-template <template <typename, typename> class Strategy>
+template <typename Strategy>
 void time_one(const std::string& kind, const Pricing& pricing, rcspp::SearchDirection direction) {
     constexpr double kTimeoutSeconds = 600.0;
     const double horizon = static_cast<double>(pricing.instance.get_depot_customer().due_time);
@@ -89,23 +89,26 @@ TEST(KernelTiming, SolomonPricingIsPrintedWhenAsked) {
     }
     using rcspp::SearchDirection;
     for (const auto& pricing : kt::pricing_graphs()) {
-        kt::time_one<rcspp::SimpleDominanceAlgorithm>("simple_forward",
-                                                      pricing,
-                                                      SearchDirection::Forward);
-        kt::time_one<rcspp::SimpleDominanceAlgorithm>("simple_backward",
-                                                      pricing,
-                                                      SearchDirection::Backward);
-        kt::time_one<rcspp::SimpleDominanceAlgorithm>("simple_bidirectional",
-                                                      pricing,
-                                                      SearchDirection::Bidirectional);
-        kt::time_one<rcspp::AStarDominanceAlgorithm>("astar_forward",
-                                                     pricing,
-                                                     SearchDirection::Forward);
-        kt::time_one<rcspp::PushingDominanceAlgorithm>("pushing_forward",
-                                                       pricing,
-                                                       SearchDirection::Forward);
-        kt::time_one<rcspp::PullingDominanceAlgorithm>("pulling_forward",
-                                                       pricing,
-                                                       SearchDirection::Forward);
+        kt::time_one<rcspp::strategy::Simple>("simple_forward", pricing, SearchDirection::Forward);
+        kt::time_one<rcspp::strategy::Simple>("simple_backward",
+                                              pricing,
+                                              SearchDirection::Backward);
+        kt::time_one<rcspp::strategy::Simple>("simple_bidirectional",
+                                              pricing,
+                                              SearchDirection::Bidirectional);
+        kt::time_one<rcspp::strategy::AStar>("astar_forward", pricing, SearchDirection::Forward);
+        kt::time_one<rcspp::strategy::Pushing>("pushing_forward",
+                                               pricing,
+                                               SearchDirection::Forward);
+        kt::time_one<rcspp::strategy::Pulling>("pulling_forward",
+                                               pricing,
+                                               SearchDirection::Forward);
+        kt::time_one<rcspp::strategy::AStar>("astar_backward", pricing, SearchDirection::Backward);
+        kt::time_one<rcspp::strategy::Pushing>("pushing_backward",
+                                               pricing,
+                                               SearchDirection::Backward);
+        kt::time_one<rcspp::strategy::Pulling>("pulling_backward",
+                                               pricing,
+                                               SearchDirection::Backward);
     }
 }

@@ -927,7 +927,7 @@ TEST(GoldenLabelling, TimingIsPrintedWhenAsked) {
 namespace golden_labelling {
 /// @brief Solves @p g with @p Strategy under @p v, keeping its labels, and says whether the pool's
 ///        reference counts are consistent afterwards.
-template <template <typename, typename> class Strategy>
+template <typename Strategy>
 bool keeps_reference_counts(const Variant& v, ResourceGraph<RealResource>* g) {
     auto p = params_for<AlgorithmParams<ForwardList>>(v);
     p.release_after_solve = false;
@@ -954,19 +954,15 @@ TEST(GoldenLabelling, EverySearchKeepsTheReferenceCountsConsistent) {
         for (const auto& v : gl::variants()) {
             const std::string where =
                 "s" + std::to_string(spec.seed) + "_n" + std::to_string(spec.n) + "_" + v.name;
-            EXPECT_TRUE(
-                gl::keeps_reference_counts<rcspp::SimpleDominanceAlgorithm>(v, gl::build(in).get()))
+            EXPECT_TRUE(gl::keeps_reference_counts<rcspp::strategy::Simple>(v, gl::build(in).get()))
                 << where << " simple";
             EXPECT_TRUE(
-                gl::keeps_reference_counts<rcspp::PushingDominanceAlgorithm>(v,
-                                                                             gl::build(in).get()))
+                gl::keeps_reference_counts<rcspp::strategy::Pushing>(v, gl::build(in).get()))
                 << where << " pushing";
             EXPECT_TRUE(
-                gl::keeps_reference_counts<rcspp::PullingDominanceAlgorithm>(v,
-                                                                             gl::build(in).get()))
+                gl::keeps_reference_counts<rcspp::strategy::Pulling>(v, gl::build(in).get()))
                 << where << " pulling";
-            EXPECT_TRUE(
-                gl::keeps_reference_counts<rcspp::AStarDominanceAlgorithm>(v, gl::build(in).get()))
+            EXPECT_TRUE(gl::keeps_reference_counts<rcspp::strategy::AStar>(v, gl::build(in).get()))
                 << where << " astar";
         }
     }
