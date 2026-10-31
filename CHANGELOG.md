@@ -150,6 +150,14 @@ New features are summarised, with a pointer to where they are documented.
   over the per-node quota), so `max_iterations` counts labels taken, as in the other searches. A
   search stopped by `max_iterations` does more work before it stops, and the memory checks, every
   `memory_check_interval` iterations, fall at other labels.
+- **Removed: the strategy classes' hooks.** Simple, in every direction, is built from the
+  labelling kernel's parts: a schedule, an admission rule, a retention and an observer. It is a
+  `detail::LabellingAlgorithm`, no longer a `DominanceAlgorithm`. There is no `extend`,
+  `extend_label`, `update_non_dominated_labels`, `remove_label`, `add_new_unprocessed_label` or
+  `next_label_iterator` to override, and no `non_dominated_labels_by_node_pos_`. A subclass that
+  overrides one of the hooks with `override` no longer compiles; one that overrides it without
+  `override` still compiles, but the function is no longer called. What Simple returns, and the
+  labels it extends, do not change.
 
 ### Added
 
