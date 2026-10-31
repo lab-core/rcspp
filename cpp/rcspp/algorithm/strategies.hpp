@@ -31,8 +31,6 @@ struct Simple {
 
 /// @brief Labels taken by cost plus completion bound, lowest first (A*).
 struct AStar {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::BestFirstSchedule<ResourceType>;
 };
@@ -40,8 +38,6 @@ struct AStar {
 /// @brief Labels taken node by node, in the direction's sweep order: ascending positions forward,
 ///        descending backward.
 struct Pushing {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::SweepSchedule<ResourceType, Direction>;
 };
@@ -49,8 +45,6 @@ struct Pushing {
 /// @brief One node visited at a time, in the direction's sweep order, pulling from its
 ///        neighbours: its predecessors forward, its successors backward.
 struct Pulling {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };

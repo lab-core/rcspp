@@ -184,6 +184,14 @@ New features are summarised, with a pointer to where they are documented.
   with `astar`, `pushing` and `pulling`), as with Simple. Each finds the forward optimum; backward,
   Pushing and Pulling sweep the nodes in descending order, and A\* bounds the cost from a source.
   See "Search directions" in `docs/advanced/algorithms.md`.
+- **Bidirectional A\*, Pushing and Pulling**: `direction = SearchDirection::Bidirectional` now
+  works with `strategy::AStar`, `strategy::Pushing` and `strategy::Pulling` (in Python,
+  `direction="bidirectional"` with `astar`, `pushing` and `pulling`), as with Simple.
+  Each runs its own order on both halves, with the same half-way point and join, and finds the
+  forward optimum: A\* takes each half's labels by cost plus that half's completion bound, and
+  Pushing and Pulling sweep forward on one half and backward on the other. As in Simple's, a label
+  the per-node quota or memory pressure cuts is abandoned, never extended; see "Quotas in a
+  bidirectional search" in `docs/advanced/algorithms.md`.
 - **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
   `strategy::Simple` searches backward, from the sinks; `create_algorithm` and `solve` build the

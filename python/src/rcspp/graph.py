@@ -563,9 +563,9 @@ class ResourceGraph:
                 Defaults to 0.
             direction: ``'forward'``, ``'backward'`` or ``'bidirectional'`` (or a
                 ``SearchDirection``). Every labelling algorithm (``'simple'``,
-                ``'pushing'``, ``'pulling'``, ``'astar'``) searches backward, and
-                ``'simple'`` also bidirectionally; any other pairing raises
-                ``ValueError``. A bidirectional search goes forward from the
+                ``'pushing'``, ``'pulling'``, ``'astar'``) searches in each;
+                ``'greedy'`` and ``'tabu'`` raise ``ValueError`` for any but
+                ``'forward'``. A bidirectional search goes forward from the
                 sources and backward from the sinks, and joins the two halves in
                 the middle: set ``params.critical_resource_index`` (the clock)
                 and ``params.half_way_point`` (where the halves meet; with 0, the

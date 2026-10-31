@@ -391,32 +391,43 @@ inline std::unique_ptr<Graph> build(double capacity) {
     return graph;
 }
 
-}  // namespace revisitable_ng_test
-
-/// @brief The join lets both halves remember a node that forbids nothing.
-///
-/// Plain disjointness would refuse the only join at H = 1.5 (memories {2} and {2} at node 1) and
-/// return -20 via 0 3, where simple returns -40.
-TEST(JoinContract, ARevisitableNgNodeDoesNotBlockTheJoin) {
-    namespace rng = revisitable_ng_test;
+/// @brief Expects the bidirectional @p Strategy to find the route through the revisited node, at
+///        -40, for both capacities and every `H`.
+template <typename Strategy>
+void expect_the_revisit_is_joined(const char* name) {
     for (const double capacity : {4.0, 10.0}) {
-        const auto forward = rng::build(capacity)->solve<strategy::Simple>(AlgorithmBaseParams{});
+        const auto forward = build(capacity)->solve<strategy::Simple>(AlgorithmBaseParams{});
         ASSERT_FALSE(forward.solutions.empty());
         ASSERT_DOUBLE_EQ(forward.solutions.front().cost, -40.0) << "capacity " << capacity;
 
         for (const double half_way_point : {0.0, 1.5, 2.5}) {
-            auto graph = rng::build(capacity);
+            auto graph = build(capacity);
             AlgorithmParams<
                 LabelList<ResourceTypeComposition<RealResource, RealResource, SizeTBitsetResource>>>
                 params;
             params.critical_resource_index = 1;
             params.half_way_point = half_way_point;
             auto algorithm =
-                graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
+                graph->template create_algorithm<Strategy>(test_util::bidirectional(params));
             const auto result = graph->solve(algorithm.get());
-            ASSERT_FALSE(result.solutions.empty());
+            ASSERT_FALSE(result.solutions.empty()) << name;
             EXPECT_DOUBLE_EQ(result.solutions.front().cost, -40.0)
-                << "capacity " << capacity << ", H = " << half_way_point;
+                << name << ", capacity " << capacity << ", H = " << half_way_point;
         }
     }
+}
+
+}  // namespace revisitable_ng_test
+
+/// @brief The join lets both halves remember a node that forbids nothing, whichever strategy
+///        searches.
+///
+/// Plain disjointness would refuse the only join at H = 1.5 (memories {2} and {2} at node 1) and
+/// return -20 via 0 3, where simple returns -40.
+TEST(JoinContract, ARevisitableNgNodeDoesNotBlockTheJoin) {
+    namespace rng = revisitable_ng_test;
+    rng::expect_the_revisit_is_joined<strategy::Simple>("Simple");
+    rng::expect_the_revisit_is_joined<strategy::AStar>("A*");
+    rng::expect_the_revisit_is_joined<strategy::Pushing>("Pushing");
+    rng::expect_the_revisit_is_joined<strategy::Pulling>("Pulling");
 }
