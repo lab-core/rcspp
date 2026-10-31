@@ -37,6 +37,7 @@
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/labelling_algorithm.hpp"
+#include "rcspp/algorithm/labelling/node_schedules.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/labelling/schedules.hpp"
 #include "rcspp/algorithm/labelling/search.hpp"

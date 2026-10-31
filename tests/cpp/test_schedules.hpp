@@ -29,6 +29,7 @@ using Entry = parts::StoredLabel<Composed>;
 using Fifo = parts::FifoSchedule<Composed>;
 
 static_assert(parts::LabelSchedule<Fifo, Composed>);
+static_assert(!parts::NodeSchedule<Fifo, Composed>);
 
 /// @brief A line 0 -> 1 -> 2 whose one resource is the cost, a pool for its labels, and a
 ///        context pointing at the fixture's own state.
@@ -616,4 +617,64 @@ TEST(CompletionBounds, FillTheBoundFromOneBellmanFordRun) {
     cyclic->sort_nodes();
     EXPECT_EQ(detail::completion_bounds<ForwardDirection>(*cyclic).by_position,
               (std::vector<double>(4, -std::numeric_limits<double>::infinity())));
+}
+
+namespace node_queues_test {
+
+using Composed = ResourceTypeComposition<RealResource>;
+using Forward = parts::NodeQueues<Composed, ForwardDirection>;
+using Backward = parts::NodeQueues<Composed, BackwardDirection>;
+
+/// @brief The positions a sweep of @p num_nodes visits from its first, @p steps times, with a
+///        `*` after a position reached by wrapping around.
+template <typename QueuesType>
+std::string sweep(size_t num_nodes, size_t steps) {
+    QueuesType queues;
+    queues.reset(num_nodes);
+    std::string out = std::to_string(queues.position());
+    for (size_t i = 0; i < steps; ++i) {
+        const bool wrapped = queues.move_to_next_node();
+        out += " " + std::to_string(queues.position()) + (wrapped ? "*" : "");
+    }
+    return out;
+}
+
+}  // namespace node_queues_test
+
+/// @brief A forward sweep visits ascending positions, a backward one descending, each wrapping
+///        around to its start; a new solve starts at the sweep's first position.
+TEST(NodeQueues, SweepAscendingForwardAndDescendingBackward) {
+    namespace nqt = node_queues_test;
+    EXPECT_EQ(nqt::sweep<nqt::Forward>(3, 4), "0 1 2 0* 1");
+    EXPECT_EQ(nqt::sweep<nqt::Backward>(3, 4), "2 1 0 2* 1");
+}
+
+/// @brief A cut keeps a node's cheapest labels; of the excess it releases the dominated ones and
+///        stores the others aside (queued again by the next phase), or, on a bidirectional side,
+///        counts them.
+TEST(NodeQueues, ACutStoresAsideOrAbandonsAsTheRoleSays) {
+    namespace st = schedules_test;
+    namespace nqt = node_queues_test;
+    for (const auto role : {detail::Role::Single, detail::Role::BidirectionalSide}) {
+        st::Fixture f(role);
+        nqt::Forward queues;
+        queues.reset(3);
+        for (const double cost : {3.0, 1.0, 2.0}) {
+            queues.push(f.label(0, cost));
+        }
+        queues.push(f.label(0, 0.5, /*dominated=*/true));
+        queues.cut_to(f.ctx, 1);
+        ASSERT_EQ(queues.current().size(), 1U);
+        EXPECT_EQ(queues.current().front().label->get_cost(), 1.0);
+        EXPECT_EQ(queues.waiting_count(), 1U);
+        EXPECT_EQ(f.in_use(), 3U) << "the dominated label is released";
+        queues.restore_stored_aside();
+        if (role == detail::Role::Single) {
+            EXPECT_EQ(queues.waiting_count(), 3U) << "the two stored aside are back";
+            EXPECT_EQ(f.abandoned, 0U);
+        } else {
+            EXPECT_EQ(queues.waiting_count(), 1U);
+            EXPECT_EQ(f.abandoned, 2U);
+        }
+    }
 }
