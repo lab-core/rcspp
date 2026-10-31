@@ -27,7 +27,8 @@ namespace rcspp {
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node non-dominated label container its params hold; a
-///                            backward search keeps it rebound (@c detail::rebind_direction).
+///                            backward search keeps it turned backward (@c
+///                            detail::make_directed_container).
 /// @tparam Direction          The direction policy: @ref ForwardDirection (the default) or
 ///                            @ref BackwardDirection.
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
@@ -40,7 +41,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     public:
         /// @brief The per-node container this search keeps: @c LabelContainerType rebound to
         ///        @c Direction.
-        using DirectedContainer = detail::rebind_direction_t<LabelContainerType, Direction>;
+        using DirectedContainer = detail::directed_container_t<LabelContainerType, Direction>;
 
         DominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
                            AlgorithmParams<LabelContainerType> params)
@@ -72,15 +73,14 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); i++) {
                 non_dominated_labels_by_node_pos_.emplace_back(
-                    detail::rebind_direction<LabelContainerType, Direction>::convert(
-                        this->params_.labels));
+                    detail::make_directed_container<Direction>(this->params_.labels));
             }
 
             for (auto start_node_id : Direction::start_nodes(*this->graph_)) {
                 auto* start_node = this->graph_->get_node(start_node_id);
                 auto& label = this->label_pool_.get_next_label(start_node);
                 // Only start labels need starting values; extension overwrites all others.
-                Direction::apply_start(*this->graph_, start_node, label);
+                Direction::set_start(*this->graph_, start_node, label);
 
                 auto& buckets = non_dominated_labels_by_node_pos_.at(start_node->pos());
                 // it points to the newly inserted element
@@ -91,8 +91,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
-                if (this->memory_limit_reached(i)) {
+            while (this->waiting_labels() > 0 && !this->should_stop(i)) {
+                if (this->check_memory(i)) {
                     break;
                 }
 
@@ -112,8 +112,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     this->label_pool_.release_with_ref_count(&label);
                     continue;
                 }
-                if (this->params_.prune_by_upper_bound &&
-                    label.get_cost() >= this->best_cost_upper_bound_) {
+                if (this->params_.prune_by_incumbent && label.get_cost() >= this->incumbent_) {
                     remove_label(label_iterator_pair.second);
                     // Use release_with_ref_count (not release_label): this label was added to
                     // the non-dominated set, so it pins a predecessor whose ref_count must be
@@ -125,13 +124,13 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 assert(label.get_end_node());
 
                 // check if we can update the best label or extend
-                if (Direction::is_terminal(label.get_end_node())) {
-                    if (label.get_cost() < this->cost_upper_bound_) {
-                        if (label.get_cost() < this->best_cost_upper_bound_) {
-                            this->best_cost_upper_bound_ = label.get_cost();
+                if (Direction::is_end_node(label.get_end_node())) {
+                    if (label.get_cost() < this->upper_bound_) {
+                        if (label.get_cost() < this->incumbent_) {
+                            this->incumbent_ = label.get_cost();
                         }
                         if (this->params_.return_dominated_solutions) {
-                            this->extract_solution(label);
+                            this->record_solution(label);
                             if (this->solutions_.size() >= this->params_.max_solutions) {
                                 LOG_DEBUG("Stopping after ",
                                           this->solutions_.size(),
@@ -141,9 +140,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         }
                     }
                 } else if (!std::isinf(label.get_cost())) {
-                    this->total_full_extend_time_.start();
                     this->extend(&label);
-                    this->total_full_extend_time_.stop();
                 } else {
                     remove_label(label_iterator_pair.second);
                     this->label_pool_.release_with_ref_count(&label);
@@ -158,7 +155,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         /// @brief Extends @p label_ptr along every arc its direction walks from its node.
         virtual void extend(Label<ResourceType>* label_ptr) {
             const auto& current_node = label_ptr->get_end_node();
-            for (auto arc_ptr : Direction::arcs(*this->graph_, current_node)) {
+            for (auto arc_ptr : Direction::out_arcs(*this->graph_, current_node)) {
                 extend_label(label_ptr, arc_ptr);
             }
         }
@@ -215,11 +212,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 // Pin predecessor: keep it alive until this label is released.
                 new_label.set_prev_label(label_ptr);
             } else {
-                if (!feasible) {
-                    ++this->nb_infeasible_labels_;
-                } else {
-                    ++this->nb_dominated_labels_;
-                }
                 // new_label was never a predecessor; release immediately.
                 this->label_pool_.release_label(&new_label);
             }
@@ -256,9 +248,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return arc_ids;
         }
 
-        using Algorithm<ResourceType, LabelContainerType>::extract_solution;
-
-        void extract_solution(const Label<ResourceType>& label) override {
+        void record_solution(const Label<ResourceType>& label) override {
             extract_path_solution<Direction>(label);
         }
 
@@ -276,9 +266,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                     return;
                 }
                 const size_t end_node_id = this->graph_->get_arc(arc_ids.back())->destination->id;
-                this->extract_solution(label.get_cost(), std::move(arc_ids), end_node_id);
+                this->record_path(label.get_cost(), std::move(arc_ids), end_node_id);
             } else {
-                Algorithm<ResourceType, LabelContainerType>::extract_solution(label);
+                Algorithm<ResourceType, LabelContainerType>::record_solution(label);
             }
         }
 
@@ -314,23 +304,17 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         template <typename LabelDirection, typename Container>
         bool update_non_dominated_labels(const Label<ResourceType>& label,
                                          std::vector<Container>& containers) {
-            total_update_non_dom_time_.start();
-            ++nb_update_non_dom_iter_;
-
             auto current_node_pos = label.get_end_node()->pos();
             auto& non_dominated_labels_list = containers.at(current_node_pos);
 
             // First, check if label is dominated by any existing non-dominated label
             bool label_dominated = non_dominated_labels_list.is_dominated(label);
             if (label_dominated) {
-                total_update_non_dom_time_.stop();
                 return false;
             }
 
             // Second, remove all existing labels that are dominated by label
             non_dominated_labels_list.remove_dominated_labels(label);
-
-            total_update_non_dom_time_.stop();
 
             return true;
         }
@@ -353,8 +337,8 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             containers.at(current_node_pos).erase_label(label_iterator);
         }
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
-            return get_labels_at_terminals<Direction>(non_dominated_labels_by_node_pos_);
+        [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
+            return labels_at_end_nodes<Direction>(non_dominated_labels_by_node_pos_);
         }
 
         /// @brief Collects the labels at this direction's terminal nodes.
@@ -364,10 +348,10 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         /// @param containers The per-node containers to read.
         /// @return Every label held at a terminal node of @c LabelDirection.
         template <typename LabelDirection, typename Container>
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals(
+        [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes(
             const std::vector<Container>& containers) const {
             std::list<Label<ResourceType>*> labels_at_terminals;
-            for (auto terminal_node_id : LabelDirection::terminals(*this->graph_)) {
+            for (auto terminal_node_id : LabelDirection::end_nodes(*this->graph_)) {
                 auto node_pos = this->graph_->get_node(terminal_node_id)->pos();
                 const auto& labels_at_current_terminal = containers.at(node_pos).get_labels();
                 labels_at_terminals.insert(labels_at_terminals.end(),
@@ -395,13 +379,6 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         /// @brief This search's non-dominated labels: one container per node, indexed by node
         ///        position.
         std::vector<DirectedContainer> non_dominated_labels_by_node_pos_;
-
-        Timer total_extend_time_;
-        Timer total_update_non_dom_time_;
-
-        size_t nb_infeasible_labels_ = 0;
-        size_t nb_update_non_dom_iter_ = 0;
-        size_t nb_extend_iter_ = 0;
 };
 
 template <typename ResourceType>
@@ -454,7 +431,7 @@ struct NodeUnprocessedLabelsManager {
         void resize_unprocessed_labels(
             std::list<LabelIteratorPair<ResourceType>>* unprocessed_labels, size_t new_size,
             LabelPool<ResourceType>* label_pool, bool sort) {
-            auto excess = split_off_excess_labels(unprocessed_labels, new_size, sort);
+            auto excess = detail::split_off_excess(unprocessed_labels, new_size, sort);
             if (excess.empty()) {
                 return;
             }

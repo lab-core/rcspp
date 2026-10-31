@@ -470,7 +470,7 @@ def example_advanced_params():
     assert math.isclose(sols_full[0].cost, 3.0, abs_tol=1e-6)
 
     # max_iterations=1: only the source label is processed in the main loop.
-    # The direct arc 0→2 adds cost-5 label to the sink, which extract_remaining_solutions
+    # The direct arc 0→2 adds cost-5 label to the sink, which record_remaining_solutions
     # picks up.  The indirect path via node 1 is not yet explored → suboptimal result.
     params = AlgorithmParams()
     params.max_iterations = 1

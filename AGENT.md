@@ -239,8 +239,8 @@ SearchDirection::Bidirectional`; the class behind it is internal
 (`rcspp::detail::BidirectionalDominanceAlgorithm`). An int clock beside a real cost is
 `solve<SimpleDominanceAlgorithm, RealResource, LabelContainerType, IntResource>`: the clock's
 type is the last template parameter and defaults to the cost's. `SolveResult::bidirectional`,
-empty from every other algorithm, reports `bounded_by_half_way`, `half_way_off_reason` and
-`number_of_joined_paths`.
+empty from every other algorithm, reports `half_way_used`, `half_way_off_reason` and
+`joined_paths`.
 
 See `docs/advanced/algorithms.md` for the full description.
 
@@ -471,12 +471,12 @@ clang-tidy --config-file=.clang-tidy-naming cpp/rcspp/rcspp.hpp -- -xc++ -std=c+
 - **Case.** Classes, structs, enums, concepts and enum values are `CamelCase`
   (`SearchDirection::Forward`, `AlgorithmStatus::MaxSolutions`). Functions, methods, variables and
   data members are `snake_case`. Type traits follow the standard library: `snake_case`, with `_v`
-  or `_t` for the value or type (`declares_directional_resource_kind_v`, `rebind_direction`).
+  or `_t` for the value or type (`declares_directional_resource_kind_v`, `directed_container_t`).
 - **Members.** Non-public data members end in `_` (`back_dominance_reversed_`); public fields of a
   struct do not (`AlgorithmBaseParams::max_solutions`).
 - **Constants** are `kCamelCase` (`kNoId`, `kDefaultMemoryCheckInterval`). The static members of
   traits and policies follow the standard library instead (`value`, `kind`, `has_backward`). A
-  few older constants are still in SCREAMING_CASE: `MAX_INT`, the `FNV_*` constants,
+  few older constants are still in SCREAMING_CASE: the `FNV_*` constants,
   `DEFAULT_LABEL_POOL_SIZE`, and the `timer.cpp` constants.
 - **Template parameters** are spelled out and end in `Type` when they stand for a type
   (`ResourceType`, `LabelContainerType`, `GraphType`); direction policies are `TargetDirection` or

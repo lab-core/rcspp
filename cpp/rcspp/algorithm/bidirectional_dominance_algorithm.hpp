@@ -20,7 +20,7 @@
 #include "rcspp/algorithm/half_way_policy.hpp"
 #include "rcspp/algorithm/label_frontier.hpp"
 #include "rcspp/algorithm/label_join.hpp"
-#include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
+#include "rcspp/algorithm/labelling/bounds.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 
 namespace rcspp::detail {
@@ -66,8 +66,8 @@ class BidirectionalDominanceAlgorithm
         using Base = DominanceAlgorithm<ResourceType, LabelContainerType, ForwardDirection>;
 
         /// @brief The backward container: the caller's container, turned backward (see
-        ///        @ref rebind_direction).
-        using BackwardContainer = rebind_direction_t<LabelContainerType, BackwardDirection>;
+        ///        @ref make_directed_container).
+        using BackwardContainer = directed_container_t<LabelContainerType, BackwardDirection>;
 
     public:
         BidirectionalDominanceAlgorithm(ResourceFactory<ResourceType>* resource_factory,
@@ -103,8 +103,7 @@ class BidirectionalDominanceAlgorithm
             backward_labels_by_node_pos_.reserve(num_nodes);
             for (size_t i = 0; i < num_nodes; ++i) {
                 backward_labels_by_node_pos_.emplace_back(
-                    rebind_direction<LabelContainerType, BackwardDirection>::convert(
-                        this->params_.labels));
+                    make_directed_container<BackwardDirection>(this->params_.labels));
             }
 
             joined_paths_ = 0;
@@ -122,8 +121,7 @@ class BidirectionalDominanceAlgorithm
             this->non_dominated_labels_by_node_pos_.reserve(this->graph_->get_number_of_nodes());
             for (size_t i = 0; i < this->graph_->get_number_of_nodes(); ++i) {
                 this->non_dominated_labels_by_node_pos_.emplace_back(
-                    rebind_direction<LabelContainerType, ForwardDirection>::convert(
-                        this->params_.labels));
+                    make_directed_container<ForwardDirection>(this->params_.labels));
             }
 
             create_start_labels<ForwardDirection>(this->non_dominated_labels_by_node_pos_,
@@ -132,7 +130,7 @@ class BidirectionalDominanceAlgorithm
                                                    &backward_frontier_);
         }
 
-        [[nodiscard]] size_t number_of_labels() const override {
+        [[nodiscard]] size_t waiting_labels() const override {
             return forward_frontier_.size() + backward_frontier_.size();
         }
 
@@ -155,8 +153,8 @@ class BidirectionalDominanceAlgorithm
         /// whole forward half first.
         void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
             size_t iteration = 0;
-            while (number_of_labels() > 0 && !this->should_stop(iteration)) {
-                if (this->memory_limit_reached(iteration)) {
+            while (waiting_labels() > 0 && !this->should_stop(iteration)) {
+                if (this->check_memory(iteration)) {
                     break;
                 }
                 ++iteration;
@@ -188,13 +186,13 @@ class BidirectionalDominanceAlgorithm
         /// 1 and 2 are needed because the join only sees paths that cross `H`. They run first, so
         /// the join prunes against the best path found so far. A path found twice is kept once.
         /// The join is skipped after an interrupt.
-        void extract_remaining_solutions() override {
-            for (const auto* label : this->template get_labels_at_terminals<ForwardDirection>(
+        void record_remaining_solutions() override {
+            for (const auto* label : this->template labels_at_end_nodes<ForwardDirection>(
                      this->non_dominated_labels_by_node_pos_)) {
-                this->extract_solution(*label);
+                this->record_solution(*label);
             }
 
-            for (const auto* label : this->template get_labels_at_terminals<BackwardDirection>(
+            for (const auto* label : this->template labels_at_end_nodes<BackwardDirection>(
                      backward_labels_by_node_pos_)) {
                 this->template extract_path_solution<BackwardDirection>(*label);
             }
@@ -206,9 +204,9 @@ class BidirectionalDominanceAlgorithm
         void annotate(SolveResult* result) const override {
             Base::annotate(result);
             result->bidirectional = BidirectionalStats{
-                .bounded_by_half_way = half_way_.enabled(),
+                .half_way_used = half_way_.enabled(),
                 .half_way_off_reason = half_way_off_reason_,
-                .number_of_joined_paths = joined_paths_,
+                .joined_paths = joined_paths_,
             };
         }
 
@@ -220,9 +218,8 @@ class BidirectionalDominanceAlgorithm
         /// The result may be non-optimal; `memory_pressure_was_triggered()` reports it.
         void on_memory_pressure() override {
             Base::on_memory_pressure();
-            this->effective_max_labels_per_node_ =
-                std::min(this->effective_max_labels_per_node_,
-                         this->params_.memory_pressure_max_labels_per_node);
+            this->quota_ =
+                std::min(this->quota_, this->params_.memory_pressure_max_labels_per_node);
             this->memory_pressure_triggered_ = true;
             const size_t per_node = this->params_.memory_pressure_max_labels_per_node;
             const size_t num_nodes = this->graph_->get_number_of_nodes();
@@ -256,54 +253,59 @@ class BidirectionalDominanceAlgorithm
             for (auto start_node_id : Direction::start_nodes(*this->graph_)) {
                 auto* start_node = this->graph_->get_node(start_node_id);
                 auto& label = this->label_pool_.get_next_label(start_node);
-                Direction::apply_start(*this->graph_, start_node, label);
+                Direction::set_start(*this->graph_, start_node, label);
                 auto label_it = containers.at(start_node->pos()).add_label(&label);
                 frontier->push(std::make_pair(&label, label_it));
             }
         }
 
-        /// @brief Processes one label from @p frontier.
+        /// @brief Processes one label from @p frontier: the first that is neither dominated nor
+        ///        over its node's quota, which is counted against the quota.
         ///
-        /// Abandoning a label (dominated, over quota, beyond the completion bound, past `H`) never
-        /// stops the solve; run-level stops are checked in `main_loop`.
+        /// A dominated label is released and one over the quota abandoned, within the same call:
+        /// neither costs the search an iteration. Abandoning a label later (beyond the completion
+        /// bound, past `H`) ends the iteration but never stops the solve; run-level stops are
+        /// checked in `main_loop`.
         template <typename Direction, typename Container>
         void step(std::vector<Container>& containers, LabelFrontier<ResourceType>* frontier,
                   std::vector<size_t>* extended_per_node) {
-            auto label_iterator_pair = frontier->pop();
-
+            LabelIteratorPair<ResourceType> label_iterator_pair{};
+            while (!frontier->empty()) {
+                const auto popped = frontier->pop();
+                if (popped.first->dominated) {
+                    this->label_pool_.release_with_ref_count(popped.first);
+                    continue;
+                }
+                size_t& extended_count = extended_per_node->at(popped.first->get_end_node()->pos());
+                if (extended_count >= this->quota_) {
+                    // Known gap: an abandoned label never yields a boundary label, so the join
+                    // sees fewer forward halves. Only reachable under truncated labeling or memory
+                    // pressure, and such labels are never revisited.
+                    ++abandoned_labels_;
+                    continue;
+                }
+                ++extended_count;
+                label_iterator_pair = popped;
+                break;
+            }
             auto* label_ptr = label_iterator_pair.first;
             if (label_ptr == nullptr) {
                 return;
             }
-            if (label_ptr->dominated) {
-                this->label_pool_.release_with_ref_count(label_ptr);
-                return;
-            }
-
             const size_t node_pos = label_ptr->get_end_node()->pos();
-            size_t& extended_count = extended_per_node->at(node_pos);
-            if (extended_count >= this->effective_max_labels_per_node_) {
-                // Known gap: an abandoned label never yields a boundary label, so the join sees
-                // fewer forward halves. Only reachable under truncated labeling or memory pressure,
-                // and such labels are never revisited.
-                ++abandoned_labels_;
-                return;
-            }
-            ++extended_count;
 
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
-            if (this->params_.prune_by_upper_bound &&
-                label_ptr->get_cost() + completion_bound<Direction>(node_pos) >=
-                    this->best_cost_upper_bound_) {
+            if (this->params_.prune_by_incumbent &&
+                label_ptr->get_cost() + completion_bound<Direction>(node_pos) >= this->incumbent_) {
                 this->template remove_label<Direction>(label_iterator_pair.second, containers);
                 this->label_pool_.release_with_ref_count(label_ptr);
                 return;
             }
 
-            if (Direction::is_terminal(label_ptr->get_end_node())) {
-                if (label_ptr->get_cost() < this->best_cost_upper_bound_) {
-                    this->best_cost_upper_bound_ = label_ptr->get_cost();
+            if (Direction::is_end_node(label_ptr->get_end_node())) {
+                if (label_ptr->get_cost() < this->incumbent_) {
+                    this->incumbent_ = label_ptr->get_cost();
                 }
                 // Record now: a terminal label dominated later is gone by the final sweep, and
                 // `max_solutions` needs `solutions_` to grow during the search.
@@ -346,7 +348,7 @@ class BidirectionalDominanceAlgorithm
         void extend_into(Label<ResourceType>* label_ptr, std::vector<Container>& containers,
                          LabelFrontier<ResourceType>* frontier) {
             pending_frontier_ = frontier;
-            const auto arcs = Direction::arcs(*this->graph_, label_ptr->get_end_node());
+            const auto arcs = Direction::out_arcs(*this->graph_, label_ptr->get_end_node());
             (Direction::backward ? backward_work_ : forward_work_) += arcs.size();
             for (auto* arc_ptr : arcs) {
                 this->template extend_label<Direction>(label_ptr, arc_ptr, containers);
@@ -362,7 +364,7 @@ class BidirectionalDominanceAlgorithm
         ///
         /// @return The stop, or @c RunLevelStop::None.
         [[nodiscard]] RunLevelStop run_level_stop() {
-            if (number_of_labels() == 0) {
+            if (waiting_labels() == 0) {
                 return RunLevelStop::None;
             }
             if (this->is_interrupted()) {
@@ -377,7 +379,7 @@ class BidirectionalDominanceAlgorithm
             return RunLevelStop::None;
         }
 
-        /// @brief Runs the join pass, feeding every accepted pair to `extract_solution`.
+        /// @brief Runs the join pass, feeding every accepted pair to `record_path`.
         ///
         /// After a timeout or the memory limit the join still runs (see @ref join_runs_after), with
         /// the incumbent cutoff forced on. It is skipped after an interrupt, or after any run-level
@@ -392,10 +394,10 @@ class BidirectionalDominanceAlgorithm
                 return;
             }
 
-            // Counts what the join adds: extract_solution drops a path it already holds.
+            // Counts what the join adds: record_path drops a path it already holds.
             auto record = [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                 const size_t before = this->solutions_.size();
-                this->extract_solution(cost, std::move(arc_ids), end_node_id);
+                this->record_path(cost, std::move(arc_ids), end_node_id);
                 joined_paths_ += this->solutions_.size() - before;
             };
             const JoinOptions options{
@@ -403,22 +405,22 @@ class BidirectionalDominanceAlgorithm
                 .critical_resource_index = this->params_.critical_resource_index,
                 // After an early stop, prune against the incumbent whatever the caller asked: the
                 // join only owes the improving paths, and that keeps its output to a handful.
-                .prune_requested = this->params_.prune_by_upper_bound || stopped_early,
-                .cost_upper_bound = this->cost_upper_bound_,
+                .prune_requested = this->params_.prune_by_incumbent || stopped_early,
+                .cost_upper_bound = this->upper_bound_,
                 .max_solutions = this->params_.max_solutions,
             };
             joiner_.join(*this->graph_,
                          this->non_dominated_labels_by_node_pos_,
                          backward_labels_by_node_pos_,
                          options,
-                         this->best_cost_upper_bound_,
+                         this->incumbent_,
                          record);
         }
 
         /// @brief A lower bound on the cost a label at @p node_pos still has to add to become a
         ///        complete path: to a sink going forward, from a source going backward.
         ///
-        /// 0 when @c prune_by_upper_bound is off; minus infinity when no bound could be
+        /// 0 when @c prune_by_incumbent is off; minus infinity when no bound could be
         /// computed.
         template <typename Direction>
         [[nodiscard]] double completion_bound(size_t node_pos) const {
@@ -600,13 +602,8 @@ class BidirectionalDominanceAlgorithm
                                                       : std::numeric_limits<double>::infinity();
         }
 
-        /// @brief Computes both completion bounds (cost-to-sink and cost-from-source).
-        ///
-        /// The bounds are shortest distances over each arc's share of the label cost, the cost
-        /// the search itself compares, so they hold whichever component or components the cost
-        /// function reads. That share is well defined because the model checks require an
-        /// additive cost before any bidirectional solve. Unlike A*, this reads neither `arc.cost`
-        /// (the original weight, not a bound under reduced costs) nor a cost slot index.
+        /// @brief Computes both completion bounds (cost-to-sink and cost-from-source), with
+        ///        @ref detail::completion_bounds.
         void compute_completion_bounds(const Graph<ResourceType>& graph) {
             const size_t num_nodes = graph.get_number_of_nodes();
             h_to_sink_.assign(num_nodes, 0.0);
@@ -614,77 +611,12 @@ class BidirectionalDominanceAlgorithm
 
             // Only the completion-bound prune reads these; skip the relaxations when it is off.
             // The vectors stay sized above because `completion_bound` uses `.at()`.
-            if (!this->params_.prune_by_upper_bound) {
+            if (!this->params_.prune_by_incumbent) {
                 return;
             }
 
-            const auto weights = arc_cost_shares(graph);
-            fill_bound(graph, weights, graph.get_sink_node_ids(), /*forward=*/false, &h_to_sink_);
-            fill_bound(graph,
-                       weights,
-                       graph.get_source_node_ids(),
-                       /*forward=*/true,
-                       &h_from_source_);
-        }
-
-        /// @brief Each live arc's share of the label cost: what extending a label along it adds.
-        ///
-        /// Extends the origin's start value along the arc, as a label is extended, and takes the
-        /// difference of the two costs. Under an additive cost the difference does not depend on
-        /// the value extended from.
-        ///
-        /// @param graph The graph.
-        /// @return One weighted arc per live arc with an extender.
-        [[nodiscard]] static std::vector<BellmanFordAlgorithm::WeightedArc> arc_cost_shares(
-            const Graph<ResourceType>& graph) {
-            std::vector<BellmanFordAlgorithm::WeightedArc> weights;
-            std::unique_ptr<Resource<ResourceType>> start;
-            std::unique_ptr<Resource<ResourceType>> extended;
-            graph.for_each_arc([&](const Arc<ResourceType>& arc) {
-                if (arc.extender == nullptr || arc.origin->resource == nullptr ||
-                    arc.destination->resource == nullptr) {
-                    return;
-                }
-                if (start == nullptr) {
-                    start = std::make_unique<Resource<ResourceType>>(*arc.origin->resource);
-                    extended = std::make_unique<Resource<ResourceType>>(*arc.destination->resource);
-                }
-                // reset() adopts a node's function objects without cloning them, as a pooled
-                // label does.
-                start->reset(*arc.origin->resource);
-                extended->reset(*arc.destination->resource);
-                arc.extender->extend(*start, extended.get());
-                weights.push_back({.origin_id = arc.origin->id,
-                                   .destination_id = arc.destination->id,
-                                   .weight = extended->get_cost() - start->get_cost()});
-            });
-            return weights;
-        }
-
-        /// @brief Fills @p out with the shortest distances to (or from) @p targets over
-        ///        @p weights, by node position.
-        ///
-        /// A negative-cost cycle leaves no finite bound: @p out is then minus infinity, which
-        /// prunes nothing.
-        void fill_bound(const Graph<ResourceType>& graph,
-                        const std::vector<BellmanFordAlgorithm::WeightedArc>& weights,
-                        const std::vector<size_t>& targets, bool forward,
-                        std::vector<double>* out) {
-            try {
-                auto distance =
-                    BellmanFordAlgorithm::solve_weighted(graph, targets, weights, forward);
-                for (size_t node_id : graph.get_node_ids()) {
-                    const auto* node = graph.get_node(node_id);
-                    auto it = distance.find(node_id);
-                    out->at(node->pos()) = (it != distance.end())
-                                               ? it->second
-                                               : std::numeric_limits<double>::infinity();
-                }
-            } catch (const std::runtime_error&) {
-                // Negative-cost cycle: no finite lower bound, so use -inf, which prunes nothing
-                // (0 would prune on the half's own cost).
-                std::ranges::fill(*out, -std::numeric_limits<double>::infinity());
-            }
+            h_to_sink_ = detail::completion_bounds<ForwardDirection>(graph).by_position;
+            h_from_source_ = detail::completion_bounds<BackwardDirection>(graph).by_position;
         }
 
         std::vector<BackwardContainer> backward_labels_by_node_pos_;

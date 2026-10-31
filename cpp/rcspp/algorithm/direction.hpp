@@ -24,8 +24,8 @@ struct ForwardDirection {
 
         /// @brief The arcs to walk from @p node: outgoing, going forward.
         template <typename ResourceType>
-        static auto arcs(const Graph<ResourceType>& graph,
-                         const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+        static auto out_arcs(const Graph<ResourceType>& graph,
+                             const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
             return graph.get_out_arcs(node);
         }
 
@@ -73,9 +73,8 @@ struct ForwardDirection {
 
         /// @brief Gives a start label its starting value (no-op going forward).
         template <typename ResourceType>
-        static void apply_start(const Graph<ResourceType>& /*graph*/,
-                                const Node<ResourceType>* /*node*/,
-                                Label<ResourceType>& /*label*/) {}
+        static void set_start(const Graph<ResourceType>& /*graph*/,
+                              const Node<ResourceType>* /*node*/, Label<ResourceType>& /*label*/) {}
 
         /// @brief The nodes a search of this direction starts from.
         template <typename ResourceType>
@@ -93,13 +92,13 @@ struct ForwardDirection {
 
         /// @brief Whether @p node ends a complete path for this direction.
         template <typename ResourceType>
-        static auto is_terminal(const Node<ResourceType>* node) -> bool {
+        static auto is_end_node(const Node<ResourceType>* node) -> bool {
             return node->sink;
         }
 
         /// @brief The nodes a search of this direction ends at.
         template <typename ResourceType>
-        static auto terminals(const Graph<ResourceType>& graph) -> const std::vector<size_t>& {
+        static auto end_nodes(const Graph<ResourceType>& graph) -> const std::vector<size_t>& {
             return graph.get_sink_node_ids();
         }
 };
@@ -114,8 +113,8 @@ struct BackwardDirection {
 
         /// @brief The arcs to walk from @p node: incoming, going backward.
         template <typename ResourceType>
-        static auto arcs(const Graph<ResourceType>& graph,
-                         const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
+        static auto out_arcs(const Graph<ResourceType>& graph,
+                             const Node<ResourceType>* node) -> std::span<Arc<ResourceType>*> {
             return graph.get_in_arcs(node);
         }
 
@@ -168,8 +167,8 @@ struct BackwardDirection {
         ///
         /// A sink no live arc enters keeps the type default, as no backward step leaves it.
         template <typename ResourceType>
-        static void apply_start(const Graph<ResourceType>& graph, const Node<ResourceType>* node,
-                                Label<ResourceType>& label) {
+        static void set_start(const Graph<ResourceType>& graph, const Node<ResourceType>* node,
+                              Label<ResourceType>& label) {
             if (const auto* arc = start_arc(graph, node); arc != nullptr) {
                 arc->extender->start_back(&label.get_resource());
             }
@@ -207,13 +206,13 @@ struct BackwardDirection {
 
         /// @brief Whether @p node ends a complete path for a backward search: a source.
         template <typename ResourceType>
-        static auto is_terminal(const Node<ResourceType>* node) -> bool {
+        static auto is_end_node(const Node<ResourceType>* node) -> bool {
             return node->source;
         }
 
         /// @brief The nodes a backward search ends at: the sources.
         template <typename ResourceType>
-        static auto terminals(const Graph<ResourceType>& graph) -> const std::vector<size_t>& {
+        static auto end_nodes(const Graph<ResourceType>& graph) -> const std::vector<size_t>& {
             return graph.get_source_node_ids();
         }
 };
@@ -228,20 +227,20 @@ concept DirectionPolicy =
              const Arc<ResourceType>& arc, const Label<ResourceType>& label,
              Label<ResourceType>& mutable_label, Label<ResourceType>* extended_label) {
         {
-            Direction::template arcs<ResourceType>(graph, node)
+            Direction::template out_arcs<ResourceType>(graph, node)
         } -> std::same_as<std::span<Arc<ResourceType>*>>;
         { Direction::template head<ResourceType>(arc) } -> std::same_as<Node<ResourceType>*>;
         Direction::template extend<ResourceType>(label, arc, extended_label);
         { Direction::template feasible<ResourceType>(label) } -> std::same_as<bool>;
         { Direction::template dominates<ResourceType>(label, label) } -> std::same_as<bool>;
-        Direction::template apply_start<ResourceType>(graph, node, mutable_label);
+        Direction::template set_start<ResourceType>(graph, node, mutable_label);
         {
             Direction::template start_nodes<ResourceType>(graph)
         } -> std::same_as<const std::vector<size_t>&>;
-        { Direction::template is_terminal<ResourceType>(node) } -> std::same_as<bool>;
+        { Direction::template is_end_node<ResourceType>(node) } -> std::same_as<bool>;
         { Direction::template is_start_node<ResourceType>(node) } -> std::same_as<bool>;
         {
-            Direction::template terminals<ResourceType>(graph)
+            Direction::template end_nodes<ResourceType>(graph)
         } -> std::same_as<const std::vector<size_t>&>;
         { Direction::backward } -> std::convertible_to<bool>;
     };

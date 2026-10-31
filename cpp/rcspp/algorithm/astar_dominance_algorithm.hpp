@@ -9,18 +9,18 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/dominance_algorithm.hpp"
-#include "rcspp/preprocessor/bellman_ford_algorithm.hpp"
-#include "rcspp/resource/resource_traits.hpp"
+#include "rcspp/algorithm/labelling/bounds.hpp"
 
 namespace rcspp {
 
 /// @brief Label-correcting dominance algorithm with A*-style priority ordering.
 ///
 /// Identical to @ref SimpleDominanceAlgorithm except the frontier is a min-heap ordered by
-/// @f$ f = g + h @f$, where @f$ g @f$ is the label's current (reduced) cost and @f$ h(n) @f$ is a
-/// per-node lower bound on the remaining reduced cost from @p n to any sink, computed once via a
-/// backward Bellman–Ford pass over the same cost slot the labeling uses (see @ref initialize).
+/// @f$ f = g + h @f$, where @f$ g @f$ is the label's cost and @f$ h(n) @f$ a lower bound on the
+/// cost still to pay from @p n to a sink, computed once per solve (@ref
+/// detail::completion_bounds).
 ///
 /// Expanding the smallest-@f$ f @f$ labels first typically extends far fewer labels than FIFO
 /// ordering when arc costs are heterogeneous. Two things are worth being precise about:
@@ -34,19 +34,14 @@ namespace rcspp {
 ///    keeps the most promising labels and the truncated result stays optimal far more often,
 ///    whereas an over-estimating @f$ h @f$ could drop the optimal path.
 ///
-/// If the reduced-cost relaxation contains a negative-cost cycle there is no finite lower bound,
-/// so the heuristic is disabled (@f$ h \equiv 0 @f$) and the search behaves like the non-A*
-/// dominance algorithms (ordered by current reduced cost); see @ref initialize for why arc.cost
-/// must not be used in that case.
+/// The bound is computed on the objective, the cost the labels carry, so it is a lower bound
+/// whichever components the cost function reads. If the relaxation contains a negative-cost
+/// cycle there is no finite bound, and the search orders by cost alone, as the non-A* dominance
+/// algorithms do.
 ///
 /// @tparam ResourceType       Composed resource type (must satisfy ResourceTypeConcept).
 /// @tparam LabelContainerType Non-dominated label container (default: LabelList).
-/// @tparam CostResourceType   Numerical resource whose component value gives arc cost for
-///                            the heuristic Bellman–Ford.  When it is not present in
-///                            @p ResourceType, the algorithm falls back to @p arc.cost.
-///                            Injected by AStarAlgoEntry so it matches the labeling cost.
-template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
-          typename CostResourceType = RealResource>
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
     requires ResourceTypeConcept<ResourceType>
 class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelContainerType> {
     public:
@@ -58,7 +53,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                                 AlgorithmParams<LabelContainerType> params)
             : DominanceAlgorithm<ResourceType, LabelContainerType>(resource_factory,
                                                                    std::move(params)),
-              unprocessed_labels_{LabelFValueComparator{&h_to_sink_}} {}
+              unprocessed_labels_{LabelFValueComparator{&h_}} {}
 
         ~AStarDominanceAlgorithm() override = default;
 
@@ -68,9 +63,8 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// @brief Min-heap comparator: lower f-value = higher priority; among equal f-values,
         ///        the older label (smaller id) first.
         ///
-        /// Stores a pointer to the outer object's @ref h_to_sink_ vector so that
-        /// the comparator always reflects the current heuristic values without
-        /// copying the vector.
+        /// Stores a pointer to the outer object's @ref h_ so that the comparator always
+        /// reflects the current bound without copying it.
         ///
         /// The id tie-break makes the order total. Without it, which of two labels with the same
         /// f-value comes out first depends on the standard library's heap algorithm (libc++'s
@@ -78,12 +72,12 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// the solutions it returned. Label ids come from the pool's counter, so they are unique
         /// and follow creation order.
         struct LabelFValueComparator {
-                const std::vector<double>* h;
+                const detail::NodeBound<ResourceType>* h;
 
                 bool operator()(const LabelIteratorPair<ResourceType>& a,
                                 const LabelIteratorPair<ResourceType>& b) const {
-                    double fa = a.first->get_cost() + h->at(a.first->get_end_node()->pos());
-                    double fb = b.first->get_cost() + h->at(b.first->get_end_node()->pos());
+                    double fa = a.first->get_cost() + h->for_order(*a.first);
+                    double fb = b.first->get_cost() + h->for_order(*b.first);
                     // std::priority_queue is a max-heap; invert comparison for min-heap.
                     if (fa != fb) {
                         return fa > fb;
@@ -98,74 +92,15 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
         // ─── Initialization ───────────────────────────────────────────────────
 
-        /// @brief Compute the per-node heuristic @ref h_to_sink_ and reset the per-node counters.
-        ///
-        /// The labeling cost @f$ g @f$ (Label::get_cost()) is the *reduced* cost, so for
-        /// @f$ f = g + h @f$ to be an admissible A* heuristic @f$ h(n) @f$ must lower-bound the
-        /// remaining REDUCED cost from @p n to a sink. We obtain that bound with a backward
-        /// Bellman–Ford over the SAME cost slot the labeling uses
-        /// (@p params_.heuristic_cost_index, the reduced cost): dropping the resource constraints
-        /// can only lower a path's cost, so the relaxed shortest reduced-cost-to-sink is a valid
-        /// lower bound on the true RCSPP cost-to-go. (When @p CostResourceType is not part of
-        /// @p ResourceType, @f$ g @f$ is simply @p arc.cost and the arc-cost Bellman–Ford gives the
-        /// matching bound.)
-        ///
-        /// Unreachable nodes get @f$ +\infty @f$; a negative-cost cycle disables the heuristic
-        /// (@f$ h \equiv 0 @f$) — see the catch block.
+        /// @brief Compute the bound @ref h_ and reset the per-node counters.
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
 
             number_of_extended_labels_per_node_.assign(graph->get_number_of_nodes(), 0);
-            // Default to h == 0 ("no heuristic"); overwritten below when a valid bound exists.
-            h_to_sink_.assign(graph->get_number_of_nodes(), 0.0);
-
-            try {
-                // Backward Bellman–Ford from the sinks over the labeling cost slot. Throws on a
-                // negative-cost cycle (possible with reduced costs, never with arc.cost alone).
-                Distance dist;
-                if constexpr (is_cost_in_composition_v<CostResourceType, ResourceType>) {
-                    dist = BellmanFordAlgorithm::solve<CostResourceType>(
-                        *graph,
-                        graph->get_sink_node_ids(),
-                        this->params_.heuristic_cost_index,
-                        /*forward=*/false);
-                } else {
-                    dist = BellmanFordAlgorithm::solve(*graph,
-                                                       graph->get_sink_node_ids(),
-                                                       /*forward=*/false);
-                }
-                for (size_t node_id : graph->get_node_ids()) {
-                    const auto* node = graph->get_node(node_id);
-                    auto it = dist.find(node_id);
-                    // Unreachable nodes -> +inf so their labels sort to the back of the heap.
-                    h_to_sink_[node->pos()] =
-                        (it != dist.end()) ? it->second : std::numeric_limits<double>::infinity();
-                }
-            } catch (const std::runtime_error&) {
-                // The reduced-cost relaxation has a negative-cost cycle, so the shortest
-                // reduced-cost-to-sink is -inf: there is no finite lower bound to use as h.
-                //
-                // Disable the heuristic (h == 0, already set by the assign() above) rather than
-                // seeding it from arc.cost. arc.cost is the ORIGINAL, non-negative arc weight — a
-                // different quantity from the reduced cost carried in g. Per arc, reduced cost <=
-                // original cost (the duals are non-negative) and is frequently negative, so a sum
-                // of arc.cost OVER-estimates the remaining reduced cost. An over-estimating h is
-                // NOT admissible: with per-node truncation or memory-pressure pruning (which retain
-                // the lowest-f labels) it can discard the labels lying on the true optimal path and
-                // then return a suboptimal solution while still reporting
-                // AlgorithmStatus::Complete.
-                //
-                // With h == 0, A* is an ordinary reduced-cost-ordered label-correcting search — the
-                // same ordering the non-A* dominance algorithms use. A full (untruncated) search is
-                // still exact; under truncation it prunes by current reduced cost (a sensible
-                // criterion) rather than by an unrelated original-cost metric.
-                LOG_DEBUG(
-                    "AStarDominanceAlgorithm: reduced-cost relaxation has a negative-cost cycle; "
-                    "disabling the A* heuristic (h = 0) for this solve.\n");
-            }
+            h_ = detail::completion_bounds<ForwardDirection>(*graph);
 
             // Rebuild priority queues with the fresh comparator.
-            LabelFValueComparator cmp{&h_to_sink_};
+            LabelFValueComparator cmp{&h_};
             unprocessed_labels_ = PriorityQueue(cmp);
             unprocessed_truncated_labels_.clear();
         }
@@ -185,7 +120,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
                 } else {
                     size_t& num_extended = number_of_extended_labels_per_node_.at(
                         label_iterator_pair.first->get_end_node()->pos());
-                    if (num_extended < this->effective_max_labels_per_node_) {
+                    if (num_extended < this->quota_) {
                         ++num_extended;
                         return label_iterator_pair;
                     }
@@ -198,9 +133,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             return {};
         }
 
-        [[nodiscard]] size_t number_of_labels() const override {
-            return unprocessed_labels_.size();
-        }
+        [[nodiscard]] size_t waiting_labels() const override { return unprocessed_labels_.size(); }
 
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
@@ -229,8 +162,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         /// excess in @ref unprocessed_truncated_labels_ for the next phase.
         void on_memory_pressure() override {
             const size_t limit = this->params_.memory_pressure_max_labels_per_node;
-            this->effective_max_labels_per_node_ =
-                std::min(this->effective_max_labels_per_node_, limit);
+            this->quota_ = std::min(this->quota_, limit);
 
             if (this->memory_pressure_triggered_) {
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
@@ -255,13 +187,13 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
             }
 
             // Non-dominated labels first; among equal dominance, lowest f-value first.
-            const auto& h = h_to_sink_;
+            const auto& h = h_;
             std::ranges::sort(flat, [&h](const auto& a, const auto& b) {
                 if (a.first->dominated != b.first->dominated) {
                     return !a.first->dominated;
                 }
-                double fa = a.first->get_cost() + h[a.first->get_end_node()->pos()];
-                double fb = b.first->get_cost() + h[b.first->get_end_node()->pos()];
+                double fa = a.first->get_cost() + h.for_order(*a.first);
+                double fb = b.first->get_cost() + h.for_order(*b.first);
                 return fa < fb;
             });
 
@@ -278,7 +210,7 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
             // Rebuild heap from retained labels.
             unprocessed_labels_ =
-                PriorityQueue(flat.begin(), flat.end(), LabelFValueComparator{&h_to_sink_});
+                PriorityQueue(flat.begin(), flat.end(), LabelFValueComparator{&h_});
         }
 
         // ─── Cleanup ──────────────────────────────────────────────────────────
@@ -287,18 +219,16 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
         void release_label_memory() override {
             DominanceAlgorithm<ResourceType, LabelContainerType>::release_label_memory();
             // Rebuild empty queues (pool has already freed the label objects).
-            unprocessed_labels_ = PriorityQueue(LabelFValueComparator{&h_to_sink_});
+            unprocessed_labels_ = PriorityQueue(LabelFValueComparator{&h_});
             unprocessed_truncated_labels_.clear();
             std::ranges::fill(number_of_extended_labels_per_node_, 0);
         }
 
         // ─── Members ──────────────────────────────────────────────────────────
 
-        /// @brief Admissible per-node lower bounds on the cost to the nearest sink.
-        ///
-        /// Indexed by node position (@ref Node::pos()).  Computed once per
-        /// @ref initialize() call via a backward Bellman–Ford pass.
-        std::vector<double> h_to_sink_;
+        /// @brief A lower bound on the cost from each node to a sink; computed once per
+        ///        @ref initialize() call.
+        detail::NodeBound<ResourceType> h_;
 
         /// @brief Min-heap of active (non-truncated) labels ordered by f = g + h.
         PriorityQueue unprocessed_labels_;
@@ -308,22 +238,6 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
         /// @brief Count of labels extended per node in the current phase.
         std::vector<size_t> number_of_extended_labels_per_node_;
-};
-
-/// @brief Presents AStarDominanceAlgorithm<ResourceType, LabelContainerType, CostResourceType> as a
-/// 2-param template.
-///
-/// Required because C++ template template parameters must match exactly in arity
-/// (P0522 matching is not reliably supported).  Use AStarAlgoBound<CostResourceType>::Algo
-/// wherever a @c template<typename,typename> class argument is expected.
-template <typename CostResourceType>
-struct AStarAlgoBound {
-        template <typename ResourceType, typename LabelContainerType>
-        class Algo
-            : public AStarDominanceAlgorithm<ResourceType, LabelContainerType, CostResourceType> {
-                using AStarDominanceAlgorithm<ResourceType, LabelContainerType,
-                                              CostResourceType>::AStarDominanceAlgorithm;
-        };
 };
 
 }  // namespace rcspp

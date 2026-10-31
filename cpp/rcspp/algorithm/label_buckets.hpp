@@ -40,7 +40,7 @@ class LabelList {
         /// @brief Returns an empty list that compares labels in direction @p TargetDirection.
         ///
         /// A search in another direction keeps its labels in this copy (see
-        /// @c detail::rebind_direction).
+        /// @c detail::make_directed_container).
         ///
         /// @tparam TargetDirection The direction policy of the copy.
         template <class TargetDirection>
@@ -157,7 +157,7 @@ class LabelList {
 /// @tparam Direction      The direction policy supplying the dominance order.
 ///
 /// @note A backward search with buckets keeps its labels in `with_direction<BackwardDirection>()`:
-///       the same buckets, comparing backward (see @c detail::rebind_direction).
+///       the same buckets, comparing backward (see @c detail::make_directed_container).
 template <typename BucketResource, typename SortResource, typename ResourceType,
           typename Direction = ForwardDirection>
 class LabelBuckets : public LabelList<ResourceType, Direction> {
@@ -217,7 +217,7 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         ///        direction @p TargetDirection.
         ///
         /// A search in another direction keeps its labels in this copy (see
-        /// @c detail::rebind_direction).
+        /// @c detail::make_directed_container).
         ///
         /// @tparam TargetDirection The direction policy of the copy.
         template <class TargetDirection>

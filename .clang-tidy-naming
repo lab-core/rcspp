@@ -7,7 +7,7 @@ Checks: '-*,readability-identifier-naming'
 HeaderFilterRegex: 'cpp[/\]rcspp[/\].*'
 CheckOptions:
   # Types, enums and their values: CamelCase. Standard-library-style traits (is_numerical_resource,
-  # rebind_direction) keep snake_case.
+  # directed_container_t) keep snake_case.
   readability-identifier-naming.ClassCase: CamelCase
   readability-identifier-naming.ClassIgnoredRegexp: '^[a-z][a-z0-9_]*$'
   readability-identifier-naming.StructCase: CamelCase

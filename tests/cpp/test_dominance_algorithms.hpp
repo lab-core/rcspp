@@ -8,7 +8,9 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <memory>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 
@@ -210,7 +212,7 @@ TEST(SimpleDominanceAlgorithmTest, UpperBoundPrunePoorSolution) {
 /// @brief AStarDominanceAlgorithm finds the optimal path on a single-path graph.
 TEST(AStarDominanceAlgorithmTest, SinglePathFindsOptimal) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kSingleCost, 1e-9);
 }
@@ -218,7 +220,7 @@ TEST(AStarDominanceAlgorithmTest, SinglePathFindsOptimal) {
 /// @brief AStarDominanceAlgorithm on two-path graph finds the best path.
 TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
     auto g = make_dom_two_path_graph();
-    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
     ASSERT_FALSE(result.solutions.empty());
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
@@ -226,7 +228,7 @@ TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
 /// @brief AStarDominanceAlgorithm: Complete status on single-path graph.
 TEST(AStarDominanceAlgorithmTest, StatusComplete) {
     auto g = make_dom_linear_graph();
-    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
@@ -235,14 +237,14 @@ TEST(AStarDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
-    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(params);
+    const auto result = g->solve<AStarDominanceAlgorithm>(params);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief AStarDominanceAlgorithm: no path → empty result.
 TEST(AStarDominanceAlgorithmTest, NoPathReturnsEmpty) {
     auto g = make_dom_no_path_graph();
-    const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
+    const auto result = g->solve<AStarDominanceAlgorithm>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty());
 }
 
@@ -403,4 +405,68 @@ TEST(DominanceAlgorithms, ASubclassOverrideOfUpdateNonDominatedLabelsRuns) {
         dot::line()->solve<dot::Counting<PushingDominanceAlgorithm>::Algo>(AlgorithmBaseParams{});
     EXPECT_EQ(pushing.solutions.size(), 1U);
     EXPECT_EQ(dot::calls, 3) << "Pushing";
+}
+
+// ============================================================================
+// A label of infinite cost at a sink stays in its container
+// ============================================================================
+
+namespace infinite_terminal_test {
+
+constexpr double kInfinity = std::numeric_limits<double>::infinity();
+
+/// @brief Reads the labels left at the sinks after a solve, on top of @p Base.
+template <template <typename, typename> class Base>
+struct Exposing {
+        template <typename ResourceType, typename LabelContainerType>
+        class Algo : public Base<ResourceType, LabelContainerType> {
+            public:
+                using Base<ResourceType, LabelContainerType>::Base;
+
+                /// @brief The costs of the labels at the sinks.
+                [[nodiscard]] std::vector<double> terminal_costs() const {
+                    std::vector<double> costs;
+                    for (const auto* label : this->labels_at_end_nodes()) {
+                        costs.push_back(label->get_cost());
+                    }
+                    return costs;
+                }
+        };
+};
+
+/// @brief The costs a @p Base solve that keeps its labels leaves at the sink of a one-arc graph
+///        whose only path costs infinity.
+template <template <typename, typename> class Base>
+std::vector<double> terminal_costs() {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>({kInfinity}, 0, 1, kInfinity);
+
+    using Resources = ResourceTypeComposition<RealResource>;
+    using Container = LabelList<Resources>;
+    AlgorithmBaseParams base;
+    base.release_after_solve = false;
+    auto algorithm = std::make_unique<typename Exposing<Base>::template Algo<Resources, Container>>(
+        &graph->get_resource_factory(),
+        AlgorithmParams<Container>(base));
+    const SolveResult result = graph->solve(algorithm.get(), kInfinity, /*preprocess=*/false);
+    EXPECT_TRUE(result.solutions.empty());
+    return algorithm->terminal_costs();
+}
+
+}  // namespace infinite_terminal_test
+
+/// @brief Simple, Pushing and Pulling keep a label of infinite cost at a sink, and return no
+///        solution for it.
+TEST(DominanceAlgorithms, AnInfiniteCostLabelAtASinkStays) {
+    namespace itt = infinite_terminal_test;
+    const std::vector<double> kept{itt::kInfinity};
+    EXPECT_EQ(itt::terminal_costs<SimpleDominanceAlgorithm>(), kept) << "Simple";
+    EXPECT_EQ(itt::terminal_costs<PushingDominanceAlgorithm>(), kept) << "Pushing";
+    EXPECT_EQ(itt::terminal_costs<PullingDominanceAlgorithm>(), kept) << "Pulling";
 }

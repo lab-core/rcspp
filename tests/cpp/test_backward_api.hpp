@@ -51,7 +51,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_backward_api_graph() {
     return graph;
 }
 
-/// @brief SimpleDominanceAlgorithm exposing the protected extract_solution overloads.
+/// @brief SimpleDominanceAlgorithm exposing the protected record_solution and record_path.
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
 class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, LabelContainerType> {
         using Base = SimpleDominanceAlgorithm<ResourceType, LabelContainerType>;
@@ -62,9 +62,9 @@ class SolutionProbeAlgorithm : public SimpleDominanceAlgorithm<ResourceType, Lab
         /// @brief Number of distinct solutions currently recorded.
         [[nodiscard]] size_t solution_count() const { return this->solutions_.size(); }
 
-        /// @brief Calls the path-taking extract_solution overload.
+        /// @brief Calls record_path.
         void extract_path(double cost, std::vector<size_t> path_arc_ids, size_t end_node_id) {
-            this->extract_solution(cost, std::move(path_arc_ids), end_node_id);
+            this->record_path(cost, std::move(path_arc_ids), end_node_id);
         }
 };
 
@@ -208,7 +208,7 @@ TEST(BackwardApi, LabelBackFeasibleAndBackDominates) {
 }
 
 // ============================================================================
-// extract_solution overloads
+// record_solution and record_path
 // ============================================================================
 
 /// @brief The path-taking overload reproduces exactly the Solution the label form recorded.
