@@ -248,6 +248,10 @@ using TracedLabellingAlgorithm =
     Observed<rcspp::detail::LabellingAlgorithm<Composed, LabelContainerType, Direction,
                                                TracedPreset<ScheduleTemplate>>>;
 
+/// @brief A*'s order, as a one-parameter schedule template.
+template <typename ResourceType>
+using CompletionOrder = rcspp::parts::BestFirstSchedule<ResourceType>;
+
 /// @brief An instance a parity run solves, and where its bidirectional clock is.
 struct Case {
         std::string name;

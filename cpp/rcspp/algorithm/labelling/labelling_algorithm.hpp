@@ -11,6 +11,7 @@
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
+#include "rcspp/algorithm/labelling/bounds.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/labelling/schedules.hpp"
@@ -56,11 +57,16 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
     protected:
-        /// @brief Starts the solve: an empty search and its context.
+        /// @brief Starts the solve: an empty search and its context, and the completion bound
+        ///        when the schedule's order reads one (@ref completion_bounds).
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Base::initialize(graph, cost_upper_bound);
             search_.reset(graph->get_number_of_nodes(),
                           make_directed_container<Direction>(this->params_.labels));
+            search_.bound = {};
+            if constexpr (parts::reads_bound_v<typename search_type::schedule_type>) {
+                search_.bound = completion_bounds<Direction>(*graph);
+            }
             ctx_ = this->make_context(search_, Role::Single);
             search_.schedule.initialize(ctx_);
         }
