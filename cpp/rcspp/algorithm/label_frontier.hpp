@@ -55,8 +55,10 @@ class LabelFrontier {
         /// @param per_node  Labels to keep per node.
         /// @param num_nodes The number of nodes.
         /// @param pool      Receives the dominated labels dropped.
-        void shed(size_t per_node, size_t num_nodes, LabelPool<ResourceType>* pool) {
-            trim(&current_, per_node * num_nodes, pool);
+        /// @return How many non-dominated labels were dropped: they stay in their containers but
+        ///         are never extended.
+        size_t shed(size_t per_node, size_t num_nodes, LabelPool<ResourceType>* pool) {
+            return trim(&current_, per_node * num_nodes, pool);
         }
 
         /// @brief Forgets every label, releasing none (the pool owns them).
@@ -67,15 +69,21 @@ class LabelFrontier {
 
     private:
         /// @brief Keeps the @p keep best entries of @p queue: non-dominated first, then cheapest.
-        void trim(std::list<Entry>* queue, size_t keep, LabelPool<ResourceType>* pool) {
+        ///
+        /// @return How many non-dominated entries were dropped.
+        size_t trim(std::list<Entry>* queue, size_t keep, LabelPool<ResourceType>* pool) {
             const auto excess = split_off_excess_labels(queue, keep);
+            size_t non_dominated_dropped = 0;
             // Worst first, as they come off the back of the queue.
             for (auto it = excess.rbegin(); it != excess.rend(); ++it) {
-                if (it->first->dominated && pool != nullptr) {
+                if (!it->first->dominated) {
+                    ++non_dominated_dropped;
+                } else if (pool != nullptr) {
                     pool->release_with_ref_count(it->first);
                 }
             }
             size_ -= excess.size();
+            return non_dominated_dropped;
         }
 
         size_t size_ = 0;

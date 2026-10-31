@@ -107,7 +107,7 @@ void init_graph(py::module_& m) {
         .value("Complete", AlgorithmStatus::Complete)
         .value("Timeout", AlgorithmStatus::Timeout)
         .value("MaxSolutions", AlgorithmStatus::MaxSolutions)
-        .value("MaxPhases", AlgorithmStatus::MaxPhases)
+        .value("Truncated", AlgorithmStatus::Truncated)
         .value("Interrupted", AlgorithmStatus::Interrupted)
         .value("MemoryLimit", AlgorithmStatus::MemoryLimit);
 

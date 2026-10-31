@@ -7,11 +7,14 @@
 // released when it ends (release_after_solve, true by default). Releasing empties the label
 // queues, so anything read from them afterwards reads "nothing left": a timed-out solve looked
 // optimal, and a truncated run that used up its phases reported Complete.
+//
+// Nor may a solve depend on the one before it on the same object: each starts with empty queues.
 
 #include <gtest/gtest.h>
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 
@@ -78,6 +81,49 @@ inline void expect_release_changes_nothing() {
     EXPECT_EQ(released.optimal, released.status == AlgorithmStatus::Complete);
 }
 
+/// @brief What a solve found, and the work it did, in a form two solves can be compared by.
+struct Run {
+        AlgorithmStatus status;
+        size_t extended_labels;
+        std::vector<std::pair<double, std::vector<size_t>>> solutions;  // cost, arc ids
+        bool reference_counts_consistent;
+};
+
+template <typename AlgorithmPtr>
+inline Run run(ResourceGraph<RealResource, IntResource>* graph, AlgorithmPtr& algorithm) {
+    const SolveResult result = graph->solve(algorithm.get());
+    Run r{.status = result.status,
+          .extended_labels = algorithm->get_number_of_extended_labels(),
+          .solutions = {},
+          .reference_counts_consistent = algorithm->get_label_pool().check_ref_count_consistency()};
+    for (const Solution& solution : result.solutions) {
+        r.solutions.emplace_back(solution.cost, solution.path_arc_ids);
+    }
+    return r;
+}
+
+/// @brief Solves @ref two_routes three times on one object that keeps its labels, under a quota
+///        that holds labels back, and expects each solve to match a fresh object's.
+template <template <typename, typename> class AlgorithmType>
+inline void expect_each_solve_starts_afresh() {
+    const auto params =
+        truncated(/*release_after_solve=*/false).with_container<LabelList<Resources>>();
+    auto fresh_graph = two_routes();
+    auto fresh = fresh_graph->create_algorithm<AlgorithmType>(params);
+    const Run expected = run(fresh_graph.get(), fresh);
+    ASSERT_TRUE(expected.reference_counts_consistent);
+
+    auto graph = two_routes();
+    auto algorithm = graph->create_algorithm<AlgorithmType>(params);
+    for (int solve = 1; solve <= 3; ++solve) {
+        const Run again = run(graph.get(), algorithm);
+        EXPECT_EQ(again.status, expected.status) << "solve " << solve;
+        EXPECT_EQ(again.extended_labels, expected.extended_labels) << "solve " << solve;
+        EXPECT_EQ(again.solutions, expected.solutions) << "solve " << solve;
+        EXPECT_TRUE(again.reference_counts_consistent) << "solve " << solve;
+    }
+}
+
 }  // namespace solve_status_test
 
 TEST(SolveStatus, AFullSolveIsCompleteAndOptimal) {
@@ -105,11 +151,11 @@ TEST(SolveStatus, ATimedOutSolveIsNotOptimal) {
     EXPECT_FALSE(outcome.optimal);
 }
 
-// Releasing the labels used to hide the ones a phase held back: Complete instead of MaxPhases.
+// Releasing the labels used to hide the ones a phase held back: Complete instead of Truncated.
 TEST(SolveStatus, ATruncatedRunThatUsesUpItsPhasesIsNotComplete) {
     namespace sst = solve_status_test;
     const sst::Outcome outcome = sst::solve<rcspp::SimpleDominanceAlgorithm>(sst::truncated(true));
-    EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::MaxPhases);
+    EXPECT_EQ(outcome.status, rcspp::AlgorithmStatus::Truncated);
     EXPECT_FALSE(outcome.optimal);
 }
 
@@ -119,4 +165,23 @@ TEST(SolveStatus, ReleasingTheLabelsChangesNeitherStatusNorOptimality) {
     sst::expect_release_changes_nothing<rcspp::PushingDominanceAlgorithm>();
     sst::expect_release_changes_nothing<rcspp::PullingDominanceAlgorithm>();
     sst::expect_release_changes_nothing<rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>();
+}
+
+// A solve that held labels back, on an object that keeps its labels, used to leave them queued;
+// the next solve recycled them and then took them from the queue.
+TEST(SolveStatus, SimpleStartsEachSolveAfresh) {
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::SimpleDominanceAlgorithm>();
+}
+
+TEST(SolveStatus, PushingStartsEachSolveAfresh) {
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::PushingDominanceAlgorithm>();
+}
+
+TEST(SolveStatus, PullingStartsEachSolveAfresh) {
+    solve_status_test::expect_each_solve_starts_afresh<rcspp::PullingDominanceAlgorithm>();
+}
+
+TEST(SolveStatus, AStarStartsEachSolveAfresh) {
+    solve_status_test::expect_each_solve_starts_afresh<
+        rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>();
 }
