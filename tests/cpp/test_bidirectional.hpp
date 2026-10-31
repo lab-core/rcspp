@@ -29,7 +29,7 @@ namespace bidirectional_test {
 using Composed = ResourceTypeComposition<RealResource>;
 /// The bidirectional search `create_algorithm` builds for these graphs.
 using Bidir =
-    rcspp::detail::BidirectionalDominanceAlgorithm<Composed, LabelList<Composed>, RealResource>;
+    rcspp::detail::BidirectionalLabellingAlgorithm<Composed, LabelList<Composed>, RealResource>;
 
 constexpr double kTolerance = 1e-9;
 
@@ -682,10 +682,10 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
         EXPECT_TRUE(result.bidirectional->half_way_used);
 
         using Bidir = rcspp::detail::
-            BidirectionalDominanceAlgorithm<Composed, LabelList<Composed>, RealResource>;
+            BidirectionalLabellingAlgorithm<Composed, LabelList<Composed>, RealResource>;
         size_t backward_labels = 0;
-        for (const auto& container : test_util::bidirectional_impl<Bidir>(algorithm.get())
-                                         ->get_backward_labels_by_node_pos()) {
+        for (const auto& container :
+             test_util::bidirectional_impl<Bidir>(algorithm.get())->backward_labels()) {
             backward_labels += container.get_labels().size();
         }
         // Only the start label would mean every backward extension was rejected.
@@ -1008,7 +1008,7 @@ TEST(Bidirectional, BackwardSearchReachesTheSource) {
     // The backward clock starts at 100 and stays above H = 50, so it runs back to the source.
     const auto* source = graph->get_node(0);
     const auto& at_source = test_util::bidirectional_impl<bt::Bidir>(algorithm.get())
-                                ->get_backward_labels_by_node_pos()
+                                ->backward_labels()
                                 .at(source->pos())
                                 .get_labels();
     EXPECT_FALSE(at_source.empty())
@@ -1181,9 +1181,8 @@ TEST(Bidirectional, ReleasingAfterSolveClearsTheBackwardContainers) {
 
     ASSERT_FALSE(result.solutions.empty()) << "releasing the labels must not lose the answer";
     EXPECT_NEAR(result.solutions.front().cost, 3.0, bt::kTolerance);
-    EXPECT_TRUE(test_util::bidirectional_impl<bt::Bidir>(algorithm.get())
-                    ->get_backward_labels_by_node_pos()
-                    .empty());
+    EXPECT_TRUE(
+        test_util::bidirectional_impl<bt::Bidir>(algorithm.get())->backward_labels().empty());
     EXPECT_TRUE(algorithm->get_label_pool().check_ref_count_consistency());
 }
 
@@ -1801,8 +1800,8 @@ TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
     ASSERT_NE(result.status, AlgorithmStatus::Complete) << "the stop must land mid-search";
     EXPECT_TRUE(result.bidirectional->half_way_used);
     size_t backward = 0;
-    for (const auto& container : test_util::bidirectional_impl<bt::Bidir>(algorithm.get())
-                                     ->get_backward_labels_by_node_pos()) {
+    for (const auto& container :
+         test_util::bidirectional_impl<bt::Bidir>(algorithm.get())->backward_labels()) {
         backward += container.get_labels().size();
     }
     EXPECT_GT(backward, 1U) << "the backward search never started";
@@ -1922,12 +1921,11 @@ TEST(Bidirectional, BucketsHoldBothHalves) {
     namespace bt = bidirectional_test;
     using Buckets = LabelBuckets<RealResource, RealResource, bt::Composed>;
     using BucketBidir =
-        rcspp::detail::BidirectionalDominanceAlgorithm<bt::Composed, Buckets, RealResource>;
+        rcspp::detail::BidirectionalLabellingAlgorithm<bt::Composed, Buckets, RealResource>;
     static_assert(
-        std::is_same_v<
-            typename std::decay_t<decltype(std::declval<const BucketBidir&>()
-                                               .get_backward_labels_by_node_pos())>::value_type,
-            LabelBuckets<RealResource, RealResource, bt::Composed, BackwardDirection>>,
+        std::is_same_v<typename std::decay_t<decltype(std::declval<const BucketBidir&>()
+                                                          .backward_labels())>::value_type,
+                       LabelBuckets<RealResource, RealResource, bt::Composed, BackwardDirection>>,
         "the backward half keeps the caller's buckets, turned backward");
     constexpr double kOptimum = -11.0;
     constexpr size_t kCost = 0;

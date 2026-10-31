@@ -1,3 +1,5 @@
+// Frozen copy of cpp/rcspp/algorithm/half_way_policy.hpp at 9c80f174,
+// for the parity tests. Do not edit.
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
@@ -15,7 +17,7 @@
 #include "rcspp/resource/resource_traits.hpp"
 #include "rcspp/utils/logger.hpp"
 
-namespace rcspp {
+namespace rcspp::reference {
 
 /// @brief Why a bidirectional solve is running without the half-way bound.
 enum class HalfWayOff : unsigned {
@@ -227,4 +229,4 @@ template <typename CriticalResourceType, typename... ResourceTypes>
     }
 }
 
-}  // namespace rcspp
+}  // namespace rcspp::reference

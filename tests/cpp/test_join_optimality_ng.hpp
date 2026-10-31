@@ -46,7 +46,7 @@ struct Outcome {
 /// @brief Solves one ng instance bidirectionally with `H` at a given fraction of the clock's range.
 ///
 /// A finite, non-binding cost bound is passed on purpose: with an infinite bound
-/// `Joiner::join` enables its incumbent cutoff and accepts few pairs, whereas a finite bound
+/// `detail::join` enables its incumbent cutoff and accepts few pairs, whereas a finite bound
 /// makes the join consider every pair it can form.
 ///
 /// @param config   The instance to build.
