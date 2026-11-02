@@ -161,7 +161,13 @@ def run_layer(name, loop, master_kind, pricing):
     rows = len(instance.get_customers_by_id())  # row 0 is free: the depot has no row
     stages = [cg.PricingStage("simple")]
     if pricing == "heuristic":
-        stages = [cg.PricingStage("greedy"), cg.PricingStage("simple")]
+        greedy = None
+        if os.environ.get("COLGEN_HEURISTIC_CAP"):  # without a cap, greedy returns ~140,000 columns per call
+            from rcspp.graph import AlgorithmParams
+
+            greedy = AlgorithmParams()
+            greedy.stop_after_X_solutions = int(os.environ["COLGEN_HEURISTIC_CAP"])
+        stages = [cg.PricingStage("greedy", greedy), cg.PricingStage("simple")]
     master = cg.MasterProblem(master_model(master_kind, rows))
     pricer = master.add_pricer(cg.GraphPricer(graph, stages), cg.ConvexityRow())
     if os.environ.get("COLGEN_INIT") == "single":

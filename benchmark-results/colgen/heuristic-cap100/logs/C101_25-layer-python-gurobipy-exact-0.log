@@ -1,0 +1,9 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\OneDrive\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 1 ms
+construct_graph: 1 ms
+Set parameter Username
+Set parameter LicenseID to value 2770246
+Academic license - for non-commercial use only - expires 2027-01-26
+RESULT {"status": "Optimal", "lp": 191.8136197786562, "iterations": 30, "rest_s": 0.0071698983665555716, "columns": 670, "master_s": 0.014353700680658221, "pricing_s": 0.05417740088887513}
