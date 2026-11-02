@@ -506,14 +506,26 @@ class Graph:
         Remove all other out-arcs from the arc's origin and all other in-arcs to its destination. Returns the ids of the removed arcs.
         """
 
-    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> Arc: ...
+    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> Arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> list[Arc]: ...
-    def get_node(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> Node: ...
-    def get_removed_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> Arc: ...
+    def get_node(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> Node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
+    def get_removed_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> Arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -693,16 +705,28 @@ class _real_int_graph:
         Remove all other out-arcs from the arc's origin and all other in-arcs to its destination. Returns the ids of the removed arcs.
         """
 
-    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> _real_int_arc: ...
+    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> _real_int_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> list[_real_int_arc]: ...
-    def get_node(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> _real_int_node: ...
+    def get_node(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> _real_int_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_arc: ...
+    ) -> _real_int_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -894,7 +918,13 @@ class _real_real_set_graph:
         Remove all other out-arcs from the arc's origin and all other in-arcs to its destination. Returns the ids of the removed arcs.
         """
 
-    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> _real_real_set_arc: ...
+    def get_arc(
+        self, arc_id: typing.SupportsInt | typing.SupportsIndex
+    ) -> _real_real_set_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
@@ -902,10 +932,18 @@ class _real_real_set_graph:
     ) -> list[_real_real_set_arc]: ...
     def get_node(
         self, node_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_real_set_node: ...
+    ) -> _real_real_set_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_real_set_arc: ...
+    ) -> _real_real_set_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -1103,7 +1141,13 @@ class _real_int_set_graph:
         Remove all other out-arcs from the arc's origin and all other in-arcs to its destination. Returns the ids of the removed arcs.
         """
 
-    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> _real_int_set_arc: ...
+    def get_arc(
+        self, arc_id: typing.SupportsInt | typing.SupportsIndex
+    ) -> _real_int_set_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
@@ -1111,10 +1155,18 @@ class _real_int_set_graph:
     ) -> list[_real_int_set_arc]: ...
     def get_node(
         self, node_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_set_node: ...
+    ) -> _real_int_set_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_set_arc: ...
+    ) -> _real_int_set_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -1312,16 +1364,30 @@ class _real_bitset_graph:
         Remove all other out-arcs from the arc's origin and all other in-arcs to its destination. Returns the ids of the removed arcs.
         """
 
-    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> _real_bitset_arc: ...
+    def get_arc(self, arc_id: typing.SupportsInt | typing.SupportsIndex) -> _real_bitset_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> list[_real_bitset_arc]: ...
-    def get_node(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> _real_bitset_node: ...
+    def get_node(
+        self, node_id: typing.SupportsInt | typing.SupportsIndex
+    ) -> _real_bitset_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_bitset_arc: ...
+    ) -> _real_bitset_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -1521,7 +1587,11 @@ class _real_int_real_set_graph:
 
     def get_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_real_set_arc: ...
+    ) -> _real_int_real_set_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
@@ -1529,10 +1599,18 @@ class _real_int_real_set_graph:
     ) -> list[_real_int_real_set_arc]: ...
     def get_node(
         self, node_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_real_set_node: ...
+    ) -> _real_int_real_set_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_real_set_arc: ...
+    ) -> _real_int_real_set_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -1742,7 +1820,11 @@ class _real_int_int_set_graph:
 
     def get_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_int_set_arc: ...
+    ) -> _real_int_int_set_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
@@ -1750,10 +1832,18 @@ class _real_int_int_set_graph:
     ) -> list[_real_int_int_set_arc]: ...
     def get_node(
         self, node_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_int_set_node: ...
+    ) -> _real_int_int_set_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_int_set_arc: ...
+    ) -> _real_int_int_set_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -1963,7 +2053,11 @@ class _real_int_set_bitset_graph:
 
     def get_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_set_bitset_arc: ...
+    ) -> _real_int_set_bitset_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
@@ -1971,10 +2065,18 @@ class _real_int_set_bitset_graph:
     ) -> list[_real_int_set_bitset_arc]: ...
     def get_node(
         self, node_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_set_bitset_node: ...
+    ) -> _real_int_set_bitset_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_set_bitset_arc: ...
+    ) -> _real_int_set_bitset_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:
@@ -2190,7 +2292,11 @@ class _real_int_real_set_int_set_bitset_graph:
 
     def get_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_real_set_int_set_bitset_arc: ...
+    ) -> _real_int_real_set_int_set_bitset_arc | None:
+        """
+        The arc with this id, or None if there is none or it is removed.
+        """
+
     def get_arcs(
         self,
         origin_node_id: typing.SupportsInt | typing.SupportsIndex,
@@ -2198,10 +2304,18 @@ class _real_int_real_set_int_set_bitset_graph:
     ) -> list[_real_int_real_set_int_set_bitset_arc]: ...
     def get_node(
         self, node_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_real_set_int_set_bitset_node: ...
+    ) -> _real_int_real_set_int_set_bitset_node | None:
+        """
+        The node with this id, or None if there is none.
+        """
+
     def get_removed_arc(
         self, arc_id: typing.SupportsInt | typing.SupportsIndex
-    ) -> _real_int_real_set_int_set_bitset_arc: ...
+    ) -> _real_int_real_set_int_set_bitset_arc | None:
+        """
+        The removed arc with this id, or None if no removed arc has it.
+        """
+
     def is_sink(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def is_source(self, node_id: typing.SupportsInt | typing.SupportsIndex) -> bool: ...
     def next_arc_id(self) -> int:

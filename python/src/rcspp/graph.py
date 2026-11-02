@@ -407,7 +407,7 @@ class ResourceGraph:
             node_id: Integer node identifier.
 
         Returns:
-            The C++ node object for *node_id*.
+            The C++ node object for *node_id*, or ``None`` if there is none.
         """
         self._flush()
         return self._graph.get_node(node_id)
@@ -419,7 +419,8 @@ class ResourceGraph:
             arc_id: Integer arc identifier.
 
         Returns:
-            The C++ arc object for *arc_id*.
+            The C++ arc object for *arc_id*, or ``None`` if there is none or it
+            is removed.
         """
         self._flush()
         return self._graph.get_arc(arc_id)
