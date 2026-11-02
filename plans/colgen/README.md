@@ -1,23 +1,30 @@
 # Column generation layer: plan
 
-Status: **phase 1: the C++ layer is done in code, four stacked drafts: #61 (interfaces, master, loop), #69 (Gurobi
-master solver, self-test), #72 (graph pricer), #76 (HiGHS master solver; every column generation test runs without a
-Gurobi license, `D-59`); stacked by rebase (`D-85`). Review round of 2026-10-28 done: every finding fixed
-(`D-93`–`D-99`, commit table R.0–R.4). Now: the Python layer (PRs 5–6), designed in `phase-1-python.md` (accepted,
-`D-86`–`D-92`); PR 5 (5.1 to 5.6) done, branch `feature/column-generation-python` on PR 4; `D-87` measured (`D-100`); PR
-6: 6.1 to 6.7 done (`D-101`, `D-104`, `D-105`), branch `feature/column-generation-python-masters` on PR 5. Packaging studied
-(`packaging.md`; `D-103`–`D-106`); C++ packaging (`T-1.12`, `D-102`, `D-107`–`D-110`) done in code, branch
-`feature/column-generation-packaging` on PR 6: draft #80; the PR texts of #69, #76, #77 and #78 note its
-renames. Measurements for the presentation done (`measurements.md`, `benchmark-results/colgen/HANDOFF.md`);
-they found `T-1.13` and `T-1.14`. Next: the presentation**.
-Updated: 2026-11-01. Baseline:
-`main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
+Status (2026-11-02): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
+with the C++ layer (`D-111`, `T-1.15`); whether the C++ layer stays is open (`Q-41`). Until then the C++ layer is
+frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Findings to act on: the
+big-M start (`T-1.13`), heuristic pricing (`T-1.14`, `F-40`). **Next:** `T-1.13`, `T-1.14` step 2 (tabu), `T-1.15`,
+`T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
+Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
+
+## New chat
+
+One task per chat. Paste this, then one sentence for the task (its roadmap row is the full brief):
+
+```text
+Column generation work in rcspp, branch feature/column-generation. Read plans/colgen/README.md first and
+follow its agent protocol; open other plan files only when the task needs them. Before ending, update the
+README status and the task's roadmap row.
+Task:
+```
 
 ## Agent protocol
 
 - **Hard rule (`D-55`):** nothing that stays (code, comments, tests, commit messages, PR and issue texts, `docs/`)
   mentions `plans/colgen`, its files, its IDs or plan-only words ("phase 1", "tier 2"). Write the reason instead.
 - Read this file first. Open the others only when the task needs them (see Index).
+- Before a chat ends: record decisions (`D-`) and findings (`F-`), update the status above and the task's roadmap row,
+  so the next chat starts from them alone.
 - Refer to items by ID (`D-`, `Q-`, `P-`, `F-`, `T-`). Do not restate another file's content: link it.
 - Code facts belong in `inventory.md`, with `path:line`. Code moves, so re-check a fact before relying on it.
 - Q answered → add a `D-` in `decisions.md`, then mark the Q `→ D-xx`. Accepted D are never edited:
