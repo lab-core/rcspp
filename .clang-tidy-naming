@@ -1,9 +1,11 @@
 # The naming conventions of AGENT.md ("Naming conventions"), as clang-tidy checks.
 #
 # Kept out of .clang-tidy on purpose: the pre-commit hook runs clang-tidy with -fix, which would
-# rename a declaration in the changed files and leave its uses elsewhere broken. Run it report-only:
+# rename a declaration in the changed files and leave its uses elsewhere broken. Run it without
+# -fix; any name it reports is an error, and fails the pre-commit workflow:
 #   clang-tidy --config-file=.clang-tidy-naming cpp/rcspp/rcspp.hpp -- -xc++ -std=c++20 -Icpp
 Checks: '-*,readability-identifier-naming'
+WarningsAsErrors: 'readability-identifier-naming'
 HeaderFilterRegex: 'cpp[/\]rcspp[/\].*'
 CheckOptions:
   # Types, enums and their values: CamelCase. Standard-library-style traits (is_numerical_resource,
@@ -18,19 +20,23 @@ CheckOptions:
   readability-identifier-naming.TypeAliasCase: CamelCase
   # Standard-library-style aliases keep snake_case: traits' ..._t, and the std::chrono names.
   readability-identifier-naming.TypeAliasIgnoredRegexp: '^([a-z][a-z0-9_]*_t|type|value_type|iterator|const_iterator|clock|rep|duration|time_point)$'
-  # Functions and members: snake_case; non-public data members end in _.
+  # Functions and members: snake_case; non-public data members end in _. The public fields of the
+  # internal NodeUnprocessedLabelsManager (dominance_algorithm.hpp) keep their trailing _.
   readability-identifier-naming.FunctionCase: lower_case
   readability-identifier-naming.MethodCase: lower_case
   readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.MemberIgnoredRegexp: '^(num_unprocessed_labels|current_unprocessed_node_pos|num_loops|current_unprocessed_labels|unprocessed_labels_by_node_pos|truncated_unprocessed_labels_by_node_pos)_$'
   readability-identifier-naming.PrivateMemberSuffix: _
   readability-identifier-naming.ProtectedMemberSuffix: _
   # Constants: kCamelCase. The static members of traits and policies follow the standard library
-  # (value, kind, has_backward), and so do traits' values (..._v): snake_case.
+  # (value, kind, has_backward), and so do traits' values (..._v): snake_case. The older
+  # SCREAMING_CASE constants that AGENT.md lists as exceptions keep their names.
   readability-identifier-naming.ConstexprVariableCase: CamelCase
   readability-identifier-naming.ConstexprVariablePrefix: k
-  readability-identifier-naming.ConstexprVariableIgnoredRegexp: '^[a-z][a-z0-9_]*$'
+  readability-identifier-naming.ConstexprVariableIgnoredRegexp: '^([a-z][a-z0-9_]*|MAX_INT|FNV_[A-Z0-9_]+|DEFAULT_LABEL_POOL_SIZE)$'
   readability-identifier-naming.GlobalConstantCase: CamelCase
   readability-identifier-naming.GlobalConstantPrefix: k
   readability-identifier-naming.GlobalConstantIgnoredRegexp: '^[a-z][a-z0-9_]*_v$'
-  # Template parameters: CamelCase, spelled out.
+  # Template parameters: CamelCase. Whether they are spelled out is for review: T for "any type"
+  # and Args... for forwarded arguments are kept on purpose, so no Type suffix is required.
   readability-identifier-naming.TemplateParameterCase: CamelCase
