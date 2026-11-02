@@ -1,0 +1,19 @@
+greedy_replay.py --instance R201_50 (2026-11-02, laptop; defaults: greedy cap 100, tabu cap 20 and
+max_iterations 1000, timeout 60 s, threshold -1e-6). Python's "tabu" is TabuSearchAlgorithm.
+
+example: 35 iterations in 7.0 s
+
+first duals (iteration 1 of 35)
+  simple      2.23 s  Complete       3392 paths  best -1864
+  greedy      0.00 s  MaxSolutions    100 paths  best -366.5
+  tabu        0.01 s  MaxSolutions     20 paths  best -206.9
+
+middle duals (iteration 18 of 35)
+  simple      0.01 s  Complete         24 paths  best -3.933
+  greedy     60.00 s  Timeout           0 paths  best inf
+  tabu        0.03 s  MaxPhases         0 paths  best inf
+
+last duals (iteration 35 of 35)
+  simple      0.00 s  Complete          0 paths  best inf
+  greedy     60.00 s  Timeout           0 paths  best inf
+  tabu        0.04 s  MaxPhases         0 paths  best inf
