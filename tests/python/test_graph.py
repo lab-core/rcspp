@@ -929,6 +929,32 @@ def test_bucket_params_kwargs_forwarded():
     assert params.max_solutions == 3
 
 
+# ── The extension's solve() ──────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "left_out", [(), ("algorithm",), ("upper_bound",), ("algorithm", "upper_bound")]
+)
+def test_core_solve_runs_bucket_params_whatever_arguments_are_left_out(left_out):
+    """The extension's solve() runs a bucket search for BucketAlgorithmParams.
+
+    It does in every call form. It used to fall back to a plain search, ignoring the
+    bucket settings and their checks, when algorithm or upper_bound was left out. The
+    bucket index check shows which search ran.
+    """
+    from rcspp._core.graph import Algorithm
+    from rcspp._core.graph import BucketAlgorithmParams as CoreBucketAlgorithmParams
+
+    arguments = {"algorithm": Algorithm.Simple, "upper_bound": math.inf}
+    for name in left_out:
+        del arguments[name]
+    rg = make_diamond()
+    params = CoreBucketAlgorithmParams()
+    params.bucket_resource_index = 5
+    with pytest.raises(ValueError, match="bucket_resource_index 5 out of range"):
+        rg._graph.solve(params=params, **arguments)
+
+
 # ── ResourceGraph() takes no graph ────────────────────────────────────────────
 
 
