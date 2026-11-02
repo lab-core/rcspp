@@ -81,6 +81,14 @@ class ActiveCall {
 // ─── Python-facing non-template AlgorithmParams ──────────────────────────────
 
 struct PyAlgorithmParams : AlgorithmBaseParams {
+        PyAlgorithmParams() = default;
+        PyAlgorithmParams(const PyAlgorithmParams&) = default;
+        PyAlgorithmParams(PyAlgorithmParams&&) = default;
+        PyAlgorithmParams& operator=(const PyAlgorithmParams&) = default;
+        PyAlgorithmParams& operator=(PyAlgorithmParams&&) = default;
+        // Virtual, so that solve() can tell a PyBucketAlgorithmParams it receives as these params.
+        virtual ~PyAlgorithmParams() = default;
+
         template <typename LabelContainerType>
         [[nodiscard]] AlgorithmParams<LabelContainerType> to_params(
             LabelContainerType label_container = LabelContainerType{}) const {
@@ -489,30 +497,20 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             [](ResourceGraphType& rg,
                SolverAlgorithm alg,
                double ub,
-               const PyBucketAlgorithmParams& py_p,
-               bool pre,
-               size_t ci) -> SolveResult {
-                return ActiveCall::run_interruptible([&] {
-                    return run_bucket_solve<ResourceGraphType,
-                                            CompositionType,
-                                            CostResourceType,
-                                            ResourceTypes...>(alg, rg, ub, py_p, pre, ci);
-                });
-            },
-            // No defaults before the required params: a Python signature cannot have them.
-            py::arg("algorithm"),
-            py::arg("upper_bound"),
-            py::arg("params"),
-            py::arg("preprocess") = true,
-            py::arg("cost_index") = 0)
-        .def(
-            "solve",
-            [](ResourceGraphType& rg,
-               SolverAlgorithm alg,
-               double ub,
                const PyAlgorithmParams& py_p,
                bool pre,
                size_t ci) -> SolveResult {
+                // One overload for both kinds of params. With a bucket overload beside it, a call
+                // that left out algorithm or upper_bound fell through to this one, which ran a
+                // LabelList search and ignored the bucket settings without a word.
+                if (const auto* bucket_p = dynamic_cast<const PyBucketAlgorithmParams*>(&py_p)) {
+                    return ActiveCall::run_interruptible([&] {
+                        return run_bucket_solve<ResourceGraphType,
+                                                CompositionType,
+                                                CostResourceType,
+                                                ResourceTypes...>(alg, rg, ub, *bucket_p, pre, ci);
+                    });
+                }
                 using LabelContainerType = LabelList<CompositionType>;
                 auto p = py_p.template to_params<LabelContainerType>();
                 return ActiveCall::run_interruptible([&] {

@@ -617,16 +617,6 @@ class _real_resource_graph(Graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -827,16 +817,6 @@ class _real_int_resource_graph(_real_int_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -1044,16 +1024,6 @@ class _real_real_set_resource_graph(_real_real_set_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -1263,16 +1233,6 @@ class _real_int_set_resource_graph(_real_int_set_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -1480,16 +1440,6 @@ class _real_bitset_resource_graph(_real_bitset_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -1710,16 +1660,6 @@ class _real_int_real_set_resource_graph(_real_int_real_set_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -1941,16 +1881,6 @@ class _real_int_int_set_resource_graph(_real_int_int_set_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -2176,16 +2106,6 @@ class _real_int_set_bitset_resource_graph(_real_int_set_bitset_graph):
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
@@ -2435,16 +2355,6 @@ class _real_int_real_set_int_set_bitset_resource_graph(_real_int_real_set_int_se
         destination_node_id: typing.SupportsInt | typing.SupportsIndex,
     ) -> bool: ...
     def remove_infeasible_arcs(self) -> None: ...
-    @typing.overload
-    def solve(
-        self,
-        algorithm: Algorithm,
-        upper_bound: typing.SupportsFloat | typing.SupportsIndex,
-        params: BucketAlgorithmParams,
-        preprocess: bool = True,
-        cost_index: typing.SupportsInt | typing.SupportsIndex = 0,
-    ) -> SolveResult: ...
-    @typing.overload
     def solve(
         self,
         algorithm: Algorithm = Algorithm.Simple,
