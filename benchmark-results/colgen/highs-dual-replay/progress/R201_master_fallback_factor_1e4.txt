@@ -1,0 +1,1 @@
+      0.0 s  solve    1  kOptimal     objective 9.18314e+07  columns 100  retries 0

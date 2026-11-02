@@ -1,0 +1,16 @@
+# 16:04:56 R201_50 --init single
+RESULT {"instance": "R201_50", "master": "fallback", "factor": null, "pricing": "exact", "init": "single", "status": "Optimal", "lp": 756.3386122369021, "iterations": 28, "columns": 12671, "artificial_cost": 0.0, "solve_s": 8.63376050000079, "master_s": 1.5208063998725265, "pricing_s": 7.107598399976268, "retries": []}
+# 16:05:06 R201_50 --master fallback --factor 1e6
+RESULT {"instance": "R201_50", "master": "fallback", "factor": 1000000.0, "pricing": "exact", "init": "artificial", "status": "Optimal", "lp": 756.3386122369021, "iterations": 26, "columns": 19503, "artificial_cost": 83450584.18010026, "solve_s": 27.674817699939013, "master_s": 2.5489122993312776, "pricing_s": 25.121592099778354, "retries": [2, 3]}
+# 16:05:34 R201_50 --master highs --factor 1e4
+RESULT {"instance": "R201_50", "master": "highs", "factor": 10000.0, "pricing": "exact", "init": "artificial", "status": "Optimal", "lp": 756.3386122369022, "iterations": 33, "columns": 17929, "artificial_cost": 834505.8418010026, "solve_s": 20.265328499954194, "master_s": 1.7394685002509505, "pricing_s": 18.523564599920064, "retries": null}
+# 16:05:55 R201_50 --master fallback --factor 1e4
+RESULT {"instance": "R201_50", "master": "fallback", "factor": 10000.0, "pricing": "exact", "init": "artificial", "status": "Optimal", "lp": 756.3386122369022, "iterations": 33, "columns": 17929, "artificial_cost": 834505.8418010026, "solve_s": 18.86000490002334, "master_s": 1.7385908004362136, "pricing_s": 17.116605999413878, "retries": []}
+# 16:06:15 R201_50 --master fallback --factor 1e4 --pricing tabu
+RESULT {"instance": "R201_50", "master": "fallback", "factor": 10000.0, "pricing": "tabu", "init": "artificial", "status": "Optimal", "lp": 756.3386122369022, "iterations": 44, "columns": 5072, "artificial_cost": 834505.8418010026, "solve_s": 2.859516200143844, "master_s": 0.2786218002438545, "pricing_s": 2.577172000426799, "retries": []}
+# 16:06:18 R201 --master fallback --factor 1e4
+NO RESULT: stopped by hand (restarted with progress files, below): R201 --master fallback --factor 1e4
+# 16:12:14 R201 --master fallback --factor 1e4
+NO RESULT: stopped by hand at 16:37, still in its first pricing after 25 min: R201 --master fallback --factor 1e4
+# 16:38:10 R201 --master fallback --factor 1e4 --pricing tabu
+NO RESULT: stopped by hand at once: R201 --master fallback --factor 1e4 --pricing tabu
