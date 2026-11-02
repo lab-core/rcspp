@@ -1,0 +1,10 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+16:26:45,0.0,36.5,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
+16:26:51,20.7,36.5,135,MsMpEng.exe 28%; chrome.exe 17%; Code.exe 14%
+16:26:57,18.5,36.5,90,MsMpEng.exe 26%; Code.exe 23%; System 8%
+16:27:03,19.5,36.3,102,MsMpEng.exe 29%; System 13%; Code.exe 10%
+16:27:09,19.6,36.3,130,MsMpEng.exe 31%; Code.exe 16%; DofusGuide.exe 12%
+16:27:15,18.5,36.3,100,MsMpEng.exe 25%; Code.exe 17%; System 10%
+16:27:21,21.2,36.5,115,MsMpEng.exe 29%; DofusGuide.exe 15%; System 9%
+16:27:27,17.4,36.7,108,MsMpEng.exe 29%; Code.exe 17%; Code.exe 11%
+16:27:32,16.2,36.6,94,MsMpEng.exe 26%; System 17%; Code.exe 16%

@@ -122,6 +122,31 @@ def master_model(kind, rows):
     raise ValueError(kind)
 
 
+def add_single_customer_routes(master, pricer, instance):
+    """Depot, customer, depot for each customer, as the example starts, instead of artificial columns."""
+    import math
+
+    from rcspp._core.graph import Column, Row, Solution
+
+    customers = instance.get_customers_by_id()
+    depot = instance.get_depot_customer()
+    routes = []
+    for customer_id in instance.get_demand_customers_id():
+        customer = customers[customer_id]
+        cost = 2 * math.hypot(customer.pos_x - depot.pos_x, customer.pos_y - depot.pos_y)
+        column = Column()
+        column.cost = cost
+        column.rows = [Row(index=customer_id, coefficient=1.0)]
+        route = Solution()
+        route.cost = 0.0
+        route.path_node_ids = [0, customer_id, len(customers)]
+        route.path_arc_ids = []
+        route.column = column
+        routes.append(route)
+    master.add_columns(pricer, routes)
+    master.mark_initialized()
+
+
 def run_layer(name, loop, master_kind, pricing):
     import rcspp.column_generation as cg
     from vrp.vrp import VRP
@@ -138,10 +163,15 @@ def run_layer(name, loop, master_kind, pricing):
     if pricing == "heuristic":
         stages = [cg.PricingStage("greedy"), cg.PricingStage("simple")]
     master = cg.MasterProblem(master_model(master_kind, rows))
-    master.add_pricer(cg.GraphPricer(graph, stages), cg.ConvexityRow())
+    pricer = master.add_pricer(cg.GraphPricer(graph, stages), cg.ConvexityRow())
+    if os.environ.get("COLGEN_INIT") == "single":
+        add_single_customer_routes(master, pricer, instance)  # the example's starting columns
+    params = cg.ColumnGenerationParams()
+    if os.environ.get("COLGEN_ARTIFICIAL_COST"):  # override of the automatic cost (7e7 on R201_25 breaks HiGHS)
+        params.initialization = cg.ArtificialColumns(cost=float(os.environ["COLGEN_ARTIFICIAL_COST"]))
     start = time.perf_counter()
     if loop == "cpp":
-        result = cg.ColumnGeneration(master).run()
+        result = cg.ColumnGeneration(master, params).run()
         stats = result.statistics
         fields = dict(
             columns=stats.generated_columns,
@@ -151,7 +181,7 @@ def run_layer(name, loop, master_kind, pricing):
     else:
         import column_generation_loop
 
-        result = column_generation_loop.run(master)
+        result = column_generation_loop.run(master, params)
         fields = dict(
             columns=result.generated_columns,
             master_s=result.relaxation_seconds,

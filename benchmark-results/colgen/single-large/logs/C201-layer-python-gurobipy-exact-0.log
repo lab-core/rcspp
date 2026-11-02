@@ -1,0 +1,10 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 34 ms
+construct_graph: 41 ms
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+RESULT {"status": "Optimal", "lp": 591.5565566715015, "iterations": 235, "rest_s": 0.06393349996142206, "columns": 45755, "master_s": 12.198082599996269, "pricing_s": 13.02792610004326}
