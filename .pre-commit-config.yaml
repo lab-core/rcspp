@@ -47,6 +47,8 @@ repos:
       - id: flake8
         name: Python Linter
         files: ^(python|tests)/.*\.pyi?$
+        # Naming checks; .flake8 selects their codes (N, A).
+        additional_dependencies: [pep8-naming==0.15.1, flake8-builtins==3.2.0]
 
   # -------------------------
   # Bandit
