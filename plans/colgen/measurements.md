@@ -1,5 +1,10 @@
 # Measurements for the 2026-10-30 presentation
 
+**Status (2026-11-01):** v1 and v2 done (the runner, the layer from Python, both current examples), small and
+large results committed; v3 not done. What happened, results, caveats, how to restart on another machine and
+what is next: `benchmark-results/colgen/HANDOFF.md`. Findings for the layer: `F-36` → `T-1.13`, `F-37` →
+`T-1.14`.
+
 Quick and dirty scripts, not shipped: they live in `benchmark-results/colgen/` on `feature/column-generation` (that
 folder is left out of the PR branches). Goal: tables of the current VRP examples and of the new layer, small instances
 first, large ones left running overnight. English. Not code for review: no lint hooks run there.

@@ -7,9 +7,10 @@ Gurobi license, `D-59`); stacked by rebase (`D-85`). Review round of 2026-10-28 
 `D-86`–`D-92`); PR 5 (5.1 to 5.6) done, branch `feature/column-generation-python` on PR 4; `D-87` measured (`D-100`); PR
 6: 6.1 to 6.7 done (`D-101`, `D-104`, `D-105`), branch `feature/column-generation-python-masters` on PR 5. Packaging studied
 (`packaging.md`; `D-103`–`D-106`); C++ packaging (`T-1.12`, `D-102`, `D-107`–`D-110`) done in code, branch
-`feature/column-generation-packaging` on PR 6, pushed; its PR text drafted, the user opens it. The PR texts
-of #69, #76, #77 and #78 have a note on the renames (2026-10-30), naming the branch: add the new PR's number**.
-Updated: 2026-10-30. Baseline:
+`feature/column-generation-packaging` on PR 6: draft #80; the PR texts of #69, #76, #77 and #78 note its
+renames. Measurements for the presentation done (`measurements.md`, `benchmark-results/colgen/HANDOFF.md`);
+they found `T-1.13` and `T-1.14`. Next: the presentation**.
+Updated: 2026-11-01. Baseline:
 `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## Agent protocol

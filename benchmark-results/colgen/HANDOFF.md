@@ -78,9 +78,12 @@ Findings:
   7000 s against 1745 s for the example. Starting from the example's columns (`COLGEN_INIT=single`) fixes both.
   Explicit cost 1e5 also fixed R201_25 by hand. The slowness is an inference (first pricing with huge duals), not
   measured per iteration.
-- Heuristic pricing (greedy, then simple) without a column limit explodes: about 140,000 columns per call on C101_25
+- Heuristic pricing (greedy, then simple) ran uncapped and exploded: about 140,000 columns per call on C101_25
   (5 to 16 s against 1 s for exact), and memory reached 98% on R201_25. Heuristic runs exist only for C101_25 and
-  R101_25 (in `small/`); they are excluded from the large runs.
+  R101_25 (in `small/`); they are excluded from the large runs. **The cap exists, the driver did not set it**
+  (`drivers.py`, `cg.PricingStage("greedy")` without params): `params = rcspp.graph.AlgorithmParams()`, then
+  `params.stop_after_X_solutions = N` and `cg.PricingStage("greedy", params)` (the field is bound in
+  `python/bindings/graph.cpp`). Set it before any heuristic rerun, or memory fills again.
 
 ## Caveats
 
@@ -89,20 +92,64 @@ Findings:
 - Not run: RC201 with the default start, the examples on RC201, extra instances (C102, R102, RC102, C202, R202, RC202,
   R103 were planned), repeats (all `--repeats 1`), v3 (C++ driver for the new layer).
 - Only the cycles-allowed relaxation: no ng-routes, no elementarity. 100 customers at most.
+- "C++ example" is `main` with one local edit (`kRouteRelaxation` in `examples/cpp/vrp/vrp.hpp`, see above), run as
+  `rcspp-ng-cg-comparison` with ng size 0: not the stock `rcspp-vrp-benchmark`.
+- The C++ Gurobi master solver of the layer was not measured (v3 not done). For the C++ or Python Gurobi decision, the
+  proxy is the C++ example (Gurobi's C++ API) against the layer with gurobipy, in a regime where pricing is over 95% of
+  the time: it says the Python master costs nothing measurable there, not that it never does.
 
 ## Issues for the layer (not fixed: the layer code was not changed)
 
-1. Automatic artificial-column cost too large on R2 instances (fix: lower the scale, or make the HiGHS master solver
-   robust to large costs).
-2. `greedy` stage has no column limit per call.
-3. The default start makes the Gurobi layer 4 times slower than the Gurobi example on R201 (inferred, see above).
+1. Automatic artificial-column cost too large on R2 instances: `ArtificialColumns` uses
+   `automatic_cost_factor` (1e6, `master_initialization.hpp`) times the cost scale, which a `GraphPricer` reports as
+   its largest arc cost (`graph_pricer.hpp`, `cost_scale`), so about 7e7. It is the layer's default start: a user
+   without starting columns hits the HiGHS failure or the slowdown. To fix before shipping (lower factor, a bound,
+   or a HiGHS fallback), then rerun R201_25, RC201_12 and R201 with the default start.
+2. Heuristic stages have no cap unless the user sets one (see Findings): decide whether a heuristic stage gets a
+   default cap.
+3. The default start makes the Gurobi layer 4 times slower than the Gurobi example on R201 (inferred, see above);
+   expected to go with 1.
 
-## Commits (nothing pushed)
+## Commits
 
-`bb40b192` (v1 scripts and small results), `91435338` (large and single-start results, runner changes) and the one
-that adds this file. The user asked not to push; push before continuing on another machine, or copy the folder.
+`bb40b192` (v1 scripts and small results), `91435338` (large and single-start results, runner changes), `7f307d4c`
+(this file), and the plan commit after it: all pushed on 2026-11-01 with `feature/column-generation`. The PR branches
+are pushed too; the packaging PR is #80 (draft).
+
+## Starting on another machine
+
+1. `git fetch`, check out `feature/column-generation`, `git lfs pull` (the instances are in LFS). Read
+   `plans/colgen/README.md` (agent protocol), then this file and `plans/colgen/measurements.md`.
+2. Python: a venv with `tests/python/requirements.txt`, then `pip install gurobipy mip psutil` (the requirements leave
+   python-mip out on Windows; it works there). Gurobi needs the machine's license (`GUROBI_HOME`, a license file);
+   without one, skip the gurobipy and Gurobi configurations (`--configs`).
+3. Build with HiGHS for the layer configurations: `cmake -S . -B build-python-highs -DUSE_PYTHON=ON
+   -DUSE_COLUMN_GENERATION_HIGHS=ON [-DUSE_COLUMN_GENERATION_GUROBI=ON]` (the options were renamed from `USE_HIGHS`
+   and `USE_GUROBI`), then build `_core`. Run with `PYTHONPATH=build-python-highs/python`. Code that imports from
+   `python/src` looks for the module in `build/`, `out/` or `cmake-build-*/`: on the first machine a junction
+   `cmake-build-release/python/rcspp` pointed at `build-python-highs/python/rcspp`.
+4. The C++ example needs the `../rcspp-main` worktree and its `build-v2` (the launcher makes both, with `USE_VRP` and
+   Gurobi); on Linux, adapt the `.ps1` steps or build `rcspp-ng-cg-comparison` by hand.
+5. Results of a new machine go in new output folders (machine names in the folder or in `--output`), not mixed with
+   these: the timings are machine-specific.
+
+## Next (in order)
+
+1. Prepare the presentation (below); the numbers above are enough.
+2. Optional, short: rerun the heuristic configurations on the small instances with a cap
+   (`stop_after_X_solutions`, e.g. 50 to 200), so the heuristic row shows the stage working.
+3. Optional: a few runs on an idle machine with `--repeats 3` for quotable timings.
+4. Layer fixes (issues 1 and 2) are code on the PR branches: plan them with the user first (`plans/colgen/roadmap.md`
+   `T-1.13`, `T-1.14`).
 
 ## For the presentation (discussed)
+
+Colleague's goal (2026-10-30): ship column generation ready to use, really small (RCSPP is about the pricer),
+highly customizable in C++ and Python, and not changing how RCSPP works today. Talk about the critical decisions (HiGHS
+and Gurobi, C++ and Python) and how a user writes it. Format: a few minutes of talk with tables, maybe LaTeX later;
+English. Points for the goal: column generation is its own library and option (the core builds and passes its 597
+tests without it, `rcspp.hpp` no longer includes it); HiGHS in the wheel costs no import time, the wheel is about
+3.4 MB (`plans/colgen/inventory.md` `F-35`).
 
 Lead with correctness and parity (one LP table, the baseline match), then timing parity; show the artificial-start
 finding as a lesson with its fix; state the noise caveat; do not claim speed wins (the claim is accuracy and time on a
