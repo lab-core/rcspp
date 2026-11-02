@@ -45,6 +45,7 @@ current stance, if any.
 | Q-38 | **numpy as a dependency?** Only `networkx` today (`F-10`), but the column generation bindings return numpy arrays, and without numpy `HighspyMasterSolver` is silently absent (6.3) | — | first release with column generation | → D-104 |
 | Q-39 | **gurobipy imported eagerly?** 6.2 imports it with `rcspp.column_generation` when installed (+~16 ms, `F-35`); highspy only when used | — | — | → D-105 |
 | Q-40 | **B2's shape (`T-1.11`):** a second Gurobi master solver or `GurobiMasterSolver` on the C API; adapters by version range; the library already loaded, else `GUROBI_HOME`; an override and a diagnostic command; may we write the C declarations (Gurobi's terms)? | `packaging.md` §3 | `T-1.11` | → D-106 |
+| Q-41 | **Keep the C++ layer, or Python only (`D-111`)?** | decide from `T-1.15`'s comparison: identical instances and configurations, master-heavy (C2) and many-iteration cases included | `T-1.5`, `T-1.11`, the C++ PRs leaving draft | open |
 
 ## Q-04: pros and cons
 
