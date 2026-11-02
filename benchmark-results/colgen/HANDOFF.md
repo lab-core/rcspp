@@ -25,6 +25,8 @@ pricing is measured, not inferred (`F-39`).
   the capped heuristic run was killed after 19 min and has no row); `r201-cost1e5/` (Gurobi with cost 1e5 killed
   after 110 min, no row). Findings: `F-39`, `F-40`.
 - **Slides:** `presentation/slides.tex` (beamer; the colleague's style).
+- **HiGHS failure on the big-M start:** `highs-dual-replay/` (scripts and `results.md`): where HiGHS stops, the
+  threshold (7.7e5 × the cost scale), the options and fallback that fix it (`F-41`, `Q-43`).
 
 ## What exists
 
