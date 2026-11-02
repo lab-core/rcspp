@@ -1,0 +1,5 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+10:41:57,0.0,75.0,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
+10:42:04,71.5,74.9,419,MsMpEng.exe 114%; SearchIndexer.exe 67%; perl.exe 65%
+10:42:10,62.5,74.8,395,MsMpEng.exe 129%; System 72%; perl.exe 70%
+10:42:16,60.3,72.9,331,MsMpEng.exe 132%; perl.exe 66%; python.exe 26%

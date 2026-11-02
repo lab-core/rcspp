@@ -3,6 +3,27 @@
 State of the work on 2026-11-01, written so a new chat (possibly on another machine) can continue. The plan is
 `plans/colgen/measurements.md`; this file is what happened and what is left. Branch `feature/column-generation`.
 
+## Update 2026-11-02 (after the presentation)
+
+What is next now lives in the plan (`plans/colgen/README.md` status, `T-1.13` to `T-1.16`); "Next" below is
+superseded. Two findings below were corrected: the master solvers do differ in speed (`F-38`), and the big-M first
+pricing is measured, not inferred (`F-39`).
+
+- **Two machines.** `small/`, `large/`, `single-*` come from the desktop (`C:\Users\marbe\Desktop\...`); everything
+  below from the laptop (`C:\Users\marbe\OneDrive\Desktop\...`). Timings do not compare across machines.
+- **Laptop setup (done):** `psutil` in `.venv`; `build-python-highs` configured with `-DUSE_PYTHON=ON
+  -DUSE_TESTS=OFF -DUSE_COLUMN_GENERATION_HIGHS=ON -DPython_EXECUTABLE=<repo>/.venv/Scripts/python.exe`, `_core`
+  built. The `rcspp` installed in `.venv` has no HiGHS master solvers: keep `PYTHONPATH=build-python-highs/python`
+  (the launcher sets it). No `../rcspp-main` worktree, so `example-cpp` does not run here.
+- **New in the driver:** `COLGEN_HEURISTIC_CAP=<n>` sets greedy's `stop_after_X_solutions`.
+- **New script:** `greedy_replay.py --instance R201_50 [--cap 100] [--timeout 60]` runs the Python example, records
+  the duals of each iteration, and prices the first, middle and last ones with `simple` and capped `greedy` (`F-40`).
+- **New results:** `heuristic-cap100/` (C101_25, R101_25, all 12 layer configurations, cap 100);
+  `heuristic-cap100-medium/` (R201_50 from single-customer columns: HiGHS exact, gurobipy exact, the Python example;
+  the capped heuristic run was killed after 19 min and has no row); `r201-cost1e5/` (Gurobi with cost 1e5 killed
+  after 110 min, no row). Findings: `F-39`, `F-40`.
+- **Slides:** `presentation/slides.tex` (beamer; the colleague's style).
+
 ## What exists
 
 Quick scripts in `benchmark-results/colgen/` (not shipped, left out of the PR branches).
