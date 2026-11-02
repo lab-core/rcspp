@@ -61,7 +61,7 @@ struct ComponentTypeIndex<ComponentType, FrontComponentType, ComponentTypes...> 
 /// @tparam ComponentTypes The ordered list of types to search within.
 template <typename ComponentType, typename... ComponentTypes>
     requires(ComponentTypeIndex<ComponentType, ComponentTypes...>::value != -1)
-inline constexpr int ComponentTypeIndex_v =
+inline constexpr int component_type_index_v =
     ComponentTypeIndex<ComponentType, ComponentTypes...>::value;
 
 /// @brief Trait that maps a @p ComponentType to its initializer tuple type.
@@ -83,7 +83,8 @@ struct ComponentInitializerTypeTuple {
 ///
 /// @tparam ComponentType A type that satisfies the `ComponentInitializerTypeTuple` trait.
 template <typename ComponentType>
-using ComponentInitializerTypeTuple_t = typename ComponentInitializerTypeTuple<ComponentType>::type;
+using component_initializer_type_tuple_t =
+    typename ComponentInitializerTypeTuple<ComponentType>::type;
 
 /// @brief Empty tag base class used to identify all `Composition` specializations.
 struct CompositionTag {};
@@ -696,14 +697,14 @@ class Composition : public CompositionTag {
 
         /// @brief Returns a mutable reference to the component vector for a given base type.
         ///
-        /// The type-slot index is resolved at compile time via `ComponentTypeIndex_v`.
+        /// The type-slot index is resolved at compile time via `component_type_index_v`.
         ///
         /// @tparam BaseType The base type whose slot should be retrieved.
         /// @return Reference to `std::vector<std::unique_ptr<ComponentClass<BaseType>>>`.
         template <typename BaseType>
         [[nodiscard]] auto get_components() -> auto& {
-            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
-            return get_components<ComponentTypeIndex>();
+            constexpr size_t kComponentTypeIndex = component_type_index_v<BaseType, BaseTypes...>;
+            return get_components<kComponentTypeIndex>();
         }
 
         /// @brief Returns a const reference to the component vector for a given base type.
@@ -712,8 +713,8 @@ class Composition : public CompositionTag {
         /// @return Const reference to `std::vector<std::unique_ptr<ComponentClass<BaseType>>>`.
         template <typename BaseType>
         [[nodiscard]] auto get_components() const -> const auto& {
-            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
-            return get_components<ComponentTypeIndex>();
+            constexpr size_t kComponentTypeIndex = component_type_index_v<BaseType, BaseTypes...>;
+            return get_components<kComponentTypeIndex>();
         }
 
         /// @brief Returns a mutable reference to a single component by base type and position.
@@ -723,8 +724,8 @@ class Composition : public CompositionTag {
         /// @return Mutable reference to the component at the given position.
         template <typename BaseType>
         [[nodiscard]] auto get_component(size_t index) -> auto& {
-            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
-            return get_component<ComponentTypeIndex>(index);
+            constexpr size_t kComponentTypeIndex = component_type_index_v<BaseType, BaseTypes...>;
+            return get_component<kComponentTypeIndex>(index);
         }
 
         /// @brief Returns a const reference to a single component by base type and position.
@@ -734,8 +735,8 @@ class Composition : public CompositionTag {
         /// @return Const reference to the component at the given position.
         template <typename BaseType>
         [[nodiscard]] auto get_component(size_t index) const -> const auto& {
-            constexpr size_t ComponentTypeIndex = ComponentTypeIndex_v<BaseType, BaseTypes...>;
-            return get_component<ComponentTypeIndex>(index);
+            constexpr size_t kComponentTypeIndex = component_type_index_v<BaseType, BaseTypes...>;
+            return get_component<kComponentTypeIndex>(index);
         }
 
     private:

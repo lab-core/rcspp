@@ -138,7 +138,7 @@ class ResourceCompositionFactory
         /// @return Owning pointer to the newly created composed extender.
         template <typename GraphResourceType>
         std::unique_ptr<ExtenderClass> create_extender(
-            const std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>&
+            const std::tuple<std::vector<component_initializer_type_tuple_t<ResourceTypes>>...>&
                 resource_consumption,
             const Arc<GraphResourceType>& arc) {
             auto create_extender_function =
@@ -227,9 +227,9 @@ class ResourceCompositionFactory
         /// @return Number of `ResourceFactory<ResourceType>` entries in the corresponding slot.
         template <typename ResourceType>
         [[nodiscard]] size_t get_num_resource_type() const {
-            constexpr size_t ResourceTypeIndex =
-                ComponentTypeIndex_v<ResourceType, ResourceTypes...>;
-            return this->template get_components<ResourceTypeIndex>().size();
+            constexpr size_t kResourceTypeIndex =
+                component_type_index_v<ResourceType, ResourceTypes...>;
+            return this->template get_components<kResourceTypeIndex>().size();
         }
 
         /// @brief A deep copy, through the base class, of the whole factory: @ref clone_factory.

@@ -88,6 +88,10 @@ New features are summarised, with a pointer to where they are documented.
     `row_coefficients`. That changes the keywords of `SharedPricingPool.add_from_lp_arrays`,
     which were `col_costs`, `row_starts`, `col_indices` and `col_values`, and its views
     (`column_costs_view`, `column_starts_view`, `row_indices_view`, `row_coefficients_view`).
+  - `ComponentTypeIndex_v` is `component_type_index_v`, and `ComponentInitializerTypeTuple_t` is
+    `component_initializer_type_tuple_t`: a trait's `_v` and `_t` are in snake_case, as in the
+    standard library. The traits `ComponentTypeIndex` and `ComponentInitializerTypeTuple` keep
+    their names.
 - **Removed: API that did nothing, could not be used, or duplicated another name.**
   - `AlgorithmBaseParams::use_pool`, in C++ and Python: nothing read it, so setting it to `false`
     changed nothing.

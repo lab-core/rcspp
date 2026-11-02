@@ -581,7 +581,8 @@ void bind_add_resource(py::class_<ResourceGraphType, Graph<CompositionType>>& rg
 
 template <typename ResourceGraphType, typename CompositionType, typename... ResourceTypes>
 void bind_resource_graph_impl(py::class_<ResourceGraphType, Graph<CompositionType>>& rg) {
-    using AddArcTuple = std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>;
+    using AddArcTuple =
+        std::tuple<std::vector<component_initializer_type_tuple_t<ResourceTypes>>...>;
 
     (bind_add_resource<ResourceGraphType, CompositionType, ResourceTypes>(rg), ...);
 
