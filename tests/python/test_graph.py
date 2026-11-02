@@ -929,7 +929,7 @@ def test_bucket_params_kwargs_forwarded():
     assert params.max_solutions == 3
 
 
-# ── The extension's solve() ──────────────────────────────────────────────────
+# ── The extension's solve() and getters ──────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -953,6 +953,17 @@ def test_core_solve_runs_bucket_params_whatever_arguments_are_left_out(left_out)
     params.bucket_resource_index = 5
     with pytest.raises(ValueError, match="bucket_resource_index 5 out of range"):
         rg._graph.solve(params=params, **arguments)
+
+
+def test_getters_return_none_for_an_unknown_id():
+    """get_node, get_arc and get_removed_arc return None, as their stubs now say."""
+    rg = make_diamond()
+    assert rg.get_node(99) is None
+    assert rg.get_arc(99) is None
+    assert rg.get_removed_arc(0) is None
+    rg.remove_arc(0)
+    assert rg.get_arc(0) is None
+    assert rg.get_removed_arc(0) is not None
 
 
 # ── ResourceGraph() takes no graph ────────────────────────────────────────────
