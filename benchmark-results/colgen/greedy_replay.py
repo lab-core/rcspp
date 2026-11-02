@@ -1,9 +1,10 @@
-"""Replays the duals of an exact run through greedy and simple pricing (plans: T-1.14 step 1, F-40).
+"""Replays the duals of an exact run through simple, greedy and tabu pricing (plans: T-1.14, F-40).
 
 Runs the Python example on an instance, records the duals of every iteration, then prices the first, middle and
-last duals with `simple` (exact) and `greedy` (capped, with a timeout), with the layer's threshold.
+last duals with `simple` (exact), `greedy` and `tabu` (capped, with a timeout), with the layer's threshold. Tabu
+uses the C++ benchmarks' cap and iteration budget (`examples/cpp/benchmark_main.cpp`).
 
-  python greedy_replay.py --instance R201_50 [--cap 100] [--timeout 60]
+  python greedy_replay.py --instance R201_50 [--cap 100] [--tabu-cap 20] [--tabu-iterations 1000] [--timeout 60]
 """
 
 import argparse
@@ -56,6 +57,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--instance", default="R201_50")
     parser.add_argument("--cap", type=int, default=100)
+    parser.add_argument("--tabu-cap", type=int, default=20)
+    parser.add_argument("--tabu-iterations", type=int, default=1000)
     parser.add_argument("--timeout", type=float, default=60.0)
     args = parser.parse_args()
 
@@ -67,9 +70,16 @@ def main():
         greedy = AlgorithmParams()
         greedy.stop_after_X_solutions = args.cap
         greedy.timeout_s = args.timeout
+
+        tabu = AlgorithmParams()
+        tabu.stop_after_X_solutions = args.tabu_cap
+        tabu.max_iterations = args.tabu_iterations
+        tabu.timeout_s = args.timeout
+
         print(f"\n{label} duals (iteration {index + 1} of {len(duals)})")
         print(f"  simple  {price(graph, 'simple', AlgorithmParams())}")
         print(f"  greedy  {price(graph, 'greedy', greedy)}")
+        print(f"  tabu    {price(graph, 'tabu', tabu)}")
 
 
 if __name__ == "__main__":

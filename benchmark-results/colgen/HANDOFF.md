@@ -17,7 +17,9 @@ pricing is measured, not inferred (`F-39`).
   (the launcher sets it). No `../rcspp-main` worktree, so `example-cpp` does not run here.
 - **New in the driver:** `COLGEN_HEURISTIC_CAP=<n>` sets greedy's `stop_after_X_solutions`.
 - **New script:** `greedy_replay.py --instance R201_50 [--cap 100] [--timeout 60]` runs the Python example, records
-  the duals of each iteration, and prices the first, middle and last ones with `simple` and capped `greedy` (`F-40`).
+  the duals of each iteration, and prices the first, middle and last ones with `simple`, capped `greedy` and
+  capped `tabu` (`--tabu-cap 20 --tabu-iterations 1000` by default; `F-40`, `D-117`). Output:
+  `heuristic-replay/R201_50.txt`.
 - **New results:** `heuristic-cap100/` (C101_25, R101_25, all 12 layer configurations, cap 100);
   `heuristic-cap100-medium/` (R201_50 from single-customer columns: HiGHS exact, gurobipy exact, the Python example;
   the capped heuristic run was killed after 19 min and has no row); `r201-cost1e5/` (Gurobi with cost 1e5 killed
