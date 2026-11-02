@@ -705,7 +705,7 @@ def test_resource_refs_survive_gc():
 # labels into resource-value ranges and sorts within each bucket to speed up
 # dominance checks.  Results must be identical to solving with AlgorithmParams.
 # bucket_resource_type selects which numerical resource drives the bucket
-# boundaries; empty string (default) uses the graph's cost resource (CostRC).
+# boundaries; empty string (default) uses the graph's cost resource (CostResourceType).
 
 
 def example_bucket_labels():
@@ -731,7 +731,7 @@ def example_bucket_labels():
     assert reference, "reference solve returned no solutions"
     ref_cost = reference[0].cost
 
-    # Default BucketAlgorithmParams (bucket/sort resource = CostRC = real)
+    # Default BucketAlgorithmParams (bucket/sort resource = CostResourceType = real)
     bp_default = BucketAlgorithmParams()
     bp_default.bucket_width = 5
     sols_default = rg.solve(params=bp_default)
