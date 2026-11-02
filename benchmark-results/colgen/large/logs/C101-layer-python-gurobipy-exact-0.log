@@ -1,0 +1,10 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101.txt
+nb_customers: 101
+construct_graph: 49 ms
+construct_graph: 46 ms
+Set parameter WLSAccessID
+Set parameter WLSSecret
+Set parameter LicenseID to value 2869573
+Academic license 2869573 - for non-commercial use only - registered to le___@polymtl.ca
+RESULT {"status": "Optimal", "lp": 828.9368669428338, "iterations": 90, "rest_s": 0.024450700060697272, "columns": 4263, "master_s": 0.6193095999769866, "pricing_s": 1.8646326999587473}

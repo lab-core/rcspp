@@ -1,0 +1,6 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\R201.txt
+nb_customers: 101
+construct_graph: 38 ms
+construct_graph: 46 ms
+RESULT {"status": "SolverError", "lp": 9183136719.008373, "iterations": 1, "rest_s": 0.005754400015575811, "columns": 29241, "master_s": 0.0948359000030905, "pricing_s": 3280.6357671999867}
