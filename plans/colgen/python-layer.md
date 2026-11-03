@@ -117,7 +117,7 @@ step G; ✘ no fix (`D-127`):
 
 | # | finding | fix |
 |---|---|---|
-| B.1 | ✔ integer solve overruns its time limit 4–12× once LP solves have run (`F-43`) | own limit, or documented limitation + test |
+| B.1 | ✔ integer solve overruns its time limit 4–12× once LP solves have run (`F-43`) | a deadline in a `cbMipInterrupt` handler (`D-128`) |
 | B.2 | ✔ package docstring: "never loads `_core.column_generation`" is false (`import rcspp` loads it); §2 fixed | "imports nothing of `rcspp.column_generation`" |
 | B.3 | ✔ thread warning `stacklevel=4` points above the caller (checked) | 3 |
 | B.4 | ✔ fix A comment says a cold solve cures the cycling case (`F-21`: the known cure keeps the basis); a refused run is retried too, within what is left of the limit: undocumented | comment and docstring |
@@ -126,7 +126,7 @@ step G; ✘ no fix (`D-127`):
 | B.7 | ✔ `MasterSolver.add_rows`: `::` in the message, `RuntimeError` | `NotImplementedError`, `MasterSolver.add_rows` |
 | B.8 | ✔ `HighspyMasterSolver` docstring: "the loop calls with the GIL held": binding notion | drop |
 | B.9 | ✔ `SolverColumns`: C++ map + vector (generic, `at`, `all`); bounds rule written twice (scalar + numpy) | `dict` + `check_columns(batch, rows, known_ids)`; one vectorized rule. Before step C reuses it |
-| B.10 | ✔ `RowBatch`, `ColumnBatch`: `__slots__` + one property per field (a `const` struct) | `@dataclass(frozen=True, slots=True)`, checks in `__post_init__` |
+| B.10 | ✔ `RowBatch`, `ColumnBatch`: `__slots__` + one property per field (a `const` struct) | `@dataclass(frozen=True, slots=True)`, checks in `__post_init__`; the mirror test takes a read-only member to be a `property` (a slot field is a `member_descriptor`): accept both |
 | B.11 | ✔ mirror bug: `int(SolverStatus.Optimal)` works on the C++-backed enums, `TypeError` here (all four enums) | `__int__`/`__index__`; not `IntEnum` (`== 0` is `False` on pybind11 enums) |
 | B.12 | ✔ mirror bug: `RowBatch(..., names="ab")` gives `['a', 'b']`; pybind11 refuses a `str` | refuse a `str` |
 | B.13 | ✔ mirror test: comment on `ONLY_IN_CPP_LAYER` says it "counts the solves it ran again", the set is empty | fix the comment |
@@ -134,6 +134,13 @@ step G; ✘ no fix (`D-127`):
 | B.15 | ⏸ `duals()` copies the whole solution (`getSolution()`), `row_bounds`, `largest_user_cost` the whole LP (`getLp()`), each call: biases the speed comparison | decided after step G (`D-127`) |
 | B.16 | ⏸ `ColumnBatch` `uint32`/`uint64` (C++ widths): `add_columns` converts to `int32` per batch | decided after step G (`D-127`) |
 | B.17 | ✘ C++ layer (frozen, `D-116`): `HighsMasterSolver::restore_upper_bounds` reads past `upper_bounds_` (`F-44`) | recorded only, no fix (`D-127`) |
+
+Order of the fixes: a failing test first, then the fix, for B.1 (the `D-128` test), B.3 (the warning's `filename` is
+the caller's), B.11 (`int()` and `operator.index` of each enum, shared test on both layers), B.12 (`names="ab"`
+refused, shared test). B.6, B.9, B.10 are refactors: the existing tests cover them (`test_options_*`,
+`test_batches_are_checked…`, `test_a_column_batch_is_checked`), run before and after. B.5, B.7: the shared test checks
+`RuntimeError` and the method name (passes before and after), a Python-layer test `NotImplementedError`. B.2, B.4, B.8,
+B.13: text only.
 
 ## 6. Comparison with the C++ layer (`D-123`)
 
