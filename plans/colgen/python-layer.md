@@ -81,15 +81,15 @@ four customers 40).
 
 Coverage: the 90 % Python gate.
 
-Step A record (2026-11-03, on `feature/column-generation`; 108 tests in the three new files, run alone, none of the
-full suite; mypy `--strict` clean on the package):
+Step A record (2026-11-03, on `feature/column-generation`; 112 tests in the three new files after step B's fixes, run
+alone, none of the full suite; mypy `--strict` clean on the package). Hashes after step B's fixes were folded in:
 
-- Commit 1 `efe90cb1`: `types.py`, `pricer.py`, `master_solver.py`, `__init__.py`; 61 tests (mirror + shared behavior,
+- Commit 1 `c09eb441`: `types.py`, `pricer.py`, `master_solver.py`, `__init__.py`; 64 tests (mirror + shared behavior,
   the shared ones run on both layers). `ColumnBatch` and `RowBatch` are classes with read-only numpy properties and
   the same checks and messages; the options are keyword-only dataclasses; required methods raise
-  `NotImplementedError` (a `RuntimeError`) with the C++ message `Tried to call pure virtual function "…"`.
-- Commit 2 `a54acd0a`: `master_solver_support.py` (ports `master_solver_support.hpp`: the column checks and the
-  id → solver column map, for step C's gurobipy port too), `master_solvers/highspy_master_solver.py`; 47 tests,
+  `NotImplementedError` (a `RuntimeError`): `MasterSolver.duals must be overridden`.
+- Commit 2 `32f646fc`: `master_solver_support.py` (the row and column checks of `master_solver_support.hpp`, for step
+  C's gurobipy port too; the id → column map is a `dict`), `master_solvers/highspy_master_solver.py`; 48 tests,
   including the master solver self-test's LP replayed by hand (the real self-test is commit 4).
 - **Mirror test** (`tests/python/test_python_column_generation_mirror.py`): reads the C++ layer's parameters from the
   pybind11 docstrings (no `inspect.signature` there). `PENDING` lists the names not written yet: each later step
@@ -100,8 +100,8 @@ full suite; mypy `--strict` clean on the package):
   - `HighspyMasterSolver` keeps `column(id)` (the user's model column of an id) and the refusal of semi-continuous
     and semi-integer columns (HiGHS's `solve_relaxation` leaves them semi: measured); it drops `write_back`,
     `model_columns`, `model_rows`; `retried_solves` is the one extra attribute (`F-42`).
-  - highspy 1.15.1 has no `zeroAllClocks`: a solve sets `time_limit` to `getRunTime()` + its timeout. The MIP solver's
-    own clock (which starts at 0) may then overrun the integer solve's limit; not measured.
+  - highspy 1.15.1 has no `zeroAllClocks`: a solve sets `time_limit` to `getRunTime()` + its timeout. The MIP solver
+    overruns it (`F-43`): the integer solve also has a deadline in a `cbMipInterrupt` handler (`D-128`, `D-129`).
   - The thread-count warning is `warnings.warn(RuntimeWarning)`, not the C++ logger. `ColumnBatch.starts` and
     `row_indices` are `uint32` as in C++.
   - Fix A is the cold retry of `D-118` (`clearSolver()` then `run()`; the C++ layer also restores the basis). The
@@ -117,7 +117,7 @@ step G; ✘ no fix (`D-127`):
 
 | # | finding | fix |
 |---|---|---|
-| B.1 | ✔ integer solve overruns its time limit 4–12× once LP solves have run (`F-43`) | a deadline in a `cbMipInterrupt` handler (`D-128`) |
+| B.1 | ✔ integer solve overruns its time limit 4–12× once LP solves have run (`F-43`) | done: a deadline in a `cbMipInterrupt` handler (`D-128`; `D-129`: HiGHS's limit kept as a backstop) |
 | B.2 | ✔ package docstring: "never loads `_core.column_generation`" is false (`import rcspp` loads it); §2 fixed | "imports nothing of `rcspp.column_generation`" |
 | B.3 | ✔ thread warning `stacklevel=4` points above the caller (checked) | 3 |
 | B.4 | ✔ fix A comment says a cold solve cures the cycling case (`F-21`: the known cure keeps the basis); a refused run is retried too, within what is left of the limit: undocumented | comment and docstring |
@@ -126,7 +126,7 @@ step G; ✘ no fix (`D-127`):
 | B.7 | ✔ `MasterSolver.add_rows`: `::` in the message, `RuntimeError` | `NotImplementedError`, `MasterSolver.add_rows` |
 | B.8 | ✔ `HighspyMasterSolver` docstring: "the loop calls with the GIL held": binding notion | drop |
 | B.9 | ✔ `SolverColumns`: C++ map + vector (generic, `at`, `all`); bounds rule written twice (scalar + numpy) | `dict` + `check_columns(batch, rows, known_ids)`; one vectorized rule. Before step C reuses it |
-| B.10 | ✔ `RowBatch`, `ColumnBatch`: `__slots__` + one property per field (a `const` struct) | `@dataclass(frozen=True, slots=True)`, checks in `__post_init__`; the mirror test takes a read-only member to be a `property` (a slot field is a `member_descriptor`): accept both |
+| B.10 | ✘ `RowBatch`, `ColumnBatch`: `__slots__` + one property per field | dropped (`D-129`): a dataclass field has one type, so lists in or arrays out would not type-check; the properties are plain Python |
 | B.11 | ✔ mirror bug: `int(SolverStatus.Optimal)` works on the C++-backed enums, `TypeError` here (all four enums) | `__int__`/`__index__`; not `IntEnum` (`== 0` is `False` on pybind11 enums) |
 | B.12 | ✔ mirror bug: `RowBatch(..., names="ab")` gives `['a', 'b']`; pybind11 refuses a `str` | refuse a `str` |
 | B.13 | ✔ mirror test: comment on `ONLY_IN_CPP_LAYER` says it "counts the solves it ran again", the set is empty | fix the comment |
@@ -141,6 +141,11 @@ refused, shared test). B.6, B.9, B.10 are refactors: the existing tests cover th
 `test_batches_are_checked…`, `test_a_column_batch_is_checked`), run before and after. B.5, B.7: the shared test checks
 `RuntimeError` and the method name (passes before and after), a Python-layer test `NotImplementedError`. B.2, B.4, B.8,
 B.13: text only.
+
+Step B fixes record (2026-11-03, Opus): B.1–B.9, B.11–B.13 done, folded into commits 1–2 (`fixup!` + autosquash, the
+branch was not pushed); each commit passes its own tests (64, then 112). New tests: the enums' `int()`, a string of
+names refused, the Python layer's `NotImplementedError`, the warning's line, the integer solve's limit after 10 LP solves
+(0.2 s asked, under 1 s; 2.4 s before; about 1.4 s per run). B.10 dropped (`D-129`).
 
 ## 6. Comparison with the C++ layer (`D-123`)
 
