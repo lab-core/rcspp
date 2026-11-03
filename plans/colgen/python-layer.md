@@ -1,7 +1,7 @@
 # Pure-Python column generation layer (`T-1.15`): design
 
 Status: **accepted 2026-11-03**, code started: step A done (§5 commits 1–2, record under §5), step B done (review
-B.1–B.17 under §5), step C done (commits 3–4, record under §5), step D done (review D.1–D.14 under §5, fixed and folded
+B.1–B.17 under §5), step C done (commits 3–4, record under §5), step D done (review D.1–D.21 under §5, fixed and folded
 into commits 1–4, `D-130`); next is E. On top of the stack (`D-119`), highspy in place (`D-120`), mirror the C++ layer (`D-121`),
 VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed (`D-125`, §7),
 no standalone C++ run (`D-126`). Built on `D-111`, `D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
@@ -86,11 +86,11 @@ Coverage: the 90 % Python gate.
 Step A record (2026-11-03, on `feature/column-generation`; 112 tests in the three new files after step B's fixes, run
 alone, none of the full suite; mypy `--strict` clean on the package). Hashes after step B's fixes were folded in:
 
-- Commit 1 `38113c0b`: `types.py`, `pricer.py`, `master_solver.py`, `__init__.py`; 64 tests (mirror + shared behavior,
+- Commit 1 `06ff1f5b`: `types.py`, `pricer.py`, `master_solver.py`, `__init__.py`; 64 tests (mirror + shared behavior,
   the shared ones run on both layers). `ColumnBatch` and `RowBatch` are classes with read-only numpy properties and
   the same checks and messages; the options are keyword-only dataclasses; required methods raise
   `NotImplementedError` (a `RuntimeError`): `MasterSolver.duals must be overridden`.
-- Commit 2 `6e888402`: `master_solver_support.py` (the row and column checks of `master_solver_support.hpp`, for step
+- Commit 2 `d19fd24b`: `master_solver_support.py` (the row and column checks of `master_solver_support.hpp`, for step
   C's gurobipy port too; the id → column map is a `dict`), `master_solvers/highspy_master_solver.py`; 48 tests,
   including the master solver self-test's LP replayed by hand (the real self-test is commit 4).
 - **Mirror test** (`tests/python/test_python_column_generation_mirror.py`): reads the C++ layer's parameters from the
@@ -150,10 +150,10 @@ arguments: one argument needs Python 3.13, the package supports 3.11.
 Step C record (2026-11-03, Sonnet; 285 tests in the five pure-Python test files, run alone; mypy `--strict` clean; 100 %
 lines on the new modules from their own tests; Gurobi had a license here, so nothing skipped):
 
-- Commit 3 `182ad986`: `master_solvers/gurobipy_master_solver.py`; 50 tests on both layers (the C++-backed file's
+- Commit 3 `125f78ab`: `master_solvers/gurobipy_master_solver.py`; 50 tests on both layers (the C++-backed file's
   cases, columns as batches). Left to gurobipy (`F-45`'s rule): infinite bounds and sides, a bool for a number
   parameter, lists. Kept: a text value read as the parameter's type (gurobipy refuses `"1"`).
-- Commit 4 `5918db4c`: `tolerances.py`, `master_problem.py`, `master_initialization.py`, `master_solver_self_test.py`;
+- Commit 4 `21b30ecb`: `tolerances.py`, `master_problem.py`, `master_initialization.py`, `master_solver_self_test.py`;
   `automatic_cost_factor` 1e4 (fix B). 74 tests on both layers (`test_python_column_generation_master.py`): the C++
   cases, a random column batch against a dict reference, a master problem and the real self-test over both solvers.
 - Differences from the plan:
@@ -173,7 +173,8 @@ lines on the new modules from their own tests; Gurobi had a license here, so not
 - For step D: the vectorized batch (`_sorted_without_repeats`, `_with_entry_at_end`) and its cost against the C++ loop
   (`B.16`: `int64` rows converted to `uint32` per batch; one `to_arrays` call per column).
 
-Step D review (2026-11-03, Opus; decided by the user, `D-130`: ✔ fixed, ✘ no fix, ⏸ after step G). Checked before the
+Step D review (2026-11-03, Opus; decided by the user, `D-130`: ✔ fixed, ✘ no fix, ⏸ later). D.15–D.21 come from a
+second pass over commits 1–4, asked by the user. Checked before the
 fixes: each commit passed its own tests, mypy `--strict` clean (3.14), no `D-55` breach, `PENDING` shrunk to the commit
 5–6 names. Measured equal on both layers: row order, a repeated row summed, convexity entry last, nothing recorded when
 the solver refuses, empty columns with a convexity row, `no_pricer`, the read-only records. No "pure virtual", `::`, GIL
@@ -195,11 +196,21 @@ or `std::` text left. Paths under `python_column_generation/`:
 | D.12 | ⏸ cost: `add_columns` 95 µs vs 13 (1 × 10 rows), 1.1 ms vs 0.12 (200 × 25), 15 ms vs 3.0 (2000 × 50); `to_arrays` is 60–85 % of it (≈ 6 µs per column) | none now: step G, `D-112` |
 | D.13 | ✘ a repeated row's sum can differ in the last bit (0.1 + 0.2 + 0.3: 0.6 here, 0.6000000000000001 in C++) | none |
 | D.14 | ✔ the tests ran on both layers (a `cpp` fixture; commit 4 split the C++ layer's fakes into mixins): they needed the C++ layer built and tested it again | this layer only, fakes of its own; the shared fakes as before commit 4 |
+| D.15 | ✔ `HighspyMasterSolver` docstring (commit 2) still says "a tabu stage … makes up for it" (D.10 fixed only `ArtificialColumns`) | D.10's wording |
+| D.16 | ✔ after `solve_integer(Binary)` + `restore_user_model` a generated column stays binary (gurobipy `B`, both layers) or integer (highspy); the gurobipy docstrings say "continuous" | the docstrings (user): the columns keep the integer solve's type |
+| D.17 | ✔ 2 lines not covered: the self-test's wrong-size stop after x4 (`master_solver_self_test.py:180`), HiGHS refusing `add_rows` (`highspy_master_solver.py:233`) | one test each |
+| D.18 | ✔ `RowBatch(..., names=[1, 2])` keeps the ints; C++-backed `TypeError` (`B.12`'s family) | refuse names that are not texts |
+| D.19 | ✔ `Pricer.cost_scale` docstring cut by docformatter: a summary ending in ":", the rest after a blank line | one sentence |
+| D.20 | ⏸ for step E, not measured: Gurobi turns Ctrl-C into status `INTERRUPTED` (`Other`), not `KeyboardInterrupt`, which §1's last deviation counts on | check in step E |
+| D.21 | ✘ default instances (`RelaxationParams()`, `PricingRequest()`, `ConvexityRow()`) are shared between calls; pybind11 builds its defaults once too | none: the mirror needs them |
 
 Fixes (2026-11-03, Opus): a failing test first for D.1, D.2, D.4–D.7; folded into commits 1–4 (`fixup!` and edit stops,
 nothing pushed), the messages reworded; the user's lint fixes folded in too. Each commit passes its own tests
 (pure-Python files: 53, 101, 128, 223; with the C++-backed column generation tests 169, 217, 244, 339), mypy `--strict`
 clean on 3.11 and 3.14, pre-commit clean. D.3 kept as measured: only a batch with two different mistakes differs.
+Second pass fixes (2026-11-03, Opus): D.15–D.19, a test first for D.17 and D.18, folded into commits 1–4 the same
+way. Each commit passes its own tests (pure-Python files: 53, 102, 129, 225; the whole Python suite 474, 523, 550, 646,
+1 skipped); 100 % lines on the package.
 
 Accepted as they are (step C's list): `add_rows` overloads (the mirror needs both call forms), no batch for no
 artificial column, `NotImplementedError`, `columns()` shallow copy (frozen records; the `Solution` shared, as `B.14`),
@@ -236,7 +247,7 @@ Sonnet implements, Opus reviews; one step per chat, in order. Prompts: the READM
 | A | Sonnet | commits 1–2 and the mirror test |
 | B | Opus | review of A |
 | C | Sonnet | commits 3–4 (done) |
-| D | Opus | review of C (close: master problem, artificial cost, self-test) (done: D.1–D.13) |
+| D | Opus | review of C (close: master problem, artificial cost, self-test) (done: D.1–D.21) |
 | E | Sonnet | commits 5–6 |
 | F | Opus | review of E (close: the loop against `column_generation.cpp`); full suite once; the PR branch |
 | G | Sonnet | quick runs (§6, `D-123`) |
