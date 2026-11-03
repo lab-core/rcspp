@@ -92,7 +92,7 @@ inline std::string short_type_name() {
 /// @brief Returns @p name with every template argument list (`<...>`) removed.
 ///
 /// @param name A type name.
-/// @return     e.g. `"GreedyAlgorithm"` for `"GreedyAlgorithm<A, B>"`.
+/// @return     e.g. `"TabuSearchAlgorithm"` for `"TabuSearchAlgorithm<A, B>"`.
 inline std::string without_template_arguments(const std::string& name) {
     std::string result;
     int depth = 0;
@@ -109,7 +109,7 @@ inline std::string without_template_arguments(const std::string& name) {
 }
 
 /// @brief Returns the name of type @p T without its `rcspp::` qualifiers or template arguments,
-///        e.g. `"GreedyAlgorithm"`.
+///        e.g. `"TabuSearchAlgorithm"`.
 ///
 /// @tparam T The type to name.
 /// @return   The short class name.

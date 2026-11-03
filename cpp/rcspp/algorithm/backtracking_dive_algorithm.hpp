@@ -34,8 +34,8 @@ enum class DiveEnd {
 
 /**
  * @brief Common DFS-with-backtracking machinery shared by the tabu searches
- * (@ref TabuSearchAlgorithm, @ref ImprovingTabuSearch). @ref GreedyAlgorithm runs a similar
- * dive of its own, directly on @ref Algorithm.
+ * (@ref TabuSearchAlgorithm, @ref ImprovingTabuSearch). @c strategy::Greedy is a similar dive,
+ * on the labelling kernel.
  *
  * The class owns a @c path_ that represents the current depth-first path under
  * exploration: each entry holds the label currently selected at that depth and
