@@ -9,14 +9,20 @@ construction, resource registration, buffered node/arc insertion, and
 NetworkX integration.
 """
 
+from __future__ import annotations
+
 import math
-from typing import Any, Optional
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Optional
 
 import networkx as nx
 
 from . import _core as _ext
 from ._resource_types import ALL, CPP_NAME, canonical
 from .resource import _GenericFunctionDescriptor
+
+if TYPE_CHECKING:
+    import numpy as np
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
 _ALGORITHM_MAP = {
@@ -540,7 +546,7 @@ class ResourceGraph:
         else:
             self._rows_buffer.extend(data)
 
-    def clone(self, include_rows: bool = True, clone_removed_arcs: bool = False) -> "ResourceGraph":
+    def clone(self, include_rows: bool = True, clone_removed_arcs: bool = False) -> ResourceGraph:
         """Return a deep clone of this ResourceGraph with stable arc IDs.
 
         Flushes all pending buffers before cloning so the clone reflects the
@@ -572,7 +578,7 @@ class ResourceGraph:
         cloned._next_arc_id = cpp_clone.next_arc_id()
         return cloned
 
-    def clone_topology(self) -> "ResourceGraph":
+    def clone_topology(self) -> ResourceGraph:
         """Clone topology only (arc rows are empty in the clone).
 
         Use :meth:`add_rows` or :meth:`add_rows_to_arc` to populate rows per
@@ -601,13 +607,13 @@ class ResourceGraph:
 
     def solve(
         self,
-        algorithm="simple",
+        algorithm: str | _ext.graph.Algorithm = "simple",
         upper_bound: float = math.inf,
-        params=None,
+        params: _ext.graph.AlgorithmParams | BucketAlgorithmParams | None = None,
         preprocess: bool = True,
         cost_index: int = 0,
-        direction=None,
-    ):
+        direction: str | _ext.graph.SearchDirection | None = None,
+    ) -> _ext.graph.SolveResult:
         """Solve the RCSPP.
 
         Args:
@@ -691,7 +697,11 @@ class ResourceGraph:
 
     # ── Dual-based reduced-cost update ───────────────────────────────────────
 
-    def update_reduced_costs(self, duals, cost_index: int = 0):
+    def update_reduced_costs(
+        self,
+        duals: dict[int, float] | Sequence[float] | np.ndarray[Any, Any],
+        cost_index: int = 0,
+    ) -> None:
         """Recompute arc extender costs from dual values without rebuilding the graph.
 
         For each arc, computes::
