@@ -84,11 +84,11 @@ Coverage: the 90 % Python gate.
 Step A record (2026-11-03, on `feature/column-generation`; 112 tests in the three new files after step B's fixes, run
 alone, none of the full suite; mypy `--strict` clean on the package). Hashes after step B's fixes were folded in:
 
-- Commit 1 `c09eb441`: `types.py`, `pricer.py`, `master_solver.py`, `__init__.py`; 64 tests (mirror + shared behavior,
+- Commit 1 `b97e1c18`: `types.py`, `pricer.py`, `master_solver.py`, `__init__.py`; 64 tests (mirror + shared behavior,
   the shared ones run on both layers). `ColumnBatch` and `RowBatch` are classes with read-only numpy properties and
   the same checks and messages; the options are keyword-only dataclasses; required methods raise
   `NotImplementedError` (a `RuntimeError`): `MasterSolver.duals must be overridden`.
-- Commit 2 `32f646fc`: `master_solver_support.py` (the row and column checks of `master_solver_support.hpp`, for step
+- Commit 2 `5631af0b`: `master_solver_support.py` (the row and column checks of `master_solver_support.hpp`, for step
   C's gurobipy port too; the id → column map is a `dict`), `master_solvers/highspy_master_solver.py`; 48 tests,
   including the master solver self-test's LP replayed by hand (the real self-test is commit 4).
 - **Mirror test** (`tests/python/test_python_column_generation_mirror.py`): reads the C++ layer's parameters from the
@@ -145,7 +145,9 @@ B.13: text only.
 Step B fixes record (2026-11-03, Opus): B.1–B.9, B.11–B.13 done, folded into commits 1–2 (`fixup!` + autosquash, the
 branch was not pushed); each commit passes its own tests (64, then 112). New tests: the enums' `int()`, a string of
 names refused, the Python layer's `NotImplementedError`, the warning's line, the integer solve's limit after 10 LP solves
-(0.2 s asked, under 1 s; 2.4 s before; about 1.4 s per run). B.10 dropped (`D-129`).
+(0.2 s asked, under 1 s; 2.4 s before; about 1.4 s per run). B.10 dropped (`D-129`). The user's lint fixes folded in
+too (`Generator` return types of the context managers, typed lists in the mirror test); `Generator` takes its three
+arguments: one argument needs Python 3.13, the package supports 3.11.
 
 ## 6. Comparison with the C++ layer (`D-123`)
 
@@ -191,4 +193,7 @@ Rules for every implementing chat:
   `feature/column-generation-packaging`).
 - Mirror test (commit 1, grown with each commit): every public name of `rcspp.python_column_generation` exists in
   `rcspp.column_generation` with the same constructor and method signatures, except the deviations of §1.
+- Python idioms, not the binding's (step B, B.5–B.9): no "pure virtual" or `::` in messages (`NotImplementedError("X.y
+  must be overridden")`), no GIL, no C++ type conversions highspy or gurobipy already make, no container classes where a
+  `dict` does. Annotations run on Python 3.11 (`Generator[T, None, None]`, not `Generator[T]`).
 - Record each commit in §5 (`Done: <hash>`, test count, what differs from the plan) and stop at the step's end.
