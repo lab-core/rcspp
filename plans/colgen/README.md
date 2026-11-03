@@ -6,7 +6,9 @@ frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and pac
 done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
 slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
-**Next:** `T-1.15`, `T-1.16`. History: `decisions.md`;
+**Next:** `T-1.15`, design in discussion (`python-layer.md`): on top of the stack, mirroring the C++ layer
+(`D-119`–`D-123`); design accepted (`D-119`–`D-126`, pool postponed). Step A done (commits 1–2 `efe90cb1`,
+`a54acd0a`; record in its §5); next is step B (Opus review of A), then C. Then `T-1.16`. History: `decisions.md`;
 measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
@@ -75,6 +77,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `issues.md` + `issues/` | GitHub issues to create (`I-`, one paste-ready file each) and to close | when a finding is outside the plan's code |
 | `baseline.md` | measured benchmark results (informative and golden) | before and after perf-sensitive changes |
 | `packaging.md` | study notes: Gurobi from Python (B1, B2, C API, adapters), Python packages, C++ packaging and flags | before `T-1.11`, `T-1.12`, or any packaging change |
+| `python-layer.md` | the pure-Python layer (`T-1.15`): contents, fix A + B, pool option, commits, comparison with the C++ layer | before coding `T-1.15` |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
