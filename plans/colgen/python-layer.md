@@ -2,9 +2,10 @@
 
 Status: **accepted 2026-11-03**, code started: step A done (§5 commits 1–2, record under §5), step B done (review
 B.1–B.17 under §5), step C done (commits 3–4, record under §5), step D done (review D.1–D.21 under §5, fixed and folded
-into commits 1–4, `D-130`); next is E. On top of the stack (`D-119`), highspy in place (`D-120`), mirror the C++ layer (`D-121`),
-VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed (`D-125`, §7),
-no standalone C++ run (`D-126`). Built on `D-111`, `D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
+into commits 1–4, `D-130`), step E done (commits 5–6, record under §5); next is F. On top of the stack (`D-119`),
+highspy in place (`D-120`), mirror the C++ layer (`D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one
+highspy master solver (`D-124`), pool postponed (`D-125`, §7), no standalone C++ run (`D-126`). Built on `D-111`,
+`D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
 
 ## 1. Mirror of the C++ layer (`D-121`)
 
@@ -33,8 +34,9 @@ Deviations that stay (accepted 2026-11-03):
 | no `HighsMasterSolver`: a user without a model passes an empty `highspy.Highs()` | `D-124`: the C++ one existed only to fill the C++ HiGHS from arrays |
 | fix A (cold retry) and fix B (factor 1e4) only here | the C++ layer is frozen (`D-116`, `D-118`) |
 | retried solves counted on `HighspyMasterSolver` (an attribute), not in `Statistics` | keeps `Statistics` identical |
-| the time turning `Solution` objects into a `ColumnBatch`, on `GraphPricer` (an attribute) | `D-114` asks to measure it; keeps `Statistics` identical |
-| no GIL release or Ctrl-C machinery in the loop | plain Python: `KeyboardInterrupt` comes from `solve` itself |
+| the time turning `Solution` objects into a `ColumnBatch`: no attribute | it happens in `MasterProblem.add_columns`, not in the pricer; step G measures it with D.12 (`D-131`) |
+| `ColumnGenerationParams.max_iterations` is `math.inf` by default | the C++ value is `SIZE_MAX` (`D-131`) |
+| no GIL release or Ctrl-C machinery in the loop | plain Python: `KeyboardInterrupt` comes from `solve` itself, or from the master solver: `GurobipyMasterSolver` raises it for Gurobi's `INTERRUPTED` (D.20, `F-46`) |
 | an artificial column's `pricer` is `None`; no `MasterProblem.no_pricer` | `D-130`: the C++ value is `SIZE_MAX` |
 
 ## 2. Where it lives (`D-119`)
@@ -201,7 +203,7 @@ or `std::` text left. Paths under `python_column_generation/`:
 | D.17 | ✔ 2 lines not covered: the self-test's wrong-size stop after x4 (`master_solver_self_test.py:180`), HiGHS refusing `add_rows` (`highspy_master_solver.py:233`) | one test each |
 | D.18 | ✔ `RowBatch(..., names=[1, 2])` keeps the ints; C++-backed `TypeError` (`B.12`'s family) | refuse names that are not texts |
 | D.19 | ✔ `Pricer.cost_scale` docstring cut by docformatter: a summary ending in ":", the rest after a blank line | one sentence |
-| D.20 | ⏸ for step E, not measured: Gurobi turns Ctrl-C into status `INTERRUPTED` (`Other`), not `KeyboardInterrupt`, which §1's last deviation counts on | check in step E |
+| D.20 | ✔ done in step E: Gurobi turns Ctrl-C into status `INTERRUPTED` (`Other`), no `KeyboardInterrupt`: the loop would have ended with `SolverError` and the interruption been lost (measured, `F-46`) | `GurobipyMasterSolver` raises `KeyboardInterrupt` for `INTERRUPTED` (relaxation and integer solves); HiGHS needs nothing (`D-131`) |
 | D.21 | ✘ default instances (`RelaxationParams()`, `PricingRequest()`, `ConvexityRow()`) are shared between calls; pybind11 builds its defaults once too | none: the mirror needs them |
 
 Fixes (2026-11-03, Opus): a failing test first for D.1, D.2, D.4–D.7; folded into commits 1–4 (`fixup!` and edit stops,
@@ -211,6 +213,36 @@ clean on 3.11 and 3.14, pre-commit clean. D.3 kept as measured: only a batch wit
 Second pass fixes (2026-11-03, Opus): D.15–D.19, a test first for D.17 and D.18, folded into commits 1–4 the same
 way. Each commit passes its own tests (pure-Python files: 53, 102, 129, 225; the whole Python suite 474, 523, 550, 646,
 1 skipped); 100 % lines on the package.
+
+Step E record (2026-11-03, Sonnet; whole Python suite 784 passed, 1 skipped, run once at the end; 363 in the nine
+pure-Python test files; 100 % lines on the package; mypy `--strict` clean on 3.11 and 3.14; Gurobi had a license):
+
+- Commit 5 `a409cf56`: `graph_pricer.py` (`PricingStage`, `GraphPricer`); 24 tests in
+  `test_python_column_generation_graph_pricer.py`, 255 in the pure-Python files then. Stages run `ResourceGraph.solve`
+  from the first until one finds a path, proves, or the time is out; a search's limit is the smaller of the stage's
+  and the time left.
+- Commit 6 `d524baaa`: `statistics.py`, `convergence.py`, `params.py`, `loop.py`, `registry.py`; 108 more tests (loop 53,
+  registry 7, end to end 14, the Gurobi master's Ctrl-C 1, the rest the mirror's new cases). End to end: the toy LP
+  37.5 and duals (11.5, 12.5, 13.5), MIP 44, fleet 2 / 1, four customers 40 over highspy and gurobipy, with a tabu stage
+  first too, and a Ctrl-C test per solver. The mirror test's `PENDING` is gone; a module name (`registry`) compares its
+  functions' signatures, a Python function by `inspect`.
+- Differences from the plan:
+  - `GraphPricer` copies the stage params by attribute (their classes cannot be copied) and prices arcs added after it
+    was built; `cost_scale` reads the arcs once (`get_arc` per arc). No conversion-time attribute: the conversion is in
+    `add_columns`.
+  - `loop.py`, not `column_generation.py`: the mirror test refuses any import of that module name.
+  - `ColumnGenerationParams` is a dataclass with its own `__init__` (the C++-backed signature); `max_iterations`
+    defaults to `math.inf`. `ColumnGeneration` keeps a copy (`relaxation`, `statistics`), the defaults filled in.
+    Attributes are not type-checked, as the other options.
+  - The loop turns the duals into a `float64` array and refuses a wrong count (`ValueError`, the C++-backed message);
+    a master or params of the wrong type is a `TypeError`. A converged run with no artificial column does not call
+    `primal`.
+  - Not ported: the C++-backed end-to-end test that compares the loop of the Python example with the C++ loop.
+- D.20 (`F-46`): measured on Windows with a real console Ctrl-C. Gurobi (assignment LP 700 × 700, Ctrl-C at 1 s):
+  `optimize()` returns status 11 `INTERRUPTED` at 1.0 s, no `KeyboardInterrupt`, the signal is gone. HiGHS (1500 ×
+  1500, Ctrl-C at 0.4 s): `run()` finishes (6 s, optimal), then Python raises `KeyboardInterrupt`. `GraphPricer`:
+  `KeyboardInterrupt` 0.02 s after the signal. Fix: Gurobi's `INTERRUPTED` raises `KeyboardInterrupt`; `run()` restores
+  the model in a `finally`.
 
 Accepted as they are (step C's list): `add_rows` overloads (the mirror needs both call forms), no batch for no
 artificial column, `NotImplementedError`, `columns()` shallow copy (frozen records; the `Solution` shared, as `B.14`),

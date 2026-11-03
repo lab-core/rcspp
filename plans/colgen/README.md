@@ -10,8 +10,10 @@ Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optio
 (`D-119`–`D-123`); design accepted (`D-119`–`D-126`, pool postponed). Step A done (commits 1–2 `06ff1f5b`, `d19fd24b`;
 record in its §5); step B (review) done, its fixes folded into commits 1–2 (§5, `D-127`–`D-129`); step C done (commits
 3–4 `125f78ab`, `21b30ecb`: gurobipy master solver, master problem, tolerances, initializations with fix B, self-test;
-record in §5); step D (Opus review) done: D.1–D.21 in §5, fixed and folded into commits 1–4 (`D-130`); next is E. Then
-`T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
+record in §5); step D (Opus review) done: D.1–D.21 in §5, fixed and folded into commits 1–4 (`D-130`); step E done
+(commits 5–6 `a409cf56`, `d524baaa`: graph pricer, loop, registry, end-to-end tests; D.20 measured, `F-46`, `D-131`
+proposed); next is F (Opus review). Then `T-1.16`. History: `decisions.md`; measurements and how to run them:
+`benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## New chat
