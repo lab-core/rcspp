@@ -7,11 +7,11 @@ done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; 
 slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
 **Next:** `T-1.15`, design in discussion (`python-layer.md`): on top of the stack, mirroring the C++ layer
-(`D-119`–`D-123`); design accepted (`D-119`–`D-126`, pool postponed). Step A done (commits 1–2 `b97e1c18`,
-`5631af0b`; record in its §5); step B (review) done, its fixes folded into commits 1–2 (§5, `D-127`–`D-129`); step C
-done (commits 3–4 `7e236413`, `06413bea`: gurobipy master solver, master problem, tolerances, initializations with
-fix B, self-test; record in §5); next is D (Opus review of C).
-Then `T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
+(`D-119`–`D-123`); design accepted (`D-119`–`D-126`, pool postponed). Step A done (commits 1–2 `38113c0b`, `6e888402`;
+record in its §5); step B (review) done, its fixes folded into commits 1–2 (§5, `D-127`–`D-129`); step C done (commits
+3–4 `182ad986`, `5918db4c`: gurobipy master solver, master problem, tolerances, initializations with fix B, self-test;
+record in §5); step D (Opus review) done: D.1–D.14 in §5, fixed and folded into commits 1–4 (`D-130`); next is E. Then
+`T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## New chat
