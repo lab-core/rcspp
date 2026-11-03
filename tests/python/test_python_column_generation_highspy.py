@@ -15,9 +15,12 @@ from typing import Any
 import numpy as np
 import pytest
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "python", "src")
 )
+
+from python_column_generation_fakes import ScriptedPricer, make_path  # noqa: E402
 
 import rcspp.python_column_generation as layer  # noqa: E402
 from rcspp.python_column_generation import (  # noqa: E402
@@ -958,6 +961,47 @@ def test_the_capabilities() -> None:
     assert capabilities.add_rows and capabilities.integer_solve
     assert not capabilities.farkas and not capabilities.basis
     assert HighspyMasterSolver(new_model()).farkas() is None
+
+
+def test_passes_the_master_solver_self_test() -> None:
+    maximizing = new_model()
+    maximizing.changeObjectiveSense(highspy.ObjSense.kMaximize)
+    report = layer.master_solver_self_test(
+        HighspyMasterSolver(new_model()), HighspyMasterSolver(maximizing)
+    )
+    assert report.failures == ()
+
+
+def test_a_master_problem_over_the_master_solver() -> None:
+    model = new_model()
+    solver = HighspyMasterSolver(model)
+    master = layer.MasterProblem(solver)
+    master.add_rows_between([2.0, 1.0, -INFINITY], [2.0, INFINITY, 1.5])
+    pricer = master.add_pricer(ScriptedPricer(), layer.ConvexityRow(max_paths=5.0))  # row 3
+    master.add_columns(
+        pricer,
+        [
+            make_path(1.0, [(0, 1.0), (2, 1.0)], 0.0),
+            make_path(3.0, [(0, 1.0), (1, 1.0)], 0.0),
+            make_path(1.0, [(1, 1.0), (2, 1.0)], 0.0),
+        ],
+    )
+    assert solver.solve_relaxation() == SolverStatus.Optimal
+    assert solver.objective() == pytest.approx(3.75)
+    assert solver.duals() == pytest.approx([1.5, 1.5, -0.5, 0.0])
+
+    # A row listed twice in a column is read as the sum, out of order too.
+    with pytest.warns(RuntimeWarning, match="more than once"):
+        master.add_columns(pricer, [make_path(0.5, [(1, 1.0), (0, 0.25), (0, 0.75)], 0.0)])
+
+    assert entries(model)[:, solver.column(3)].tolist() == [1.0, 1.0, 0.0, 1.0]
+    assert solver.solve_relaxation() == SolverStatus.Optimal
+    assert solver.objective() == pytest.approx(1.0)
+
+    # The artificial columns are columns of the model too.
+    master.add_artificial_columns([1], [-1.0], 9.0)
+    assert model.getLp().col_cost_[solver.column(4)] == 9.0
+    assert entries(model)[:, solver.column(4)].tolist() == [0.0, -1.0, 0.0, 0.0]
 
 
 def test_the_class_is_the_one_of_the_package() -> None:
