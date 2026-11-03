@@ -100,6 +100,16 @@ concept PullingSchedule =
         } -> std::same_as<typename std::list<StoredLabel<ResourceType>>::iterator>;
     };
 
+/// @brief A schedule that settles a label's children: once the step has extended a label along
+///        every arc, @c settle orders the labels pushed since (the label's children) among the
+///        labels waiting. A depth-first schedule settles; the others order each label as it is
+///        pushed.
+template <typename ScheduleType, typename ResourceType>
+concept PlacesChildren =
+    requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context) {
+        schedule.place_children(context);
+    };  // NOLINT(whitespace/newline)
+
 /// @brief Whether @p ScheduleType's order reads the search's completion bound: a schedule says so
 ///        with `static constexpr bool reads_completion_bound = true`; one that does not say reads
 ///        none.
