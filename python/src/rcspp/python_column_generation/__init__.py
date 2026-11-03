@@ -5,16 +5,16 @@ loop, the master problem and the master solvers written in Python.
 
 The same classes as in :mod:`rcspp.column_generation`, with an API written for Python: abstract
 base classes, properties and frozen option records. This package imports nothing of
-:mod:`rcspp.column_generation`. A :class:`HighspyMasterSolver` works on the user's
-``highspy`` model itself; it imports highspy when it is used, so that importing rcspp does not
-load it.
+:mod:`rcspp.column_generation`. A :class:`HighspyMasterSolver` and a
+:class:`GurobipyMasterSolver` work on the user's ``highspy`` or ``gurobipy`` model itself; each
+imports its LP solver's package when it is used, so that importing rcspp does not load it.
 
 A master solver or a pricer written in Python is a subclass of :class:`MasterSolver` or
 :class:`Pricer`.
 """
 
 from .master_solver import MasterSolver
-from .master_solvers import HighspyMasterSolver
+from .master_solvers import GurobipyMasterSolver, HighspyMasterSolver
 from .pricer import Pricer, PricingChanges, PricingRequest, PricingResult, PricingStatus
 from .types import (
     DEFAULT_RELATIVE_GAP,
@@ -32,6 +32,7 @@ __all__ = [
     "Capabilities",
     "ColumnBatch",
     "ColumnType",
+    "GurobipyMasterSolver",
     "HighspyMasterSolver",
     "IntegerParams",
     "MasterSolver",
