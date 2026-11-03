@@ -10,13 +10,16 @@ NetworkX integration.
 """
 
 import math
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import networkx as nx
 
 from . import _core as _ext
 from ._resource_types import ALL, CPP_NAME, canonical
 from .resource import _GenericFunctionDescriptor
+
+if TYPE_CHECKING:
+    import numpy as np
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
 _ALGORITHM_MAP = {
@@ -601,13 +604,13 @@ class ResourceGraph:
 
     def solve(
         self,
-        algorithm="simple",
+        algorithm: "str | _ext.graph.Algorithm" = "simple",
         upper_bound: float = math.inf,
-        params=None,
+        params: "_ext.graph.AlgorithmParams | BucketAlgorithmParams | None" = None,
         preprocess: bool = True,
         cost_index: int = 0,
-        direction=None,
-    ):
+        direction: "str | _ext.graph.SearchDirection | None" = None,
+    ) -> "_ext.graph.SolveResult":
         """Solve the RCSPP.
 
         Args:
@@ -691,7 +694,11 @@ class ResourceGraph:
 
     # ── Dual-based reduced-cost update ───────────────────────────────────────
 
-    def update_reduced_costs(self, duals, cost_index: int = 0):
+    def update_reduced_costs(
+        self,
+        duals: "dict[int, float] | Sequence[float] | np.ndarray[Any, Any]",
+        cost_index: int = 0,
+    ) -> None:
         """Recompute arc extender costs from dual values without rebuilding the graph.
 
         For each arc, computes::
