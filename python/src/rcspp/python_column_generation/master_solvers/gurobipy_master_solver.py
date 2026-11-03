@@ -83,6 +83,9 @@ class GurobipyMasterSolver(MasterSolver):
       back after it. LP solves use primal simplex while ``Method`` is automatic.
     - **Errors:** Gurobi's own errors are raised as ``gurobipy.GurobiError``, except a
       refused option (``ValueError``, as for every master solver).
+    - **Ctrl-C:** Gurobi catches it during a solve and stops with the status ``INTERRUPTED``;
+      the solve then raises ``KeyboardInterrupt``, so that a run ends as it does under any
+      other solver.
 
     Args:
         model: The user's master.
@@ -457,7 +460,12 @@ class GurobipyMasterSolver(MasterSolver):
 
     def _optimize(self) -> SolverStatus:
         """Optimizes; an "infeasible or unbounded" answer is solved again without dual
-        reductions, to tell the two apart, within what is left of the time limit."""
+        reductions, to tell the two apart, within what is left of the time limit.
+
+        Raises:
+            KeyboardInterrupt: When the solve was interrupted: Gurobi handles Ctrl-C itself, so
+                Python does not see it.
+        """
         from gurobipy import GRB
 
         self._model.optimize()
@@ -471,5 +479,9 @@ class GurobipyMasterSolver(MasterSolver):
                 self._model.optimize()
 
             status = self._model.Status
+
+        # Either solve may have been interrupted.
+        if status == GRB.INTERRUPTED:
+            raise KeyboardInterrupt
 
         return _status(status)
