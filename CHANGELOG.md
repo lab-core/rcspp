@@ -322,6 +322,12 @@ New features are summarised, with a pointer to where they are documented.
 - **`ImprovingTabuSearch` reports `Truncated` when it spends `max_iterations`**, as
   `TabuSearchAlgorithm` does, and `MaxSolutions` when it reaches `max_solutions`. It reported
   `Complete`.
+- **`GreedyAlgorithm` records a sink it reaches by backtracking.** When a dive ended at a dead end
+  and Greedy switched to a sibling at a sink, it went on backtracking without recording that path,
+  so a path ending at a sink that was not its parent's cheapest feasible child was never returned. A
+  solve could then end `Complete`, with `is_optimal()` `true`, having missed feasible paths, or with
+  none at all. It also changes what `strategy::Diversification<>`, which solves Greedy each time,
+  returns.
 - `ResourceCompositionFactory::clone()` copies the per-type sub-factories too. The inherited
   `ResourceFactory::clone()` it used to fall back on copied only the composed prototype.
 - **A node or arc added to a cloned `ResourceGraph` is priced as in the original**, in C++ and in
