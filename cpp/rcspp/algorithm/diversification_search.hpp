@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
-#include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/algorithm/make_algorithm.hpp"
 #include "rcspp/algorithm/tabu_list.hpp"
 
@@ -35,7 +34,7 @@ namespace rcspp {
  *
  * Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
  * algorithm is built from this algorithm's params, searching forward, with one solution and at
- * most 20 iterations per solve.
+ * most 1000 iterations per solve (labels taken, for a labelling search such as Greedy).
  *
  * @tparam ResourceType       The resource type carried by labels.
  * @tparam LabelContainerType The per-node container.
@@ -50,8 +49,10 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
               tabu_(this->params_.seed) {
             auto inner_params = this->params_;
             inner_params.direction = SearchDirection::Forward;
-            inner_params.max_solutions = 1;    // only need one solution per iteration
-            inner_params.max_iterations = 20;  // ensure early termination if needed // NOLINT
+            inner_params.max_solutions = 1;  // only need one solution per iteration
+            // A bound on the work when no path is left, roomy enough for a first dive to reach a
+            // sink: the inner search counts labels taken.
+            inner_params.max_iterations = 1000;        // NOLINT(readability-magic-numbers)
             inner_params.release_after_solve = false;  // pool reused each iteration; skip shrink
             algo_ = detail::make_algorithm<Inner, ResourceType, LabelContainerType>(
                 resource_factory,
@@ -81,7 +82,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             while (!this->should_stop(i)) {
                 ++i;
 
-                // Rebuild the CSR index so GreedyAlgorithm::get_out_arcs() returns correct
+                // Rebuild the CSR index so that the inner search's get_out_arcs() returns correct
                 // data.  remove_arc() / restore_arc() both invalidate csr_valid_; build_csr()
                 // is a no-op when the index is already current.
                 graph_copy_->build_csr();

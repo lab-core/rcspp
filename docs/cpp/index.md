@@ -36,7 +36,6 @@ cpp/rcspp/
 │   ├── pushing_dominance_algorithm.hpp
 │   ├── pulling_dominance_algorithm.hpp
 │   ├── astar_dominance_algorithm.hpp
-│   ├── greedy.hpp
 │   ├── tabu_search.hpp / improving_tabu_search.hpp
 │   ├── diversification_search.hpp
 │   ├── label_buckets.hpp       # LabelList, LabelBuckets

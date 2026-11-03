@@ -4,9 +4,9 @@
 #pragma once
 
 #include "rcspp/algorithm/diversification_search.hpp"
-#include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/algorithm/improving_tabu_search.hpp"
 #include "rcspp/algorithm/labelling/node_schedules.hpp"
+#include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/labelling/schedules.hpp"
 #include "rcspp/algorithm/tabu_search.hpp"
 
@@ -19,8 +19,9 @@
 /// `static constexpr bool backward = false` or `bidirectional = false`. The direction itself is
 /// chosen at run time, with @c params.direction. A strategy of one's own is written the same way.
 ///
-/// The heuristics (Greedy, the tabu searches, diversification) keep classes of their own, which
-/// their descriptors name as `algorithm`; they search forward only.
+/// Greedy is a descriptor too: a dive, from the depth-first parts. The other heuristics (the tabu
+/// searches, diversification) keep classes of their own, which their descriptors name as
+/// `algorithm`. Every heuristic searches forward only.
 namespace rcspp::strategy {
 
 /// @brief Labels taken first in, first out.
@@ -49,10 +50,20 @@ struct Pulling {
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };
 
-/// @brief A greedy depth-first dive (@ref GreedyAlgorithm), forward only.
+/// @brief A greedy dive: depth first, the cheapest child first, every feasible label kept and
+///        none behind; at a dead end it goes back to the last label still waiting, and each path
+///        to a sink is recorded when its label is taken. Forward only.
+///
+/// @c max_iterations counts the labels taken, as in every labelling search.
 struct Greedy {
-        template <typename ResourceType, typename LabelContainerType>
-        using algorithm = GreedyAlgorithm<ResourceType, LabelContainerType>;
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DfsSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::KeepAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 
 /// @brief Dives that make the arcs they use tabu (@ref TabuSearchAlgorithm), forward only.
