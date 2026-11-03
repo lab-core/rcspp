@@ -1,12 +1,12 @@
 # Column generation layer: plan
 
-Status (2026-11-02): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
+Status (2026-11-03): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
 with the C++ layer (`D-111`, `T-1.15`); whether the C++ layer stays is open (`Q-41`). Until then the C++ layer is
-frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Finding to act on: the
-big-M start (`T-1.13`): fix A + B (`D-118`) works up to R201_50;
-the R201 runs are left.
+frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Big-M start (`T-1.13`)
+done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
+slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
-**Next:** `T-1.13`, `T-1.15`, `T-1.16`. History: `decisions.md`;
+**Next:** `T-1.15`, `T-1.16`. History: `decisions.md`;
 measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 

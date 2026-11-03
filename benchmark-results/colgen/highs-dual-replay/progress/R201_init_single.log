@@ -1,0 +1,6 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\R201.txt
+nb_customers: 101
+construct_graph: 34 ms
+construct_graph: 41 ms
+RESULT {"instance": "R201", "master": "fallback", "factor": null, "pricing": "exact", "init": "single", "status": "Optimal", "lp": 1084.9906683011789, "iterations": 37, "columns": 70966, "artificial_cost": 0.0, "solve_s": 1756.7598720000005, "master_s": 31.670800400002918, "pricing_s": 1725.077669600003, "retries": []}
