@@ -8,8 +8,9 @@ slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
 **Next:** `T-1.15`, design in discussion (`python-layer.md`): on top of the stack, mirroring the C++ layer
 (`D-119`–`D-123`); design accepted (`D-119`–`D-126`, pool postponed). Step A done (commits 1–2 `efe90cb1`,
-`a54acd0a`; record in its §5); next is step B (Opus review of A), then C. Then `T-1.16`. History: `decisions.md`;
-measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
+`a54acd0a`; record in its §5); step B (review) done: findings B.1–B.17 in its §5 (`D-127`); next is
+fixing B.1–B.13, then C.
+Then `T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## New chat
