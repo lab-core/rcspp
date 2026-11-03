@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -325,9 +326,12 @@ inline ::testing::AssertionResult same(const std::vector<Observation>& reference
 ///
 /// @param finite_budget   Whether the two need a finite @c max_iterations.
 /// @param compare_budgets Whether runs with a finite @c max_iterations are compared.
+/// @param comparable      Called after each run of @p ReferenceStrategy: whether that run is
+///                        compared (by default, every run is).
 /// @return The number of (case, setting, release mode) runs compared.
 template <typename ReferenceStrategy, typename LibraryStrategy>
-size_t sweep(bool finite_budget, bool compare_budgets = true) {
+size_t sweep(bool finite_budget, bool compare_budgets = true,
+             const std::function<bool()>& comparable = {}) {
     size_t compared = 0;
     for (const Case& c : cases()) {
         for (const Setting& s : settings()) {
@@ -336,6 +340,9 @@ size_t sweep(bool finite_budget, bool compare_budgets = true) {
             }
             for (const bool release : {false, true}) {
                 const auto expected = observe<ReferenceStrategy>(c, s, finite_budget, release);
+                if (comparable && !comparable()) {
+                    continue;
+                }
                 const auto actual = observe<LibraryStrategy>(c, s, finite_budget, release);
                 EXPECT_TRUE(same(expected, actual))
                     << c.name << ", setting " << s.name() << (release ? ", released" : ", kept");
