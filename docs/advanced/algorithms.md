@@ -537,11 +537,18 @@ converged, say — has to read this too.  `could_be_non_optimal()` will not tell
 
 ## `Greedy`
 
-Extends labels greedily (best-cost-first) with limited backtracking.
-Much faster than the exact algorithms; no optimality guarantee.
+A dive: from each label it takes, it extends along every arc and goes on with the cheapest child,
+keeping the other children for later; at a dead end it goes back to the last label still waiting.
+Each path to a sink is recorded when its label is taken. It keeps every feasible label it waits on,
+and none behind it. With no budget it tries every path, and so finds the optimum, but its work grows
+with the number of paths; with one, it is fast, with no optimality guarantee.
+
+As in every labelling search, `max_iterations` counts the labels taken, and
+`max_extended_labels_per_node` (with `max_phases`) caps the labels taken at each node.
 
 ```python
 params = AlgorithmParams()
+params.max_iterations = 10_000            # take at most 10 000 labels
 params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)

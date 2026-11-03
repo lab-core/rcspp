@@ -42,7 +42,7 @@ cpp/rcspp/
 │   │   │                       # the bidirectional search and its join (rcspp::detail)
 │   │   └── parts/              # rcspp::parts: schedules, admission rules, retentions,
 │   │                           # observers, interleaves
-│   ├── greedy.hpp, backtracking_dive_algorithm.hpp
+│   ├── backtracking_dive_algorithm.hpp
 │   ├── tabu_search.hpp / improving_tabu_search.hpp
 │   ├── tabu/                   # the tabu searches' tenures
 │   ├── diversification_search.hpp

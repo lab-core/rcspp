@@ -15,7 +15,7 @@ namespace rcspp {
 /**
  * @brief TabuSearchAlgorithm for Resource Constrained Shortest Path Problems (RCSPP).
  *
- * Self-contained tabu search built in the same spirit as @ref GreedyAlgorithm: each
+ * Self-contained tabu search built in the same spirit as @c strategy::Greedy: each
  * iteration performs a greedy dive from a source to a sink, sorting siblings by cost and
  * backtracking on dead-ends. The difference is that arcs used in previously discovered
  * solutions are added to a tabu list with a tenure (in iterations) and are skipped during
@@ -26,7 +26,7 @@ namespace rcspp {
  * Compared to @ref DiversificationSearch (which wraps another algorithm and physically
  * removes arcs from a cloned graph), TabuSearchAlgorithm is a single-pass labeller with
  * the lighter overhead of a tabu lookup at extension time. It shares all DFS plumbing
- * with @ref GreedyAlgorithm via @ref BacktrackingDiveAlgorithm and only customises:
+ * with @ref ImprovingTabuSearch via @ref BacktrackingDiveAlgorithm and only customises:
  *   - @ref select_children to filter on the tabu list (with aspiration), and
  *   - @ref main_loop to drive episodic dives, sink extraction, tabu update and reset.
  *

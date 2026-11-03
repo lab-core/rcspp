@@ -115,7 +115,7 @@ class Algorithm {
          * @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any other
          * early stop.
          * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
-         * paths to try: @c GreedyAlgorithm then enumerated every path, and
+         * paths to try: @c strategy::Greedy then enumerated every path, and
          * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
          * @c DiversificationSearch override it to answer @c false.
          *

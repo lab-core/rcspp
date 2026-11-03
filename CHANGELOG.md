@@ -8,6 +8,26 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Behaviour changes
 
+- **Greedy runs on the labelling kernel**, as a dive: depth first, the cheapest child first, every
+  feasible label kept and none behind (`parts::DepthFirstSchedule`, `AdmitAll`, `KeepWhileWaiting`). It
+  draws the same labels, in the same order, and returns the same paths as before, with these
+  differences:
+  - **`max_iterations` counts the labels taken**, as in every labelling search; it counted dives.
+    A Greedy budget of 5 now takes 5 labels, a fraction of one dive, and returns fewer paths, often
+    none.
+  - It applies **`max_extended_labels_per_node`** (with `max_phases`), **`prune_by_incumbent`**,
+    memory pressure, and drops a label of infinite cost, as every labelling search does; Greedy
+    ignored them.
+  - A dive whose last path reaches `max_solutions` ends `Complete`, as every labelling search does,
+    not `MaxSolutions`: it has tried every path.
+  - The second, empty extension of a dive's last label at a dead end is gone.
+  - `strategy::Diversification<>` gives its inner search 1000 iterations a solve, which a labelling
+    search counts in labels taken, instead of 20 (dives, for Greedy). On the golden instances it
+    returns what it did; where 20 dives ran out, the inner search now goes further.
+
+  `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
+  a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,
+  `create_algorithm<strategy::Greedy>`); in Python, `algorithm="greedy"` is unchanged.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification

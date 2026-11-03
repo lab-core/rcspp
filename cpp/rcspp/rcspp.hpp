@@ -24,7 +24,6 @@
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
-#include "rcspp/algorithm/greedy.hpp"
 #include "rcspp/algorithm/improving_tabu_search.hpp"
 #include "rcspp/algorithm/labelling/bidirectional_labelling_algorithm.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"

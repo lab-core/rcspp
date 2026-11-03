@@ -96,7 +96,8 @@ struct AlgorithmBaseParams {
         /// bidirectional search runs one.
         size_t max_phases = 1;
 
-        // maximum number of iterations/loops (for algorithms that use it)
+        // maximum number of iterations: labels taken by a labelling search (Greedy included),
+        // episodes by the tabu searches and diversification
         size_t max_iterations = kNoLimit;
 
         // wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s
