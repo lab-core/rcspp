@@ -17,6 +17,7 @@ per-file-ignores =
     # The column generation layer's types and statistics modules are read through the
     # package, never imported on their own, so they do not hide the standard library's.
     python/src/rcspp/column_generation/types.py:A005
+    python/src/rcspp/column_generation/statistics.py:A005
     # Generated stubs (scripts/generate_stubs.py): one-line bodies, no blank lines between stubs.
     # Their generated class names (real_int_resource_graph, ExtensionFunction_real) are kept.
     *.pyi:E301,E302,E305,E501,E704,N801

@@ -11,6 +11,7 @@ import math
 import os
 import subprocess
 import sys
+import threading
 import warnings
 from typing import Any
 
@@ -742,3 +743,52 @@ def test_a_master_solver_without_gurobipy_names_the_extra(
 
     with pytest.raises(ImportError, match=r"pip install rcspp\[gurobipy\]"):
         layer.GurobipyMasterSolver(object())  # type: ignore[arg-type]
+
+
+def test_an_interrupted_solve_raises_keyboard_interrupt_and_puts_the_options_back() -> None:
+    # An assignment LP that primal simplex needs a few seconds for. Gurobi answers an
+    # interruption (Ctrl-C, or terminate from another thread) with a status, not an exception.
+    size = 600
+    model = new_model()
+    model.Params.Presolve = 0
+    x = model.addMVar((size, size), obj=np.random.default_rng(0).random((size, size)))
+    model.addConstr(x.sum(axis=0) == 1)
+    model.addConstr(x.sum(axis=1) == 1)
+    solver = layer.GurobipyMasterSolver(model)
+
+    # From the start and often, whatever the speed of the machine: a call before the solve
+    # starts may be lost, and the solve lasts far longer than the interval.
+    done = threading.Event()
+
+    def terminate() -> None:
+        while not done.is_set():
+            model.terminate()
+            done.wait(0.01)
+
+    terminator = threading.Thread(target=terminate)
+    terminator.start()
+
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            solver.solve_relaxation(layer.RelaxationParams(timeout_s=60.0, threads=1))
+    finally:
+        done.set()
+        terminator.join()
+
+    assert model.Status == GRB.INTERRUPTED
+    assert model.Params.TimeLimit == math.inf and model.Params.Threads == 0
+    assert model.Params.Method == GRB.METHOD_AUTO
+
+
+def test_an_interrupted_second_solve_raises_keyboard_interrupt() -> None:
+    # The solve that tells "infeasible or unbounded" apart is interrupted too.
+    model = new_model()
+    lp_rows(model)
+    scripted = ScriptedSolves(model, [GRB.INF_OR_UNBD, GRB.INTERRUPTED])
+    solver = layer.GurobipyMasterSolver(scripted)  # type: ignore[arg-type]
+
+    with pytest.raises(KeyboardInterrupt):
+        solver.solve_relaxation()
+
+    assert scripted.solves == 2
+    assert model.Params.DualReductions == 1 and model.Params.TimeLimit == math.inf
