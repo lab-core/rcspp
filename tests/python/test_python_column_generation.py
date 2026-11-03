@@ -7,6 +7,7 @@ import ast
 import math
 import os
 import re
+import subprocess
 import sys
 from dataclasses import FrozenInstanceError, replace
 from typing import Any
@@ -394,6 +395,32 @@ def test_a_python_pricer() -> None:
 
 
 # MARK: Importing
+
+
+def test_importing_the_layer_loads_no_lp_solver_package() -> None:
+    # A new process: this one may have loaded them already.
+    code = (
+        "import sys, rcspp.python_column_generation as layer;"
+        "layer.HighspyMasterSolver;"
+        "print('gurobipy' in sys.modules, 'highspy' in sys.modules)"
+    )
+    loaded = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
+    )
+    assert loaded.stdout.strip() == "False False"
+
+
+def test_a_master_solver_without_its_package_names_the_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "highspy", None)  # as if it were not installed
+
+    with pytest.raises(ImportError, match=r"pip install rcspp\[highspy\]"):
+        layer.HighspyMasterSolver(object())  # type: ignore[arg-type]
 
 
 def test_the_layer_imports_nothing_of_the_cpp_layer() -> None:
