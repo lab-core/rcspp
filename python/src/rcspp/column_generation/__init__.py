@@ -11,9 +11,10 @@ or ``gurobipy`` model itself; each imports its LP solver's package when it is us
 importing rcspp does not load it.
 
 A master solver or a pricer written in Python is a subclass of :class:`MasterSolver` or
-:class:`Pricer`.
+:class:`Pricer`. A :class:`GraphPricer` prices a :class:`~rcspp.graph.ResourceGraph`.
 """
 
+from .graph_pricer import GraphPricer, PricingStage, Search, StageRequest
 from .master_initialization import ArtificialColumns, MasterInitialization, NoInitialization
 from .master_problem import (
     ColumnTag,
@@ -60,6 +61,7 @@ __all__ = [
     "ColumnTag",
     "ColumnType",
     "ConvexityRow",
+    "GraphPricer",
     "GurobipyMasterSolver",
     "HighspyMasterSolver",
     "IntegerParams",
@@ -74,13 +76,16 @@ __all__ = [
     "PricingChanges",
     "PricingRequest",
     "PricingResult",
+    "PricingStage",
     "PricingStatus",
     "RelativeTolerances",
     "RelaxationParams",
     "RowBatch",
     "RowRange",
     "RowSense",
+    "Search",
     "SolverStatus",
+    "StageRequest",
     "ToleranceContext",
     "Tolerances",
     "DEFAULT_FEASIBILITY_TOLERANCE",
