@@ -71,6 +71,38 @@ labels carry a composition of resource types.
 
 ---
 
+## Checking a path
+
+`PathEvaluator` replays a path through the graph's resources, as a forward search extends a label,
+and reports the first fault it finds. It shares nothing with the searches but the model's own
+functions, so it checks what any of them returns, a heuristic's included. Evaluate on the graph the
+solve ran on, after it returned.
+
+```cpp
+const SolveResult result = graph.solve<strategy::Greedy>();
+const PathEvaluator evaluator(graph);
+for (const Solution& solution : result.solutions) {
+    const PathEvaluation evaluation = evaluator.evaluate(solution);
+    if (!evaluation.valid()) {
+        std::cout << "fault " << static_cast<int>(evaluation.fault) << " at arc "
+                  << evaluation.position << "\n";
+    }
+}
+```
+
+```{doxygenclass} rcspp::PathEvaluator
+:members:
+```
+
+```{doxygenstruct} rcspp::PathEvaluation
+:members:
+```
+
+```{doxygenenum} rcspp::PathFault
+```
+
+---
+
 ## Label containers
 
 ```{doxygenclass} rcspp::LabelList
