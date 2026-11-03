@@ -42,6 +42,13 @@ class Column:
     cost: float
     rows: list[Row]
     def __init__(self) -> None: ...
+    def to_arrays(
+        self,
+    ) -> tuple[
+        float,
+        np.ndarray[Any, np.dtype[np.int64]],
+        np.ndarray[Any, np.dtype[np.float64]],
+    ]: ...
 
 class Solution:
     cost: float
