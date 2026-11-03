@@ -183,6 +183,12 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **`PathEvaluator`** (`rcspp/algorithm/path_evaluator.hpp`) replays a path, or a returned
+  `Solution`, through the graph's resources as a forward search extends a label, and reports the
+  first fault (`PathFault`): no arc, an arc the graph does not have, arcs that do not meet, not
+  from a source or not to a sink, an arc the look-ahead refuses, an infeasible label, node ids or
+  a cost that disagree with the path. It checks what any search returns, a heuristic's included.
+  See "Checking a path" in `docs/cpp/beginner_api.md`.
 - **A strategy of one's own**: a descriptor that names its schedule, and optionally its
   admission rule, retention, observer and interleave, from `rcspp::parts` or of one's own, solves
   as a built-in strategy does, in every direction it does not refuse (`backward = false`,
