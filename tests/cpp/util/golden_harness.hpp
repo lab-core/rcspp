@@ -145,6 +145,10 @@ struct Variant {
         bool prune = false;
         size_t max_iterations = kNoLimit;
         bool join_after_early_stop = true;
+        /// Read by the heuristics' sweeps alone: their stop, and whether the sources and sinks
+        /// are exempt from the tabu lists.
+        size_t max_solutions = kNoLimit;
+        bool tabu_exempt_terminals = false;
 };
 /// @brief The settings every search is swept under.
 inline std::vector<Variant> variants() {
@@ -161,6 +165,40 @@ inline std::vector<Variant> bidirectional_variants() {
     v.push_back({.name = "early", .max_iterations = 30});
     v.push_back({.name = "early_nojoin", .max_iterations = 30, .join_after_early_stop = false});
     return v;
+}
+
+/// @brief The iterations a heuristic that needs a finite budget is given when its setting names
+///        none: the tabu searches and diversification.
+inline constexpr size_t kHeuristicIterations = 30;
+/// @brief The settings the heuristics are swept under.
+///
+/// - `exact`: the defaults (with @ref kHeuristicIterations where a finite budget is required).
+/// - `stop`: the search stops after 3 solutions. `budget`: 5 iterations.
+/// - `exempt`: the sources and sinks are exempt from the tabu lists.
+inline std::vector<Variant> heuristic_variants() {
+    return {{.name = "exact"},
+            {.name = "stop", .max_solutions = 3},
+            {.name = "budget", .max_iterations = 5},
+            {.name = "exempt", .tabu_exempt_terminals = true}};
+}
+/// @brief The params of type @p ParamsType for heuristics setting @p v on graph @p g, with a fixed
+///        seed and no jitter on the tabu tenure: its draws differ between standard libraries.
+///
+/// @param finite_budget Whether the heuristic needs a finite @c max_iterations.
+template <typename ParamsType, typename GraphType>
+ParamsType heuristic_params(const Variant& v, bool finite_budget, const GraphType& g) {
+    ParamsType p;
+    p.max_iterations =
+        finite_budget && v.max_iterations == kNoLimit ? kHeuristicIterations : v.max_iterations;
+    p.max_solutions = v.max_solutions;
+    if (v.tabu_exempt_terminals) {
+        p.tabu_exempt_node_ids.insert(g.get_source_node_ids().begin(),
+                                      g.get_source_node_ids().end());
+        p.tabu_exempt_node_ids.insert(g.get_sink_node_ids().begin(), g.get_sink_node_ids().end());
+    }
+    p.tabu_random_noise = false;
+    p.seed = 1;
+    return p;
 }
 
 /// @brief The params of type @p ParamsType for setting @p v.
