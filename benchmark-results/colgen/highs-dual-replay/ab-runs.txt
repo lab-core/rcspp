@@ -14,3 +14,12 @@ NO RESULT: stopped by hand (restarted with progress files, below): R201 --master
 NO RESULT: stopped by hand at 16:37, still in its first pricing after 25 min: R201 --master fallback --factor 1e4
 # 16:38:10 R201 --master fallback --factor 1e4 --pricing tabu
 NO RESULT: stopped by hand at once: R201 --master fallback --factor 1e4 --pricing tabu
+# 21:04:28 R201 --master fallback --factor 1e4 --pricing tabu
+RESULT {"instance": "R201", "master": "fallback", "factor": 10000.0, "pricing": "tabu", "init": "artificial", "status": "Optimal", "lp": 1084.9906683011798, "iterations": 68, "columns": 51973, "artificial_cost": 918313.6719008379, "solve_s": 1294.6322892000007, "master_s": 23.802758300000278, "pricing_s": 1270.8146709999892, "retries": []}
+# 21:26:14 R201 --init single --pricing tabu
+RESULT {"instance": "R201", "master": "fallback", "factor": null, "pricing": "tabu", "init": "single", "status": "Optimal", "lp": 1084.990668301179, "iterations": 65, "columns": 37345, "artificial_cost": 0.0, "solve_s": 206.31800719999956, "master_s": 14.963890100001663, "pricing_s": 191.34258349999618, "retries": []}
+# 21:29:45 R201 --init single
+RESULT {"instance": "R201", "master": "fallback", "factor": null, "pricing": "exact", "init": "single", "status": "Optimal", "lp": 1084.9906683011789, "iterations": 37, "columns": 70966, "artificial_cost": 0.0, "solve_s": 1756.7598720000005, "master_s": 31.670800400002918, "pricing_s": 1725.077669600003, "retries": []}
+# 21:59:12 R201 --master fallback --factor 1e4
+RESULT {"instance": "R201", "master": "fallback", "factor": 10000.0, "pricing": "exact", "init": "artificial", "status": "Optimal", "lp": 1084.9906683011798, "iterations": 48, "columns": 122991, "artificial_cost": 918313.6719008379, "solve_s": 6835.890035400002, "master_s": 88.45223349999287, "pricing_s": 6747.416532499992, "retries": []}
+# done 23:53:19

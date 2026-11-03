@@ -89,6 +89,25 @@ has one line per LP solve of the R201 runs. Tabu: cap 20, `max_iterations` 1000,
 - The big-M start still costs pricing time on R201_50 (17–25 s against 7 s from single-customer columns, `F-39`);
   tabu first removes it: 2.9 s, faster than the single-customer start.
 
-R201 (stopped 2026-11-02 by hand, to resume): A+B exact was still in its first pricing after 25 min (one LP solved,
-100 artificial columns at 9.2e5); the three other R201 runs did not start. Resume with `ab_runs.sh` (the R201_50
-runs are commented out).
+### R201 (desktop, 2026-11-02 21:04 to 23:53)
+
+Another machine than the rows above (`HANDOFF.md`: timings do not compare across machines). One run at a time, idle
+machine, 2 h cap per run (none hit). `ab-runs.txt` has the `RESULT` lines; `progress/<run>.txt` one line per LP
+solve, `progress/<run>.log` each run's output.
+
+| instance | master | start | pricing | status | LP | iterations | columns | solve s | master s | pricing s | retried solves |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| R201 | A | 1e4 | tabu | Optimal | 1084.9906683 | 68 | 51973 | 1294.6 | 23.8 | 1270.8 | none |
+| R201 | A | single customers | tabu | Optimal | 1084.9906683 | 65 | 37345 | 206.3 | 15.0 | 191.3 | none |
+| R201 | A | single customers | exact | Optimal | 1084.9906683 | 37 | 70966 | 1756.8 | 31.7 | 1725.1 | none |
+| R201 | A | 1e4 | exact | Optimal | 1084.9906683 | 48 | 122991 | 6835.9 | 88.5 | 6747.4 | none |
+
+- A + B reaches `Optimal` on R201, with the LP of every earlier R201 run (`HANDOFF.md`); no solve fails, so A never
+  retries.
+- The big-M start still costs pricing time: 6836 s against 1757 s from single-customer columns (3.9 times). The
+  first two exact pricings take 2877 s and 2003 s, 71 % of the run; from single-customer columns, 458 s and 492 s.
+- Tabu first: 5.3 times faster from big-M (1295 s), 8.5 times from single-customer columns (206 s). Big-M with tabu
+  is still 6.3 times slower than single customers with tabu: one exact pricing takes 751 s (after solve 14, 58 % of
+  the run), when tabu finds nothing while the duals are still large; from single-customer columns the longest one
+  takes 76 s.
+- The single-customer exact run matches the earlier desktop runs (1730 to 1980 s, `HANDOFF.md`).
