@@ -43,4 +43,18 @@ class NodeView {
         ContainerType* container_;
 };
 
+/// @brief The view of a node where nothing is stored (@ref KeepWhileWaiting): no label there
+///        dominates a candidate, and there is nothing to evict.
+struct EmptyNodeView {
+        template <typename ResourceType>
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& /*label*/) const {
+            return false;
+        }
+
+        template <typename ResourceType>
+        void evict_dominated_by(const Label<ResourceType>& /*label*/) {}
+
+        [[nodiscard]] static size_t size() { return 0; }
+};
+
 }  // namespace rcspp::parts

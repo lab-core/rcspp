@@ -16,6 +16,7 @@
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/labelling/parts/observer/no_observer.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/keep_at_nodes.hpp"
+#include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/algorithm/labelling/take_rule.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -226,6 +227,10 @@ struct Search {
         ///        nothing for @c Keep, release for @c Release, erase then release for
         ///        @c EraseAndRelease.
         ///
+        /// Under a retention that stores nothing (@c parts::releases_taken_labels_v, a dive's), a
+        /// @c Keep label is released too. It is an end-node label, and the step has already
+        /// recorded it (such a retention records at take).
+        ///
         /// @param taken   The label and its position in its node's container.
         /// @param verdict What to do with it.
         /// @param pool    The label pool.
@@ -233,7 +238,11 @@ struct Search {
                    LabelPool<ResourceType>* pool) {
             switch (verdict) {
                 case Verdict::Extend:
-                case Verdict::Keep:  // stays stored: at an end node, or past the half-way point
+                    return;
+                case Verdict::Keep:  // at an end node, or past the half-way point: stays stored
+                    if constexpr (parts::releases_taken_labels_v<retention_type>) {
+                        pool->release_with_ref_count(taken.label);
+                    }
                     return;
                 case Verdict::EraseAndRelease:
                     labels.erase(taken.position);

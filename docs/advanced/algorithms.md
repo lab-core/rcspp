@@ -885,9 +885,9 @@ at compile time: it would not be read.
 
 | Member | What it decides | Built in (`rcspp::parts`) | Concept |
 |---|---|---|---|
-| `schedule<ResourceType, Direction>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CostPlusBoundKey`, `SweepSchedule`, `PullSchedule` | `Schedule`, and either `LabelSchedule` (hands the step one label at a time) or `PullingSchedule` (one node at a time, as `PullSchedule` does) |
-| `admission<ResourceType, Direction>` | whether a new label is kept at its node | `DominanceAdmission` (default) | `Admission` |
-| `retention<ResourceType, Direction>` | where kept labels live, as `template <C> using type` | `KeepAtNodes` (default) | `Retention` |
+| `schedule<ResourceType, Direction>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CostPlusBoundKey`, `SweepSchedule`, `PullSchedule`, `DepthFirstSchedule<R, Key, Filter>` | `Schedule`, and either `LabelSchedule` (hands the step one label at a time) or `PullingSchedule` (one node at a time, as `PullSchedule` does) |
+| `admission<ResourceType, Direction>` | whether a new label is kept at its node | `DominanceAdmission` (default), `AdmitAll` | `Admission` |
+| `retention<ResourceType, Direction>` | where kept labels live, as `template <typename ContainerType> using type` (`Retain<RetentionTemplate>` names a library one) | `KeepAtNodes` (default), `KeepWhileWaiting` | `Retention` |
 | `observer<ResourceType, Direction>` | told of every extension | `NoObserver` (default) | `Observer` |
 | `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
 | `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
@@ -931,6 +931,29 @@ struct SimpleAtMostThree {
         template <typename ResourceType, typename Direction>
         using admission = AtMostThree;
         static constexpr bool bidirectional = false;  // forward and backward only
+};
+```
+
+This one is a dive: depth first, keeping every feasible label and none behind it. `DepthFirstSchedule`
+settles a label's children together once it is extended, and hands them out next, cheapest first
+(its key), each child's subtree before its next sibling; its filter (`KeepAllChildren` by default)
+may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
+stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
+label is released once extended, living on while a label extended from it waits. A dive searches
+forward only:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct Dive {
+        template <typename ResourceType, typename Direction>
+        using schedule = rcspp::parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = rcspp::parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 ```
 

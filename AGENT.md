@@ -586,13 +586,15 @@ cpp/rcspp/algorithm/
                                  kind, each with its concept
       stored_label.hpp           StoredLabel
       extension_outcome.hpp      ExtensionOutcome
-      admission/                 Admission (the concept), NodeView, DominanceAdmission
-      retention/                 Retention (the concept), KeepAtNodes
+      admission/                 Admission (the concept), NodeView, EmptyNodeView,
+                                 DominanceAdmission, AdmitAll
+      retention/                 Retention (the concept), KeepAtNodes, KeepWhileWaiting, Retain
       observer/                  Observer (the concept), NoObserver
       interleave/                Interleave (the concept), LeastWorkFirst
       schedule/                  the schedule concepts (schedule.hpp), PerNodeQuota,
                                  StoredAsideLabels, NodeQueues; FifoSchedule, BestFirstSchedule
-                                 with CostKey and CostPlusBoundKey, SweepSchedule, PullSchedule
+                                 with CostKey and CostPlusBoundKey, SweepSchedule, PullSchedule,
+                                 DepthFirstSchedule with ChildFilter and KeepAllChildren
     context.hpp                  SearchContext, Role: what every part reads of its solve
     take_rule.hpp                TakeRule, Decision, Verdict: the checks a label goes through
                                  when it is taken

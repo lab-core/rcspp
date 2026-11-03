@@ -94,6 +94,25 @@ TEST(DiveParity, GreedyMatchesItsFrozenCopy) {
     dive_parity::sweep<FrozenGreedy, strategy::Greedy>(false);
 }
 
+/// @brief A depth-first labelling search that keeps every label and nothing behind it.
+struct DepthFirst {
+        template <typename ResourceType, typename Direction>
+        using schedule = rcspp::parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = rcspp::parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
+};
+
+/// @brief The depth-first labelling search draws Greedy's labels, in Greedy's order, and returns
+///        its solutions, wherever no iteration budget applies: it counts labels taken, where
+///        Greedy counts dives.
+TEST(DiveParity, ADepthFirstLabellingSearchMatchesGreedy) {
+    EXPECT_GT((dive_parity::sweep<FrozenGreedy, DepthFirst>(false, /*compare_budgets=*/false)), 0U);
+}
+
 TEST(DiveParity, TabuSearchMatchesItsFrozenCopy) {
     dive_parity::sweep<FrozenTabu, strategy::Tabu>(true);
 }
