@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -135,6 +136,44 @@ TEST(Policies, KeepAtNodesStoresAndErasesAtEachNode) {
 
     kept.clear();
     EXPECT_TRUE(kept.containers().empty());
+}
+
+/// @brief KeepAll keeps every label and says it is exact.
+TEST(Policies, KeepAllKeepsEveryLabelAndIsExact) {
+    namespace pt = policies_test;
+    pt::Fixture f;
+    static_assert(parts::Admission<parts::KeepAll, pt::Composed>);
+    parts::KeepAtNodes<pt::List> kept;
+    kept.reset(3, pt::List{});
+    auto* cheap = f.label(1, 1.0);
+    kept.store(f.pos(1), cheap);
+    auto view = kept.node(f.pos(1));
+    EXPECT_TRUE(parts::KeepAll{}.admit(*f.label(1, 2.0), view, parts::AdmissionContext{}));
+    EXPECT_FALSE(cheap->dominated);
+    EXPECT_TRUE(parts::KeepAll::exact(parts::AdmissionContext{}));
+}
+
+/// @brief KeepWhileWaiting stores nothing: its nodes are empty, solutions are collected when
+///        taken, and the step releases each label it is done with.
+TEST(Policies, KeepWhileWaitingStoresNothing) {
+    namespace pt = policies_test;
+    pt::Fixture f;
+    using Waiting = parts::KeepWhileWaiting<pt::List>;
+    static_assert(parts::Retention<Waiting, pt::Composed>);
+    static_assert(Waiting::collects_at_take);
+    static_assert(parts::releases_after_expansion_v<Waiting>);
+    static_assert(!parts::releases_after_expansion_v<parts::KeepAtNodes<pt::List>>);
+    static_assert(std::is_same_v<parts::Retain<parts::KeepWhileWaiting>::type<pt::List>, Waiting>);
+
+    Waiting waiting;
+    waiting.reset(3, pt::List{});
+    auto* label = f.label(1, 3.0);
+    waiting.erase(waiting.store(f.pos(1), label));
+    EXPECT_TRUE(waiting.labels_at(f.pos(1)).empty());
+    EXPECT_TRUE(waiting.containers().empty());
+    auto view = waiting.node(f.pos(1));
+    EXPECT_FALSE(view.is_dominated(*label));
+    EXPECT_EQ(view.size(), 0U);
 }
 
 /// @brief The default observer is one, and records nothing.

@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <list>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "rcspp/algorithm/label_buckets.hpp"
@@ -79,6 +81,20 @@ class NodeView {
         ContainerType* container_;
 };
 
+/// @brief The view of a node where nothing is stored (@ref KeepWhileWaiting): no label there
+///        dominates a candidate, and there is nothing to evict.
+struct EmptyNodeView {
+        template <typename ResourceType>
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& /*label*/) const {
+            return false;
+        }
+
+        template <typename ResourceType>
+        void evict_dominated_by(const Label<ResourceType>& /*label*/) {}
+
+        [[nodiscard]] static size_t size() { return 0; }
+};
+
 /// @brief Whether a candidate label is kept at its node.
 ///
 /// @c admit reads the candidate and the node it would be stored at, through a node view
@@ -129,6 +145,20 @@ struct DominanceAdmission {
         }
 };
 
+/// @brief Keeps every feasible label, comparing none: a dive's admission. It is exact, since it
+///        keeps every label exact dominance keeps (and more).
+struct KeepAll {
+        /// @brief Whether the rule keeps every label exact dominance keeps: always.
+        [[nodiscard]] static bool exact(const AdmissionContext& /*ctx*/) { return true; }
+
+        /// @brief Keeps @p candidate.
+        template <typename ResourceType, typename NodeViewType>
+        bool admit(const Label<ResourceType>& /*candidate*/, NodeViewType& /*node*/,
+                   const AdmissionContext& /*ctx*/) const {
+            return true;
+        }
+};
+
 // ─── Retention ───────────────────────────────────────────────────────────────────────────────
 
 /// @brief Where the labels a search keeps live, and what an admission rule may do to a node.
@@ -136,7 +166,9 @@ struct DominanceAdmission {
 /// @c node gives the view an admission rule reads and evicts through; @c store keeps a label at
 /// its node and returns its position there; @c erase takes a stored label out.
 /// @c collects_at_take says whether solutions are recorded when an end-node label is taken,
-/// because nothing stays at the end nodes to read them from at the end.
+/// because nothing stays at the end nodes to read them from at the end. A retention may also say
+/// `static constexpr bool releases_after_expansion = true`: the step then releases every label it
+/// takes once it has extended it, or recorded it at an end node (@ref releases_after_expansion_v).
 ///
 /// @tparam RetentionType The retention.
 /// @tparam ResourceType  The resource type carried by labels.
@@ -211,6 +243,79 @@ class KeepAtNodes {
 
     private:
         std::vector<ContainerType> containers_;
+};
+
+/// @brief Whether @p RetentionType keeps nothing behind the search: a retention says so with
+///        `static constexpr bool releases_after_expansion = true`; one that does not say keeps
+///        what it stores.
+template <typename RetentionType>
+inline constexpr bool releases_after_expansion_v = [] {
+    if constexpr (requires { RetentionType::releases_after_expansion; }) {
+        return RetentionType::releases_after_expansion;
+    } else {
+        return false;
+    }
+}();
+
+/// @brief Kept labels live only while they wait to be taken: a dive's retention, which keeps
+///        nothing behind it.
+///
+/// Nothing is stored at the nodes. A solution is recorded when its end-node label is taken
+/// (`collects_at_take`), and the step releases every label it takes once it is done with it
+/// (`releases_after_expansion`), through the reference counts: a label lives on while one of the
+/// labels extended from it waits, so the path of every waiting label stays whole.
+///
+/// @tparam ContainerType The per-node label container of the params, which it does not use.
+template <typename ContainerType>
+class KeepWhileWaiting {
+        using Labels =
+            std::remove_cvref_t<decltype(std::declval<const ContainerType&>().get_labels())>;
+
+    public:
+        static constexpr bool collects_at_take = true;          // nothing is left at the end nodes
+        static constexpr bool releases_after_expansion = true;  // nothing is kept behind
+
+        void reset(size_t /*num_nodes*/, const ContainerType& /*prototype*/) {}
+
+        void clear() {}
+
+        /// @brief The view of a node: nothing is stored there.
+        EmptyNodeView node(size_t /*pos*/) { return {}; }
+
+        /// @brief Stores nothing: the label lives in the schedule while it waits.
+        ///
+        /// @return A position that no container holds; @ref erase ignores it.
+        template <typename ResourceType>
+        typename std::list<Label<ResourceType>*>::iterator store(size_t /*pos*/,
+                                                                 Label<ResourceType>* /*label*/) {
+            return {};
+        }
+
+        /// @brief Erases nothing: no label is stored.
+        template <typename IteratorType>
+        void erase(const IteratorType& /*position*/) {}
+
+        /// @brief The labels stored at node position @p pos: none.
+        [[nodiscard]] const Labels& labels_at(size_t /*pos*/) const { return none_; }
+
+        /// @brief The per-node containers: none.
+        [[nodiscard]] const std::vector<ContainerType>& containers() const {
+            return no_containers_;
+        }
+
+    private:
+        Labels none_;
+        std::vector<ContainerType> no_containers_;
+};
+
+/// @brief A retention template as a descriptor names it, which a strategy's @c retention<R, Dir>
+///        member must be: `using retention = parts::Retain<parts::KeepWhileWaiting>;`.
+///
+/// @tparam RetentionTemplate The retention, a template on the per-node container type.
+template <template <typename> class RetentionTemplate>
+struct Retain {
+        template <typename ContainerType>
+        using type = RetentionTemplate<ContainerType>;
 };
 
 // ─── Observer ────────────────────────────────────────────────────────────────────────────────

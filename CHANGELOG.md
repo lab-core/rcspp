@@ -175,6 +175,13 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **The parts of a dive**, in `rcspp::parts`: `DfsSchedule<R, Key, Filter>` takes labels depth
+  first, settling each label's children together, cheapest first (`CostKey`), after a filter
+  (`KeepAllChildren` by default, or a `ChildFilter` of one's own); `KeepAll` keeps every feasible
+  label; `KeepWhileWaiting` stores none at the nodes, records a solution when its label at the sink
+  is taken, and releases each label once it is extended (`releases_after_expansion`). `Retain<T>`
+  names a retention template in a descriptor. See "A strategy of one's own" in
+  `docs/advanced/algorithms.md`.
 - **`PathEvaluator`** (`rcspp/algorithm/path_evaluator.hpp`) replays a path, or a returned
   `Solution`, through the graph's resources as a forward search extends a label, and reports the
   first fault (`PathFault`): no arc, an arc the graph does not have, arcs that do not meet, not

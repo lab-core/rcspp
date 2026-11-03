@@ -151,6 +151,9 @@ struct Search {
 
         /// @brief Carries out what the take rule decided for a label it did not extend.
         ///
+        /// A retention that keeps nothing behind (@c parts::releases_after_expansion_v) stores no
+        /// label to keep: a label kept is released, its solution recorded.
+        ///
         /// @param taken   The label and its position in its node's container.
         /// @param verdict What to do with it.
         /// @param pool    The label pool.
@@ -158,7 +161,11 @@ struct Search {
                    LabelPool<ResourceType>* pool) {
             switch (verdict) {
                 case Verdict::Extend:
+                    return;
                 case Verdict::Keep:  // an end-node, boundary or abandoned label stays stored
+                    if constexpr (parts::releases_after_expansion_v<retention_type>) {
+                        pool->release_with_ref_count(taken.label);
+                    }
                     return;
                 case Verdict::EraseAndRelease:
                     labels.erase(taken.position);

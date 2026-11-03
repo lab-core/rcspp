@@ -583,8 +583,10 @@ cpp/rcspp/algorithm/
                                  descriptor and a direction to a class
   labelling/
     policies.hpp                 rcspp::parts: StoredLabel, ExtensionOutcome, DominanceAdmission,
+                                 KeepAll, KeepWhileWaiting, Retain,
                                  KeepAtNodes, NodeView, NoObserver, LeastWorkFirst, their concepts
     schedules.hpp                rcspp::parts: the schedule concepts, PerNodeQuota, CutLabels,
+                                 DfsSchedule, KeepAllChildren,
                                  FifoSchedule, BestFirstSchedule, CostKey, CompletionKey
     node_schedules.hpp           rcspp::parts: NodeQueues, SweepSchedule, PullSchedule
     context.hpp                  SearchContext, Role: what every part reads of its solve
