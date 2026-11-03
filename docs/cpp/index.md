@@ -46,6 +46,7 @@ cpp/rcspp/
 │   ├── tabu_search.hpp / improving_tabu_search.hpp
 │   ├── tabu/                   # the tabu searches' tenures
 │   ├── diversification_search.hpp
+│   ├── path_evaluator.hpp      # PathEvaluator: replays a path, finds its first fault
 │   ├── search_direction.hpp    # SearchDirection
 │   ├── direction.hpp, container_direction.hpp  # the direction policies
 │   ├── solution.hpp
