@@ -10,9 +10,15 @@ base classes, properties and frozen option records. This package imports nothing
 imports its LP solver's package when it is used, so that importing rcspp does not load it.
 
 A master solver or a pricer written in Python is a subclass of :class:`MasterSolver` or
-:class:`Pricer`. A :class:`GraphPricer` prices a :class:`~rcspp.graph.ResourceGraph`.
+:class:`Pricer`. A :class:`GraphPricer` prices a :class:`~rcspp.graph.ResourceGraph`, and a
+:class:`ColumnGeneration` loop runs a :class:`MasterProblem` over its pricers and master
+solver. Tolerances and initializations can also be given by name
+(:mod:`rcspp.python_column_generation.registry`).
 """
 
+from . import registry
+from .column_generation_loop import ColumnGeneration, ColumnGenerationResult, ColumnGenerationStatus
+from .convergence import ConvergenceAction, ConvergenceContext
 from .graph_pricer import GraphPricer, PricingStage, Search, StageRequest
 from .master_initialization import ArtificialColumns, MasterInitialization, NoInitialization
 from .master_problem import (
@@ -30,7 +36,18 @@ from .master_solver_self_test import (
     master_solver_self_test,
 )
 from .master_solvers import GurobipyMasterSolver, HighspyMasterSolver
+from .params import ColumnGenerationParams
 from .pricer import Pricer, PricingChanges, PricingRequest, PricingResult, PricingStatus
+from .registry import (
+    algorithm_names,
+    initialization_names,
+    make_initialization,
+    make_tolerances,
+    register_initialization,
+    register_tolerances,
+    tolerance_names,
+)
+from .statistics import IterationInfo, Statistics, StatisticsParams
 from .tolerances import (
     DEFAULT_FEASIBILITY_TOLERANCE,
     DEFAULT_OPTIMALITY_GAP,
@@ -57,13 +74,20 @@ __all__ = [
     "ArtificialColumns",
     "Capabilities",
     "ColumnBatch",
+    "ColumnGeneration",
+    "ColumnGenerationParams",
+    "ColumnGenerationResult",
+    "ColumnGenerationStatus",
     "ColumnTag",
     "ColumnType",
+    "ConvergenceAction",
+    "ConvergenceContext",
     "ConvexityRow",
     "GraphPricer",
     "GurobipyMasterSolver",
     "HighspyMasterSolver",
     "IntegerParams",
+    "IterationInfo",
     "MasterColumn",
     "MasterInitialization",
     "MasterProblem",
@@ -85,6 +109,8 @@ __all__ = [
     "Search",
     "SolverStatus",
     "StageRequest",
+    "Statistics",
+    "StatisticsParams",
     "ToleranceContext",
     "Tolerances",
     "DEFAULT_FEASIBILITY_TOLERANCE",
@@ -93,4 +119,12 @@ __all__ = [
     "DEFAULT_RELATIVE_GAP",
     "DEFAULT_SELF_TEST_TOLERANCE",
     "master_solver_self_test",
+    "algorithm_names",
+    "initialization_names",
+    "make_initialization",
+    "make_tolerances",
+    "register_initialization",
+    "register_tolerances",
+    "registry",
+    "tolerance_names",
 ]
