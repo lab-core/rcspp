@@ -11,6 +11,7 @@
 
 #include <limits>
 #include <memory>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 
@@ -175,6 +176,27 @@ TEST(GreedyAlgorithmTest, TwoPathGraphFindsBothSolutions) {
     const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
     // Both paths are distinct, so both solutions should be returned.
     EXPECT_EQ(result.solutions.size(), 2U);
+}
+
+/// @brief A sink Greedy reaches by backtracking to a sibling is recorded.
+///
+/// From the source, the cheaper child (node 1) is a dead end; its sibling is the sink. Greedy
+/// dives to node 1, backtracks to the sink, and must record the path 0 -> 2 before it moves on.
+TEST(GreedyAlgorithmTest, RecordsASinkReachedByBacktracking) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(kArc01Cost), 0, 1);  // arc 0: a dead end
+    g->add_arc<RealResource>(std::make_tuple(kArc02Cost), 0, 2);  // arc 1: to the sink
+    const auto result = g->solve<strategy::Greedy>(AlgorithmBaseParams{});
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_EQ(result.solutions[0].path_arc_ids, std::vector<size_t>{1});
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 // ============================================================================
