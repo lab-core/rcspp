@@ -1,9 +1,9 @@
 # Pure-Python column generation layer (`T-1.15`): design
 
-Status: **accepted 2026-11-03**, code started: step A done (§5 commits 1–2, record under §5). On top of the stack
-(`D-119`), highspy in place (`D-120`), mirror the C++ layer (`D-121`), VRP not ported (`D-122`), quick runs first
-(`D-123`), one highspy master solver (`D-124`), pool postponed (`D-125`, §7), no standalone C++ run (`D-126`). Built on
-`D-111`, `D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
+Status: **accepted 2026-11-03**, code started: step A done (§5 commits 1–2, record under §5), step B done (review
+B.1–B.17 under §5; fixes before step C). On top of the stack (`D-119`), highspy in place (`D-120`), mirror the C++ layer
+(`D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed
+(`D-125`, §7), no standalone C++ run (`D-126`). Built on `D-111`, `D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
 
 ## 1. Mirror of the C++ layer (`D-121`)
 
@@ -40,7 +40,8 @@ Deviations that stay (accepted 2026-11-03):
 - On top of the stack: branch `feature/column-generation-pure-python` from `feature/column-generation-packaging`
   (the top of the stack, #80: same build options as the measurements' `build-python-highs`).
 - Package `python/src/rcspp/python_column_generation/`, a sibling of `column_generation/`: no file and no
-  import shared, so no collision; importing it never loads `_core.column_generation`. Same class names in both.
+  import shared, so no collision; it imports nothing of `rcspp.column_generation` (`import rcspp` still loads that).
+  Same class names in both.
 - One build runs both layers: the comparison driver picks the package by an option.
 - The last PR tidies up: drops the C++ layer and renames this package to `column_generation`, or the reverse.
 
@@ -109,6 +110,30 @@ full suite; mypy `--strict` clean on the package):
     integer solve).
   - Pre-commit's `docformatter` rewraps docstrings: run `pre-commit run --files …` before committing (the venv's
     `Scripts` folder must be on `PATH`).
+
+Step B review (2026-11-03, Opus; user agreed to fix before step C). Checked: tests pass, mypy and pre-commit clean,
+no `D-55` breach. Paths under `python/src/rcspp/python_column_generation/`. ✔ to fix before step C; ⏸ decided after
+step G; ✘ no fix (`D-127`):
+
+| # | finding | fix |
+|---|---|---|
+| B.1 | ✔ integer solve overruns its time limit 4–12× once LP solves have run (`F-43`) | own limit, or documented limitation + test |
+| B.2 | ✔ package docstring: "never loads `_core.column_generation`" is false (`import rcspp` loads it); §2 fixed | "imports nothing of `rcspp.column_generation`" |
+| B.3 | ✔ thread warning `stacklevel=4` points above the caller (checked) | 3 |
+| B.4 | ✔ fix A comment says a cold solve cures the cycling case (`F-21`: the known cure keeps the basis); a refused run is retried too, within what is left of the limit: undocumented | comment and docstring |
+| B.5 | ✔ "pure virtual" message: a pybind11 notion; the shared test pins it (`test_python_column_generation.py:223-227`, `:270`) | `NotImplementedError("MasterSolver.duals must be overridden")`; test: `RuntimeError` + method name |
+| B.6 | ✔ `set_option` ports the C++ `std::visit` (bool/int split, int → double, `_INT32_MAX`): highspy does all of it (`F-45`) | one `setOptionValue` + status check |
+| B.7 | ✔ `MasterSolver.add_rows`: `::` in the message, `RuntimeError` | `NotImplementedError`, `MasterSolver.add_rows` |
+| B.8 | ✔ `HighspyMasterSolver` docstring: "the loop calls with the GIL held": binding notion | drop |
+| B.9 | ✔ `SolverColumns`: C++ map + vector (generic, `at`, `all`); bounds rule written twice (scalar + numpy) | `dict` + `check_columns(batch, rows, known_ids)`; one vectorized rule. Before step C reuses it |
+| B.10 | ✔ `RowBatch`, `ColumnBatch`: `__slots__` + one property per field (a `const` struct) | `@dataclass(frozen=True, slots=True)`, checks in `__post_init__` |
+| B.11 | ✔ mirror bug: `int(SolverStatus.Optimal)` works on the C++-backed enums, `TypeError` here (all four enums) | `__int__`/`__index__`; not `IntEnum` (`== 0` is `False` on pybind11 enums) |
+| B.12 | ✔ mirror bug: `RowBatch(..., names="ab")` gives `['a', 'b']`; pybind11 refuses a `str` | refuse a `str` |
+| B.13 | ✔ mirror test: comment on `ONLY_IN_CPP_LAYER` says it "counts the solves it ran again", the set is empty | fix the comment |
+| B.14 | ✘ `RowBatch.names`, `PricingResult.columns` return the live list; the C++-backed ones a copy | none for now (`D-127`) |
+| B.15 | ⏸ `duals()` copies the whole solution (`getSolution()`), `row_bounds`, `largest_user_cost` the whole LP (`getLp()`), each call: biases the speed comparison | decided after step G (`D-127`) |
+| B.16 | ⏸ `ColumnBatch` `uint32`/`uint64` (C++ widths): `add_columns` converts to `int32` per batch | decided after step G (`D-127`) |
+| B.17 | ✘ C++ layer (frozen, `D-116`): `HighsMasterSolver::restore_upper_bounds` reads past `upper_bounds_` (`F-44`) | recorded only, no fix (`D-127`) |
 
 ## 6. Comparison with the C++ layer (`D-123`)
 
