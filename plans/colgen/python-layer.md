@@ -1,9 +1,10 @@
 # Pure-Python column generation layer (`T-1.15`): design
 
 Status: **accepted 2026-11-03**, code started: step A done (§5 commits 1–2, record under §5), step B done (review
-B.1–B.17 under §5; fixes before step C). On top of the stack (`D-119`), highspy in place (`D-120`), mirror the C++ layer
-(`D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed
-(`D-125`, §7), no standalone C++ run (`D-126`). Built on `D-111`, `D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
+B.1–B.17 under §5), step C done (commits 3–4, record under §5); next is D. On top of the stack (`D-119`), highspy in
+place (`D-120`), mirror the C++ layer (`D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one highspy
+master solver (`D-124`), pool postponed (`D-125`, §7), no standalone C++ run (`D-126`). Built on `D-111`, `D-112`,
+`D-114`, `D-116`, `D-117`, `D-118`.
 
 ## 1. Mirror of the C++ layer (`D-121`)
 
@@ -135,12 +136,8 @@ step G; ✘ no fix (`D-127`):
 | B.16 | ⏸ `ColumnBatch` `uint32`/`uint64` (C++ widths): `add_columns` converts to `int32` per batch | decided after step G (`D-127`) |
 | B.17 | ✘ C++ layer (frozen, `D-116`): `HighsMasterSolver::restore_upper_bounds` reads past `upper_bounds_` (`F-44`) | recorded only, no fix (`D-127`) |
 
-Order of the fixes: a failing test first, then the fix, for B.1 (the `D-128` test), B.3 (the warning's `filename` is
-the caller's), B.11 (`int()` and `operator.index` of each enum, shared test on both layers), B.12 (`names="ab"`
-refused, shared test). B.6, B.9, B.10 are refactors: the existing tests cover them (`test_options_*`,
-`test_batches_are_checked…`, `test_a_column_batch_is_checked`), run before and after. B.5, B.7: the shared test checks
-`RuntimeError` and the method name (passes before and after), a Python-layer test `NotImplementedError`. B.2, B.4, B.8,
-B.13: text only.
+Order of the fixes: a failing test first for B.1, B.3, B.11, B.12; B.6, B.9, B.10 are refactors the existing tests
+cover; B.5, B.7 a Python-layer test next to the shared one; B.2, B.4, B.8, B.13 text only.
 
 Step B fixes record (2026-11-03, Opus): B.1–B.9, B.11–B.13 done, folded into commits 1–2 (`fixup!` + autosquash, the
 branch was not pushed); each commit passes its own tests (64, then 112). New tests: the enums' `int()`, a string of
@@ -148,6 +145,32 @@ names refused, the Python layer's `NotImplementedError`, the warning's line, the
 (0.2 s asked, under 1 s; 2.4 s before; about 1.4 s per run). B.10 dropped (`D-129`). The user's lint fixes folded in
 too (`Generator` return types of the context managers, typed lists in the mirror test); `Generator` takes its three
 arguments: one argument needs Python 3.13, the package supports 3.11.
+
+Step C record (2026-11-03, Sonnet; 285 tests in the five pure-Python test files, run alone; mypy `--strict` clean; 100 %
+lines on the new modules from their own tests; Gurobi had a license here, so nothing skipped):
+
+- Commit 3 `7e236413`: `master_solvers/gurobipy_master_solver.py`; 50 tests on both layers (the C++-backed file's
+  cases, columns as batches). Left to gurobipy (`F-45`'s rule): infinite bounds and sides, a bool for a number
+  parameter, lists. Kept: a text value read as the parameter's type (gurobipy refuses `"1"`).
+- Commit 4 `06413bea`: `tolerances.py`, `master_problem.py`, `master_initialization.py`, `master_solver_self_test.py`;
+  `automatic_cost_factor` 1e4 (fix B). 74 tests on both layers (`test_python_column_generation_master.py`): the C++
+  cases, a random column batch against a dict reference, a master problem and the real self-test over both solvers.
+- Differences from the plan:
+  - `add_columns` builds one CSC batch with numpy from `Column.to_arrays()` (one C++ call per column): rows sorted and
+    a repeated row summed when needed, one `RuntimeWarning` per master. `Column.to_arrays` got a stub in `graph.pyi`.
+  - Python's way: no capability → `NotImplementedError`, as `Tolerances` and `MasterInitialization` when not
+    overridden; `columns()` is a shallow copy; `RowRange`, `MasterColumn`, the report are frozen dataclasses;
+    `no_pricer` keeps the C++ value (2^64 − 1, not `None`).
+  - `add_artificial_columns` sends nothing for no column (C++ sends an empty batch). The self-test reports an answer of
+    the wrong size as a failed check (C++ raises while copying it).
+  - `add_rows` is two `typing.overload` stubs with docstrings (flake8's E704 refuses `...` bodies, which black forces)
+    over one dispatching method. The mirror test reads them with `typing.get_overloads`, compares module functions,
+    skips constructors pybind11 cannot build, takes a frozen field as read-only, lists `DIFFERENT_CONSTANTS`; object
+    defaults compare by class only. Registry names stay `PENDING` for commit 6.
+  - The fakes: `ScriptedMasterSolverBehavior`, `SelfTestMasterSolverBehavior` in `column_generation_fakes.py`, one base
+    per layer (`python_column_generation_fakes.py`).
+- For step D: the vectorized batch (`_sorted_without_repeats`, `_with_entry_at_end`) and its cost against the C++ loop
+  (`B.16`: `int64` rows converted to `uint32` per batch; one `to_arrays` call per column).
 
 ## 6. Comparison with the C++ layer (`D-123`)
 
@@ -179,7 +202,7 @@ Sonnet implements, Opus reviews; one step per chat, in order. Prompts: the READM
 |---|---|---|
 | A | Sonnet | commits 1–2 and the mirror test |
 | B | Opus | review of A |
-| C | Sonnet | commits 3–4 |
+| C | Sonnet | commits 3–4 (done) |
 | D | Opus | review of C (close: master problem, artificial cost, self-test) |
 | E | Sonnet | commits 5–6 |
 | F | Opus | review of E (close: the loop against `column_generation.cpp`); full suite once; the PR branch |
