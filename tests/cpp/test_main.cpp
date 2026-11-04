@@ -18,9 +18,6 @@
 //   test_bidirectional_benchmark_ng.cpp   ng benchmark (three-slot pack)
 //   test_path_semantics.cpp               what every algorithm returns
 //   test_backward_coherence.cpp           what add_resource accepts, and the coherence trait
-//   test_kernel_parity_single.cpp         the single-direction searches against their frozen copies
-//   test_kernel_parity_bidirectional.cpp  the bidirectional search against its frozen copy
-//   test_kernel_parity_dives.cpp          the heuristics against their frozen copies
 //   test_golden_heuristics.cpp            the heuristics' golden rows
 //   test_kernel_properties.cpp            what every exact search agrees on
 //   test_kernel_timing.cpp                pricing times, printed when RCSPP_TIMING is set
