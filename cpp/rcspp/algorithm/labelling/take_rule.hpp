@@ -103,7 +103,9 @@ struct TakeRule {
         ///      @c record_path drops it as a duplicate when the run ends.
         ///    The caller records it, then asks @ref SearchContext::should_end_run whether to stop.
         /// 2. A label of infinite cost is erased and released.
-        /// 3. On a bidirectional side, a label past the half-way point stays stored, unextended
+        /// 3. With @c prune_by_threshold, a label whose cost plus its completion bound reaches the
+        ///    upper bound is erased and released (@ref is_out_of_reach).
+        /// 4. On a bidirectional side, a label past the half-way point stays stored, unextended
         ///    (@c Verdict::Keep), for the join to pair.
         ///
         /// @return Extend when the label passes; otherwise what to do with it.
@@ -122,11 +124,30 @@ struct TakeRule {
             if (std::isinf(label.get_cost())) {
                 return {.verdict = Verdict::EraseAndRelease};
             }
+            if (context.params->prune_by_threshold && is_out_of_reach(label, context)) {
+                return {.verdict = Verdict::EraseAndRelease};
+            }
             if (context.half_way != nullptr &&
                 context.half_way->template is_past<Direction>(label)) {
                 return {.verdict = Verdict::Keep};
             }
             return {};
+        }
+
+        /// @brief Whether no path through @p label can cost less than the upper bound: its cost
+        ///        plus its completion bound is at or above it, with a margin of the params'
+        ///        tolerance, relative to the upper bound when that is above 1 in magnitude.
+        ///
+        /// Exact under an additive cost: the bound is a fixed point of the arcs' shares, so a
+        /// label it puts out of reach has only descendants out of reach, and dominates only labels
+        /// out of reach. A bound of -infinity (a negative-cost cycle) puts nothing out of reach;
+        /// one of +infinity (no end node reached) puts the label out of reach of any upper bound.
+        [[nodiscard]] static bool is_out_of_reach(const Label<ResourceType>& label,
+                                                  const SearchContext<ResourceType>& context) {
+            const double margin =
+                context.params->tolerance * std::max(1.0, std::abs(context.upper_bound));
+            return label.get_cost() + (*context.completion_bound)(label) >=
+                   context.upper_bound + margin;
         }
 };
 

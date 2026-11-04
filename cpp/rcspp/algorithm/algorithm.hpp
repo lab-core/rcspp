@@ -373,6 +373,30 @@ class Algorithm {
                 proof_.record(ProofLoss::IncumbentPrune);
             }
             dominance_mask_ = admission_mask(*graph);
+            if (params_.prune_by_threshold) {
+                require_additive_cost(*graph);
+            }
+        }
+
+        /// @brief Throws unless the cost of @p graph's model is additive, as the threshold prune's
+        ///        bound needs (@c Resource::is_cost_additive, read off any node's resource).
+        ///
+        /// @throws std::invalid_argument when it is not.
+        static void require_additive_cost(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node == nullptr || node->resource == nullptr) {
+                    continue;
+                }
+                if (!node->resource->is_cost_additive()) {
+                    throw std::invalid_argument(
+                        "prune_by_threshold needs an additive cost, so that the cost still to pay "
+                        "from a node is bounded by the sum of the arcs' shares: every component "
+                        "the cost reads must have a zero cost (TrivialCostFunction) or a value "
+                        "cost (ValueCostFunction) under an accumulating extension");
+                }
+                return;
+            }
         }
 
         /// @brief The mask the relaxed rule compares over, sized for @p graph's resource; empty

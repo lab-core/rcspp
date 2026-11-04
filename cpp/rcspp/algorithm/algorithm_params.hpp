@@ -94,14 +94,43 @@ struct AlgorithmBaseParams {
         /// Exact under an additive cost: one Bellman–Ford run per solve computes the bound. Under
         /// another cost, the label's cost alone is compared, which may drop the cheapest path when
         /// arcs have negative costs; the result is then not a proof
-        /// (@c ProofLoss::IncumbentPrune).
+        /// (@c ProofLoss::IncumbentPrune). See @ref prune_by_threshold for a prune against the
+        /// upper bound alone.
         bool prune_by_incumbent = false;
+
+        /// @brief Whether a labelling search drops a label that cannot complete below the solve's
+        ///        upper bound (default false).
+        ///
+        /// When a label is taken, its cost plus a lower bound on the cost still to pay from its
+        /// node is compared with the upper bound the solve was given: at or above it, no path
+        /// through the label could be returned, and the label is dropped. The bound is a
+        /// Bellman–Ford run over the arcs' shares of the cost, from the end nodes, at the start of
+        /// a solve (kept from the previous solve when the graph is promised unchanged,
+        /// @c Algorithm::set_graph_unchanged); a margin of `tolerance × max(1, |upper bound|)`
+        /// keeps its rounding from dropping a path that would be returned. The returned paths are
+        /// those of the solve without it; fewer labels are extended. With no upper bound, only
+        /// labels that reach no end node are dropped; a negative-cost cycle leaves no finite
+        /// bound, and nothing is dropped.
+        ///
+        /// Compared with @ref prune_by_incumbent: this prune compares with the solve's upper
+        /// bound, which does not change, once per label (the take rule's fixed checks), with a
+        /// tolerance margin; the incumbent prune compares with the incumbent, which falls as paths
+        /// are found, every time a label is taken. With both on and an additive cost, the
+        /// incumbent prune drops every label this one drops, except within the margin.
+        ///
+        /// The bound needs an additive cost: every component the cost reads has a zero cost or a
+        /// value cost under an @c Accumulate extension (@c Resource::is_cost_additive). Another
+        /// cost throws `std::invalid_argument` when the solve starts. Read by every labelling
+        /// search, Greedy and the tabu searches included, in every direction, and by both sides of
+        /// a bidirectional search, each against its own end nodes.
+        bool prune_by_threshold = false;
 
         /// @brief The per-node quota: at most this many labels are taken at each node in each
         ///        phase (no limit by default, @ref kNoLimit).
         ///
         /// Pushing and Pulling apply it per visit of a node rather than per phase
         /// (@c parts::PerNodeQuota).
+        ///
         /// A non-dominated label over its node's quota is not lost: a single-direction search
         /// stores it aside and extends it in the next phase (@ref max_phases). A bidirectional
         /// search, which runs one phase, abandons it: it stays in its node's container, never
