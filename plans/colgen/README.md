@@ -7,11 +7,11 @@ done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; 
 slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
 **Next:** `T-1.15`, the pure-Python layer (`python-layer.md`): on top of the stack, the C++ layer's features written the
-Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–E done (commits 1–6:
-`06ff1f5b`, `d19fd24b`, `125f78ab`, `21b30ecb`, `a409cf56`, `d524baaa`), reviews B and D fixed and folded in
-(`D-127`–`D-130`); step F review done (F.1–F.22, `D-131`–`D-134`: Python-way API, the C++ features the binding lacks, no
-mirror test, the C++ cases replicated). Records: `python-layer-records.md`. Now: F's fixes in batches 1–6
-(`python-layer.md` §8 "Step F work"), then the PR branch. Then `T-1.16`. History: `decisions.md`; measurements and how
+Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–F done: commits 1–6
+(`df83c093`, `be1bbdf0`, `8c8e9285`, `c8561444`, `620fdde9`, `79bc41b7`), reviews B, D, F folded in (`D-127`–`D-135`;
+F: Python-way API, the C++ features the binding lacks, no mirror test, the C++ cases replicated); copied to
+`feature/column-generation-pure-python`. Records: `python-layer-records.md`. Now: confirm `D-135`, then step G, the quick
+runs (`python-layer.md` §6). Then `T-1.16`. History: `decisions.md`; measurements and how
 to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
