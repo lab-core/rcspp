@@ -116,7 +116,10 @@ TEST(Strategies, ThePartsMeetTheirConceptsAndAMalformedPartDoesNot) {
     static_assert(detail::searches<st::BestFirstForward>(SearchDirection::Bidirectional));
     static_assert(detail::searches<st::SimpleAtMostThree>(SearchDirection::Backward));
     static_assert(!detail::searches<st::SimpleAtMostThree>(SearchDirection::Bidirectional));
-    static_assert(!detail::searches<strategy::Greedy>(SearchDirection::Backward));
+    static_assert(detail::searches<strategy::Greedy>(SearchDirection::Backward));
+    static_assert(!detail::searches<strategy::Greedy>(SearchDirection::Bidirectional));
+    static_assert(detail::searches<strategy::Tabu>(SearchDirection::Backward));
+    static_assert(!detail::searches<strategy::Tabu>(SearchDirection::Bidirectional));
     static_assert(std::is_same_v<detail::preset_t<strategy::Simple, R, ForwardDirection>,
                                  detail::Preset<parts::FifoSchedule<R>>>,
                   "a strategy that names only its schedule gets the exact search's parts");
