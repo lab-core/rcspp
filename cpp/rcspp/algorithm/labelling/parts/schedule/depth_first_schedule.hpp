@@ -38,7 +38,7 @@ namespace rcspp::parts {
 /// @tparam KeyType      The order among a label's children: @ref CostKey (the default) or
 ///                      @ref CostPlusBoundKey.
 /// @tparam FilterType   Which children are kept (@ref ChildFilter): @ref KeepAllChildren (the
-///                      default).
+///                      default) or @ref TabuChildFilter.
 template <typename ResourceType, typename KeyType = CostKey, typename FilterType = KeepAllChildren>
 class DepthFirstSchedule {
         static_assert(ChildFilter<FilterType, ResourceType>,
