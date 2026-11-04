@@ -234,6 +234,14 @@ void init_graph(py::module_& m) {
         .def_readwrite("max_solutions", &PyAlgorithmParams::max_solutions)
         .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)
         .def_readwrite("prune_by_incumbent", &PyAlgorithmParams::prune_by_incumbent)
+        .def_readwrite("threshold_pruning",
+                       &PyAlgorithmParams::threshold_pruning,
+                       "Whether a labelling search drops a label whose cost plus a lower bound on "
+                       "the cost still to pay from its node reaches the solve's upper_bound "
+                       "(default False): no path through it could be returned. The paths returned "
+                       "are the same; fewer labels are extended. Needs an additive cost (a zero "
+                       "or value cost under an addition, for every resource the cost reads); "
+                       "another raises ValueError.")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)

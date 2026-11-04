@@ -484,6 +484,14 @@ class AlgorithmParams:
     @tabu_tenure.setter
     def tabu_tenure(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
     @property
+    def threshold_pruning(self) -> bool:
+        """
+        Whether a labelling search drops a label whose cost plus a lower bound on the cost still to pay from its node reaches the solve's upper_bound (default False): no path through it could be returned. The paths returned are the same; fewer labels are extended. Needs an additive cost (a zero or value cost under an addition, for every resource the cost reads); another raises ValueError.
+        """
+
+    @threshold_pruning.setter
+    def threshold_pruning(self, arg0: bool) -> None: ...
+    @property
     def timeout_s(self) -> float:
         """
         Wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s (default: inf).

@@ -122,10 +122,10 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                 half_way_off_reason_ = *reason;
             }
 
-            // A side's bound is read by the completion-bound prune, and by its schedule when the
-            // order reads it (A*'s). A side neither reads keeps an empty bound, and no relaxation
-            // runs for it.
-            const bool prune = this->params_.prune_by_incumbent;
+            // A side's bound is read by the completion-bound prune and the threshold prune, and by
+            // its schedule when the order reads it (A*'s). A side none reads keeps an empty bound,
+            // and no relaxation runs for it.
+            const bool prune = this->params_.prune_by_incumbent || this->params_.threshold_pruning;
             forward_.bound = {};
             backward_.bound = {};
             if (prune || parts::reads_bound_v<typename forward_search_type::schedule_type>) {

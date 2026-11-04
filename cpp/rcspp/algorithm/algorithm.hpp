@@ -248,6 +248,26 @@ struct AlgorithmBaseParams {
         // if true, prune label if greater than the best upper bound
         bool prune_by_incumbent = false;
 
+        /// @brief Whether a labelling search drops a label that cannot complete below the solve's
+        ///        upper bound (default false).
+        ///
+        /// When a label is taken, its cost plus a lower bound on the cost still to pay from its
+        /// node is compared with the upper bound the solve was given: at or above it, no path
+        /// through the label could be returned, and the label is dropped. The bound is a
+        /// Bellman–Ford run over the arcs' shares of the cost, from the end nodes, at the start of
+        /// each solve; a margin of `tolerance` (relative to a large upper bound) keeps its
+        /// rounding from dropping a path that would be returned. The returned paths are those of
+        /// the solve without it; fewer labels are extended. With no upper bound, only labels that
+        /// reach no end node are dropped; a negative-cost cycle leaves no finite bound, and nothing
+        /// is dropped.
+        ///
+        /// The bound needs an additive cost: every component the cost reads has a zero cost or a
+        /// value cost under an accumulating extension. Another cost throws
+        /// `std::invalid_argument` when the solve starts. Read by every labelling search, Greedy
+        /// and the tabu searches included, in every direction, and by both sides of a
+        /// bidirectional search, each against its own end nodes.
+        bool threshold_pruning = false;
+
         // truncated labeling: at most this many labels extended per node in each phase
         size_t max_extended_labels_per_node = kNoLimit;
 
@@ -707,6 +727,30 @@ class Algorithm {
                 proof_.record(ProofLoss::ArcsMasked);
             }
             dominance_mask_ = admission_mask(*graph);
+            if (params_.threshold_pruning) {
+                require_additive_cost(*graph);
+            }
+        }
+
+        /// @brief Throws unless the cost of @p graph's model is additive, as the threshold prune's
+        ///        bound needs (@c Resource::is_cost_additive, read off any node's resource).
+        ///
+        /// @throws std::invalid_argument when it is not.
+        static void require_additive_cost(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node == nullptr || node->resource == nullptr) {
+                    continue;
+                }
+                if (!node->resource->is_cost_additive()) {
+                    throw std::invalid_argument(
+                        "threshold_pruning needs an additive cost, so that the cost still to pay "
+                        "from a node is bounded by the sum of the arcs' shares: every component "
+                        "the cost reads must have a zero cost (TrivialCostFunction) or a value "
+                        "cost (ValueCostFunction) under an accumulating extension");
+                }
+                return;
+            }
         }
 
         /// @brief The mask the relaxed rule compares over, sized for @p graph's resource; empty
