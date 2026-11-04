@@ -7,6 +7,7 @@
 #include <list>
 
 #include "rcspp/algorithm/direction.hpp"
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp {
@@ -69,6 +70,92 @@ class LabelList {
         /// @brief Marks and removes all labels dominated by @p label.
         /// @return Number of labels removed.
         virtual size_t remove_dominated_labels(const Label<ResourceType>& label) {
+            return remove_dominated_labels_with(
+                label,
+                [](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return dominates(lhs, rhs);
+                });
+        }
+
+        /// @brief Marks and removes all labels @p label dominates over the components @p mask
+        ///        leaves in.
+        /// @return Number of labels removed.
+        virtual size_t remove_dominated_labels(const Label<ResourceType>& label,
+                                               const DominanceMask& mask) {
+            return remove_dominated_labels_with(
+                label,
+                [&mask](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return dominates(lhs, rhs, mask);
+                });
+        }
+
+        /// @brief Returns true if any stored label dominates @p label.
+        [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label) const {
+            return is_dominated_with(
+                label,
+                [](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return dominates(lhs, rhs);
+                });
+        }
+
+        /// @brief Returns true if any stored label dominates @p label over the components
+        ///        @p mask leaves in.
+        [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label,
+                                                const DominanceMask& mask) const {
+            return is_dominated_with(
+                label,
+                [&mask](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return dominates(lhs, rhs, mask);
+                });
+        }
+
+    protected:
+        /// @brief Direction-aware dominance: forward uses `operator<=`, backward uses
+        ///        `back_dominates`.
+        ///
+        /// @param lhs The candidate dominating label.
+        /// @param rhs The label being tested.
+        /// @return `true` when @p lhs dominates @p rhs in this container's direction.
+        [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
+                                            const Label<ResourceType>& rhs) {
+            return Direction::template dominates<ResourceType>(lhs, rhs);
+        }
+
+        /// @brief Dominance over the components @p mask leaves in: each applies its own rule,
+        ///        in this container's direction, as `CompositionDominanceFunction` does, whatever
+        ///        composition dominance function the model uses. A resource that is not a
+        ///        composition has one component.
+        ///
+        /// @param lhs  The candidate dominating label.
+        /// @param rhs  The label being tested.
+        /// @param mask The components left out.
+        /// @return `true` when every component left in of @p lhs dominates that of @p rhs.
+        [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
+                                            const Label<ResourceType>& rhs,
+                                            const DominanceMask& mask) {
+            if constexpr (requires { lhs.get_resource().get_components(); }) {
+                size_t component = 0;
+                return lhs.get_resource().for_each_component_and(
+                    rhs.get_resource(),
+                    [&component, &mask](const auto& lhs_component, const auto& rhs_component) {
+                        if (mask.ignores(component++)) {
+                            return true;
+                        }
+                        if constexpr (Direction::backward) {
+                            return lhs_component.back_dominates(rhs_component);
+                        } else {
+                            return lhs_component <= rhs_component;
+                        }
+                    });
+            } else {
+                return mask.ignores(0) || dominates(lhs, rhs);
+            }
+        }
+
+        /// @brief @ref remove_dominated_labels, with @p dominates the test.
+        template <typename DominatesCallable>
+        size_t remove_dominated_labels_with(const Label<ResourceType>& label,
+                                            const DominatesCallable& dominates) {
             size_t removed = 0;
             for (auto non_dominated_label_it = labels_.begin();
                  non_dominated_label_it != labels_.end();) {
@@ -84,8 +171,10 @@ class LabelList {
             return removed;
         }
 
-        /// @brief Returns true if any stored label dominates @p label.
-        [[nodiscard]] virtual bool is_dominated(const Label<ResourceType>& label) const {
+        /// @brief @ref is_dominated, with @p dominates the test.
+        template <typename DominatesCallable>
+        [[nodiscard]] bool is_dominated_with(const Label<ResourceType>& label,
+                                             const DominatesCallable& dominates) const {
             for (const auto non_dominated_label_ptr : labels_) {
                 if (&label == non_dominated_label_ptr) {
                     continue;
@@ -95,18 +184,6 @@ class LabelList {
                 }
             }
             return false;
-        }
-
-    protected:
-        /// @brief Direction-aware dominance: forward uses `operator<=`, backward uses
-        ///        `back_dominates`.
-        ///
-        /// @param lhs The candidate dominating label.
-        /// @param rhs The label being tested.
-        /// @return `true` when @p lhs dominates @p rhs in this container's direction.
-        [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
-                                            const Label<ResourceType>& rhs) {
-            return Direction::template dominates<ResourceType>(lhs, rhs);
         }
 
         std::list<Label<ResourceType>*> labels_;
