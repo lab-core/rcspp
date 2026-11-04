@@ -111,6 +111,24 @@ class LabelList {
                 });
         }
 
+        /// @brief Removes the costliest label, marking it dominated, when it costs more than
+        ///        @p cost; of labels of equal cost, the last in the container's order.
+        /// @return Whether a label was removed.
+        bool remove_costliest_above(double cost) {
+            auto costliest = labels_.end();
+            for (auto it = labels_.begin(); it != labels_.end(); ++it) {
+                if (costliest == labels_.end() || (*it)->get_cost() >= (*costliest)->get_cost()) {
+                    costliest = it;
+                }
+            }
+            if (costliest == labels_.end() || (*costliest)->get_cost() <= cost) {
+                return false;
+            }
+            (*costliest)->dominated = true;
+            erase_label(costliest);
+            return true;
+        }
+
     protected:
         /// @brief Direction-aware dominance: forward uses `operator<=`, backward uses
         ///        `back_dominates`.

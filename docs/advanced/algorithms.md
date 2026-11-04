@@ -523,8 +523,8 @@ finish and still not have proved anything:
   `memory_pressure_triggered` reports it.
 - **An arc mask** (C++, "Leaving arcs out of a solve" below): the search was exhaustive on the
   graph without the masked arcs, not on the graph.
-- **An admission rule that is not exact** (a strategy of one's own whose `exact` answers
-  `false`).
+- **An admission rule that is not exact**: `Relaxed` or `KBest` ("Keeping fewer labels" below),
+  or a strategy of one's own whose `exact` answers `false`.
 
 `result.proven` combines them: it is true when `status` is `complete` and none of these happened,
 so that no path better than those returned exists (none at all, when none is returned).
@@ -625,6 +625,69 @@ const SolveResult result = graph.solve(algorithm.get(), ub);
 
 The mask is sized by `get_arc_id_bound()`, one past the largest arc id, removed arcs included; an
 id it was not sized for is open. It is a C++ feature: Python does not offer it.
+
+## Keeping fewer labels: relaxed and k-best admission
+
+A labelling search keeps a new label at its node unless a label there dominates it.
+`admission_rule` makes it keep fewer, for one solve:
+
+- **`Relaxed`** leaves the components in `dominance_ignored_components` out of the dominance test.
+  Two labels that differ only in those components compare as if they were equal there, so labels
+  are dropped that an exact search keeps.
+- **`KBest`** keeps, after dominance, at most `admission_k` labels at each node, the cheapest: at a
+  full node, a new label takes the place of the costliest when it costs less, and is dropped
+  otherwise.
+
+Either is a heuristic. Every path returned is feasible and correctly priced, since feasibility and
+the cost never read dominance, but the optimum may be missed: `result.proven` is false, and
+`proof_lost_by` reads `"relaxed_admission"`. At its limit a rule is exact, and the proof stands: a
+relaxed rule that leaves nothing out, a k-best rule with no limit.
+
+```python
+from rcspp.graph import AdmissionRule
+
+params = AlgorithmParams()
+params.admission_rule = AdmissionRule.Relaxed
+params.dominance_ignored_components = {2}   # the third resource registered
+relaxed = rg.solve(params=params)
+
+params = AlgorithmParams()
+params.admission_rule = AdmissionRule.KBest
+params.admission_k = 5                      # at most 5 labels at each node
+k_best = rg.solve(params=params)
+```
+
+In Python, a resource is named by its position in the order the resources were registered, the
+cost's being 0. In C++, components are numbered as the model checks' messages number them: type
+slots in the order of the `ResourceGraph`'s template parameters, then registration order within a
+type. With `ResourceGraph<RealResource, IntResource>` holding a cost and a time window in the real
+slot and a load in the int slot, the cost is 0, the time 1 and the load 2, whatever the order they
+were registered in:
+
+```cpp
+AlgorithmBaseParams params;
+params.admission_rule = parts::AdmissionRule::Relaxed;
+params.dominance_ignored_components = {2};  // leave the load out of dominance
+const SolveResult relaxed = graph.solve<strategy::Simple>(params);
+```
+
+A component the model does not have, or an `admission_k` of 0, raises `ValueError`
+(`std::invalid_argument`) when the solve starts; a field the chosen rule does not read is warned
+about.
+
+The relaxed rule is meant for a resource that rarely decides feasibility, a loose capacity say:
+leaving out one that binds drops the labels whose paths the optimum needs. The relaxed test
+compares component by component over the others, as the default `CompositionDominanceFunction`
+does, whichever composition dominance function the model was built with. With bucket
+containers, leaving out the bucket or sort resource weakens the relaxation, since the buckets'
+early exits assume those resources order dominance.
+
+Every labelling search reads the rule (`simple`, `pushing`, `pulling`, `astar`), in every
+direction, and so do both halves of a bidirectional search; Greedy and the tabu searches keep
+every label and ignore it. In a bidirectional solve, leaving the clock out of dominance turns the
+half-way bound off, as a clock outside the dominance order does, and
+`result.bidirectional.half_way_off_reason` says so. The k-best rule keeps the half-way bound: a
+label past `H` may then take the place of one below it, which the search would have extended.
 
 ## Search directions
 

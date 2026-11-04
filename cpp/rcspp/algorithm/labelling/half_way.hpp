@@ -118,6 +118,7 @@ enum class HalfWayOff : unsigned {
     NotIncreasing,       ///< the clock is not an increasing part of the dominance order
     NoCeiling,           ///< the clock's extension sets no backward start at a sink
     IndexOutOfRange,     ///< `critical_resource_index` names no component of the critical type
+    ClockRelaxed,        ///< the relaxed admission rule leaves the clock out of dominance
 };
 
 /// @brief Whether this process has not yet reported the half-way point being off for @p reason.
@@ -306,6 +307,36 @@ template <typename CriticalResourceType, typename ResourceType>
     return std::nullopt;
 }
 
+/// @brief The clock's index among all the components of a resource of @p graph, in the numbering
+///        `dominance_ignored_components` uses, found by address on any node's resource.
+///
+/// @return The index, or @c std::nullopt when no node carries a resource or the clock's type is
+///         absent.
+template <typename CriticalResourceType, typename ResourceType>
+[[nodiscard]] std::optional<size_t> clock_component(const Graph<ResourceType>& graph,
+                                                    size_t critical_resource_index) {
+    if constexpr (is_cost_in_composition_v<CriticalResourceType, ResourceType>) {
+        for (const size_t node_id : graph.get_node_ids()) {
+            const auto* node = graph.get_node(node_id);
+            if (node == nullptr || node->resource == nullptr) {
+                continue;
+            }
+            const void* clock = &node->resource->template get_component<CriticalResourceType>(
+                critical_resource_index);
+            std::optional<size_t> found;
+            size_t component = 0;
+            node->resource->for_each_component([&](const auto& each) {
+                if (static_cast<const void*>(&each) == clock) {
+                    found = component;
+                }
+                ++component;
+            });
+            return found;
+        }
+    }
+    return std::nullopt;
+}
+
 /// @brief Says, once per process and per reason, that the half-way point is off: at WARN the
 ///        first time, at DEBUG after that.
 inline void report_half_way_off(HalfWayOff reason, const std::string& why) {
@@ -325,10 +356,11 @@ inline void report_half_way_off(HalfWayOff reason, const std::string& why) {
 /// @brief Why the half-way point must be off on this model, or none; a reason is also reported
 ///        (@ref report_half_way_off).
 ///
-/// The seven checks, in this order: the critical type absent from the model; no
+/// The eight checks, in this order: the critical type absent from the model; no
 /// `half_way_point` given; the index out of range; not a threshold; no ceiling at a sink; not
-/// monotone; not increasing in the dominance order. The model checks ran before the solve, so a
-/// setting that does not fit the model turns the point off rather than throwing.
+/// monotone; not increasing in the dominance order; left out of dominance by the relaxed
+/// admission rule. The model checks ran before the solve, so a setting that does not fit the model
+/// turns the point off rather than throwing.
 ///
 /// @tparam CriticalResourceType The critical resource's type.
 /// @tparam ResourceType         The resource type carried by labels.
@@ -379,6 +411,16 @@ template <typename CriticalResourceType, typename ResourceType>
                        clock +
                            " does not take part in the dominance order as an increasing one, so "
                            "a dominator may sit above H while the label it evicted sat below it");
+        }
+        if (params.admission_rule == parts::AdmissionRule::Relaxed) {
+            const auto component = clock_component<CriticalResourceType>(graph, index);
+            if (component && params.dominance_ignored_components.contains(*component)) {
+                return off(HalfWayOff::ClockRelaxed,
+                           clock + " (component " + std::to_string(*component) +
+                               ") is left out of dominance by dominance_ignored_components, so a "
+                               "dominator may sit above H while the label it evicted sat below "
+                               "it");
+            }
         }
         return std::nullopt;
     }
