@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "rcspp/algorithm/proof_record.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/validation/pre_solve_plan.hpp"
@@ -76,14 +77,26 @@ struct SolveResult {
 
         /// @brief Whether memory pressure trimmed this solve, so the result may not be optimal.
         ///
-        /// Status can still be @c AlgorithmStatus::Complete after a trim, so a caller treating
-        /// @c Complete as a proof of optimality must check this too. Same value as
-        /// @c Algorithm::memory_pressure_was_triggered().
+        /// Status can still be @c AlgorithmStatus::Complete after a trim; @ref proven is then
+        /// @c false. Same value as @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
         /// @brief The bidirectional search's half-way point and join; empty from every other
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
+
+        /// @brief Whether the result is a proof: no path better than those returned exists (none
+        ///        at all, when none is returned).
+        ///
+        /// The status is @c AlgorithmStatus::Complete, and nothing a complete search can still
+        /// lose was lost: no arc was masked, the admission rule is exact, no memory pressure
+        /// (@c ProofLoss). Same value as @c Algorithm::is_optimal() after the solve.
+        bool proven = false;
+
+        /// @brief Why the result is not a proof; empty when it is: the status's name when the
+        ///        search did not finish (`"truncated"`, `"timeout"`...), otherwise the first
+        ///        @c ProofLoss (`"arcs_masked"`, `"relaxed_admission"`, `"memory_pressure"`).
+        std::string proof_lost_by;
 
         /// @brief Human-readable name of the exit status.
         [[nodiscard]] std::string status_string() const { return to_string(status); }

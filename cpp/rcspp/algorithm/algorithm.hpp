@@ -21,6 +21,7 @@
 #include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/limits.hpp"
+#include "rcspp/algorithm/proof_record.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
@@ -108,21 +109,22 @@ class Algorithm {
         virtual ~Algorithm() = default;
 
         /**
-         * @brief Whether the last @ref solve processed every label, so that its result is optimal.
+         * @brief Whether the last @ref solve's result is a proof of optimality
+         *        (@c SolveResult::proven).
          *
          * The default implementation answers whether the last solve ended with status
-         * @c AlgorithmStatus::Complete. It is recorded when the solve ends, before
-         * @c release_after_solve (the default) empties the label queues: reading
-         * @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any other
-         * early stop.
-         * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
-         * paths to try: @c strategy::Greedy then enumerated every path, and
+         * @c AlgorithmStatus::Complete, with nothing lost that the status cannot see: no arc
+         * masked, an exact admission rule, no memory pressure (@c ProofLoss). It is recorded when
+         * the solve ends, before @c release_after_solve (the default) empties the label queues:
+         * reading @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any
+         * other early stop. @c false before the first solve. A heuristic ends @c Complete only when
+         * it ran out of paths to try: @c strategy::Greedy then enumerated every path, and
          * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
          * @c DiversificationSearch override it to answer @c false.
          *
-         * @return true if the last solve processed every label, false otherwise.
+         * @return true if the last solve's result is a proof, false otherwise.
          */
-        [[nodiscard]] virtual bool is_optimal() const { return last_solve_complete_; }
+        [[nodiscard]] virtual bool is_optimal() const { return last_solve_proven_; }
 
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             require_supported_direction();
@@ -135,7 +137,7 @@ class Algorithm {
             // initialization
             Timer timer(true);
             timed_out_ = false;
-            last_solve_complete_ = false;
+            last_solve_proven_ = false;
             solve_timer_ = &timer;
             memory_limit_.resolve(params_.max_memory_gb,
                                   params_.limit_to_available_ram,
@@ -225,14 +227,22 @@ class Algorithm {
             }
             // Recorded now: releasing the label memory below empties the queues, after which
             // number_of_waiting_labels() would read 0 whatever the run did.
-            last_solve_complete_ = status == AlgorithmStatus::Complete;
+            if (memory_pressure_triggered_) {
+                proof_.record(ProofLoss::MemoryPressure);
+            }
+            const bool complete = status == AlgorithmStatus::Complete;
+            last_solve_proven_ = complete && proof_.is_intact();
 
             // Optionally release label memory so RAM is reclaimed when the caller returns.
             if (params_.release_after_solve) {
                 release_label_memory();
             }
 
-            SolveResult result{.solutions = std::move(solutions), .status = status};
+            SolveResult result{
+                .solutions = std::move(solutions),
+                .status = status,
+                .proven = last_solve_proven_,
+                .proof_lost_by = complete ? to_string(proof_.first_loss()) : to_string(status)};
             annotate(&result);
             return result;
         }
@@ -303,6 +313,10 @@ class Algorithm {
             number_of_extended_labels_ = 0;
             quota_ = params_.max_extended_labels_per_node;
             memory_pressure_triggered_ = false;
+            proof_.reset();
+            if (arc_mask_ != nullptr && !arc_mask_->empty()) {
+                proof_.record(ProofLoss::ArcsMasked);
+            }
         }
 
         /// @brief Throws unless this algorithm supports the direction its params ask for.
@@ -658,10 +672,14 @@ class Algorithm {
         std::unordered_set<Solution> solutions_;
         const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
 
+        /// @brief What this solve lost that its status cannot see; reset at @ref initialize,
+        ///        which records a mask that is not empty.
+        ProofRecord proof_;
+
         size_t number_of_extended_labels_ = 0;
 
         bool timed_out_ = false;
-        bool last_solve_complete_ = false;    ///< Whether the last solve() ended Complete.
+        bool last_solve_proven_ = false;      ///< Whether the last solve() was a proof.
         const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().
 };
 

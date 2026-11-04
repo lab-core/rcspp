@@ -65,6 +65,7 @@
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/make_algorithm.hpp"
 #include "rcspp/algorithm/path_evaluator.hpp"
+#include "rcspp/algorithm/proof_record.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/algorithm/solution_pool.hpp"
