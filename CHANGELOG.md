@@ -233,6 +233,9 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **How the labelling algorithms are built** (`docs/advanced/algorithms.md`) covers the dives,
+  drivers, arc masks, the admission rules, the threshold prune and the proof record, with every
+  strategy as an assembly of parts; `AGENT.md`'s file map lists the kernel's files.
 - **Bounded Greedy**: `strategy::BoundGuidedGreedy` (`algorithm="bound_guided_greedy"` in Python) is
   Greedy's dive with the children taken by cost plus completion bound (`parts::CostPlusBoundKey`),
   meant with `prune_by_threshold`. On fixed duals its best column was never dearer than plain

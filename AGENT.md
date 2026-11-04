@@ -571,30 +571,39 @@ class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 };
 ```
 
-A new *labelling* search needs no loop of its own: it is a descriptor of its parts, as
-`strategy::Simple`, `AStar`, `Pushing` and `Pulling` are (`docs/advanced/algorithms.md`, "A
-strategy of one's own"). The kernel's files:
+A new *labelling* search, or a new dive, needs no loop of its own: it is a descriptor of its
+parts, as every `strategy::` but `Diversification` is (`docs/advanced/algorithms.md`, "How the
+labelling algorithms are built" and "A strategy of one's own"). The kernel's files:
 
 ```text
 cpp/rcspp/algorithm/
-  strategies.hpp                 rcspp::strategy: Simple, AStar, Pushing, Pulling; Greedy, Tabu,
-                                 ImprovingTabu, Diversification<Inner>
+  strategies.hpp                 rcspp::strategy: Simple, AStar, Pushing, Pulling; Greedy,
+                                 BoundGuidedGreedy, Tabu, ImprovingTabu, Diversification<Inner>
   make_algorithm.hpp             make_algorithm, search_parts_t, searches, check_strategy: from a
                                  descriptor and a direction to a class
+  arc_mask.hpp                   ArcMask: arcs open, soft or hard, for Algorithm::set_arc_mask
+  dominance_mask.hpp             DominanceMask: the components the relaxed rule leaves out
+  proof_record.hpp               ProofLoss, ProofRecord: whether a result is a proof, and why not
+  diversification_search.hpp     DiversificationSearch: an inner strategy solved under a hard mask
+  tabu_list.hpp                  TabuList: the tabu searches' tenures
+  path_evaluator.hpp             PathEvaluator, PathEvaluation: replays a path through the model
   labelling/
     parts/                       rcspp::parts: the parts a strategy is built from, one header per
                                  kind, each with its concept
       stored_label.hpp           StoredLabel
       extension_outcome.hpp      ExtensionOutcome
-      admission/                 Admission (the concept), NodeView, EmptyNodeView,
-                                 DominanceAdmission, AdmitAll
+      admission/                 Admission (the concept), AdmissionRule, AdmissionContext,
+                                 NodeView, EmptyNodeView, DominanceAdmission, AdmitAll
       retention/                 Retention (the concept), KeepAtNodes, KeepWhileWaiting, Retain
       observer/                  Observer (the concept), NoObserver
       interleave/                Interleave (the concept), LeastWorkFirst
       schedule/                  the schedule concepts (schedule.hpp), PerNodeQuota,
                                  StoredAsideLabels, NodeQueues; FifoSchedule, BestFirstSchedule
                                  with CostKey and CostPlusBoundKey, SweepSchedule, PullSchedule,
-                                 DepthFirstSchedule with ChildFilter and KeepAllChildren
+                                 DepthFirstSchedule with ChildFilter, KeepAllChildren and
+                                 TabuChildFilter
+      driver/                    Driver (the concept), RunEnd; TabuEpisodes and
+                                 ImprovingTabuEpisodes, the tabu searches' drivers
     context.hpp                  SearchContext, Role: what every part reads of its solve
     take_rule.hpp                TakeRule, Decision, Verdict: the checks a label goes through
                                  when it is taken
@@ -605,9 +614,12 @@ cpp/rcspp/algorithm/
     half_way_checks.hpp          half_way_off_reason and its checks
     join.hpp                     JoinOptions, join: pairs the two halves
     labelling_algorithm.hpp      LabellingAlgorithm: one search, forward or backward
+    driven.hpp                   Driven: a search run by a driver
     bidirectional_labelling_algorithm.hpp
                                  BidirectionalLabellingAlgorithm: two searches and the join
 cpp/rcspp/test_support/
   optimum_problem.hpp            rcspp::test_support::optimum_problem: an exact strategy against
                                  forward Simple
+tests/cpp/util/parity.hpp        the parity harness: two searches compared extension by extension,
+                                 for a port (its own tests are in test_kernel_properties.cpp)
 ```
