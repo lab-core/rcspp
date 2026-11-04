@@ -245,3 +245,74 @@ TEST(LabelBuckets, SuggestRange) {
     // Edge: target=0 returns unchanged bucket_width_.
     EXPECT_EQ(bl.suggest_bucket_width(0), 10u);
 }
+
+namespace {
+
+/// @brief The dominance tests of @p ContainerType under masks: an empty mask is the exact test;
+///        leaving a component out compares the other alone.
+template <typename ContainerType>
+void expect_masked_dominance(ContainerType container) {
+    auto stored = make_label(0, 1.0, 5.0);
+    container.add_label(stored.get());
+    auto worse_first = make_label(1, 2.0, 3.0);  // worse on component 0 only
+    const DominanceMask none(2);
+    DominanceMask second(2);
+    second.ignore(1);
+    DominanceMask first(2);
+    first.ignore(0);
+
+    EXPECT_FALSE(container.is_dominated(*worse_first));
+    EXPECT_FALSE(container.is_dominated(*worse_first, none));
+    EXPECT_TRUE(container.is_dominated(*worse_first, second));
+    EXPECT_FALSE(container.is_dominated(*worse_first, first));
+
+    auto better_first = make_label(2, 0.0, 9.0);  // better on component 0 only
+    EXPECT_EQ(container.remove_dominated_labels(*better_first, none), 0U);
+    EXPECT_EQ(container.remove_dominated_labels(*better_first, first), 0U);
+    EXPECT_EQ(container.remove_dominated_labels(*better_first, second), 1U);
+    EXPECT_TRUE(stored->dominated);
+    EXPECT_TRUE(container.get_labels().empty());
+}
+
+}  // namespace
+
+/// @brief A list and buckets test dominance over the components a mask leaves in.
+TEST(DominanceMask, ContainersCompareTheComponentsLeftIn) {
+    expect_masked_dominance(LabelList<RComp>{});
+    expect_masked_dominance(BucketLabelList(10, 0, 1));
+}
+
+/// @brief Going backward, each component left in applies its own backward rule.
+TEST(DominanceMask, ABackwardListComparesBackward) {
+    LabelList<RComp, BackwardDirection> list;
+    auto stored = make_label(0, 5.0, 1.0);
+    list.add_label(stored.get());
+    auto candidate = make_label(1, 3.0, 2.0);
+    const auto component = [](const std::unique_ptr<Label<RComp>>& label,
+                              size_t index) -> const auto& {
+        return label->get_resource().get_component<RealResource>(index);
+    };
+    const bool first_dominates = component(stored, 0).back_dominates(component(candidate, 0));
+    const bool second_dominates = component(stored, 1).back_dominates(component(candidate, 1));
+    ASSERT_NE(first_dominates, second_dominates) << "the labels must differ in one component";
+    DominanceMask second(2);
+    second.ignore(1);
+    DominanceMask first(2);
+    first.ignore(0);
+    EXPECT_FALSE(list.is_dominated(*candidate));
+    EXPECT_EQ(list.is_dominated(*candidate, second), first_dominates);
+    EXPECT_EQ(list.is_dominated(*candidate, first), second_dominates);
+}
+
+/// @brief A mask counts the components it leaves out, once each; one it was not sized for is
+///        compared.
+TEST(DominanceMask, CountsWhatItLeavesOut) {
+    DominanceMask mask(3);
+    EXPECT_TRUE(mask.empty());
+    mask.ignore(2);
+    mask.ignore(2);
+    EXPECT_EQ(mask.number_of_ignored_components(), 1U);
+    EXPECT_TRUE(mask.ignores(2));
+    EXPECT_FALSE(mask.ignores(7));
+    EXPECT_THROW(mask.ignore(7), std::out_of_range);
+}
