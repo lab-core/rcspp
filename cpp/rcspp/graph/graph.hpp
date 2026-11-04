@@ -318,6 +318,11 @@ class Graph {
 
         [[nodiscard]] size_t get_number_of_arcs() const { return active_arc_count_; }
 
+        /// @brief One past the largest arc id, removed arcs included: what a table indexed by arc
+        ///        id (an @c ArcMask) is sized for. @ref get_number_of_arcs counts the active arcs
+        ///        only.
+        [[nodiscard]] size_t get_arc_id_bound() const { return arcs_.size(); }
+
         /// @brief Append *rows* to the rows of arc *arc_id*.
         /// @return True if the arc was found and updated, false if *arc_id* is invalid.
         bool add_rows_to_arc(size_t arc_id, const std::vector<Row>& rows) {

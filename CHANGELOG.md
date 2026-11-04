@@ -204,6 +204,12 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Arc masks** (`rcspp/algorithm/arc_mask.hpp`): `ArcMask` marks arcs, by id, hard (never used)
+  or soft (to be avoided, which a child filter reads); `Algorithm::set_arc_mask` has every later
+  solve leave the hard arcs out, as if they were not in the graph, without editing it, so arc ids
+  and the bounds computed on the whole graph stay valid. `Graph::get_arc_id_bound` sizes a mask;
+  an extension along a hard arc ends `parts::ExtensionOutcome::Masked` and draws no label. C++
+  only. See "Leaving arcs out of a solve" in `docs/advanced/algorithms.md`.
 - **The parts of a dive**, in `rcspp::parts`: `DepthFirstSchedule<ResourceType, KeyType, FilterType>` takes labels depth
   first, settling each label's children together, cheapest first (`CostKey`), after a filter
   (`KeepAllChildren` by default, or a `ChildFilter` of one's own); `AdmitAll` keeps every feasible
