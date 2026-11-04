@@ -124,7 +124,112 @@ inline void expect_each_solve_starts_afresh() {
     }
 }
 
+/// @brief Keeps at most one label per node: not exact, and says so.
+struct AtMostOne {
+        static bool exact(const parts::AdmissionContext& /*ctx*/) { return false; }
+
+        template <typename ResourceType, typename NodeViewType>
+        bool admit(const Label<ResourceType>& candidate, NodeViewType& node,
+                   const parts::AdmissionContext& /*ctx*/) const {
+            if (node.is_dominated(candidate) || node.size() >= 1) {
+                return false;
+            }
+            node.evict_dominated_by(candidate);
+            return true;
+        }
+};
+
+/// @brief Simple's order with @ref AtMostOne, in every direction.
+struct SimpleAtMostOne {
+        template <typename R, typename Dir>
+        using schedule = parts::FifoSchedule<R>;
+        template <typename R, typename Dir>
+        using admission = AtMostOne;
+};
+
+/// @brief Solves @ref two_routes with @p Strategy and @p params, the labels kept, with @p mask
+///        when one is given; returns the result, and expects is_optimal() to read its proof.
+template <typename Strategy>
+inline SolveResult solve_for_proof(const AlgorithmBaseParams& params,
+                                   const ArcMask* mask = nullptr) {
+    auto graph = two_routes();
+    auto algorithm =
+        graph->create_algorithm<Strategy>(params.with_container<LabelList<Resources>>());
+    algorithm->set_arc_mask(mask);
+    SolveResult result = graph->solve(algorithm.get());
+    EXPECT_EQ(algorithm->is_optimal(), result.proven);
+    EXPECT_EQ(result.proven, result.proof_lost_by.empty());
+    return result;
+}
+
 }  // namespace solve_status_test
+
+/// @brief A complete exact solve is a proof, with nothing lost.
+TEST(SolveProof, ACompleteExactSolveIsProven) {
+    namespace sst = solve_status_test;
+    const auto result = sst::solve_for_proof<rcspp::strategy::Simple>({});
+    EXPECT_EQ(result.status, rcspp::AlgorithmStatus::Complete);
+    EXPECT_TRUE(result.proven);
+    EXPECT_EQ(result.proof_lost_by, "");
+}
+
+/// @brief A quota that cut nothing leaves the proof; one that cut is not a proof, through the
+///        status.
+TEST(SolveProof, AQuotaIsAProofLossOnlyWhenItCuts) {
+    namespace sst = solve_status_test;
+    rcspp::AlgorithmBaseParams roomy;
+    roomy.max_extended_labels_per_node = 5;
+    EXPECT_TRUE(sst::solve_for_proof<rcspp::strategy::Simple>(roomy).proven);
+
+    const auto cut = sst::solve_for_proof<rcspp::strategy::Simple>(sst::truncated(false));
+    EXPECT_EQ(cut.status, rcspp::AlgorithmStatus::Truncated);
+    EXPECT_FALSE(cut.proven);
+    EXPECT_EQ(cut.proof_lost_by, "truncated");
+}
+
+/// @brief A mask that leaves an arc out loses the proof, though the search finishes; an empty
+///        one does not.
+TEST(SolveProof, AMaskedSolveIsNotProven) {
+    namespace sst = solve_status_test;
+    rcspp::ArcMask mask(sst::two_routes()->get_arc_id_bound());
+    EXPECT_TRUE(sst::solve_for_proof<rcspp::strategy::Simple>({}, &mask).proven);
+
+    mask.set(1, rcspp::ArcMask::State::Hard);  // 0 -> 2
+    const auto masked = sst::solve_for_proof<rcspp::strategy::Simple>({}, &mask);
+    EXPECT_EQ(masked.status, rcspp::AlgorithmStatus::Complete);
+    EXPECT_FALSE(masked.solutions.empty());
+    EXPECT_FALSE(masked.proven);
+    EXPECT_EQ(masked.proof_lost_by, "arcs_masked");
+}
+
+/// @brief An admission rule that is not exact loses the proof, in every direction.
+TEST(SolveProof, ARelaxedAdmissionIsNotProven) {
+    namespace sst = solve_status_test;
+    for (const auto direction : {rcspp::SearchDirection::Forward,
+                                 rcspp::SearchDirection::Backward,
+                                 rcspp::SearchDirection::Bidirectional}) {
+        rcspp::AlgorithmBaseParams params;
+        params.direction = direction;
+        const auto result = sst::solve_for_proof<sst::SimpleAtMostOne>(params);
+        EXPECT_EQ(result.status, rcspp::AlgorithmStatus::Complete) << rcspp::to_string(direction);
+        EXPECT_FALSE(result.proven) << rcspp::to_string(direction);
+        EXPECT_EQ(result.proof_lost_by, "relaxed_admission") << rcspp::to_string(direction);
+    }
+}
+
+/// @brief Memory pressure loses the proof, though the search finishes.
+TEST(SolveProof, MemoryPressureIsNotProven) {
+    namespace sst = solve_status_test;
+    rcspp::AlgorithmBaseParams params;
+    params.max_memory_gb = 1000.0;          // never exceeded
+    params.memory_pressure_fraction = 0.0;  // under pressure at every check
+    params.memory_check_interval = 1;
+    const auto result = sst::solve_for_proof<rcspp::strategy::Simple>(params);
+    ASSERT_TRUE(result.memory_pressure_triggered);
+    EXPECT_EQ(result.status, rcspp::AlgorithmStatus::Complete);
+    EXPECT_FALSE(result.proven);
+    EXPECT_EQ(result.proof_lost_by, "memory_pressure");
+}
 
 TEST(SolveStatus, AFullSolveIsCompleteAndOptimal) {
     namespace sst = solve_status_test;
