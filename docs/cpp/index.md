@@ -36,7 +36,8 @@ cpp/rcspp/
 │   ├── pushing_dominance_algorithm.hpp
 │   ├── pulling_dominance_algorithm.hpp
 │   ├── astar_dominance_algorithm.hpp
-│   ├── tabu_search.hpp / improving_tabu_search.hpp
+│   ├── arc_mask.hpp            # ArcMask: arcs a solve leaves out (hard) or avoids (soft)
+│   ├── proof_record.hpp        # ProofLoss: what a finished solve can still have lost
 │   ├── diversification_search.hpp
 │   ├── label_buckets.hpp       # LabelList, LabelBuckets
 │   ├── path_evaluator.hpp      # PathEvaluator: replays a path, finds its first fault

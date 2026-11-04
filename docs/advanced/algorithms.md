@@ -564,19 +564,29 @@ result = rg.solve(algorithm="greedy", params=params)
 
 ## `Tabu`
 
-Tabu-arc metaheuristic.  At each iteration it removes the arcs used in the
-current solution from the graph and re-solves, diversifying the search.
-Arc removal is temporary (governed by `tabu_tenure`).
+Episodes of Greedy's dive. Each episode dives from the sources and ends at the first path it
+reaches; the arcs of that path then become **tabu** for `tabu_tenure` episodes (plus an adaptive
+extra, which grows after an episode that found nothing new and shrinks after one that did). A dive
+drops a child reached along a tabu arc, unless every child is: it can always go on. The graph is
+not edited: the tabu arcs are the soft arcs of the search's mask. `max_iterations` counts
+episodes, and must be finite. An episode that runs out of paths while no arc is tabu has proved
+that no path exists, and ends the solve; any other result is not a proof (`result.proven` is
+false).
 
 ```python
 params = AlgorithmParams()
 params.tabu_tenure        = 5
 params.tabu_random_noise  = True      # random ±1 tenure noise
 params.max_iterations     = 100
-params.tabu_exempt_node_ids     = {source_id, sink_id}  # never remove arcs from these
+params.tabu_exempt_node_ids     = {source_id, sink_id}  # never make their arcs tabu
 
 result = rg.solve(algorithm="tabu", params=params)
 ```
+
+`ImprovingTabu` (C++, `strategy::ImprovingTabu`) dives once with no arc tabu, then runs
+`max_iterations` tabu episodes, counting those that find no path strictly cheaper than the best
+so far: `diversification_tenure` of them in a row grow the tenure. Each episode still stops at its
+first path, whatever it costs; only the count reads the best cost.
 
 ## `Diversification`
 
@@ -913,12 +923,12 @@ on each side.
 
 | Member | What it decides | Built in (`rcspp::parts`) | Concept |
 |---|---|---|---|
-| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule`, `DfsSchedule<R, Key, Filter>` | `Schedule` |
+| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule`, `DfsSchedule<R, Key, Filter>` with `KeepAllChildren` or `TabuChildFilter` | `Schedule` |
 | `admission<R, Dir>` | whether a new label is kept at its node | `DominanceAdmission` (default), `KeepAll` | `Admission` |
 | `retention<R, Dir>` | where kept labels live, as `template <C> using type` (`Retain<T>` names a library one) | `KeepAtNodes` (default), `KeepWhileWaiting` | `Retention` |
 | `observer<R, Dir>` | told of every extension | `NoObserver` (default) | `Observer` |
 | `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
-| `driver` | runs the search several times in one solve, changing it between runs (forward or backward; not bidirectionally) | none (default: one run, then the phases) | `Driver` |
+| `driver` | runs the search several times in one solve, changing it between runs (forward or backward; not bidirectionally) | none (default: one run, then the phases), `TabuEpisodes`, `ImproveEpisodes` | `Driver` |
 | `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
 
 This strategy takes labels best first forward and first in, first out backward; a bidirectional
@@ -1038,6 +1048,11 @@ struct DiveEachPathOnce {
         static constexpr bool backward = false;
 };
 ```
+
+`strategy::Tabu` is such a strategy: Greedy's parts, with `parts::TabuChildFilter` as the
+schedule's filter (it drops a child reached along a soft arc unless every child is) and
+`parts::TabuEpisodes` as its driver, which makes each path's arcs soft between episodes.
+`strategy::ImprovingTabu` names `parts::ImproveEpisodes` instead.
 
 **The contract.** `create_algorithm` checks every part of a descriptor against its concept before it
 builds anything, and names the first that fails. Three rules the concepts cannot check are part of

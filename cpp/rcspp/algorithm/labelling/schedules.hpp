@@ -464,6 +464,35 @@ struct KeepAllChildren {
                     const detail::SearchContext<ResourceType>& /*ctx*/) const {}
 };
 
+/// @brief Tabu's rule: a child reached along a soft arc of the search's mask (a tabu arc) is
+///        dropped, unless every child is (aspiration: the search can always go on). The others
+///        keep their order.
+struct TabuChildFilter {
+        template <typename ResourceType>
+        void select(std::vector<StoredLabel<ResourceType>>& children,
+                    std::vector<StoredLabel<ResourceType>>& rejected,
+                    const detail::SearchContext<ResourceType>& ctx) const {
+            const ArcMask* mask = ctx.arc_mask;
+            if (mask == nullptr || mask->empty()) {
+                return;
+            }
+            // The arc a child was extended along: its in-arc forward, its out-arc backward.
+            const auto is_tabu = [mask](const StoredLabel<ResourceType>& child) {
+                const auto* arc = child.label->get_in_arc() != nullptr ? child.label->get_in_arc()
+                                                                       : child.label->get_out_arc();
+                return mask->is_soft(arc->id);
+            };
+            if (std::ranges::all_of(children, is_tabu)) {
+                return;
+            }
+            const auto tabu = std::ranges::stable_partition(
+                children,
+                [&is_tabu](const StoredLabel<ResourceType>& child) { return !is_tabu(child); });
+            rejected.insert(rejected.end(), tabu.begin(), tabu.end());
+            children.erase(tabu.begin(), tabu.end());
+        }
+};
+
 /// @brief Hands labels out depth first: the children of the label extended last, lowest key
 ///        first, before any label waiting from earlier; up to the per-node quota (Greedy's order).
 ///
@@ -481,7 +510,7 @@ struct KeepAllChildren {
 /// @tparam KeyType      The order among a label's children: @ref CostKey (the default) or
 ///                      @ref CompletionKey.
 /// @tparam FilterType   Which children are kept (@ref ChildFilter): @ref KeepAllChildren (the
-///                      default).
+///                      default) or @ref TabuChildFilter.
 template <typename ResourceType, typename KeyType = CostKey, typename FilterType = KeepAllChildren>
 class DfsSchedule {
         static_assert(ChildFilter<FilterType, ResourceType>,

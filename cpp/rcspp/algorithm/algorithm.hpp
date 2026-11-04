@@ -279,7 +279,7 @@ struct AlgorithmBaseParams {
 
         /// @brief Consecutive non-improving dives before a diversification step.
         ///
-        /// Used by @ref ImprovingTabuSearch: when this many dives in a row fail
+        /// Used by @c strategy::ImprovingTabu: when this many dives in a row fail
         /// to strictly improve the best known cost, @c grow_extra() is called on
         /// the tabu list to force exploration of unexplored regions.
         size_t diversification_tenure = 10;  // NOLINT(readability-magic-numbers)
@@ -434,9 +434,10 @@ class Algorithm {
          * the solve ends, before @c release_after_solve (the default) empties the label queues:
          * reading @ref waiting_labels afterwards would answer 0 after a timeout or any other early
          * stop. @c false before the first solve. A heuristic ends @c Complete only when it ran
-         * out of paths to try: @c strategy::Greedy then enumerated every path, and
-         * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
-         * @c DiversificationSearch override it to answer @c false.
+         * out of paths to try: @c strategy::Greedy then enumerated every path, and the tabu
+         * searches found none before any arc was tabu (a tabu arc loses the proof:
+         * @c ProofLoss::HeuristicDriver). @c DiversificationSearch overrides it to answer
+         * @c false.
          *
          * @return true if the last solve's result is a proof, false otherwise.
          */

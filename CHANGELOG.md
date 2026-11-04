@@ -28,6 +28,19 @@ New features are summarised, with a pointer to where they are documented.
   `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
   a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,
   `create_algorithm<strategy::Greedy>`); in Python, `algorithm="greedy"` is unchanged.
+- **The tabu searches run on the labelling kernel**: Greedy's dive, with a child filter that drops
+  a child reached along a tabu arc unless every child is (`parts::TabuChildFilter`), run episode
+  after episode by a driver (`parts::TabuEpisodes`, `parts::ImproveEpisodes`) that makes each
+  path's arcs tabu, as soft arcs of the search's mask. They draw the same labels, in the same
+  order, and return the same paths and status as before; `max_iterations` still counts episodes.
+  Like every labelling search, they now apply `max_extended_labels_per_node`, `prune_by_incumbent`
+  and memory pressure, read a mask set with `Algorithm::set_arc_mask`, and look at the stop
+  conditions before each label they take (every 4096 steps before). A solve that made an arc tabu
+  is not a proof (`ProofLoss::HeuristicDriver`), and `is_optimal()` of Improving Tabu now answers
+  `proven`, true only when its first dive proves that no path exists. `TabuSearchAlgorithm`,
+  `ImprovingTabuSearch`, `BacktrackingDiveAlgorithm` and their headers are gone, with no alias:
+  `strategy::Tabu` and `strategy::ImprovingTabu` are descriptors, solved as before; in Python,
+  `algorithm="tabu"` is unchanged.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification

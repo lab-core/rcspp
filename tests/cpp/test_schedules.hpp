@@ -73,6 +73,14 @@ class Fixture {
             return pool_->get_nb_total_labels() - pool_->get_nb_available_labels();
         }
 
+        /// @brief An entry for @p parent's label extended along arc @p arc_id.
+        Entry child(const Entry& parent, size_t arc_id) {
+            const auto* arc = graph_->get_arc(arc_id);
+            auto& made = pool_->get_next_label(arc->destination);
+            parent.label->extend(*arc, &made);
+            return {.label = &made, .position = {}};
+        }
+
         /// @brief Hands out every label @p schedule has, as costs.
         template <typename ScheduleType>
         std::vector<double> drain(ScheduleType* schedule) {
@@ -726,6 +734,40 @@ TEST(DfsSchedule, ReleasesTheChildrenTheFilterDrops) {
     EXPECT_EQ(f.in_use(), 2U);
     EXPECT_EQ(bft::drain(&dfs, f.ctx),
               (std::vector<std::pair<size_t, double>>{{1, 0.5}, {1, 1.5}}));
+}
+
+/// @brief The tabu filter drops a child reached along a soft arc, unless every child is; with
+///        no mask, or none soft, it keeps every child.
+TEST(TabuChildFilter, DropsTabuChildrenUnlessEveryChildIsTabu) {
+    namespace st = schedules_test;
+    st::Fixture f;
+    const auto source = f.label(0, 0.0);
+    const auto at_one = f.child(source, 0);
+    const auto at_two = f.child(at_one, 1);
+    const parts::TabuChildFilter filter;
+    const auto select = [&](const ArcMask* mask) {
+        f.ctx.arc_mask = mask;
+        std::vector<st::Entry> children{at_one, at_two};
+        std::vector<st::Entry> rejected;
+        filter.select(children, rejected, f.ctx);
+        return std::make_pair(children.size(), rejected.size());
+    };
+    EXPECT_EQ(select(nullptr), std::make_pair(size_t{2}, size_t{0}));
+    ArcMask mask(2);
+    EXPECT_EQ(select(&mask), std::make_pair(size_t{2}, size_t{0}));
+
+    mask.set(0, ArcMask::State::Soft);
+    f.ctx.arc_mask = &mask;
+    std::vector<st::Entry> children{at_one, at_two};
+    std::vector<st::Entry> rejected;
+    filter.select(children, rejected, f.ctx);
+    ASSERT_EQ(children.size(), 1U);
+    EXPECT_EQ(children.front().label, at_two.label);
+    ASSERT_EQ(rejected.size(), 1U);
+    EXPECT_EQ(rejected.front().label, at_one.label);
+
+    mask.set(1, ArcMask::State::Soft);  // every child tabu: aspiration keeps them all
+    EXPECT_EQ(select(&mask), std::make_pair(size_t{2}, size_t{0}));
 }
 
 /// @brief Over the quota a label is stored aside until the next phase, or, on a bidirectional
