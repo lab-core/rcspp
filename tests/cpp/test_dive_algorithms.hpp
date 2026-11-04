@@ -483,6 +483,25 @@ TEST(DiversificationSearchTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
+/// @brief Diversification leaves out the hard arcs of the mask it is given, with its own tabu
+///        arcs: with the best path's first arc hard, it finds only the other path, and the mask
+///        given is left as it was.
+TEST(DiversificationSearchTest, ReadsTheMaskItIsGiven) {
+    auto g = make_two_path_graph();
+    ArcMask mask(g->get_arc_id_bound());
+    mask.set(0, ArcMask::State::Hard);  // 0 -> 1
+    AlgorithmBaseParams params;
+    params.max_iterations = kDivIters;
+    auto algorithm = g->create_algorithm<strategy::Diversification<>>(
+        params.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    algorithm->set_arc_mask(&mask);
+    const auto result = g->solve(algorithm.get());
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_EQ(result.solutions[0].path_arc_ids, (std::vector<size_t>{2, 3}));
+    EXPECT_EQ(mask.count(), 1U);
+    EXPECT_FALSE(result.proven);
+}
+
 /// @brief DiversificationSearch: tabu_exempt_node_ids preserves arcs involving those nodes.
 TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     auto g = make_two_path_graph();
