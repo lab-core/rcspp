@@ -412,7 +412,7 @@ def test_every_labelling_algorithm_runs_in_every_direction(algorithm, direction)
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
 
 
-@pytest.mark.parametrize("algorithm", ["greedy", "tabu"])
+@pytest.mark.parametrize("algorithm", ["greedy", "tabu", "bounded_greedy"])
 def test_greedy_and_tabu_search_backward_but_not_bidirectionally(algorithm):
     """``greedy`` and ``tabu`` search forward or backward, finding the same cheapest
     path here; asked for a bidirectional search, they raise ValueError."""

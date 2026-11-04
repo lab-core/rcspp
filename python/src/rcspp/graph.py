@@ -25,6 +25,7 @@ _ALGORITHM_MAP = {
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
     "tabu": lambda: _ext.graph.Algorithm.Tabu,
     "astar": lambda: _ext.graph.Algorithm.AStar,
+    "bounded_greedy": lambda: _ext.graph.Algorithm.BoundedGreedy,
 }
 
 # Kept for backward compatibility
@@ -553,7 +554,8 @@ class ResourceGraph:
         Args:
             algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
                 ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.Tabu``,
-                ``Algorithm.AStar``, or the equivalent strings ``'simple'``,
+                ``Algorithm.AStar``, ``Algorithm.BoundedGreedy``, or the equivalent
+                strings ``'bounded_greedy'``, ``'simple'``,
                 ``'pushing'``, ``'pulling'``, ``'greedy'``, ``'tabu'``,
                 ``'astar'``.
             upper_bound: Prune paths with cost ≥ this value.

@@ -68,6 +68,23 @@ struct Greedy {
         static constexpr bool bidirectional = false;
 };
 
+/// @brief Greedy's dive with the children taken by cost plus completion bound, lowest first
+///        (@c parts::CompletionKey), not by cost alone: each step goes toward the cheapest
+///        completion. Meant with @c threshold_pruning, which drops, under the same bound, the
+///        labels that cannot beat the upper bound. Forward or backward; not bidirectionally.
+///
+/// @c max_iterations counts the labels taken, as in Greedy. The bound is computed at the start of
+/// each solve: one Bellman–Ford run over the arcs' shares of the cost, from the end nodes.
+struct BoundedGreedy {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DfsSchedule<ResourceType, parts::CompletionKey>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::KeepAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        static constexpr bool bidirectional = false;
+};
+
 /// @brief Episodes of Greedy's dive, each ending at its first path, whose arcs are then tabu for
 ///        @c tabu_tenure episodes: a child reached along a tabu arc is dropped unless every child
 ///        is (@c parts::TabuEpisodes, @c parts::TabuChildFilter). Forward or backward; a driven
