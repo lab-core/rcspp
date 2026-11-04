@@ -196,3 +196,40 @@ pricer matches `graph_pricer.hpp`. No `D-55` breach in code, tests or the six co
 | F.20 | ✔ tests: no check that the layer behaves as C++ beyond end to end | list what the 77 C++ cases (12 files `tests/cpp/test_column_generation_*.hpp`) check, map each to a Python test, write the missing ones (what they test, not how) |
 | F.21 | ✘ `import column_generation_loop` in the C++-backed `test_column_generation_end_to_end.py` loads `examples/python/column_generation_loop.py` by a `sys.path` hack | none for now (user); may go later |
 | F.22 | ✔ `D-131`'s three deviations | accepted (`D-131`) |
+
+Step F record (2026-11-03, Opus; all of F.1–F.20 fixed, `D-135` for the choices made while fixing). Batches 1–5 and the
+review's fixes were made on top of the branch, then each file was put in the commit that introduced it (a rebuilt
+history: each file at its final content from its last commit on, a three-way merge before, conflicts by hand); every
+rebuilt commit passes its own tests, mypy `--strict`, pyright strict and pre-commit. Full suite once: 676 passed,
+1 skipped (784 − the 130 mirror cases + 22 new), 100 % of the package's lines. WIP history kept on the local branch
+`backup/step-f-wip`.
+
+| # | commit (`feature/column-generation`) | on `feature/column-generation-pure-python` | tests in the layer's files at that commit |
+|---|---|---|---|
+| 1 | `df83c093` | `45a3c19b` | 12 |
+| 2 | `be1bbdf0` | `e2468e7b` | 59 |
+| 3 | `8c8e9285` | `10c935dc` | 83 |
+| 4 | `c8561444` | `a2807bb4` | 138 |
+| 5 | `620fdde9` | `3333a077` | 171 |
+| 6 | `79bc41b7` | `13665eb3` | 255 |
+
+What differs from the batch plan:
+
+- The mirror test went in batch 1 (it checked the binding's signatures this batch changes on purpose); the import check
+  moved to `test_python_column_generation.py` (commit 1).
+- F.15 (`_copied`) was fixed with F.10 in batch 2; its test came in batch 3.
+- F.12: the interrupt check moved after the re-solve in commit 6 (it came with Ctrl-C); commits 3–5 keep `_optimize`
+  without it.
+- `[tool.pyright]` in commit 1, `graph.py`'s annotations in commit 5; no `pythonVersion` pin (numpy's stubs then report
+  "partially unknown"; mypy checks 3.11).
+- `python_column_generation_fakes.py` has its pricer fakes from commit 4 (the master tests now use a scripted pricer,
+  `Pricer` being abstract).
+- F.20: 76 C++ cases (71 `TEST` + 5 typed; two of the 12 files hold helpers): 59 covered, 1 deviation (the strategy's
+  cursor), 2 missing (self-test: an ignored column, an integer solve that solves the relaxation) and 14 partial; all
+  written (20 tests or checks).
+- Review pass (fresh agent): 3 bugs the diff opened, fixed with a failing test first: `add_rows` with a sense of
+  another type made equality rows (now `TypeError`); `tolerances=None` failed inside `run` (now `TypeError` when the
+  loop is built); `PricingStage(search=42)` or with another algorithm was accepted (now `TypeError` / `ValueError`).
+  Also: the HiGHS Ctrl-C test waits 50 ms after the callback (a GIL switch inside it would abort the solve), and the
+  registry docstring says where a name is built. Left: `solve_restricted_master_integer` returns the master solver's
+  status unchecked (as C++; nothing reads it).
