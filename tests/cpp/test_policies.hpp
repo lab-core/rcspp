@@ -43,29 +43,47 @@ struct NoClear {
 using BackwardList = LabelList<Composed, BackwardDirection>;
 using Buckets = LabelBuckets<RealResource, RealResource, Composed>;
 
-/// @brief A line 0 -> 1 -> 2 whose one resource is the cost, and a pool for its labels.
+/// @brief A line 0 -> 1 -> 2 whose resource is the cost (component 0), and a load (component 1)
+///        when asked for, and a pool for its labels.
 class Fixture {
     public:
-        Fixture() : graph_(std::make_unique<ResourceGraph<RealResource>>()) {
+        explicit Fixture(bool with_load = false)
+            : graph_(std::make_unique<ResourceGraph<RealResource>>()), with_load_(with_load) {
             graph_->add_resource<RealResource>(
                 std::make_unique<AdditionExtensionFunction<RealResource>>(),
                 std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
                 std::make_unique<ValueCostFunction<RealResource>>(),
                 std::make_unique<ValueDominanceFunction<RealResource>>());
+            if (with_load) {
+                graph_->add_resource<RealResource>(
+                    std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                    std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                    std::make_unique<TrivialCostFunction<RealResource>>(),
+                    std::make_unique<ValueDominanceFunction<RealResource>>());
+            }
             graph_->add_node(0, /*source=*/true, /*sink=*/false);
             graph_->add_node(1);
             graph_->add_node(2, /*source=*/false, /*sink=*/true);
-            graph_->add_arc<RealResource>({1.0}, 0, 1, 1.0);
-            graph_->add_arc<RealResource>({1.0}, 1, 2, 1.0);
+            if (with_load) {
+                graph_->add_arc<RealResource, RealResource>({1.0, 1.0}, 0, 1, 1.0);
+                graph_->add_arc<RealResource, RealResource>({1.0, 1.0}, 1, 2, 1.0);
+            } else {
+                graph_->add_arc<RealResource>({1.0}, 0, 1, 1.0);
+                graph_->add_arc<RealResource>({1.0}, 1, 2, 1.0);
+            }
             graph_->sort_nodes();
             pool_ = std::make_unique<LabelPool<Composed>>(
                 std::make_unique<LabelFactory<Composed>>(&graph_->get_resource_factory()));
         }
 
-        /// @brief A label at node @p node_id whose resource (its cost) is @p cost.
-        Label<Composed>* label(size_t node_id, double cost) {
+        /// @brief A label at node @p node_id whose cost is @p cost, and whose load is @p load
+        ///        when the fixture has one.
+        Label<Composed>* label(size_t node_id, double cost, double load = 0.0) {
             auto& made = pool_->get_next_label(graph_->get_node(node_id));
             made.get_resource().get_component<RealResource>(0).set_value(cost);
+            if (with_load_) {
+                made.get_resource().get_component<RealResource>(1).set_value(load);
+            }
             made.dominated = false;
             return &made;
         }
@@ -75,6 +93,7 @@ class Fixture {
 
     private:
         std::unique_ptr<ResourceGraph<RealResource>> graph_;
+        bool with_load_;
         std::unique_ptr<LabelPool<Composed>> pool_;
 };
 
@@ -101,6 +120,74 @@ TEST(Policies, DominanceAdmissionKeepsRejectsAndEvicts) {
     ASSERT_TRUE(admission.admit(*cheap, view, context));
     EXPECT_TRUE(dear->dominated) << "the 2 evicts the 5";
     EXPECT_EQ(view.size(), 0U) << "evicted, and not yet stored";
+}
+
+/// @brief Under the relaxed rule, labels compare over the components the mask leaves in: one that
+///        exact dominance would keep is dropped, and one evicted. A mask that leaves nothing out is
+///        exact.
+TEST(Policies, RelaxedAdmissionComparesOverTheComponentsLeftIn) {
+    namespace pt = policies_test;
+    pt::Fixture f(/*with_load=*/true);
+    pt::List node;
+    parts::NodeView<pt::List> view(&node);
+    const parts::DominanceAdmission admission;
+    const DominanceMask nothing_left_out(2);
+    EXPECT_TRUE(parts::DominanceAdmission::is_exact(
+        {.rule = parts::AdmissionRule::Relaxed, .dominance_mask = &nothing_left_out}));
+    EXPECT_TRUE(parts::DominanceAdmission::is_exact({.rule = parts::AdmissionRule::Relaxed}));
+    DominanceMask load_left_out(2);
+    load_left_out.ignore(1);
+    const parts::AdmissionContext context{.rule = parts::AdmissionRule::Relaxed,
+                                          .dominance_mask = &load_left_out};
+    EXPECT_FALSE(parts::DominanceAdmission::is_exact(context));
+
+    auto* dear = f.label(1, 5.0, 1.0);
+    ASSERT_TRUE(admission.admit(*dear, view, context));
+    node.add_label(dear);
+    auto* cheap = f.label(1, 3.0, 4.0);  // exactly, neither dominates the other
+    ASSERT_TRUE(admission.admit(*cheap, view, context));
+    EXPECT_TRUE(dear->dominated) << "the 3 evicts the 5, the load left out";
+    node.add_label(cheap);
+    EXPECT_FALSE(admission.admit(*f.label(1, 4.0, 0.0), view, context))
+        << "the 3 dominates the 4, though the 4 carries less load";
+    EXPECT_EQ(view.size(), 1U);
+}
+
+/// @brief Under the k-best rule, a node keeps at most k labels after dominance: at a full node, a
+///        candidate takes the place of the costliest when it costs less, and is dropped otherwise;
+///        one that evicts by dominance always finds room. Without a limit, the rule is exact.
+TEST(Policies, KBestAdmissionKeepsTheCheapestKLabelsAtANode) {
+    namespace pt = policies_test;
+    pt::Fixture f(/*with_load=*/true);
+    pt::List node;
+    parts::NodeView<pt::List> view(&node);
+    const parts::DominanceAdmission admission;
+    EXPECT_TRUE(parts::DominanceAdmission::is_exact({.rule = parts::AdmissionRule::KBest}));
+    const parts::AdmissionContext context{.rule = parts::AdmissionRule::KBest,
+                                          .max_labels_per_node = 2};
+    EXPECT_FALSE(parts::DominanceAdmission::is_exact(context));
+
+    auto* dear = f.label(1, 5.0, 1.0);
+    auto* cheap = f.label(1, 3.0, 4.0);
+    for (auto* label : {dear, cheap}) {
+        ASSERT_TRUE(admission.admit(*label, view, context));
+        node.add_label(label);
+    }
+    auto* middle = f.label(1, 4.0, 2.0);
+    ASSERT_TRUE(admission.admit(*middle, view, context))
+        << "the node is full, and the 4 beats the 5";
+    EXPECT_TRUE(dear->dominated);
+    node.add_label(middle);
+    EXPECT_FALSE(admission.admit(*f.label(1, 6.0, 0.0), view, context))
+        << "the node is full, and the 6 beats neither label";
+    EXPECT_EQ(view.size(), 2U);
+    EXPECT_FALSE(cheap->dominated);
+    EXPECT_FALSE(middle->dominated);
+
+    ASSERT_TRUE(admission.admit(*f.label(1, 1.0, 0.0), view, context)) << "it dominates both";
+    EXPECT_TRUE(cheap->dominated);
+    EXPECT_TRUE(middle->dominated);
+    EXPECT_EQ(view.size(), 0U);
 }
 
 /// @brief A node view reads a list or buckets, forward or backward: whether a label is dominated

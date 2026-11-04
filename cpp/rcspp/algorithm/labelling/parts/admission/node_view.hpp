@@ -5,6 +5,7 @@
 
 #include <cstddef>
 
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/label/label.hpp"
 
 namespace rcspp::parts {
@@ -36,6 +37,27 @@ class NodeView {
             container_->remove_dominated_labels(label);
         }
 
+        /// @brief Whether a label at the node dominates @p label over the components @p mask
+        ///        leaves in.
+        template <typename ResourceType>
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& label,
+                                        const DominanceMask& mask) const {
+            return container_->is_dominated(label, mask);
+        }
+
+        /// @brief Removes from the node the labels @p label dominates over the components @p mask
+        ///        leaves in, marking them dominated.
+        template <typename ResourceType>
+        void evict_dominated_by(const Label<ResourceType>& label, const DominanceMask& mask) {
+            container_->remove_dominated_labels(label, mask);
+        }
+
+        /// @brief Removes the node's costliest label, marking it dominated, when it costs more
+        ///        than @p cost.
+        ///
+        /// @return Whether a label was removed.
+        bool evict_costliest_above(double cost) { return container_->remove_costliest_above(cost); }
+
         /// @brief The labels stored at the node.
         [[nodiscard]] size_t size() const { return container_->get_labels().size(); }
 
@@ -53,6 +75,18 @@ struct EmptyNodeView {
 
         template <typename ResourceType>
         void evict_dominated_by(const Label<ResourceType>& /*label*/) {}
+
+        template <typename ResourceType>
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& /*label*/,
+                                        const DominanceMask& /*mask*/) const {
+            return false;
+        }
+
+        template <typename ResourceType>
+        void evict_dominated_by(const Label<ResourceType>& /*label*/,
+                                const DominanceMask& /*mask*/) {}
+
+        static bool evict_costliest_above(double /*cost*/) { return false; }
 
         [[nodiscard]] static size_t size() { return 0; }
 };

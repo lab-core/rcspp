@@ -233,6 +233,16 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Relaxed and k-best admission**: `AlgorithmBaseParams::admission_rule` (`AdmissionRule` in
+  Python) chooses how a labelling search keeps a new label at its node: `Exact` (dominance, the
+  default), `Relaxed` (dominance over the components not in `dominance_ignored_components`) or
+  `KBest` (dominance, then at most `max_admitted_labels_per_node` labels at each node, the cheapest). Every
+  labelling search reads it, in every direction, and both sides of a bidirectional one. A relaxed
+  or k-best solve is not proven (`proof_lost_by` is `relaxed_admission`), except at the rule's
+  limit; `could_be_non_optimal()` says so. A component the model does not have, or a k of 0,
+  throws `std::invalid_argument` (`ValueError`) when the solve starts. Leaving the bidirectional
+  clock out of dominance turns the half-way point off (`HalfWayOff::ClockRelaxed`). In Python, a
+  resource is named by its registration position.
 - **Dominance over some components**: `DominanceMask` (`rcspp/algorithm/dominance_mask.hpp`)
   names components to leave out, numbered as the model checks number them; `LabelList` and
   `LabelBuckets` gain `is_dominated(label, mask)` and `remove_dominated_labels(label, mask)`,
