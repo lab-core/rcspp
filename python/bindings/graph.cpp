@@ -87,7 +87,8 @@ void init_graph(py::module_& m) {
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu)
-        .value("AStar", SolverAlgorithm::AStar);
+        .value("AStar", SolverAlgorithm::AStar)
+        .value("BoundGuidedGreedy", SolverAlgorithm::BoundGuidedGreedy);
 
     // ── SearchDirection enum ──────────────────────────────────────────────────
 

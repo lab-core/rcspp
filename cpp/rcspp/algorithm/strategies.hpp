@@ -11,6 +11,7 @@
 #include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/best_first_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/cost_key.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/cost_plus_bound_key.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/depth_first_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/pull_schedule.hpp"
@@ -98,6 +99,23 @@ struct Pulling {
 struct Greedy {
         template <typename ResourceType, typename Direction>
         using schedule = parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        static constexpr bool bidirectional = false;
+};
+
+/// @brief Greedy's dive with the children taken by cost plus completion bound, lowest first
+///        (@c parts::CostPlusBoundKey), not by cost alone: each step goes toward the cheapest
+///        completion. Meant with @c prune_by_threshold, which drops, under the same bound, the
+///        labels that cannot beat the upper bound. Forward or backward; not bidirectionally.
+///
+/// @c max_iterations counts the labels taken, as in Greedy. The bound is computed at the start of
+/// each solve: one Bellman–Ford run over the arcs' shares of the cost, from the end nodes.
+struct BoundGuidedGreedy {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DepthFirstSchedule<ResourceType, parts::CostPlusBoundKey>;
         template <typename ResourceType, typename Direction>
         using admission = parts::AdmitAll;
         template <typename ResourceType, typename Direction>
