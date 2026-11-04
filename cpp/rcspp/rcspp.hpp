@@ -20,6 +20,7 @@
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"

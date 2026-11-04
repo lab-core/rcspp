@@ -33,11 +33,13 @@ struct Outcome {
 };
 
 /// @brief Solves @p c with an @p AlgorithmType in @p direction, with no bound and the labels
-///        kept, expects every returned path to replay, and returns what it found.
+///        kept, and with @p mask when one is given; expects every returned path to replay, and
+///        returns what it found.
 ///
 /// The label sets hold `"<node position> | <resource>"` for every stored label of finite cost.
 template <typename AlgorithmType>
-Outcome solve_row(const parity::Case& c, SearchDirection direction) {
+Outcome solve_row(const parity::Case& c, SearchDirection direction,
+                  const rcspp::ArcMask* mask = nullptr) {
     auto graph = c.build();
     rcspp::AlgorithmParams<List> params;
     params.direction = direction;
@@ -47,6 +49,7 @@ Outcome solve_row(const parity::Case& c, SearchDirection direction) {
         params.half_way_point = c.half_way_point;
     }
     parity::Observed<AlgorithmType> algorithm(&graph->get_resource_factory(), params);
+    algorithm.set_arc_mask(mask);
     const auto result = graph->solve(&algorithm, parity::kInf, /*preprocess=*/false);
     Outcome out;
     out.solutions = result.solutions;
@@ -67,7 +70,13 @@ Outcome solve_row(const parity::Case& c, SearchDirection direction) {
 struct Row {
         std::string name;
         SearchDirection direction;
-        std::function<Outcome(const parity::Case&)> solve;
+        std::function<Outcome(const parity::Case&, const rcspp::ArcMask*)> run;
+
+        /// @brief Solves @p c, with @p mask when one is given.
+        [[nodiscard]] Outcome solve(const parity::Case& c,
+                                    const rcspp::ArcMask* mask = nullptr) const {
+            return run(c, mask);
+        }
 };
 
 /// @brief @p Strategy's search in @p direction, as a row named @p name.
@@ -76,21 +85,24 @@ Row row(const std::string& name, SearchDirection direction) {
     return {
         name + " " + std::string(rcspp::to_string(direction)),
         direction,
-        [direction](const parity::Case& c) {
+        [direction](const parity::Case& c, const rcspp::ArcMask* mask) {
             switch (direction) {
                 case SearchDirection::Forward:
-                    return solve_row<test_util::Labelling<Strategy, Composed, List>>(c, direction);
+                    return solve_row<test_util::Labelling<Strategy, Composed, List>>(c,
+                                                                                     direction,
+                                                                                     mask);
                 case SearchDirection::Backward:
                     return solve_row<
                         test_util::Labelling<Strategy, Composed, List, rcspp::BackwardDirection>>(
                         c,
-                        direction);
+                        direction,
+                        mask);
                 case SearchDirection::Bidirectional:
                     break;
             }
-            return solve_row<test_util::BidirectionalLabelling<Strategy, Composed, List>>(
-                c,
-                direction);
+            return solve_row<test_util::BidirectionalLabelling<Strategy, Composed, List>>(c,
+                                                                                          direction,
+                                                                                          mask);
         }};
 }
 
@@ -186,6 +198,62 @@ TEST(KernelProperties, GreedyWithNoBudgetReachesTheForwardOptimum) {
             EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "") << c.name;
         }
     }
+}
+
+/// @brief A hard mask leaves its arcs out of every search, as if they were removed from the
+///        graph: every exact search, and Greedy with no budget, returns the optimum of the graph
+///        without them, along paths that use none of them and replay on the whole graph.
+///
+/// The arcs masked are those of forward Simple's optimal path, so each search must find another.
+/// The bounds the searches compute on the whole graph stay lower bounds on the masked one.
+TEST(KernelProperties, AHardMaskLeavesItsArcsOutOfEverySearch) {
+    namespace kp = kernel_properties;
+    const auto rows = kp::rows();
+    size_t masked_cases = 0;
+    for (const auto& c : kp::property_cases()) {
+        const auto unmasked = rows.front().solve(c);
+        if (unmasked.solutions.empty()) {
+            continue;
+        }
+        // A path may use an arc more than once: each is masked, and removed, once.
+        const auto& path = unmasked.solutions.front().path_arc_ids;
+        const std::set<size_t> arcs(path.begin(), path.end());
+        auto graph = c.build();
+        rcspp::ArcMask mask(graph->get_arc_id_bound());
+        auto removed = c.build();
+        for (const size_t arc_id : arcs) {
+            mask.set(arc_id, rcspp::ArcMask::State::Hard);
+            ASSERT_TRUE(removed->remove_arc(arc_id));
+        }
+        const auto expected =
+            removed->solve<rcspp::strategy::Simple>(rcspp::AlgorithmParams<kp::List>{},
+                                                    /*preprocess=*/false);
+        ++masked_cases;
+
+        const auto check = [&](const std::vector<rcspp::Solution>& solutions,
+                               const std::string& name) {
+            ASSERT_EQ(solutions.empty(), expected.solutions.empty()) << c.name << ", " << name;
+            if (!solutions.empty()) {
+                EXPECT_NEAR(solutions.front().cost, expected.solutions.front().cost, 1e-6)
+                    << c.name << ", " << name;
+            }
+            for (const auto& solution : solutions) {
+                for (const size_t arc_id : solution.path_arc_ids) {
+                    EXPECT_FALSE(mask.is_hard(arc_id)) << c.name << ", " << name;
+                }
+                EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "")
+                    << c.name << ", " << name;
+            }
+        };
+        for (const auto& row : rows) {
+            check(row.solve(c, &mask).solutions, row.name);
+        }
+        auto greedy =
+            graph->create_algorithm<rcspp::strategy::Greedy>(rcspp::AlgorithmParams<kp::List>{});
+        greedy->set_arc_mask(&mask);
+        check(graph->solve(greedy.get(), parity::kInf, /*preprocess=*/false).solutions, "greedy");
+    }
+    EXPECT_GT(masked_cases, 0U);
 }
 
 /// @brief Within one direction, every exact search ends with the same labels of finite cost.
