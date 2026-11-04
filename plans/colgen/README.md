@@ -6,14 +6,13 @@ frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and pac
 done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
 slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
-**Next:** `T-1.15`, design in discussion (`python-layer.md`): on top of the stack, mirroring the C++ layer
-(`D-119`–`D-123`); design accepted (`D-119`–`D-126`, pool postponed). Step A done (commits 1–2 `06ff1f5b`, `d19fd24b`;
-record in its §5); step B (review) done, its fixes folded into commits 1–2 (§5, `D-127`–`D-129`); step C done (commits
-3–4 `125f78ab`, `21b30ecb`: gurobipy master solver, master problem, tolerances, initializations with fix B, self-test;
-record in §5); step D (Opus review) done: D.1–D.21 in §5, fixed and folded into commits 1–4 (`D-130`); step E done
-(commits 5–6 `a409cf56`, `d524baaa`: graph pricer, loop, registry, end-to-end tests; D.20 measured, `F-46`, `D-131`
-proposed); next is F (Opus review). Then `T-1.16`. History: `decisions.md`; measurements and how to run them:
-`benchmark-results/colgen/HANDOFF.md`.
+**Next:** `T-1.15`, the pure-Python layer (`python-layer.md`): on top of the stack, the C++ layer's features written the
+Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–E done (commits 1–6:
+`06ff1f5b`, `d19fd24b`, `125f78ab`, `21b30ecb`, `a409cf56`, `d524baaa`), reviews B and D fixed and folded in
+(`D-127`–`D-130`); step F review done (F.1–F.22, `D-131`–`D-134`: Python-way API, the C++ features the binding lacks, no
+mirror test, the C++ cases replicated). Records: `python-layer-records.md`. Now: F's fixes in batches 1–6
+(`python-layer.md` §8 "Step F work"), then the PR branch. Then `T-1.16`. History: `decisions.md`; measurements and how
+to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## New chat
@@ -82,6 +81,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `baseline.md` | measured benchmark results (informative and golden) | before and after perf-sensitive changes |
 | `packaging.md` | study notes: Gurobi from Python (B1, B2, C API, adapters), Python packages, C++ packaging and flags | before `T-1.11`, `T-1.12`, or any packaging change |
 | `python-layer.md` | the pure-Python layer (`T-1.15`): contents, fix A + B, pool option, commits, comparison with the C++ layer | before coding `T-1.15` |
+| `python-layer-records.md` | the pure-Python layer's step records and review findings (B., D., F.) | before fixing or reviewing that layer |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
