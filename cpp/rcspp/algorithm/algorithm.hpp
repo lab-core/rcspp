@@ -466,7 +466,7 @@ class Algorithm {
             // initialize labels
             this->initialize_labels();
 
-            size_t num_phases = 0;
+            size_t runs = 0;
             while (!should_stop() && waiting_labels() > 0) {
                 // main labeling loop
                 main_loop();
@@ -474,10 +474,8 @@ class Algorithm {
                 // extract solutions any remaining solutions
                 record_remaining_solutions();
 
-                // prepare next phase (if any)
-                if (++num_phases < params_.max_phases) {
-                    prepare_next_phase();
-                } else {
+                // the next phase, or a driver's next run (if any)
+                if (!next_run(++runs)) {
                     break;
                 }
             }
@@ -815,6 +813,21 @@ class Algorithm {
         [[nodiscard]] virtual bool has_abandoned_labels() const { return false; }
 
         virtual void prepare_next_phase() {}
+
+        /// @brief Prepares the next run of the solve's loop, or ends it.
+        ///
+        /// The default runs the phases: labels a quota stored aside are extended in the next one,
+        /// up to @c max_phases. A driven search's driver decides instead (@c detail::Driven).
+        ///
+        /// @param runs_done How many runs the loop has made.
+        /// @return Whether to run again.
+        virtual bool next_run(size_t runs_done) {
+            if (runs_done < params_.max_phases) {
+                prepare_next_phase();
+                return true;
+            }
+            return false;
+        }
 
         virtual void main_loop() = 0;
 

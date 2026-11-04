@@ -84,9 +84,15 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         [[nodiscard]] size_t waiting_labels() const override { return search_.schedule.size(); }
 
-        void main_loop() override {
+        void main_loop() override { run_loop(this->params_.max_iterations); }
+
+        /// @brief Takes labels, one @ref step at a time, until none waits, a stop applies, or
+        ///        @p take_limit labels are taken, checking the memory first in each iteration.
+        ///
+        /// @return @c true when a step ended the loop (@ref SearchContext::budget_spent).
+        bool run_loop(size_t take_limit) {
             size_t iteration = 0;
-            while (waiting_labels() > 0 && !this->should_stop(iteration)) {
+            while (waiting_labels() > 0 && iteration < take_limit && !this->should_stop()) {
                 if (this->check_memory(iteration)) {
                     break;
                 }
@@ -98,9 +104,10 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         [this](parts::ExtensionOutcome outcome) {
                             this->count_extension(outcome);
                         })) {
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {

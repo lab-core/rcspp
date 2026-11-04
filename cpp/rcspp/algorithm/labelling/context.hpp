@@ -48,16 +48,18 @@ struct SearchContext {
         Role role = Role::Single;
         size_t* abandoned = nullptr;  ///< a side: counts the labels a cut abandons
         const HalfWay<ResourceType>* half_way = nullptr;  ///< a side: where it stops
+        bool run_ends_at_end_node = false;  ///< a driver's: a run ends at its first path
 
         /// @brief Whether a cut abandons a label (and the incumbent prune adds the bound): a
         ///        bidirectional side runs one phase, so it cannot store a label aside for the
         ///        next.
         [[nodiscard]] bool abandons() const { return role == Role::BidirectionalSide; }
 
-        /// @brief Whether the solutions recorded so far spend the solve's budget
+        /// @brief Whether recording an end-node label ends the run: a driven run's first does
+        ///        (@ref run_ends_at_end_node), and so does one that spends the solve's budget
         ///        (@c max_solutions).
         [[nodiscard]] bool budget_spent() const {
-            return solutions->size() >= params->max_solutions;
+            return run_ends_at_end_node || solutions->size() >= params->max_solutions;
         }
 };
 

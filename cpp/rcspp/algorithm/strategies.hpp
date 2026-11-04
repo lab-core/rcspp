@@ -13,9 +13,11 @@
 /// @brief The strategies a solve names: @c graph.solve<strategy::AStar>(...).
 ///
 /// A labelling strategy is a descriptor: a struct that names its schedule, given the resource
-/// type and the search's direction, and may name its admission rule, its retention, its observer
-/// and a bidirectional search's interleave; each part it does not name is the exact search's
-/// (@c rcspp::parts). A strategy that cannot search in a direction says so with
+/// type and the search's direction, and may name its admission rule, its retention, its observer,
+/// a bidirectional search's interleave, and a driver that runs it several times in one solve
+/// (@c parts::Driver); each part it does not name is the exact search's (@c rcspp::parts), and
+/// with no driver it runs once, then its phases. A strategy that cannot search in a direction says
+/// so with
 /// `static constexpr bool backward = false` or `bidirectional = false`. The direction itself is
 /// chosen at run time, with @c params.direction. A strategy of one's own is written the same way.
 ///

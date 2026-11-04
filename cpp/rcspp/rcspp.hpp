@@ -29,6 +29,7 @@
 #include "rcspp/algorithm/labelling/bidirectional_labelling_algorithm.hpp"
 #include "rcspp/algorithm/labelling/bounds.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
+#include "rcspp/algorithm/labelling/driven.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/join.hpp"
 #include "rcspp/algorithm/labelling/labelling_algorithm.hpp"
