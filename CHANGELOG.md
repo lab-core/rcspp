@@ -233,6 +233,11 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Greedy and the tabu searches search backward**: `strategy::Greedy`, `Tabu` and
+  `ImprovingTabu` dive from the sinks when `direction` is `Backward` (`direction="backward"` in
+  Python), with the model's backward semantics, as the labelling searches do; they still refuse a
+  bidirectional search. On fixed duals, backward Tabu and Improving Tabu found cheaper best
+  columns than forward ones on four of the five R2 and RC2 pricing graphs.
 - **Threshold pruning**: `AlgorithmBaseParams::prune_by_threshold` (default off; in Python too)
   has a labelling search drop a label whose cost plus its completion bound (a Bellman–Ford run
   over the arcs' shares of the cost, from the end nodes) is at or above the solve's upper bound,
