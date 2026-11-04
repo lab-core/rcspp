@@ -31,12 +31,15 @@
 ///   extension (default: @c parts::NoObserver);
 /// - `using interleave = ...;` which side of a bidirectional search works next (default:
 ///   @c parts::LeastWorkFirst);
+/// - `using driver = ...;` runs the search several times in one solve, each run up to
+///   @c max_phases phases (@c parts::Driver; default: none, one run). A strategy with a driver
+///   never searches bidirectionally;
 /// - `static constexpr bool backward = false;` or `bidirectional = false;` the strategy refuses
 ///   that direction: @c create_algorithm then throws @c std::invalid_argument when asked for it.
 ///
 /// The first four are templates on the resource type and the search's direction, so a strategy
 /// can use a different part forward and backward; a plain type there is refused at compile time.
-/// @c interleave is a plain type. The direction itself is chosen at run time, with
+/// @c interleave and @c driver are plain types. The direction itself is chosen at run time, with
 /// @c params.direction. The library's strategies below are written exactly as one's own would
 /// be; docs/advanced/algorithms.md, "A strategy of one's own", gives examples and the rules the
 /// concepts cannot check.
