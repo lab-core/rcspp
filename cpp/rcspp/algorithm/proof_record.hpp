@@ -19,10 +19,12 @@ enum class ProofLoss : std::uint8_t {
     ArcsMasked,        ///< the arc mask left arcs out (@c Algorithm::set_arc_mask)
     RelaxedAdmission,  ///< the admission rule is not exact: it may drop a label dominance keeps
     MemoryPressure,    ///< memory pressure trimmed the labels, and may have released some
+    HeuristicDriver,   ///< a driver changed the search between runs: the tabu searches
 };
 
 /// @brief The name of @p loss, as @c SolveResult::proof_lost_by reports it: `"arcs_masked"`,
-///        `"relaxed_admission"`, `"memory_pressure"`; empty for @c ProofLoss::None.
+///        `"relaxed_admission"`, `"memory_pressure"`, `"heuristic_driver"`; empty for
+///        @c ProofLoss::None.
 [[nodiscard]] inline std::string to_string(ProofLoss loss) {
     switch (loss) {
         case ProofLoss::None:
@@ -33,6 +35,8 @@ enum class ProofLoss : std::uint8_t {
             return "relaxed_admission";
         case ProofLoss::MemoryPressure:
             return "memory_pressure";
+        case ProofLoss::HeuristicDriver:
+            return "heuristic_driver";
     }
     return "unknown";
 }

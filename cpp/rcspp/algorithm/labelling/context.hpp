@@ -68,15 +68,19 @@ struct SearchContext {
         /// A bidirectional side: the half-way point, past which a label is kept unextended
         /// (@ref HalfWay). Null for a single-direction search.
         const HalfWay<ResourceType>* half_way = nullptr;
+        /// Set by a driver (@c Driven::end_runs_at_end_node): each run ends once it records an
+        /// end-node label.
+        bool run_ends_at_end_node = false;
 
         /// @brief Whether a cut abandons a label instead of storing it aside: on a bidirectional
         ///        side, which runs one phase, so there is no next phase to store it for.
         [[nodiscard]] bool abandons() const { return role == Role::BidirectionalSide; }
 
-        /// @brief Whether the run ends now that an end-node label was recorded: once the solve
-        ///        holds @c max_solutions solutions.
+        /// @brief Whether the run ends now that an end-node label was recorded: always in a driven
+        ///        run that ends at its first path (@ref run_ends_at_end_node), and otherwise once
+        ///        the solve holds @c max_solutions solutions.
         [[nodiscard]] bool should_end_run() const {
-            return solutions->size() >= params->max_solutions;
+            return run_ends_at_end_node || solutions->size() >= params->max_solutions;
         }
 };
 

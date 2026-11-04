@@ -937,6 +937,7 @@ at compile time: it would not be read.
 | `retention<ResourceType, Direction>` | where kept labels live, as `template <typename ContainerType> using type` (`Retain<RetentionTemplate>` names a library one) | `KeepAtNodes` (default), `KeepWhileWaiting` | `Retention` |
 | `observer<ResourceType, Direction>` | told of every extension | `NoObserver` (default) | `Observer` |
 | `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
+| `driver` | runs the search several times in one solve, changing it between runs (forward or backward; not bidirectionally) | none (default: one run, then the phases) | `Driver` |
 | `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
 
 This strategy takes labels best first forward and first in, first out backward; a bidirectional
@@ -1002,6 +1003,59 @@ struct Dive {
         using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
         static constexpr bool backward = false;
         static constexpr bool bidirectional = false;
+};
+```
+
+A **driver** runs the search several times in one solve, in place of the phases. It is built from
+the params. `begin(search)` is called at the start of each solve and returns whether to run at
+all; `after_run(search, number_of_runs)` is called after each run and returns whether to run again.
+Between them it reads how the run ended (`search.last_run()`: whether it recorded a path, the
+path's cost and arcs, whether the path was new, whether no label was left), and may change the
+search: its own arc mask (`use_arc_mask`), end each run at its first path
+(`end_runs_at_end_node`), start the next run from the start labels (`reseed`). A driver that
+changes the search loses the proof, and says so with `lose_proof(rcspp::ProofLoss::HeuristicDriver)`.
+A run counts no iterations: a driver that reads `max_iterations` counts its runs against it. This
+one runs a dive until it finds nothing, masking each path it finds:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct MaskEachPath {
+        explicit MaskEachPath(const rcspp::AlgorithmBaseParams& /*params*/) {}
+
+        template <typename SearchType>
+        bool begin(SearchType& search) {
+            mask.reset(search.graph().get_arc_id_bound());
+            search.use_arc_mask(&mask);
+            search.end_runs_at_end_node();
+            return true;
+        }
+
+        template <typename SearchType>
+        bool after_run(SearchType& search, size_t /*number_of_runs*/) {
+            if (!search.last_run().recorded) {
+                return false;  // nothing left to find
+            }
+            search.lose_proof(rcspp::ProofLoss::HeuristicDriver);
+            for (const size_t arc_id : search.last_run().arc_ids) {
+                mask.set(arc_id, rcspp::ArcMask::State::Hard);
+            }
+            search.reseed();
+            return true;
+        }
+
+        rcspp::ArcMask mask;
+};
+
+struct DiveEachPathOnce {
+        template <typename ResourceType, typename Direction>
+        using schedule = rcspp::parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = rcspp::parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
+        using driver = MaskEachPath;
+        static constexpr bool backward = false;
 };
 ```
 
