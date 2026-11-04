@@ -101,6 +101,20 @@ void init_graph(py::module_& m) {
         .value("Backward", SearchDirection::Backward)
         .value("Bidirectional", SearchDirection::Bidirectional);
 
+    // ── AdmissionRule enum ────────────────────────────────────────────────────
+
+    py::enum_<parts::AdmissionRule>(
+        m,
+        "AdmissionRule",
+        "The rule that decides whether a new label is kept at its node: Exact (dominance, the "
+        "default), Relaxed (dominance over the resources not in dominance_ignored_components) or "
+        "KBest (dominance, then at most max_admitted_labels_per_node labels at each node, the "
+        "cheapest). Relaxed "
+        "and KBest are heuristics: the solve is not proven.")
+        .value("Exact", parts::AdmissionRule::Exact)
+        .value("Relaxed", parts::AdmissionRule::Relaxed)
+        .value("KBest", parts::AdmissionRule::KBest);
+
     // ── AlgorithmStatus enum ──────────────────────────────────────────────────
 
     py::enum_<AlgorithmStatus>(m, "AlgorithmStatus")
@@ -316,7 +330,28 @@ void init_graph(py::module_& m) {
         .def_readwrite("join_after_early_stop",
                        &PyAlgorithmParams::join_after_early_stop,
                        "Bidirectional only: whether the join still runs after a timeout or the "
-                       "memory limit (default True). An interrupt always skips it.");
+                       "memory limit (default True). An interrupt always skips it.")
+        // -- Admission parameters ----------------------------------------
+        .def_readwrite("admission_rule",
+                       &PyAlgorithmParams::admission_rule,
+                       "Whether a new label is kept at its node: AdmissionRule.Exact (dominance, "
+                       "the default), Relaxed or KBest. Relaxed and KBest drop labels exact "
+                       "dominance keeps: every path returned is feasible and correctly priced, "
+                       "but the optimum may be missed, and result.proven is False. Read by every "
+                       "labelling algorithm (simple, pushing, pulling, astar), in every "
+                       "direction; greedy and tabu keep every label and ignore it.")
+        .def_readwrite("dominance_ignored_components",
+                       &PyAlgorithmParams::dominance_ignored_components,
+                       "Relaxed: the resources left out of dominance, by their position in the "
+                       "order they were registered (0 is the first, the cost's). Two labels that "
+                       "differ only there compare as equal there. A position the graph does not "
+                       "have raises ValueError. Leaving out the bidirectional clock turns the "
+                       "half-way point off.")
+        .def_readwrite("max_admitted_labels_per_node",
+                       &PyAlgorithmParams::max_admitted_labels_per_node,
+                       "KBest: the most labels each node keeps, at least 1 (0 raises ValueError): "
+                       "at a full node, a new label takes the place of the costliest when it "
+                       "costs less. The default, no limit, keeps every label dominance keeps.");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

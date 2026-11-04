@@ -17,10 +17,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../
 
 import rcspp._core as _core  # noqa: E402
 from rcspp._core import solution_pool as _sp  # noqa: E402
-from rcspp._core.graph import AlgorithmParams, Column, Row, Solution  # noqa: E402
+from rcspp._core.graph import AdmissionRule, AlgorithmParams, Column, Row, Solution  # noqa: E402
 from rcspp.graph import ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
+    MinMaxFeasibilityFunction,
+    TrivialCostFunction,
     TrivialFeasibilityFunction,
     ValueCostFunction,
     ValueDominanceFunction,
@@ -131,6 +133,85 @@ def test_solve_result_proven():
     stopped = rg.solve(params=params)
     assert not stopped.proven
     assert stopped.proof_lost_by == "truncated"
+
+
+def _make_load_graph():
+    """Return a ResourceGraph 0→1→2 whose load decides the path: two arcs 0→1, a cheap
+    one that loads the vehicle and a dear one that does not, then a loading arc 1→2,
+    with a capacity of 1.
+
+    The resources are registered real (the cost), int (the load), real (a time that
+    never binds), so C++ numbers the time 1 and the load 2.
+    """
+    rg = ResourceGraph()
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        ValueCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_int_resource(
+        AdditionExtensionFunction(),
+        MinMaxFeasibilityFunction(0, 1),
+        TrivialCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_real_resource(
+        AdditionExtensionFunction(),
+        TrivialFeasibilityFunction(),
+        TrivialCostFunction(),
+        ValueDominanceFunction(),
+    )
+    rg.add_node(0, source=True)
+    rg.add_node(1)
+    rg.add_node(2, sink=True)
+    rg.add_arc((-5.0, 1, 0.0), 0, 1, cost=-5.0)
+    rg.add_arc((-1.0, 0, 0.0), 0, 1, cost=-1.0)
+    rg.add_arc((0.0, 1, 0.0), 1, 2, cost=0.0)
+    return rg
+
+
+def test_relaxed_admission_names_resources_in_registration_order():
+    """Leaving the load out of dominance drops the only feasible path; leaving the time
+    out changes nothing.
+
+    The params keep the caller's numbering.
+    """
+    rg = _make_load_graph()
+    exact = rg.solve(preprocess=False)
+    assert [round(s.cost) for s in exact] == [-1]
+    assert exact.proven
+    params = AlgorithmParams()
+    params.admission_rule = AdmissionRule.Relaxed
+    params.dominance_ignored_components = {1}  # the load, registered second
+    assert params.could_be_non_optimal()
+    relaxed = rg.solve(params=params, preprocess=False)
+    assert not relaxed.solutions
+    assert not relaxed.proven
+    assert relaxed.proof_lost_by == "relaxed_admission"
+    assert params.dominance_ignored_components == {1}
+    params.dominance_ignored_components = {2}  # the time, which never binds
+    assert [round(s.cost) for s in rg.solve(params=params, preprocess=False)] == [-1]
+    params.dominance_ignored_components = {3}
+    with pytest.raises(ValueError, match="registered resource"):
+        rg.solve(params=params, preprocess=False)
+
+
+def test_k_best_admission_keeps_the_cheapest_labels():
+    """With one label kept at each node, the cheap, loading arc's label wins node 1, and
+    no feasible path is left; a k of 0 is refused."""
+    rg = _make_load_graph()
+    params = AlgorithmParams()
+    params.admission_rule = AdmissionRule.KBest
+    params.max_admitted_labels_per_node = 1
+    k_best = rg.solve(params=params, preprocess=False)
+    assert not k_best.solutions
+    assert k_best.proof_lost_by == "relaxed_admission"
+    params.max_admitted_labels_per_node = 2
+    assert [round(s.cost) for s in rg.solve(params=params, preprocess=False)] == [-1]
+    params.max_admitted_labels_per_node = 0
+    with pytest.raises(ValueError, match="max_admitted_labels_per_node"):
+        rg.solve(params=params, preprocess=False)
 
 
 def test_solve_result_bool():

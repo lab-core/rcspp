@@ -4,8 +4,11 @@
 #pragma once
 
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
 #include "rcspp/label/label.hpp"
 #include "rcspp/label/label_list.hpp"
@@ -14,13 +17,28 @@ namespace rcspp::parts {
 
 /// @brief The rule that decides whether a new label is kept at its node.
 enum class AdmissionRule : std::uint8_t {
-    Exact,  ///< dominance: a label dominated at its node is dropped
+    Exact,    ///< dominance: a label dominated at its node is dropped
+    Relaxed,  ///< dominance over the components a mask leaves in: more labels are dropped
+    KBest,    ///< dominance, then at most k labels at each node, the cheapest
 };
 
 /// @brief What an admission rule reads besides the candidate and its node. Built once per solve
 ///        from the params.
 struct AdmissionContext {
+        /// @brief No limit on the labels a node keeps under @c KBest.
+        static constexpr size_t kAllLabels = std::numeric_limits<size_t>::max();
+
         AdmissionRule rule = AdmissionRule::Exact;
+        /// @c Relaxed: the components left out of dominance; none, or a mask that leaves nothing
+        /// out: dominance is exact.
+        const DominanceMask* dominance_mask = nullptr;
+        /// @c KBest: the most labels a node keeps; @ref kAllLabels: every label dominance keeps.
+        size_t k = kAllLabels;
+
+        /// @brief The mask @c Relaxed compares over, or none when it would leave nothing out.
+        [[nodiscard]] const DominanceMask* relaxed_mask() const {
+            return dominance_mask != nullptr && !dominance_mask->empty() ? dominance_mask : nullptr;
+        }
 };
 
 /// @brief Whether a candidate label is kept at its node.

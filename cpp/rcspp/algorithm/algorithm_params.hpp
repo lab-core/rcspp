@@ -10,6 +10,7 @@
 #include <set>
 #include <utility>
 
+#include "rcspp/algorithm/labelling/parts/admission/admission.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/utils/memory.hpp"
@@ -51,11 +52,21 @@ struct AlgorithmBaseParams {
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "max_solutions to a lower value.\n");
             }
+            check_admission();
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((max_solutions < kNoLimit) || (max_extended_labels_per_node < kNoLimit) ||
-                    std::isfinite(timeout_s));
+                    std::isfinite(timeout_s) || is_admission_inexact());
+        }
+
+        /// @brief Whether the admission rule may drop a label exact dominance keeps: `Relaxed`
+        ///        with a component left out, or `KBest` with a limit.
+        [[nodiscard]] bool is_admission_inexact() const {
+            return (admission_rule == parts::AdmissionRule::Relaxed &&
+                    !dominance_ignored_components.empty()) ||
+                   (admission_rule == parts::AdmissionRule::KBest &&
+                    max_admitted_labels_per_node < kNoLimit);
         }
 
         // stop after finding this many solutions (not going to optimality)
@@ -175,6 +186,45 @@ struct AlgorithmBaseParams {
         /// the memory limit as well.
         bool join_after_early_stop = true;
 
+        // ── Admission parameters ────────────────────────────────────────────
+
+        /// @brief The rule that decides whether a new label is kept at its node: exact dominance
+        ///        by default.
+        ///
+        /// - `Relaxed` leaves @ref dominance_ignored_components out of dominance: two labels that
+        ///   differ only there compare as if they were equal there, so labels are dropped that an
+        ///   exact search keeps.
+        /// - `KBest` keeps, after exact dominance, at most @ref max_admitted_labels_per_node labels
+        /// at each node,
+        ///   the cheapest: at a full node, a candidate takes the place of the costliest label when
+        ///   it costs less, and is dropped otherwise.
+        ///
+        /// Either is a heuristic. Every path returned is feasible and correctly priced, since
+        /// feasibility and the cost never read dominance, but the optimum may be missed, and the
+        /// solve is not proven (`ProofLoss::RelaxedAdmission`), unless the rule is at its limit:
+        /// no component left out, no limit on k. Honoured by every labelling search (`Simple`,
+        /// `Pushing`, `Pulling`, `AStar`), in every direction, and by both sides of a
+        /// bidirectional search; the dives keep every label and ignore it.
+        parts::AdmissionRule admission_rule = parts::AdmissionRule::Exact;
+
+        /// @brief `Relaxed`: the components left out of dominance.
+        ///
+        /// Components are numbered as the model checks' messages number them: type slots in the
+        /// order of the `ResourceGraph`'s template parameters, then registration order within a
+        /// type. Dominance is then tested component by component over the others, as
+        /// `CompositionDominanceFunction` does, whatever composition dominance function the model
+        /// uses; with `LabelBuckets`, leaving out the bucket or sort resource weakens the
+        /// relaxation, since the buckets' early exits assume those resources order dominance.
+        /// Naming a component the model does not have throws `std::invalid_argument` when the
+        /// solve starts. Naming the bidirectional clock turns the half-way point off, since a
+        /// dominator may then sit past `H`.
+        std::set<size_t> dominance_ignored_components;
+
+        /// @brief `KBest`: the most labels each node keeps, at least 1 (0 throws
+        ///        `std::invalid_argument` when the solve starts). With no limit, the default,
+        ///        every label dominance keeps is kept.
+        size_t max_admitted_labels_per_node = kNoLimit;
+
         // ── Memory-limit parameters ─────────────────────────────────────────
 
         /// @brief Hard upper bound on process RSS in gibibytes (GiB); 0 means unlimited.
@@ -260,6 +310,38 @@ struct AlgorithmBaseParams {
         template <typename LabelContainerType>
         AlgorithmParams<LabelContainerType> with_container(
             LabelContainerType container = LabelContainerType{}) const;
+
+    private:
+        /// @brief Warns about an admission field the chosen rule does not read, and about a rule
+        ///        set at its limit, where it is exact.
+        void check_admission() const {
+            if (admission_rule != parts::AdmissionRule::Relaxed &&
+                !dominance_ignored_components.empty()) {
+                LOG_WARN(
+                    "AlgorithmParams: dominance_ignored_components is set but admission_rule is "
+                    "not Relaxed. dominance_ignored_components will not have any effects.\n");
+            }
+            if (admission_rule != parts::AdmissionRule::KBest &&
+                max_admitted_labels_per_node < kNoLimit) {
+                LOG_WARN(
+                    "AlgorithmParams: max_admitted_labels_per_node is set but admission_rule is "
+                    "not KBest. "
+                    "max_admitted_labels_per_node will not have any effects.\n");
+            }
+            if (admission_rule == parts::AdmissionRule::Relaxed &&
+                dominance_ignored_components.empty()) {
+                LOG_WARN(
+                    "AlgorithmParams: admission_rule is Relaxed but dominance_ignored_components "
+                    "is empty, so dominance is exact.\n");
+            }
+            if (admission_rule == parts::AdmissionRule::KBest &&
+                max_admitted_labels_per_node >= kNoLimit) {
+                LOG_WARN(
+                    "AlgorithmParams: admission_rule is KBest but max_admitted_labels_per_node == "
+                    "MAX, so every "
+                    "label dominance keeps is kept.\n");
+            }
+        }
 };
 
 template <typename LabelContainerType>
