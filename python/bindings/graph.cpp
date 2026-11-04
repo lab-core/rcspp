@@ -154,6 +154,16 @@ void init_graph(py::module_& m) {
                       "may not be optimal, even when status is 'complete': 'complete' then means "
                       "only that the labels that were kept were all processed. Reported by every "
                       "algorithm.")
+        .def_readonly("proven",
+                      &SolveResult::proven,
+                      "Whether the result is a proof that no better path exists (none at all when "
+                      "none is returned): status is 'complete', no arc was masked, the admission "
+                      "rule is exact, and memory pressure did not trim the labels.")
+        .def_readonly("proof_lost_by",
+                      &SolveResult::proof_lost_by,
+                      "Why the result is not a proof; empty when it is: the status's name when the "
+                      "search did not finish ('truncated', 'timeout', ...), otherwise "
+                      "'arcs_masked', 'relaxed_admission' or 'memory_pressure'.")
         .def("status_string", &SolveResult::status_string)
         // Sequence protocol — lets existing code treat SolveResult like list[Solution].
         .def("__len__", [](const SolveResult& r) { return r.solutions.size(); })
@@ -178,7 +188,8 @@ void init_graph(py::module_& m) {
         .def("__bool__", [](const SolveResult& r) { return !r.solutions.empty(); })
         .def("__repr__", [](const SolveResult& r) {
             std::string text = "SolveResult(status=" + r.status_string() +
-                               ", solutions=" + std::to_string(r.solutions.size());
+                               ", solutions=" + std::to_string(r.solutions.size()) +
+                               ", proven=" + (r.proven ? "True" : "False");
             if (r.bidirectional) {
                 text += ", half_way_used=" +
                         std::string(r.bidirectional->half_way_used ? "True" : "False") +
