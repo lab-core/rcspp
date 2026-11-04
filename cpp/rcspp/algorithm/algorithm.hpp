@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
@@ -551,6 +552,21 @@ class Algorithm {
             return params_.should_stop && params_.should_stop();
         }
 
+        /// @brief Has every later solve leave out the arcs @p mask makes hard, as if they were not
+        ///        in the graph; @c nullptr (the default) leaves every arc in.
+        ///
+        /// A labelling search never extends a label along a hard arc. The graph is not edited:
+        /// arc ids, and the bounds computed on the whole graph, are unchanged, so the paths
+        /// returned name the graph's own arcs. The mask is read at the start of each solve, and
+        /// not owned: it must outlive the solves that read it. A soft arc changes nothing for a
+        /// search whose schedule does not read it (every exact search).
+        ///
+        /// @param mask The mask, sized for the graph's arc ids (@c Graph::get_arc_id_bound).
+        void set_arc_mask(const ArcMask* mask) { arc_mask_ = mask; }
+
+        /// @brief The mask later solves read; @c nullptr when none was set.
+        [[nodiscard]] const ArcMask* get_arc_mask() const { return arc_mask_; }
+
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
@@ -662,11 +678,12 @@ class Algorithm {
         ///        100 000.
         ///
         /// Every extension that drew a label counts towards @ref get_number_of_extended_labels:
-        /// all but the unreachable ones.
+        /// all but the masked and the unreachable ones.
         ///
         /// @param outcome How the extension ended.
         void count_extension(parts::ExtensionOutcome outcome) {
-            if (outcome == parts::ExtensionOutcome::Unreachable) {
+            if (outcome == parts::ExtensionOutcome::Masked ||
+                outcome == parts::ExtensionOutcome::Unreachable) {
                 return;
             }
             if (++num_extended_labels_ % 100000 == 0) {  // NOLINT
@@ -692,7 +709,7 @@ class Algorithm {
         }
 
         /// @brief The context of one search of this solve: every pointer is this algorithm's
-        ///        member, or the search's bound.
+        ///        member, the search's bound, or the arc mask set (@ref set_arc_mask).
         ///
         /// @param search    The search (a @c detail::Search); its bound is the one the context
         ///                  reads.
@@ -714,6 +731,7 @@ class Algorithm {
                 .solutions = &solutions_,
                 .admission = {},
                 .bound = &search.bound,
+                .arc_mask = arc_mask_,
                 .role = role,
                 .abandoned = abandoned,
                 .half_way = half_way,
@@ -895,6 +913,7 @@ class Algorithm {
         double upper_bound_ = std::numeric_limits<double>::infinity();
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
+        const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
 
         size_t num_extended_labels_ = 0;
 

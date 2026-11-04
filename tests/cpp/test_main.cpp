@@ -27,6 +27,7 @@
 
 #include <gtest/gtest.h>
 
+#include "test_arc_mask.hpp"
 #include "test_directional_containers.hpp"
 #include "test_graph.hpp"
 #include "test_half_way.hpp"

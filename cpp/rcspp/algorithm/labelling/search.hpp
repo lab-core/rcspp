@@ -97,19 +97,24 @@ struct Search {
 
         /// @brief Extends @p label along @p arc.
         ///
-        /// In this order: the look-ahead (an unreachable head draws no label); a label is drawn
-        /// and extended; an infeasible one is released; the admission rule decides; a kept label
-        /// is stored, queued, and pinned to @p label (its predecessor stays alive until it is
-        /// released); a rejected one is released at once. The observer is told every outcome.
+        /// In this order: the arc mask (a hard arc draws no label); the look-ahead (an
+        /// unreachable head draws none); a label is drawn and extended; an infeasible one is
+        /// released; the admission rule decides; a kept label is stored, queued, and pinned to
+        /// @p label (its predecessor stays alive until it is released); a rejected one is released
+        /// at once. The observer is told every outcome.
         ///
         /// @param label The label to extend.
         /// @param arc   The arc to extend it along, one @p Direction walks from its node.
-        /// @param ctx   The search's context: the pool and the admission rule.
+        /// @param ctx   The search's context: the arc mask, the pool and the admission rule.
         /// @return How the extension ended.
         parts::ExtensionOutcome extend_along(Label<ResourceType>* label,
                                              const Arc<ResourceType>* arc,
                                              SearchContext<ResourceType>& ctx) {
             using parts::ExtensionOutcome;
+            if (ctx.arc_mask != nullptr && ctx.arc_mask->is_hard(arc->id)) {
+                observer.on_extension(*label, *arc, ExtensionOutcome::Masked);
+                return ExtensionOutcome::Masked;
+            }
             auto* head_node = Direction::head(*arc);
 
             // Skip the arc when the label can no longer reach the node it lands on. Both

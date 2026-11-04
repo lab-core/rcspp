@@ -9,6 +9,7 @@
 #include <unordered_set>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/labelling/bounds.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
@@ -43,6 +44,7 @@ struct SearchContext {
         const std::unordered_set<Solution>* solutions = nullptr;  ///< those recorded so far
         parts::AdmissionContext admission;                        ///< the rule and what it reads
         const NodeBound<ResourceType>* bound = nullptr;           ///< the completion bound
+        const ArcMask* arc_mask = nullptr;  ///< the hard arcs left out; none: every arc open
         Role role = Role::Single;
         size_t* abandoned = nullptr;  ///< a side: counts the labels a cut abandons
         const HalfWay<ResourceType>* half_way = nullptr;  ///< a side: where it stops

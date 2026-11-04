@@ -35,6 +35,7 @@ struct StoredLabel {
 
 /// @brief How one extension of a label along an arc ended.
 enum class ExtensionOutcome : std::uint8_t {
+    Masked,       ///< the arc mask rules the arc out (a hard arc); no label was drawn
     Unreachable,  ///< the look-ahead ruled the arc out; no label was drawn
     Infeasible,   ///< the extended label failed its feasibility test and was released
     Dominated,    ///< the admission rule rejected the extended label, which was released

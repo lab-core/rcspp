@@ -102,6 +102,9 @@ class Fixture {
             search_.create_start_labels(*graph_, &pool_);
         }
 
+        /// @brief Has the search read @p mask.
+        void set_arc_mask(const ArcMask* mask) { ctx_.arc_mask = mask; }
+
         /// @brief Extends @p label along arc @p arc_id.
         ExtensionOutcome extend(Label<Composed>* label, size_t arc_id) {
             return search_.extend_along(label, graph_->get_arc(arc_id), ctx_);
@@ -191,6 +194,30 @@ TEST(Search, ExtendAlongReportsEachOutcomeAndReleasesWhatItRejects) {
     EXPECT_TRUE(fixture.pool().check_ref_count_consistency());
 }
 
+/// @brief A hard arc draws no label; a soft one is extended as any other.
+TEST(Search, AHardArcDrawsNoLabelAndASoftOneIsExtended) {
+    namespace st = search_test;
+    st::Fixture<ForwardDirection, st::List> fixture(std::numeric_limits<double>::infinity(),
+                                                    st::List{});
+    auto* start = fixture.pushed().front().label;
+    ArcMask mask(fixture.graph().get_arc_id_bound());
+    mask.set(0, ArcMask::State::Hard);
+    fixture.set_arc_mask(&mask);
+    const size_t in_use = fixture.in_use();
+    EXPECT_EQ(fixture.extend(start, 0), st::ExtensionOutcome::Masked);
+    EXPECT_EQ(fixture.pushed().size(), 1U);
+    EXPECT_EQ(fixture.in_use(), in_use);
+    EXPECT_EQ(fixture.stored_at(1), 0U);
+
+    mask.set(0, ArcMask::State::Soft);
+    EXPECT_EQ(fixture.extend(start, 0), st::ExtensionOutcome::Accepted);
+    EXPECT_EQ(fixture.stored_at(1), 1U);
+    EXPECT_EQ(fixture.outcomes(),
+              (std::vector<st::ExtensionOutcome>{st::ExtensionOutcome::Masked,
+                                                 st::ExtensionOutcome::Accepted}));
+    EXPECT_TRUE(fixture.pool().check_ref_count_consistency());
+}
+
 /// @brief What the search does with a label the take rule does not extend.
 TEST(Search, ApplyCarriesOutEachVerdict) {
     namespace st = search_test;
@@ -254,12 +281,13 @@ TEST(Search, ABackwardSearchStartsAtTheSinksWithBucketsTurnedBackward) {
     EXPECT_TRUE(fixture.pool().check_ref_count_consistency());
 }
 
-/// @brief Every extension that drew a label counts; an unreachable one does not.
+/// @brief Every extension that drew a label counts; a masked or unreachable one does not.
 TEST(Search, CountExtensionCountsTheExtensionsThatDrewALabel) {
     namespace st = search_test;
     auto graph = st::line(std::numeric_limits<double>::infinity());
     st::Exposed algorithm(&graph->get_resource_factory(), AlgorithmParams<st::List>());
-    for (const auto outcome : {st::ExtensionOutcome::Unreachable,
+    for (const auto outcome : {st::ExtensionOutcome::Masked,
+                               st::ExtensionOutcome::Unreachable,
                                st::ExtensionOutcome::Infeasible,
                                st::ExtensionOutcome::Dominated,
                                st::ExtensionOutcome::Accepted}) {
