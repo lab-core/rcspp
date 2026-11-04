@@ -571,22 +571,29 @@ class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 };
 ```
 
-A new *labelling* search needs no loop of its own: it is a descriptor of its parts, as
-`strategy::Simple`, `AStar`, `Pushing` and `Pulling` are (`docs/advanced/algorithms.md`, "A
-strategy of one's own"). The kernel's files:
+A new *labelling* search, or a new dive, needs no loop of its own: it is a descriptor of its
+parts, as every `strategy::` but `Diversification` is (`docs/advanced/algorithms.md`, "How the
+labelling algorithms are built" and "A strategy of one's own"). The kernel's files:
 
 ```text
 cpp/rcspp/algorithm/
-  strategies.hpp                 rcspp::strategy: Simple, AStar, Pushing, Pulling; Greedy, Tabu,
-                                 ImprovingTabu, Diversification<Inner>
+  strategies.hpp                 rcspp::strategy: Simple, AStar, Pushing, Pulling; Greedy,
+                                 BoundedGreedy, Tabu, ImprovingTabu, Diversification<Inner>
   make_algorithm.hpp             make_algorithm, preset_t, searches, check_strategy: from a
                                  descriptor and a direction to a class
+  arc_mask.hpp                   ArcMask: arcs open, soft or hard, for Algorithm::set_arc_mask
+  dominance_mask.hpp             DominanceMask: the components the relaxed rule leaves out
+  proof_record.hpp               ProofLoss, ProofRecord: whether a result is a proof, and why not
+  diversification_search.hpp     DiversificationSearch: an inner strategy solved under a hard mask
+  tabu_list.hpp                  TabuList: the tabu searches' tenures
+  path_evaluator.hpp             PathEvaluator, PathEvaluation: replays a path through the model
   labelling/
-    policies.hpp                 rcspp::parts: StoredLabel, ExtensionOutcome, DominanceAdmission,
-                                 KeepAll, KeepWhileWaiting, Retain,
-                                 KeepAtNodes, NodeView, NoObserver, LeastWorkFirst, their concepts
+    policies.hpp                 rcspp::parts: StoredLabel, ExtensionOutcome, AdmissionRule,
+                                 AdmissionContext, DominanceAdmission, KeepAll, KeepWhileWaiting,
+                                 Retain, KeepAtNodes, NodeView, NoObserver, LeastWorkFirst, their
+                                 concepts
     schedules.hpp                rcspp::parts: the schedule concepts, PerNodeQuota, CutLabels,
-                                 DfsSchedule, KeepAllChildren,
+                                 DfsSchedule, KeepAllChildren, TabuChildFilter,
                                  FifoSchedule, BestFirstSchedule, CostKey, CompletionKey
     node_schedules.hpp           rcspp::parts: NodeQueues, SweepSchedule, PullSchedule
     context.hpp                  SearchContext, Role: what every part reads of its solve
@@ -598,9 +605,13 @@ cpp/rcspp/algorithm/
     half_way.hpp                 HalfWay, make_half_way, half_way_off_reason and its checks
     join.hpp                     JoinOptions, join: pairs the two halves
     labelling_algorithm.hpp      LabellingAlgorithm: one search, forward or backward
+    driven.hpp                   rcspp::parts::Driver, RunEnd; Driven: a search run by a driver
+    tabu_episodes.hpp            rcspp::parts::TabuEpisodes, ImproveEpisodes: the tabu drivers
     bidirectional_labelling_algorithm.hpp
                                  BidirectionalLabellingAlgorithm: two searches and the join
 cpp/rcspp/testing/
   expect_same_optimum.hpp        rcspp::testing::expect_same_optimum: an exact strategy against
                                  forward Simple
+tests/cpp/util/parity.hpp        the parity harness: two searches compared extension by extension,
+                                 for a port (its own tests are in test_kernel_properties.cpp)
 ```
