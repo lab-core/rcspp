@@ -130,7 +130,9 @@ New features are summarised, with a pointer to where they are documented.
     `extract_solution(label)` is `record_solution` and `extract_solution(cost, arc_ids, end)` is
     `record_path`, `memory_limit_reached` is `check_memory`; `best_cost_upper_bound_` is
     `incumbent_`, `cost_upper_bound_` is `upper_bound_` and `effective_max_labels_per_node_` is
-    `quota_`. `initialize` is protected: only `solve` calls it.
+    `quota_`; `should_stop(iteration)` is `should_end_loop`, `num_extended_labels_` is
+    `number_of_extended_labels_` and `last_solve_complete_` is `last_solve_proven_`.
+    `initialize` is protected: only `solve` calls it.
   - The params' "no limit", `MAX_INT`, is `kNoLimit`.
   - The direction policies' `arcs`, `terminals`, `is_terminal` and `apply_start` are `out_arcs`,
     `end_nodes`, `is_end_node` and `set_start`, named for what they are in the direction's own
@@ -204,6 +206,14 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **`SolveResult::proven` and `proof_lost_by`** (C++ and Python): whether the result is a proof
+  that no better path exists, and why not. It is a proof when the status is `Complete` and nothing
+  a finished search can still lose was lost (`ProofLoss`, in `rcspp/algorithm/proof_record.hpp`):
+  no arc masked, an exact admission rule, no memory pressure. `proof_lost_by` names the status
+  when the search did not finish, otherwise the first loss. A quota that cut nothing leaves the
+  proof. `Algorithm::is_optimal()` now answers the same, so a masked solve, one with a relaxed
+  admission rule, or one memory pressure trimmed is no longer reported optimal. See "What `status`
+  cannot tell you, and `proven` does" in `docs/advanced/algorithms.md`.
 - **Arc masks** (`rcspp/algorithm/arc_mask.hpp`): `ArcMask` marks arcs, by id, hard (never used)
   or soft (to be avoided, which a child filter reads); `Algorithm::set_arc_mask` has every later
   solve leave the hard arcs out, as if they were not in the graph, without editing it, so arc ids

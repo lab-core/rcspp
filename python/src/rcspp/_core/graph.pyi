@@ -251,6 +251,18 @@ class SolveResult:
         """
 
     @property
+    def proof_lost_by(self) -> str:
+        """
+        Why the result is not a proof; empty when it is: the status's name when the search did not finish ('truncated', 'timeout', ...), otherwise 'arcs_masked', 'relaxed_admission' or 'memory_pressure'.
+        """
+
+    @property
+    def proven(self) -> bool:
+        """
+        Whether the result is a proof that no better path exists (none at all when none is returned): status is 'complete', no arc was masked, the admission rule is exact, and memory pressure did not trim the labels.
+        """
+
+    @property
     def solutions(self) -> list[Solution]: ...
     @solutions.setter
     def solutions(self, arg0: collections.abc.Sequence[Solution]) -> None: ...

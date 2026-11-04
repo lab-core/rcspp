@@ -516,24 +516,37 @@ So it is **not a default**.  It does not pay when:
   from a search reaching a terminal rather than from the join, so `H` is placed such that
   nothing crosses it.
 
-### One thing `status` cannot tell you
+### What `status` cannot tell you, and `proven` does
 
-Every algorithm, not only this one, prunes its label queues when RSS crosses
-`memory_pressure_fraction ×` the effective limit, and tightens the per-node extension quota
-along with it.  Labels that were never extended are abandoned, so the answer may no longer be
-optimal — but `status` still reads `complete`, because the label sets really were exhausted *of
-what survived the trim*.  There is no status value for "exhausted but lossy", and reusing
-`memory_limit` would conflate a hard stop with a soft trim, so it is reported as a flag:
+`status` says why a search stopped; `complete` means it ran out of labels to extend. A search can
+finish and still not have proved anything:
+
+- **Memory pressure.** Every algorithm, not only this one, prunes its label queues when RSS
+  crosses `memory_pressure_fraction ×` the effective limit, and tightens the per-node extension
+  quota along with it. Labels that were never extended may be abandoned, but `status` still reads
+  `complete`, because the label sets really were exhausted *of what survived the trim*.
+  `memory_pressure_triggered` reports it.
+- **An arc mask** (C++, "Leaving arcs out of a solve" below): the search was exhaustive on the
+  graph without the masked arcs, not on the graph.
+- **An admission rule that is not exact** (a strategy of one's own whose `exact` answers
+  `false`).
+
+`result.proven` combines them: it is true when `status` is `complete` and none of these happened,
+so that no path better than those returned exists (none at all, when none is returned).
+`result.proof_lost_by` says why not: the status's name when the search did not finish
+(`"truncated"`, `"timeout"`, ...), otherwise `"memory_pressure"`, `"arcs_masked"` or
+`"relaxed_admission"`. A quota that cut nothing leaves the proof intact.
 
 ```python
 result = rg.solve(direction="bidirectional", params=p)
-if result.memory_pressure_triggered:
-    print("memory pressure trimmed this solve; the answer is not a proof")
+if not result.proven:
+    print("not a proof:", result.proof_lost_by)
 ```
 
 Code that treats `complete` as proof of optimality — a column-generation loop deciding it has
-converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
-*parameters*, and memory pressure is a property of the run.
+converged, say — should read `proven` instead. `could_be_non_optimal()` will not tell you: it
+reads the *parameters*, and memory pressure is a property of the run. In C++,
+`Algorithm::is_optimal()` answers `proven` for the last solve.
 
 ## `Greedy`
 
