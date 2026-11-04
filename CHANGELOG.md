@@ -218,6 +218,11 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Dominance over some components**: `DominanceMask` (`rcspp/algorithm/dominance_mask.hpp`)
+  names components to leave out, numbered as the model checks number them; `LabelList` and
+  `LabelBuckets` gain `is_dominated(label, mask)` and `remove_dominated_labels(label, mask)`,
+  which compare component by component over the others, each by its own rule, in the
+  container's direction. The exact tests are unchanged.
 - **Drivers**: a descriptor may name a `driver` (`parts::Driver`), which runs its search several
   times in one solve in place of the phases: it decides at the start whether to run, and after
   each run, reading how it ended (`parts::RunEnd`), whether to run again; between runs it may
