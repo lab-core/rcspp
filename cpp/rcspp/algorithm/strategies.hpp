@@ -4,16 +4,18 @@
 #pragma once
 
 #include "rcspp/algorithm/diversification_search.hpp"
-#include "rcspp/algorithm/improving_tabu_search.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/admit_all.hpp"
+#include "rcspp/algorithm/labelling/parts/driver/improving_tabu_episodes.hpp"
+#include "rcspp/algorithm/labelling/parts/driver/tabu_episodes.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/keep_while_waiting.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/best_first_schedule.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/cost_key.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/depth_first_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/pull_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/sweep_schedule.hpp"
-#include "rcspp/algorithm/tabu_search.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/tabu_child_filter.hpp"
 
 /// @brief The strategies a solve names: @c graph.solve<strategy::AStar>(...).
 ///
@@ -44,12 +46,12 @@
 /// be; docs/advanced/algorithms.md, "A strategy of one's own", gives examples and the rules the
 /// concepts cannot check.
 ///
-/// Greedy is a dive, built from the depth-first parts; it searches forward only.
+/// Greedy, Tabu and ImprovingTabu are dives, built from the depth-first parts; the tabu searches
+/// add a driver. They search forward only.
 ///
-/// The other heuristics (the tabu searches, diversification) are not labelling searches: their
-/// descriptors name a class of their own,
+/// Diversification is not a labelling search: its descriptor names a class of its own,
 /// `template <typename ResourceType, typename LabelContainerType> using algorithm = ...;`, and
-/// search forward only.
+/// searches forward only.
 namespace rcspp::strategy {
 
 /// @brief Labels taken first in, first out.
@@ -103,16 +105,39 @@ struct Greedy {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Dives that make the arcs they use tabu (@ref TabuSearchAlgorithm), forward only.
+/// @brief Episodes of Greedy's dive, each ending at its first path, whose arcs are then tabu for
+///        @c tabu_tenure episodes: a child reached along a tabu arc is dropped unless every child
+///        is (@c parts::TabuEpisodes, @c parts::TabuChildFilter). Forward only.
+///
+/// @c max_iterations counts episodes, and must be finite.
 struct Tabu {
-        template <typename ResourceType, typename LabelContainerType>
-        using algorithm = TabuSearchAlgorithm<ResourceType, LabelContainerType>;
+        template <typename ResourceType, typename Direction>
+        using schedule =
+            parts::DepthFirstSchedule<ResourceType, parts::CostKey, parts::TabuChildFilter>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        using driver = parts::TabuEpisodes;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 
-/// @brief Tabu dives that improve on the incumbent (@ref ImprovingTabuSearch), forward only.
+/// @brief Tabu's episodes after a first dive with no arc tabu, counting the episodes that do not
+///        improve on the best cost (@c parts::ImprovingTabuEpisodes). Forward only.
+///
+/// @c max_iterations counts the episodes after the first dive, and must be finite.
 struct ImprovingTabu {
-        template <typename ResourceType, typename LabelContainerType>
-        using algorithm = ImprovingTabuSearch<ResourceType, LabelContainerType>;
+        template <typename ResourceType, typename Direction>
+        using schedule =
+            parts::DepthFirstSchedule<ResourceType, parts::CostKey, parts::TabuChildFilter>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        using driver = parts::ImprovingTabuEpisodes;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 
 /// @brief Repeated solves of @p Inner, forward only, each solve leaving out (as hard arcs of the

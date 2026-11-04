@@ -41,10 +41,10 @@ cpp/rcspp/
 │   ├── labelling/              # the labelling kernel: the search, the take rule, the step,
 │   │   │                       # the bidirectional search and its join (rcspp::detail)
 │   │   └── parts/              # rcspp::parts: schedules, admission rules, retentions,
-│   │                           # observers, interleaves
-│   ├── backtracking_dive_algorithm.hpp
-│   ├── tabu_search.hpp / improving_tabu_search.hpp
+│   │                           # observers, interleaves, drivers
 │   ├── tabu/                   # the tabu searches' tenures
+│   ├── arc_mask.hpp            # ArcMask: arcs a solve leaves out (hard) or avoids (soft)
+│   ├── proof_record.hpp        # ProofLoss: what a finished solve can still have lost
 │   ├── diversification_search.hpp
 │   ├── path_evaluator.hpp      # PathEvaluator: replays a path, finds its first fault
 │   ├── search_direction.hpp    # SearchDirection

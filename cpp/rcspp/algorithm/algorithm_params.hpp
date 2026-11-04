@@ -140,7 +140,7 @@ struct AlgorithmBaseParams {
 
         /// @brief Consecutive non-improving dives before a diversification step.
         ///
-        /// Used by @ref ImprovingTabuSearch: when this many dives in a row fail
+        /// Used by @c strategy::ImprovingTabu: when this many dives in a row fail
         /// to strictly improve the best known cost, @c grow_extra() is called on
         /// the tabu list to force exploration of unexplored regions.
         size_t non_improving_episodes_before_growth = 10;  // NOLINT(readability-magic-numbers)
