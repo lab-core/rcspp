@@ -111,9 +111,12 @@ class Algorithm:
       Tabu
 
       AStar
+
+      BoundGuidedGreedy
     """
 
     AStar: typing.ClassVar[Algorithm]
+    BoundGuidedGreedy: typing.ClassVar[Algorithm]
     Greedy: typing.ClassVar[Algorithm]
     Pulling: typing.ClassVar[Algorithm]
     Pushing: typing.ClassVar[Algorithm]

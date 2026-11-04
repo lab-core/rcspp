@@ -109,7 +109,7 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
 // Append new values at the end: the integer values are exposed to Python.
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
+enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar, BoundGuidedGreedy };
 
 // Dispatch entry: the strategy, searching in params.direction. A strategy that does not search in
 // that direction throws std::invalid_argument (ValueError in Python). The clock's type is the
@@ -128,12 +128,14 @@ struct AlgoEntry {
         }
 };
 
-using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, strategy::Simple>,
-                                  AlgoEntry<SolverAlgorithm::Pushing, strategy::Pushing>,
-                                  AlgoEntry<SolverAlgorithm::Pulling, strategy::Pulling>,
-                                  AlgoEntry<SolverAlgorithm::Greedy, strategy::Greedy>,
-                                  AlgoEntry<SolverAlgorithm::Tabu, strategy::Tabu>,
-                                  AlgoEntry<SolverAlgorithm::AStar, strategy::AStar>>;
+using AlgorithmTable =
+    std::tuple<AlgoEntry<SolverAlgorithm::Simple, strategy::Simple>,
+               AlgoEntry<SolverAlgorithm::Pushing, strategy::Pushing>,
+               AlgoEntry<SolverAlgorithm::Pulling, strategy::Pulling>,
+               AlgoEntry<SolverAlgorithm::Greedy, strategy::Greedy>,
+               AlgoEntry<SolverAlgorithm::Tabu, strategy::Tabu>,
+               AlgoEntry<SolverAlgorithm::AStar, strategy::AStar>,
+               AlgoEntry<SolverAlgorithm::BoundGuidedGreedy, strategy::BoundGuidedGreedy>>;
 
 template <typename ResourceGraphType, typename CostResourceType, typename LabelContainerType,
           typename... Entries>

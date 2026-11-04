@@ -586,6 +586,28 @@ params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 result = rg.solve(algorithm="greedy", params=params)
 ```
 
+### Bounded Greedy
+
+`BoundGuidedGreedy` (`algorithm="bound_guided_greedy"`) is Greedy's dive with a label's children taken by
+cost plus a lower bound on the cost still to pay, not by cost alone, so each step goes toward the
+cheapest completion. It is meant with `prune_by_threshold`, which drops, under the same bound, the
+labels that cannot beat the upper bound. The bound costs one Bellman–Ford run at the start of each
+solve. With no budget, it finds the optimum, as Greedy does.
+
+```python
+params = AlgorithmParams()
+params.max_iterations = 20_000
+params.prune_by_threshold = True
+result = rg.solve(algorithm="bound_guided_greedy", upper_bound=0.0, params=params)
+```
+
+On fixed duals, with 20 000 labels and an upper bound of 0, its best column was never dearer than
+that of plain Greedy without the prune on 25 pricing graphs, and cheaper on four: C101 at 25 and 50
+customers (-401.5 to -524.1, -429.7 to -579.3) and R101 at the first two column-generation
+iterations measured (-245.7 to -319.9, -16.0 to -23.7). The order accounts for the cheaper
+columns: with the prune on both, the same four are cheaper (R101's second: -19.8 to -23.7). On the
+others, it found the same best column in about the same time.
+
 ## `Tabu`
 
 Episodes of Greedy's dive. Each episode dives from the sources and ends at the first path it
