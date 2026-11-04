@@ -568,6 +568,13 @@ children are made, and lives on only while a label extended from it still waits.
 tries every path, and so finds the optimum, but its work grows
 with the number of paths; with one, it is fast, with no optimality guarantee.
 
+Like the tabu searches, it dives forward from the sources by default, or backward from the sinks
+(`direction="backward"`), with the model's backward semantics; neither searches bidirectionally.
+Backward and forward dives under the same budget find different columns: on fixed duals, backward
+Tabu and Improving Tabu found cheaper best columns than forward ones on four of five R2 and RC2
+pricing graphs, the families where forward dives do worst, and dearer ones on others, so a
+pricing loop can run both.
+
 As in every labelling search, `max_iterations` counts the labels taken, and
 `max_extended_labels_per_node` (with `max_phases`) caps the labels taken at each node.
 
@@ -1105,7 +1112,7 @@ and hands them out next, cheapest first
 may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
 stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
 label is released once extended, living on while a label extended from it waits. A dive searches
-forward only:
+forward or backward; this one, like Greedy, says it does not search bidirectionally:
 
 <!-- docs-check: file-scope -->
 
@@ -1117,7 +1124,6 @@ struct Dive {
         using admission = rcspp::parts::AdmitAll;
         template <typename ResourceType, typename Direction>
         using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
-        static constexpr bool backward = false;
         static constexpr bool bidirectional = false;
 };
 ```
