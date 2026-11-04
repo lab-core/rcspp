@@ -597,9 +597,11 @@ first path, whatever it costs; only the count reads the best cost.
 
 ## `Diversification`
 
-Wraps another algorithm (default: `Greedy`) and repeatedly solves the
-subproblem after removing solution arcs, collecting a pool of diverse
-solutions.
+Wraps another algorithm (default: `Greedy`) and solves the graph again and again, each time
+leaving out the arcs of the paths found so far for `tabu_tenure` iterations, collecting a pool of
+diverse solutions. The arcs are left out through the inner algorithm's arc mask: the graph is not
+copied or edited, so arc ids, and the order in which a node's arcs are tried, stay the graph's.
+`max_iterations` counts the inner solves, and must be finite.
 
 Diversification is C++ only: Python does not offer it.
 
