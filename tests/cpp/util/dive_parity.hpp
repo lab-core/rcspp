@@ -210,13 +210,17 @@ struct Observation {
         std::vector<parity::SolutionRecord> solutions;
 };
 
+/// @brief Changes the params of every run of a sweep; none by default.
+using Adjust = std::function<void(rcspp::AlgorithmBaseParams&)>;
+
 /// @brief Solves @p c under @p s with @p Strategy, releasing the labels after each solve when
 ///        @p release, and returns one observation per solve.
 ///
 /// @param finite_budget Whether @p Strategy needs a finite @c max_iterations.
+/// @param adjust        Changes the params last, when given.
 template <typename Strategy>
-std::vector<Observation> observe(const Case& c, const Setting& s, bool finite_budget,
-                                 bool release) {
+std::vector<Observation> observe(const Case& c, const Setting& s, bool finite_budget, bool release,
+                                 const Adjust& adjust = {}) {
     auto log = std::make_shared<std::vector<Draw>>();
     auto graph = build(c.instance, log);
     auto params = golden_labelling::heuristic_params<rcspp::AlgorithmParams<List>>(s.variant,
@@ -227,6 +231,9 @@ std::vector<Observation> observe(const Case& c, const Setting& s, bool finite_bu
     if (s.jitter) {
         params.tabu_random_noise = true;
         params.seed = 3;
+    }
+    if (adjust) {
+        adjust(params);
     }
     auto algorithm = graph->create_algorithm<Strategy>(params);
     std::vector<Observation> runs(s.solves);
@@ -326,12 +333,13 @@ inline ::testing::AssertionResult same(const std::vector<Observation>& reference
 ///
 /// @param finite_budget   Whether the two need a finite @c max_iterations.
 /// @param compare_budgets Whether runs with a finite @c max_iterations are compared.
-/// @param comparable      Called after each run of @p ReferenceStrategy: whether that run is
-///                        compared (by default, every run is).
+/// @param comparable      Called with the case after each run of @p ReferenceStrategy: whether
+///                        that run is compared (by default, every run is).
+/// @param adjust          Changes the params of every run, when given.
 /// @return The number of (case, setting, release mode) runs compared.
 template <typename ReferenceStrategy, typename LibraryStrategy>
 size_t sweep(bool finite_budget, bool compare_budgets = true,
-             const std::function<bool()>& comparable = {}) {
+             const std::function<bool(const Case&)>& comparable = {}, const Adjust& adjust = {}) {
     size_t compared = 0;
     for (const Case& c : cases()) {
         for (const Setting& s : settings()) {
@@ -339,11 +347,12 @@ size_t sweep(bool finite_budget, bool compare_budgets = true,
                 continue;
             }
             for (const bool release : {false, true}) {
-                const auto expected = observe<ReferenceStrategy>(c, s, finite_budget, release);
-                if (comparable && !comparable()) {
+                const auto expected =
+                    observe<ReferenceStrategy>(c, s, finite_budget, release, adjust);
+                if (comparable && !comparable(c)) {
                     continue;
                 }
-                const auto actual = observe<LibraryStrategy>(c, s, finite_budget, release);
+                const auto actual = observe<LibraryStrategy>(c, s, finite_budget, release, adjust);
                 EXPECT_TRUE(same(expected, actual))
                     << c.name << ", setting " << s.name() << (release ? ", released" : ", kept");
                 ++compared;
