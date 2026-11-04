@@ -24,6 +24,7 @@
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/labelling/bidirectional_labelling_algorithm.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"

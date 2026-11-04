@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/direction.hpp"
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/label/label.hpp"
 #include "rcspp/label/label_list.hpp"
 
@@ -209,56 +210,25 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         ///
         /// @return Number of labels removed.
         size_t remove_dominated_labels(const Label<ResourceType>& label) override {
-            if (buckets_.empty()) {
-                return 0;
-            }
+            return remove_dominated_labels_with(
+                label,
+                [](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return LabelBuckets::dominates(lhs, rhs);
+                });
+        }
 
-            num_rm_labels_ += this->labels_.size();
-            size_t removed = 0;
-            const auto& lbr = get_bucket_resource(label);
-            const auto& lsr = get_sort_resource(label);
-
-            // O(log B): first bucket index potentially containing dominated labels.
-            const BucketIdx first_idx = find_first_not_after(lbr);
-            if (first_idx >= buckets_.size()) {
-                return 0;
-            }
-
-            BucketIdx idx = buckets_.size();
-            while (idx > first_idx) {
-                --idx;
-
-                auto label_it = buckets_[idx].end;
-                bool reached_begin = false;
-                while (!reached_begin) {
-                    ++num_rm_visited_;
-                    --label_it;
-                    reached_begin = (label_it == buckets_[idx].begin);
-                    auto* current = *label_it;
-                    if (&label != current && this->dominates(label, *current)) {
-                        current->dominated = true;
-                        // Capture the begin pointer BEFORE erasing: the erase
-                        // invalidates the stored bucket begin iterator.
-                        Label<ResourceType>* begin_before_erase = reached_begin ? current : nullptr;
-                        label_it = this->labels_.erase(label_it);
-                        ++removed;
-                        if (reached_begin) {
-                            if (label_it == buckets_[idx].end) {
-                                remove_bucket(idx, begin_before_erase);
-                                break;  // Bucket gone; continue outer loop.
-                            }
-                            update_bucket_begin(idx, label_it, begin_before_erase);
-                        }
-                    } else if (!Direction::template dominates<SortResource>(
-                                   lsr,
-                                   get_sort_resource(*current))) {
-                        // Sort-resource pruning: remaining labels cannot be dominated.
-                        break;
-                    }
-                }
-            }
-
-            return removed;
+        /// @brief Marks and removes all labels @p label dominates over the components @p mask
+        ///        leaves in, with the same early exits: leaving out the bucket or the sort
+        ///        resource weakens the relaxation, since the exits assume they order dominance.
+        ///
+        /// @return Number of labels removed.
+        size_t remove_dominated_labels(const Label<ResourceType>& label,
+                                       const DominanceMask& mask) override {
+            return remove_dominated_labels_with(
+                label,
+                [&mask](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return LabelBuckets::dominates(lhs, rhs, mask);
+                });
         }
 
         /// @brief Returns true if any stored label dominates @p label.
@@ -266,35 +236,22 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         /// Iterates lower buckets forward; stops at the first bucket that starts
         /// above the new label (upper buckets cannot dominate it).
         [[nodiscard]] bool is_dominated(const Label<ResourceType>& label) const override {
-            if (buckets_.empty()) {
-                return false;
-            }
+            return is_dominated_with(
+                label,
+                [](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return LabelBuckets::dominates(lhs, rhs);
+                });
+        }
 
-            num_dom_labels_ += this->labels_.size();
-            const auto& lbr = get_bucket_resource(label);
-            const auto& lsr = get_sort_resource(label);
-
-            // O(log B): stop before buckets whose begin_value already exceeds lbr.
-            const BucketIdx end_idx = find_first_before(lbr);
-
-            for (BucketIdx idx = 0; idx < end_idx; ++idx) {
-                const auto& bucket = buckets_[idx];
-                for (auto it = bucket.begin; it != bucket.end; ++it) {
-                    ++num_dom_visited_;
-                    if (&label == *it) {
-                        continue;
-                    }
-                    if (this->dominates(**it, label)) {
-                        return true;
-                    }
-                    if (!Direction::template dominates<SortResource>(get_sort_resource(**it),
-                                                                     lsr)) {
-                        break;
-                    }
-                }
-            }
-
-            return false;
+        /// @brief Returns true if any stored label dominates @p label over the components
+        ///        @p mask leaves in, with the same early exits as the exact test.
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& label,
+                                        const DominanceMask& mask) const override {
+            return is_dominated_with(
+                label,
+                [&mask](const Label<ResourceType>& lhs, const Label<ResourceType>& rhs) {
+                    return LabelBuckets::dominates(lhs, rhs, mask);
+                });
         }
 
         /// @brief Logs label list and bucket-efficiency statistics at TRACE level.
@@ -332,6 +289,97 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         }
 
     private:
+        /// @brief @ref remove_dominated_labels, with @p dominates the test.
+        template <typename DominatesCallable>
+        size_t remove_dominated_labels_with(const Label<ResourceType>& label,
+                                            const DominatesCallable& dominates) {
+            if (buckets_.empty()) {
+                return 0;
+            }
+
+            num_rm_labels_ += this->labels_.size();
+            size_t removed = 0;
+            const auto& lbr = get_bucket_resource(label);
+            const auto& lsr = get_sort_resource(label);
+
+            // O(log B): first bucket index potentially containing dominated labels.
+            const BucketIdx first_idx = find_first_not_after(lbr);
+            if (first_idx >= buckets_.size()) {
+                return 0;
+            }
+
+            BucketIdx idx = buckets_.size();
+            while (idx > first_idx) {
+                --idx;
+
+                auto label_it = buckets_[idx].end;
+                bool reached_begin = false;
+                while (!reached_begin) {
+                    ++num_rm_visited_;
+                    --label_it;
+                    reached_begin = (label_it == buckets_[idx].begin);
+                    auto* current = *label_it;
+                    if (&label != current && dominates(label, *current)) {
+                        current->dominated = true;
+                        // Capture the begin pointer BEFORE erasing: the erase
+                        // invalidates the stored bucket begin iterator.
+                        Label<ResourceType>* begin_before_erase = reached_begin ? current : nullptr;
+                        label_it = this->labels_.erase(label_it);
+                        ++removed;
+                        if (reached_begin) {
+                            if (label_it == buckets_[idx].end) {
+                                remove_bucket(idx, begin_before_erase);
+                                break;  // Bucket gone; continue outer loop.
+                            }
+                            update_bucket_begin(idx, label_it, begin_before_erase);
+                        }
+                    } else if (!Direction::template dominates<SortResource>(
+                                   lsr,
+                                   get_sort_resource(*current))) {
+                        // Sort-resource pruning: remaining labels cannot be dominated.
+                        break;
+                    }
+                }
+            }
+
+            return removed;
+        }
+
+        /// @brief @ref is_dominated, with @p dominates the test.
+        template <typename DominatesCallable>
+        [[nodiscard]] bool is_dominated_with(const Label<ResourceType>& label,
+                                             const DominatesCallable& dominates) const {
+            if (buckets_.empty()) {
+                return false;
+            }
+
+            num_dom_labels_ += this->labels_.size();
+            const auto& lbr = get_bucket_resource(label);
+            const auto& lsr = get_sort_resource(label);
+
+            // O(log B): stop before buckets whose begin_value already exceeds lbr.
+            const BucketIdx end_idx = find_first_before(lbr);
+
+            for (BucketIdx idx = 0; idx < end_idx; ++idx) {
+                const auto& bucket = buckets_[idx];
+                for (auto it = bucket.begin; it != bucket.end; ++it) {
+                    ++num_dom_visited_;
+                    if (&label == *it) {
+                        continue;
+                    }
+                    if (dominates(**it, label)) {
+                        return true;
+                    }
+                    if (!Direction::template dominates<SortResource>(get_sort_resource(**it),
+                                                                     lsr)) {
+                        break;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         size_t bucket_width_;
         size_t bucket_resource_index_;
         size_t sort_resource_index_;
