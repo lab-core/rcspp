@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
@@ -248,6 +249,21 @@ class Algorithm {
             return params_.should_stop && params_.should_stop();
         }
 
+        /// @brief Has every later solve leave out the arcs @p mask makes hard, as if they were not
+        ///        in the graph; @c nullptr (the default) leaves every arc in.
+        ///
+        /// A labelling search never extends a label along a hard arc. The graph is not edited:
+        /// arc ids, and the bounds computed on the whole graph, are unchanged, so the paths
+        /// returned name the graph's own arcs. The mask is read at the start of each solve, and
+        /// not owned: it must outlive the solves that read it. A soft arc changes nothing for a
+        /// search whose schedule does not read it (every exact search).
+        ///
+        /// @param mask The mask, sized for the graph's arc ids (@c Graph::get_arc_id_bound).
+        void set_arc_mask(const ArcMask* mask) { arc_mask_ = mask; }
+
+        /// @brief The mask later solves read; @c nullptr when none was set.
+        [[nodiscard]] const ArcMask* get_arc_mask() const { return arc_mask_; }
+
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
@@ -361,11 +377,12 @@ class Algorithm {
         ///        @ref kProgressReportInterval extensions.
         ///
         /// Every extension that drew a label counts towards @ref get_number_of_extended_labels:
-        /// all but the unreachable ones.
+        /// all but the masked and the unreachable ones.
         ///
         /// @param outcome How the extension ended.
         void count_extension(parts::ExtensionOutcome outcome) {
-            if (outcome == parts::ExtensionOutcome::Unreachable) {
+            if (outcome == parts::ExtensionOutcome::Masked ||
+                outcome == parts::ExtensionOutcome::Unreachable) {
                 return;
             }
             if (++number_of_extended_labels_ % kProgressReportInterval == 0) {
@@ -395,8 +412,9 @@ class Algorithm {
         /// @brief Builds the context one search of this solve reads (@c detail::SearchContext).
         ///
         /// Every pointer in it points to the graph being solved, into this algorithm (its pool,
-        /// params, incumbent, quota and solutions), or into @p search (its completion bound): the
-        /// context is valid while this algorithm and the search live. It also says whether the
+        /// params, incumbent, quota and solutions), into @p search (its completion bound), or to
+        /// the arc mask set with @ref set_arc_mask: the context is valid while this algorithm, the
+        /// search and the mask live. It also says whether the
         /// incumbent prune adds the completion bound (@c prune_adds_completion_bound: the prune is
         /// on and the cost is additive, @ref is_cost_additive).
         ///
@@ -422,6 +440,7 @@ class Algorithm {
                 .solutions = &solutions_,
                 .admission = {},
                 .completion_bound = &search.completion_bound,
+                .arc_mask = arc_mask_,
                 .role = role,
                 .prune_adds_completion_bound =
                     params_.prune_by_incumbent && is_cost_additive(*graph_),
@@ -637,6 +656,7 @@ class Algorithm {
         ///        (@c prune_by_incumbent) and the join compare with it.
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
+        const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
 
         size_t number_of_extended_labels_ = 0;
 

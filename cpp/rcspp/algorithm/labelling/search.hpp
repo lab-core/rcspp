@@ -167,26 +167,33 @@ struct Search {
 
         /// @brief Extends @p label along @p arc.
         ///
-        /// The steps, in order; each of the first three can end the extension:
-        ///  1. @c Unreachable: when @p label can no longer reach the arc's head (the look-ahead,
+        /// The steps, in order; each of the first four can end the extension:
+        ///  1. @c Masked: when the arc mask leaves the arc out (a hard arc, @c
+        ///  SearchContext::arc_mask),
+        ///     the arc is skipped; no label is taken from the pool.
+        ///  2. @c Unreachable: when @p label can no longer reach the arc's head (the look-ahead,
         ///     @c Label::is_reachable), the arc is skipped; no label is taken from the pool.
-        ///  2. @c Infeasible: a label is taken from the pool and extended along the arc; when it
+        ///  3. @c Infeasible: a label is taken from the pool and extended along the arc; when it
         ///     fails its feasibility test it goes back to the pool at once.
-        ///  3. @c Rejected: the admission rule decides whether to keep the new label at its node
+        ///  4. @c Rejected: the admission rule decides whether to keep the new label at its node
         ///     (it may evict labels there); a rejected label goes back to the pool at once.
-        ///  4. @c Accepted: the new label is stored at its node and pushed to the schedule, and
+        ///  5. @c Accepted: the new label is stored at its node and pushed to the schedule, and
         ///     @p label becomes its predecessor. That pins @p label: it is not freed while the new
         ///     label is alive (@c Label::ref_count).
         /// The observer is told the outcome in every case.
         ///
         /// @param label The label to extend.
         /// @param arc   The arc to extend it along, one @p Direction walks from its node.
-        /// @param context   The search's context: the pool and the admission rule.
+        /// @param context   The search's context: the arc mask, the pool and the admission rule.
         /// @return How the extension ended.
         parts::ExtensionOutcome extend_along(Label<ResourceType>* label,
                                              const Arc<ResourceType>* arc,
                                              SearchContext<ResourceType>& context) {
             using parts::ExtensionOutcome;
+            if (context.arc_mask != nullptr && context.arc_mask->is_hard(arc->id)) {
+                observer.on_extension(*label, *arc, ExtensionOutcome::Masked);
+                return ExtensionOutcome::Masked;
+            }
             auto* head_node = Direction::head(*arc);
 
             // Skip the arc when the label can no longer reach the node it lands on. Both

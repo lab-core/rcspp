@@ -10,6 +10,7 @@
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/admission.hpp"
@@ -56,6 +57,7 @@ struct SearchContext {
         const std::unordered_set<Solution>* solutions = nullptr;  ///< those recorded so far
         parts::AdmissionContext admission;                        ///< the rule and what it reads
         const CompletionBound<ResourceType>* completion_bound = nullptr;  ///< the completion bound
+        const ArcMask* arc_mask = nullptr;  ///< the hard arcs left out; none: every arc open
         Role role = Role::Single;
         /// Whether the incumbent prune adds the completion bound to a label's cost: the bound is
         /// valid (the cost is additive). Otherwise the prune compares the cost alone.

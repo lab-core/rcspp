@@ -592,6 +592,26 @@ params.seed = 42;
 const SolveResult result = graph.solve<strategy::Diversification<>>(ub, params);
 ```
 
+## Leaving arcs out of a solve
+
+An `ArcMask` leaves arcs out of a solve without editing the graph. A **hard** arc is never used: no
+labelling search extends a label along it, in any direction, as if it were not in the graph. A
+**soft** arc is used as any other, unless the search's schedule reads it (a depth-first schedule's
+child filter may). Arc ids, and the bounds a search computes on the whole graph, are unchanged, so every path
+returned names the graph's own arcs, and A\*'s bound is still a lower bound.
+
+```cpp
+rcspp::ArcMask mask(graph.get_arc_id_bound());   // every arc open
+mask.set(0, rcspp::ArcMask::State::Hard);        // leave arc 0 out
+
+auto algorithm = graph.create_algorithm<strategy::AStar>();
+algorithm->set_arc_mask(&mask);  // read at the start of each solve; it must outlive them
+const SolveResult result = graph.solve(algorithm.get(), ub);
+```
+
+The mask is sized by `get_arc_id_bound()`, one past the largest arc id, removed arcs included; an
+id it was not sized for is open. It is a C++ feature: Python does not offer it.
+
 ## Search directions
 
 A labelling search runs **forward** by default: from the sources, along each node's out-arcs, until
@@ -834,10 +854,11 @@ kernel, in `cpp/rcspp/algorithm/labelling/`. A strategy is not a class with its 
 are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::detail`).
 
 - **The search** holds one direction's labels, one container per node, and is the only code that
-  extends them. Extending a label along an arc checks that the arc is reachable, extends the
-  label, tests its feasibility, asks the admission rule, and stores the new label and hands it to
-  the schedule. Every outcome (unreachable, infeasible, rejected, accepted) goes to the search's
-  observer, which by default records nothing.
+  extends them. Extending a label along an arc checks that the arc mask leaves the arc in and that
+  the arc is reachable, extends the label, tests its feasibility, asks the admission rule, and
+  stores the new label and hands it to the schedule. Every outcome (masked, unreachable,
+  infeasible, rejected, accepted) goes to the search's observer, which by default records
+  nothing.
 - **Admission and retention.** The admission rule (`parts::DominanceAdmission`) decides whether a
   new label is kept at its node: under exact dominance, when no label there dominates it, and then
   the labels it dominates are removed. The retention (`parts::KeepAtNodes`) decides where kept
