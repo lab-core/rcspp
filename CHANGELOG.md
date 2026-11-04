@@ -206,6 +206,13 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Drivers**: a descriptor may name a `driver` (`parts::Driver`), which runs its search several
+  times in one solve in place of the phases: it decides at the start whether to run, and after
+  each run, reading how it ended (`parts::RunEnd`), whether to run again; between runs it may
+  mask arcs, end each run at its first path, and start again from the start labels. A driven run
+  counts no iterations (`max_iterations` is the driver's to read). A driver that changes the
+  search records `ProofLoss::HeuristicDriver`. Forward and backward; not bidirectionally. See "A
+  strategy of one's own" in `docs/advanced/algorithms.md`.
 - **`SolveResult::proven` and `proof_lost_by`** (C++ and Python): whether the result is a proof
   that no better path exists, and why not. It is a proof when the status is `Complete` and nothing
   a finished search can still lose was lost (`ProofLoss`, in `rcspp/algorithm/proof_record.hpp`):

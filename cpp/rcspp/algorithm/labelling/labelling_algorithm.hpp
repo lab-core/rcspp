@@ -97,9 +97,23 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         }
 
         /// @brief One phase: at most `max_iterations` steps. Each phase has its own count.
-        void main_loop() override {
+        void main_loop() override { run_loop(this->params_.max_iterations); }
+
+        /// @brief Runs @ref step until no label waits, a stop applies, or @p max_steps steps are
+        ///        done.
+        ///
+        /// A step takes one label or, with a pulling schedule, visits one node. Before each step
+        /// the memory check runs (@c Algorithm::check_memory). It reads the memory only every
+        /// `memory_check_interval` iterations of this call, and the count restarts at each call, so
+        /// a driven run shorter than that interval never reads it.
+        ///
+        /// @param max_steps The most steps this call takes: `max_iterations` for a phase,
+        ///                   @c kNoLimit for a driven run.
+        /// @return @c true when a step ended the loop (@ref SearchContext::should_end_run).
+        bool run_loop(size_t max_steps) {
             size_t iteration = 0;
-            while (number_of_waiting_labels() > 0 && !this->should_end_loop(iteration)) {
+            while (number_of_waiting_labels() > 0 && iteration < max_steps &&
+                   !this->should_end_loop()) {
                 if (this->check_memory(iteration)) {
                     break;
                 }
@@ -111,9 +125,10 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                         [this](parts::ExtensionOutcome outcome) {
                             this->count_extension(outcome);
                         })) {
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
 
         [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {

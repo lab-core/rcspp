@@ -620,3 +620,148 @@ TEST(TabuStatusTest, ImprovingTabuThatRunsOutOfPathsIsComplete) {
     EXPECT_TRUE(result.solutions.empty());
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
+
+// ============================================================================
+// Drivers
+// ============================================================================
+
+namespace {
+
+/// @brief How each run of the last solve driven by a test driver ended.
+inline std::vector<parts::RunEnd>& driven_runs() {
+    static std::vector<parts::RunEnd> runs;
+    return runs;
+}
+
+/// @brief Ends each run at its first path, makes that path's arcs hard, and runs again until a
+///        run finds none.
+struct MaskEachPath {
+        explicit MaskEachPath(const AlgorithmBaseParams& /*params*/) {}
+
+        template <typename SearchType>
+        bool begin(SearchType& search) {
+            mask.reset(search.graph().get_arc_id_bound());
+            search.use_arc_mask(&mask);
+            search.end_runs_at_end_node();
+            driven_runs().clear();
+            return true;
+        }
+
+        template <typename SearchType>
+        bool after_run(SearchType& search, size_t number_of_runs) {
+            driven_runs().push_back(search.last_run());
+            EXPECT_EQ(number_of_runs, driven_runs().size());
+            if (!search.last_run().recorded) {
+                return false;
+            }
+            search.lose_proof(ProofLoss::HeuristicDriver);
+            for (const size_t arc_id : search.last_run().arc_ids) {
+                mask.set(arc_id, ArcMask::State::Hard);
+            }
+            search.reseed();
+            return true;
+        }
+
+        ArcMask mask;
+};
+
+/// @brief Refuses to run.
+struct Refuses {
+        explicit Refuses(const AlgorithmBaseParams& /*params*/) {}
+        template <typename SearchType>
+        bool begin(SearchType& /*search*/) {
+            return false;
+        }
+        template <typename SearchType>
+        bool after_run(SearchType& /*search*/, size_t /*number_of_runs*/) {
+            ADD_FAILURE() << "a driver that refused to run is asked after a run";
+            return false;
+        }
+};
+
+/// @brief Ends the first run at its first path, and stops.
+struct OneRun {
+        explicit OneRun(const AlgorithmBaseParams& /*params*/) {}
+        template <typename SearchType>
+        bool begin(SearchType& search) {
+            search.end_runs_at_end_node();
+            return true;
+        }
+        template <typename SearchType>
+        bool after_run(SearchType& /*search*/, size_t /*number_of_runs*/) {
+            return false;
+        }
+};
+
+/// @brief Greedy's parts, run by @p DriverType.
+template <typename DriverType>
+struct DrivenDive {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        using driver = DriverType;
+        static constexpr bool backward = false;
+};
+
+}  // namespace
+
+/// @brief A driver runs the search again and again: each run ends at its first path, whose arcs
+///        it then masks, until a run finds none. The runs take no notice of max_iterations.
+TEST(DrivenSearch, RunsTheSearchUntilTheDriverStops) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 1;  // a driver's runs do not count the labels they take
+    const auto result = g->solve<DrivenDive<MaskEachPath>>(params);
+    ASSERT_EQ(result.solutions.size(), 2U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_NEAR(result.solutions[1].cost, kAltPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+    EXPECT_FALSE(result.proven);
+    EXPECT_EQ(result.proof_lost_by, "heuristic_driver");
+
+    const auto& runs = driven_runs();
+    ASSERT_EQ(runs.size(), 3U);
+    EXPECT_TRUE(runs[0].recorded);
+    EXPECT_TRUE(runs[0].new_solution);
+    EXPECT_NEAR(runs[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(runs[0].arc_ids, (std::vector<size_t>{0, 1}));
+    EXPECT_EQ(runs[1].arc_ids, (std::vector<size_t>{2, 3}));
+    EXPECT_FALSE(runs[2].recorded);
+    EXPECT_TRUE(runs[2].exhausted);
+}
+
+/// @brief A driver that refuses to run leaves the start labels waiting: nothing is extended, and
+///        the solve is not complete.
+TEST(DrivenSearch, ADriverThatRefusesRunsNothing) {
+    auto g = make_two_path_graph();
+    auto algorithm = g->create_algorithm<DrivenDive<Refuses>>(
+        AlgorithmBaseParams{}.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    const auto result = g->solve(algorithm.get());
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_EQ(algorithm->get_number_of_extended_labels(), 0U);
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+}
+
+/// @brief A run that ends at its first path leaves the labels still waiting: a driver that stops
+///        there leaves a solve that is not complete.
+TEST(DrivenSearch, ARunEndsAtItsFirstPath) {
+    auto g = make_two_path_graph();
+    const auto result = g->solve<DrivenDive<OneRun>>(AlgorithmBaseParams{});
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+    EXPECT_EQ(result.proof_lost_by, "truncated");
+}
+
+/// @brief A driven strategy does not search bidirectionally.
+TEST(DrivenSearch, ADrivenStrategyDoesNotSearchBidirectionally) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.direction = SearchDirection::Bidirectional;
+    EXPECT_THROW((void)g->create_algorithm<DrivenDive<OneRun>>(
+                     params.with_container<LabelList<ResourceTypeComposition<RealResource>>>()),
+                 std::invalid_argument);
+}
