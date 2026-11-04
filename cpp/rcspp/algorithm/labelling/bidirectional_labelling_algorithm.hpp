@@ -161,6 +161,10 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                                                    Role::BidirectionalSide,
                                                    &number_of_abandoned_labels_,
                                                    &half_way_);
+            if (!decltype(forward_.admission)::is_exact(forward_context_.admission) ||
+                !decltype(backward_.admission)::is_exact(backward_context_.admission)) {
+                this->proof_.record(ProofLoss::RelaxedAdmission);
+            }
             forward_.schedule.initialize(forward_context_);
             backward_.schedule.initialize(backward_context_);
         }
