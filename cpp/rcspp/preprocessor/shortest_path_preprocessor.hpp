@@ -89,7 +89,7 @@ class ShortestPathPreprocessor : public Preprocessor<ResourceTypeComposition<Res
         // pointer to the graph for traversal and connectivity queries
         Graph<ResourceTypeComposition<ResourceTypes...>>* graph_;
 
-        bool remove_arc(const Arc<ResourceTypeComposition<ResourceTypes...>>& arc) override {
+        bool should_remove_arc(const Arc<ResourceTypeComposition<ResourceTypes...>>& arc) override {
             const auto& arc_cost_extender =
                 arc.extender->template get_component<CostResourceType>(cost_index_);
             double arc_cost = arc_cost_extender.get_value().get_value();

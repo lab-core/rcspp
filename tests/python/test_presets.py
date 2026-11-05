@@ -22,10 +22,10 @@ from rcspp.graph import AlgorithmParams, ResourceGraph  # noqa: E402
 from rcspp.resource import (  # noqa: E402
     AdditionExtensionFunction,
     CapacityExtensionFunction,
-    InclusionDominanceFunction,
     IntersectionFeasibilityFunction,
     MinMaxFeasibilityFunction,
     NgPathExtensionFunction,
+    SubsetDominanceFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
     TrivialCostFunction,
@@ -237,7 +237,7 @@ def test_ng_path_preset_matches_the_hand_built_model():
             NgPathExtensionFunction(neighborhoods),
             IntersectionFeasibilityFunction({n: {n} for n in range(4)}, forbidden=True),
             TrivialCostFunction(),
-            InclusionDominanceFunction(),
+            SubsetDominanceFunction(),
         )
 
     preset, _ = _best(

@@ -165,19 +165,19 @@ inline std::vector<Variant> bidirectional_variants() {
     return v;
 }
 
-/// @brief The params of type @p Params for setting @p v.
-template <typename Params>
-Params params_for(const Variant& v) {
-    Params p;
-    p.num_labels_to_extend_by_node = v.quota;
-    p.num_max_phases = v.phases;
+/// @brief The params of type @p ParamsType for setting @p v.
+template <typename ParamsType>
+ParamsType params_for(const Variant& v) {
+    ParamsType p;
+    p.max_extended_labels_per_node = v.quota;
+    p.max_phases = v.phases;
     // Phases and dominated solutions only take effect with a finite stop
     // (AlgorithmBaseParams::check).
     if (v.phases > 1 || v.dominated) {
-        p.stop_after_X_solutions = 1000;
+        p.max_solutions = 1000;
     }
     p.return_dominated_solutions = v.dominated;
-    p.prune_based_on_upper_bound_ = v.prune;
+    p.prune_by_upper_bound = v.prune;
     p.max_iterations = v.max_iterations;
     p.join_after_early_stop = v.join_after_early_stop;
     return p;
@@ -267,8 +267,8 @@ inline const char* kind_name(Kind k) {
 }
 
 /// @brief Solves @p g with @p a under @p v and summarises the result.
-template <typename Algo>
-Outcome finish(Algo& a, ResourceGraph<RealResource>* g, const Variant& v) {
+template <typename AlgorithmPointer>
+Outcome finish(AlgorithmPointer& a, ResourceGraph<RealResource>* g, const Variant& v) {
     const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
     return summarise(r, a->get_number_of_extended_labels());
 }

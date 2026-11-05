@@ -66,7 +66,7 @@ class PushingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             this->add_new_label(label_iterator_pair);
         }
 
-        void prepareNextPhase() override { this->restore_truncated_unprocessed_labels(); }
+        void prepare_next_phase() override { this->restore_truncated_unprocessed_labels(); }
 
         /// @brief Trim per-node queues when memory pressure is detected.
         ///

@@ -98,12 +98,12 @@ void init_graph(py::module_& m) {
     // ── AlgorithmStatus enum ──────────────────────────────────────────────────
 
     py::enum_<AlgorithmStatus>(m, "AlgorithmStatus")
-        .value("Complete", AlgorithmStatus::COMPLETE)
-        .value("Timeout", AlgorithmStatus::TIMEOUT)
-        .value("MaxSolutions", AlgorithmStatus::MAX_SOLUTIONS)
-        .value("MaxPhases", AlgorithmStatus::MAX_PHASES)
-        .value("Interrupted", AlgorithmStatus::INTERRUPTED)
-        .value("MemoryLimit", AlgorithmStatus::MEMORY_LIMIT);
+        .value("Complete", AlgorithmStatus::Complete)
+        .value("Timeout", AlgorithmStatus::Timeout)
+        .value("MaxSolutions", AlgorithmStatus::MaxSolutions)
+        .value("MaxPhases", AlgorithmStatus::MaxPhases)
+        .value("Interrupted", AlgorithmStatus::Interrupted)
+        .value("MemoryLimit", AlgorithmStatus::MemoryLimit);
 
     // ── BidirectionalStats ────────────────────────────────────────────────────
 
@@ -201,12 +201,12 @@ void init_graph(py::module_& m) {
         .def(py::init<>())
         .def("check", &PyAlgorithmParams::check)
         .def("could_be_non_optimal", &PyAlgorithmParams::could_be_non_optimal)
-        .def_readwrite("stop_after_X_solutions", &PyAlgorithmParams::stop_after_X_solutions)
+        .def_readwrite("max_solutions", &PyAlgorithmParams::max_solutions)
         .def_readwrite("return_dominated_solutions", &PyAlgorithmParams::return_dominated_solutions)
         .def_readwrite("use_pool", &PyAlgorithmParams::use_pool)
-        .def_readwrite("num_labels_to_extend_by_node",
-                       &PyAlgorithmParams::num_labels_to_extend_by_node)
-        .def_readwrite("num_max_phases", &PyAlgorithmParams::num_max_phases)
+        .def_readwrite("max_extended_labels_per_node",
+                       &PyAlgorithmParams::max_extended_labels_per_node)
+        .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)
         .def_readwrite("max_iterations", &PyAlgorithmParams::max_iterations)
         .def_readwrite("timeout_s",
                        &PyAlgorithmParams::timeout_s,
@@ -222,7 +222,7 @@ void init_graph(py::module_& m) {
             "same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() "
             "overhead.")
         .def_readwrite("tabu_tenure", &PyAlgorithmParams::tabu_tenure)
-        .def_readwrite("forbidden_tabu", &PyAlgorithmParams::forbidden_tabu)
+        .def_readwrite("tabu_exempt_node_ids", &PyAlgorithmParams::tabu_exempt_node_ids)
         .def_readwrite("tabu_random_noise", &PyAlgorithmParams::tabu_random_noise)
         .def_readwrite("seed", &PyAlgorithmParams::seed)
         // ── Memory-limit parameters ──────────────────────────────────────
@@ -280,7 +280,7 @@ void init_graph(py::module_& m) {
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())
-        .def_readwrite("range_buckets", &PyBucketAlgorithmParams::range_buckets)
+        .def_readwrite("bucket_width", &PyBucketAlgorithmParams::bucket_width)
         .def_readwrite("bucket_resource_index", &PyBucketAlgorithmParams::bucket_resource_index)
         .def_readwrite("sort_resource_index", &PyBucketAlgorithmParams::sort_resource_index)
         .def_readwrite("bucket_resource_type", &PyBucketAlgorithmParams::bucket_resource_type);
@@ -363,14 +363,14 @@ void init_graph(py::module_& m) {
         g.def(py::init<>())
             .def("add_node",
                  &RealGraph::add_node,
-                 py::arg("id"),
+                 py::arg("node_id"),
                  py::arg("source") = false,
                  py::arg("sink") = false,
                  py::return_value_policy::reference)
             .def("add_arc",
                  py::overload_cast<size_t, size_t, double, std::vector<Row>>(&RealGraph::add_arc),
-                 py::arg("origin_id"),
-                 py::arg("destination_id"),
+                 py::arg("origin_node_id"),
+                 py::arg("destination_node_id"),
                  py::arg("cost") = 0.0,
                  py::arg("rows") = std::vector<Row>{},
                  py::return_value_policy::reference);

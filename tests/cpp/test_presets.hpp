@@ -32,12 +32,12 @@ inline std::map<size_t, std::pair<double, double>> windows() {
 ///
 /// @p arc_value takes the resource's own value type, so an integer resource is not handed a
 /// double.
-template <typename Graph, typename R,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-inline void finish(Graph* graph, V arc_value) {
+template <typename GraphType, typename ResourceType,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
+inline void finish(GraphType* graph, ValueType arc_value) {
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1, /*source=*/false, /*sink=*/true);
-    graph->template add_arc<R>(std::make_tuple(arc_value), 0, 1, 10.0);
+    graph->template add_arc<ResourceType>(std::make_tuple(arc_value), 0, 1, 10.0);
 }
 
 /// @brief Node 1's cap is 5 and node 3's is 7; every other node has the uniform capacity.
@@ -209,7 +209,7 @@ TEST(Presets, NgPathResourceMatchesTheHandBuiltModel) {
             forbidden,
             /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     by_hand->add_node(0, /*source=*/true, /*sink=*/false);
     by_hand->add_node(1, /*source=*/false, /*sink=*/true);
     by_hand->add_arc<SizeTBitsetResource>(std::make_tuple(std::set<size_t>{}), 0, 1, 10.0);
@@ -259,7 +259,7 @@ TEST(Presets, ElementaryResourceIsNgPathWithUniversalNeighborhoods) {
             forbidden,
             /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     build_arcs(by_hand.get());
 
     presets_test::expect_same_solutions(
@@ -310,7 +310,7 @@ TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
         std::move(dominance));
 
     // A window resource is a Threshold, so its dominance must be reversed.
-    EXPECT_TRUE(borrowed->is_backward_reversed());
+    EXPECT_TRUE(borrowed->is_back_dominance_reversed());
 
     // The window is the clock beside a cost slot, as in any real model. Priced on the window
     // itself the model is refused: the join would add a backward deadline as a cost.
@@ -334,8 +334,8 @@ TEST(Presets, DerivedReversalAgreesWithTheHandBuiltModel) {
 
 // add_capacity_resource produces a Threshold extension, not an Accumulate one.
 TEST(Presets, CapacityPresetDeclaresThreshold) {
-    static_assert(backward_kind_of_v<CapacityExtensionFunction<IntResource>> ==
-                  BackwardKind::Threshold);
+    static_assert(directional_resource_kind_of_v<CapacityExtensionFunction<IntResource>> ==
+                  DirectionalResourceKind::Threshold);
 
     // The model is solvable bidirectionally; an accumulating extension would find nothing.
     auto graph = std::make_unique<ResourceGraph<RealResource, IntResource>>();
@@ -381,8 +381,8 @@ inline void add_fractional_routes(ResourceGraph<RealResource, RealResource>* gra
 /// @brief An `int` capacity on a real resource is the capacity, not the type every consumption is
 ///        read as.
 ///
-/// `V` is the resource's value type, not the argument's: deduced from `5` it would build an `int`
-/// capacity, read each 2.9 as 2, and accept the 5.8 route at cost 2.
+/// `ValueType` is the resource's value type, not the argument's: deduced from `5` it would build an
+/// `int` capacity, read each 2.9 as 2, and accept the 5.8 route at cost 2.
 TEST(Presets, CapacityOnARealResourceKeepsFractionalConsumption) {
     auto graph = std::make_unique<ResourceGraph<RealResource, RealResource>>();
     presets::add_cost_resource<RealResource>(*graph);

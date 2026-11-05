@@ -75,9 +75,8 @@ print(result.solutions[0].path_node_ids) # [0, 1, 3]
 #include "rcspp/rcspp.hpp"
 
 using namespace rcspp;
-using RG = ResourceGraph<RealResource>;
 
-RG graph;
+ResourceGraph<RealResource> graph;
 graph.add_resource<RealResource>(
     std::make_unique<AdditionExtensionFunction<RealResource>>(),
     std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 50.0),

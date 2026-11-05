@@ -34,18 +34,18 @@ namespace rcspp {
  * feasible paths quickly (e.g. to seed a tighter UB for a dominance run, or to feed a
  * column generator), without the cost of repeatedly cloning and mutating the graph.
  */
-template <typename ResourceType, typename LabelsType = LabelList<ResourceType>>
-class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelsType> {
+template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
+class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, LabelContainerType> {
     public:
         TabuSearchAlgorithm(ResourceFactory<ResourceType>* resource_factory,
-                            AlgorithmParams<LabelsType> params)
-            : BacktrackingDiveAlgorithm<ResourceType, LabelsType>(resource_factory,
-                                                                  std::move(params)),
+                            AlgorithmParams<LabelContainerType> params)
+            : BacktrackingDiveAlgorithm<ResourceType, LabelContainerType>(resource_factory,
+                                                                          std::move(params)),
               tabu_(this->params_.seed) {}
 
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
-            Algorithm<ResourceType, LabelsType>::initialize(graph, cost_upper_bound);
+            Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             tabu_.clear();
         }
 
@@ -177,8 +177,8 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
                 if (in_arc == nullptr) {
                     continue;
                 }
-                if (this->params_.forbidden_tabu.contains(in_arc->origin->id) ||
-                    this->params_.forbidden_tabu.contains(in_arc->destination->id)) {
+                if (this->params_.tabu_exempt_node_ids.contains(in_arc->origin->id) ||
+                    this->params_.tabu_exempt_node_ids.contains(in_arc->destination->id)) {
                     continue;
                 }
                 tabu_.add(in_arc->id, this->params_.tabu_tenure, this->params_.tabu_random_noise);

@@ -109,13 +109,13 @@ void init_resource(py::module_& m) {
         m,                                                                                      \
         "TrivialFeasibilityFunction_" #name)                                                    \
         .def(py::init<>());                                                                     \
-    py::class_<InclusionDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(        \
+    py::class_<SubsetDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(           \
         m,                                                                                      \
-        "InclusionDominanceFunction_" #name)                                                    \
+        "SubsetDominanceFunction_" #name)                                                       \
         .def(py::init<>());                                                                     \
-    py::class_<ContainDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(          \
+    py::class_<SupersetDominanceFunction<RT>, DominanceFunction<RT>, py::smart_holder>(         \
         m,                                                                                      \
-        "ContainDominanceFunction_" #name)                                                      \
+        "SupersetDominanceFunction_" #name)                                                     \
         .def(py::init<>());                                                                     \
     py::class_<UnionExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(            \
         m,                                                                                      \
@@ -125,9 +125,9 @@ void init_resource(py::module_& m) {
         m,                                                                                      \
         "IntersectionExtensionFunction_" #name)                                                 \
         .def(py::init<>());                                                                     \
-    py::class_<SubtractExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(         \
+    py::class_<DifferenceExtensionFunction<RT>, ExtensionFunction<RT>, py::smart_holder>(       \
         m,                                                                                      \
-        "SubtractExtensionFunction_" #name)                                                     \
+        "DifferenceExtensionFunction_" #name)                                                   \
         .def(py::init<>());                                                                     \
     py::class_<SizeFeasibilityFunction<RT>, FeasibilityFunction<RT>, py::smart_holder>(         \
         m,                                                                                      \

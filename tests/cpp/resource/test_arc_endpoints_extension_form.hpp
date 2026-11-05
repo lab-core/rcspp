@@ -3,7 +3,8 @@
 
 #pragma once
 
-// ArcEndpointsForm and BackwardForm, tested as forms rather than through their users.
+// ArcEndpointsExtensionForm and DirectionalExtensionForm, tested as forms rather than through their
+// users.
 //
 // A Side names two nodes, the one left and the one arrived at. The test double keeps both visible
 // in its output, so a transposed make_side fails loudly.
@@ -19,19 +20,20 @@
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
-namespace arc_endpoints_form_test {
+namespace arc_endpoints_extension_form_test {
 
 // N_k = {100 + k} and the node left is {k}, so each half of a Side names its own node.
 //
 // `apply` narrows then unions -- the opposite of the real ng formula -- so both halves of the Side
 // survive into the output. This tests the form's plumbing, not ng semantics.
 class LabelledEndpoints
-    : public Clonable<LabelledEndpoints,
-                      ArcEndpointsForm<SetResource<int>, ExtensionFunction<SetResource<int>>>,
-                      ExtensionFunction<SetResource<int>>> {
+    : public Clonable<
+          LabelledEndpoints,
+          ArcEndpointsExtensionForm<SetResource<int>, ExtensionFunction<SetResource<int>>>,
+          ExtensionFunction<SetResource<int>>> {
     protected:
-        using Side =
-            typename ArcEndpointsForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::Side;
+        using Side = typename ArcEndpointsExtensionForm<SetResource<int>,
+                                                        ExtensionFunction<SetResource<int>>>::Side;
 
         void apply(const SetResource<int>& resource, SetResource<int>* extended_resource,
                    const Side& side) const final {
@@ -56,11 +58,11 @@ class LabelledEndpoints
             std::make_shared<std::map<int, SetResource<int>>>();
 };
 
-}  // namespace arc_endpoints_form_test
+}  // namespace arc_endpoints_extension_form_test
 
 // Forward leaves the origin and arrives at the destination; backward is the mirror.
-TEST(ArcEndpointsForm, ForwardLeavesTheOriginAndArrivesAtTheDestination) {
-    arc_endpoints_form_test::LabelledEndpoints proto;
+TEST(ArcEndpointsExtensionForm, ForwardLeavesTheOriginAndArrivesAtTheDestination) {
+    arc_endpoints_extension_form_test::LabelledEndpoints proto;
     test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/2, /*destination_id=*/7);
     auto fn = proto.create(fixture.arc);
 
@@ -80,8 +82,8 @@ TEST(ArcEndpointsForm, ForwardLeavesTheOriginAndArrivesAtTheDestination) {
 
 // The form ignores the arc's extender value in both directions: a value that would be visible if
 // honoured is passed and must not appear.
-TEST(ArcEndpointsForm, IgnoresTheArcValueInBothDirections) {
-    arc_endpoints_form_test::LabelledEndpoints proto;
+TEST(ArcEndpointsExtensionForm, IgnoresTheArcValueInBothDirections) {
+    arc_endpoints_extension_form_test::LabelledEndpoints proto;
     test_util::TestArc<SetResource<int>> fixture(/*origin_id=*/2, /*destination_id=*/7);
     auto fn = proto.create(fixture.arc);
 
@@ -100,26 +102,33 @@ TEST(ArcEndpointsForm, IgnoresTheArcValueInBothDirections) {
 
 // A marker declares a kind without finalising extend, so a marker-based class still writes its
 // own.
-TEST(BackwardForm, DeclaresWithoutFinalisingExtend) {
-    static_assert(BackwardForm<ExtensionFunction<RealResource>, BackwardKind::Accumulate>::kind ==
-                  BackwardKind::Accumulate);
-    static_assert(BackwardForm<ExtensionFunction<SetResource<int>>, BackwardKind::ArcValue>::kind ==
-                  BackwardKind::ArcValue);
+TEST(DirectionalExtensionForm, DeclaresWithoutFinalisingExtend) {
+    static_assert(DirectionalExtensionForm<ExtensionFunction<RealResource>,
+                                           DirectionalResourceKind::Accumulate>::kind ==
+                  DirectionalResourceKind::Accumulate);
+    static_assert(DirectionalExtensionForm<ExtensionFunction<SetResource<int>>,
+                                           DirectionalResourceKind::ArcValue>::kind ==
+                  DirectionalResourceKind::ArcValue);
 
     // The declaration survives the trip through the form.
-    EXPECT_EQ(UnionExtensionFunction<SetResource<int>>{}.backward_kind(), BackwardKind::ArcValue);
-    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Accumulate);
+    EXPECT_EQ(UnionExtensionFunction<SetResource<int>>{}.directional_resource_kind(),
+              DirectionalResourceKind::ArcValue);
+    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.directional_resource_kind(),
+              DirectionalResourceKind::Accumulate);
 }
 
 // The marker and the form declare different container kinds. A marker-declared container takes
 // the arc's value, identical in both directions, so backward its memory includes its own node;
-// only ArcEndpointsForm swaps the endpoint.
-TEST(ArcEndpointsForm, DeclaresADifferentKindFromTheMarker) {
-    static_assert(ArcEndpointsForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::kind ==
-                  BackwardKind::ArcEndpoints);
-    static_assert(ArcEndpointsForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::kind !=
-                  BackwardForm<ExtensionFunction<SetResource<int>>, BackwardKind::ArcValue>::kind);
+// only ArcEndpointsExtensionForm swaps the endpoint.
+TEST(ArcEndpointsExtensionForm, DeclaresADifferentKindFromTheMarker) {
+    static_assert(
+        ArcEndpointsExtensionForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::kind ==
+        DirectionalResourceKind::ArcEndpoints);
+    static_assert(
+        ArcEndpointsExtensionForm<SetResource<int>, ExtensionFunction<SetResource<int>>>::kind !=
+        DirectionalExtensionForm<ExtensionFunction<SetResource<int>>,
+                                 DirectionalResourceKind::ArcValue>::kind);
 
-    EXPECT_EQ(arc_endpoints_form_test::LabelledEndpoints{}.backward_kind(),
-              BackwardKind::ArcEndpoints);
+    EXPECT_EQ(arc_endpoints_extension_form_test::LabelledEndpoints{}.directional_resource_kind(),
+              DirectionalResourceKind::ArcEndpoints);
 }

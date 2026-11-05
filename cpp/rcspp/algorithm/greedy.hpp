@@ -54,7 +54,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                             this->best_cost_upper_bound_ = label->get_cost();
                         }
                         this->extract_solution(*label);
-                        if (this->solutions_.size() >= this->params_.stop_after_X_solutions) {
+                        if (this->solutions_.size() >= this->params_.max_solutions) {
                             LOG_DEBUG("Stopping after ", this->solutions_.size(), " solutions.\n");
                             break;
                         }
@@ -173,7 +173,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return true;
         }
 
-        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_sinks() const override {
+        [[nodiscard]] std::list<Label<ResourceType>*> get_labels_at_terminals() const override {
             return {};
         }
 

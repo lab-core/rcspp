@@ -11,9 +11,7 @@ title: C++ Quick Start
 using namespace rcspp;
 
 // Graph with one real resource (distance, max = 50)
-using RG = ResourceGraph<RealResource>;
-
-RG graph;
+ResourceGraph<RealResource> graph;
 graph.add_resource<RealResource>(
     std::make_unique<AdditionExtensionFunction<RealResource>>(),
     std::make_unique<MinMaxFeasibilityFunction<RealResource>>(0.0, 50.0),
@@ -43,8 +41,6 @@ std::cout << "Cost: " << result.solutions[0].cost << "\n"; // 25.0
 #include "rcspp/rcspp.hpp"
 using namespace rcspp;
 
-using RG = ResourceGraph<RealResource, IntResource>;
-
 // time windows per node: {node_id: {ready, due}}
 std::unordered_map<size_t, std::pair<double,double>> tw = {
     {0, {0.0, 0.0}},
@@ -52,7 +48,7 @@ std::unordered_map<size_t, std::pair<double,double>> tw = {
     {2, {0.0, 100.0}},
 };
 
-RG graph;
+ResourceGraph<RealResource, IntResource> graph;
 
 // Resource 0: time (drives objective via ValueCostFunction)
 graph.add_resource<RealResource>(
@@ -87,10 +83,9 @@ auto result = graph.solve();
 #include "rcspp/rcspp.hpp"
 using namespace rcspp;
 
-using Comp = ResourceTypeComposition<RealResource, IntResource>;
-using RG   = ResourceGraph<RealResource, IntResource>;
+using Resources = ResourceTypeComposition<RealResource, IntResource>;
 
-RG graph;
+ResourceGraph<RealResource, IntResource> graph;
 // … build graph with rows on arcs …
 
 // arc with LP row: arc contributes 1 unit to constraint 5
@@ -125,8 +120,8 @@ auto result = graph.solve();
 auto result = graph.solve<GreedyAlgorithm, RealResource, LabelList>(ub, params);
 
 // Diversification search — collect N diverse solutions
-AlgorithmParams<LabelList<Comp>> params;
-params.stop_after_X_solutions = 10;
+AlgorithmParams<LabelList<Resources>> params;
+params.max_solutions = 10;
 params.max_iterations = 50;
 auto result = graph.solve<DiversificationSearch, RealResource, LabelList>(ub, params);
 ```
@@ -136,7 +131,7 @@ auto result = graph.solve<DiversificationSearch, RealResource, LabelList>(ub, pa
 ## Memory-limited solve
 
 ```cpp
-AlgorithmParams<LabelList<Comp>> params;
+AlgorithmParams<LabelList<Resources>> params;
 params.limit_to_available_ram         = true;   // auto-limit to system free RAM
 params.memory_limit_fraction          = 0.8;    // use at most 80% of available RAM
 params.memory_pressure_fraction       = 0.6;    // start pruning at 60%
@@ -144,7 +139,7 @@ params.memory_pressure_max_labels_per_node = 50; // prune to 50 labels/node unde
 params.memory_check_interval          = 10000;  // check every 10k label extensions
 
 auto result = graph.solve(ub, params);
-if (result.status == AlgorithmStatus::MEMORY_LIMIT) {
+if (result.status == AlgorithmStatus::MemoryLimit) {
     // solver hit the RSS limit; solutions may be incomplete
 }
 ```

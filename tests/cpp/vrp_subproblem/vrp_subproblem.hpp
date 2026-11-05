@@ -69,7 +69,7 @@ class VRPSubproblem {
                 size_t pooled_labels = 0;
                 bool ref_counts_consistent = false;
                 // Lets callers tell a truncated solve from a genuinely cheaper one.
-                AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+                AlgorithmStatus status = AlgorithmStatus::Complete;
                 // Bidirectional only; left at their defaults by every other algorithm.
                 bool bounded_by_half_way = false;
                 size_t joined_paths = 0;
@@ -108,8 +108,8 @@ class VRPSubproblem {
         }
 
         // Test helper (H4): expose the full SolveResult — solutions + exit status — so tests can
-        // verify solve() reports the status the VRP column-generation loop relies on: COMPLETE when
-        // the pricing search was exhaustive vs MEMORY_LIMIT / TIMEOUT / ... when it was cut short.
+        // verify solve() reports the status the VRP column-generation loop relies on: Complete when
+        // the pricing search was exhaustive vs MemoryLimit / Timeout / ... when it was cut short.
         // A wrong status would let CG mistake a cut-short solve for a proof of optimality.
         // @param upper_bound Passed through to solve(). An infinite bound enables the joiner's
         //        incumbent cutoff, which makes the solution set order-dependent; tests comparing

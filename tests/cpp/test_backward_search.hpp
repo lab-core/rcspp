@@ -183,12 +183,13 @@ inline std::optional<double> backward_value_at(const BackwardAlgorithm& algorith
 /// A reversed arc still applies the forward extension, so the oracle is valid only for additive
 /// resources.
 TEST(BackwardSearch, OracleBuildsOnlyAdditiveResources) {
-    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.backward_kind(), BackwardKind::Accumulate);
+    EXPECT_EQ(AdditionExtensionFunction<RealResource>{}.directional_resource_kind(),
+              DirectionalResourceKind::Accumulate);
 
     // A time-window resource is not additive, so the oracle cannot be used for it.
     EXPECT_NE(TimeWindowExtensionFunction<RealResource>{backward_search_test::time_windows()}
-                  .backward_kind(),
-              BackwardKind::Accumulate);
+                  .directional_resource_kind(),
+              DirectionalResourceKind::Accumulate);
 }
 
 // ============================================================================
@@ -487,11 +488,11 @@ TEST(BackwardSearch, BucketsFindWhatAListFinds) {
     auto graph = build();
     EXPECT_NEAR(bst::forward_optimum(graph.get()), kOptimum, bst::kTolerance);
     EXPECT_NEAR(backward_optimum(bst::BackwardList()), kOptimum, bst::kTolerance);
-    EXPECT_NEAR(backward_optimum(Buckets(/*range_buckets=*/5, kTime, kCost)),
+    EXPECT_NEAR(backward_optimum(Buckets(/*bucket_width=*/5, kTime, kCost)),
                 kOptimum,
                 bst::kTolerance)
         << "buckets on the deadline, sorted by cost";
-    EXPECT_NEAR(backward_optimum(Buckets(/*range_buckets=*/5, kCost, kTime)),
+    EXPECT_NEAR(backward_optimum(Buckets(/*bucket_width=*/5, kCost, kTime)),
                 kOptimum,
                 bst::kTolerance)
         << "buckets on the cost, sorted by the deadline";

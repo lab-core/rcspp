@@ -139,7 +139,7 @@ TEST(BidirectionalBenchmarkNg, NgForwardVersusBidirectionalOnVrptw) {
         << "the forward search extended " << forward.measurement.extended_labels
         << " labels against a ceiling of " << ng::kMaxForwardExtensions
         << ". A count above it means NgPathExtensionFunction no longer stores the memory "
-           "narrowed, so InclusionDominanceFunction compares wider sets and discards fewer "
+           "narrowed, so SubsetDominanceFunction compares wider sets and discards fewer "
            "labels. Check NgPathExtensionFunction::apply.";
     EXPECT_LT(bidirectional.measurement.extended_labels, ng::kMaxBidirectionalExtensions)
         << "the same regression, seen from the bidirectional side";
@@ -244,8 +244,8 @@ TEST(BidirectionalBenchmarkNg, DISABLED_NgExactComparisonAt75Customers) {
         }
 
         // Compare only where both finished; a truncated run is not a valid comparison.
-        if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
-            bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+        if (forward.measurement.status == AlgorithmStatus::Complete &&
+            bidirectional.measurement.status == AlgorithmStatus::Complete) {
             EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance)
                 << "the two searches disagree on " << name
                 << ", which on an ng model means the join and the forward search admit different "
@@ -318,8 +318,8 @@ TEST(BidirectionalBenchmarkNg, DISABLED_NgPayoffAt75Customers) {
             bidi_labels_by_setting[index] = bidirectional.measurement.extended_labels;
 
             // Forward and bidirectional must agree within one ng setting (not across settings).
-            if (forward.measurement.status == AlgorithmStatus::COMPLETE &&
-                bidirectional.measurement.status == AlgorithmStatus::COMPLETE) {
+            if (forward.measurement.status == AlgorithmStatus::Complete &&
+                bidirectional.measurement.status == AlgorithmStatus::Complete) {
                 EXPECT_NEAR(bidirectional.measurement.cost,
                             forward.measurement.cost,
                             bb::kTolerance)

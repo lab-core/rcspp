@@ -11,7 +11,7 @@
 
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
-#include "rcspp/resource/functions/extension/threshold_form.hpp"
+#include "rcspp/resource/functions/extension/threshold_extension_form.hpp"
 #include "rcspp/resource/functions/node_bounds.hpp"
 
 namespace rcspp {
@@ -45,10 +45,10 @@ namespace rcspp {
 template <typename ResourceType,
           typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 class CapacityExtensionFunction
-    : public Clonable<
-          CapacityExtensionFunction<ResourceType, ValueType>,
-          TranslationThresholdForm<ResourceType, ExtensionFunction<ResourceType>, ValueType>,
-          ExtensionFunction<ResourceType>> {
+    : public Clonable<CapacityExtensionFunction<ResourceType, ValueType>,
+                      TranslationThresholdExtensionForm<ResourceType,
+                                                        ExtensionFunction<ResourceType>, ValueType>,
+                      ExtensionFunction<ResourceType>> {
         // Backward extension subtracts, so an unsigned type would wrap around.
         static_assert(std::is_signed_v<ValueType>,
                       "CapacityExtensionFunction requires a signed value type");

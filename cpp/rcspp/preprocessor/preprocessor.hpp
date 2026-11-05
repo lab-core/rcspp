@@ -14,7 +14,7 @@ namespace rcspp {
 /// @brief Base class for graph preprocessors that remove infeasible or dominated arcs.
 ///
 /// A `Preprocessor` operates on a `Graph` and iteratively removes arcs that are deemed
-/// unnecessary by the concrete subclass's `remove_arc` predicate.  Removed arcs can be
+/// unnecessary by the concrete subclass's `should_remove_arc` predicate.  Removed arcs can be
 /// restored to their original state via `restore()`.
 ///
 /// It is a pre-solve stage that reduces the graph: @ref run preprocesses, @ref undo restores.
@@ -45,9 +45,9 @@ class Preprocessor : public PreSolveStage<ResourceType> {
         /// @brief Runs @ref restore.
         void undo() noexcept override { restore(); }
 
-        /// @brief Removes arcs that are identified as unnecessary by `remove_arc`.
+        /// @brief Removes arcs that are identified as unnecessary by `should_remove_arc`.
         ///
-        /// Iterates over all arcs and removes any arc for which `remove_arc` returns
+        /// Iterates over all arcs and removes any arc for which `should_remove_arc` returns
         /// `true`.  If preprocessing is disabled (`disable_preprocessing_` is set), the
         /// method returns immediately without modifying the graph.
         ///
@@ -57,7 +57,7 @@ class Preprocessor : public PreSolveStage<ResourceType> {
                 return false;
             }
             auto arc_ids = graph_->remove_arcs_if(
-                [this](const Arc<ResourceType>& arc) { return remove_arc(arc); });
+                [this](const Arc<ResourceType>& arc) { return should_remove_arc(arc); });
             removed_arcs_by_id_.insert(removed_arcs_by_id_.end(), arc_ids.begin(), arc_ids.end());
             return !arc_ids.empty();
         }
@@ -94,6 +94,6 @@ class Preprocessor : public PreSolveStage<ResourceType> {
         ///
         /// @param arc The arc to evaluate.
         /// @return `true` if the arc should be removed, `false` otherwise.
-        virtual bool remove_arc(const Arc<ResourceType>& arc) { return false; }
+        virtual bool should_remove_arc(const Arc<ResourceType>& arc) { return false; }
 };
 }  // namespace rcspp

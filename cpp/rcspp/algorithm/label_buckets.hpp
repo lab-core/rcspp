@@ -22,8 +22,8 @@ namespace rcspp {
 /// would discard the better labels.
 ///
 /// @tparam ResourceType The resource type carried by labels.
-/// @tparam Dir          The direction policy supplying the dominance order.
-template <class ResourceType, class Dir = ForwardDirection>
+/// @tparam Direction    The direction policy supplying the dominance order.
+template <class ResourceType, class Direction = ForwardDirection>
 class LabelList {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
 
@@ -34,18 +34,18 @@ class LabelList {
         /// @brief Returns an empty container with the same configuration.
         ///
         /// Inside the class, `LabelList` names this exact instantiation, so the copy keeps
-        /// @c Dir.
+        /// @c Direction.
         [[nodiscard]] LabelList copy() const { return LabelList(); }
 
-        /// @brief Returns an empty list that compares labels in direction @p D.
+        /// @brief Returns an empty list that compares labels in direction @p TargetDirection.
         ///
         /// A search in another direction keeps its labels in this copy (see
         /// @c detail::rebind_direction).
         ///
-        /// @tparam D The direction policy of the copy.
-        template <class D>
-        [[nodiscard]] LabelList<ResourceType, D> with_direction() const {
-            return LabelList<ResourceType, D>();
+        /// @tparam TargetDirection The direction policy of the copy.
+        template <class TargetDirection>
+        [[nodiscard]] LabelList<ResourceType, TargetDirection> with_direction() const {
+            return LabelList<ResourceType, TargetDirection>();
         }
 
         /// @brief Read-only access to the underlying label list.
@@ -108,7 +108,7 @@ class LabelList {
         /// @return `true` when @p lhs dominates @p rhs in this container's direction.
         [[nodiscard]] static bool dominates(const Label<ResourceType>& lhs,
                                             const Label<ResourceType>& rhs) {
-            return Dir::template dominates<ResourceType>(lhs, rhs);
+            return Direction::template dominates<ResourceType>(lhs, rhs);
         }
 
         std::list<Label<ResourceType>*> labels_;
@@ -143,52 +143,53 @@ class LabelList {
 /// total labels available and labels actually visited.  `print_labels` reports
 /// both visit ratios so pruning efficiency can be compared symmetrically.
 ///
-/// ## Adaptive bucket range
+/// ## Adaptive bucket width
 ///
-/// `range_buckets_` is fixed at construction.  `suggest_range(target_buckets)`
+/// `bucket_width_` is fixed at construction.  `suggest_bucket_width(target_buckets)`
 /// estimates the resource spread from the peak simultaneous bucket count and
-/// returns a range calibrated for a chosen number of buckets.  Call it after a
+/// returns a width calibrated for a chosen number of buckets.  Call it after a
 /// warm-up phase and pass the result to the next `LabelBuckets` constructor to
 /// improve bucket utilisation.
 ///
-/// @tparam BucketResource  Resource type used to partition labels into buckets.
-/// @tparam SortResource    Resource type used to sort labels within a bucket.
-/// @tparam ResourceType    Full composite resource type of the labels.
-/// @tparam Dir             The direction policy supplying the dominance order.
+/// @tparam BucketResource Resource type used to partition labels into buckets.
+/// @tparam SortResource   Resource type used to sort labels within a bucket.
+/// @tparam ResourceType   Full composite resource type of the labels.
+/// @tparam Direction      The direction policy supplying the dominance order.
 ///
 /// @note A backward search with buckets keeps its labels in `with_direction<BackwardDirection>()`:
 ///       the same buckets, comparing backward (see @c detail::rebind_direction).
 template <typename BucketResource, typename SortResource, typename ResourceType,
-          typename Dir = ForwardDirection>
-class LabelBuckets : public LabelList<ResourceType, Dir> {
+          typename Direction = ForwardDirection>
+class LabelBuckets : public LabelList<ResourceType, Direction> {
         using LabelPosition = std::list<Label<ResourceType>*>::iterator;
         using BucketIdx = size_t;
 
-        template <class RType>
+        template <class ComponentType>
         struct Bucket {
-                Bucket(const LabelPosition& pos, const RType* value, double range)
+                Bucket(const LabelPosition& pos, const ComponentType* value, double range)
                     : begin(pos), end(std::next(pos)), begin_value(value), range(range) {}
 
                 LabelPosition begin, end;
-                const RType* begin_value;
+                const ComponentType* begin_value;
                 double range;
 
                 /// @brief True when @p value is strictly before this bucket's range.
-                [[nodiscard]] bool is_before_bucket(const RType& value) const {
-                    return !Dir::is_lower(*begin_value, value);
+                [[nodiscard]] bool is_before_bucket(const ComponentType& value) const {
+                    return !Direction::is_lower(*begin_value, value);
                 }
 
                 /// @brief True when @p value is strictly after this bucket's range.
-                [[nodiscard]] bool is_after_bucket(const RType& value) const {
-                    return Dir::is_lower(*begin_value, value, -range);
+                [[nodiscard]] bool is_after_bucket(const ComponentType& value) const {
+                    return Direction::is_lower(*begin_value, value, -range);
                 }
 
                 /// @brief True when @p value falls within [begin_value, begin_value + range].
-                [[nodiscard]] bool is_within_bucket(const RType& value) const {
+                [[nodiscard]] bool is_within_bucket(const ComponentType& value) const {
                     return !is_before_bucket(value) && !is_after_bucket(value);
                 }
 
-                void update_begin(const LabelPosition& new_begin, const RType* new_min_value) {
+                void update_begin(const LabelPosition& new_begin,
+                                  const ComponentType* new_min_value) {
                     begin = new_begin;
                     begin_value = new_min_value;
                 }
@@ -199,31 +200,31 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
     public:
         /// @brief Constructs a bucket container.
         ///
-        /// @param range_buckets         Width of each bucket along the bucket resource axis.
+        /// @param bucket_width          Width of each bucket along the bucket resource axis.
         /// @param bucket_resource_index Index of the bucket resource in the composite resource.
         /// @param sort_resource_index   Index of the sort resource in the composite resource.
-        LabelBuckets(size_t range_buckets, size_t bucket_resource_index, size_t sort_resource_index)
-            : range_buckets_(range_buckets),
+        LabelBuckets(size_t bucket_width, size_t bucket_resource_index, size_t sort_resource_index)
+            : bucket_width_(bucket_width),
               bucket_resource_index_(bucket_resource_index),
               sort_resource_index_(sort_resource_index) {}
 
         /// @brief Returns an empty container with the same configuration.
         [[nodiscard]] LabelBuckets copy() const {
-            return LabelBuckets(range_buckets_, bucket_resource_index_, sort_resource_index_);
+            return LabelBuckets(bucket_width_, bucket_resource_index_, sort_resource_index_);
         }
 
         /// @brief Returns an empty container with the same configuration that compares labels in
-        ///        direction @p D.
+        ///        direction @p TargetDirection.
         ///
         /// A search in another direction keeps its labels in this copy (see
         /// @c detail::rebind_direction).
         ///
-        /// @tparam D The direction policy of the copy.
-        template <class D>
-        [[nodiscard]] LabelBuckets<BucketResource, SortResource, ResourceType, D> with_direction()
-            const {
-            return LabelBuckets<BucketResource, SortResource, ResourceType, D>(
-                range_buckets_,
+        /// @tparam TargetDirection The direction policy of the copy.
+        template <class TargetDirection>
+        [[nodiscard]] LabelBuckets<BucketResource, SortResource, ResourceType, TargetDirection>
+        with_direction() const {
+            return LabelBuckets<BucketResource, SortResource, ResourceType, TargetDirection>(
+                bucket_width_,
                 bucket_resource_index_,
                 sort_resource_index_);
         }
@@ -257,7 +258,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                 auto it = buckets_[idx].begin;
                 const auto bucket_end = buckets_[idx].end;
                 while (it != bucket_end &&
-                       Dir::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
+                       Direction::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
                     ++it;
                 }
                 auto pos = this->labels_.insert(it, label);
@@ -346,7 +347,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                             }
                             update_bucket_begin(idx, label_it, begin_before_erase);
                         }
-                    } else if (!Dir::template dominates<SortResource>(
+                    } else if (!Direction::template dominates<SortResource>(
                                    lsr,
                                    get_sort_resource(*current))) {
                         // Sort-resource pruning: remaining labels cannot be dominated.
@@ -384,7 +385,8 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
                     if (this->dominates(**it, label)) {
                         return true;
                     }
-                    if (!Dir::template dominates<SortResource>(get_sort_resource(**it), lsr)) {
+                    if (!Direction::template dominates<SortResource>(get_sort_resource(**it),
+                                                                     lsr)) {
                         break;
                     }
                 }
@@ -395,7 +397,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
 
         /// @brief Logs label list and bucket-efficiency statistics at TRACE level.
         void print_labels() const override {
-            LabelList<ResourceType, Dir>::print_labels();
+            LabelList<ResourceType, Direction>::print_labels();
             const double rm_ratio =
                 num_rm_labels_ == 0 ? 0.0 : static_cast<double>(num_rm_visited_) / num_rm_labels_;
             const double dom_ratio = num_dom_labels_ == 0
@@ -405,29 +407,30 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
             LOG_TRACE("is_dominated     visit ratio: ", dom_ratio, "\n");
         }
 
-        /// @brief Suggests a bucket range for a desired number of buckets.
+        /// @brief Suggests a bucket width for a desired number of buckets.
         ///
         /// The estimate is derived from the peak simultaneous bucket count observed
         /// during the solve, which approximates the resource spread.  Call after a
         /// warm-up phase and pass the result to the next `LabelBuckets` constructor:
         ///
         /// ```cpp
-        /// size_t better_range = container.suggest_range(50);
-        /// auto next = LabelBuckets<BR, SR, RT>(better_range, bi, si);
+        /// size_t better_width = container.suggest_bucket_width(50);
+        /// auto next = LabelBuckets<BucketResource, SortResource, ResourceType>(
+        ///     better_width, bucket_resource_index, sort_resource_index);
         /// ```
         ///
         /// @param target_buckets  Desired number of buckets in the next phase.
-        /// @return Suggested range_buckets value (>= 1).
-        [[nodiscard]] size_t suggest_range(size_t target_buckets) const {
+        /// @return Suggested bucket_width value (>= 1).
+        [[nodiscard]] size_t suggest_bucket_width(size_t target_buckets) const {
             if (target_buckets == 0 || max_live_buckets_ == 0) {
-                return range_buckets_;
+                return bucket_width_;
             }
-            const size_t estimated_span = max_live_buckets_ * range_buckets_;
+            const size_t estimated_span = max_live_buckets_ * bucket_width_;
             return std::max<size_t>(1, (estimated_span + target_buckets - 1) / target_buckets);
         }
 
     private:
-        size_t range_buckets_;
+        size_t bucket_width_;
         size_t bucket_resource_index_;
         size_t sort_resource_index_;
         std::vector<Bucket<Resource<BucketResource>>> buckets_;
@@ -444,7 +447,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
         mutable size_t num_dom_labels_{0};
         mutable size_t num_dom_visited_{0};
 
-        // Peak simultaneous bucket count; drives suggest_range().
+        // Peak simultaneous bucket count; drives suggest_bucket_width().
         size_t max_live_buckets_{0};
 
         // ── Resource accessors ───────────────────────────────────────────────────
@@ -459,10 +462,10 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
             return get_resource<SortResource>(label, sort_resource_index_);
         }
 
-        template <class RType>
-        [[nodiscard]] static const Resource<RType>& get_resource(const Label<ResourceType>& label,
-                                                                 size_t resource_index) {
-            return label.get_resource().template get_component<RType>(resource_index);
+        template <class ComponentType>
+        [[nodiscard]] static const Resource<ComponentType>& get_resource(
+            const Label<ResourceType>& label, size_t resource_index) {
+            return label.get_resource().template get_component<ComponentType>(resource_index);
         }
 
         // ── Binary search helpers ────────────────────────────────────────────────
@@ -527,7 +530,7 @@ class LabelBuckets : public LabelList<ResourceType, Dir> {
             buckets_.emplace(buckets_.begin() + static_cast<std::ptrdiff_t>(idx),
                              begin,
                              begin_bucket_resource,
-                             range_buckets_);
+                             bucket_width_);
             begin_label_to_bucket_idx_[*begin] = idx;
 
             if (buckets_.size() > max_live_buckets_) {

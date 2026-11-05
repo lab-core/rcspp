@@ -145,11 +145,11 @@ class ContainerResource {
 
         /// @brief Returns a human-readable string for any iterable collection @p list.
         ///
-        /// @tparam C Any iterable container whose elements support `operator<<`.
+        /// @tparam Iterable Any iterable container whose elements support `operator<<`.
         /// @param list Collection to stringify.
         /// @return String of the form `{e1,e2,...}`.
-        template <typename C>
-        [[nodiscard]] std::string to_string(const C& list) const {
+        template <typename Iterable>
+        [[nodiscard]] std::string to_string(const Iterable& list) const {
             std::ostringstream oss;
             oss << "{";
             bool first = true;
@@ -170,22 +170,23 @@ class ContainerResource {
         Container container_;
 };
 
-/// @brief ContainerResource specialisation backed by `std::set<T>`.
+/// @brief ContainerResource specialisation backed by `std::set<ElementType>`.
 ///
 /// All set operations (union, intersection, difference, inclusion, membership)
 /// are implemented with the standard ordered-set algorithms, giving O(n) complexity
 /// for binary operations and O(log n) for single-element mutations.
 ///
-/// @tparam T Element type stored in the set; must be LessThanComparable.
-template <typename T>
-class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
+/// @tparam ElementType Element type stored in the set; must be LessThanComparable.
+template <typename ElementType>
+class SetResource
+    : public ContainerResource<std::set<ElementType>, SetResource<ElementType>, ElementType> {
     public:
         /// @brief Alias for the underlying container type.
-        using Container = std::set<T>;
+        using Container = std::set<ElementType>;
         /// @brief Logical value type (same as the element type for sets).
-        using ValueType = T;
+        using ValueType = ElementType;
         /// @brief CRTP derived type alias.
-        using Derived = SetResource<T>;
+        using Derived = SetResource<ElementType>;
 
         /// @brief Default constructor — creates an empty set resource.
         SetResource() = default;
@@ -335,7 +336,7 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
 
 /// @brief ContainerResource specialisation implementing bitset semantics over a word vector.
 ///
-/// Elements are non-negative integer indices of type @p T.  Internally the bits are
+/// Elements are non-negative integer indices of type @p ElementType.  Internally the bits are
 /// packed into a dynamically-sized `std::vector<uint64_t>`, so each 64-bit word holds
 /// 64 bits.  The word index for bit @p idx is `idx >> 6` (= `idx / 64`) and the bit
 /// offset within that word is `idx & 63` (= `idx % 64`).
@@ -343,16 +344,17 @@ class SetResource : public ContainerResource<std::set<T>, SetResource<T>, T> {
 /// All binary set operations (union, intersection, difference) run in O(words) time,
 /// which is significantly faster than the sorted-set approach for dense index ranges.
 ///
-/// @tparam T Unsigned integer type used as the element (bit index) type.
-template <typename T>
-class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T> {
+/// @tparam ElementType Unsigned integer type used as the element (bit index) type.
+template <typename ElementType>
+class BitsetResource
+    : public ContainerResource<std::vector<uint64_t>, BitsetResource<ElementType>, ElementType> {
     public:
         /// @brief Alias for the underlying word-vector container.
         using Container = std::vector<uint64_t>;
         /// @brief Logical element type (bit index type).
-        using ValueType = T;
+        using ValueType = ElementType;
         /// @brief CRTP derived type alias.
-        using Derived = BitsetResource<T>;
+        using Derived = BitsetResource<ElementType>;
 
         /// @brief Default constructor — creates an empty bitset.
         BitsetResource() = default;
@@ -386,8 +388,8 @@ class BitsetResource : public ContainerResource<std::vector<uint64_t>, BitsetRes
         ///
         /// @param container New word vector (moved in).
         void set_value(Container container) override {
-            ContainerResource<std::vector<uint64_t>, BitsetResource<T>, T>::set_value(
-                std::move(container));
+            ContainerResource<std::vector<uint64_t>, BitsetResource<ElementType>, ElementType>::
+                set_value(std::move(container));
             size_ = compute_size();
         }
 

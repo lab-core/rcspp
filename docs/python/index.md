@@ -32,8 +32,8 @@ from rcspp.resource import (
     ValueCostFunction, ValueDominanceFunction, TrivialFeasibilityFunction,
     TrivialCostFunction, TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction, UnionExtensionFunction,
-    IntersectionExtensionFunction, InclusionDominanceFunction,
-    ContainDominanceFunction, SizeFeasibilityFunction,
+    IntersectionExtensionFunction, SubsetDominanceFunction,
+    SupersetDominanceFunction, SizeFeasibilityFunction,
 )
 from rcspp.pricing_pool import PricingPool
 

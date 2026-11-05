@@ -42,14 +42,14 @@ static CGSolveResult run_vrp(const std::string& instance_path, bool run_boost, b
 
     // ── Heuristic algorithms ───────────────────────────────────────────────────
     AlgorithmParams<LabelList<ResourceType>> constructive_tabu_params;
-    constructive_tabu_params.stop_after_X_solutions = 20;  // NOLINT
-    constructive_tabu_params.max_iterations = 1e6;         // NOLINT
+    constructive_tabu_params.max_solutions = 20;    // NOLINT
+    constructive_tabu_params.max_iterations = 1e6;  // NOLINT
     auto constructive_tabu_algo =
         vrp.get_graph().create_algorithm<DiversificationSearch>(constructive_tabu_params);
 
     AlgorithmParams<LabelList<ResourceType>> tabu_params;
-    tabu_params.stop_after_X_solutions = 20;  // NOLINT(readability-magic-numbers)
-    tabu_params.max_iterations = 1e3;         // NOLINT(readability-magic-numbers)
+    tabu_params.max_solutions = 20;    // NOLINT(readability-magic-numbers)
+    tabu_params.max_iterations = 1e3;  // NOLINT(readability-magic-numbers)
     auto tabu_algo = vrp.get_graph().create_algorithm<ImprovingTabuSearch>(tabu_params);
 
     std::vector<Algorithm<ResourceType, LabelList<ResourceType>>*> list_algorithms = {

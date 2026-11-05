@@ -92,7 +92,7 @@ labels carry a composition of resource types.
 :undoc-members:
 ```
 
-```{doxygenclass} rcspp::SubtractExtensionFunction
+```{doxygenclass} rcspp::DifferenceExtensionFunction
 :members:
 :undoc-members:
 ```
@@ -160,12 +160,12 @@ labels carry a composition of resource types.
 :undoc-members:
 ```
 
-```{doxygenclass} rcspp::InclusionDominanceFunction
+```{doxygenclass} rcspp::SubsetDominanceFunction
 :members:
 :undoc-members:
 ```
 
-```{doxygenclass} rcspp::ContainDominanceFunction
+```{doxygenclass} rcspp::SupersetDominanceFunction
 :members:
 :undoc-members:
 ```

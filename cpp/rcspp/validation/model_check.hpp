@@ -7,7 +7,7 @@
 
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/preprocessor/pre_solve_stage.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/validation/model_report.hpp"
 #include "rcspp/validation/threshold_probe.hpp"
 
@@ -41,25 +41,26 @@ class ModelCheck : public PreSolveStage<ResourceType> {
 
     protected:
         /// @brief Where a check reads the model's declarations (each component's
-        ///        @c backward_kind(), @c join_rule() and the like). Every arc carries the same
-        ///        extender composition and every node the same resource composition, so one arc
-        ///        and one node stand for all.
+        ///        @c directional_resource_kind(), @c join_rule() and the like). Every arc carries
+        ///        the same extender composition and every node the same resource composition, so
+        ///        one arc and one node stand for all.
         struct Declarations {
                 /// @brief An arc of the model, live or removed; @c nullptr when it has none.
                 const Arc<ResourceType>* arc = nullptr;
                 /// @brief A node carrying a resource; @c nullptr when none does.
                 const Node<ResourceType>* node = nullptr;
-                /// @brief Each component's @c backward_kind(), read from @ref arc.
-                std::vector<BackwardKind> kinds;
+                /// @brief Each component's @c directional_resource_kind(), read from @ref arc.
+                std::vector<DirectionalResourceKind> kinds;
 
-                /// @brief Component @p index's backward kind; @c Unspecified past the arc's
-                ///        components.
-                [[nodiscard]] BackwardKind kind(size_t index) const {
-                    return index < kinds.size() ? kinds[index] : BackwardKind::Unspecified;
+                /// @brief Component @p index's directional resource kind; @c Unspecified past the
+                ///        arc's components.
+                [[nodiscard]] DirectionalResourceKind kind(size_t index) const {
+                    return index < kinds.size() ? kinds[index]
+                                                : DirectionalResourceKind::Unspecified;
                 }
 
                 /// @brief Calls @p visit with each component of @ref node's resource, its
-                ///        backward kind and its index.
+                ///        directional resource kind and its index.
                 template <typename Visit>
                 void for_each_component(Visit&& visit) const {
                     size_t index = 0;
@@ -73,7 +74,7 @@ class ModelCheck : public PreSolveStage<ResourceType> {
         /// @brief Reads where @p graph's declarations are.
         ///
         /// @param graph The model.
-        /// @return One arc, one node with a resource, and the arc's backward kinds.
+        /// @return One arc, one node with a resource, and the arc's directional resource kinds.
         [[nodiscard]] static Declarations declarations(const Graph<ResourceType>& graph) {
             return {.arc = threshold_probe::model_arc(graph),
                     .node = threshold_probe::node_with_resource(graph),

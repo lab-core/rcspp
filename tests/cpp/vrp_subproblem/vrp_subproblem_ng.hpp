@@ -65,7 +65,7 @@ class VRPSubproblemNg {
                 size_t extended_labels = 0;
                 size_t pooled_labels = 0;
                 bool ref_counts_consistent = false;
-                AlgorithmStatus status = AlgorithmStatus::COMPLETE;
+                AlgorithmStatus status = AlgorithmStatus::Complete;
                 bool bounded_by_half_way = false;
                 size_t joined_paths = 0;
         };

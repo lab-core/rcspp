@@ -134,7 +134,7 @@ class VRP {
                 // Exit status of the solve whose result drives min_reduced_cost (the first RCSPP
                 // algorithm). If that solve was cut short, a "no improving column" result does not
                 // prove optimality. (Extra solvers are type-erased and report no status.)
-                AlgorithmStatus first_rcspp_status = AlgorithmStatus::COMPLETE;
+                AlgorithmStatus first_rcspp_status = AlgorithmStatus::Complete;
 
                 auto collect_solutions = [&](std::vector<Solution>& sols, bool is_optimal) {
                     bool non_optimal = !is_optimal;
@@ -203,7 +203,7 @@ class VRP {
 
                 (void)std::initializer_list<int>{([&]() {
                     timers[algo_index].start();
-                    AlgorithmStatus st = AlgorithmStatus::COMPLETE;
+                    AlgorithmStatus st = AlgorithmStatus::Complete;
                     auto sols = solve_with_rcspp<AlgorithmTypes>(dual_by_id, params, &st);
                     timers[algo_index].stop();
                     if (algo_index == first_rcspp_idx) {
@@ -214,7 +214,7 @@ class VRP {
 
                 for (auto* algorithm : algorithms) {
                     timers[algo_index].start();
-                    AlgorithmStatus st = AlgorithmStatus::COMPLETE;
+                    AlgorithmStatus st = AlgorithmStatus::Complete;
                     auto sols = solve_with_rcspp(dual_by_id, algorithm, &st);
                     timers[algo_index].stop();
                     if (algo_index == first_rcspp_idx) {
@@ -243,7 +243,7 @@ class VRP {
                 // No improving column this iteration -> CG is about to stop. If the pricing solve
                 // that produced this result was cut short, optimality is not proven.
                 if (min_reduced_cost >= -EPSILON &&
-                    first_rcspp_status != AlgorithmStatus::COMPLETE) {
+                    first_rcspp_status != AlgorithmStatus::Complete) {
                     proven_optimal = false;
                     LOG_WARN(
                         "Column generation stopped without proving optimality: the final "

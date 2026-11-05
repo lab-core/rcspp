@@ -5,10 +5,11 @@
 
 // Backward coherence at compile time: the trait, and the forward-only models it must not block.
 //
-// Every preset asserts `declares_backward_kind_v<Ext>` on its extension; `add_resource` does not,
-// since a model never solved bidirectionally needs no backward kind. This file pins the traits'
-// answers with static_asserts, and checks that forward-only models the trait flags still register,
-// solve forward, and are refused by the model checks before a bidirectional solve.
+// Every preset asserts `declares_directional_resource_kind_v` on its extension; `add_resource`
+// does not, since a model never solved bidirectionally needs no directional resource kind. This
+// file pins the traits' answers with static_asserts, and checks that forward-only models the trait
+// flags still register, solve forward, and are refused by the model checks before a bidirectional
+// solve.
 
 #include <gtest/gtest.h>
 
@@ -26,18 +27,19 @@
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
 // The extensions the presets build declare a kind.
-static_assert(declares_backward_kind_v<AdditionExtensionFunction<RealResource>>);
-static_assert(declares_backward_kind_v<TimeWindowExtensionFunction<RealResource>>);
-static_assert(declares_backward_kind_v<CapacityExtensionFunction<IntResource>>);
-static_assert(declares_backward_kind_v<NgPathExtensionFunction<SizeTBitsetResource, size_t>>);
+static_assert(declares_directional_resource_kind_v<AdditionExtensionFunction<RealResource>>);
+static_assert(declares_directional_resource_kind_v<TimeWindowExtensionFunction<RealResource>>);
+static_assert(declares_directional_resource_kind_v<CapacityExtensionFunction<IntResource>>);
+static_assert(
+    declares_directional_resource_kind_v<NgPathExtensionFunction<SizeTBitsetResource, size_t>>);
 
 // A capacity written as an addition passes: its backward labels start at the empty suffix.
-static_assert(declares_backward_kind_v<AdditionExtensionFunction<RealResource>>);
+static_assert(declares_directional_resource_kind_v<AdditionExtensionFunction<RealResource>>);
 
 namespace backward_coherence_test {
 
-/// @brief A custom extension function that declares no backward kind, as a forward-only author
-///        would write it.
+/// @brief A custom extension function that declares no directional resource kind, as a forward-only
+///        author would write it.
 class DoublingExtension : public Clonable<DoublingExtension, ExtensionFunction<RealResource>> {
     public:
         void extend(const RealResource& resource, const RealResource& extender_value,
@@ -54,8 +56,8 @@ inline std::map<size_t, std::pair<Clock, Clock>> windows() {
 
 /// @brief Two routes: 0 -> 1 -> 2 is cheaper (-10) but reaches node 1 after it closes; 0 -> 2
 ///        costs -1 and is on time. Components are (cost, clock).
-template <typename ClockResource, typename Graph>
-inline void add_routes(Graph* graph) {
+template <typename ClockResource, typename GraphType>
+inline void add_routes(GraphType* graph) {
     using Clock = std::decay_t<decltype(std::declval<ClockResource>().get_value())>;
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1);
@@ -109,7 +111,7 @@ TEST(BackwardCoherence, AnUnmigratedFeasibilityFunctionIsUnknown) {
             [[nodiscard]] JoinRule join_rule() const override { return JoinRule::AlwaysTrue; }
     };
 
-    static_assert(declares_backward_kind_v<AdditionExtensionFunction<RealResource>>);
+    static_assert(declares_directional_resource_kind_v<AdditionExtensionFunction<RealResource>>);
 
     auto graph = std::make_unique<ResourceGraph<RealResource>>();
     graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
@@ -122,7 +124,7 @@ TEST(BackwardCoherence, AnUnmigratedFeasibilityFunctionIsUnknown) {
 // A custom extension function that declares no kind is a valid forward-only model.
 TEST(BackwardCoherence, AKindlessCustomExtensionIsAValidForwardOnlyModel) {
     namespace bc = backward_coherence_test;
-    static_assert(!declares_backward_kind_v<bc::DoublingExtension>);
+    static_assert(!declares_directional_resource_kind_v<bc::DoublingExtension>);
 
     const auto build = [] {
         auto graph = std::make_unique<ResourceGraph<RealResource>>();
@@ -144,9 +146,10 @@ TEST(BackwardCoherence, AKindlessCustomExtensionIsAValidForwardOnlyModel) {
     EXPECT_DOUBLE_EQ(result.solutions.front().cost, 6.0);  // 2 * (1 + 2): the custom rule ran
     EXPECT_EQ(result.solutions.front().path_arc_ids, (std::vector<size_t>{0, 1}));
 
-    backward_coherence_test::expect_refused_bidirectionally(build().get(),
-                                                            "component 0",
-                                                            "declares no backward_kind()");
+    backward_coherence_test::expect_refused_bidirectionally(
+        build().get(),
+        "component 0",
+        "declares no directional_resource_kind()");
 }
 
 // Travel time accumulating against due dates, with no waiting: a bidirectional solve refuses it,
@@ -170,12 +173,14 @@ TEST(BackwardCoherence, AnAccumulationAgainstDueDatesIsAValidForwardOnlyModel) {
     bc::expect_refused_bidirectionally(build().get(), "component 1", "CapacityExtensionFunction");
 }
 
-// An unsigned time window declares no backward kind, but forward it is correct.
+// An unsigned time window declares no directional resource kind, but forward it is correct. It
+// still has the static member, set to Unspecified, so the concept and the trait answer differently.
 TEST(BackwardCoherence, AnUnsignedTimeWindowIsAValidForwardOnlyModel) {
     namespace bc = backward_coherence_test;
-    static_assert(backward_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
-                  BackwardKind::Unspecified);
-    static_assert(!declares_backward_kind_v<TimeWindowExtensionFunction<UIntResource>>);
+    static_assert(HasStaticDirectionalResourceKind<TimeWindowExtensionFunction<UIntResource>>);
+    static_assert(directional_resource_kind_of_v<TimeWindowExtensionFunction<UIntResource>> ==
+                  DirectionalResourceKind::Unspecified);
+    static_assert(!declares_directional_resource_kind_v<TimeWindowExtensionFunction<UIntResource>>);
 
     const auto build = [] {
         auto graph = std::make_unique<ResourceGraph<RealResource, UIntResource>>();
@@ -192,5 +197,7 @@ TEST(BackwardCoherence, AnUnsignedTimeWindowIsAValidForwardOnlyModel) {
     };
 
     bc::expect_on_time_route(build()->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{}));
-    bc::expect_refused_bidirectionally(build().get(), "component 1", "declares no backward_kind()");
+    bc::expect_refused_bidirectionally(build().get(),
+                                       "component 1",
+                                       "declares no directional_resource_kind()");
 }

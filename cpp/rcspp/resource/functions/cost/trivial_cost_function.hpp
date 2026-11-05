@@ -26,7 +26,7 @@ class TrivialCostFunction
         /// @return @c 0.0 unconditionally.
         [[nodiscard]] double get_cost(const ResourceType& resource) const override { return 0; }
 
-        /// @return @c CostForm::Zero.
-        [[nodiscard]] CostForm cost_form() const override { return CostForm::Zero; }
+        /// @return @c CostKind::Zero.
+        [[nodiscard]] CostKind cost_kind() const override { return CostKind::Zero; }
 };
 }  // namespace rcspp

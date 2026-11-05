@@ -29,7 +29,7 @@ class ValueCostFunction
             return num_resource.get_value();
         }
 
-        /// @return @c CostForm::Value: the cost is the value, additive under an accumulation.
-        [[nodiscard]] CostForm cost_form() const override { return CostForm::Value; }
+        /// @return @c CostKind::Value: the cost is the value, additive under an accumulation.
+        [[nodiscard]] CostKind cost_kind() const override { return CostKind::Value; }
 };
 }  // namespace rcspp

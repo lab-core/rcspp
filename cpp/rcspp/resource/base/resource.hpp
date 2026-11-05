@@ -181,11 +181,12 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         ///
         /// @return `true` when the join may add this component's two costs.
         [[nodiscard]] auto is_cost_additive() const -> bool {
-            switch (this->cost_function_->cost_form()) {
-                case CostForm::Zero:
+            switch (this->cost_function_->cost_kind()) {
+                case CostKind::Zero:
                     return true;
-                case CostForm::Value:
-                    return this->feasibility_function_->backward_kind() == BackwardKind::Accumulate;
+                case CostKind::Value:
+                    return this->feasibility_function_->directional_resource_kind() ==
+                           DirectionalResourceKind::Accumulate;
                 default:
                     return false;
             }
@@ -196,9 +197,9 @@ class Resource : public ResourcePrototype<Resource<ResourceType>, ResourceType> 
         /// Read by @c JoinCheck: an accumulating component whose cost is its value must have an
         /// extension that adds.
         ///
-        /// @return See @c CostFunction::cost_form.
-        [[nodiscard]] auto cost_form() const -> CostForm {
-            return this->cost_function_->cost_form();
+        /// @return See @c CostFunction::cost_kind.
+        [[nodiscard]] auto cost_kind() const -> CostKind {
+            return this->cost_function_->cost_kind();
         }
 
         // Return true if the resource is feasible

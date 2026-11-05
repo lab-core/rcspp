@@ -17,18 +17,18 @@ namespace rcspp {
 ///
 /// @note @c override, not @c final: @c IntersectionFeasibilityFunction narrows @c join_rule().
 ///
-/// @tparam R    The container resource type. Must expose `intersects()`.
-/// @tparam Base The base to insert above, normally @c FeasibilityFunction<R>.
-template <typename R, typename Base>
-class DisjointJoinForm : public Base {
+/// @tparam ResourceType The container resource type. Must expose `intersects()`.
+/// @tparam Base         The base to insert above, normally @c FeasibilityFunction<ResourceType>.
+template <typename ResourceType, typename Base>
+class DisjointJoinFeasibilityForm : public Base {
     public:
         /// @brief Two halves may be joined only when their remembered sets do not overlap.
         ///
         /// @param resource      The forward label's value.
         /// @param back_resource The backward label's value.
         /// @return @c true when the two sets are disjoint.
-        [[nodiscard]] auto can_be_joined(const R& resource,
-                                         const R& back_resource) -> bool override {
+        [[nodiscard]] auto can_be_joined(const ResourceType& resource,
+                                         const ResourceType& back_resource) -> bool override {
             return !resource.intersects(back_resource.get_value());
         }
 

@@ -104,18 +104,18 @@ class HalfWayPolicy {
 
 /// @brief The critical resource's scalar value in @p resource: the clock the half-way bound reads.
 ///
-/// @tparam CriticalRC   The critical resource's type.
-/// @tparam ResourceType The resource type carried by labels.
+/// @tparam CriticalResourceType The critical resource's type.
+/// @tparam ResourceType         The resource type carried by labels.
 /// @param resource                The label's resource.
 /// @param critical_resource_index Position of the critical resource within its type slot.
-/// @return The value, or 0 when @p CriticalRC is not in the composition (the bound is then off;
-///         the guard keeps that case compiling).
-template <typename CriticalRC, typename ResourceType>
+/// @return The value, or 0 when @p CriticalResourceType is not in the composition (the bound is
+///         then off; the guard keeps that case compiling).
+template <typename CriticalResourceType, typename ResourceType>
 [[nodiscard]] double critical_value(const Resource<ResourceType>& resource,
                                     size_t critical_resource_index) {
-    if constexpr (is_cost_in_composition_v<CriticalRC, ResourceType>) {
+    if constexpr (is_cost_in_composition_v<CriticalResourceType, ResourceType>) {
         const auto& component =
-            resource.template get_component<CriticalRC>(critical_resource_index);
+            resource.template get_component<CriticalResourceType>(critical_resource_index);
         return static_cast<double>(component.get_value().get_value());
     } else {
         return 0.0;
@@ -128,18 +128,18 @@ template <typename CriticalRC, typename ResourceType>
 /// requires the result to be at least `x`. Raw arc consumptions are not enough: an extension that
 /// clamps up to a time window can be monotone despite a negative stored value.
 ///
-/// @tparam CriticalRC    The critical resource's type.
-/// @tparam ResourceTypes The graph's resource pack.
+/// @tparam CriticalResourceType The critical resource's type.
+/// @tparam ResourceTypes        The graph's resource pack.
 /// @param graph                   The graph whose arcs are probed.
 /// @param critical_resource_index Position of the critical resource within its type slot.
 /// @param probes                  Values to probe with, e.g. `{0, R/2}`.
 /// @return `true` when every arc is monotone on the critical slot.
-template <typename CriticalRC, typename... ResourceTypes>
+template <typename CriticalResourceType, typename... ResourceTypes>
 [[nodiscard]] bool critical_resource_is_monotone(
     const Graph<ResourceTypeComposition<ResourceTypes...>>& graph, size_t critical_resource_index,
     std::span<const double> probes) {
     // Type absent from the pack: report "not monotone" so the caller disables the bound.
-    if constexpr (ComponentTypeIndex<CriticalRC, ResourceTypes...>::value == -1) {
+    if constexpr (ComponentTypeIndex<CriticalResourceType, ResourceTypes...>::value == -1) {
         return false;
     } else {
         using Composed = Resource<ResourceTypeComposition<ResourceTypes...>>;
@@ -162,7 +162,7 @@ template <typename CriticalRC, typename... ResourceTypes>
                 extended->reset(*arc.destination->resource);
 
                 auto& source_component =
-                    source->template get_component<CriticalRC>(critical_resource_index);
+                    source->template get_component<CriticalResourceType>(critical_resource_index);
                 // Cast to the component's value type, which may be integral.
                 using CriticalValueType =
                     std::decay_t<decltype(source_component.get_value().get_value())>;
@@ -171,7 +171,7 @@ template <typename CriticalRC, typename... ResourceTypes>
                 arc.extender->extend(*source, extended.get());
 
                 const auto& extended_component =
-                    extended->template get_component<CriticalRC>(critical_resource_index);
+                    extended->template get_component<CriticalResourceType>(critical_resource_index);
                 const auto after = static_cast<double>(extended_component.get_value().get_value());
                 if (after < probe) {
                     monotone = false;
@@ -189,16 +189,16 @@ template <typename CriticalRC, typename... ResourceTypes>
 /// evict a label the join needed. `ValueDominanceFunction` satisfies this;
 /// `TrivialDominanceFunction` and higher-is-better orders do not.
 ///
-/// @tparam CriticalRC    The critical resource's type.
-/// @tparam ResourceTypes The graph's resource pack.
+/// @tparam CriticalResourceType The critical resource's type.
+/// @tparam ResourceTypes        The graph's resource pack.
 /// @param graph                   The graph whose nodes carry the function objects.
 /// @param critical_resource_index Position of the critical resource within its type slot.
 /// @return `true` when the clock's dominance is increasing; `false` otherwise, including when the
 ///         type is absent or the graph has no usable node.
-template <typename CriticalRC, typename... ResourceTypes>
+template <typename CriticalResourceType, typename... ResourceTypes>
 [[nodiscard]] bool critical_resource_dominance_is_increasing(
     const Graph<ResourceTypeComposition<ResourceTypes...>>& graph, size_t critical_resource_index) {
-    if constexpr (ComponentTypeIndex<CriticalRC, ResourceTypes...>::value == -1) {
+    if constexpr (ComponentTypeIndex<CriticalResourceType, ResourceTypes...>::value == -1) {
         return false;
     } else {
         const std::vector<size_t> node_ids = graph.get_node_ids();
@@ -214,8 +214,10 @@ template <typename CriticalRC, typename... ResourceTypes>
         Resource<ResourceTypeComposition<ResourceTypes...>> low(*node->resource);
         Resource<ResourceTypeComposition<ResourceTypes...>> high(*node->resource);
 
-        auto& low_component = low.template get_component<CriticalRC>(critical_resource_index);
-        auto& high_component = high.template get_component<CriticalRC>(critical_resource_index);
+        auto& low_component =
+            low.template get_component<CriticalResourceType>(critical_resource_index);
+        auto& high_component =
+            high.template get_component<CriticalResourceType>(critical_resource_index);
         using CriticalValueType = std::decay_t<decltype(low_component.get_value().get_value())>;
         low_component.set_value(static_cast<CriticalValueType>(0));
         high_component.set_value(static_cast<CriticalValueType>(1));

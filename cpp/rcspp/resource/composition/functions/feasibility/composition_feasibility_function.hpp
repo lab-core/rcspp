@@ -65,10 +65,10 @@ class CompositionFeasibilityFunction
         }
 
     private:
-        template <typename F>
+        template <typename Callable>
         [[nodiscard]] bool feasible_helper(
             const Resource<ResourceTypeComposition<ResourceTypes...>>& resource_composition,
-            const F& feasible_func) const {
+            const Callable& feasible_func) const {
             return resource_composition.for_each_component_and(
                 [&](const auto& res) { return feasible_func(res); });
         }

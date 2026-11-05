@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, Literal
 from .resource import (
     AdditionExtensionFunction,
     CapacityExtensionFunction,
-    InclusionDominanceFunction,
     IntersectionFeasibilityFunction,
     MinMaxFeasibilityFunction,
     NgPathExtensionFunction,
+    SubsetDominanceFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
     TrivialCostFunction,
@@ -144,7 +144,7 @@ def add_ng_path_resource(
 
     Expands to ``graph.add_<resource_type>_resource(NgPathExtensionFunction(neighborhoods),
     IntersectionFeasibilityFunction({v: {v}}), TrivialCostFunction(),
-    InclusionDominanceFunction())``, the forbidden set ``{v}`` being derived for every node the
+    SubsetDominanceFunction())``, the forbidden set ``{v}`` being derived for every node the
     neighbourhoods mention, as a key or a member.
 
     The memory is read from the arcs' endpoints, so each arc's value for this resource is ignored:
@@ -168,7 +168,7 @@ def add_ng_path_resource(
         NgPathExtensionFunction(neighborhoods),
         IntersectionFeasibilityFunction(forbidden, forbidden=True),
         TrivialCostFunction(),
-        InclusionDominanceFunction(),
+        SubsetDominanceFunction(),
     )
 
 

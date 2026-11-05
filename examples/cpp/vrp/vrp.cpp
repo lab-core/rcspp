@@ -181,7 +181,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
         std::vector<Solution> solutions_rcspp;
         total_subproblem_time_.start();
         AlgorithmParams<LabelList<ResourceType>> params;
-        AlgorithmStatus pricing_status = AlgorithmStatus::COMPLETE;
+        AlgorithmStatus pricing_status = AlgorithmStatus::Complete;
         solutions_rcspp = solve_with_rcspp(dual_by_id, params, &pricing_status);
         // solutions_rcspp = solve_with_rcspp<PushingDominanceAlgorithmIterators>(dual_by_id);
         // solutions_rcspp = solve_with_rcspp<PullingDominanceAlgorithmIterators>(dual_by_id);
@@ -264,7 +264,7 @@ MPSolution VRP::solve(std::optional<size_t> subproblem_max_nb_solutions, bool us
             final_dual_by_id = master_solution.dual_by_var_id;
             // CG is about to stop. If the final pricing solve was cut short, a "no improving
             // column" result does not prove optimality of the master LP.
-            if (pricing_status != AlgorithmStatus::COMPLETE) {
+            if (pricing_status != AlgorithmStatus::Complete) {
                 proven_optimal = false;
                 LOG_WARN(
                     "Column generation stopped without proving optimality: the final pricing "

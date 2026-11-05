@@ -16,19 +16,19 @@ namespace test_util {
 /// @brief Asserts the defining property of a threshold resource's backward extension:
 ///        extend(x, arc) <= theta   <==>   x <= extend_back(theta, arc)
 ///
-/// Applies to @c rcspp::BackwardKind::Threshold functions only. Precondition: neither the
-/// forward clamp (@c earliest[destination]) nor the backward clamp (@c latest[origin]) may bind
+/// Applies to @c rcspp::DirectionalResourceKind::Threshold functions only. Precondition: neither
+/// the forward clamp (@c earliest[destination]) nor the backward clamp (@c latest[origin]) may bind
 /// over the sampled range, since each breaks the biconditional; test clamps with explicit cases.
 ///
-/// @tparam ExtensionFn  The extension function under test.
-/// @tparam ResourceType The scalar resource type.
-/// @tparam ValueType    The underlying arithmetic value type.
+/// @tparam ExtensionFunctionType The extension function under test.
+/// @tparam ResourceType          The scalar resource type.
+/// @tparam ValueType             The underlying arithmetic value type.
 /// @param fn         The extension function, already preprocessed for the arc under test.
 /// @param arc_value  The arc's consumption.
 /// @param samples    Forward values @c x to probe.
 /// @param thetas     Backward thresholds @c theta to probe.
-template <typename ExtensionFn, typename ResourceType, typename ValueType>
-void check_backward_contract(ExtensionFn& fn, const ResourceType& arc_value,
+template <typename ExtensionFunctionType, typename ResourceType, typename ValueType>
+void check_backward_contract(ExtensionFunctionType& fn, const ResourceType& arc_value,
                              const std::vector<ValueType>& samples,
                              const std::vector<ValueType>& thetas) {
     for (const ValueType theta : thetas) {

@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "rcspp/resource/concrete/functions/cost/value_cost_function.hpp"
-#include "rcspp/resource/concrete/functions/dominance/inclusion_dominance_function.hpp"
+#include "rcspp/resource/concrete/functions/dominance/subset_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/dominance/value_dominance_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/addition_extension_function.hpp"
 #include "rcspp/resource/concrete/functions/extension/capacity_extension_function.hpp"
@@ -23,8 +23,8 @@
 #include "rcspp/resource/concrete/functions/feasibility/intersection_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/min_max_feasibility_function.hpp"
 #include "rcspp/resource/concrete/functions/feasibility/time_window_feasibility_function.hpp"
-#include "rcspp/resource/functions/backward_kind.hpp"
 #include "rcspp/resource/functions/cost/trivial_cost_function.hpp"
+#include "rcspp/resource/functions/directional_resource_kind.hpp"
 #include "rcspp/resource/functions/extension/extension_function.hpp"
 #include "rcspp/resource/functions/feasibility/feasibility_function.hpp"
 #include "rcspp/resource/functions/feasibility/trivial_feasibility_function.hpp"
@@ -34,30 +34,9 @@
 /// @brief One call per resource kind, registering a coherent set of four function objects.
 ///
 /// Presets are sugar over the four-object `add_resource` form; each one documents what it expands
-/// to. Every preset asserts @c declares_backward_kind_v on its extension, so a preset whose
-/// extension has no backward reading fails to compile. Whether the rest of the quadruple fits
+/// to. Every preset asserts @c declares_directional_resource_kind_v on its extension, so a preset
+/// whose extension has no backward reading fails to compile. Whether the rest of the quadruple fits
 /// depends on its settings, which the model checks test before a backward or bidirectional solve.
-
-namespace rcspp {
-
-/// @brief Whether an extension function type declares a backward kind: the one backward
-///        requirement a type alone can answer.
-///
-/// It says nothing about the feasibility function paired with it: whether that suits the
-/// extension depends on its settings (bounds, windows, forbidden sets), which the model checks
-/// test before a backward or bidirectional solve. Not enforced by `add_resource`, since
-/// forward-only models do not need it:
-///
-/// @code
-/// static_assert(rcspp::declares_backward_kind_v<MyExtension>);
-/// @endcode
-///
-/// @tparam Ext Concrete extension function type.
-template <typename Ext>
-inline constexpr bool declares_backward_kind_v =
-    backward_kind_of_v<Ext> != BackwardKind::Unspecified;
-
-}  // namespace rcspp
 
 namespace rcspp::presets {
 
@@ -65,23 +44,27 @@ namespace detail {
 
 /// @brief Registers a preset's four function objects after asserting that they are coherent.
 ///
-/// @tparam R     The resource type.
-/// @tparam Graph The graph type, deduced.
+/// @tparam ResourceType The resource type.
+/// @tparam GraphType    The graph type, deduced.
 /// @param graph       The graph to register the resource on.
 /// @param extension   The extension function.
 /// @param feasibility The feasibility function.
 /// @param cost        The cost function.
 /// @param dominance   The dominance function.
-template <typename R, typename Graph, typename Ext, typename Feas, typename Cost, typename Dom>
-void add_coherent_resource(Graph& graph, std::unique_ptr<Ext> extension,
-                           std::unique_ptr<Feas> feasibility, std::unique_ptr<Cost> cost,
-                           std::unique_ptr<Dom> dominance) {
-    static_assert(backward_kind_of_v<Ext> != BackwardKind::Unspecified,
-                  "a preset's extension function declares no backward kind");
-    graph.template add_resource<R>(std::move(extension),
-                                   std::move(feasibility),
-                                   std::move(cost),
-                                   std::move(dominance));
+template <typename ResourceType, typename GraphType, typename ExtensionFunctionType,
+          typename FeasibilityFunctionType, typename CostFunctionType,
+          typename DominanceFunctionType>
+void add_coherent_resource(GraphType& graph, std::unique_ptr<ExtensionFunctionType> extension,
+                           std::unique_ptr<FeasibilityFunctionType> feasibility,
+                           std::unique_ptr<CostFunctionType> cost,
+                           std::unique_ptr<DominanceFunctionType> dominance) {
+    static_assert(directional_resource_kind_of_v<ExtensionFunctionType> !=
+                      DirectionalResourceKind::Unspecified,
+                  "a preset's extension function declares no directional resource kind");
+    graph.template add_resource<ResourceType>(std::move(extension),
+                                              std::move(feasibility),
+                                              std::move(cost),
+                                              std::move(dominance));
 }
 
 }  // namespace detail
@@ -91,16 +74,17 @@ void add_coherent_resource(Graph& graph, std::unique_ptr<Ext> extension,
 /// Expands to `add_resource(AdditionExtensionFunction, TrivialFeasibilityFunction,
 /// ValueCostFunction, ValueDominanceFunction)`.
 ///
-/// @tparam R     The resource type; normally a signed numerical type.
-/// @tparam Graph The graph type, deduced.
+/// @tparam ResourceType The resource type; normally a signed numerical type.
+/// @tparam GraphType    The graph type, deduced.
 /// @param graph The graph to register the resource on.
-template <typename R, typename Graph>
-void add_cost_resource(Graph& graph) {
-    detail::add_coherent_resource<R>(graph,
-                                     std::make_unique<AdditionExtensionFunction<R>>(),
-                                     std::make_unique<TrivialFeasibilityFunction<R>>(),
-                                     std::make_unique<ValueCostFunction<R>>(),
-                                     std::make_unique<ValueDominanceFunction<R>>());
+template <typename ResourceType, typename GraphType>
+void add_cost_resource(GraphType& graph) {
+    detail::add_coherent_resource<ResourceType>(
+        graph,
+        std::make_unique<AdditionExtensionFunction<ResourceType>>(),
+        std::make_unique<TrivialFeasibilityFunction<ResourceType>>(),
+        std::make_unique<ValueCostFunction<ResourceType>>(),
+        std::make_unique<ValueDominanceFunction<ResourceType>>());
 }
 
 /// @brief A scalar resource with a per-node window (a threshold, whose backward labels start at
@@ -115,46 +99,51 @@ void add_cost_resource(Graph& graph) {
 /// add arrival times to the objective. A model whose objective is the arrival time uses the
 /// four-object form.
 ///
-/// @tparam R     The resource type. Must be signed: backward extension subtracts.
-/// @tparam Graph The graph type, deduced.
-/// @tparam V     The resource's arithmetic value type. Never deduced from the arguments, so an
-///               `int` bound on a real resource converts rather than truncating every value.
+/// @tparam ResourceType The resource type. Must be signed: backward extension subtracts.
+/// @tparam GraphType    The graph type, deduced.
+/// @tparam ValueType    The resource's arithmetic value type. Never deduced from the arguments, so
+///                      an `int` bound on a real resource converts rather than truncating every
+///                      value.
 /// @param graph       The graph to register the resource on.
 /// @param windows     Per-node `{earliest, latest}` pairs.
 /// @param default_max Bound used at nodes absent from the map.
-template <typename R, typename Graph,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
+template <typename ResourceType, typename GraphType,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
 void add_window_resource(
-    Graph& graph,
-    std::map<size_t, std::pair<std::type_identity_t<V>, std::type_identity_t<V>>> windows,
-    std::type_identity_t<V> default_max = std::numeric_limits<V>::max() / 2) {
-    const auto bounds = make_node_bounds(V{0}, default_max, std::move(windows));
-    detail::add_coherent_resource<R>(graph,
-                                     std::make_unique<TimeWindowExtensionFunction<R, V>>(bounds),
-                                     std::make_unique<TimeWindowFeasibilityFunction<R, V>>(bounds),
-                                     std::make_unique<TrivialCostFunction<R>>(),
-                                     std::make_unique<ValueDominanceFunction<R>>());
+    GraphType& graph,
+    std::map<size_t, std::pair<std::type_identity_t<ValueType>, std::type_identity_t<ValueType>>>
+        windows,
+    std::type_identity_t<ValueType> default_max = std::numeric_limits<ValueType>::max() / 2) {
+    const auto bounds = make_node_bounds(ValueType{0}, default_max, std::move(windows));
+    detail::add_coherent_resource<ResourceType>(
+        graph,
+        std::make_unique<TimeWindowExtensionFunction<ResourceType, ValueType>>(bounds),
+        std::make_unique<TimeWindowFeasibilityFunction<ResourceType, ValueType>>(bounds),
+        std::make_unique<TrivialCostFunction<ResourceType>>(),
+        std::make_unique<ValueDominanceFunction<ResourceType>>());
 }
 
 /// @brief @ref add_window_resource for integer windows on a floating-point resource, as
 ///        instances with integer time windows give them. Each bound converts exactly.
 ///
-/// @tparam R     The resource type, with a floating-point value.
-/// @tparam Graph The graph type, deduced.
-/// @tparam W     The windows' integer type, deduced.
+/// @tparam ResourceType    The resource type, with a floating-point value.
+/// @tparam GraphType       The graph type, deduced.
+/// @tparam WindowValueType The windows' integer type, deduced.
 /// @param graph   The graph to register the resource on.
 /// @param windows Per-node `{earliest, latest}` pairs.
-template <typename R, typename Graph, std::integral W,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-    requires std::floating_point<V>
-void add_window_resource(Graph& graph, const std::map<size_t, std::pair<W, W>>& windows) {
-    std::map<size_t, std::pair<V, V>> converted;
+template <typename ResourceType, typename GraphType, std::integral WindowValueType,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
+    requires std::floating_point<ValueType>
+void add_window_resource(
+    GraphType& graph,
+    const std::map<size_t, std::pair<WindowValueType, WindowValueType>>& windows) {
+    std::map<size_t, std::pair<ValueType, ValueType>> converted;
     for (const auto& [node_id, window] : windows) {
-        converted.emplace(
-            node_id,
-            std::pair<V, V>{static_cast<V>(window.first), static_cast<V>(window.second)});
+        converted.emplace(node_id,
+                          std::pair<ValueType, ValueType>{static_cast<ValueType>(window.first),
+                                                          static_cast<ValueType>(window.second)});
     }
-    add_window_resource<R, Graph, V>(graph, std::move(converted));
+    add_window_resource<ResourceType, GraphType, ValueType>(graph, std::move(converted));
 }
 
 /// @brief A bounded accumulation (capacity, duration, any limit).
@@ -168,29 +157,30 @@ void add_window_resource(Graph& graph, const std::map<size_t, std::pair<W, W>>& 
 /// only an upper limit, so a bidirectional solve cannot check a minimum; 0 holds automatically as
 /// long as every arc load is non-negative, and the model checks refuse a negative one.
 ///
-/// @tparam R     The resource type. Must be signed.
-/// @tparam Graph The graph type, deduced.
-/// @tparam V     The resource's arithmetic value type. Never deduced from the arguments, so a
-///               capacity of `5` on a real resource converts to `5.0` rather than truncating
-///               every consumption.
+/// @tparam ResourceType The resource type. Must be signed.
+/// @tparam GraphType    The graph type, deduced.
+/// @tparam ValueType    The resource's arithmetic value type. Never deduced from the arguments, so
+///                      a capacity of `5` on a real resource converts to `5.0` rather than
+///                      truncating every consumption.
 /// @param graph    The graph to register the resource on.
 /// @param capacity The upper bound at every node without its own.
 /// @param per_node Optional per-node capacities; empty means uniform.
-template <typename R, typename Graph,
-          typename V = std::decay_t<decltype(std::declval<R>().get_value())>>
-void add_capacity_resource(Graph& graph, std::type_identity_t<V> capacity,
-                           const std::map<size_t, std::type_identity_t<V>>& per_node = {}) {
-    std::map<size_t, std::pair<V, V>> windows;
+template <typename ResourceType, typename GraphType,
+          typename ValueType = std::decay_t<decltype(std::declval<ResourceType>().get_value())>>
+void add_capacity_resource(GraphType& graph, std::type_identity_t<ValueType> capacity,
+                           const std::map<size_t, std::type_identity_t<ValueType>>& per_node = {}) {
+    std::map<size_t, std::pair<ValueType, ValueType>> windows;
     for (const auto& [node_id, node_capacity] : per_node) {
-        windows.emplace(node_id, std::pair<V, V>{V{0}, node_capacity});
+        windows.emplace(node_id, std::pair<ValueType, ValueType>{ValueType{0}, node_capacity});
     }
 
-    const auto caps = make_node_bounds(V{0}, capacity, std::move(windows));
-    detail::add_coherent_resource<R>(graph,
-                                     std::make_unique<CapacityExtensionFunction<R, V>>(caps),
-                                     std::make_unique<MinMaxFeasibilityFunction<R, V>>(caps),
-                                     std::make_unique<TrivialCostFunction<R>>(),
-                                     std::make_unique<ValueDominanceFunction<R>>());
+    const auto caps = make_node_bounds(ValueType{0}, capacity, std::move(windows));
+    detail::add_coherent_resource<ResourceType>(
+        graph,
+        std::make_unique<CapacityExtensionFunction<ResourceType, ValueType>>(caps),
+        std::make_unique<MinMaxFeasibilityFunction<ResourceType, ValueType>>(caps),
+        std::make_unique<TrivialCostFunction<ResourceType>>(),
+        std::make_unique<ValueDominanceFunction<ResourceType>>());
 }
 
 /// @brief The ng-path relaxation: a memory read from the arc's endpoints, plus the ng-route
@@ -198,35 +188,38 @@ void add_capacity_resource(Graph& graph, std::type_identity_t<V> capacity,
 ///
 /// Expands to `add_resource(NgPathExtensionFunction(neighborhoods),
 /// IntersectionFeasibilityFunction({v: {v}}, forbidden = true), TrivialCostFunction,
-/// InclusionDominanceFunction)`. The forbidden set `{v}` is derived for every node that
+/// SubsetDominanceFunction)`. The forbidden set `{v}` is derived for every node that
 /// @p neighborhoods mentions, as a key or a member.
 ///
-/// @tparam R     The container resource type.
-/// @tparam Graph The graph type, deduced.
-/// @tparam E     The element type stored in the sets.
+/// @tparam ResourceType The container resource type.
+/// @tparam GraphType    The graph type, deduced.
+/// @tparam ValueType    The element type stored in the sets.
 /// @param graph         The graph to register the resource on.
 /// @param neighborhoods Each node's ng-neighborhood. A node absent from the map forgets every
 ///                      previously visited node on arrival, so give every node a neighborhood.
-template <typename R, typename Graph, typename E = typename R::ValueType>
-void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborhoods) {
-    std::map<size_t, std::set<E>> forbidden_by_node;
+template <typename ResourceType, typename GraphType,
+          typename ValueType = typename ResourceType::ValueType>
+void add_ng_path_resource(GraphType& graph, std::map<size_t, std::set<ValueType>> neighborhoods) {
+    std::map<size_t, std::set<ValueType>> forbidden_by_node;
     for (const auto& [node_id, neighborhood] : neighborhoods) {
-        forbidden_by_node[node_id] = {static_cast<E>(node_id)};
-        for (const E& member : neighborhood) {
+        forbidden_by_node[node_id] = {static_cast<ValueType>(node_id)};
+        for (const ValueType& member : neighborhood) {
             forbidden_by_node[static_cast<size_t>(member)] = {member};
         }
     }
 
-    auto extension = std::make_unique<NgPathExtensionFunction<R, E>>(std::move(neighborhoods));
-    auto feasibility =
-        std::make_unique<IntersectionFeasibilityFunction<R, E>>(std::move(forbidden_by_node),
-                                                                /*forbidden=*/true);
+    auto extension = std::make_unique<NgPathExtensionFunction<ResourceType, ValueType>>(
+        std::move(neighborhoods));
+    auto feasibility = std::make_unique<IntersectionFeasibilityFunction<ResourceType, ValueType>>(
+        std::move(forbidden_by_node),
+        /*forbidden=*/true);
 
-    detail::add_coherent_resource<R>(graph,
-                                     std::move(extension),
-                                     std::move(feasibility),
-                                     std::make_unique<TrivialCostFunction<R>>(),
-                                     std::make_unique<InclusionDominanceFunction<R>>());
+    detail::add_coherent_resource<ResourceType>(
+        graph,
+        std::move(extension),
+        std::move(feasibility),
+        std::make_unique<TrivialCostFunction<ResourceType>>(),
+        std::make_unique<SubsetDominanceFunction<ResourceType>>());
 }
 
 /// @brief An elementary path: no node may be visited twice.
@@ -239,25 +232,26 @@ void add_ng_path_resource(Graph& graph, std::map<size_t, std::set<E>> neighborho
 ///       node and shared by the arcs. Use a bitset memory such as `SizeTBitsetResource`, which
 ///       stores each set in `n` bits rather than one tree node per element.
 ///
-/// @tparam R     The container resource type.
-/// @tparam Graph The graph type, deduced.
-/// @tparam E     The element type stored in the sets.
+/// @tparam ResourceType The container resource type.
+/// @tparam GraphType    The graph type, deduced.
+/// @tparam ValueType    The element type stored in the sets.
 /// @param graph    The graph to register the resource on.
 /// @param node_ids Every node id in the model (resources are registered before nodes). A node left
 ///                 out gets no neighborhood, and elementarity stops holding through it.
-template <typename R, typename Graph, typename E = typename R::ValueType>
-void add_elementary_resource(Graph& graph, const std::vector<size_t>& node_ids) {
-    std::set<E> every_node;
+template <typename ResourceType, typename GraphType,
+          typename ValueType = typename ResourceType::ValueType>
+void add_elementary_resource(GraphType& graph, const std::vector<size_t>& node_ids) {
+    std::set<ValueType> every_node;
     for (const size_t node_id : node_ids) {
-        every_node.insert(static_cast<E>(node_id));
+        every_node.insert(static_cast<ValueType>(node_id));
     }
 
-    std::map<size_t, std::set<E>> neighborhoods;
+    std::map<size_t, std::set<ValueType>> neighborhoods;
     for (const size_t node_id : node_ids) {
         neighborhoods[node_id] = every_node;
     }
 
-    add_ng_path_resource<R, Graph, E>(graph, std::move(neighborhoods));
+    add_ng_path_resource<ResourceType, GraphType, ValueType>(graph, std::move(neighborhoods));
 }
 
 }  // namespace rcspp::presets

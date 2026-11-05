@@ -75,7 +75,7 @@ inline std::unique_ptr<Graph> make_graph(
         std::make_unique<IntersectionFeasibilityFunction<SizeTBitsetResource>>(forbidden,
                                                                                /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     return graph;
 }
 

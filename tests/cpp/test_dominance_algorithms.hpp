@@ -131,11 +131,11 @@ TEST(SimpleDominanceAlgorithmTest, SinglePathFindsOptimal) {
     EXPECT_NEAR(result.solutions[0].cost, kSingleCost, 1e-9);
 }
 
-/// @brief SimpleDominanceAlgorithm on a single-path graph reports COMPLETE status.
+/// @brief SimpleDominanceAlgorithm on a single-path graph reports Complete status.
 TEST(SimpleDominanceAlgorithmTest, SinglePathStatusComplete) {
     auto g = make_dom_linear_graph();
     const auto result = g->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
 /// @brief SimpleDominanceAlgorithm finds the best path on a two-path graph.
@@ -164,22 +164,22 @@ TEST(SimpleDominanceAlgorithmTest, NoPathReturnsEmpty) {
     EXPECT_TRUE(result.solutions.empty());
 }
 
-/// @brief stop_after_X_solutions=1 on two-path graph gives MAX_SOLUTIONS status.
+/// @brief max_solutions=1 on two-path graph gives MaxSolutions status.
 TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
-    params.stop_after_X_solutions = 1;
+    params.max_solutions = 1;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
-/// @brief Timeout=0 returns TIMEOUT status.
+/// @brief Timeout=0 returns Timeout status.
 TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief return_dominated_solutions=true includes non-optimal solutions.
@@ -187,7 +187,7 @@ TEST(SimpleDominanceAlgorithmTest, ReturnDominatedSolutions) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.return_dominated_solutions = true;
-    params.stop_after_X_solutions = 2;
+    params.max_solutions = 2;
     const auto result = g->solve<SimpleDominanceAlgorithm>(params);
     EXPECT_GE(result.solutions.size(), 1U);
 }
@@ -223,20 +223,20 @@ TEST(AStarDominanceAlgorithmTest, TwoPathFindsOptimal) {
     EXPECT_NEAR(result.solutions[0].cost, kBestCost, 1e-9);
 }
 
-/// @brief AStarDominanceAlgorithm: COMPLETE status on single-path graph.
+/// @brief AStarDominanceAlgorithm: Complete status on single-path graph.
 TEST(AStarDominanceAlgorithmTest, StatusComplete) {
     auto g = make_dom_linear_graph();
     const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(AlgorithmBaseParams{});
-    EXPECT_EQ(result.status, AlgorithmStatus::COMPLETE);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
-/// @brief AStarDominanceAlgorithm: zero timeout gives TIMEOUT status.
+/// @brief AStarDominanceAlgorithm: zero timeout gives Timeout status.
 TEST(AStarDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
     AlgorithmBaseParams params;
     params.timeout_s = 0.0;
     const auto result = g->solve<AStarAlgoBound<RealResource>::Algo>(params);
-    EXPECT_EQ(result.status, AlgorithmStatus::TIMEOUT);
+    EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
 /// @brief AStarDominanceAlgorithm: no path → empty result.
@@ -290,7 +290,7 @@ template <template <typename, typename> class Algorithm>
 size_t extended_labels(bool pressure) {
     auto graph = fan();
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
-    params.num_labels_to_extend_by_node = 2;
+    params.max_extended_labels_per_node = 2;
     if (pressure) {
         put_under_pressure(&params);
         params.memory_pressure_max_labels_per_node = 200;
@@ -355,15 +355,16 @@ inline int calls = 0;
 /// @brief Counts the calls to the protected virtual on top of @p Base.
 template <template <typename, typename> class Base>
 struct Counting {
-        template <typename RT, typename LC>
-        class Algo : public Base<RT, LC> {
+        template <typename ResourceType, typename LabelContainerType>
+        class Algo : public Base<ResourceType, LabelContainerType> {
             public:
-                using Base<RT, LC>::Base;
+                using Base<ResourceType, LabelContainerType>::Base;
 
             protected:
-                bool update_non_dominated_labels(const Label<RT>& label) override {
+                bool update_non_dominated_labels(const Label<ResourceType>& label) override {
                     ++calls;
-                    return Base<RT, LC>::update_non_dominated_labels(label);
+                    return Base<ResourceType, LabelContainerType>::update_non_dominated_labels(
+                        label);
                 }
         };
 };

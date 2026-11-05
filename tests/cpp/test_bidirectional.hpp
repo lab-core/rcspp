@@ -366,7 +366,7 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
             std::move(memory),
             std::move(feasibility),
             std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+            std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
         graph->add_node(0, /*source=*/true, /*sink=*/false);
         graph->add_node(1, /*source=*/false, /*sink=*/true);
@@ -416,8 +416,8 @@ TEST(Bidirectional, AContainerAskingAPrefixQuestionIsRefused) {
 /// @brief A forbidden set that is not the node's own is refused, on two models where it would
 ///        give a wrong answer.
 ///
-/// `DisjointJoinForm` needs `forbidden(v) = {v}`. Each case is a minimal model on which a
-/// bidirectional solve would answer wrongly; both are refused by the model checks and still solve
+/// `DisjointJoinFeasibilityForm` needs `forbidden(v) = {v}`. Each case is a minimal model on which
+/// a bidirectional solve would answer wrongly; both are refused by the model checks and still solve
 /// forward.
 TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
     struct Arc {
@@ -448,7 +448,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
                 forbidden,
                 /*forbidden=*/true),
             std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-            std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+            std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
 
         for (size_t node = 0; node < num_nodes; ++node) {
             graph->add_node(node, /*source=*/node == 0, /*sink=*/node == sink);
@@ -625,7 +625,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
                     self_forbidden,
                     /*forbidden=*/true),
                 std::make_unique<TrivialCostFunction<SetResource<int>>>(),
-                std::make_unique<InclusionDominanceFunction<SetResource<int>>>());
+                std::make_unique<SubsetDominanceFunction<SetResource<int>>>());
         }
 
         for (size_t node : node_ids) {
@@ -666,7 +666,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
             EXPECT_NE(message.find("component 2"), std::string::npos) << message;
             EXPECT_NE(message.find("ArcEndpoints"), std::string::npos) << message;
             // The remedy is named, not only the missing declaration.
-            EXPECT_NE(message.find("ArcEndpointsForm"), std::string::npos) << message;
+            EXPECT_NE(message.find("ArcEndpointsExtensionForm"), std::string::npos) << message;
         }
     }
 
@@ -915,7 +915,7 @@ TEST(Bidirectional, CompletionBoundIsAdmissibleUnderReducedCosts) {
 
     auto graph = build();
     auto p = bt::params(/*half_way_point=*/0.0);
-    p.prune_based_on_upper_bound_ = true;
+    p.prune_by_upper_bound = true;
     auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
 
     // Preprocessing off: it would remove arcs on original weights and change what is measured.
@@ -968,7 +968,7 @@ TEST(Bidirectional, CompletionBoundReadsTheObjectiveNotASlot) {
     ASSERT_TRUE(graph->check_model(SearchDirection::Bidirectional).ok());
 
     auto p = bt::params(/*half_way_point=*/0.0);
-    p.prune_based_on_upper_bound_ = true;
+    p.prune_by_upper_bound = true;
     p.critical_resource_index = 2;
     const auto result = graph->solve(std::numeric_limits<double>::infinity(),
                                      test_util::bidirectional(p),
@@ -1112,7 +1112,7 @@ TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
 
 /// @brief Memory-pressure lossiness reaches `SolveResult`, not just the algorithm object.
 ///
-/// A trimmed run may be non-optimal yet still reports COMPLETE, so the result flag is the only
+/// A trimmed run may be non-optimal yet still reports Complete, so the result flag is the only
 /// signal a caller without the algorithm object gets.
 TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
     namespace bt = bidirectional_test;
@@ -1142,7 +1142,7 @@ TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
     ASSERT_TRUE(pressed_flag) << "the pressure recipe did not fire";
     EXPECT_TRUE(pressed.memory_pressure_triggered)
         << "the algorithm knows the run was trimmed but the result the caller receives does not";
-    EXPECT_EQ(pressed.status, AlgorithmStatus::COMPLETE)
+    EXPECT_EQ(pressed.status, AlgorithmStatus::Complete)
         << "the status cannot express this, which is exactly why the flag has to";
 }
 
@@ -1254,7 +1254,7 @@ TEST(Bidirectional, ReturnDominatedSolutionsIsHonoured) {
 
     auto p = bt::params(2.0);
     p.return_dominated_solutions = true;
-    p.stop_after_X_solutions = 100;  // check() warns when this is left at MAX with the flag on
+    p.max_solutions = 100;  // check() warns when this is left at MAX with the flag on
     auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
     const auto with_dominated = graph->solve(algorithm.get());
 
@@ -1317,7 +1317,7 @@ TEST(Bidirectional, TheJoinDoesNotPruneAgainstTheIncumbentUnlessAsked) {
     const auto run = [&build](bool prune, double upper_bound) {
         auto graph = build();
         auto p = bt::params(8.0, bt::kClockIndex);
-        p.prune_based_on_upper_bound_ = prune;
+        p.prune_by_upper_bound = prune;
         auto algorithm =
             graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(p));
         const auto result = graph->solve(algorithm.get(), upper_bound);
@@ -1560,7 +1560,7 @@ TEST(Bidirectional, ANegativeCycleTurnsTheCompletionPruneOffRatherThanZeroingIt)
 
     auto graph = build();
     auto params = bt::params(3.0, /*critical_resource_index=*/1);
-    params.prune_based_on_upper_bound_ = true;
+    params.prune_by_upper_bound = true;
     auto algorithm =
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get(),
@@ -1658,7 +1658,7 @@ TEST(Bidirectional, AnIntClockWithARealCostKeepsTheOptimum) {
             AlgorithmParams<LabelList<Composition>> params;
             params.critical_resource_index = 0;
             params.half_way_point = half_way_point;
-            params.prune_based_on_upper_bound_ = true;
+            params.prune_by_upper_bound = true;
             auto algorithm = graph->create_algorithm<SimpleDominanceAlgorithm,
                                                      LabelList<Composition>,
                                                      RealResource,
@@ -1707,7 +1707,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> fan() {
 inline size_t extended_labels(bool under_pressure) {
     auto graph = fan();
     AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
-    params.num_labels_to_extend_by_node = 2;
+    params.max_extended_labels_per_node = 2;
     params.critical_resource_index = 1;
     params.half_way_point = 6.0;
     if (under_pressure) {
@@ -1753,7 +1753,7 @@ TEST(BidirectionalScheduling, AnEarlyStopFindsBothHalvesStarted) {
         graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     const auto result = graph->solve(algorithm.get());
 
-    ASSERT_NE(result.status, AlgorithmStatus::COMPLETE) << "the stop must land mid-search";
+    ASSERT_NE(result.status, AlgorithmStatus::Complete) << "the stop must land mid-search";
     EXPECT_TRUE(result.bidirectional->bounded_by_half_way);
     size_t backward = 0;
     for (const auto& container : test_util::bidirectional_impl<bt::Bidir>(algorithm.get())
@@ -1887,6 +1887,6 @@ TEST(Bidirectional, BucketsHoldBothHalves) {
         EXPECT_GE(result.bidirectional->number_of_joined_paths, 1U)
             << layout << ": the optimum crosses H, so it comes from the join";
     };
-    solve(Buckets(/*range_buckets=*/5, bt::kClockIndex, kCost), "buckets on the clock");
-    solve(Buckets(/*range_buckets=*/5, kCost, bt::kClockIndex), "buckets on the cost");
+    solve(Buckets(/*bucket_width=*/5, bt::kClockIndex, kCost), "buckets on the clock");
+    solve(Buckets(/*bucket_width=*/5, kCost, bt::kClockIndex), "buckets on the cost");
 }

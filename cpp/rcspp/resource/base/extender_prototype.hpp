@@ -111,15 +111,16 @@ class ExtenderPrototype {
         /// @return Arc identifier.
         [[nodiscard]] auto get_arc_id() const -> size_t { return arc_id_; }
 
-        /// @brief The backward kind of this arc's extension function.
+        /// @brief The directional resource kind of this arc's extension function.
         ///
         /// Every arc carries the same functions, so the model checks read each component's kind
         /// from any arc.
         ///
-        /// @return The declared @ref BackwardKind, or @c Unspecified if no function is bound.
-        [[nodiscard]] BackwardKind backward_kind() const {
-            return extension_function_ != nullptr ? extension_function_->backward_kind()
-                                                  : BackwardKind::Unspecified;
+        /// @return The declared @ref DirectionalResourceKind, or @c Unspecified if no function is
+        /// bound.
+        [[nodiscard]] DirectionalResourceKind directional_resource_kind() const {
+            return extension_function_ != nullptr ? extension_function_->directional_resource_kind()
+                                                  : DirectionalResourceKind::Unspecified;
         }
 
         /// @brief The class name of this arc's extension function, for the model checks' messages.

@@ -20,7 +20,7 @@ namespace rcspp {
 /// @brief Factory that creates and manages resources for a composed resource type.
 ///
 /// `ResourceCompositionFactory` extends `ResourceFactory` for a `ResourceTypeComposition` and
-/// stores one `ResourceFactory<RT>` per constituent type @p RT via the `Composition` mixin.
+/// stores one `ResourceFactory` per type in @p ResourceTypes via the `Composition` mixin.
 /// It coordinates the construction and update of composed resources and their extenders.
 ///
 /// @tparam ResourceTypes The individual resource types that form the composition.
@@ -248,7 +248,7 @@ class ResourceCompositionFactory
                 std::make_unique<CompositionDominanceFunction<ResourceTypes...>>());
             // Copy-assign the Composition<ResourceFactory, ResourceTypes...> part.
             // The assignment triggers the copy constructor, which calls clone() on
-            // every ResourceFactory<RT> in the per-type vectors.
+            // every per-type ResourceFactory in the vectors.
             static_cast<Composition<ResourceFactory, ResourceTypes...>&>(*new_factory) =
                 static_cast<const Composition<ResourceFactory, ResourceTypes...>&>(*this);
             // Rebuild resource_prototype_ from the newly cloned sub-factories.

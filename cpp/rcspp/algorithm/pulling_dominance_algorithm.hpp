@@ -62,7 +62,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                     if (label.dominated) {
                         this->label_pool_.release_with_ref_count(&label);
                         it = erase_unprocessed_label(it);  // erase label
-                    } else if (this->params_.prune_based_on_upper_bound_ &&
+                    } else if (this->params_.prune_by_upper_bound &&
                                label.get_cost() >= this->best_cost_upper_bound_) {
                         // label cost too high -> continue to next one
                         this->remove_label(it->second);
@@ -83,8 +83,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                                 }
                                 if (this->params_.return_dominated_solutions) {
                                     this->extract_solution(label);
-                                    if (this->solutions_.size() >=
-                                        this->params_.stop_after_X_solutions) {
+                                    if (this->solutions_.size() >= this->params_.max_solutions) {
                                         LOG_DEBUG("Stopping after ",
                                                   this->solutions_.size(),
                                                   " solutions.\n");
@@ -177,7 +176,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
             return this->current_unprocessed_labels_.erase(label_iterator);
         }
 
-        void prepareNextPhase() override {
+        void prepare_next_phase() override {
             first_loop_ = true;
             this->restore_truncated_unprocessed_labels();
         }

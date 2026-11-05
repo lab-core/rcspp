@@ -53,7 +53,7 @@ inline std::unique_ptr<ResourceGraph<RealResource, SizeTBitsetResource>> build(
                                                                        default_max,
                                                                        std::move(caps)),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
 
     graph->add_node(0, /*source=*/true, /*sink=*/false);
     graph->add_node(1);
@@ -124,7 +124,7 @@ std::unique_ptr<ResourceGraph<RealResource, SizeTBitsetResource>> container_mode
         std::make_unique<UnionExtensionFunction<SizeTBitsetResource>>(),
         std::move(feasibility),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     for (size_t node = 0; node < num_nodes; ++node) {
         graph->add_node(node, /*source=*/node == 0, /*sink=*/node + 1 == num_nodes);
     }
@@ -167,7 +167,7 @@ inline std::unique_ptr<ResourceGraph<RealResource, SizeTBitsetResource>> per_nod
         std::make_unique<UnionExtensionFunction<SizeTBitsetResource>>(),
         std::make_unique<SizeFeasibilityFunction<SizeTBitsetResource>>(0U, 3U, std::move(caps)),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     for (size_t node = 0; node < 5; ++node) {
         graph->add_node(node, /*source=*/node == 0, /*sink=*/node == 4);
     }
@@ -373,7 +373,7 @@ inline std::unique_ptr<Graph> build(double capacity) {
             std::map<size_t, std::set<size_t>>{{1, {1}}},
             /*forbidden=*/true),
         std::make_unique<TrivialCostFunction<SizeTBitsetResource>>(),
-        std::make_unique<InclusionDominanceFunction<SizeTBitsetResource>>());
+        std::make_unique<SubsetDominanceFunction<SizeTBitsetResource>>());
     for (size_t node_id = 0; node_id < 4; ++node_id) {
         graph->add_node(node_id, node_id == 0, node_id == 3);
     }

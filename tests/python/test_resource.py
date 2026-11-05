@@ -11,11 +11,11 @@ sys.path.insert(
 )
 
 from rcspp.resource import (  # noqa: E402
-    ContainDominanceFunction,
-    InclusionDominanceFunction,
+    DifferenceExtensionFunction,
     IntersectionExtensionFunction,
     SizeFeasibilityFunction,
-    SubtractExtensionFunction,
+    SubsetDominanceFunction,
+    SupersetDominanceFunction,
     TimeWindowExtensionFunction,
     TimeWindowFeasibilityFunction,
     TrivialCostFunction,
@@ -63,18 +63,18 @@ def test_intersection_extension_function():
     assert result is not None
 
 
-def test_subtract_extension_function():
-    result = SubtractExtensionFunction().create("uint_bitset")
+def test_difference_extension_function():
+    result = DifferenceExtensionFunction().create("uint_bitset")
     assert result is not None
 
 
-def test_inclusion_dominance_function():
-    result = InclusionDominanceFunction().create("uint_bitset")
+def test_subset_dominance_function():
+    result = SubsetDominanceFunction().create("uint_bitset")
     assert result is not None
 
 
-def test_contain_dominance_function():
-    result = ContainDominanceFunction().create("uint_bitset")
+def test_superset_dominance_function():
+    result = SupersetDominanceFunction().create("uint_bitset")
     assert result is not None
 
 

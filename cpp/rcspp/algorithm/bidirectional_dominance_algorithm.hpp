@@ -27,7 +27,7 @@ namespace rcspp::detail {
 
 /// @brief A stop that ends a bidirectional search while labels are still waiting to be extended.
 ///
-/// `stop_after_X_solutions` and `max_iterations` are not run-level stops: the join always runs
+/// `max_solutions` and `max_iterations` are not run-level stops: the join always runs
 /// after either.
 enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 
@@ -55,11 +55,11 @@ enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 /// @c ResourceGraph::solve, and the model checks it needs (@c BackwardExtensionCheck and
 /// @c JoinCheck) run before the solve.
 ///
-/// @tparam ResourceType       The resource type carried by labels.
-/// @tparam LabelContainerType The forward per-node container.
-/// @tparam CriticalRC         The critical resource's type (the clock).
+/// @tparam ResourceType         The resource type carried by labels.
+/// @tparam LabelContainerType   The forward per-node container.
+/// @tparam CriticalResourceType The critical resource's type (the clock).
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>,
-          typename CriticalRC = RealResource>
+          typename CriticalResourceType = RealResource>
     requires ResourceTypeConcept<ResourceType>
 class BidirectionalDominanceAlgorithm
     : public DominanceAlgorithm<ResourceType, LabelContainerType, ForwardDirection> {
@@ -237,19 +237,19 @@ class BidirectionalDominanceAlgorithm
 
         void add_new_unprocessed_label(
             const LabelIteratorPair<ResourceType>& label_iterator_pair) override {
-            // Routed by step<Dir>() into the correct frontier; see extend_into().
+            // Routed by step<Direction>() into the correct frontier; see extend_into().
             pending_frontier_->push(label_iterator_pair);
         }
 
     private:
         /// @brief Creates the start labels for one direction and puts them on its frontier.
-        template <typename Dir, typename Container>
+        template <typename Direction, typename Container>
         void create_start_labels(std::vector<Container>& containers,
                                  LabelFrontier<ResourceType>* frontier) {
-            for (auto start_node_id : Dir::start_nodes(*this->graph_)) {
+            for (auto start_node_id : Direction::start_nodes(*this->graph_)) {
                 auto* start_node = this->graph_->get_node(start_node_id);
                 auto& label = this->label_pool_.get_next_label(start_node);
-                Dir::apply_start(*this->graph_, start_node, label);
+                Direction::apply_start(*this->graph_, start_node, label);
                 auto label_it = containers.at(start_node->pos()).add_label(&label);
                 frontier->push(std::make_pair(&label, label_it));
             }
@@ -259,7 +259,7 @@ class BidirectionalDominanceAlgorithm
         ///
         /// Abandoning a label (dominated, over quota, beyond the completion bound, past `H`) never
         /// stops the solve; run-level stops are checked in `main_loop`.
-        template <typename Dir, typename Container>
+        template <typename Direction, typename Container>
         void step(std::vector<Container>& containers, LabelFrontier<ResourceType>* frontier,
                   std::vector<size_t>* extended_per_node) {
             auto label_iterator_pair = frontier->pop();
@@ -285,28 +285,28 @@ class BidirectionalDominanceAlgorithm
 
             // Prune on cost plus completion bound: with reduced costs a half's own cost is not a
             // lower bound on the full path.
-            if (this->params_.prune_based_on_upper_bound_ &&
-                label_ptr->get_cost() + completion_bound<Dir>(node_pos) >=
+            if (this->params_.prune_by_upper_bound &&
+                label_ptr->get_cost() + completion_bound<Direction>(node_pos) >=
                     this->best_cost_upper_bound_) {
-                this->template remove_label<Dir>(label_iterator_pair.second, containers);
+                this->template remove_label<Direction>(label_iterator_pair.second, containers);
                 this->label_pool_.release_with_ref_count(label_ptr);
                 return;
             }
 
-            if (Dir::is_terminal(label_ptr->get_end_node())) {
+            if (Direction::is_terminal(label_ptr->get_end_node())) {
                 if (label_ptr->get_cost() < this->best_cost_upper_bound_) {
                     this->best_cost_upper_bound_ = label_ptr->get_cost();
                 }
                 // Record now: a terminal label dominated later is gone by the final sweep, and
-                // `stop_after_X_solutions` needs `solutions_` to grow during the search.
+                // `max_solutions` needs `solutions_` to grow during the search.
                 if (this->params_.return_dominated_solutions) {
-                    this->template extract_path_solution<Dir>(*label_ptr);
+                    this->template extract_path_solution<Direction>(*label_ptr);
                 }
                 return;
             }
 
             if (std::isinf(label_ptr->get_cost())) {
-                this->template remove_label<Dir>(label_iterator_pair.second, containers);
+                this->template remove_label<Direction>(label_iterator_pair.second, containers);
                 this->label_pool_.release_with_ref_count(label_ptr);
                 return;
             }
@@ -315,9 +315,9 @@ class BidirectionalDominanceAlgorithm
             // bound off, the clock (and its index) is never read.
             if (half_way_.enabled()) {
                 const double critical =
-                    critical_value<CriticalRC>(label_ptr->get_resource(),
-                                               this->params_.critical_resource_index);
-                if constexpr (Dir::backward) {
+                    critical_value<CriticalResourceType>(label_ptr->get_resource(),
+                                                         this->params_.critical_resource_index);
+                if constexpr (Direction::backward) {
                     if (half_way_.should_stop_backward(critical)) {
                         return;
                     }
@@ -328,20 +328,20 @@ class BidirectionalDominanceAlgorithm
                 }
             }
 
-            extend_into<Dir>(label_ptr, containers, frontier);
+            extend_into<Direction>(label_ptr, containers, frontier);
         }
 
         /// @brief Extends one label along its direction's arcs into @p containers.
         ///
         /// Adds the arcs to its direction's work count, which @ref main_loop balances.
-        template <typename Dir, typename Container>
+        template <typename Direction, typename Container>
         void extend_into(Label<ResourceType>* label_ptr, std::vector<Container>& containers,
                          LabelFrontier<ResourceType>* frontier) {
             pending_frontier_ = frontier;
-            const auto arcs = Dir::arcs(*this->graph_, label_ptr->get_end_node());
-            (Dir::backward ? backward_work_ : forward_work_) += arcs.size();
+            const auto arcs = Direction::arcs(*this->graph_, label_ptr->get_end_node());
+            (Direction::backward ? backward_work_ : forward_work_) += arcs.size();
             for (auto* arc_ptr : arcs) {
-                this->template extend_label<Dir>(label_ptr, arc_ptr, containers);
+                this->template extend_label<Direction>(label_ptr, arc_ptr, containers);
             }
             pending_frontier_ = nullptr;
         }
@@ -395,9 +395,9 @@ class BidirectionalDominanceAlgorithm
                 .critical_resource_index = this->params_.critical_resource_index,
                 // After an early stop, prune against the incumbent whatever the caller asked: the
                 // join only owes the improving paths, and that keeps its output to a handful.
-                .prune_requested = this->params_.prune_based_on_upper_bound_ || stopped_early,
+                .prune_requested = this->params_.prune_by_upper_bound || stopped_early,
                 .cost_upper_bound = this->cost_upper_bound_,
-                .max_solutions = this->params_.stop_after_X_solutions,
+                .max_solutions = this->params_.max_solutions,
             };
             joiner_.join(*this->graph_,
                          this->non_dominated_labels_by_node_pos_,
@@ -410,11 +410,11 @@ class BidirectionalDominanceAlgorithm
         /// @brief A lower bound on the cost a label at @p node_pos still has to add to become a
         ///        complete path: to a sink going forward, from a source going backward.
         ///
-        /// 0 when @c prune_based_on_upper_bound_ is off; minus infinity when no bound could be
+        /// 0 when @c prune_by_upper_bound is off; minus infinity when no bound could be
         /// computed.
-        template <typename Dir>
+        template <typename Direction>
         [[nodiscard]] double completion_bound(size_t node_pos) const {
-            if constexpr (Dir::backward) {
+            if constexpr (Direction::backward) {
                 return h_from_source_.empty() ? 0.0 : h_from_source_.at(node_pos);
             } else {
                 return h_to_sink_.empty() ? 0.0 : h_to_sink_.at(node_pos);
@@ -427,7 +427,7 @@ class BidirectionalDominanceAlgorithm
             half_way_ = HalfWayPolicy(this->params_.half_way_point, resource_upper_bound(graph));
             half_way_off_reason_.clear();
 
-            if constexpr (!is_cost_in_composition_v<CriticalRC, ResourceType>) {
+            if constexpr (!is_cost_in_composition_v<CriticalResourceType, ResourceType>) {
                 turn_half_way_off(HalfWayOff::CriticalTypeAbsent,
                                   "the critical resource type is not in the model");
             } else {
@@ -439,7 +439,7 @@ class BidirectionalDominanceAlgorithm
                                       "critical resource's range");
                     return;
                 }
-                const size_t clocks = components_of<CriticalRC>(graph);
+                const size_t clocks = components_of<CriticalResourceType>(graph);
                 if (this->params_.critical_resource_index >= clocks) {
                     turn_half_way_off(HalfWayOff::IndexOutOfRange,
                                       clock + " does not exist: the model has " +
@@ -447,7 +447,8 @@ class BidirectionalDominanceAlgorithm
                                           " component(s) of the critical resource's type");
                     return;
                 }
-                if (critical_backward_kind(graph) != BackwardKind::Threshold) {
+                if (critical_directional_resource_kind(graph) !=
+                    DirectionalResourceKind::Threshold) {
                     turn_half_way_off(HalfWayOff::NotAThreshold,
                                       clock +
                                           " does not extend backwards as a threshold, so its "
@@ -463,14 +464,14 @@ class BidirectionalDominanceAlgorithm
                     return;
                 }
                 const std::vector<double> probes{0.0, half_way_.h()};
-                if (!critical_resource_is_monotone<CriticalRC>(
+                if (!critical_resource_is_monotone<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index,
                         probes)) {
                     turn_half_way_off(HalfWayOff::NotMonotone, clock + " is not monotone");
                     return;
                 }
-                if (!critical_resource_dominance_is_increasing<CriticalRC>(
+                if (!critical_resource_dominance_is_increasing<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index)) {
                     turn_half_way_off(HalfWayOff::NotIncreasing,
@@ -506,42 +507,49 @@ class BidirectionalDominanceAlgorithm
             }
         }
 
-        /// @brief How many components of type @p T the model has, read off one arc's extender.
+        /// @brief How many components of type @p ComponentType the model has, read off one arc's
+        /// extender.
         ///
         /// Uses the arc @c threshold_probe::model_arc picks (a removed arc when no live one is
         /// left), so the count does not depend on what preprocessing removed.
         ///
         /// @param graph The graph whose arcs carry the extenders.
-        /// @return The count, or 0 when @p T is not in the model or no arc carries an extender.
-        template <typename T>
+        /// @return The count, or 0 when @p ComponentType is not in the model or no arc carries an
+        /// extender.
+        template <typename ComponentType>
         [[nodiscard]] static size_t components_of(const Graph<ResourceType>& graph) {
-            if constexpr (is_cost_in_composition_v<T, ResourceType>) {
+            if constexpr (is_cost_in_composition_v<ComponentType, ResourceType>) {
                 const auto* arc = threshold_probe::model_arc(graph);
-                return arc == nullptr ? 0 : arc->extender->template get_components<T>().size();
+                return arc == nullptr
+                           ? 0
+                           : arc->extender->template get_components<ComponentType>().size();
             } else {
                 return 0;
             }
         }
 
-        /// @brief The backward kind of the critical component, read off any arc's extender.
+        /// @brief The directional resource kind of the critical component, read off any arc's
+        /// extender.
         ///
         /// Only a `Threshold` backward value is on the forward scale that `H` uses; any other kind
         /// disables the bound. Use e.g. `TimeWindowExtensionFunction` or
         /// `CapacityExtensionFunction`.
         ///
         /// @param graph The graph whose arcs carry the extenders.
-        /// @return The critical component's declared backward kind, or `Unspecified` when the
-        ///         graph has no arc carrying an extender.
-        [[nodiscard]] BackwardKind critical_backward_kind(const Graph<ResourceType>& graph) const {
+        /// @return The critical component's declared directional resource kind, or `Unspecified`
+        ///         when the graph has no arc carrying an extender.
+        [[nodiscard]] DirectionalResourceKind critical_directional_resource_kind(
+            const Graph<ResourceType>& graph) const {
             // One arc suffices: all extenders come from one factory, so they share one component
             // layout (assumed, not checked). It is the arc the model checks read, live or removed.
             const auto* arc = threshold_probe::model_arc(graph);
             if (arc == nullptr) {
-                return BackwardKind::Unspecified;
+                return DirectionalResourceKind::Unspecified;
             }
             return arc->extender
-                ->template get_component<CriticalRC>(this->params_.critical_resource_index)
-                .backward_kind();
+                ->template get_component<CriticalResourceType>(
+                    this->params_.critical_resource_index)
+                .directional_resource_kind();
         }
 
         /// @brief A sink at which the clock's extension sets no backward start, if any.
@@ -564,9 +572,9 @@ class BidirectionalDominanceAlgorithm
                 if (entering == nullptr) {
                     continue;
                 }
-                auto scratch = sink->resource->template get_component<CriticalRC>(index);
+                auto scratch = sink->resource->template get_component<CriticalResourceType>(index);
                 if (!threshold_probe::observe_start(
-                        entering->extender->template get_component<CriticalRC>(index),
+                        entering->extender->template get_component<CriticalResourceType>(index),
                         &scratch)) {
                     return sink_id;
                 }
@@ -598,7 +606,7 @@ class BidirectionalDominanceAlgorithm
 
             // Only the completion-bound prune reads these; skip the relaxations when it is off.
             // The vectors stay sized above because `completion_bound` uses `.at()`.
-            if (!this->params_.prune_based_on_upper_bound_) {
+            if (!this->params_.prune_by_upper_bound) {
                 return;
             }
 
@@ -695,7 +703,7 @@ class BidirectionalDominanceAlgorithm
         std::string half_way_off_reason_;
 
         size_t joined_paths_ = 0;
-        Joiner<ResourceType, CriticalRC> joiner_;
+        Joiner<ResourceType, CriticalResourceType> joiner_;
 };
 
 }  // namespace rcspp::detail

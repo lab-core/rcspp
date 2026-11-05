@@ -113,14 +113,14 @@ TEST(TimeWindowExtensionFunction, ForwardStillClampsUpToEarliest) {
 }
 
 // A time window is a deadline-style bound.
-TEST(TimeWindowExtensionFunction, DeclaresThresholdBackwardKind) {
+TEST(TimeWindowExtensionFunction, DeclaresThresholdDirectionalResourceKind) {
     TimeWindowExtensionFunction<RealResource> proto(tw_ext_test::slack_windows());
-    EXPECT_EQ(proto.backward_kind(), BackwardKind::Threshold);
+    EXPECT_EQ(proto.directional_resource_kind(), DirectionalResourceKind::Threshold);
 
     // Signed integers work too.
     std::map<size_t, std::pair<int, int>> int_windows{{0, {0, 100}}, {1, {0, 100}}};
     TimeWindowExtensionFunction<IntResource> int_proto(int_windows);
-    EXPECT_EQ(int_proto.backward_kind(), BackwardKind::Threshold);
+    EXPECT_EQ(int_proto.directional_resource_kind(), DirectionalResourceKind::Threshold);
 }
 
 // An unsigned value type cannot represent an unmeetable deadline, so it reports Unspecified and
@@ -129,7 +129,7 @@ TEST(TimeWindowExtensionFunction, UnsignedValueTypeRefusesBackwardUse) {
     std::map<size_t, std::pair<unsigned int, unsigned int>> windows{{0, {0U, 100U}},
                                                                     {1, {0U, 100U}}};
     TimeWindowExtensionFunction<UIntResource> proto(windows);
-    EXPECT_EQ(proto.backward_kind(), BackwardKind::Unspecified);
+    EXPECT_EQ(proto.directional_resource_kind(), DirectionalResourceKind::Unspecified);
 
     // Forward extension still works.
     test_util::TestArc<UIntResource> fixture(0, 1);
