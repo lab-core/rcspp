@@ -406,6 +406,15 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
 template <typename ResourceType>
 struct NodeUnprocessedLabelsManager {
+        /// @brief Empties every queue and sizes them for @p num_nodes nodes, for a new solve: what
+        ///        an earlier solve left in them names labels the new one is about to recycle.
+        void reset(size_t num_nodes) {
+            clear_all_queues();
+            unprocessed_labels_by_node_pos_.resize(num_nodes);
+            truncated_unprocessed_labels_by_node_pos_.resize(num_nodes);
+            initialize_unprocessed_labels(num_nodes);
+        }
+
         void initialize_unprocessed_labels(size_t num_nodes) {
             if (unprocessed_labels_by_node_pos_.empty()) {
                 for (size_t i = 0; i < num_nodes; i++) {
@@ -501,8 +510,8 @@ struct NodeUnprocessedLabelsManager {
         ///
         /// For each truncated label: invokes @p remove_from_nondom (a callable with
         /// signature `void(const std::list<Label<ResourceType>*>::iterator&)`) to
-        /// remove it from the non-dominated container, then recycles it into @p pool.
-        /// Clears the truncated queues afterwards.
+        /// remove it from the non-dominated container, unless dominance already removed it
+        /// there, then recycles it into @p pool. Clears the truncated queues afterwards.
         ///
         /// Truncated labels are not counted in @ref num_unprocessed_labels_, so no
         /// counter update is needed.
@@ -515,7 +524,11 @@ struct NodeUnprocessedLabelsManager {
                                       RemoveFunction&& remove_from_nondom) {
             for (auto& truncated_list : truncated_unprocessed_labels_by_node_pos_) {
                 for (auto& [label_ptr, label_iter] : truncated_list) {
-                    remove_from_nondom(label_iter);
+                    // A truncated label stays at its node, where dominance may since have
+                    // removed it, erasing the position it was stored with.
+                    if (!label_ptr->dominated) {
+                        remove_from_nondom(label_iter);
+                    }
                     // Truncated labels were non-dominated (added to the set), so they pin a
                     // predecessor and may themselves be pinned: release_with_ref_count keeps the
                     // ref_count chain balanced instead of leaking it.
