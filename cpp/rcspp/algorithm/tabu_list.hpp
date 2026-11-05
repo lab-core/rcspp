@@ -20,8 +20,8 @@ namespace rcspp {
  * This class is consumed by composition: it does not assume how the algorithm dives,
  * filters arcs, or interprets a solution. Two examples in this package:
  *
- *   - @ref TabuSearchAlgorithm consults @ref is_tabu while extending labels and calls
- *     @ref add for each arc on a found path.
+ *   - The tabu searches' drivers (@c parts::TabuEpisodes, @c parts::ImproveEpisodes) call
+ *     @ref add for each arc on a found path, and keep the search's soft arc mask in step.
  *   - @ref DiversificationSearch removes arcs from a graph clone when calling @ref add
  *     and passes a "restore arc" callback to @ref age so expired arcs come back.
  *

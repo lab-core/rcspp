@@ -511,24 +511,37 @@ So it is **not a default**.  It does not pay when:
   from a search reaching a terminal rather than from the join, so `H` is placed such that
   nothing crosses it.
 
-### One thing `status` cannot tell you
+### What `status` cannot tell you, and `proven` does
 
-Every algorithm, not only this one, prunes its label queues when RSS crosses
-`memory_pressure_fraction ×` the effective limit, and tightens the per-node extension quota
-along with it.  Labels that were never extended are abandoned, so the answer may no longer be
-optimal — but `status` still reads `complete`, because the label sets really were exhausted *of
-what survived the trim*.  There is no status value for "exhausted but lossy", and reusing
-`memory_limit` would conflate a hard stop with a soft trim, so it is reported as a flag:
+`status` says why a search stopped; `complete` means it ran out of labels to extend. A search can
+finish and still not have proved anything:
+
+- **Memory pressure.** Every algorithm, not only this one, prunes its label queues when RSS
+  crosses `memory_pressure_fraction ×` the effective limit, and tightens the per-node extension
+  quota along with it. Labels that were never extended may be abandoned, but `status` still reads
+  `complete`, because the label sets really were exhausted *of what survived the trim*.
+  `memory_pressure_triggered` reports it.
+- **An arc mask** (C++, "Leaving arcs out of a solve" below): the search was exhaustive on the
+  graph without the masked arcs, not on the graph.
+- **An admission rule that is not exact** (a strategy of one's own whose `exact` answers
+  `false`).
+
+`result.proven` combines them: it is true when `status` is `complete` and none of these happened,
+so that no path better than those returned exists (none at all, when none is returned).
+`result.proof_lost_by` says why not: the status's name when the search did not finish
+(`"truncated"`, `"timeout"`, ...), otherwise `"memory_pressure"`, `"arcs_masked"` or
+`"relaxed_admission"`. A quota that cut nothing leaves the proof intact.
 
 ```python
 result = rg.solve(direction="bidirectional", params=p)
-if result.memory_pressure_triggered:
-    print("memory pressure trimmed this solve; the answer is not a proof")
+if not result.proven:
+    print("not a proof:", result.proof_lost_by)
 ```
 
 Code that treats `complete` as proof of optimality — a column-generation loop deciding it has
-converged, say — has to read this too.  `could_be_non_optimal()` will not tell you: it reads the
-*parameters*, and memory pressure is a property of the run.
+converged, say — should read `proven` instead. `could_be_non_optimal()` will not tell you: it
+reads the *parameters*, and memory pressure is a property of the run. In C++,
+`Algorithm::is_optimal()` answers `proven` for the last solve.
 
 ## `Greedy`
 
@@ -551,25 +564,37 @@ result = rg.solve(algorithm="greedy", params=params)
 
 ## `Tabu`
 
-Tabu-arc metaheuristic.  At each iteration it removes the arcs used in the
-current solution from the graph and re-solves, diversifying the search.
-Arc removal is temporary (governed by `tabu_tenure`).
+Episodes of Greedy's dive. Each episode dives from the sources and ends at the first path it
+reaches; the arcs of that path then become **tabu** for `tabu_tenure` episodes (plus an adaptive
+extra, which grows after an episode that found nothing new and shrinks after one that did). A dive
+drops a child reached along a tabu arc, unless every child is: it can always go on. The graph is
+not edited: the tabu arcs are the soft arcs of the search's mask. `max_iterations` counts
+episodes, and must be finite. An episode that runs out of paths while no arc is tabu has proved
+that no path exists, and ends the solve; any other result is not a proof (`result.proven` is
+false).
 
 ```python
 params = AlgorithmParams()
 params.tabu_tenure        = 5
 params.tabu_random_noise  = True      # random ±1 tenure noise
 params.max_iterations     = 100
-params.tabu_exempt_node_ids     = {source_id, sink_id}  # never remove arcs from these
+params.tabu_exempt_node_ids     = {source_id, sink_id}  # never make their arcs tabu
 
 result = rg.solve(algorithm="tabu", params=params)
 ```
 
+`ImprovingTabu` (C++, `strategy::ImprovingTabu`) dives once with no arc tabu, then runs
+`max_iterations` tabu episodes, counting those that find no path strictly cheaper than the best
+so far: `diversification_tenure` of them in a row grow the tenure. Each episode still stops at its
+first path, whatever it costs; only the count reads the best cost.
+
 ## `Diversification`
 
-Wraps another algorithm (default: `Greedy`) and repeatedly solves the
-subproblem after removing solution arcs, collecting a pool of diverse
-solutions.
+Wraps another algorithm (default: `Greedy`) and solves the graph again and again, each time
+leaving out the arcs of the paths found so far for `tabu_tenure` iterations, collecting a pool of
+diverse solutions. The arcs are left out through the inner algorithm's arc mask: the graph is not
+copied or edited, so arc ids, and the order in which a node's arcs are tried, stay the graph's.
+`max_iterations` counts the inner solves, and must be finite.
 
 ```python
 params = AlgorithmParams()
@@ -580,6 +605,26 @@ params.seed                   = 42
 result = rg.solve(algorithm="greedy", params=params)
 # In C++, strategy::Diversification<Inner> diversifies any inner strategy
 ```
+
+## Leaving arcs out of a solve
+
+An `ArcMask` leaves arcs out of a solve without editing the graph. A **hard** arc is never used: no
+labelling search extends a label along it, in any direction, as if it were not in the graph. A
+**soft** arc is used as any other, unless the search's schedule reads it (a depth-first schedule's
+child filter may). Arc ids, and the bounds a search computes on the whole graph, are unchanged, so every path
+returned names the graph's own arcs, and A\*'s bound is still a lower bound.
+
+```cpp
+rcspp::ArcMask mask(graph.get_arc_id_bound());   // every arc open
+mask.set(0, rcspp::ArcMask::State::Hard);        // leave arc 0 out
+
+auto algorithm = graph.create_algorithm<strategy::AStar>();
+algorithm->set_arc_mask(&mask);  // read at the start of each solve; it must outlive them
+const SolveResult result = graph.solve(algorithm.get(), ub);
+```
+
+The mask is sized by `get_arc_id_bound()`, one past the largest arc id, removed arcs included; an
+id it was not sized for is open. It is a C++ feature: Python does not offer it.
 
 ## Search directions
 
@@ -823,10 +868,11 @@ kernel, in `cpp/rcspp/algorithm/labelling/`. A strategy is not a class with its 
 are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::detail`).
 
 - **The search** holds one direction's labels, one container per node, and is the only code that
-  extends them. Extending a label along an arc checks that the arc is reachable, extends the
-  label, tests its feasibility, asks the admission rule, and stores the new label and hands it to
-  the schedule. Every outcome (unreachable, infeasible, dominated, accepted) goes to the search's
-  observer, which by default records nothing.
+  extends them. Extending a label along an arc checks that the arc mask leaves the arc in and that
+  the arc is reachable, extends the label, tests its feasibility, asks the admission rule, and
+  stores the new label and hands it to the schedule. Every outcome (masked, unreachable,
+  infeasible, dominated, accepted) goes to the search's observer, which by default records
+  nothing.
 - **Admission and retention.** The admission rule (`parts::DominanceAdmission`) decides whether a
   new label is kept at its node: under exact dominance, when no label there dominates it, and then
   the labels it dominates are removed. The retention (`parts::KeepAtNodes`) decides where kept
@@ -879,11 +925,12 @@ on each side.
 
 | Member | What it decides | Built in (`rcspp::parts`) | Concept |
 |---|---|---|---|
-| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule`, `DfsSchedule<R, Key, Filter>` | `Schedule` |
+| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule`, `DfsSchedule<R, Key, Filter>` with `KeepAllChildren` or `TabuChildFilter` | `Schedule` |
 | `admission<R, Dir>` | whether a new label is kept at its node | `DominanceAdmission` (default), `KeepAll` | `Admission` |
 | `retention<R, Dir>` | where kept labels live, as `template <C> using type` (`Retain<T>` names a library one) | `KeepAtNodes` (default), `KeepWhileWaiting` | `Retention` |
 | `observer<R, Dir>` | told of every extension | `NoObserver` (default) | `Observer` |
 | `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
+| `driver` | runs the search several times in one solve, changing it between runs (forward or backward; not bidirectionally) | none (default: one run, then the phases), `TabuEpisodes`, `ImproveEpisodes` | `Driver` |
 | `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
 
 This strategy takes labels best first forward and first in, first out backward; a bidirectional
@@ -950,6 +997,64 @@ struct Dive {
         static constexpr bool bidirectional = false;
 };
 ```
+
+A **driver** runs the search several times in one solve, in place of the phases. It is built from
+the params. `begin(search)` is called at the start of each solve and returns whether to run at
+all; `after_run(search, runs_done)` is called after each run and returns whether to run again.
+Between them it reads how the run ended (`search.last_run()`: whether it recorded a path, the
+path's cost and arcs, whether the path was new, whether no label was left), and may change the
+search: its own arc mask (`use_arc_mask`), end each run at its first path
+(`end_runs_at_end_node`), start the next run from the start labels (`reseed`). A driver that
+changes the search loses the proof, and says so with `lose_proof(rcspp::ProofLoss::HeuristicDriver)`.
+A run counts no iterations: a driver that reads `max_iterations` counts its runs against it. This
+one runs a dive until it finds nothing, masking each path it finds:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct MaskEachPath {
+        explicit MaskEachPath(const rcspp::AlgorithmBaseParams& /*params*/) {}
+
+        template <typename Search>
+        bool begin(Search& search) {
+            mask.reset(search.graph().get_arc_id_bound());
+            search.use_arc_mask(&mask);
+            search.end_runs_at_end_node();
+            return true;
+        }
+
+        template <typename Search>
+        bool after_run(Search& search, size_t /*runs_done*/) {
+            if (!search.last_run().recorded) {
+                return false;  // nothing left to find
+            }
+            search.lose_proof(rcspp::ProofLoss::HeuristicDriver);
+            for (const size_t arc_id : search.last_run().arc_ids) {
+                mask.set(arc_id, rcspp::ArcMask::State::Hard);
+            }
+            search.reseed();
+            return true;
+        }
+
+        rcspp::ArcMask mask;
+};
+
+struct DiveEachPathOnce {
+        template <typename R, typename Dir>
+        using schedule = rcspp::parts::DfsSchedule<R>;
+        template <typename R, typename Dir>
+        using admission = rcspp::parts::KeepAll;
+        template <typename R, typename Dir>
+        using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
+        using driver = MaskEachPath;
+        static constexpr bool backward = false;
+};
+```
+
+`strategy::Tabu` is such a strategy: Greedy's parts, with `parts::TabuChildFilter` as the
+schedule's filter (it drops a child reached along a soft arc unless every child is) and
+`parts::TabuEpisodes` as its driver, which makes each path's arcs soft between episodes.
+`strategy::ImprovingTabu` names `parts::ImproveEpisodes` instead.
 
 **The contract.** `create_algorithm` checks every part of a descriptor against its concept before it
 builds anything, and names the first that fails. Three rules the concepts cannot check are part of

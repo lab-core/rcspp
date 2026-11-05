@@ -28,6 +28,29 @@ New features are summarised, with a pointer to where they are documented.
   `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
   a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,
   `create_algorithm<strategy::Greedy>`); in Python, `algorithm="greedy"` is unchanged.
+- **The tabu searches run on the labelling kernel**: Greedy's dive, with a child filter that drops
+  a child reached along a tabu arc unless every child is (`parts::TabuChildFilter`), run episode
+  after episode by a driver (`parts::TabuEpisodes`, `parts::ImproveEpisodes`) that makes each
+  path's arcs tabu, as soft arcs of the search's mask. They draw the same labels, in the same
+  order, and return the same paths and status as before; `max_iterations` still counts episodes.
+  Like every labelling search, they now apply `max_extended_labels_per_node`, `prune_by_incumbent`
+  and memory pressure, read a mask set with `Algorithm::set_arc_mask`, and look at the stop
+  conditions before each label they take (every 4096 steps before). A solve that made an arc tabu
+  is not a proof (`ProofLoss::HeuristicDriver`), and `is_optimal()` of Improving Tabu now answers
+  `proven`, true only when its first dive proves that no path exists. `TabuSearchAlgorithm`,
+  `ImprovingTabuSearch`, `BacktrackingDiveAlgorithm` and their headers are gone, with no alias:
+  `strategy::Tabu` and `strategy::ImprovingTabu` are descriptors, solved as before; in Python,
+  `algorithm="tabu"` is unchanged.
+- **Diversification leaves arcs out through an arc mask**, not by removing them from a copy of the
+  graph: the inner algorithm reads a mask whose tabu arcs are hard. No copy is made, and an arc
+  whose tenure runs out keeps its place among its node's arcs; before, it was put back last, so
+  later dives tried a node's arcs in another order. And the copy listed its sources in the order
+  of the graph's node map (a hash map, so the standard library's order), not the order they were
+  added: on a graph with several sources, the first dive could start from another source. Both
+  are gone; on a graph with one source, the golden runs return what they did, and on the four
+  with two sources the answers change (on one, the best path found went from -33 to -17, which
+  the tabu searches also find there; on another from 6 to -1). A mask set with
+  `Algorithm::set_arc_mask` is now read too.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
@@ -195,6 +218,27 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Drivers**: a descriptor may name a `driver` (`parts::Driver`), which runs its search several
+  times in one solve in place of the phases: it decides at the start whether to run, and after
+  each run, reading how it ended (`parts::RunEnd`), whether to run again; between runs it may
+  mask arcs, end each run at its first path, and start again from the start labels. A driven run
+  counts no iterations (`max_iterations` is the driver's to read). A driver that changes the
+  search records `ProofLoss::HeuristicDriver`. Forward and backward; not bidirectionally. See "A
+  strategy of one's own" in `docs/advanced/algorithms.md`.
+- **`SolveResult::proven` and `proof_lost_by`** (C++ and Python): whether the result is a proof
+  that no better path exists, and why not. It is a proof when the status is `Complete` and nothing
+  a finished search can still lose was lost (`ProofLoss`, in `rcspp/algorithm/proof_record.hpp`):
+  no arc masked, an exact admission rule, no memory pressure. `proof_lost_by` names the status
+  when the search did not finish, otherwise the first loss. A quota that cut nothing leaves the
+  proof. `Algorithm::is_optimal()` now answers the same, so a masked solve, one with a relaxed
+  admission rule, or one memory pressure trimmed is no longer reported optimal. See "What `status`
+  cannot tell you, and `proven` does" in `docs/advanced/algorithms.md`.
+- **Arc masks** (`rcspp/algorithm/arc_mask.hpp`): `ArcMask` marks arcs, by id, hard (never used)
+  or soft (to be avoided, which a child filter reads); `Algorithm::set_arc_mask` has every later
+  solve leave the hard arcs out, as if they were not in the graph, without editing it, so arc ids
+  and the bounds computed on the whole graph stay valid. `Graph::get_arc_id_bound` sizes a mask;
+  an extension along a hard arc ends `parts::ExtensionOutcome::Masked` and draws no label. C++
+  only. See "Leaving arcs out of a solve" in `docs/advanced/algorithms.md`.
 - **The parts of a dive**, in `rcspp::parts`: `DfsSchedule<R, Key, Filter>` takes labels depth
   first, settling each label's children together, cheapest first (`CostKey`), after a filter
   (`KeepAllChildren` by default, or a `ChildFilter` of one's own); `KeepAll` keeps every feasible

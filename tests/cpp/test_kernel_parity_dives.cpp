@@ -140,19 +140,34 @@ TEST(DiveParity, ImprovingTabuSearchMatchesItsFrozenCopy) {
 }
 
 /// @brief Diversification over Greedy matches its frozen copy wherever the frozen inner Greedy
-///        never ran out of its iterations.
+///        never ran out of its iterations, with a tenure no solve outlasts.
 ///
 /// The frozen copy gives its inner Greedy 20 iterations, which counted dives; diversification now
 /// gives it 1000, which count labels taken. Where 20 dives run out, the two inner searches stop at
 /// different places: those runs are left out, and counted.
+///
+/// The frozen copy removes a tabu arc from a copy of the graph, and puts it back last among its
+/// node's out-arcs when its tenure runs out; diversification masks it, and the arcs keep the
+/// graph's order. With a tenure of 1000 iterations no arc is put back within a solve, and the two
+/// leave out the same arcs, in the same order.
+///
+/// The copy lists its sources in the order of the graph's node map (a hash map), not in the order
+/// they were added: on an instance with several sources, the frozen copy's dives can start from
+/// another source. Those instances are left out too, and counted.
 TEST(DiveParity, DiversificationMatchesItsFrozenCopy) {
     size_t left_out = 0;
-    const size_t compared =
-        dive_parity::sweep<FrozenDiversification, strategy::Diversification<>>(true, true, [&] {
+    const size_t compared = dive_parity::sweep<FrozenDiversification, strategy::Diversification<>>(
+        true,
+        true,
+        [&](const dive_parity::Case& c) {
             const bool ran_out = frozen_greedy_ran_out();
             frozen_greedy_ran_out() = false;
-            left_out += ran_out ? 1 : 0;
-            return !ran_out;
+            const bool comparable = !ran_out && c.instance.terminals == 1;
+            left_out += comparable ? 0 : 1;
+            return comparable;
+        },
+        [](rcspp::AlgorithmBaseParams& params) {
+            params.tabu_tenure = 1000;  // NOLINT(readability-magic-numbers)
         });
     RecordProperty("compared", static_cast<int>(compared));
     RecordProperty("left_out", static_cast<int>(left_out));

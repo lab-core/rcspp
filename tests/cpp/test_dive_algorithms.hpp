@@ -3,7 +3,8 @@
 
 #pragma once
 
-// Tests for strategy::Greedy, strategy::Tabu, and BacktrackingDiveAlgorithm.
+// Tests for the dives: strategy::Greedy, strategy::Tabu, strategy::ImprovingTabu and
+// strategy::Diversification, and the drivers.
 // Each test builds a small ResourceGraph<RealResource> from a unique_ptr to
 // avoid the deleted copy/move constructors of ResourceGraph.
 
@@ -233,21 +234,21 @@ TEST(GreedyAlgorithmTest, RecordsASinkReachedByBacktracking) {
 }
 
 // ============================================================================
-// TabuSearchAlgorithm tests
+// strategy::Tabu tests
 // ============================================================================
 
-/// @brief TabuSearchAlgorithm with default params (max_iterations=kNoLimit)
+/// @brief strategy::Tabu with default params (max_iterations=kNoLimit)
 ///        returns immediately with empty result and logs an error.
 TEST(TabuSearchAlgorithmTest, DefaultParamsReturnsEmpty) {
     auto g = make_linear_graph();
-    // Default AlgorithmBaseParams has max_iterations = kNoLimit, which triggers
-    // the early-return guard in TabuSearchAlgorithm::main_loop.
+    // Default AlgorithmBaseParams has max_iterations = kNoLimit, for which
+    // parts::TabuEpisodes refuses to run.
     const auto result = g->solve<strategy::Tabu>(AlgorithmBaseParams{});
     EXPECT_TRUE(result.solutions.empty())
         << "TabuSearch with kNoLimit iterations must return empty";
 }
 
-/// @brief TabuSearchAlgorithm with finite max_iterations finds the path.
+/// @brief strategy::Tabu with finite max_iterations finds the path.
 TEST(TabuSearchAlgorithmTest, FiniteIterationsFindsSolution) {
     auto g = make_linear_graph();
     AlgorithmBaseParams params;
@@ -257,7 +258,7 @@ TEST(TabuSearchAlgorithmTest, FiniteIterationsFindsSolution) {
     EXPECT_NEAR(result.solutions[0].cost, kLinearPathCost, 1e-9);
 }
 
-/// @brief TabuSearchAlgorithm finds multiple solutions on a two-path graph.
+/// @brief strategy::Tabu finds multiple solutions on a two-path graph.
 ///
 /// First iteration finds the best path (cost -6) and marks its arcs as tabu.
 /// Second iteration uses aspiration to still find a solution.
@@ -269,10 +270,10 @@ TEST(TabuSearchAlgorithmTest, TwoPathFindsSolutions) {
     EXPECT_FALSE(result.solutions.empty());
 }
 
-/// @brief TabuSearchAlgorithm covers the "no-arc source" early-return path.
+/// @brief strategy::Tabu on a source with no out-arcs.
 ///
-/// When the graph has a source with no out-arcs the first dive immediately
-/// fails and the tabu list is empty, so main_loop returns at line 122.
+/// The first dive immediately runs out of paths with no arc tabu, so the
+/// driver ends the solve: no feasible path exists.
 TEST(TabuSearchAlgorithmTest, NoFeasiblePathReturnsEmpty) {
     // Graph: source(0), sink(1), no arcs.
     auto g = std::make_unique<ResourceGraph<RealResource>>();
@@ -292,7 +293,7 @@ TEST(TabuSearchAlgorithmTest, NoFeasiblePathReturnsEmpty) {
 ///        tabu on the second iteration of a single-path graph.
 ///
 /// Single-path graph means the only children at each node are the tabu arcs
-/// from iteration 1.  select_children must fall back to the tabu set (line 75).
+/// from iteration 1. parts::TabuChildFilter must keep them (aspiration).
 TEST(TabuSearchAlgorithmTest, AspirationUsesTabuArcs) {
     auto g = make_linear_graph();
     AlgorithmBaseParams params;
@@ -347,10 +348,10 @@ TEST(TabuSearchAlgorithmTest, ForbiddenTabuExcludesArcs) {
 }
 
 // ============================================================================
-// ImprovingTabuSearch tests
+// strategy::ImprovingTabu tests
 // ============================================================================
 
-/// @brief ImprovingTabuSearch with kNoLimit max_iterations returns empty.
+/// @brief strategy::ImprovingTabu with kNoLimit max_iterations returns empty.
 TEST(ImprovingTabuSearchTest, DefaultMaxIterationsReturnsEmpty) {
     auto g = make_linear_graph();
     const auto result = g->solve<strategy::ImprovingTabu>(AlgorithmBaseParams{});
@@ -482,6 +483,25 @@ TEST(DiversificationSearchTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
+/// @brief Diversification leaves out the hard arcs of the mask it is given, with its own tabu
+///        arcs: with the best path's first arc hard, it finds only the other path, and the mask
+///        given is left as it was.
+TEST(DiversificationSearchTest, ReadsTheMaskItIsGiven) {
+    auto g = make_two_path_graph();
+    ArcMask mask(g->get_arc_id_bound());
+    mask.set(0, ArcMask::State::Hard);  // 0 -> 1
+    AlgorithmBaseParams params;
+    params.max_iterations = kDivIters;
+    auto algorithm = g->create_algorithm<strategy::Diversification<>>(
+        params.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    algorithm->set_arc_mask(&mask);
+    const auto result = g->solve(algorithm.get());
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_EQ(result.solutions[0].path_arc_ids, (std::vector<size_t>{2, 3}));
+    EXPECT_EQ(mask.count(), 1U);
+    EXPECT_FALSE(result.proven);
+}
+
 /// @brief DiversificationSearch: tabu_exempt_node_ids preserves arcs involving those nodes.
 TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     auto g = make_two_path_graph();
@@ -501,8 +521,7 @@ namespace {
 /// @brief A graph whose paths all dead-end: @p layers layers of two nodes, each node joined to
 ///        both nodes of the next layer, and a sink no arc enters.
 ///
-/// A dive tries all 2^layers paths before it runs out, so with 12 layers it passes the dives'
-/// check of the stop conditions, made every 4096 steps.
+/// A dive tries all 2^layers paths before it runs out: with 12 layers, a long first dive.
 ///
 /// @param layers The number of layers.
 /// @return Owning pointer to the configured ResourceGraph.
@@ -528,13 +547,14 @@ inline std::unique_ptr<ResourceGraph<RealResource>> make_dead_end_graph(size_t l
     return g;
 }
 
-constexpr size_t kDeadEndLayers = 12U;  // 4096 paths: more steps than one check interval
+constexpr size_t kDeadEndLayers = 12U;  // 4096 paths
 
 /// @brief Params that interrupt a solve once it has looked at should_stop @p looks_before times,
 ///        so that the next look, inside the first dive, stops it.
 ///
-/// Before its first dive, TabuSearchAlgorithm looks twice (the solve's loop and its own), and
-/// ImprovingTabuSearch once (the solve's loop: its construction dive comes before its loop).
+/// Before it takes its first label, a tabu search looks twice: the solve's loop, and the run's
+/// loop, which looks before each label it takes. Improving Tabu is given one look, so the run's
+/// first look stops it.
 ///
 /// @param looks_before The looks to let through.
 /// @param calls        Counts the looks.
@@ -576,7 +596,7 @@ TEST(TabuStatusTest, TabuInterruptedInItsFirstDiveIsInterrupted) {
     EXPECT_FALSE(algorithm->is_optimal());
 }
 
-/// @brief The same for ImprovingTabuSearch, whose first dive is its construction phase.
+/// @brief The same for strategy::ImprovingTabu, whose first dive is its construction phase.
 TEST(TabuStatusTest, ImprovingTabuInterruptedInItsFirstDiveIsInterrupted) {
     auto g = make_dead_end_graph(kDeadEndLayers);
     size_t calls = 0;
@@ -586,10 +606,10 @@ TEST(TabuStatusTest, ImprovingTabuInterruptedInItsFirstDiveIsInterrupted) {
     EXPECT_EQ(result.status, AlgorithmStatus::Interrupted);
 }
 
-/// @brief ImprovingTabuSearch that spends its iteration budget is not Complete.
+/// @brief strategy::ImprovingTabu that spends its iteration budget is not Complete.
 ///
 /// Each improvement dive cleared its path, so a search ended by its budget used to report
-/// Complete. It now reports Truncated, as TabuSearchAlgorithm does.
+/// Complete. It now reports Truncated, as strategy::Tabu does.
 TEST(TabuStatusTest, ImprovingTabuThatSpendsItsIterationsIsTruncated) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
@@ -599,7 +619,7 @@ TEST(TabuStatusTest, ImprovingTabuThatSpendsItsIterationsIsTruncated) {
     EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
 }
 
-/// @brief ImprovingTabuSearch that reaches max_solutions reports MaxSolutions, not Complete.
+/// @brief strategy::ImprovingTabu that reaches max_solutions reports MaxSolutions, not Complete.
 TEST(TabuStatusTest, ImprovingTabuThatReachesMaxSolutionsIsMaxSolutions) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
@@ -610,7 +630,8 @@ TEST(TabuStatusTest, ImprovingTabuThatReachesMaxSolutionsIsMaxSolutions) {
     EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
 }
 
-/// @brief ImprovingTabuSearch that runs out of paths in its first dive is Complete.
+/// @brief strategy::ImprovingTabu that runs out of paths in its first dive is Complete, and a
+///        proof: no arc was tabu.
 TEST(TabuStatusTest, ImprovingTabuThatRunsOutOfPathsIsComplete) {
     auto g = make_dead_end_graph(3);
     AlgorithmBaseParams params;
@@ -618,4 +639,184 @@ TEST(TabuStatusTest, ImprovingTabuThatRunsOutOfPathsIsComplete) {
     const auto result = g->solve<strategy::ImprovingTabu>(params);
     EXPECT_TRUE(result.solutions.empty());
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+    EXPECT_TRUE(result.proven);
+}
+
+/// @brief A tabu search that made an arc tabu is not a proof, however it ends.
+TEST(TabuStatusTest, ATabuArcLosesTheProof) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    for (const auto& result :
+         {g->solve<strategy::Tabu>(params), g->solve<strategy::ImprovingTabu>(params)}) {
+        EXPECT_FALSE(result.solutions.empty());
+        EXPECT_FALSE(result.proven);
+    }
+}
+
+/// @brief A tabu search leaves out the hard arcs of the mask it was given, as every labelling
+///        search does: with the best path's first arc hard, it finds only the other path.
+TEST(TabuStatusTest, ATabuSearchReadsTheMaskItIsGiven) {
+    auto g = make_two_path_graph();
+    ArcMask mask(g->get_arc_id_bound());
+    mask.set(0, ArcMask::State::Hard);  // 0 -> 1
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    const auto with_list =
+        params.with_container<LabelList<ResourceTypeComposition<RealResource>>>();
+    const auto solve_masked = [&](auto algorithm) {
+        algorithm->set_arc_mask(&mask);
+        return g->solve(algorithm.get());
+    };
+    for (const auto& result :
+         {solve_masked(g->create_algorithm<strategy::Tabu>(with_list)),
+          solve_masked(g->create_algorithm<strategy::ImprovingTabu>(with_list))}) {
+        ASSERT_EQ(result.solutions.size(), 1U);
+        EXPECT_EQ(result.solutions[0].path_arc_ids, (std::vector<size_t>{2, 3}));
+    }
+}
+
+// ============================================================================
+// Drivers
+// ============================================================================
+
+namespace {
+
+/// @brief How each run of the last solve driven by a test driver ended.
+inline std::vector<parts::RunEnd>& driven_runs() {
+    static std::vector<parts::RunEnd> runs;
+    return runs;
+}
+
+/// @brief Ends each run at its first path, makes that path's arcs hard, and runs again until a
+///        run finds none.
+struct MaskEachPath {
+        explicit MaskEachPath(const AlgorithmBaseParams& /*params*/) {}
+
+        template <typename SearchType>
+        bool begin(SearchType& search) {
+            mask.reset(search.graph().get_arc_id_bound());
+            search.use_arc_mask(&mask);
+            search.end_runs_at_end_node();
+            driven_runs().clear();
+            return true;
+        }
+
+        template <typename SearchType>
+        bool after_run(SearchType& search, size_t runs_done) {
+            driven_runs().push_back(search.last_run());
+            EXPECT_EQ(runs_done, driven_runs().size());
+            if (!search.last_run().recorded) {
+                return false;
+            }
+            search.lose_proof(ProofLoss::HeuristicDriver);
+            for (const size_t arc_id : search.last_run().arc_ids) {
+                mask.set(arc_id, ArcMask::State::Hard);
+            }
+            search.reseed();
+            return true;
+        }
+
+        ArcMask mask;
+};
+
+/// @brief Refuses to run.
+struct Refuses {
+        explicit Refuses(const AlgorithmBaseParams& /*params*/) {}
+        template <typename SearchType>
+        bool begin(SearchType& /*search*/) {
+            return false;
+        }
+        template <typename SearchType>
+        bool after_run(SearchType& /*search*/, size_t /*runs_done*/) {
+            ADD_FAILURE() << "a driver that refused to run is asked after a run";
+            return false;
+        }
+};
+
+/// @brief Ends the first run at its first path, and stops.
+struct OneRun {
+        explicit OneRun(const AlgorithmBaseParams& /*params*/) {}
+        template <typename SearchType>
+        bool begin(SearchType& search) {
+            search.end_runs_at_end_node();
+            return true;
+        }
+        template <typename SearchType>
+        bool after_run(SearchType& /*search*/, size_t /*runs_done*/) {
+            return false;
+        }
+};
+
+/// @brief Greedy's parts, run by @p DriverType.
+template <typename DriverType>
+struct DrivenDive {
+        template <typename R, typename Dir>
+        using schedule = parts::DfsSchedule<R>;
+        template <typename R, typename Dir>
+        using admission = parts::KeepAll;
+        template <typename R, typename Dir>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        using driver = DriverType;
+        static constexpr bool backward = false;
+};
+
+}  // namespace
+
+/// @brief A driver runs the search again and again: each run ends at its first path, whose arcs
+///        it then masks, until a run finds none. The runs take no notice of max_iterations.
+TEST(DrivenSearch, RunsTheSearchUntilTheDriverStops) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = 1;  // a driver's runs do not count the labels they take
+    const auto result = g->solve<DrivenDive<MaskEachPath>>(params);
+    ASSERT_EQ(result.solutions.size(), 2U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_NEAR(result.solutions[1].cost, kAltPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+    EXPECT_FALSE(result.proven);
+    EXPECT_EQ(result.proof_lost_by, "heuristic_driver");
+
+    const auto& runs = driven_runs();
+    ASSERT_EQ(runs.size(), 3U);
+    EXPECT_TRUE(runs[0].recorded);
+    EXPECT_TRUE(runs[0].new_solution);
+    EXPECT_NEAR(runs[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(runs[0].arc_ids, (std::vector<size_t>{0, 1}));
+    EXPECT_EQ(runs[1].arc_ids, (std::vector<size_t>{2, 3}));
+    EXPECT_FALSE(runs[2].recorded);
+    EXPECT_TRUE(runs[2].exhausted);
+}
+
+/// @brief A driver that refuses to run leaves the start labels waiting: nothing is extended, and
+///        the solve is not complete.
+TEST(DrivenSearch, ADriverThatRefusesRunsNothing) {
+    auto g = make_two_path_graph();
+    auto algorithm = g->create_algorithm<DrivenDive<Refuses>>(
+        AlgorithmBaseParams{}.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    const auto result = g->solve(algorithm.get());
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_EQ(algorithm->get_number_of_extended_labels(), 0U);
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+}
+
+/// @brief A run that ends at its first path leaves the labels still waiting: a driver that stops
+///        there leaves a solve that is not complete.
+TEST(DrivenSearch, ARunEndsAtItsFirstPath) {
+    auto g = make_two_path_graph();
+    const auto result = g->solve<DrivenDive<OneRun>>(AlgorithmBaseParams{});
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+    EXPECT_EQ(result.proof_lost_by, "truncated");
+}
+
+/// @brief A driven strategy does not search bidirectionally.
+TEST(DrivenSearch, ADrivenStrategyDoesNotSearchBidirectionally) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.direction = SearchDirection::Bidirectional;
+    EXPECT_THROW((void)g->create_algorithm<DrivenDive<OneRun>>(
+                     params.with_container<LabelList<ResourceTypeComposition<RealResource>>>()),
+                 std::invalid_argument);
 }
