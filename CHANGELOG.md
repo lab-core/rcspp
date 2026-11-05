@@ -175,6 +175,12 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **`PathEvaluator`** (`rcspp/algorithm/path_evaluator.hpp`) replays a path, or a returned
+  `Solution`, through the graph's resources as a forward search extends a label, and reports the
+  first fault (`PathFault`): no arc, an arc the graph does not have, arcs that do not meet, not
+  from a source or not to a sink, an arc the look-ahead refuses, an infeasible label, node ids or
+  a cost that disagree with the path. It checks what any search returns, a heuristic's included.
+  See "Checking a path" in `docs/cpp/beginner_api.md`.
 - **A strategy of one's own**: a descriptor that names its schedule, and optionally its
   admission rule, retention, observer and interleave, from `rcspp::parts` or of one's own, solves
   as a built-in strategy does, in every direction it does not refuse (`backward = false`,
@@ -322,6 +328,12 @@ New features are summarised, with a pointer to where they are documented.
 - **`ImprovingTabuSearch` reports `Truncated` when it spends `max_iterations`**, as
   `TabuSearchAlgorithm` does, and `MaxSolutions` when it reaches `max_solutions`. It reported
   `Complete`.
+- **`GreedyAlgorithm` records a sink it reaches by backtracking.** When a dive ended at a dead end
+  and Greedy switched to a sibling at a sink, it went on backtracking without recording that path,
+  so a path ending at a sink that was not its parent's cheapest feasible child was never returned. A
+  solve could then end `Complete`, with `is_optimal()` `true`, having missed feasible paths, or with
+  none at all. It also changes what `strategy::Diversification<>`, which solves Greedy each time,
+  returns.
 - `ResourceCompositionFactory::clone()` copies the per-type sub-factories too. The inherited
   `ResourceFactory::clone()` it used to fall back on copied only the composed prototype.
 - **A node or arc added to a cloned `ResourceGraph` is priced as in the original**, in C++ and in

@@ -40,6 +40,7 @@ cpp/rcspp/
 │   ├── tabu_search.hpp / improving_tabu_search.hpp
 │   ├── diversification_search.hpp
 │   ├── label_buckets.hpp       # LabelList, LabelBuckets
+│   ├── path_evaluator.hpp      # PathEvaluator: replays a path, finds its first fault
 │   ├── search_direction.hpp    # SearchDirection
 │   ├── solution.hpp
 │   └── solution_pool.hpp

@@ -126,6 +126,9 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                 auto next_label = path_.back().second.front();
                 path_.back().second.pop_front();
                 path_.back().first = next_label;
+                if (next_label->get_end_node()->sink) {
+                    return;  // a path to a sink: main_loop records it before going on
+                }
                 // loop and try to extend the new current label
             }
         }
