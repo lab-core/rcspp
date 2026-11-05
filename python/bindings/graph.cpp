@@ -87,7 +87,8 @@ void init_graph(py::module_& m) {
         .value("Pulling", SolverAlgorithm::Pulling)
         .value("Greedy", SolverAlgorithm::Greedy)
         .value("Tabu", SolverAlgorithm::Tabu)
-        .value("AStar", SolverAlgorithm::AStar);
+        .value("AStar", SolverAlgorithm::AStar)
+        .value("BoundedGreedy", SolverAlgorithm::BoundedGreedy);
 
     // ── SearchDirection enum ──────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ void init_graph(py::module_& m) {
                                "Which way a search runs: Forward from the sources, Backward from "
                                "the sinks, or Bidirectional (both at once, joined in the middle). "
                                "Every labelling algorithm (simple, pushing, pulling, astar) "
-                               "supports all three; greedy and tabu search Forward only.")
+                               "supports all three; greedy and tabu search Forward or Backward.")
         .value("Forward", SearchDirection::Forward)
         .value("Backward", SearchDirection::Backward)
         .value("Bidirectional", SearchDirection::Bidirectional);
@@ -290,9 +291,9 @@ void init_graph(py::module_& m) {
                        &PyAlgorithmParams::direction,
                        "Which way the search runs: SearchDirection.Forward (default), Backward or "
                        "Bidirectional. Every labelling algorithm (simple, pushing, pulling, "
-                       "astar) searches in each; greedy and tabu raise ValueError for any but "
-                       "Forward. ResourceGraph.solve's `direction` argument overrides it for that "
-                       "call only.")
+                       "astar) searches in each; greedy and tabu search Forward or Backward, and "
+                       "raise ValueError for Bidirectional. ResourceGraph.solve's `direction` "
+                       "argument overrides it for that call only.")
         // -- Bidirectional parameters ------------------------------------
         .def_readwrite("critical_resource_index",
                        &PyAlgorithmParams::critical_resource_index,

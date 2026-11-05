@@ -21,8 +21,9 @@
 /// chosen at run time, with @c params.direction. A strategy of one's own is written the same way.
 ///
 /// Greedy and the tabu searches are descriptors too: dives, from the depth-first parts, the tabu
-/// searches run by their drivers. Diversification keeps a class of its own, which its descriptor
-/// names as `algorithm`. Every heuristic searches forward only.
+/// searches run by their drivers. They search forward or backward, never bidirectionally.
+/// Diversification keeps a class of its own, which its descriptor names as `algorithm`; it
+/// searches forward only.
 namespace rcspp::strategy {
 
 /// @brief Labels taken first in, first out.
@@ -53,7 +54,8 @@ struct Pulling {
 
 /// @brief A greedy dive: depth first, the cheapest child first, every feasible label kept and
 ///        none behind; at a dead end it goes back to the last label still waiting, and each path
-///        to a sink is recorded when its label is taken. Forward only.
+///        to an end node is recorded when its label is taken. Forward, from the sources, or
+///        backward, from the sinks; not bidirectionally.
 ///
 /// @c max_iterations counts the labels taken, as in every labelling search.
 struct Greedy {
@@ -63,13 +65,30 @@ struct Greedy {
         using admission = parts::KeepAll;
         template <typename ResourceType, typename Direction>
         using retention = parts::Retain<parts::KeepWhileWaiting>;
-        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
+};
+
+/// @brief Greedy's dive with the children taken by cost plus completion bound, lowest first
+///        (@c parts::CompletionKey), not by cost alone: each step goes toward the cheapest
+///        completion. Meant with @c threshold_pruning, which drops, under the same bound, the
+///        labels that cannot beat the upper bound. Forward or backward; not bidirectionally.
+///
+/// @c max_iterations counts the labels taken, as in Greedy. The bound is computed at the start of
+/// each solve: one Bellman–Ford run over the arcs' shares of the cost, from the end nodes.
+struct BoundedGreedy {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DfsSchedule<ResourceType, parts::CompletionKey>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::KeepAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
         static constexpr bool bidirectional = false;
 };
 
 /// @brief Episodes of Greedy's dive, each ending at its first path, whose arcs are then tabu for
 ///        @c tabu_tenure episodes: a child reached along a tabu arc is dropped unless every child
-///        is (@c parts::TabuEpisodes, @c parts::TabuChildFilter). Forward only.
+///        is (@c parts::TabuEpisodes, @c parts::TabuChildFilter). Forward or backward; a driven
+///        strategy never searches bidirectionally.
 ///
 /// @c max_iterations counts episodes, and must be finite.
 struct Tabu {
@@ -80,12 +99,10 @@ struct Tabu {
         template <typename ResourceType, typename Direction>
         using retention = parts::Retain<parts::KeepWhileWaiting>;
         using driver = parts::TabuEpisodes;
-        static constexpr bool backward = false;
-        static constexpr bool bidirectional = false;
 };
 
 /// @brief Tabu's episodes after a first dive with no arc tabu, counting the episodes that do not
-///        improve on the best cost (@c parts::ImproveEpisodes). Forward only.
+///        improve on the best cost (@c parts::ImproveEpisodes). Forward or backward.
 ///
 /// @c max_iterations counts the episodes after the first dive, and must be finite.
 struct ImprovingTabu {
@@ -96,8 +113,6 @@ struct ImprovingTabu {
         template <typename ResourceType, typename Direction>
         using retention = parts::Retain<parts::KeepWhileWaiting>;
         using driver = parts::ImproveEpisodes;
-        static constexpr bool backward = false;
-        static constexpr bool bidirectional = false;
 };
 
 /// @brief Repeated solves of @p Inner, each with the arcs of the paths found so far masked

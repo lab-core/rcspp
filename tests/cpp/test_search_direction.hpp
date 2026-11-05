@@ -61,16 +61,15 @@ inline AlgorithmParams<List> params(SearchDirection direction) {
     return result;
 }
 
-/// @brief Expects @p Strategy to refuse a backward search, both when it is created and when a
-///        graph is asked to solve with it.
+/// @brief Expects @p Strategy to refuse a search in @p direction, both when it is created and
+///        when a graph is asked to solve with it.
 template <typename Strategy>
-void expect_backward_refused(const char* name) {
+void expect_refused(const char* name, SearchDirection direction) {
     auto g = graph();
-    EXPECT_THROW((void)g->template create_algorithm<Strategy>(params(SearchDirection::Backward)),
+    EXPECT_THROW((void)g->template create_algorithm<Strategy>(params(direction)),
                  std::invalid_argument)
         << name;
-    EXPECT_THROW((void)g->template solve<Strategy>(params(SearchDirection::Backward)),
-                 std::invalid_argument)
+    EXPECT_THROW((void)g->template solve<Strategy>(params(direction)), std::invalid_argument)
         << name;
 }
 
@@ -183,11 +182,20 @@ TEST(SearchDirection, EveryLabellingStrategyRunsBackward) {
     sdt::expect_runs_backward<strategy::Pulling>("Pulling");
 }
 
-/// @brief Greedy and Tabu search forward only, and say so when they are created.
-TEST(SearchDirection, GreedyAndTabuRefuseBackward) {
+/// @brief Greedy searches backward when its params say so, as the labelling searches do; with no
+///        budget it finds the forward optimum along the same path.
+TEST(SearchDirection, GreedyRunsBackward) {
     namespace sdt = search_direction_test;
-    sdt::expect_backward_refused<strategy::Greedy>("Greedy");
-    sdt::expect_backward_refused<strategy::Tabu>("Tabu");
+    sdt::expect_runs_backward<strategy::Greedy>("Greedy");
+}
+
+/// @brief Greedy and the tabu searches do not search bidirectionally, and say so when they are
+///        created.
+TEST(SearchDirection, TheDivesRefuseBidirectional) {
+    namespace sdt = search_direction_test;
+    sdt::expect_refused<strategy::Greedy>("Greedy", SearchDirection::Bidirectional);
+    sdt::expect_refused<strategy::Tabu>("Tabu", SearchDirection::Bidirectional);
+    sdt::expect_refused<strategy::ImprovingTabu>("ImprovingTabu", SearchDirection::Bidirectional);
 }
 
 /// @brief Simple searches bidirectionally when its params say so, and finds the forward optimum
@@ -253,9 +261,9 @@ TEST(SearchDirection, RefusalsNameTheClass) {
     };
 
     const std::string greedy = message([&] {
-        (void)g->create_algorithm<strategy::Greedy>(sdt::params(SearchDirection::Backward));
+        (void)g->create_algorithm<strategy::Greedy>(sdt::params(SearchDirection::Bidirectional));
     });
-    EXPECT_NE(greedy.find("Greedy does not support the backward direction"), std::string::npos)
+    EXPECT_NE(greedy.find("Greedy does not support the bidirectional direction"), std::string::npos)
         << greedy;
 
     test_util::Labelling<strategy::Pushing, sdt::Composed, sdt::List> pushing(

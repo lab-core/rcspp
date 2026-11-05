@@ -551,6 +551,13 @@ Each path to a sink is recorded when its label is taken. It keeps every feasible
 and none behind it. With no budget it tries every path, and so finds the optimum, but its work grows
 with the number of paths; with one, it is fast, with no optimality guarantee.
 
+Like the tabu searches, it dives forward from the sources by default, or backward from the sinks
+(`direction="backward"`), with the model's backward semantics; neither searches bidirectionally.
+Backward and forward dives under the same budget find different columns: on fixed duals, backward
+Tabu and Improving Tabu found cheaper best columns than forward ones on four of five R2 and RC2
+pricing graphs, the families where forward dives do worst, and dearer ones on others, so a
+pricing loop can run both.
+
 As in every labelling search, `max_iterations` counts the labels taken, and
 `max_extended_labels_per_node` (with `max_phases`) caps the labels taken at each node.
 
@@ -561,6 +568,28 @@ params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)
 ```
+
+### Bounded Greedy
+
+`BoundedGreedy` (`algorithm="bounded_greedy"`) is Greedy's dive with a label's children taken by
+cost plus a lower bound on the cost still to pay, not by cost alone, so each step goes toward the
+cheapest completion. It is meant with `threshold_pruning`, which drops, under the same bound, the
+labels that cannot beat the upper bound. The bound costs one Bellman–Ford run at the start of each
+solve. With no budget, it finds the optimum, as Greedy does.
+
+```python
+params = AlgorithmParams()
+params.max_iterations = 20_000
+params.threshold_pruning = True
+result = rg.solve(algorithm="bounded_greedy", upper_bound=0.0, params=params)
+```
+
+On fixed duals, with 20 000 labels and an upper bound of 0, its best column was never dearer than
+that of plain Greedy without the prune on 25 pricing graphs, and cheaper on four: C101 at 25 and 50
+customers (-401.5 to -524.1, -429.7 to -579.3) and R101 at the first two column-generation
+iterations measured (-245.7 to -319.9, -16.0 to -23.7). The order accounts for the cheaper
+columns: with the prune on both, the same four are cheaper (R101's second: -19.8 to -23.7). On the
+others, it found the same best column in about the same time.
 
 ## `Tabu`
 
@@ -1071,7 +1100,7 @@ settles a label's children together once it is extended, and hands them out next
 may drop some first. `KeepAll` keeps every label without comparing it, and `KeepWhileWaiting`
 stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
 label is released once extended, living on while a label extended from it waits. A dive searches
-forward only:
+forward or backward; this one, like Greedy, says it does not search bidirectionally:
 
 <!-- docs-check: file-scope -->
 
@@ -1083,7 +1112,6 @@ struct Dive {
         using admission = rcspp::parts::KeepAll;
         template <typename R, typename Dir>
         using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
-        static constexpr bool backward = false;
         static constexpr bool bidirectional = false;
 };
 ```

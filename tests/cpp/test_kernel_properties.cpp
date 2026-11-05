@@ -304,6 +304,52 @@ TEST(KernelProperties, GreedyWithNoBudgetReachesTheForwardOptimum) {
     }
 }
 
+/// @brief Backward Greedy with no budget tries every path from the sinks: it returns forward
+///        Simple's optimum (or, like it, nothing), along paths that replay through the model;
+///        backward Tabu and Improving Tabu return paths that replay, none cheaper than the optimum.
+TEST(KernelProperties, TheDivesSearchBackward) {
+    namespace kp = kernel_properties;
+    const auto reference = kp::rows().front();
+    for (const auto& c : kp::property_cases()) {
+        const auto expected = reference.solve(c);
+        auto graph = c.build();
+        rcspp::AlgorithmParams<kp::List> params;
+        params.direction = rcspp::SearchDirection::Backward;
+        const auto check = [&](const rcspp::SolveResult& result,
+                               const std::string& name,
+                               bool reaches_optimum) {
+            if (reaches_optimum) {
+                ASSERT_EQ(result.solutions.empty(), expected.solutions.empty())
+                    << c.name << ", " << name;
+                EXPECT_EQ(result.status, rcspp::AlgorithmStatus::Complete)
+                    << c.name << ", " << name;
+            }
+            if (!result.solutions.empty()) {
+                ASSERT_FALSE(expected.solutions.empty()) << c.name << ", " << name;
+                if (reaches_optimum) {
+                    EXPECT_NEAR(result.solutions.front().cost,
+                                expected.solutions.front().cost,
+                                1e-6)
+                        << c.name << ", " << name;
+                } else {
+                    EXPECT_GE(result.solutions.front().cost, expected.solutions.front().cost - 1e-6)
+                        << c.name << ", " << name;
+                }
+            }
+            for (const auto& solution : result.solutions) {
+                EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "")
+                    << c.name << ", " << name;
+            }
+        };
+        check(graph->solve<rcspp::strategy::Greedy>(params, /*preprocess=*/false), "greedy", true);
+        params.max_iterations = 20;
+        check(graph->solve<rcspp::strategy::Tabu>(params, /*preprocess=*/false), "tabu", false);
+        check(graph->solve<rcspp::strategy::ImprovingTabu>(params, /*preprocess=*/false),
+              "improving tabu",
+              false);
+    }
+}
+
 /// @brief A hard mask leaves its arcs out of every search, as if they were removed from the
 ///        graph: every exact search, and Greedy with no budget, returns the optimum of the graph
 ///        without them, along paths that use none of them and replay on the whole graph.
@@ -693,4 +739,54 @@ TEST(KernelProperties, ThresholdPruningRefusesACostThatIsNotAdditive) {
     params.threshold_pruning = true;
     EXPECT_THROW((void)graph->solve<rcspp::strategy::Simple>(params, /*preprocess=*/false),
                  std::invalid_argument);
+}
+
+/// @brief Bounded Greedy with no budget tries every path, forward and backward, with and without
+///        the threshold prune: it returns forward Simple's optimum (or, like it, nothing), along
+///        paths that replay; under the median upper bound, with the prune, it returns the paths
+///        plain Greedy returns.
+TEST(KernelProperties, BoundedGreedyReachesTheOptimum) {
+    namespace kp = kernel_properties;
+    const auto reference = kp::rows().front();
+    for (const auto& c : kp::property_cases()) {
+        const auto expected = reference.solve(c);
+        auto graph = c.build();
+        for (const auto direction :
+             {rcspp::SearchDirection::Forward, rcspp::SearchDirection::Backward}) {
+            for (const bool pruning : {false, true}) {
+                rcspp::AlgorithmParams<kp::List> params;
+                params.direction = direction;
+                params.threshold_pruning = pruning;
+                const std::string where = c.name + ", " + std::string(rcspp::to_string(direction)) +
+                                          (pruning ? ", pruned" : "");
+                const auto result =
+                    graph->solve<rcspp::strategy::BoundedGreedy>(params, /*preprocess=*/false);
+                ASSERT_EQ(result.solutions.empty(), expected.solutions.empty()) << where;
+                EXPECT_EQ(result.status, rcspp::AlgorithmStatus::Complete) << where;
+                if (!result.solutions.empty()) {
+                    EXPECT_NEAR(result.solutions.front().cost,
+                                expected.solutions.front().cost,
+                                1e-6)
+                        << where;
+                }
+                for (const auto& solution : result.solutions) {
+                    EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "") << where;
+                }
+            }
+        }
+        for (const double upper_bound : kp::upper_bounds(expected)) {
+            rcspp::AlgorithmParams<kp::List> params;
+            auto plain = graph->create_algorithm<rcspp::strategy::Greedy>(params);
+            params.threshold_pruning = true;
+            auto bounded = graph->create_algorithm<rcspp::strategy::BoundedGreedy>(params);
+            kp::Outcome plain_out;
+            plain_out.solutions =
+                graph->solve(plain.get(), upper_bound, /*preprocess=*/false).solutions;
+            kp::Outcome bounded_out;
+            bounded_out.solutions =
+                graph->solve(bounded.get(), upper_bound, /*preprocess=*/false).solutions;
+            EXPECT_EQ(kp::paths_of(bounded_out), kp::paths_of(plain_out))
+                << c.name << ", upper bound " << upper_bound;
+        }
+    }
 }

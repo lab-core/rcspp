@@ -25,6 +25,7 @@ _ALGORITHM_MAP = {
     "greedy": lambda: _ext.graph.Algorithm.Greedy,
     "tabu": lambda: _ext.graph.Algorithm.Tabu,
     "astar": lambda: _ext.graph.Algorithm.AStar,
+    "bounded_greedy": lambda: _ext.graph.Algorithm.BoundedGreedy,
 }
 
 # Kept for backward compatibility
@@ -553,7 +554,8 @@ class ResourceGraph:
         Args:
             algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
                 ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.Tabu``,
-                ``Algorithm.AStar``, or the equivalent strings ``'simple'``,
+                ``Algorithm.AStar``, ``Algorithm.BoundedGreedy``, or the equivalent
+                strings ``'bounded_greedy'``, ``'simple'``,
                 ``'pushing'``, ``'pulling'``, ``'greedy'``, ``'tabu'``,
                 ``'astar'``.
             upper_bound: Prune paths with cost ≥ this value.
@@ -565,8 +567,8 @@ class ResourceGraph:
             direction: ``'forward'``, ``'backward'`` or ``'bidirectional'`` (or a
                 ``SearchDirection``). Every labelling algorithm (``'simple'``,
                 ``'pushing'``, ``'pulling'``, ``'astar'``) searches in each;
-                ``'greedy'`` and ``'tabu'`` raise ``ValueError`` for any but
-                ``'forward'``. A bidirectional search goes forward from the
+                ``'greedy'`` and ``'tabu'`` search forward or backward, and raise
+                ``ValueError`` for ``'bidirectional'``. A bidirectional search goes forward from the
                 sources and backward from the sinks, and joins the two halves in
                 the middle: set ``params.critical_resource_index`` (the clock)
                 and ``params.half_way_point`` (where the halves meet; with 0, the
