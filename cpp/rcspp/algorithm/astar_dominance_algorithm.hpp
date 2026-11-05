@@ -234,7 +234,11 @@ class AStarDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelCon
 
             if (this->memory_pressure_triggered_) {
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
-                    this->remove_label(label_iter);
+                    // A label stored aside stays at its node, where dominance may since have
+                    // removed it, erasing the position it was stored with.
+                    if (!label_ptr->dominated) {
+                        this->remove_label(label_iter);
+                    }
                     this->label_pool_.release_with_ref_count(label_ptr);
                 }
                 unprocessed_truncated_labels_.clear();

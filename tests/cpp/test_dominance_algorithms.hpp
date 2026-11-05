@@ -8,9 +8,11 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <memory>
 
 #include "rcspp/rcspp.hpp"
+#include "util/random_instance.hpp"
 
 using namespace rcspp;  // NOLINT(google-build-using-namespace)
 
@@ -301,7 +303,144 @@ size_t extended_labels(bool pressure) {
     return algorithm->get_number_of_extended_labels();
 }
 
+/// @brief A graph with a cost and a load on which a label stored aside at node 1 is then removed
+///        by dominance there, for a search that takes labels one at a time (Simple, A*).
+///
+/// With a quota of 1, three labels reach node 1, in the order of their path lengths:
+/// - P (cost 1, load 5), along 0 -> 1, is extended and spends node 1's quota;
+/// - Q (cost 2, load 1), along 0 -> 3 -> 1, neither dominates P nor is dominated by it: it is
+///   kept, and stored aside when taken, over the quota;
+/// - R (cost 0.5, load 0), along 0 -> 4 -> 5 -> 1, dominates both and removes them.
+/// A chain 0 -> 6 -> ... -> 15 -> 2 keeps labels waiting, so memory checks go on after R.
+inline std::unique_ptr<ResourceGraph<RealResource>> quota_cut_then_dominated() {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<TrivialCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2, /*source=*/false, /*sink=*/true);
+    for (size_t node_id = 3; node_id <= 15; ++node_id) {
+        graph->add_node(node_id);
+    }
+    const auto arc = [&graph](size_t origin, size_t destination, double cost, double load) {
+        graph->add_arc<RealResource, RealResource>({cost, load}, origin, destination, cost);
+    };
+    arc(0, 1, 1.0, 5.0);  // P
+    arc(0, 3, 0.0, 0.0);
+    arc(0, 4, 0.0, 0.0);
+    arc(0, 6, 0.0, 0.0);
+    arc(3, 1, 2.0, 1.0);  // Q
+    arc(4, 5, 0.0, 0.0);
+    arc(5, 1, 0.5, 0.0);  // R
+    arc(1, 2, 0.0, 0.0);
+    for (size_t node_id = 6; node_id < 15; ++node_id) {
+        arc(node_id, node_id + 1, 0.0, 0.0);
+    }
+    arc(15, 2, 10.0, 0.0);
+    return graph;
+}
+
+/// @brief A graph with a cost and a load on which a label the memory trim stores aside at node 2
+///        is then removed by dominance there, for a search that sweeps the nodes (Pushing).
+///
+/// Node 2 receives A (cost 1, load 5) and B (cost 2, load 1) from the source, which dominate each
+/// other neither way; a trim to one label per node, before node 1 is swept, stores B aside; node
+/// 1 then sends R (cost 0.5, load 0), which dominates both and removes them.
+inline std::unique_ptr<ResourceGraph<RealResource>> trimmed_then_dominated() {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<TrivialCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3, /*source=*/false, /*sink=*/true);
+    const auto arc = [&graph](size_t origin, size_t destination, double cost, double load) {
+        graph->add_arc<RealResource, RealResource>({cost, load}, origin, destination, cost);
+    };
+    arc(0, 1, 0.0, 0.0);
+    arc(0, 2, 1.0, 5.0);  // A
+    arc(0, 2, 2.0, 1.0);  // B
+    arc(1, 2, 0.5, 0.0);  // R
+    arc(2, 3, 0.0, 0.0);
+    return graph;
+}
+
+/// @brief Solves @p graph with @p Algorithm under memory pressure on every check, with @p params,
+///        and expects the solve to finish with a path.
+template <template <typename, typename> class Algorithm>
+void expect_survives_pressure(
+    ResourceGraph<RealResource>* graph,
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params, const char* name) {
+    put_under_pressure(&params);
+    const auto result = graph->template solve<Algorithm>(std::numeric_limits<double>::infinity(),
+                                                         params,
+                                                         /*preprocess=*/false);
+    EXPECT_TRUE(result.memory_pressure_triggered) << name;
+    EXPECT_FALSE(result.solutions.empty()) << name;
+}
+
 }  // namespace memory_pressure_test
+
+/// @brief A memory-pressure event after the first releases the labels stored aside, erasing each
+///        from its node. One that dominance has since removed there is not erased again: its
+///        stored position was erased with it. One test per search, as each reaches the release
+///        its own way: Simple over the quota, Pushing in the trim, A* on a graph with cycles.
+///
+/// Before the fix, the release erased through that position, undefined behaviour: with
+/// _GLIBCXX_DEBUG, Simple and Pushing abort on the singular iterator; in a release build on
+/// Windows, the heap is corrupted, in Simple's, Pushing's and A*'s test. Pulling releases through
+/// Pushing's code (release_truncated_labels), and no graph tried brought it there.
+TEST(MemoryPressureRelease, Simple) {
+    namespace mp = memory_pressure_test;
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> quota;
+    quota.max_extended_labels_per_node = 1;
+    mp::expect_survives_pressure<SimpleDominanceAlgorithm>(mp::quota_cut_then_dominated().get(),
+                                                           quota,
+                                                           "Simple");
+}
+
+/// @brief As @c MemoryPressureRelease.Simple, for A*, the labels stored aside by the trim on a
+///        random 12-node instance with cycles (seed 10), where the release reaches one.
+///
+/// Under _GLIBCXX_DEBUG, A*'s heap copies the position of every dominated label it moves, which
+/// that mode refuses whether or not this is fixed: check this one in a release build.
+TEST(MemoryPressureRelease, AStar) {
+    namespace mp = memory_pressure_test;
+    test_util::InstanceConfig config;
+    config.num_nodes = 12;
+    config.with_time_window = true;
+    config.with_capacity = true;
+    config.capacity_binds = true;
+    config.mixed_sign_costs = true;
+    config.back_arc_density = 0.3;
+    config.seed = 10;
+    auto graph = test_util::build_instance(config).graph;
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> trim;
+    trim.memory_pressure_max_labels_per_node = 1;
+    mp::expect_survives_pressure<AStarAlgoBound<RealResource>::Algo>(graph.get(), trim, "A*");
+}
+
+/// @brief As @c MemoryPressureRelease.Simple, for Pushing, the labels stored aside by the trim.
+TEST(MemoryPressureRelease, Pushing) {
+    namespace mp = memory_pressure_test;
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> trim;
+    trim.memory_pressure_max_labels_per_node = 1;
+    mp::expect_survives_pressure<PushingDominanceAlgorithm>(mp::trimmed_then_dominated().get(),
+                                                            trim,
+                                                            "Pushing");
+}
 
 /// @brief Memory pressure lowers the per-node quota to its own limit, never raises it.
 ///

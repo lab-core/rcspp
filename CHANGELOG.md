@@ -223,6 +223,13 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Fixed
 
+- **A second memory-pressure event no longer erases a label twice.** Each event after the first
+  releases the labels the quota or the memory trim stored aside, erasing each from its node
+  through the position it was stored with. A label stored aside stays at its node, and when a
+  later label dominated it there, dominance had already erased it: the release then erased
+  through a dangling position, undefined behaviour, which could remove another label, corrupt
+  the node's label list or crash. Simple, A\*, Pushing and Pulling, since memory pressure was
+  added; the bidirectional search stores nothing aside.
 - **A truncated run that uses up its phases reports `Truncated`, not `Complete`**, in C++ and in
   Python. With `release_after_solve`, the default, the labels a phase held back (truncated
   labelling, memory pressure) were not counted when the status was read, so such a run reported
