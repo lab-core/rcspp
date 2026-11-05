@@ -62,6 +62,25 @@ concept LabelSchedule = Schedule<ScheduleType, ResourceType> &&
                             { schedule.next(ctx) } -> std::same_as<StoredLabel<ResourceType>>;
                         };
 
+/// @brief A schedule that hands out one node at a time: Pulling.
+///
+/// @c visit_next_node moves to the next node and pulls into it: it calls `extend(label, arc)` for
+/// each label waiting at the node an arc comes from, along each arc into the node, in the
+/// direction's sense. @c current is the node's new labels, which the caller then filters, taking
+/// a label off with @c erase_current.
+template <typename ScheduleType, typename ResourceType>
+concept NodeSchedule =
+    Schedule<ScheduleType, ResourceType> &&
+    requires(ScheduleType schedule, detail::SearchContext<ResourceType>& ctx,
+             void (*extend)(Label<ResourceType>*, const Arc<ResourceType>*),
+             typename std::list<StoredLabel<ResourceType>>::iterator position) {
+        schedule.visit_next_node(ctx, extend);
+        schedule.current();
+        {
+            schedule.erase_current(position)
+        } -> std::same_as<typename std::list<StoredLabel<ResourceType>>::iterator>;
+    };
+
 /// @brief Whether @p ScheduleType's order reads the search's completion bound: a schedule says so
 ///        with `static constexpr bool reads_bound = true`; one that does not say reads none.
 template <typename ScheduleType>
