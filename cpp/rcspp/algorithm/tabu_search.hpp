@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
-#include "rcspp/algorithm/tabu_list.hpp"
+#include "rcspp/algorithm/tabu/tabu_list.hpp"
 
 namespace rcspp {
 
@@ -95,7 +95,7 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
             }
 
             size_t i = 0;
-            while (!this->should_stop(i)) {
+            while (!this->should_end_loop(i)) {
                 ++i;
 
                 const detail::DiveEnd end = dive_to_sink();
@@ -146,12 +146,12 @@ class TabuSearchAlgorithm : public BacktrackingDiveAlgorithm<ResourceType, Label
         detail::DiveEnd dive_to_sink() {
             // A single dive can enumerate exponentially many partial paths
             // between main_loop()'s per-iteration checks — and each extension
-            // allocates a label — so poll should_stop() and the memory limit
+            // allocates a label — so poll should_end_loop() and the memory limit
             // every 4096 steps.
             size_t steps = 0;
             while (!this->path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
-                    (this->should_stop() || this->memory_limit_.is_exceeded())) {
+                    (this->should_end_loop() || this->memory_limit_.is_exceeded())) {
                     return detail::DiveEnd::Stopped;
                 }
                 auto* current = this->path_.back().first;

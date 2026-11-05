@@ -9,7 +9,7 @@
 #include <limits>
 #include <vector>
 
-#include "rcspp/algorithm/tabu_list.hpp"
+#include "rcspp/algorithm/tabu/tabu_list.hpp"
 
 using namespace rcspp;
 

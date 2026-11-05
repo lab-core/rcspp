@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/solve_result.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label.hpp"
 
@@ -41,7 +43,7 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
     protected:
         void main_loop() override {
             size_t i = 0;
-            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
+            while (this->number_of_labels() > 0 && !this->should_end_loop(i)) {
                 ++i;
 
                 // get the label
@@ -93,12 +95,12 @@ class GreedyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             // try to extend the label greedily
             //
             // The sibling-switching backtrack below can enumerate many partial
-            // paths inside this single call, so poll should_stop() and the
+            // paths inside this single call, so poll should_end_loop() and the
             // memory limit every 4096 steps.
             size_t steps = 0;
             while (!path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
-                    (this->should_stop() || this->memory_limit_.is_exceeded())) {
+                    (this->should_end_loop() || this->memory_limit_.is_exceeded())) {
                     return;
                 }
                 bool extended = false;

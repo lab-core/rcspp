@@ -9,8 +9,9 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/greedy.hpp"
-#include "rcspp/algorithm/tabu_list.hpp"
+#include "rcspp/algorithm/tabu/tabu_list.hpp"
 
 namespace rcspp {
 
@@ -77,7 +78,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             }
 
             size_t i = 0;
-            while (!this->should_stop(i)) {
+            while (!this->should_end_loop(i)) {
                 ++i;
 
                 // Rebuild the CSR index so GreedyAlgorithm::get_out_arcs() returns correct

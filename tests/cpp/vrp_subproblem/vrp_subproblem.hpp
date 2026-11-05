@@ -72,7 +72,7 @@ class VRPSubproblem {
                 AlgorithmStatus status = AlgorithmStatus::Complete;
                 // Bidirectional only; left at their defaults by every other algorithm.
                 bool bounded_by_half_way = false;
-                size_t joined_paths = 0;
+                size_t number_of_joined_paths = 0;
         };
 
         template <template <typename, typename> class AlgorithmType = SimpleDominanceAlgorithm>
@@ -103,7 +103,7 @@ class VRPSubproblem {
             // A bidirectional search's diagnostics; false and 0 from every other algorithm.
             const BidirectionalStats stats = result.bidirectional.value_or(BidirectionalStats{});
             measurement.bounded_by_half_way = stats.bounded_by_half_way;
-            measurement.joined_paths = stats.number_of_joined_paths;
+            measurement.number_of_joined_paths = stats.number_of_joined_paths;
             return measurement;
         }
 

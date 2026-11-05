@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/solve_result.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label.hpp"
 

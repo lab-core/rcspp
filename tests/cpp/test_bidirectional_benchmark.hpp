@@ -53,8 +53,8 @@ inline void report(const std::string& name, const Timed& timed) {
               << " pooled_labels=" << timed.measurement.pooled_labels
               << " status=" << to_string(timed.measurement.status)
               << " bounded=" << timed.measurement.bounded_by_half_way
-              << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
-              << std::endl;
+              << " number_of_joined_paths=" << timed.measurement.number_of_joined_paths
+              << " seconds=" << timed.seconds << std::endl;
 }
 
 /// @brief Prints the extended-label ratio, or says why there is not one.
