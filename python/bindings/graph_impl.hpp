@@ -9,6 +9,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/typing.h>
 
 #include <atomic>
 #include <limits>
@@ -81,6 +82,14 @@ class ActiveCall {
 // ─── Python-facing non-template AlgorithmParams ──────────────────────────────
 
 struct PyAlgorithmParams : AlgorithmBaseParams {
+        PyAlgorithmParams() = default;
+        PyAlgorithmParams(const PyAlgorithmParams&) = default;
+        PyAlgorithmParams(PyAlgorithmParams&&) = default;
+        PyAlgorithmParams& operator=(const PyAlgorithmParams&) = default;
+        PyAlgorithmParams& operator=(PyAlgorithmParams&&) = default;
+        // Virtual, so that solve() can tell a PyBucketAlgorithmParams it receives as these params.
+        virtual ~PyAlgorithmParams() = default;
+
         template <typename LabelContainerType>
         [[nodiscard]] AlgorithmParams<LabelContainerType> to_params(
             LabelContainerType label_container = LabelContainerType{}) const {
@@ -317,13 +326,25 @@ struct SelectCostResourceType<ResourceType, ResourceTypes...> {
 template <typename GraphType>
 py::class_<GraphType>& bind_graph_methods(py::class_<GraphType>& c) {
     using ArcType = std::remove_pointer_t<decltype(std::declval<const GraphType&>().get_arc(0))>;
+    using NodeType = std::remove_pointer_t<decltype(std::declval<const GraphType&>().get_node(0))>;
 
+    // The getters return None for an id with no node or arc. Their return types say so, so that
+    // the generated stubs and help() show `Node | None` rather than `Node`.
     return c
-        .def("get_node",
-             &GraphType::get_node,
-             py::arg("node_id"),
-             py::return_value_policy::reference)
-        .def("get_arc", &GraphType::get_arc, py::arg("arc_id"), py::return_value_policy::reference)
+        .def(
+            "get_node",
+            [](const GraphType& g, size_t node_id) -> py::typing::Optional<NodeType> {
+                return py::cast(g.get_node(node_id), py::return_value_policy::reference);
+            },
+            py::arg("node_id"),
+            "The node with this id, or None if there is none.")
+        .def(
+            "get_arc",
+            [](const GraphType& g, size_t arc_id) -> py::typing::Optional<ArcType> {
+                return py::cast(g.get_arc(arc_id), py::return_value_policy::reference);
+            },
+            py::arg("arc_id"),
+            "The arc with this id, or None if there is none or it is removed.")
         .def("get_arcs",
              &GraphType::get_arcs,
              py::arg("origin_node_id"),
@@ -375,10 +396,13 @@ py::class_<GraphType>& bind_graph_methods(py::class_<GraphType>& c) {
             [](GraphType& g, ArcType* arc) { return g.restore_arc(*arc); },
             py::arg("arc"))
         .def("removed_arc_ids", &GraphType::get_removed_arc_ids)
-        .def("get_removed_arc",
-             &GraphType::get_removed_arc,
-             py::arg("arc_id"),
-             py::return_value_policy::reference)
+        .def(
+            "get_removed_arc",
+            [](const GraphType& g, size_t arc_id) -> py::typing::Optional<ArcType> {
+                return py::cast(g.get_removed_arc(arc_id), py::return_value_policy::reference);
+            },
+            py::arg("arc_id"),
+            "The removed arc with this id, or None if no removed arc has it.")
         .def(
             "remove_arcs_if",
             [](GraphType& g, py::function pred) {
@@ -484,29 +508,6 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
              py::arg("source") = false,
              py::arg("sink") = false,
              py::return_value_policy::reference)
-        .def("get_resource_factory",
-             &ResourceGraphType::get_resource_factory,
-             py::return_value_policy::reference)
-        .def(
-            "solve",
-            [](ResourceGraphType& rg,
-               SolverAlgorithm alg,
-               double ub,
-               const PyBucketAlgorithmParams& py_p,
-               bool pre,
-               size_t ci) -> SolveResult {
-                return ActiveCall::run_interruptible([&] {
-                    return run_bucket_solve<ResourceGraphType,
-                                            CompositionType,
-                                            CostResourceType,
-                                            ResourceTypes...>(alg, rg, ub, py_p, pre, ci);
-                });
-            },
-            py::arg("algorithm") = SolverAlgorithm::Simple,
-            py::arg("upper_bound") = INF,
-            py::arg("params"),
-            py::arg("preprocess") = true,
-            py::arg("cost_index") = 0)
         .def(
             "solve",
             [](ResourceGraphType& rg,
@@ -515,6 +516,17 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
                const PyAlgorithmParams& py_p,
                bool pre,
                size_t ci) -> SolveResult {
+                // One overload for both kinds of params. With a bucket overload beside it, a call
+                // that left out algorithm or upper_bound fell through to this one, which ran a
+                // LabelList search and ignored the bucket settings without a word.
+                if (const auto* bucket_p = dynamic_cast<const PyBucketAlgorithmParams*>(&py_p)) {
+                    return ActiveCall::run_interruptible([&] {
+                        return run_bucket_solve<ResourceGraphType,
+                                                CompositionType,
+                                                CostResourceType,
+                                                ResourceTypes...>(alg, rg, ub, *bucket_p, pre, ci);
+                    });
+                }
                 using LabelContainerType = LabelList<CompositionType>;
                 auto p = py_p.template to_params<LabelContainerType>();
                 return ActiveCall::run_interruptible([&] {
@@ -525,7 +537,7 @@ py::class_<ResourceGraphType, Graph<CompositionType>>& bind_rg_methods(
             },
             py::arg("algorithm") = SolverAlgorithm::Simple,
             py::arg("upper_bound") = INF,
-            py::arg("params") = PyAlgorithmParams{},
+            py::arg_v("params", PyAlgorithmParams{}, "AlgorithmParams()"),
             py::arg("preprocess") = true,
             py::arg("cost_index") = 0)
         .def(
@@ -583,7 +595,8 @@ void bind_add_resource(py::class_<ResourceGraphType, Graph<CompositionType>>& rg
 
 template <typename ResourceGraphType, typename CompositionType, typename... ResourceTypes>
 void bind_resource_graph_impl(py::class_<ResourceGraphType, Graph<CompositionType>>& rg) {
-    using AddArcTuple = std::tuple<std::vector<ComponentInitializerTypeTuple_t<ResourceTypes>>...>;
+    using AddArcTuple =
+        std::tuple<std::vector<component_initializer_type_tuple_t<ResourceTypes>>...>;
 
     (bind_add_resource<ResourceGraphType, CompositionType, ResourceTypes>(rg), ...);
 
@@ -729,26 +742,6 @@ void bind_auto_rg(py::module_& m) {
 }
 
 #define BIND_MIX(...) bind_auto_rg<__VA_ARGS__>(m)
-
-// ─── Macros: bind single-resource graph blocks ───────────────────────────────
-
-// clang-format off
-#define BIND_SINGLE_NUMERICAL_RG(name, scalar, ResourceType)                                 \
-    bind_resource_graph_block<ResourceGraph<ResourceType>, ResourceComposition<ResourceType>, ResourceType, ResourceType>( \
-        m,                                                                         \
-        "_" #name "_resource_graph",                                               \
-        "_" #name "_graph",                                                        \
-        "_" #name "_node",                                                         \
-        "_" #name "_arc");
-
-#define BIND_SINGLE_CONTAINER_RG(name, scalar, ResourceType)                                           \
-    bind_resource_graph_block<ResourceGraph<ResourceType>, ResourceComposition<ResourceType>, RealResource, ResourceType>( \
-        m,                                                                                   \
-        "_" #name "_resource_graph",                                                         \
-        "_" #name "_graph",                                                                  \
-        "_" #name "_node",                                                                   \
-        "_" #name "_arc");
-// clang-format on
 
 // ─── Forward declarations for sub-init functions ─────────────────────────────
 void init_graph_mix2(py::module_& /*m*/);

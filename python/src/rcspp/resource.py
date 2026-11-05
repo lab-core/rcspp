@@ -366,7 +366,7 @@ class SubsetDominanceFunction(_GenericFunctionDescriptor):
     """
 
     def create(self, resource_type: str):
-        """Instantiate an SubsetDominanceFunction for *resource_type*.
+        """Instantiate a SubsetDominanceFunction for *resource_type*.
 
         Args:
             resource_type: Container resource type string

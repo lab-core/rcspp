@@ -47,6 +47,8 @@ repos:
       - id: flake8
         name: Python Linter
         files: ^(python|tests)/.*\.pyi?$
+        # Naming checks; .flake8 selects their codes (N, A).
+        additional_dependencies: [pep8-naming==0.15.1, flake8-builtins==3.2.0]
 
   # -------------------------
   # Bandit
@@ -94,6 +96,26 @@ repos:
         files: .*\.md$
         exclude: ^(build|build_[^/]+)/
         args: ["--fix"]
+
+  # -------------------------
+  # Names retired by renames
+  # -------------------------
+  # The old spellings of the names that renames replaced (#56, #59), so that a rebased branch cannot
+  # bring them back. CHANGELOG.md lists them on purpose, and is not checked. When you rename a
+  # public name, add the old one here. Short template parameters (Dir, LC, R) are left to review.
+  - repo: local
+    hooks:
+      - id: retired-names
+        name: Names retired by renames
+        language: pygrep
+        files: ^(cpp|python|tests|examples|docs)/|^(AGENT|README)\.md$
+        entry: 'BackwardKind|backward_kind|BackwardForm|backward_form|[Bb]ackward form|\bThresholdForm|TranslationThresholdForm|ArcEndpointsForm|DisjointJoinForm|\b(threshold|arc_endpoints|join)_form\b|CriticalRC|ClockResourceType|FwdContainer|BwdContainer|CostRC\b|SelectCostRC|ContainDominanceFunction|InclusionDominanceFunction|SubtractExtensionFunction|(contain|inclusion)_dominance_function|subtract_extension_function|forbidden_tabu|range_buckets|suggest_range|stop_after_X_solutions|num_max_phases|num_labels_to_extend_by_node|prune_based_on_upper_bound|track_modifications|get_labels_at_sinks|process_feasibility|prepareNextPhase|connectivityMatrix|SimpleFrontier|\bBackwardSimple\b|CostForm|cost_form|backward_reversed|DeclaresDirectionalResourceKind|AlgorithmStatus::(COMPLETE|TIMEOUT|MAX_SOLUTIONS|MAX_PHASES|INTERRUPTED|MEMORY_LIMIT)|ComponentTypeIndex_v|ComponentInitializerTypeTuple_t'
+      - id: retired-python-names
+        name: Python names retired by renames
+        language: pygrep
+        # Keywords and parameters only: origin_id stays a fine name for a local variable.
+        files: \.pyi?$|^docs/python/.*\.md$
+        entry: '\b(col_ids|basis_ids|col_costs|col_indices|col_values|row_starts|row_coefs)\b|\b(origin_id|destination_id)\s*(:|=(?!=))'
 
   # -------------------------
   # Commit message hooks

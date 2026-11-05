@@ -59,3 +59,13 @@ jobs:
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: ${{ github.event_name == 'pull_request' && format('--from-ref {0} --to-ref {1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '--all-files' }}
+
+      # -------------------------
+      # Naming conventions
+      # -------------------------
+      # .clang-tidy-naming checks the conventions of AGENT.md over the whole library, and fails the
+      # job on any name that breaks them. It is not a pre-commit hook, whose clang-tidy runs with
+      # -fix. It runs even when the hooks fail, so one run reports both.
+      - name: Naming conventions
+        if: always()
+        run: clang-tidy --config-file=.clang-tidy-naming cpp/rcspp/rcspp.hpp -- -xc++ -std=c++20 -Icpp

@@ -23,11 +23,13 @@ PYBIND11_MODULE(_core, m) {
     // This must happen before any background thread calls solve().
     init_sigint_handler();
 
-    auto graph_submodule = m.def_submodule("graph", "Graph-related classes");
-    init_graph(graph_submodule);
-
+    // Resources first: the graph classes' add_*_resource methods take their function types, and
+    // pybind11 writes a signature with the Python name of a type only once that type is bound.
     auto resource_submodule = m.def_submodule("resource", "Resource-related classes");
     init_resource(resource_submodule);
+
+    auto graph_submodule = m.def_submodule("graph", "Graph-related classes");
+    init_graph(graph_submodule);
 
     auto solution_pool_submodule = m.def_submodule("solution_pool", "Solution pool classes");
     init_solution_pool(solution_pool_submodule);
@@ -59,7 +61,7 @@ PYBIND11_MODULE(_core, m) {
         [](rcspp::LogLevel level, bool to_console, const std::string& file_path) {
             rcspp::Logger::init(level, to_console, file_path);
         },
-        py::arg("level") = rcspp::LogLevel::Info,
+        py::arg_v("level", rcspp::LogLevel::Info, "LogLevel.Info"),
         py::arg("to_console") = true,
         py::arg("file_path") = std::string{},
         "Initialize the logger (level, console output, optional log file).");

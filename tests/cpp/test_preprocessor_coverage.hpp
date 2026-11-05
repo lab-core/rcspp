@@ -396,6 +396,25 @@ TEST(FeasibilityPreprocessor, RemovesInfeasibleArc) {
     EXPECT_EQ(count_arcs(*g), 0U);
 }
 
+/// @brief A solve still runs the feasibility reduction after an is_connected() query.
+///
+/// is_connected() used to clear the modified flag that a solve reads to decide whether to run
+/// the reduction, so the infeasible arc was kept.
+TEST(FeasibilityPreprocessor, SolveReducesTheGraphAfterAConnectivityQuery) {
+    auto g = make_graph(/*max_val=*/kLooseBound);
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/true);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(kFiftyVal), 0, 1, /*cost=*/kFiftyVal);
+    g->add_arc<RealResource>(std::make_tuple(kTwoHundredVal), 0, 2, /*cost=*/kTwoHundredVal);
+
+    EXPECT_TRUE(g->is_connected(0, 2));
+    static_cast<void>(g->solve());
+
+    EXPECT_EQ(count_arcs(*g), 1U) << "the solve skipped the feasibility reduction";
+    EXPECT_FALSE(g->is_connected(0, 2)) << "the connectivity matrix is out of date";
+}
+
 /// @brief FeasibilityPreprocessor keeps an arc that stays within the feasibility
 ///        window.
 TEST(FeasibilityPreprocessor, KeepsFeasibleArc) {

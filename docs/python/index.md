@@ -38,8 +38,8 @@ from rcspp.resource import (
 from rcspp.pricing_pool import PricingPool
 
 # Low-level C++ objects (advanced use)
-from rcspp._core.graph        import Solution, Column, Row, Algorithm
-from rcspp._core.solution_pool import SolutionPool
+from rcspp.graph        import Solution, Column, Row, Algorithm
+from rcspp.pricing_pool import SolutionPool
 ```
 
 :::{toctree}

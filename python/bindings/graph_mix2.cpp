@@ -15,9 +15,6 @@ void init_graph_mix2(py::module_& m) {
     BIND_MIX(RealResource, RealSetResource);
     BIND_MIX(RealResource, IntSetResource);
     BIND_MIX(RealResource, UIntBitsetResource);
-    BIND_MIX(IntResource,  RealSetResource);
-    BIND_MIX(IntResource,  IntSetResource);
-    BIND_MIX(IntResource,  UIntBitsetResource);
 
     // clang-format on
 }
