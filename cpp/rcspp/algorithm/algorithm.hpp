@@ -403,18 +403,17 @@ class Algorithm {
         virtual ~Algorithm() = default;
 
         /**
-         * @brief Checks whether the algorithm has reached an optimal state.
+         * @brief Whether the last @ref solve processed every label, so that its result is optimal.
          *
-         * An algorithm is considered optimal when there are no more labels left to process,
-         * i.e., when @ref number_of_labels returns zero. This typically means that all possible
-         * extensions have been explored and no further improvements or solutions can be found.
+         * The default implementation answers whether the last solve ended with status
+         * @c AlgorithmStatus::Complete. It is recorded when the solve ends, before
+         * @c release_after_solve (the default) empties the label queues: reading
+         * @ref number_of_labels afterwards would answer 0 after a timeout or any other early stop.
+         * @c false before the first solve. Heuristics override it to answer @c false.
          *
-         * The default implementation returns true if @ref number_of_labels() == 0.
-         * Derived classes may override this method to provide a more specific notion of optimality.
-         *
-         * @return true if the algorithm is optimal (no labels left to process), false otherwise.
+         * @return true if the last solve processed every label, false otherwise.
          */
-        [[nodiscard]] virtual bool is_optimal() const { return number_of_labels() == 0; }
+        [[nodiscard]] virtual bool is_optimal() const { return last_solve_complete_; }
 
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
@@ -447,6 +446,7 @@ class Algorithm {
             // initialization
             Timer timer(true);
             timed_out_ = false;
+            last_solve_complete_ = false;
             solve_timer_ = &timer;
             memory_limit_.resolve(params_.max_memory_gb,
                                   params_.limit_to_available_ram,
@@ -489,11 +489,11 @@ class Algorithm {
                 solutions.push_back(std::move(solution));
             }
 
-            // prepare next phase to ensure that all_labels_processed() returns the right value
-            // (if not releasing all labels). Also, next solve() is ready to start if needed
-            if (!params_.release_after_solve) {
-                prepare_next_phase();
-            }
+            // Put back the labels a phase held back (truncated labeling, memory pressure) before
+            // the status is read: they were never extended, so a run that used up its phases with
+            // labels held back is MaxPhases, not Complete, whether or not the labels are released
+            // below. When they are kept, this also readies the next solve().
+            prepare_next_phase();
 
             // sort solutions
             std::ranges::sort(solutions,
@@ -532,6 +532,9 @@ class Algorithm {
             } else {
                 status = AlgorithmStatus::MaxPhases;
             }
+            // Recorded now: releasing the label memory below empties the queues, after which
+            // number_of_labels() would read 0 whatever the run did.
+            last_solve_complete_ = status == AlgorithmStatus::Complete;
 
             // Optionally release label memory so RAM is reclaimed when the caller returns.
             if (params_.release_after_solve) {
@@ -801,6 +804,7 @@ class Algorithm {
         Timer total_full_extend_time_;
 
         bool timed_out_ = false;
+        bool last_solve_complete_ = false;    ///< Whether the last solve() ended Complete.
         const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().
 };
 }  // namespace rcspp

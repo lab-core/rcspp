@@ -87,10 +87,10 @@ graph.add_node(0, /*source=*/true);
 graph.add_node(1);
 graph.add_node(2);
 graph.add_node(3, false, /*sink=*/true);
-graph.add_arc({10.0}, 0, 1, 10.0);
-graph.add_arc({15.0}, 1, 3, 15.0);
-graph.add_arc({20.0}, 0, 2, 20.0);
-graph.add_arc({10.0}, 2, 3, 10.0);
+graph.add_arc<RealResource>({10.0}, 0, 1, 10.0);
+graph.add_arc<RealResource>({15.0}, 1, 3, 15.0);
+graph.add_arc<RealResource>({20.0}, 0, 2, 20.0);
+graph.add_arc<RealResource>({10.0}, 2, 3, 10.0);
 
 auto result = graph.solve();
 std::cout << result.solutions[0].cost << "\n"; // 25.0

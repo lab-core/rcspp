@@ -16,7 +16,7 @@ namespace rcspp {
 /// @brief Classical improving tabu search for RCSPP.
 ///
 /// Two-phase algorithm built on the same DFS-with-backtracking engine as
-/// @ref GreedyAlgorithm and @ref TabuSearchAlgorithm:
+/// @ref TabuSearchAlgorithm (@ref BacktrackingDiveAlgorithm):
 ///
 /// **Phase 1 — construction**: a pure greedy dive (no tabu) finds an initial
 /// feasible solution and records its cost as the best known upper bound.

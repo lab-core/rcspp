@@ -20,8 +20,12 @@ cpp/rcspp/
 ├── rcspp.hpp                   # umbrella header
 ├── resource/
 │   ├── resource_graph.hpp      # ResourceGraph<...> — main entry point
-│   ├── base/                   # ExtensionFunction, FeasibilityFunction, …
-│   └── concrete/               # NumericalResource, ContainerResource, built-ins
+│   ├── presets.hpp             # one call per resource kind
+│   ├── base/                   # Resource, Extender, ResourceFactory
+│   ├── functions/              # ExtensionFunction, FeasibilityFunction, DominanceFunction,
+│   │                           # CostFunction, the directional resource kinds and forms
+│   ├── concrete/               # NumericalResource, ContainerResource, built-in functions
+│   └── composition/            # resources made of several components
 ├── graph/
 │   ├── graph.hpp               # Graph<ResourceType> base
 │   ├── node.hpp, arc.hpp
@@ -31,19 +35,23 @@ cpp/rcspp/
 │   ├── simple_dominance_algorithm.hpp
 │   ├── pushing_dominance_algorithm.hpp
 │   ├── pulling_dominance_algorithm.hpp
+│   ├── astar_dominance_algorithm.hpp
 │   ├── greedy.hpp
 │   ├── tabu_search.hpp / improving_tabu_search.hpp
-│   ├── astar_dominance_algorithm.hpp
 │   ├── diversification_search.hpp
 │   ├── label_buckets.hpp       # LabelList, LabelBuckets
+│   ├── search_direction.hpp    # SearchDirection
 │   ├── solution.hpp
 │   └── solution_pool.hpp
 ├── label/
-│   ├── label.hpp, label_pool.hpp, label_factory.hpp
-└── preprocessor/
-    ├── shortest_path_preprocessor.hpp
-    ├── feasibility_preprocessor.hpp
-    └── connectivity_matrix.hpp
+│   └── label.hpp, label_pool.hpp, label_factory.hpp
+├── preprocessor/
+│   ├── shortest_path_preprocessor.hpp
+│   ├── feasibility_preprocessor.hpp
+│   └── connectivity_matrix.hpp
+├── validation/                 # model checks run before backward and bidirectional searches
+├── utils/                      # logger, memory, timer
+└── general/                    # Clonable
 ```
 
 :::{toctree}

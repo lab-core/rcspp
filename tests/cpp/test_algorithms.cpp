@@ -13,3 +13,4 @@
 #include "test_label_buckets.hpp"
 #include "test_rcspp.hpp"
 #include "test_search_direction.hpp"
+#include "test_solve_status.hpp"

@@ -260,7 +260,7 @@ graph.add_resource<RealResource>(
 
 graph.add_node(0, /*source=*/true);
 graph.add_node(1, false, /*sink=*/true);
-graph.add_arc({10.0}, 0, 1, /*cost=*/10.0);
+graph.add_arc<RealResource>({10.0}, 0, 1, /*cost=*/10.0);
 
 auto result = graph.solve();
 ```
@@ -273,8 +273,7 @@ graph.add_resource<RealResource>(…);   // index 0
 graph.add_resource<IntResource>(…);    // index 1
 
 // arc: {real_val, int_val}
-graph.add_arc(std::make_tuple(std::vector{10.0}, std::vector{3}),
-              origin, dest, cost);
+graph.add_arc<RealResource, IntResource>({10.0, 3}, origin, dest, cost);
 ```
 
 ### Column generation
@@ -297,12 +296,11 @@ auto result = graph.solve(/*upper_bound=*/-1e-9);
 | Class | Resource | Effect |
 |---|---|---|
 | `AdditionExtensionFunction<T>` | Numerical | `+=` |
-| `DifferenceExtensionFunction<T>` | Numerical | `-=` |
 | `TimeWindowExtensionFunction<T>(tw)` | Numerical | `max(cur + travel, ready[node])` |
 | `CapacityExtensionFunction<T>(cap)` | Numerical | `+=`, read backward as a *threshold*; per-node caps come as a `NodeBounds` shared with the paired feasibility function |
 | `UnionExtensionFunction<T>` | Container | `∪=` the arc's value |
 | `IntersectionExtensionFunction<T>` | Container | `∩=` the arc's value |
-| `DifferenceExtensionFunction<T>` | Container | `-=` the arc's value |
+| `DifferenceExtensionFunction<T>` | Container | removes the arc's value (set difference) |
 | `NgPathExtensionFunction<T>(ng)` | Set | `(memory ∪ {node left}) ∩ ng[node arrived]` — ignores the arc's value |
 
 The last four are all containers, but they split into two **directional resource kinds**, and

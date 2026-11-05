@@ -14,8 +14,7 @@ namespace rcspp {
 /// A label `lhs` dominates label `rhs` (i.e., `lhs <= rhs`) if `rhs_resource`
 /// includes (is a superset of) `lhs_resource`.  This is the dual of
 /// `SupersetDominanceFunction`: a label is "smaller" (better) when it holds fewer
-/// elements, and a label with fewer elements is dominated by a label that is a subset
-/// of the other.
+/// elements, so a label whose set is a subset of another's dominates it.
 ///
 /// The fast dominance check approximates this via a size comparison.
 ///

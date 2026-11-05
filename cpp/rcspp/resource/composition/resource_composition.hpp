@@ -234,12 +234,12 @@ class Resource<ResourceTypeComposition<ResourceTypes...>>
             });
         }
 
-        /// @brief Checks whether this resource is dominated by @p rhs_resource.
+        /// @brief Checks whether this resource dominates @p rhs_resource.
         ///
         /// Passes the full composition objects to the dominance function.
         ///
         /// @param rhs_resource The resource to compare against.
-        /// @return `true` if this resource is dominated by (i.e., `<=`) @p rhs_resource.
+        /// @return `true` if this resource dominates @p rhs_resource.
         auto operator<=(const Resource& rhs_resource) const -> bool {
             return this->dominance_function_->check_dominance(*this, rhs_resource);
         }
