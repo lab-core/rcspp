@@ -35,7 +35,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (number_of_labels() > 0 && !this->should_stop(i)) {
+            while (number_of_labels() > 0 && !this->should_end_loop(i)) {
                 // Pulling: each iteration processes one node.
                 if (this->memory_limit_reached(i)) {
                     break;

@@ -334,10 +334,10 @@ TEST(BidirectionalValidation, AnInterruptedSolveSkipsTheJoin) {
 
 /// @brief Which early stops still run the join.
 TEST(BidirectionalValidation, OnlyAnInterruptSkipsTheJoin) {
-    static_assert(detail::join_runs_after(detail::RunLevelStop::None));
-    static_assert(detail::join_runs_after(detail::RunLevelStop::Timeout));
-    static_assert(detail::join_runs_after(detail::RunLevelStop::MemoryLimit));
-    static_assert(!detail::join_runs_after(detail::RunLevelStop::Interrupted));
+    static_assert(detail::join_runs_after(detail::EarlyStop::None));
+    static_assert(detail::join_runs_after(detail::EarlyStop::Timeout));
+    static_assert(detail::join_runs_after(detail::EarlyStop::MemoryLimit));
+    static_assert(!detail::join_runs_after(detail::EarlyStop::Interrupted));
     SUCCEED();
 }
 

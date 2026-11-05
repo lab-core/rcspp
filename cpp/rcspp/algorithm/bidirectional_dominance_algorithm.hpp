@@ -29,7 +29,7 @@ namespace rcspp::detail {
 ///
 /// `max_solutions` and `max_iterations` are not run-level stops: the join always runs
 /// after either.
-enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
+enum class EarlyStop { None, Timeout, Interrupted, MemoryLimit };
 
 /// @brief Whether the join still runs after @p stop.
 ///
@@ -40,8 +40,8 @@ enum class RunLevelStop { None, Timeout, Interrupted, MemoryLimit };
 ///
 /// @param stop Why the search stopped.
 /// @return @c true unless the search was interrupted.
-[[nodiscard]] constexpr bool join_runs_after(RunLevelStop stop) {
-    return stop != RunLevelStop::Interrupted;
+[[nodiscard]] constexpr bool join_runs_after(EarlyStop stop) {
+    return stop != EarlyStop::Interrupted;
 }
 
 /// @brief Bidirectional labeling: a forward search, a backward search, and a join.
@@ -95,7 +95,7 @@ class BidirectionalDominanceAlgorithm
             backward_extended_per_node_.assign(number_of_nodes, 0);
             forward_work_ = 0;
             backward_work_ = 0;
-            abandoned_labels_ = 0;
+            number_of_abandoned_labels_ = 0;
             forward_frontier_.clear();
             backward_frontier_.clear();
 
@@ -107,7 +107,7 @@ class BidirectionalDominanceAlgorithm
                         this->params_.labels));
             }
 
-            joined_paths_ = 0;
+            number_of_joined_paths_ = 0;
 
             // The model checks ran before the solve. A half-way setting that does not fit the
             // model turns the bound off rather than throwing.
@@ -140,7 +140,9 @@ class BidirectionalDominanceAlgorithm
         ///
         /// A bidirectional search runs one phase, so what a cut takes off a frontier is never
         /// extended: the frontiers can empty without every label having been processed.
-        [[nodiscard]] bool has_abandoned_labels() const override { return abandoned_labels_ > 0; }
+        [[nodiscard]] bool has_abandoned_labels() const override {
+            return number_of_abandoned_labels_ > 0;
+        }
 
         /// @brief Interleaves the two searches, taking from whichever has done less work so far.
         ///
@@ -155,7 +157,7 @@ class BidirectionalDominanceAlgorithm
         /// whole forward half first.
         void main_loop() override {  // NOLINT(readability-function-cognitive-complexity)
             size_t iteration = 0;
-            while (number_of_labels() > 0 && !this->should_stop(iteration)) {
+            while (number_of_labels() > 0 && !this->should_end_loop(iteration)) {
                 if (this->memory_limit_reached(iteration)) {
                     break;
                 }
@@ -208,7 +210,7 @@ class BidirectionalDominanceAlgorithm
             result->bidirectional = BidirectionalStats{
                 .bounded_by_half_way = half_way_.enabled(),
                 .half_way_off_reason = half_way_off_reason_,
-                .number_of_joined_paths = joined_paths_,
+                .number_of_joined_paths = number_of_joined_paths_,
             };
         }
 
@@ -226,9 +228,9 @@ class BidirectionalDominanceAlgorithm
             this->memory_pressure_triggered_ = true;
             const size_t per_node = this->params_.memory_pressure_max_labels_per_node;
             const size_t number_of_nodes = this->graph_->get_number_of_nodes();
-            abandoned_labels_ +=
+            number_of_abandoned_labels_ +=
                 forward_frontier_.shed(per_node, number_of_nodes, &this->label_pool_);
-            abandoned_labels_ +=
+            number_of_abandoned_labels_ +=
                 backward_frontier_.shed(per_node, number_of_nodes, &this->label_pool_);
         }
 
@@ -288,7 +290,7 @@ class BidirectionalDominanceAlgorithm
                 // Known gap: an abandoned label never yields a boundary label, so the join sees
                 // fewer forward halves. Only reachable under truncated labeling or memory pressure,
                 // and such labels are never revisited.
-                ++abandoned_labels_;
+                ++number_of_abandoned_labels_;
                 return;
             }
             ++extended_count;
@@ -362,21 +364,21 @@ class BidirectionalDominanceAlgorithm
         /// `is_time_out()` (which sets `timed_out_`) is not called. An interrupt is reported ahead
         /// of a timeout, so a run that is both is treated as interrupted.
         ///
-        /// @return The stop, or @c RunLevelStop::None.
-        [[nodiscard]] RunLevelStop run_level_stop() {
+        /// @return The stop, or @c EarlyStop::None.
+        [[nodiscard]] EarlyStop early_stop() {
             if (number_of_labels() == 0) {
-                return RunLevelStop::None;
+                return EarlyStop::None;
             }
             if (this->is_interrupted()) {
-                return RunLevelStop::Interrupted;
+                return EarlyStop::Interrupted;
             }
             if (this->is_time_out()) {
-                return RunLevelStop::Timeout;
+                return EarlyStop::Timeout;
             }
             if (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded()) {
-                return RunLevelStop::MemoryLimit;
+                return EarlyStop::MemoryLimit;
             }
-            return RunLevelStop::None;
+            return EarlyStop::None;
         }
 
         /// @brief Runs the join pass, feeding every accepted pair to `extract_solution`.
@@ -385,8 +387,8 @@ class BidirectionalDominanceAlgorithm
         /// the incumbent cutoff forced on. It is skipped after an interrupt, or after any run-level
         /// stop when `join_after_early_stop` is false.
         void run_join_pass() {
-            const RunLevelStop stop = run_level_stop();
-            const bool stopped_early = stop != RunLevelStop::None;
+            const EarlyStop stop = early_stop();
+            const bool stopped_early = stop != EarlyStop::None;
             if (stopped_early && (!this->params_.join_after_early_stop || !join_runs_after(stop))) {
                 LOG_DEBUG(
                     "BidirectionalDominanceAlgorithm: the search stopped early, so the join pass "
@@ -398,7 +400,7 @@ class BidirectionalDominanceAlgorithm
             auto record = [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                 const size_t before = this->solutions_.size();
                 this->extract_solution(cost, std::move(arc_ids), end_node_id);
-                joined_paths_ += this->solutions_.size() - before;
+                number_of_joined_paths_ += this->solutions_.size() - before;
             };
             const JoinOptions options{
                 .half_way = half_way_,
@@ -449,7 +451,7 @@ class BidirectionalDominanceAlgorithm
                                       "critical resource's range");
                     return;
                 }
-                const size_t clocks = components_of<CriticalResourceType>(graph);
+                const size_t clocks = number_of_components_of<CriticalResourceType>(graph);
                 if (this->params_.critical_resource_index >= clocks) {
                     turn_half_way_off(HalfWayOff::IndexOutOfRange,
                                       clock + " does not exist: the model has " +
@@ -473,7 +475,7 @@ class BidirectionalDominanceAlgorithm
                                           "below H");
                     return;
                 }
-                const std::vector<double> probes{0.0, half_way_.h()};
+                const std::vector<double> probes{0.0, half_way_.point()};
                 if (!critical_resource_is_monotone<CriticalResourceType>(
                         graph,
                         this->params_.critical_resource_index,
@@ -527,7 +529,7 @@ class BidirectionalDominanceAlgorithm
         /// @return The count, or 0 when @p ComponentType is not in the model or no arc carries an
         /// extender.
         template <typename ComponentType>
-        [[nodiscard]] static size_t components_of(const Graph<ResourceType>& graph) {
+        [[nodiscard]] static size_t number_of_components_of(const Graph<ResourceType>& graph) {
             if constexpr (is_cost_in_composition_v<ComponentType, ResourceType>) {
                 const auto* arc = threshold_probe::model_arc(graph);
                 return arc == nullptr
@@ -706,7 +708,7 @@ class BidirectionalDominanceAlgorithm
 
         /// @brief Labels a quota or memory pressure took off a frontier this solve, never to be
         ///        extended; see @ref has_abandoned_labels.
-        size_t abandoned_labels_ = 0;
+        size_t number_of_abandoned_labels_ = 0;
 
         /// @brief Lower bounds, by node position, on the cost from each node to a sink (forward)
         ///        and from a source to each node (backward); see @ref completion_bound.
@@ -716,7 +718,7 @@ class BidirectionalDominanceAlgorithm
         HalfWayPolicy half_way_{0.0, std::numeric_limits<double>::infinity()};
         std::string half_way_off_reason_;
 
-        size_t joined_paths_ = 0;
+        size_t number_of_joined_paths_ = 0;
         Joiner<ResourceType, CriticalResourceType> joiner_;
 };
 

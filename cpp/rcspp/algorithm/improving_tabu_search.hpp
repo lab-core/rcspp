@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/backtracking_dive_algorithm.hpp"
-#include "rcspp/algorithm/tabu_list.hpp"
+#include "rcspp/algorithm/tabu/tabu_list.hpp"
 
 namespace rcspp {
 
@@ -30,7 +30,7 @@ namespace rcspp {
 ///     cheapest tabu extension is used anyway (last-resort aspiration).
 ///   - **Intensification**: when a strictly improving solution is found, the
 ///     adaptive tenure is shrunk so the search stays near the good region.
-///   - **Diversification**: when @c diversification_tenure consecutive dives
+///   - **Diversification**: when @c non_improving_episodes_before_growth consecutive dives
 ///     fail to improve, the adaptive tenure is grown to force exploration of
 ///     unexplored regions; the counter then resets.
 ///
@@ -51,7 +51,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
         ///   - @c tabu_tenure          – base tabu tenure for arcs.
         ///   - @c tabu_random_noise    – whether to add jitter to tenure.
         ///   - @c max_solutions – early-stop threshold.
-        ///   - @c diversification_tenure – no-improve count before grow_extra().
+        ///   - @c non_improving_episodes_before_growth – no-improve count before grow_extra().
         ImprovingTabuSearch(ResourceFactory<ResourceType>* resource_factory,
                             AlgorithmParams<LabelContainerType> params)
             : BacktrackingDiveAlgorithm<ResourceType, LabelContainerType>(resource_factory,
@@ -154,7 +154,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             }
             this->clear_path();
 
-            if (this->should_stop()) {
+            if (this->should_end_loop()) {
                 // Work is left: a fresh path keeps the status from reading Complete.
                 this->seed_path_from_sources();
                 return;
@@ -164,7 +164,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
             tabu_active_ = true;
             size_t no_improve_count = 0;
 
-            for (size_t i = 0; !this->should_stop(i); ++i) {
+            for (size_t i = 0; !this->should_end_loop(i); ++i) {
                 this->seed_path_from_sources();
                 if (this->path_.empty()) {
                     break;
@@ -212,7 +212,7 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
                 }
 
                 // Diversification: too many non-improving iterations.
-                if (no_improve_count >= this->params_.diversification_tenure) {
+                if (no_improve_count >= this->params_.non_improving_episodes_before_growth) {
                     tabu_.grow_extra();
                     no_improve_count = 0;
                 }
@@ -231,12 +231,12 @@ class ImprovingTabuSearch : public BacktrackingDiveAlgorithm<ResourceType, Label
         detail::DiveEnd dive_to_sink() {
             // A single dive can enumerate exponentially many partial paths
             // between main_loop()'s per-iteration checks — and each extension
-            // allocates a label — so poll should_stop() and the memory limit
+            // allocates a label — so poll should_end_loop() and the memory limit
             // every 4096 steps.
             size_t steps = 0;
             while (!this->path_.empty()) {
                 if ((++steps & 0xFFFU) == 0 &&
-                    (this->should_stop() || this->memory_limit_.is_exceeded())) {
+                    (this->should_end_loop() || this->memory_limit_.is_exceeded())) {
                     return detail::DiveEnd::Stopped;
                 }
                 auto* current = this->path_.back().first;

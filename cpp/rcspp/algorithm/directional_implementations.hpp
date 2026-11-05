@@ -10,10 +10,12 @@
 #include <utility>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/bidirectional_dominance_algorithm.hpp"
 #include "rcspp/algorithm/dominance_algorithm.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
+#include "rcspp/algorithm/solve_result.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
 #include "rcspp/utils/utils.hpp"
 
