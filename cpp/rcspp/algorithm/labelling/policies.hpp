@@ -6,11 +6,13 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <list>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/graph/arc.hpp"
 #include "rcspp/label/label.hpp"
@@ -46,13 +48,28 @@ enum class ExtensionOutcome : std::uint8_t {
 
 /// @brief The rule that decides whether a new label is kept at its node.
 enum class AdmissionRule : std::uint8_t {
-    Exact,  ///< dominance: a label dominated at its node is dropped
+    Exact,    ///< dominance: a label dominated at its node is dropped
+    Relaxed,  ///< dominance over the components a mask leaves in: more labels are dropped
+    KBest,    ///< dominance, then at most k labels at each node, the cheapest
 };
 
 /// @brief What an admission rule reads besides the candidate and its node. Built once per solve
 ///        from the params.
 struct AdmissionContext {
+        /// @brief No limit on the labels a node keeps under @c KBest.
+        static constexpr size_t kAllLabels = std::numeric_limits<size_t>::max();
+
         AdmissionRule rule = AdmissionRule::Exact;
+        /// @c Relaxed: the components left out of dominance; none, or a mask that leaves nothing
+        /// out: dominance is exact.
+        const DominanceMask* dominance_mask = nullptr;
+        /// @c KBest: the most labels a node keeps; @ref kAllLabels: every label dominance keeps.
+        size_t k = kAllLabels;
+
+        /// @brief The mask @c Relaxed compares over, or none when it would leave nothing out.
+        [[nodiscard]] const DominanceMask* relaxed_mask() const {
+            return dominance_mask != nullptr && !dominance_mask->empty() ? dominance_mask : nullptr;
+        }
 };
 
 /// @brief One node's container, as an admission rule sees it.
@@ -75,6 +92,27 @@ class NodeView {
             container_->remove_dominated_labels(label);
         }
 
+        /// @brief Whether a label at the node dominates @p label over the components @p mask
+        ///        leaves in.
+        template <typename ResourceType>
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& label,
+                                        const DominanceMask& mask) const {
+            return container_->is_dominated(label, mask);
+        }
+
+        /// @brief Removes from the node the labels @p label dominates over the components @p mask
+        ///        leaves in, marking them dominated.
+        template <typename ResourceType>
+        void evict_dominated_by(const Label<ResourceType>& label, const DominanceMask& mask) {
+            container_->remove_dominated_labels(label, mask);
+        }
+
+        /// @brief Removes the node's costliest label, marking it dominated, when it costs more
+        ///        than @p cost.
+        ///
+        /// @return Whether a label was removed.
+        bool evict_costliest_above(double cost) { return container_->remove_costliest_above(cost); }
+
         /// @brief The labels stored at the node.
         [[nodiscard]] size_t size() const { return container_->get_labels().size(); }
 
@@ -92,6 +130,18 @@ struct EmptyNodeView {
 
         template <typename ResourceType>
         void evict_dominated_by(const Label<ResourceType>& /*label*/) {}
+
+        template <typename ResourceType>
+        [[nodiscard]] bool is_dominated(const Label<ResourceType>& /*label*/,
+                                        const DominanceMask& /*mask*/) const {
+            return false;
+        }
+
+        template <typename ResourceType>
+        void evict_dominated_by(const Label<ResourceType>& /*label*/,
+                                const DominanceMask& /*mask*/) {}
+
+        static bool evict_costliest_above(double /*cost*/) { return false; }
 
         [[nodiscard]] static size_t size() { return 0; }
 };
@@ -115,17 +165,32 @@ concept Admission = requires(const AdmissionType admission, const Label<Resource
     { AdmissionType::exact(ctx) } -> std::same_as<bool>;
 };
 
-/// @brief Dominance, by the rule its context names: a candidate is kept unless a label at its
-///        node dominates it, and evicts the labels it dominates there. The rule is chosen at run
-///        time, so one instantiation serves every rule; the exact rule is the default.
+/// @brief Dominance, by the rule its context names. The rule is chosen at run time, so one
+///        instantiation serves every rule; the exact rule is the default.
+///
+/// - @c Exact: a candidate is kept unless a label at its node dominates it, and evicts the labels
+///   it dominates there.
+/// - @c Relaxed: the same, over the components the context's mask leaves in.
+/// - @c KBest: exact dominance; then, at a node that already holds k labels, the candidate takes
+///   the place of the costliest when it costs less, and is dropped otherwise.
 struct DominanceAdmission {
-        /// @brief Whether the rule keeps every label exact dominance keeps.
+        /// @brief Whether the rule keeps every label exact dominance keeps: @c Exact does, and
+        ///        the others at their limit (a mask that leaves nothing out, no limit on k).
         [[nodiscard]] static bool exact(const AdmissionContext& ctx) {
-            return ctx.rule == AdmissionRule::Exact;
+            switch (ctx.rule) {
+                case AdmissionRule::Exact:
+                    return true;
+                case AdmissionRule::Relaxed:
+                    return ctx.relaxed_mask() == nullptr;
+                case AdmissionRule::KBest:
+                    return ctx.k == AdmissionContext::kAllLabels;
+            }
+            return true;
         }
 
-        /// @brief Whether @p candidate is kept at @p node; under the exact rule, the labels it
-        ///        dominates there are evicted when it is.
+        /// @brief Whether @p candidate is kept at @p node; the labels it dominates there (over
+        ///        the components left in, under @c Relaxed) are evicted when it is, and so is the
+        ///        costliest when it takes its place under @c KBest.
         ///
         /// @param candidate The extended label, feasible and not yet stored.
         /// @param node      The view of the node it would be stored at.
@@ -134,15 +199,23 @@ struct DominanceAdmission {
         template <typename ResourceType, typename NodeViewType>
         bool admit(const Label<ResourceType>& candidate, NodeViewType& node,
                    const AdmissionContext& ctx) const {
-            switch (ctx.rule) {
-                case AdmissionRule::Exact:
-                    if (node.is_dominated(candidate)) {
+            if (ctx.rule == AdmissionRule::Relaxed) {
+                if (const DominanceMask* mask = ctx.relaxed_mask()) {
+                    if (node.is_dominated(candidate, *mask)) {
                         return false;
                     }
-                    node.evict_dominated_by(candidate);
+                    node.evict_dominated_by(candidate, *mask);
                     return true;
+                }
             }
-            return true;
+            if (node.is_dominated(candidate)) {
+                return false;
+            }
+            node.evict_dominated_by(candidate);
+            // A node holds at most k labels, so a candidate that evicted one always finds room:
+            // no candidate evicts and is then dropped.
+            return ctx.rule != AdmissionRule::KBest || node.size() < ctx.k ||
+                   node.evict_costliest_above(candidate.get_cost());
         }
 };
 

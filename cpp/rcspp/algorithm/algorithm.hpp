@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/arc_mask.hpp"
+#include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/label_buckets.hpp"
 #include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/proof_record.hpp"
@@ -222,11 +223,20 @@ struct AlgorithmBaseParams {
                     "is set to true. return_dominated_solutions will not have any effects, set "
                     "max_solutions to a lower value.\n");
             }
+            check_admission();
         }
 
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((max_solutions < kNoLimit) || (max_extended_labels_per_node < kNoLimit) ||
-                    std::isfinite(timeout_s));
+                    std::isfinite(timeout_s) || admission_is_relaxed());
+        }
+
+        /// @brief Whether the admission rule may drop a label exact dominance keeps: `Relaxed`
+        ///        with a component left out, or `KBest` with a limit.
+        [[nodiscard]] bool admission_is_relaxed() const {
+            return (admission_rule == parts::AdmissionRule::Relaxed &&
+                    !dominance_ignored_components.empty()) ||
+                   (admission_rule == parts::AdmissionRule::KBest && admission_k < kNoLimit);
         }
 
         // stop after finding this many solutions (not going to optimality)
@@ -311,6 +321,44 @@ struct AlgorithmBaseParams {
         /// the memory limit as well.
         bool join_after_early_stop = true;
 
+        // ── Admission parameters ────────────────────────────────────────────
+
+        /// @brief The rule that decides whether a new label is kept at its node: exact dominance
+        ///        by default.
+        ///
+        /// - `Relaxed` leaves @ref dominance_ignored_components out of dominance: two labels that
+        ///   differ only there compare as if they were equal there, so labels are dropped that an
+        ///   exact search keeps.
+        /// - `KBest` keeps, after exact dominance, at most @ref admission_k labels at each node,
+        ///   the cheapest: at a full node, a candidate takes the place of the costliest label when
+        ///   it costs less, and is dropped otherwise.
+        ///
+        /// Either is a heuristic. Every path returned is feasible and correctly priced, since
+        /// feasibility and the cost never read dominance, but the optimum may be missed, and the
+        /// solve is not proven (`ProofLoss::RelaxedAdmission`), unless the rule is at its limit:
+        /// no component left out, no limit on k. Honoured by every labelling search (`Simple`,
+        /// `Pushing`, `Pulling`, `AStar`), in every direction, and by both sides of a
+        /// bidirectional search; the dives keep every label and ignore it.
+        parts::AdmissionRule admission_rule = parts::AdmissionRule::Exact;
+
+        /// @brief `Relaxed`: the components left out of dominance.
+        ///
+        /// Components are numbered as the model checks' messages number them: type slots in the
+        /// order of the `ResourceGraph`'s template parameters, then registration order within a
+        /// type. Dominance is then tested component by component over the others, as
+        /// `CompositionDominanceFunction` does, whatever composition dominance function the model
+        /// uses; with `LabelBuckets`, leaving out the bucket or sort resource weakens the
+        /// relaxation, since the buckets' early exits assume those resources order dominance.
+        /// Naming a component the model does not have throws `std::invalid_argument` when the
+        /// solve starts. Naming the bidirectional clock turns the half-way bound off, since a
+        /// dominator may then sit past `H`.
+        std::set<size_t> dominance_ignored_components;
+
+        /// @brief `KBest`: the most labels each node keeps, at least 1 (0 throws
+        ///        `std::invalid_argument` when the solve starts). With no limit, the default,
+        ///        every label dominance keeps is kept.
+        size_t admission_k = kNoLimit;
+
         // ── Memory-limit parameters ─────────────────────────────────────────
 
         /// @brief Hard upper bound on process RSS in gibibytes (GiB); 0 means unlimited.
@@ -388,6 +436,34 @@ struct AlgorithmBaseParams {
         template <typename LabelContainerType>
         AlgorithmParams<LabelContainerType> with_container(
             LabelContainerType container = LabelContainerType{}) const;
+
+    private:
+        /// @brief Warns about an admission field the chosen rule does not read, and about a rule
+        ///        set at its limit, where it is exact.
+        void check_admission() const {
+            if (admission_rule != parts::AdmissionRule::Relaxed &&
+                !dominance_ignored_components.empty()) {
+                LOG_WARN(
+                    "AlgorithmParams: dominance_ignored_components is set but admission_rule is "
+                    "not Relaxed. dominance_ignored_components will not have any effects.\n");
+            }
+            if (admission_rule != parts::AdmissionRule::KBest && admission_k < kNoLimit) {
+                LOG_WARN(
+                    "AlgorithmParams: admission_k is set but admission_rule is not KBest. "
+                    "admission_k will not have any effects.\n");
+            }
+            if (admission_rule == parts::AdmissionRule::Relaxed &&
+                dominance_ignored_components.empty()) {
+                LOG_WARN(
+                    "AlgorithmParams: admission_rule is Relaxed but dominance_ignored_components "
+                    "is empty, so dominance is exact.\n");
+            }
+            if (admission_rule == parts::AdmissionRule::KBest && admission_k >= kNoLimit) {
+                LOG_WARN(
+                    "AlgorithmParams: admission_rule is KBest but admission_k == MAX, so every "
+                    "label dominance keeps is kept.\n");
+            }
+        }
 };
 
 template <typename LabelContainerType>
@@ -630,6 +706,60 @@ class Algorithm {
             if (arc_mask_ != nullptr && !arc_mask_->empty()) {
                 proof_.record(ProofLoss::ArcsMasked);
             }
+            dominance_mask_ = admission_mask(*graph);
+        }
+
+        /// @brief The mask the relaxed rule compares over, sized for @p graph's resource; empty
+        ///        under any other rule. The k-best rule's k is checked too.
+        ///
+        /// @throws std::invalid_argument when `dominance_ignored_components` names a component
+        ///         the model does not have, or when `KBest` would keep no label (`admission_k`
+        ///         0).
+        [[nodiscard]] DominanceMask admission_mask(const Graph<ResourceType>& graph) const {
+            if (params_.admission_rule == parts::AdmissionRule::KBest && params_.admission_k == 0) {
+                throw std::invalid_argument(
+                    "admission_k is 0, so the KBest rule would keep no label; give it at least 1");
+            }
+            const auto& ignored = params_.dominance_ignored_components;
+            if (params_.admission_rule != parts::AdmissionRule::Relaxed || ignored.empty()) {
+                return {};
+            }
+            const size_t count = component_count(graph);
+            if (*ignored.rbegin() >= count) {
+                throw std::invalid_argument(
+                    "dominance_ignored_components names component " +
+                    std::to_string(*ignored.rbegin()) + ", but the model has " +
+                    std::to_string(count) +
+                    " component(s), numbered from 0 in the order of the ResourceGraph's type "
+                    "parameters, then registration order within a type");
+            }
+            DominanceMask mask(count);
+            for (const size_t component : ignored) {
+                mask.ignore(component);
+            }
+            return mask;
+        }
+
+        /// @brief How many components a resource of @p graph has, read off any node's resource.
+        ///
+        /// @return The count: 1 for a resource that is not a composition, 0 when no node carries
+        ///         a resource.
+        [[nodiscard]] static size_t component_count(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node == nullptr || node->resource == nullptr) {
+                    continue;
+                }
+                if constexpr (requires { node->resource->get_components(); }) {
+                    size_t count = 0;
+                    node->resource->for_each_component(
+                        [&count](const auto& /*component*/) { ++count; });
+                    return count;
+                } else {
+                    return 1;
+                }
+            }
+            return 0;
         }
 
         /// @brief Throws unless this algorithm supports the direction its params ask for.
@@ -755,7 +885,11 @@ class Algorithm {
                 .incumbent = &incumbent_,
                 .quota = &quota_,
                 .solutions = &solutions_,
-                .admission = {},
+                .admission = {.rule = params_.admission_rule,
+                              .dominance_mask = &dominance_mask_,
+                              .k = params_.admission_k >= kNoLimit
+                                       ? parts::AdmissionContext::kAllLabels
+                                       : params_.admission_k},
                 .bound = &search.bound,
                 .arc_mask = arc_mask_,
                 .role = role,
@@ -955,6 +1089,7 @@ class Algorithm {
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
         const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
+        DominanceMask dominance_mask_;  ///< the relaxed rule's, built at the start of each solve
 
         /// @brief What this solve lost that its status cannot see; reset at @ref initialize,
         ///        which records a mask that is not empty.
