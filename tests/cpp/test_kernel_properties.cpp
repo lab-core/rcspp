@@ -8,10 +8,13 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -37,6 +40,10 @@ struct Outcome {
         std::multiset<std::string> backward_labels;
         std::map<size_t, size_t> labels_at;           ///< per node position, the labels stored
         std::map<size_t, size_t> backward_labels_at;  ///< per node position, the labels stored
+        /// The label sets without the end-node labels at or above the upper bound, which no
+        /// returned path can be.
+        std::multiset<std::string> labels_in_reach;
+        std::multiset<std::string> backward_labels_in_reach;
         bool proven = false;
         std::string proof_lost_by;
 };
@@ -44,14 +51,15 @@ struct Outcome {
 /// @brief What a row sets in its params before it solves: the admission rule, say.
 using Adjust = std::function<void(rcspp::AlgorithmBaseParams&)>;
 
-/// @brief Solves @p c with an @p AlgorithmType in @p direction, with no bound and the labels
-///        kept, with @p mask when one is given, and the params @p adjust sets; expects every
-///        returned path to replay, and returns what it found.
+/// @brief Solves @p c with an @p AlgorithmType in @p direction, under @p upper_bound (none by
+///        default) and with the labels kept, with @p mask when one is given, and the params
+///        @p adjust sets; expects every returned path to replay, and returns what it found.
 ///
 /// The label sets hold `"<node position> | <resource>"` for every stored label of finite cost.
 template <typename AlgorithmType>
 Outcome solve_row(const parity::Case& c, SearchDirection direction,
-                  const rcspp::ArcMask* mask = nullptr, const Adjust& adjust = {}) {
+                  const rcspp::ArcMask* mask = nullptr, const Adjust& adjust = {},
+                  double upper_bound = parity::kInf) {
     auto graph = c.build();
     rcspp::AlgorithmParams<List> params;
     params.direction = direction;
@@ -65,18 +73,26 @@ Outcome solve_row(const parity::Case& c, SearchDirection direction,
     }
     parity::Observed<AlgorithmType> algorithm(&graph->get_resource_factory(), params);
     algorithm.set_arc_mask(mask);
-    const auto result = graph->solve(&algorithm, parity::kInf, /*preprocess=*/false);
+    const auto result = graph->solve(&algorithm, upper_bound, /*preprocess=*/false);
     Outcome out;
     out.solutions = result.solutions;
     out.proven = result.proven;
     out.proof_lost_by = result.proof_lost_by;
-    algorithm.visit_labels([&out](bool backward, size_t pos, const rcspp::Label<Composed>& label) {
+    algorithm.visit_labels([&out, upper_bound, direction](bool backward,
+                                                          size_t pos,
+                                                          const rcspp::Label<Composed>& label) {
         ++(backward ? out.backward_labels_at : out.labels_at)[pos];
         if (std::isinf(label.get_cost())) {
             return;
         }
-        auto& set = backward ? out.backward_labels : out.labels;
-        set.insert(std::to_string(pos) + " | " + label.get_resource().to_string());
+        const std::string entry = std::to_string(pos) + " | " + label.get_resource().to_string();
+        (backward ? out.backward_labels : out.labels).insert(entry);
+        const auto* node = label.get_end_node();
+        // A backward label, of either kind of search, ends at a source.
+        const bool to_sources = backward || direction == SearchDirection::Backward;
+        if (!((to_sources ? node->source : node->sink) && label.get_cost() >= upper_bound)) {
+            (backward ? out.backward_labels_in_reach : out.labels_in_reach).insert(entry);
+        }
     });
     for (const auto& solution : result.solutions) {
         EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "") << c.name;
@@ -88,12 +104,15 @@ Outcome solve_row(const parity::Case& c, SearchDirection direction,
 struct Row {
         std::string name;
         SearchDirection direction;
-        std::function<Outcome(const parity::Case&, const rcspp::ArcMask*, const Adjust&)> run;
+        std::function<Outcome(const parity::Case&, const rcspp::ArcMask*, const Adjust&, double)>
+            run;
 
-        /// @brief Solves @p c, with @p mask when one is given, and the params @p adjust sets.
+        /// @brief Solves @p c, with @p mask when one is given, the params @p adjust sets, and
+        ///        @p upper_bound.
         [[nodiscard]] Outcome solve(const parity::Case& c, const rcspp::ArcMask* mask = nullptr,
-                                    const Adjust& adjust = {}) const {
-            return run(c, mask, adjust);
+                                    const Adjust& adjust = {},
+                                    double upper_bound = parity::kInf) const {
+            return run(c, mask, adjust, upper_bound);
         }
 };
 
@@ -103,27 +122,34 @@ Row row(const std::string& name, SearchDirection direction) {
     return {
         name + " " + std::string(rcspp::to_string(direction)),
         direction,
-        [direction](const parity::Case& c, const rcspp::ArcMask* mask, const Adjust& adjust) {
+        [direction](const parity::Case& c,
+                    const rcspp::ArcMask* mask,
+                    const Adjust& adjust,
+                    double upper_bound) {
             switch (direction) {
                 case SearchDirection::Forward:
                     return solve_row<test_util::Labelling<Strategy, Composed, List>>(c,
                                                                                      direction,
                                                                                      mask,
-                                                                                     adjust);
+                                                                                     adjust,
+                                                                                     upper_bound);
                 case SearchDirection::Backward:
                     return solve_row<
                         test_util::Labelling<Strategy, Composed, List, rcspp::BackwardDirection>>(
                         c,
                         direction,
                         mask,
-                        adjust);
+                        adjust,
+                        upper_bound);
                 case SearchDirection::Bidirectional:
                     break;
             }
-            return solve_row<test_util::BidirectionalLabelling<Strategy, Composed, List>>(c,
-                                                                                          direction,
-                                                                                          mask,
-                                                                                          adjust);
+            return solve_row<test_util::BidirectionalLabelling<Strategy, Composed, List>>(
+                c,
+                direction,
+                mask,
+                adjust,
+                upper_bound);
         }};
 }
 
@@ -521,6 +547,150 @@ TEST(KernelProperties, AnAdmissionRuleTheModelCannotHonourIsRefused) {
                  std::invalid_argument);
     params.admission_rule = rcspp::parts::AdmissionRule::KBest;
     params.admission_k = 0;
+    EXPECT_THROW((void)graph->solve<rcspp::strategy::Simple>(params, /*preprocess=*/false),
+                 std::invalid_argument);
+}
+
+namespace kernel_properties {
+
+/// @brief Turns the threshold prune on.
+inline void threshold(rcspp::AlgorithmBaseParams& params) {
+    params.threshold_pruning = true;
+}
+
+/// @brief The solutions' paths, in a set: the same set, whatever order they were found in.
+inline std::multiset<std::vector<size_t>> paths_of(const Outcome& out) {
+    std::multiset<std::vector<size_t>> paths;
+    for (const auto& solution : out.solutions) {
+        paths.insert(solution.path_arc_ids);
+    }
+    return paths;
+}
+
+/// @brief Upper bounds to solve @p c under: none; and, when the unbounded solve returns paths,
+///        the median of their costs, so that some are returned and some are not.
+inline std::vector<double> upper_bounds(const Outcome& unbounded) {
+    std::vector<double> bounds{parity::kInf};
+    std::vector<double> costs;
+    for (const auto& solution : unbounded.solutions) {
+        costs.push_back(solution.cost);
+    }
+    if (!costs.empty()) {
+        std::ranges::sort(costs);
+        bounds.push_back(costs[costs.size() / 2]);
+    }
+    return bounds;
+}
+
+}  // namespace kernel_properties
+
+/// @brief The threshold prune changes no returned path, and keeps no label the search without it
+///        does not keep, on every exact search, with no upper bound and with one; with one, it
+///        keeps fewer labels somewhere.
+///
+/// End-node labels at or above the upper bound are left out of the comparison: the prune can
+/// leave one there that the search without it saw dominated by a label it never draws. No path
+/// returned is either.
+TEST(KernelProperties, ThresholdPruningReturnsTheSamePathsAndKeepsNoOtherLabel) {
+    namespace kp = kernel_properties;
+    const auto rows = kp::rows();
+    size_t fewer = 0;
+    for (const auto& c : kp::property_cases()) {
+        for (const double upper_bound : kp::upper_bounds(rows.front().solve(c))) {
+            for (const auto& row : rows) {
+                const std::string where =
+                    c.name + ", " + row.name + ", upper bound " + std::to_string(upper_bound);
+                const auto expected = row.solve(c, nullptr, {}, upper_bound);
+                const auto out = row.solve(c, nullptr, kp::threshold, upper_bound);
+                EXPECT_EQ(kp::paths_of(out), kp::paths_of(expected)) << where;
+                EXPECT_TRUE(std::ranges::includes(expected.labels_in_reach, out.labels_in_reach))
+                    << where;
+                EXPECT_TRUE(std::ranges::includes(expected.backward_labels_in_reach,
+                                                  out.backward_labels_in_reach))
+                    << where;
+                EXPECT_EQ(out.proven, expected.proven) << where;
+                if (out.labels.size() + out.backward_labels.size() <
+                    expected.labels.size() + expected.backward_labels.size()) {
+                    ++fewer;
+                }
+            }
+        }
+    }
+    EXPECT_GT(fewer, 0U) << "the prune never dropped a label";
+}
+
+/// @brief Greedy with no budget, and the threshold prune, returns the paths it returns without
+///        it, under the median upper bound.
+TEST(KernelProperties, ThresholdPruningKeepsGreedysPaths) {
+    namespace kp = kernel_properties;
+    for (const auto& c : kp::property_cases()) {
+        for (const double upper_bound : kp::upper_bounds(kp::rows().front().solve(c))) {
+            const auto solve = [&c, upper_bound](bool pruning) {
+                auto graph = c.build();
+                rcspp::AlgorithmParams<kp::List> params;
+                params.threshold_pruning = pruning;
+                auto greedy = graph->create_algorithm<rcspp::strategy::Greedy>(params);
+                kp::Outcome out;
+                out.solutions =
+                    graph->solve(greedy.get(), upper_bound, /*preprocess=*/false).solutions;
+                return out;
+            };
+            EXPECT_EQ(kp::paths_of(solve(true)), kp::paths_of(solve(false)))
+                << c.name << ", upper bound " << upper_bound;
+        }
+    }
+}
+
+/// @brief On a graph with a negative-cost cycle, the completion bound is -infinity everywhere,
+///        and the threshold prune drops nothing: every exact search ends with the labels it ends
+///        with without it.
+TEST(KernelProperties, ANegativeCycleLeavesThresholdPruningNothingToDrop) {
+    namespace kp = kernel_properties;
+    std::optional<parity::Case> cyclic;
+    for (uint32_t seed = 1; seed <= 40 && !cyclic; ++seed) {
+        test_util::InstanceConfig config;
+        config.num_nodes = 10;
+        config.with_time_window = true;
+        config.mixed_sign_costs = true;
+        config.back_arc_density = 0.3;
+        config.seed = seed;
+        const auto probe = test_util::build_instance(config);
+        const auto bound = rcspp::detail::completion_bounds<rcspp::ForwardDirection>(*probe.graph);
+        if (!bound.by_position.empty() && std::isinf(bound.by_position.front()) &&
+            bound.by_position.front() < 0) {
+            cyclic = parity::Case{"cyclic " + test_util::describe(config),
+                                  [config] { return test_util::build_instance(config).graph; },
+                                  probe.clock_index,
+                                  probe.clock_upper_bound / 2.0};
+        }
+    }
+    ASSERT_TRUE(cyclic.has_value()) << "no seed drew a negative-cost cycle";
+    for (const auto& row : kp::rows()) {
+        const auto expected = row.solve(*cyclic, nullptr, {}, 0.0);
+        const auto out = row.solve(*cyclic, nullptr, kp::threshold, 0.0);
+        EXPECT_EQ(out.labels, expected.labels) << cyclic->name << ", " << row.name;
+        EXPECT_EQ(out.backward_labels, expected.backward_labels)
+            << cyclic->name << ", " << row.name;
+        EXPECT_EQ(kp::paths_of(out), kp::paths_of(expected)) << cyclic->name << ", " << row.name;
+    }
+}
+
+/// @brief The threshold prune on a model whose cost is not additive (a value cost under a
+///        threshold extension) is refused when the solve starts.
+TEST(KernelProperties, ThresholdPruningRefusesACostThatIsNotAdditive) {
+    using rcspp::RealResource;
+    auto graph = std::make_unique<rcspp::ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(
+        std::make_unique<rcspp::CapacityExtensionFunction<RealResource>>(10.0),
+        std::make_unique<rcspp::MinMaxFeasibilityFunction<RealResource>>(0.0, 10.0),
+        std::make_unique<rcspp::ValueCostFunction<RealResource>>(),
+        std::make_unique<rcspp::ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1, /*source=*/false, /*sink=*/true);
+    graph->add_arc<RealResource>({1.0}, 0, 1, 1.0);
+    rcspp::AlgorithmParams<kernel_properties::List> params;
+    EXPECT_NO_THROW((void)graph->solve<rcspp::strategy::Simple>(params, /*preprocess=*/false));
+    params.threshold_pruning = true;
     EXPECT_THROW((void)graph->solve<rcspp::strategy::Simple>(params, /*preprocess=*/false),
                  std::invalid_argument);
 }
