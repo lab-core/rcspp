@@ -10,8 +10,7 @@
 #include <utility>
 
 #include "rcspp/algorithm/algorithm.hpp"
-#include "rcspp/algorithm/bidirectional_dominance_algorithm.hpp"
-#include "rcspp/algorithm/dominance_algorithm.hpp"
+#include "rcspp/algorithm/labelling/bidirectional_labelling_algorithm.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/simple_dominance_algorithm.hpp"
 #include "rcspp/resource/concrete/numerical_resource.hpp"
@@ -33,7 +32,7 @@ struct DirectionalImplementations {
 
 /// @brief @c SimpleDominanceAlgorithm also searches backward, as
 ///        @ref BackwardSimpleDominanceAlgorithm, and bidirectionally, as
-///        @ref BidirectionalDominanceAlgorithm.
+///        @ref BidirectionalLabellingAlgorithm.
 template <>
 struct DirectionalImplementations<SimpleDominanceAlgorithm> {
         static constexpr bool has_backward = true;
@@ -42,7 +41,7 @@ struct DirectionalImplementations<SimpleDominanceAlgorithm> {
         static constexpr bool has_bidirectional = true;
         template <typename ResourceType, typename LabelContainerType, typename CriticalResourceType>
         using Bidirectional =
-            BidirectionalDominanceAlgorithm<ResourceType, LabelContainerType, CriticalResourceType>;
+            BidirectionalLabellingAlgorithm<ResourceType, LabelContainerType, CriticalResourceType>;
 };
 
 /// @brief Whether constructor arguments @p Args are exactly one

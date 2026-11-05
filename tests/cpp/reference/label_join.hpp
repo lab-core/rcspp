@@ -1,3 +1,5 @@
+// Frozen copy of cpp/rcspp/algorithm/label_join.hpp at 9c80f174,
+// for the parity tests. Do not edit.
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
@@ -15,12 +17,12 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
-#include "rcspp/algorithm/half_way_policy.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
 #include "rcspp/label/label.hpp"
+#include "reference/half_way_policy.hpp"
 
-namespace rcspp {
+namespace rcspp::reference {
 
 /// @brief What one join pass may pair and keep.
 ///
@@ -149,13 +151,10 @@ class Joiner {
                         }
 
                         auto arc_ids = joined_path(graph, *forward, *backward);
-                        // The backward chain ends at the sink its start label sat on: the last
-                        // arc's destination (a boundary label has an in-arc, so there is one).
-                        const size_t end_node_id = graph.get_arc(arc_ids.back())->destination->id;
                         if (capped) {
-                            cheapest.offer(cost, std::move(arc_ids), end_node_id);
+                            cheapest.offer(cost, std::move(arc_ids), terminal_node_id(*backward));
                         } else {
-                            on_solution(cost, std::move(arc_ids), end_node_id);
+                            on_solution(cost, std::move(arc_ids), terminal_node_id(*backward));
                         }
                         best_cost_upper_bound = std::min(best_cost_upper_bound, cost);
                     }
@@ -305,10 +304,32 @@ class Joiner {
         [[nodiscard]] static std::vector<size_t> joined_path(const GraphType& graph,
                                                              const Label<ResourceType>& forward,
                                                              const Label<ResourceType>& backward) {
-            std::vector<size_t> arc_ids = prefix_arc_ids(forward);
-            append_suffix_arc_ids(backward, &arc_ids);
+            std::vector<size_t> arc_ids;
+            for (const Label<ResourceType>* current = &forward;
+                 current != nullptr && current->get_in_arc() != nullptr;
+                 current = current->prev_label) {
+                arc_ids.push_back(current->get_in_arc()->id);
+            }
+            std::ranges::reverse(arc_ids);
+
+            // Already in forward order.
+            for (const Label<ResourceType>* current = &backward;
+                 current != nullptr && current->get_out_arc() != nullptr;
+                 current = current->prev_label) {
+                arc_ids.push_back(current->get_out_arc()->id);
+            }
+
             assert(is_contiguous(graph, arc_ids) && "joined path is not contiguous");
             return arc_ids;
+        }
+
+        /// @brief The node a joined path ends at: where the backward chain runs out, i.e. a sink.
+        [[nodiscard]] static size_t terminal_node_id(const Label<ResourceType>& backward) {
+            const Label<ResourceType>* current = &backward;
+            while (current->prev_label != nullptr) {
+                current = current->prev_label;
+            }
+            return current->get_end_node()->id;
         }
 
     public:
@@ -332,4 +353,4 @@ class Joiner {
         }
 };
 
-}  // namespace rcspp
+}  // namespace rcspp::reference
