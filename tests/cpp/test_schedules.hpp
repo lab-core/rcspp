@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -617,6 +618,212 @@ TEST(CompletionBounds, FillTheBoundFromOneBellmanFordRun) {
     cyclic->sort_nodes();
     EXPECT_EQ(detail::completion_bounds<ForwardDirection>(*cyclic).by_position,
               (std::vector<double>(4, -std::numeric_limits<double>::infinity())));
+}
+
+namespace dfs_test {
+
+using Composed = ResourceTypeComposition<RealResource>;
+using Dfs = parts::DfsSchedule<Composed>;
+
+static_assert(parts::LabelSchedule<Dfs, Composed>);
+static_assert(parts::SettlesChildren<Dfs, Composed>);
+static_assert(!parts::SettlesChildren<parts::FifoSchedule<Composed>, Composed>);
+static_assert(!parts::reads_bound_v<Dfs> &&
+              parts::reads_bound_v<parts::DfsSchedule<Composed, parts::CompletionKey>>);
+
+/// @brief Drops every child costing 2 or more.
+struct DropsTheDear {
+        void select(std::vector<parts::StoredLabel<Composed>>& children,
+                    std::vector<parts::StoredLabel<Composed>>& rejected,
+                    const detail::SearchContext<Composed>& /*ctx*/) const {
+            for (const auto& child : children) {
+                if (child.label->get_cost() >= 2.0) {
+                    rejected.push_back(child);
+                }
+            }
+            std::erase_if(children,
+                          [](const auto& child) { return child.label->get_cost() >= 2.0; });
+        }
+};
+
+/// @brief The nodes of the labels a search extends, in the order it extends them.
+inline std::vector<size_t>& extended() {
+    static std::vector<size_t> nodes;
+    return nodes;
+}
+
+/// @brief Records the node of each label extended, once per label.
+struct RecordsTheLabelsExtended {
+        template <typename ResourceType>
+        void on_extension(const Label<ResourceType>& label, const Arc<ResourceType>& /*arc*/,
+                          parts::ExtensionOutcome /*outcome*/) {
+            if (last_ != &label) {
+                extended().push_back(label.get_end_node()->id);
+                last_ = &label;
+            }
+        }
+        const void* last_ = nullptr;
+};
+
+/// @brief A dive: depth first, every label kept, nothing behind; it records what it extends.
+struct Dive {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::DfsSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::KeepAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        template <typename ResourceType, typename Direction>
+        using observer = RecordsTheLabelsExtended;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
+};
+
+}  // namespace dfs_test
+
+/// @brief Labels pushed and not settled (the start labels) come out in the order pushed; a label's
+///        children, once settled, come out next, cheapest first and in their order on ties, each
+///        child's own children before its next sibling.
+TEST(DfsSchedule, HandsOutEachLabelsChildrenCheapestFirstBeforeTheirSiblings) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    dfs_test::Dfs dfs;
+    dfs.initialize(f.ctx);
+    EXPECT_EQ(dfs.next(f.ctx).label, nullptr);
+    dfs.push(f.label(0, 0.0));
+    dfs.push(f.label(0, 9.0));
+    EXPECT_EQ(dfs.size(), 2U);
+    EXPECT_EQ(dfs.next(f.ctx).label->get_cost(), 0.0);
+
+    dfs.push(f.label(1, 3.0));
+    dfs.push(f.label(1, 1.0));
+    dfs.push(f.label(2, 1.0));
+    dfs.settle(f.ctx);
+    EXPECT_EQ(dfs.size(), 4U);
+    const auto first = dfs.next(f.ctx);
+    EXPECT_EQ(first.label->get_end_node()->id, 1U);
+    EXPECT_EQ(first.label->get_cost(), 1.0);
+
+    dfs.push(f.label(2, 0.5));
+    dfs.settle(f.ctx);
+    EXPECT_EQ(bft::drain(&dfs, f.ctx),
+              (std::vector<std::pair<size_t, double>>{{2, 0.5}, {2, 1.0}, {1, 3.0}, {0, 9.0}}));
+}
+
+/// @brief The children the filter drops are released when they are settled; the others keep
+///        their order.
+TEST(DfsSchedule, ReleasesTheChildrenTheFilterDrops) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    parts::DfsSchedule<dfs_test::Composed, parts::CostKey, dfs_test::DropsTheDear> dfs;
+    dfs.initialize(f.ctx);
+    for (const double cost : {2.0, 1.5, 4.0, 0.5}) {
+        dfs.push(f.label(1, cost));
+    }
+    dfs.settle(f.ctx);
+    EXPECT_EQ(f.in_use(), 2U);
+    EXPECT_EQ(bft::drain(&dfs, f.ctx),
+              (std::vector<std::pair<size_t, double>>{{1, 0.5}, {1, 1.5}}));
+}
+
+/// @brief Over the quota a label is stored aside until the next phase, or, on a bidirectional
+///        side, counted and dropped; a dominated one is released.
+TEST(DfsSchedule, CutsWhatTheQuotaCutsAsTheRoleSays) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    for (const auto role : {detail::Role::Single, detail::Role::BidirectionalSide}) {
+        st::Fixture f(role);
+        f.quota = 1;
+        dfs_test::Dfs dfs;
+        dfs.initialize(f.ctx);
+        dfs.push(f.label(1, 2.0));
+        dfs.push(f.label(1, 1.0));
+        dfs.push(f.label(1, 0.5, /*dominated=*/true));
+        dfs.settle(f.ctx);
+        EXPECT_EQ(bft::drain(&dfs, f.ctx), (std::vector<std::pair<size_t, double>>{{1, 1.0}}));
+        EXPECT_EQ(f.in_use(), 2U) << "the dominated label is released";
+        dfs.prepare_next_phase(f.ctx);
+        if (role == detail::Role::Single) {
+            EXPECT_EQ(f.abandoned, 0U);
+            EXPECT_EQ(bft::drain(&dfs, f.ctx), (std::vector<std::pair<size_t, double>>{{1, 2.0}}));
+        } else {
+            EXPECT_EQ(f.abandoned, 1U);
+            EXPECT_EQ(dfs.size(), 0U);
+        }
+    }
+}
+
+/// @brief A trim keeps the labels to be handed out first, and cuts those a dive would reach last;
+///        below the cap nothing is trimmed; clear forgets everything.
+TEST(DfsSchedule, ATrimCutsTheLabelsReachedLast) {
+    namespace st = schedules_test;
+    namespace bft = best_first_test;
+    st::Fixture f;
+    dfs_test::Dfs dfs;
+    dfs.initialize(f.ctx);
+    for (const double cost : {1.0, 2.0, 3.0, 4.0}) {
+        dfs.push(f.label(1, cost));
+    }
+    dfs.trim(f.ctx, 1);  // one per node, three nodes
+    EXPECT_EQ(dfs.size(), 3U);
+    EXPECT_EQ(bft::drain(&dfs, f.ctx),
+              (std::vector<std::pair<size_t, double>>{{1, 1.0}, {1, 2.0}, {1, 3.0}}));
+    size_t erased = 0;
+    dfs.release_stored_aside(f.ctx, st::CountingErase{&erased});
+    EXPECT_EQ(erased, 1U);
+    EXPECT_EQ(f.in_use(), 3U);
+
+    dfs.push(f.label(1, 5.0));
+    dfs.trim(f.ctx, 1);
+    EXPECT_EQ(dfs.size(), 1U) << "under the cap: nothing trimmed";
+    dfs.clear();
+    EXPECT_EQ(dfs.size(), 0U);
+    EXPECT_EQ(dfs.next(f.ctx).label, nullptr);
+}
+
+/// @brief A dive takes the cheapest child first, goes back to the last label still waiting at a
+///        dead end, records each path to the sink when it takes its label, and keeps nothing
+///        behind: once the solve ends, every label is back in the pool.
+TEST(Search, ADiveTakesTheCheapestChildFirstAndKeepsNothingBehind) {
+    auto graph = std::make_unique<ResourceGraph<RealResource>>();
+    graph->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                      std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                      std::make_unique<ValueCostFunction<RealResource>>(),
+                                      std::make_unique<ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    for (size_t node = 1; node <= 4; ++node) {
+        graph->add_node(node);
+    }
+    graph->add_node(5, /*source=*/false, /*sink=*/true);
+    // 0 -> 2 is cheaper than 0 -> 1; from 2, 3 is cheaper than 4, a dead end.
+    for (const auto& [origin, destination, cost] :
+         std::vector<std::tuple<size_t, size_t, double>>{{0, 1, 2.0},
+                                                         {0, 2, 1.0},
+                                                         {2, 3, 1.0},
+                                                         {2, 4, 3.0},
+                                                         {3, 5, 1.0},
+                                                         {1, 5, 1.0}}) {
+        graph->add_arc<RealResource>({cost}, origin, destination, cost);
+    }
+    AlgorithmParams<LabelList<dfs_test::Composed>> params;
+    params.release_after_solve = false;
+    auto dive = graph->create_algorithm<dfs_test::Dive>(params);
+    dfs_test::extended().clear();
+    const SolveResult result = graph->solve(dive.get(),
+                                            std::numeric_limits<double>::infinity(),
+                                            /*preprocess=*/false);
+    EXPECT_EQ(dfs_test::extended(), (std::vector<size_t>{0, 2, 3, 1}));
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+    ASSERT_EQ(result.solutions.size(), 2U);
+    EXPECT_EQ(result.solutions[0].cost, 3.0);
+    EXPECT_EQ(result.solutions[1].cost, 3.0);
+    EXPECT_EQ(dive->get_number_of_extended_labels(), 6U);
+    const auto& pool = dive->get_label_pool();
+    EXPECT_EQ(pool.get_nb_available_labels(), pool.get_nb_total_labels())
+        << "a label is left behind";
+    EXPECT_TRUE(pool.check_ref_count_consistency());
 }
 
 namespace node_queues_test {

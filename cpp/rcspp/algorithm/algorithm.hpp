@@ -231,7 +231,8 @@ struct AlgorithmBaseParams {
         // solutions
         size_t max_phases = 1;
 
-        // maximum number of iterations/loops (for algorithms that use it)
+        // maximum number of iterations: labels taken by a labelling search (Greedy included),
+        // episodes by the tabu searches and diversification
         size_t max_iterations = kNoLimit;
 
         // wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s
@@ -417,7 +418,7 @@ class Algorithm {
          * @c release_after_solve (the default) empties the label queues: reading
          * @ref waiting_labels afterwards would answer 0 after a timeout or any other early stop.
          * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
-         * paths to try: @c GreedyAlgorithm then enumerated every path, and
+         * paths to try: @c strategy::Greedy then enumerated every path, and
          * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
          * @c DiversificationSearch override it to answer @c false.
          *

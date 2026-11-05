@@ -10,7 +10,7 @@
 #include "instance.hpp"
 #include "instance_reader.hpp"
 #include "rcspp/algorithm/diversification_search.hpp"
-#include "rcspp/algorithm/greedy.hpp"
+#include "rcspp/algorithm/strategies.hpp"
 #include "rcspp/rcspp.hpp"
 #include "solution_output.hpp"
 #include "vrp.hpp"

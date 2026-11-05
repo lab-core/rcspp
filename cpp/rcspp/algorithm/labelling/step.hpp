@@ -67,6 +67,12 @@ bool step_node(SearchType& search, SearchContext<typename SearchType::resource_t
 ///        walks, or drops it), or, for a schedule that visits nodes, visits the next node
 ///        (@ref step_node).
 ///
+/// Once a label is extended, a schedule that settles children (@c parts::SettlesChildren, a
+/// dive's) settles the labels just pushed; and a retention that keeps nothing behind
+/// (@c parts::releases_after_expansion_v, a dive's) has the label released, as it has one the
+/// rule keeps at an end node. Each branch is chosen at compile time: the other searches compile
+/// to the step without them.
+///
 /// An end-node label the rule records goes to @p record; every extension's outcome goes to
 /// @p count.
 ///
@@ -111,6 +117,13 @@ bool step(SearchType& search, SearchContext<typename SearchType::resource_type>&
         search.work += arcs.size();
         for (const auto* arc : arcs) {
             count(search.extend_along(parent, arc, ctx));
+        }
+        if constexpr (parts::SettlesChildren<typename SearchType::schedule_type, ResourceType>) {
+            search.schedule.settle(ctx);
+        }
+        if constexpr (parts::releases_after_expansion_v<typename SearchType::retention_type>) {
+            // Its children pin it: it lives on while one of them waits.
+            ctx.pool->release_with_ref_count(parent);
         }
         return false;
     }

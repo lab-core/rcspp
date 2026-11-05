@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -174,6 +175,34 @@ inline std::vector<Setting> settings() {
     return all;
 }
 
+/// @brief @p draws without a label's second extension, its later places renumbered.
+///
+/// The frozen Greedy extends the last label of a dive a second time when it is a dead end: the
+/// next iteration starts from it, and draws its children again, all infeasible as before. A search
+/// on the labelling kernel extends each label once. The repeat comes right after the first
+/// extension, from the same parent along the same arcs, and draws no label that is extended in
+/// turn, so without it the log is the tree the search built. One extension draws along each arc
+/// once, so a (parent, arc) entry that repeats within a run of entries from the same parent is the
+/// second extension.
+inline std::vector<Draw> without_repeated_extensions(const std::vector<Draw>& draws) {
+    std::vector<Draw> kept;
+    std::vector<size_t> place(draws.size() + 1, 0);  // a draw's place in the log, renumbered
+    std::vector<size_t> run_arcs;                    // the arcs drawn along in the current run
+    for (size_t i = 0; i < draws.size(); ++i) {
+        const Draw& draw = draws[i];
+        if (i == 0 || draws[i - 1].parent != draw.parent) {
+            run_arcs.clear();
+        }
+        if (std::ranges::find(run_arcs, draw.arc_id) != run_arcs.end()) {
+            continue;  // the second extension: its labels are never extended
+        }
+        run_arcs.push_back(draw.arc_id);
+        kept.push_back({place[draw.parent], draw.arc_id});
+        place[i + 1] = kept.size();
+    }
+    return kept;
+}
+
 /// @brief Everything one solve of a dive did that a port must reproduce.
 struct Observation {
         std::vector<Draw> draws;
@@ -206,7 +235,7 @@ std::vector<Observation> observe(const Case& c, const Setting& s, bool finite_bu
         log->clear();
         const rcspp::SolveResult result = graph->solve(algorithm.get(), upper_bound, false);
         auto& o = runs[k];
-        o.draws = *log;
+        o.draws = without_repeated_extensions(*log);
         o.status = result.status;
         for (const auto& solution : result.solutions) {
             o.solutions.push_back(
@@ -219,8 +248,21 @@ std::vector<Observation> observe(const Case& c, const Setting& s, bool finite_bu
     return runs;
 }
 
+/// @brief Whether @p library's status is @p reference's, or the one a search on the labelling
+///        kernel reports for the same run.
+///
+/// When the solution that reaches @c max_solutions is found on the last path, a frozen dive
+/// reports @c MaxSolutions, its path still holding the label, and a search on the kernel
+/// @c Complete, no label waiting, as every labelling search does. Their draws being the same, both
+/// tried every path.
+[[nodiscard]] inline bool same_status(rcspp::AlgorithmStatus reference,
+                                      rcspp::AlgorithmStatus library) {
+    return reference == library || (reference == rcspp::AlgorithmStatus::MaxSolutions &&
+                                    library == rcspp::AlgorithmStatus::Complete);
+}
+
 /// @brief Whether two observations agree; if not, where they first part: the draws, then the
-///        status, then the solutions.
+///        status (@ref same_status), then the solutions.
 inline ::testing::AssertionResult same(const Observation& a, const Observation& b) {
     const size_t common = std::min(a.draws.size(), b.draws.size());
     for (size_t i = 0; i < common; ++i) {
@@ -237,7 +279,7 @@ inline ::testing::AssertionResult same(const Observation& a, const Observation& 
                                              << " labels, then one search stops: " << a.draws.size()
                                              << " against " << b.draws.size();
     }
-    if (a.status != b.status) {
+    if (!same_status(a.status, b.status)) {
         return ::testing::AssertionFailure() << "status: reference " << static_cast<int>(a.status)
                                              << ", library " << static_cast<int>(b.status);
     }
@@ -267,18 +309,40 @@ inline ::testing::AssertionResult same(const std::vector<Observation>& reference
     return ::testing::AssertionSuccess();
 }
 
+/// @brief Whether a run of @p c under @p s has a finite @c max_iterations.
+///
+/// @param finite_budget Whether the search needs a finite @c max_iterations.
+[[nodiscard]] inline bool has_budget(const Case& c, const Setting& s, bool finite_budget) {
+    return finite_budget || s.variant.max_iterations != rcspp::kNoLimit ||
+           c.iteration_cap != rcspp::kNoLimit;
+}
+
 /// @brief Runs @p ReferenceStrategy and @p LibraryStrategy over every case and setting, in both
 ///        release modes, and expects them to agree.
 ///
-/// @param finite_budget Whether the two need a finite @c max_iterations.
+/// A search on the labelling kernel counts its iterations in labels taken, where a frozen dive
+/// counted dives: @p compare_budgets false leaves out every run with a finite
+/// @c max_iterations, which the two spend differently.
+///
+/// @param finite_budget   Whether the two need a finite @c max_iterations.
+/// @param compare_budgets Whether runs with a finite @c max_iterations are compared.
+/// @param comparable      Called after each run of @p ReferenceStrategy: whether that run is
+///                        compared (by default, every run is).
 /// @return The number of (case, setting, release mode) runs compared.
 template <typename ReferenceStrategy, typename LibraryStrategy>
-size_t sweep(bool finite_budget) {
+size_t sweep(bool finite_budget, bool compare_budgets = true,
+             const std::function<bool()>& comparable = {}) {
     size_t compared = 0;
     for (const Case& c : cases()) {
         for (const Setting& s : settings()) {
+            if (!compare_budgets && has_budget(c, s, finite_budget)) {
+                continue;
+            }
             for (const bool release : {false, true}) {
                 const auto expected = observe<ReferenceStrategy>(c, s, finite_budget, release);
+                if (comparable && !comparable()) {
+                    continue;
+                }
                 const auto actual = observe<LibraryStrategy>(c, s, finite_budget, release);
                 EXPECT_TRUE(same(expected, actual))
                     << c.name << ", setting " << s.name() << (release ? ", released" : ", kept");

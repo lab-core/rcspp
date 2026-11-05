@@ -166,6 +166,28 @@ TEST(KernelProperties, EveryExactSearchReachesTheForwardOptimumAlongPathsThatRep
     }
 }
 
+/// @brief Greedy with no budget tries every path: it returns forward Simple's optimum (or, like
+///        it, nothing), along paths that replay through the model.
+TEST(KernelProperties, GreedyWithNoBudgetReachesTheForwardOptimum) {
+    namespace kp = kernel_properties;
+    const auto reference = kp::rows().front();
+    for (const auto& c : kp::property_cases()) {
+        const auto expected = reference.solve(c);
+        auto graph = c.build();
+        const auto result =
+            graph->solve<rcspp::strategy::Greedy>(rcspp::AlgorithmParams<kp::List>{}, false);
+        ASSERT_EQ(result.solutions.empty(), expected.solutions.empty()) << c.name;
+        EXPECT_EQ(result.status, rcspp::AlgorithmStatus::Complete) << c.name;
+        if (!result.solutions.empty()) {
+            EXPECT_NEAR(result.solutions.front().cost, expected.solutions.front().cost, 1e-6)
+                << c.name;
+        }
+        for (const auto& solution : result.solutions) {
+            EXPECT_EQ(equivalence_test::path_problem(*graph, solution), "") << c.name;
+        }
+    }
+}
+
 /// @brief Within one direction, every exact search ends with the same labels of finite cost.
 TEST(KernelProperties, WithinADirectionEveryExactSearchEndsWithTheSameLabels) {
     namespace kp = kernel_properties;

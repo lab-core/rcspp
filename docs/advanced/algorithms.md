@@ -532,11 +532,18 @@ converged, say — has to read this too.  `could_be_non_optimal()` will not tell
 
 ## `Greedy`
 
-Extends labels greedily (best-cost-first) with limited backtracking.
-Much faster than the exact algorithms; no optimality guarantee.
+A dive: from each label it takes, it extends along every arc and goes on with the cheapest child,
+keeping the other children for later; at a dead end it goes back to the last label still waiting.
+Each path to a sink is recorded when its label is taken. It keeps every feasible label it waits on,
+and none behind it. With no budget it tries every path, and so finds the optimum, but its work grows
+with the number of paths; with one, it is fast, with no optimality guarantee.
+
+As in every labelling search, `max_iterations` counts the labels taken, and
+`max_extended_labels_per_node` (with `max_phases`) caps the labels taken at each node.
 
 ```python
 params = AlgorithmParams()
+params.max_iterations = 10_000            # take at most 10 000 labels
 params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)
@@ -872,9 +879,9 @@ on each side.
 
 | Member | What it decides | Built in (`rcspp::parts`) | Concept |
 |---|---|---|---|
-| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule` | `Schedule` |
-| `admission<R, Dir>` | whether a new label is kept at its node | `DominanceAdmission` (default) | `Admission` |
-| `retention<R, Dir>` | where kept labels live, as `template <C> using type` | `KeepAtNodes` (default) | `Retention` |
+| `schedule<R, Dir>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CompletionKey`, `SweepSchedule`, `PullSchedule`, `DfsSchedule<R, Key, Filter>` | `Schedule` |
+| `admission<R, Dir>` | whether a new label is kept at its node | `DominanceAdmission` (default), `KeepAll` | `Admission` |
+| `retention<R, Dir>` | where kept labels live, as `template <C> using type` (`Retain<T>` names a library one) | `KeepAtNodes` (default), `KeepWhileWaiting` | `Retention` |
 | `observer<R, Dir>` | told of every extension | `NoObserver` (default) | `Observer` |
 | `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
 | `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
@@ -918,6 +925,29 @@ struct SimpleAtMostThree {
         template <typename R, typename Dir>
         using admission = AtMostThree;
         static constexpr bool bidirectional = false;  // forward and backward only
+};
+```
+
+This one is a dive: depth first, keeping every feasible label and none behind it. `DfsSchedule`
+settles a label's children together once it is extended, and hands them out next, cheapest first
+(its key), each child's subtree before its next sibling; its filter (`KeepAllChildren` by default)
+may drop some first. `KeepAll` keeps every label without comparing it, and `KeepWhileWaiting`
+stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
+label is released once extended, living on while a label extended from it waits. A dive searches
+forward only:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct Dive {
+        template <typename R, typename Dir>
+        using schedule = rcspp::parts::DfsSchedule<R>;
+        template <typename R, typename Dir>
+        using admission = rcspp::parts::KeepAll;
+        template <typename R, typename Dir>
+        using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 ```
 

@@ -37,11 +37,43 @@ struct FrozenImprovingTabu {
         template <typename ResourceType, typename LabelContainerType>
         using algorithm = ref::ImprovingTabuSearch<ResourceType, LabelContainerType>;
 };
-/// @brief The frozen diversification over the frozen Greedy, as a strategy.
+/// @brief Whether a solve of the frozen Greedy ran out of its iterations since the flag was last
+///        cleared.
+inline bool& frozen_greedy_ran_out() {
+    static bool ran_out = false;
+    return ran_out;
+}
+
+/// @brief The frozen Greedy, raising @ref frozen_greedy_ran_out when a solve ends
+///        @c Truncated: when its iterations ran out.
+template <typename ResourceType, typename LabelContainerType>
+class WatchedGreedy : public ref::GreedyAlgorithm<ResourceType, LabelContainerType> {
+    public:
+        using ref::GreedyAlgorithm<ResourceType, LabelContainerType>::GreedyAlgorithm;
+
+        rcspp::SolveResult solve(const rcspp::Graph<ResourceType>* graph,
+                                 double cost_upper_bound) override {
+            auto result =
+                ref::GreedyAlgorithm<ResourceType, LabelContainerType>::solve(graph,
+                                                                              cost_upper_bound);
+            if (result.status == rcspp::AlgorithmStatus::Truncated) {
+                frozen_greedy_ran_out() = true;
+            }
+            return result;
+        }
+};
+
+/// @brief The frozen Greedy, watched, as a strategy.
+struct FrozenWatchedGreedy {
+        template <typename ResourceType, typename LabelContainerType>
+        using algorithm = WatchedGreedy<ResourceType, LabelContainerType>;
+};
+
+/// @brief The frozen diversification over the frozen Greedy, watched, as a strategy.
 struct FrozenDiversification {
         template <typename ResourceType, typename LabelContainerType>
         using algorithm =
-            ref::DiversificationSearch<ResourceType, LabelContainerType, FrozenGreedy>;
+            ref::DiversificationSearch<ResourceType, LabelContainerType, FrozenWatchedGreedy>;
 };
 
 /// @brief The golden instance of seed 1 at 11 nodes, with the draw log appending to @p log.
@@ -90,8 +122,13 @@ TEST(DiveParity, TellsTwoSearchesApart) {
     EXPECT_FALSE(dive_parity::same(greedy, tabu));
 }
 
+/// @brief Greedy, a depth-first labelling search, draws the frozen Greedy's labels, in its order,
+///        and returns its solutions, wherever no iteration budget applies: it counts labels taken,
+///        where the frozen Greedy counted dives.
 TEST(DiveParity, GreedyMatchesItsFrozenCopy) {
-    dive_parity::sweep<FrozenGreedy, strategy::Greedy>(false);
+    EXPECT_GT(
+        (dive_parity::sweep<FrozenGreedy, strategy::Greedy>(false, /*compare_budgets=*/false)),
+        0U);
 }
 
 TEST(DiveParity, TabuSearchMatchesItsFrozenCopy) {
@@ -102,6 +139,22 @@ TEST(DiveParity, ImprovingTabuSearchMatchesItsFrozenCopy) {
     dive_parity::sweep<FrozenImprovingTabu, strategy::ImprovingTabu>(true);
 }
 
+/// @brief Diversification over Greedy matches its frozen copy wherever the frozen inner Greedy
+///        never ran out of its iterations.
+///
+/// The frozen copy gives its inner Greedy 20 iterations, which counted dives; diversification now
+/// gives it 1000, which count labels taken. Where 20 dives run out, the two inner searches stop at
+/// different places: those runs are left out, and counted.
 TEST(DiveParity, DiversificationMatchesItsFrozenCopy) {
-    dive_parity::sweep<FrozenDiversification, strategy::Diversification<>>(true);
+    size_t left_out = 0;
+    const size_t compared =
+        dive_parity::sweep<FrozenDiversification, strategy::Diversification<>>(true, true, [&] {
+            const bool ran_out = frozen_greedy_ran_out();
+            frozen_greedy_ran_out() = false;
+            left_out += ran_out ? 1 : 0;
+            return !ran_out;
+        });
+    RecordProperty("compared", static_cast<int>(compared));
+    RecordProperty("left_out", static_cast<int>(left_out));
+    EXPECT_GT(compared, left_out) << left_out << " runs left out, " << compared << " compared";
 }
