@@ -63,9 +63,16 @@ dominates the corresponding resource of `L₂`.
 
 Each resource slot has four functions that you supply at construction time.
 
+The interfaces below are simplified: each class also has a pure virtual `clone()`, which
+`Clonable<Derived, Base>` supplies when you derive through it, and the backward and
+bidirectional searches read further members, which have defaults. `AGENT.md` ("Custom
+resource type") shows a complete, compiled example.
+
 ### Extension function
 
 Defines how an arc modifies the resource as a label is extended along it.
+
+<!-- docs-check: skip -->
 
 ```cpp
 template<typename ResourceType>
@@ -93,6 +100,8 @@ Built-in implementations:
 
 Returns `true` when a label's resource value is still within bounds.
 
+<!-- docs-check: skip -->
+
 ```cpp
 template<typename ResourceType>
 class FeasibilityFunction {
@@ -115,11 +124,16 @@ Built-in implementations:
 
 Returns `true` when `lhs` dominates `rhs` (i.e. `rhs` can be pruned).
 
+<!-- docs-check: skip -->
+
 ```cpp
 template<typename ResourceType>
 class DominanceFunction {
     virtual bool check_dominance(
         const ResourceType& lhs, const ResourceType& rhs) = 0;
+    virtual bool fast_check_dominance(      // the same test, within a tolerance;
+        const ResourceType& lhs,            // LabelBuckets uses it to find a
+        const ResourceType& rhs, double delta) = 0;   // label's bucket
 };
 ```
 
@@ -135,6 +149,8 @@ Built-in implementations:
 ### Cost function
 
 Returns the contribution of this resource slot to the label's total cost.
+
+<!-- docs-check: skip -->
 
 ```cpp
 template<typename ResourceType>
@@ -159,6 +175,8 @@ the arc's resource consumption value together with the pre-bound extension
 function, so extending a label along an arc is a single virtual call.
 
 Arc resource consumption is specified at construction time:
+
+<!-- docs-check: given size_t origin = 0; size_t dest = 1; double arc_cost = 1.0; -->
 
 ```cpp
 // Single resource

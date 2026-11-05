@@ -50,3 +50,36 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME} DISCOVERY_TIMEOUT 30)
+
+# Docs samples ----------------------------------------------------------------
+# Every C++ code block of the docs must compile. scripts/extract_cpp_doc_samples.py writes them into
+# one translation unit, whose #line directives point an error at the Markdown page, and docs-samples
+# compiles it. Compiling is the test, so the target is neither linked nor instrumented for coverage.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+  file(GLOB_RECURSE DOC_PAGES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/docs/*.md")
+  list(FILTER DOC_PAGES EXCLUDE REGEX "/docs/_build/")
+  list(APPEND DOC_PAGES "${CMAKE_SOURCE_DIR}/AGENT.md" "${CMAKE_SOURCE_DIR}/README.md")
+  set(DOC_SAMPLES_SCRIPT "${CMAKE_SOURCE_DIR}/scripts/extract_cpp_doc_samples.py")
+  set(DOC_SAMPLES_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/docs_samples.cpp")
+  add_custom_command(
+    OUTPUT "${DOC_SAMPLES_SOURCE}"
+    COMMAND "${Python3_EXECUTABLE}" "${DOC_SAMPLES_SCRIPT}"
+            --output "${DOC_SAMPLES_SOURCE}" --root "${CMAKE_SOURCE_DIR}" ${DOC_PAGES}
+    DEPENDS "${DOC_SAMPLES_SCRIPT}" ${DOC_PAGES}
+    COMMENT "Extracting the C++ samples of the docs"
+    VERBATIM
+  )
+  add_library(docs-samples OBJECT "${DOC_SAMPLES_SOURCE}")
+  target_include_directories(docs-samples PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
+  add_dependencies(docs-samples generate_umbrella_header)
+  set_target_properties(docs-samples PROPERTIES CXX_CLANG_TIDY "")
+  if(MSVC)
+    target_compile_options(docs-samples PRIVATE /bigobj)
+  endif()
+  if(MINGW)
+    target_compile_options(docs-samples PRIVATE -Wa,-mbig-obj -O1 -g0)
+  endif()
+else()
+  message(STATUS "Python not found: the C++ samples of the docs are not compiled")
+endif()

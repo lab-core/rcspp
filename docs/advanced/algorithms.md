@@ -193,6 +193,9 @@ as it does forward, and never lets an arrival past the deadline join.  And a thr
 clamps its backward label to each node's upper bound **as its own bounds state it**, so those must
 be the feasibility function's.  Give both functions one `NodeBounds`, as the presets do:
 
+<!-- docs-check: given double capacity = 10.0;
+     std::map<size_t, std::pair<double, double>> per_node_caps; -->
+
 ```cpp
 auto caps = rcspp::make_node_bounds(0.0, capacity, per_node_caps);  // {node: {0, cap}}
 graph.add_resource<RealResource>(
@@ -217,6 +220,8 @@ Every preset asserts it on its own extension, so a preset whose extension has no
 reading does not compile.  It says nothing about the feasibility function paired with it: that
 depends on the function's settings, which the model checks test before the solve.  For an
 extension of your own, assert it yourself:
+
+<!-- docs-check: given using MyExtension = AdditionExtensionFunction<RealResource>; -->
 
 ```cpp
 static_assert(rcspp::declares_directional_resource_kind_v<MyExtension>);
@@ -393,6 +398,10 @@ constructed for you, so they cannot disagree:
 | capacity | bounded accumulation — capacity, duration | `presets::add_capacity_resource<R>` | `presets.add_capacity_resource` |
 | ng-path | memory read from the arc's endpoints + forbidden sets | `presets::add_ng_path_resource<R>` | *not available* |
 | elementary | ng-path with nothing ever forgotten | `presets::add_elementary_resource<R>` | *not available* |
+
+<!-- docs-check: given using TimeResource = RealResource; using DemandResource = IntResource;
+     ResourceGraph<RealResource, IntResource>* graph = nullptr;
+     std::map<size_t, std::pair<double, double>> windows; int capacity = 10; -->
 
 ```cpp
 #include "rcspp/rcspp.hpp"
@@ -733,6 +742,9 @@ below the node's opening time as unmeetable itself, whatever the feasibility fun
 A threshold extension clamps its backward label to each node's upper bound **as its own bounds state
 it**, so those must be the feasibility function's.  Give both functions one `NodeBounds`:
 
+<!-- docs-check: given double capacity = 10.0;
+     std::map<size_t, std::pair<double, double>> per_node_caps; -->
+
 ```cpp
 auto caps = rcspp::make_node_bounds(0.0, capacity, per_node_caps);  // {node: {0, cap}}
 graph.add_resource<RealResource>(
@@ -763,6 +775,8 @@ result = rg.solve(algorithm="simple", params=bp)
 ```
 
 In C++:
+
+<!-- docs-check: given ResourceGraph<RealResource> graph; -->
 
 ```cpp
 using Resources = ResourceTypeComposition<RealResource>;  // the graph's resource types
