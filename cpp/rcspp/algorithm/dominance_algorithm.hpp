@@ -11,9 +11,10 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm.hpp"
+#include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
-#include "rcspp/algorithm/label_buckets.hpp"
+#include "rcspp/label/label_list.hpp"
 #include "rcspp/label/label_pool.hpp"
 
 namespace rcspp {
@@ -91,7 +92,7 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         void main_loop() override {  // NOLINT
             size_t i = 0;
-            while (this->number_of_labels() > 0 && !this->should_stop(i)) {
+            while (this->number_of_labels() > 0 && !this->should_end_loop(i)) {
                 if (this->memory_limit_reached(i)) {
                     break;
                 }
@@ -199,9 +200,9 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             auto& new_label = this->label_pool_.get_next_label(head_node);
             LabelDirection::extend(*label_ptr, *arc_ptr, &new_label);
 
-            if (++this->num_extended_labels_ % 100000 == 0) {  // NOLINT
+            if (++this->number_of_extended_labels_ % 100000 == 0) {  // NOLINT
                 print_labels();
-                LOG_DEBUG("Processed ", this->num_extended_labels_, " labels so far...\n");
+                LOG_DEBUG("Processed ", this->number_of_extended_labels_, " labels so far...\n");
             }
 
             bool feasible = LabelDirection::feasible(new_label);

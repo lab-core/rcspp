@@ -348,7 +348,7 @@ void test_solve_status_timeout() {
         InstanceReader::read_duals(root_dir + "/instances/duals/" + instance_name + "/iter_0.txt");
 
     AlgorithmBaseParams base;
-    base.timeout_s = 0.0;  // a 0-second budget: exceeded on the first should_stop() check
+    base.timeout_s = 0.0;  // a 0-second budget: exceeded on the first should_end_loop() check
     const auto result = vrp_subproblem.solve_result<AlgorithmType>(dual_by_id, base);
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout)
         << "a 0-second timeout must report Timeout, got '" << result.status_string() << "'";
