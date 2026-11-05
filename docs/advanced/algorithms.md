@@ -386,6 +386,16 @@ quota binds — `max_extended_labels_per_node` (truncated labeling), or `on_memo
 it automatically — a forward label can be stored and never grown, so it never produces the boundary
 label the join reads, and that pair is lost.  At the default quota of "unlimited" this never arises.
 
+### Quotas in a bidirectional search
+
+A bidirectional search runs one phase. So when the per-node quota or memory pressure cuts a label
+off a half's queue, that label is **abandoned**: it stays in its node's container, where the join can
+still pair it, but it is never extended, and no later phase gives it back. That holds for every
+algorithm's order. Such a solve reports `Truncated`, not `Complete`, and `is_optimal()` answers
+`false`. `Pushing` and `Pulling` apply the quota at each visit of a node, as they do forward, so
+under the same quota they extend more labels than `Simple` or `AStar`, which count a node's labels
+over the whole search.
+
 ### Presets: declaring a resource in one call
 
 Most resources are one of five shapes, and for those the four function objects can be
@@ -584,8 +594,8 @@ In Python, it is an argument of `solve`, and a direction the algorithm does not 
 result = rg.solve(algorithm="simple", direction="backward")  # "forward" (default), "bidirectional"
 ```
 
-With `direction="bidirectional"`, `simple` searches both ways; `astar`, `pushing` and
-`pulling` raise `ValueError`.
+With `direction="bidirectional"`, `simple`, `astar`, `pushing` and `pulling` each run their own
+order on both halves.
 
 Whatever its direction, a search returns the same kind of paths, in forward order: each starts at a
 source and ends at a sink.
@@ -596,12 +606,18 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 |---|---|
 | Forward | every algorithm |
 | Backward | `Simple`, `AStar`, `Pushing`, `Pulling` |
-| Bidirectional | `Simple` |
+| Bidirectional | `Simple`, `AStar`, `Pushing`, `Pulling` |
 
 Backward, each labelling algorithm runs as it does forward, on the graph read in reverse. `Pushing`
 and `Pulling` sweep the nodes in descending position order, and `Pulling` pulls into a node from
 its successors. `AStar` bounds the cost still to pay from a source to a node, with a Bellman-Ford
 run from the sources.
+
+Bidirectionally, each runs its own order on both halves, with the same half-way point and the same
+join. `AStar` takes each half's labels lowest cost plus that half's completion bound first.
+`Pushing` and `Pulling` run their forward order on the forward half and their backward order on
+the backward half. In `Pulling`, a label past the half-way point is stored but never pulled, so it
+is the boundary label the join pairs.
 
 An algorithm asked for a direction it does not support throws `std::invalid_argument`: when
 `ResourceGraph::create_algorithm` builds it, or, for one you constructed yourself, when it solves

@@ -111,6 +111,28 @@ void expect_backward_containers(const char* name) {
         << name;
 }
 
+/// @brief Expects @p Strategy asked for a bidirectional search to build @p BidirectionalType, not
+///        Simple's, and to find the forward optimum along the same path.
+template <typename Strategy, typename BidirectionalType>
+void expect_builds_bidirectional(const char* name) {
+    auto g = graph();
+    auto algorithm = g->template create_algorithm<Strategy>(params(SearchDirection::Bidirectional));
+    EXPECT_NO_THROW((void)test_util::bidirectional_impl<BidirectionalType>(algorithm.get()))
+        << name;
+    EXPECT_THROW((void)test_util::bidirectional_impl<Bidir<RealResource>>(algorithm.get()),
+                 std::logic_error)
+        << name << " must not build Simple's first-in, first-out search";
+
+    const auto forward = g->template solve<Strategy>(AlgorithmBaseParams{});
+    AlgorithmBaseParams base;
+    base.direction = SearchDirection::Bidirectional;
+    const auto bidirectional = g->template solve<Strategy>(base);
+    ASSERT_FALSE(bidirectional.solutions.empty()) << name;
+    EXPECT_NEAR(bidirectional.solutions.front().cost, -4.0, kTolerance) << name;
+    EXPECT_EQ(bidirectional.solutions.front().path_arc_ids, forward.solutions.front().path_arc_ids)
+        << name;
+}
+
 }  // namespace search_direction_test
 
 /// @brief Params search forward unless told otherwise, and an algorithm says what it supports.
@@ -302,6 +324,47 @@ TEST(BidirectionalSelection, SimpleBuildsTheBidirectionalSearch) {
               std::vector<SearchDirection>{SearchDirection::Bidirectional});
 }
 
+/// @brief A* asked for a bidirectional search builds the bidirectional class with a best-first
+///        schedule on both sides, and finds the forward optimum along the same path.
+TEST(BidirectionalSelection, AStarBuildsABestFirstBidirectionalSearch) {
+    namespace sdt = search_direction_test;
+    using BestFirst = detail::Preset<parts::BestFirstSchedule<sdt::Composed>>;
+    using AStarBidir = detail::BidirectionalLabellingAlgorithm<sdt::Composed,
+                                                               sdt::List,
+                                                               RealResource,
+                                                               BestFirst,
+                                                               BestFirst>;
+    sdt::expect_builds_bidirectional<strategy::AStar, AStarBidir>("A*");
+}
+
+/// @brief Pushing asked for a bidirectional search builds the bidirectional class with a sweep on
+///        each side, ascending forward and descending backward, and finds the forward optimum
+///        along the same path.
+TEST(BidirectionalSelection, PushingBuildsASweepingBidirectionalSearch) {
+    namespace sdt = search_direction_test;
+    using PushingBidir = detail::BidirectionalLabellingAlgorithm<
+        sdt::Composed,
+        sdt::List,
+        RealResource,
+        detail::Preset<parts::SweepSchedule<sdt::Composed, ForwardDirection>>,
+        detail::Preset<parts::SweepSchedule<sdt::Composed, BackwardDirection>>>;
+    sdt::expect_builds_bidirectional<strategy::Pushing, PushingBidir>("Pushing");
+}
+
+/// @brief Pulling asked for a bidirectional search builds the bidirectional class that visits one
+///        node at a time on each side, ascending forward and descending backward, and finds the
+///        forward optimum along the same path.
+TEST(BidirectionalSelection, PullingBuildsAPullingBidirectionalSearch) {
+    namespace sdt = search_direction_test;
+    using PullingBidir = detail::BidirectionalLabellingAlgorithm<
+        sdt::Composed,
+        sdt::List,
+        RealResource,
+        detail::Preset<parts::PullSchedule<sdt::Composed, ForwardDirection>>,
+        detail::Preset<parts::PullSchedule<sdt::Composed, BackwardDirection>>>;
+    sdt::expect_builds_bidirectional<strategy::Pulling, PullingBidir>("Pulling");
+}
+
 /// @brief The clock's type, named after the cost's, selects its own instantiation; left out, it
 ///        is the cost's.
 TEST(BidirectionalSelection, AnIntClockSelectsTheIntInstantiation) {
@@ -323,21 +386,6 @@ TEST(BidirectionalSelection, GreedyAndTabuRefuseBidirectional) {
         std::invalid_argument);
     EXPECT_THROW(
         (void)g->create_algorithm<strategy::Tabu>(sdt::params(SearchDirection::Bidirectional)),
-        std::invalid_argument);
-}
-
-/// @brief A*, Pushing and Pulling do not search bidirectionally.
-TEST(BidirectionalSelection, AStarPushingAndPullingRefuseBidirectional) {
-    namespace sdt = search_direction_test;
-    auto g = sdt::graph();
-    EXPECT_THROW(
-        (void)g->create_algorithm<strategy::AStar>(sdt::params(SearchDirection::Bidirectional)),
-        std::invalid_argument);
-    EXPECT_THROW(
-        (void)g->create_algorithm<strategy::Pushing>(sdt::params(SearchDirection::Bidirectional)),
-        std::invalid_argument);
-    EXPECT_THROW(
-        (void)g->create_algorithm<strategy::Pulling>(sdt::params(SearchDirection::Bidirectional)),
         std::invalid_argument);
 }
 
