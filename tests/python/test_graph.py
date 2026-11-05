@@ -912,13 +912,13 @@ def test_bucket_params_to_cpp_out_of_range_raises():
 
 
 def test_prune_by_upper_bound_is_settable():
-    """prune_by_upper_bound is bound, off by default, and usable in a solve."""
+    """prune_by_incumbent is bound, off by default, and usable in a solve."""
     from rcspp.graph import AlgorithmParams
 
     params = AlgorithmParams()
-    assert params.prune_by_upper_bound is False
-    params.prune_by_upper_bound = True
-    assert params.prune_by_upper_bound is True
+    assert params.prune_by_incumbent is False
+    params.prune_by_incumbent = True
+    assert params.prune_by_incumbent is True
     sols = make_diamond().solve(upper_bound=4.5, params=params)
     assert [round(s.cost, 6) for s in sols] == [4.0]
 

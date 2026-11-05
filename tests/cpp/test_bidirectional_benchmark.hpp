@@ -52,7 +52,7 @@ inline void report(const std::string& name, const Timed& timed) {
               << " extended_labels=" << timed.measurement.extended_labels
               << " pooled_labels=" << timed.measurement.pooled_labels
               << " status=" << to_string(timed.measurement.status)
-              << " bounded=" << timed.measurement.bounded_by_half_way
+              << " bounded=" << timed.measurement.half_way_used
               << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
               << std::endl;
 }
@@ -132,9 +132,9 @@ TEST(BidirectionalBenchmark, ForwardVersusBidirectionalOnVrptw) {
     EXPECT_NEAR(bidirectional.measurement.cost, bb::kOptimal, bb::kTolerance)
         << "bidirectional does not find the known optimum of this instance";
     EXPECT_TRUE(bidirectional.measurement.ref_counts_consistent);
-    EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way)
+    EXPECT_TRUE(bidirectional.measurement.half_way_used)
         << "a disabled bound would make this a measurement of two full searches plus a join";
-    EXPECT_FALSE(unbounded.measurement.bounded_by_half_way);
+    EXPECT_FALSE(unbounded.measurement.half_way_used);
     EXPECT_NEAR(unbounded.measurement.cost, bb::kOptimal, bb::kTolerance)
         << "with the bound off the search is exhaustive, so a miss here is not the bound's fault";
 }
@@ -175,7 +175,7 @@ TEST(BidirectionalBenchmark, PricingIterationSweep) {
 
         EXPECT_NEAR(bidirectional.measurement.cost, forward.measurement.cost, bb::kTolerance)
             << "the two searches disagree, which makes the comparison meaningless";
-        EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way);
+        EXPECT_TRUE(bidirectional.measurement.half_way_used);
     }
 }
 
@@ -346,7 +346,7 @@ TEST(BidirectionalBenchmark, DISABLED_LargeInstancesUnderATimeBudget) {
 
         EXPECT_GT(forward.measurement.solutions, 0U) << "no incumbent to compare";
         EXPECT_GT(bidirectional.measurement.solutions, 0U) << "no incumbent to compare";
-        EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way);
+        EXPECT_TRUE(bidirectional.measurement.half_way_used);
 
         // If both searches finished, they must agree exactly.
         if (forward.measurement.status == AlgorithmStatus::Complete &&

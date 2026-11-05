@@ -46,7 +46,7 @@ TEST(Equivalence, MatchesTheForwardSearchAcrossTheSweep) {
         const eq::Run reference = eq::solve_forward(config);
         const eq::Run bounded = eq::solve_bidirectional(config, /*with_bound=*/true);
         const eq::Run unbounded = eq::solve_bidirectional(config, /*with_bound=*/false);
-        if (bounded.bounded && bounded.result.bidirectional->number_of_joined_paths > 0) {
+        if (bounded.bounded && bounded.result.bidirectional->joined_paths > 0) {
             ++configs_that_join;
         }
 
@@ -177,7 +177,7 @@ TEST(Equivalence, ABoundBelowTheOptimumReturnsNothingFromBothSearches) {
     }
 }
 
-/// @brief With `prune_by_upper_bound` on, the completion bound still keeps the optimum.
+/// @brief With `prune_by_incumbent` on, the completion bound still keeps the optimum.
 ///
 /// Runs with `arc_cost_offset` set, so a bound wrongly built from `arc.cost` over-estimates and
 /// loses the optimum. The reference is a forward search with pruning off.
@@ -197,7 +197,7 @@ TEST(Equivalence, PruningOnTheCompletionBoundKeepsTheOptimum) {
         }
 
         eq::BoundedOptions options;
-        options.prune_by_upper_bound = true;  // upper_bound stays +infinity
+        options.prune_by_incumbent = true;  // upper_bound stays +infinity
 
         const eq::Run bidirectional = eq::solve_bidirectional_bounded(config, options);
 

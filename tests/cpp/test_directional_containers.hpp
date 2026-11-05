@@ -317,30 +317,31 @@ TEST(DirectionalContainers, ContainersRebindTheirOwnDirection) {
     using List = LabelList<dct::RealComposition>;
     using Buckets = LabelBuckets<RealResource, RealResource, dct::RealComposition>;
 
-    static_assert(std::is_same_v<detail::rebind_direction_t<List, BackwardDirection>,
+    static_assert(std::is_same_v<detail::directed_container_t<List, BackwardDirection>,
                                  LabelList<dct::RealComposition, BackwardDirection>>);
     static_assert(
         std::is_same_v<
-            detail::rebind_direction_t<Buckets, BackwardDirection>,
+            detail::directed_container_t<Buckets, BackwardDirection>,
             LabelBuckets<RealResource, RealResource, dct::RealComposition, BackwardDirection>>);
-    static_assert(std::is_same_v<detail::rebind_direction_t<Buckets, ForwardDirection>, Buckets>);
+    static_assert(std::is_same_v<detail::directed_container_t<Buckets, ForwardDirection>, Buckets>);
     static_assert(
-        std::is_same_v<detail::rebind_direction_t<dct::InheritsListOnly, ForwardDirection>,
+        std::is_same_v<detail::directed_container_t<dct::InheritsListOnly, ForwardDirection>,
                        dct::InheritsListOnly>,
         "forward keeps any container as it is");
-    static_assert(!detail::can_rebind_direction_v<dct::InheritsListOnly, BackwardDirection>,
+    static_assert(!detail::has_directed_container_v<dct::InheritsListOnly, BackwardDirection>,
                   "an inherited with_direction must not turn a user container into a plain list");
-    static_assert(std::is_same_v<
-                      detail::rebind_direction_t<LabelList<dct::RealComposition, BackwardDirection>,
-                                                 BackwardDirection>,
-                      LabelList<dct::RealComposition, BackwardDirection>>,
-                  "a container that already compares backward rebinds to itself");
+    static_assert(
+        std::is_same_v<
+            detail::directed_container_t<LabelList<dct::RealComposition, BackwardDirection>,
+                                         BackwardDirection>,
+            LabelList<dct::RealComposition, BackwardDirection>>,
+        "a container that already compares backward rebinds to itself");
 
     // The rebound buckets compare backward: the later deadline dominates.
     const Buckets buckets(/*bucket_width=*/10,
                           /*bucket_resource_index=*/0,
                           /*sort_resource_index=*/0);
-    auto backward = detail::rebind_direction<Buckets, BackwardDirection>::convert(buckets);
+    auto backward = detail::make_directed_container<BackwardDirection>(buckets);
     auto early = dct::make_real_label(0, dct::kEarly, /*reversed=*/true);
     auto late = dct::make_real_label(1, dct::kLate, /*reversed=*/true);
     backward.add_label(late.get());

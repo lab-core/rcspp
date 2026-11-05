@@ -139,13 +139,13 @@ inline std::unique_ptr<ResourceGraph<RealResource>> build(const Instance& in) {
 /// One setting of the params a sweep runs every search under.
 struct Variant {
         const char* name;
-        size_t quota = MAX_INT;
+        size_t quota = kNoLimit;
         size_t phases = 1;
         bool dominated = false;
         bool preprocess = false;
         double upper_bound = kInf;
         bool prune = false;
-        size_t max_iterations = MAX_INT;
+        size_t max_iterations = kNoLimit;
         bool join_after_early_stop = true;
 };
 /// @brief The settings every search is swept under.
@@ -177,7 +177,7 @@ ParamsType params_for(const Variant& v) {
         p.max_solutions = 1000;
     }
     p.return_dominated_solutions = v.dominated;
-    p.prune_by_upper_bound = v.prune;
+    p.prune_by_incumbent = v.prune;
     p.max_iterations = v.max_iterations;
     p.join_after_early_stop = v.join_after_early_stop;
     return p;
@@ -284,8 +284,8 @@ Outcome bidirectional_outcome(AlgorithmParams<ForwardList> p, const Variant& v,
     auto a = g->create_algorithm<Strategy>(p);
     const auto r = g->solve(a.get(), v.upper_bound, v.preprocess);
     Outcome o = summarise(r, a->get_number_of_extended_labels());
-    o.joined = r.bidirectional->number_of_joined_paths;
-    o.bounded = r.bidirectional->bounded_by_half_way ? 1 : 0;
+    o.joined = r.bidirectional->joined_paths;
+    o.bounded = r.bidirectional->half_way_used ? 1 : 0;
     o.status = static_cast<size_t>(r.status);
     return o;
 }
@@ -307,7 +307,7 @@ inline Outcome run(Kind k, const Variant& v, ResourceGraph<RealResource>* g) {
             return finish(a, g, v);
         }
         case Kind::AStar: {
-            auto a = g->create_algorithm<AStarAlgoBound<RealResource>::Algo>(p);
+            auto a = g->create_algorithm<AStarDominanceAlgorithm>(p);
             return finish(a, g, v);
         }
         case Kind::Backward: {
@@ -1012,8 +1012,8 @@ inline const std::vector<Row>& golden_bidirectional() {
         {"s1_n11_t1_phases_bidirectional", {82u, 3u, -25000LL, 0x8e30f042c8fe70faULL, 1u, 1u, 3u}},
         {"s1_n11_t1_dominated_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 1u, 0u}},
         {"s1_n11_t1_prune_bidirectional", {159u, 4u, -25000LL, 0xa669604305fccfe3ULL, 0u, 1u, 0u}},
-        {"s1_n11_t1_early_bidirectional", {66u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 1u, 3u}},
-        {"s1_n11_t1_early_nojoin_bidirectional", {66u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 1u, 3u}},
+        {"s1_n11_t1_early_bidirectional", {76u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 1u, 3u}},
+        {"s1_n11_t1_early_nojoin_bidirectional", {76u, 2u, -25000LL, 0x43b8f40483415048ULL, 1u, 1u, 3u}},
         {"s2_n8_t1_exact_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
         {"s2_n8_t1_pre_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
         {"s2_n8_t1_quota_bidirectional", {11u, 1u, 3000LL, 0x161452c261f33846ULL, 0u, 1u, 0u}},
@@ -1044,8 +1044,8 @@ inline const std::vector<Row>& golden_bidirectional() {
         {"s3_n11_t1_phases_bidirectional", {68u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 3u}},
         {"s3_n11_t1_dominated_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 0u}},
         {"s3_n11_t1_prune_bidirectional", {127u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 0u}},
-        {"s3_n11_t1_early_bidirectional", {63u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 3u}},
-        {"s3_n11_t1_early_nojoin_bidirectional", {63u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 3u}},
+        {"s3_n11_t1_early_bidirectional", {74u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 3u}},
+        {"s3_n11_t1_early_nojoin_bidirectional", {74u, 3u, -23000LL, 0xa29307f1d30e27ffULL, 0u, 1u, 3u}},
         {"s4_n8_t1_exact_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
         {"s4_n8_t1_pre_bidirectional", {10u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 0u}},
         {"s4_n8_t1_quota_bidirectional", {12u, 2u, -13000LL, 0xd1ee824904a9941aULL, 0u, 1u, 3u}},
@@ -1084,8 +1084,8 @@ inline const std::vector<Row>& golden_bidirectional() {
         {"s6_n8_t1_phases_bidirectional", {26u, 4u, -37000LL, 0x51b475ea1bac6977ULL, 1u, 1u, 3u}},
         {"s6_n8_t1_dominated_bidirectional", {47u, 5u, -39000LL, 0x7fc63171a5612e92ULL, 0u, 1u, 0u}},
         {"s6_n8_t1_prune_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
-        {"s6_n8_t1_early_bidirectional", {43u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 3u}},
-        {"s6_n8_t1_early_nojoin_bidirectional", {43u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 3u}},
+        {"s6_n8_t1_early_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
+        {"s6_n8_t1_early_nojoin_bidirectional", {47u, 4u, -39000LL, 0x961af9ea9d3efea6ULL, 0u, 1u, 0u}},
         {"s6_n11_t1_exact_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
         {"s6_n11_t1_pre_bidirectional", {18u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 0u}},
         {"s6_n11_t1_quota_bidirectional", {19u, 1u, 5000LL, 0x7d259b7a076f694dULL, 0u, 1u, 3u}},
@@ -1164,16 +1164,16 @@ inline const std::vector<Row>& golden_bidirectional() {
         {"s13_n16_t1_phases_bidirectional", {170u, 8u, -28000LL, 0x9555c3b9b613d977ULL, 4u, 1u, 3u}},
         {"s13_n16_t1_dominated_bidirectional", {914u, 8u, -32000LL, 0x9b8d4623de3de448ULL, 0u, 1u, 0u}},
         {"s13_n16_t1_prune_bidirectional", {914u, 6u, -32000LL, 0xbb06962f86c69be5ULL, 0u, 1u, 0u}},
-        {"s13_n16_t1_early_bidirectional", {76u, 7u, -24000LL, 0x71c7375d12555f06ULL, 5u, 1u, 3u}},
-        {"s13_n16_t1_early_nojoin_bidirectional", {76u, 7u, -24000LL, 0x71c7375d12555f06ULL, 5u, 1u, 3u}},
+        {"s13_n16_t1_early_bidirectional", {81u, 7u, -24000LL, 0x71c7375d12555f06ULL, 5u, 1u, 3u}},
+        {"s13_n16_t1_early_nojoin_bidirectional", {81u, 7u, -24000LL, 0x71c7375d12555f06ULL, 5u, 1u, 3u}},
         {"s14_n16_t1_exact_bidirectional", {389u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 1u, 0u}},
         {"s14_n16_t1_pre_bidirectional", {349u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 1u, 0u}},
         {"s14_n16_t1_quota_bidirectional", {123u, 4u, -29000LL, 0x8ea8e3bfcc77efa5ULL, 1u, 1u, 3u}},
         {"s14_n16_t1_phases_bidirectional", {123u, 4u, -29000LL, 0x8ea8e3bfcc77efa5ULL, 1u, 1u, 3u}},
         {"s14_n16_t1_dominated_bidirectional", {389u, 6u, -35000LL, 0x0da2789ba5b35494ULL, 0u, 1u, 0u}},
         {"s14_n16_t1_prune_bidirectional", {389u, 5u, -35000LL, 0x968b1939edce355fULL, 0u, 1u, 0u}},
-        {"s14_n16_t1_early_bidirectional", {87u, 3u, -21000LL, 0x9732c1c835b7c0b9ULL, 1u, 1u, 3u}},
-        {"s14_n16_t1_early_nojoin_bidirectional", {87u, 3u, -21000LL, 0x9732c1c835b7c0b9ULL, 1u, 1u, 3u}},
+        {"s14_n16_t1_early_bidirectional", {104u, 3u, -21000LL, 0x9732c1c835b7c0b9ULL, 0u, 1u, 3u}},
+        {"s14_n16_t1_early_nojoin_bidirectional", {104u, 3u, -21000LL, 0x9732c1c835b7c0b9ULL, 0u, 1u, 3u}},
         // clang-format on
     };
     return rows;
@@ -1326,9 +1326,7 @@ TEST(GoldenLabelling, EverySearchKeepsTheReferenceCountsConsistent) {
                                                                              gl::build(in).get()))
                 << where << " pulling";
             EXPECT_TRUE(
-                gl::keeps_reference_counts<rcspp::AStarAlgoBound<rcspp::RealResource>::Algo>(
-                    v,
-                    gl::build(in).get()))
+                gl::keeps_reference_counts<rcspp::AStarDominanceAlgorithm>(v, gl::build(in).get()))
                 << where << " astar";
         }
     }

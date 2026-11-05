@@ -70,7 +70,7 @@ inline void report_ng(const std::string& name, const TimedNg& timed) {
               << " extended_labels=" << timed.measurement.extended_labels
               << " pooled_labels=" << timed.measurement.pooled_labels
               << " status=" << to_string(timed.measurement.status)
-              << " bounded=" << timed.measurement.bounded_by_half_way
+              << " bounded=" << timed.measurement.half_way_used
               << " joined_paths=" << timed.measurement.joined_paths << " seconds=" << timed.seconds
               << std::endl;
 }
@@ -126,7 +126,7 @@ TEST(BidirectionalBenchmarkNg, NgForwardVersusBidirectionalOnVrptw) {
     EXPECT_NEAR(bidirectional.measurement.cost, bb::kOptimal, bb::kTolerance)
         << "bidirectional does not find the known optimum of the ng model";
     EXPECT_TRUE(bidirectional.measurement.ref_counts_consistent);
-    EXPECT_TRUE(bidirectional.measurement.bounded_by_half_way)
+    EXPECT_TRUE(bidirectional.measurement.half_way_used)
         << "a disabled bound would make this a measurement of two full searches plus a join";
 
     // The join's `JoinRule::Custom` set test must actually run on this model.

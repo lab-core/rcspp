@@ -136,7 +136,7 @@ class JoinHarness {
         /// @p upper_bound serves as both of the joiner's bounds. Tests that count candidates pass
         /// @p prune_requested = false, since the incumbent cutoff absorbs equal-cost duplicates.
         std::vector<Recorded> run(const HalfWayPolicy& policy, double upper_bound = kInfinity,
-                                  bool prune_requested = true, size_t max_solutions = MAX_INT) {
+                                  bool prune_requested = true, size_t max_solutions = kNoLimit) {
             std::vector<Recorded> recorded;
             Joiner<Composed, RealResource> joiner;
             double best = upper_bound;
