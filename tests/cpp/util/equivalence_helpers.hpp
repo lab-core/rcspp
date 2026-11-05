@@ -86,7 +86,7 @@ inline Run solve_forward(const test_util::InstanceConfig& config) {
     Run run;
     auto built = test_util::build_instance(config);
     run.graph = std::move(built.graph);
-    run.result = run.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    run.result = run.graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     return run;
 }
 
@@ -106,7 +106,7 @@ inline Run solve_bidirectional(const test_util::InstanceConfig& config, bool wit
     params.release_after_solve = false;
 
     auto algorithm =
-        run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        run.graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
     run.bounded = run.result.bidirectional->half_way_used;
     expect_consistent_ref_counts(algorithm->get_label_pool());
@@ -140,7 +140,7 @@ inline Run solve_forward_bounded(const test_util::InstanceConfig& config,
     AlgorithmParams<LabelList<Composed>> params;
     params.prune_by_incumbent = options.prune_by_incumbent;
     run.result =
-        run.graph->solve<SimpleDominanceAlgorithm>(options.upper_bound, params, options.preprocess);
+        run.graph->solve<strategy::Simple>(options.upper_bound, params, options.preprocess);
     return run;
 }
 
@@ -158,7 +158,7 @@ inline Run solve_bidirectional_bounded(const test_util::InstanceConfig& config,
     params.release_after_solve = false;
 
     auto algorithm =
-        run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        run.graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), options.upper_bound, options.preprocess);
     run.bounded = run.result.bidirectional->half_way_used;
     expect_consistent_ref_counts(algorithm->get_label_pool());
@@ -172,7 +172,7 @@ inline NgRun solve_forward_ng(const test_util::InstanceConfig& config) {
     NgRun run;
     auto built = test_util::build_ng_instance(config);
     run.graph = std::move(built.graph);
-    run.result = run.graph->solve<SimpleDominanceAlgorithm>(AlgorithmBaseParams{});
+    run.result = run.graph->solve<strategy::Simple>(AlgorithmBaseParams{});
     return run;
 }
 
@@ -196,7 +196,7 @@ inline NgRun solve_bidirectional_ng(const test_util::InstanceConfig& config, boo
     params.release_after_solve = false;
 
     auto algorithm =
-        run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+        run.graph->create_algorithm<strategy::Simple>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), cost_upper_bound);
     run.bounded = run.result.bidirectional->half_way_used;
     expect_consistent_ref_counts(algorithm->get_label_pool());

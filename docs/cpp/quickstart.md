@@ -121,19 +121,18 @@ while (true) {
 <!-- docs-check: given using Resources = ResourceTypeComposition<RealResource, IntResource>; -->
 
 ```cpp
-// Default (optimal): SimpleDominanceAlgorithm
+// Default (optimal): strategy::Simple
 auto optimal = graph.solve();
 
 AlgorithmParams<LabelList<Resources>> params;
 
 // Greedy (fast, non-optimal)
-auto greedy = graph.solve<GreedyAlgorithm, RealResource, LabelList<Resources>>(ub, params);
+auto greedy = graph.solve<strategy::Greedy>(ub, params);
 
 // Diversification search — collect N diverse solutions
 params.max_solutions = 10;
 params.max_iterations = 50;
-auto diverse =
-    graph.solve<DiversificationSearch, RealResource, LabelList<Resources>>(ub, params);
+auto diverse = graph.solve<strategy::Diversification<>>(ub, params);
 ```
 
 ---
