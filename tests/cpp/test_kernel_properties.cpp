@@ -3,8 +3,9 @@
 
 // What every exact labelling search must agree on, whatever its order of work: the optimum of
 // forward Simple, paths that replay through the model, and, within one direction, the labels it
-// ends with; and what the relaxed and k-best admission rules keep of it. Its own translation
-// unit, as each row instantiates a search.
+// ends with; and what the relaxed and k-best admission rules keep of it. Also the parity
+// harness's own tests (util/parity.hpp). Its own translation unit, as each row instantiates a
+// search.
 
 #include <gtest/gtest.h>
 
@@ -788,5 +789,139 @@ TEST(KernelProperties, BoundedGreedyReachesTheOptimum) {
             EXPECT_EQ(kp::paths_of(bounded_out), kp::paths_of(plain_out))
                 << c.name << ", upper bound " << upper_bound;
         }
+    }
+}
+
+// ── The parity harness, on itself ────────────────────────────────────────────────────────────
+
+namespace parity_harness {
+
+using parity::Composed;
+using parity::List;
+using rcspp::RealResource;
+
+/// @brief The setting named @p name, forward, on label lists.
+inline parity::Setting<List> setting(const std::string& name) {
+    for (const auto& s : parity::settings<List>(rcspp::SearchDirection::Forward, List{})) {
+        if (s.name == name) {
+            return s;
+        }
+    }
+    ADD_FAILURE() << "no setting " << name;
+    return {name, rcspp::AlgorithmParams<List>()};
+}
+
+/// @brief A cost feasibility that rules one node out as unreachable, as an ng memory can.
+class BlocksNode : public rcspp::Clonable<BlocksNode, rcspp::FeasibilityFunction<RealResource>> {
+    public:
+        explicit BlocksNode(size_t blocked) : blocked_(blocked) {}
+
+        auto is_feasible(const RealResource& /*resource*/) -> bool override { return true; }
+
+        auto is_reachable(const rcspp::Resource<RealResource>& /*resource*/,
+                          size_t destination_node_id) -> bool override {
+            return destination_node_id != blocked_;
+        }
+
+    private:
+        size_t blocked_;
+};
+
+/// @brief Source 0, sink 3, arcs 0 -> 1, 0 -> 2, 1 -> 3, 2 -> 3 (ids 0 to 3), each costing 1, and
+///        node 2 unreachable: the composition's look-ahead asks the cost's feasibility.
+inline std::unique_ptr<parity::GraphType> blocked_diamond() {
+    auto graph = std::make_unique<parity::GraphType>(
+        std::make_unique<rcspp::CompositionExtensionFunction<RealResource>>(),
+        std::make_unique<
+            rcspp::ReachableCompositionFeasibilityFunction<RealResource, RealResource>>(0),
+        std::make_unique<rcspp::ComponentCostFunction<0, RealResource>>(0),
+        std::make_unique<rcspp::CompositionDominanceFunction<RealResource>>());
+    graph->add_resource<RealResource>(
+        std::make_unique<rcspp::AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<BlocksNode>(2),
+        std::make_unique<rcspp::ValueCostFunction<RealResource>>(),
+        std::make_unique<rcspp::ValueDominanceFunction<RealResource>>());
+    graph->add_node(0, /*source=*/true, /*sink=*/false);
+    graph->add_node(1);
+    graph->add_node(2);
+    graph->add_node(3, /*source=*/false, /*sink=*/true);
+    for (const auto& [origin, destination] :
+         std::vector<std::pair<size_t, size_t>>{{0, 1}, {0, 2}, {1, 3}, {2, 3}}) {
+        graph->add_arc<RealResource>({1.0}, origin, destination, 1.0);
+    }
+    return graph;
+}
+
+/// @brief The golden 11-node instance of seed 1, the second case.
+inline parity::Case golden_s1_n11() {
+    const auto c = parity::cases().at(1);
+    EXPECT_EQ(c.name, "golden s1 n11 t1");
+    return c;
+}
+
+/// @brief The library's Simple, traced.
+using SimpleType = parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule, List>;
+
+}  // namespace parity_harness
+
+/// @brief The library's Simple (traced) against itself: the harness sees no difference, in either
+///        release mode.
+TEST(Parity, HarnessSeesNoDifference) {
+    namespace ph = parity_harness;
+    const auto c = ph::golden_s1_n11();
+    for (const bool release : {false, true}) {
+        const auto first = parity::observe<ph::SimpleType>(c, ph::setting("exact"), release);
+        ASSERT_FALSE(first.front().trace.empty());
+        EXPECT_TRUE(
+            parity::same(first, parity::observe<ph::SimpleType>(c, ph::setting("exact"), release)));
+    }
+}
+
+/// @brief Simple's search with an admission that keeps every label, against the library's Simple:
+///        the harness sees the difference, first in the extension trace.
+///
+/// Thirty iterations: without dominance the label count grows fast.
+TEST(Parity, HarnessSeesADifference) {
+    namespace ph = parity_harness;
+    const auto c = ph::golden_s1_n11();
+    using KeepsEveryLabel = parity::TracedLabellingAlgorithm<rcspp::parts::FifoSchedule,
+                                                             ph::List,
+                                                             rcspp::ForwardDirection,
+                                                             rcspp::parts::KeepAll>;
+    const auto changed = parity::observe<KeepsEveryLabel>(c, ph::setting("early"), false);
+    const auto library = parity::observe<ph::SimpleType>(c, ph::setting("early"), false);
+    const auto result = parity::same(changed, library);
+    ASSERT_FALSE(result);
+    EXPECT_NE(std::string(result.message()).find("traces"), std::string::npos) << result.message();
+}
+
+/// @brief Pressure forced on the first memory check reaches the result through a real solve, and
+///        the trim it makes leaves fewer labels extended.
+TEST(Parity, ForcedPressureTrims) {
+    namespace ph = parity_harness;
+    const auto c = ph::golden_s1_n11();
+    const auto exact = parity::observe<ph::SimpleType>(c, ph::setting("exact"), true);
+    auto pressed = ph::setting("exact");
+    pressed.params.memory_check_interval = 1;
+    pressed.params.memory_pressure_max_labels_per_node = 1;
+    pressed.forced_pressure_checks = {1};
+    const auto runs = parity::observe<ph::SimpleType>(c, pressed, true);
+    EXPECT_FALSE(exact.front().memory_pressure);
+    EXPECT_TRUE(runs.front().memory_pressure);
+    EXPECT_LT(runs.front().extended, exact.front().extended);
+}
+
+/// @brief The trace holds an extension whose head is unreachable: the kernel tells its observer
+///        of the unreachable outcome, though no label is drawn.
+TEST(Parity, TheTraceHoldsUnreachableArcs) {
+    namespace ph = parity_harness;
+    const parity::Case c{"diamond with node 2 unreachable", ph::blocked_diamond, 1, 0.0};
+    for (const bool release : {false, true}) {
+        const auto observed = parity::observe<ph::SimpleType>(c, ph::setting("exact"), release);
+        // Arc 1 (0 -> 2) was tried and traced, but drew no label: two extensions, three entries.
+        const auto& trace = observed.front().trace;
+        EXPECT_EQ(trace.size(), 3U) << (release ? "released" : "kept");
+        EXPECT_EQ(std::ranges::count(trace, size_t{1}, &parity::TraceEntry::arc_id), 1);
+        EXPECT_EQ(observed.front().extended, 2U);
     }
 }
