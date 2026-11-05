@@ -18,8 +18,11 @@ CheckOptions:
   readability-identifier-naming.EnumConstantCase: CamelCase
   readability-identifier-naming.ConceptCase: CamelCase
   readability-identifier-naming.TypeAliasCase: CamelCase
-  # Standard-library-style aliases keep snake_case: traits' ..._t, and the std::chrono names.
-  readability-identifier-naming.TypeAliasIgnoredRegexp: '^([a-z][a-z0-9_]*_t|type|value_type|iterator|const_iterator|clock|rep|duration|time_point)$'
+  # A class's member types follow the standard library and keep snake_case (value_type,
+  # container_type, a preset's schedule), as traits' ..._t do. The check cannot tell a member type
+  # from an alias at namespace scope, so it lets any snake_case alias pass; review checks that an
+  # alias at namespace scope is CamelCase.
+  readability-identifier-naming.TypeAliasIgnoredRegexp: '^[a-z][a-z0-9_]*$'
   # Functions and members: snake_case; non-public data members end in _. The public fields of the
   # internal NodeUnprocessedLabelsManager (dominance_algorithm.hpp) keep their trailing _.
   readability-identifier-naming.FunctionCase: lower_case

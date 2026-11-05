@@ -259,3 +259,81 @@ TEST(HalfWayPolicy, RejectionDisablesRatherThanThrows) {
     EXPECT_FALSE(policy.should_stop_forward(1e9));
     EXPECT_FALSE(policy.should_stop_backward(-1e9));
 }
+
+// ============================================================================
+// The half-way point the kernel reads
+// ============================================================================
+
+namespace half_way_point_test {
+
+using Composed = ResourceTypeComposition<RealResource>;
+
+/// @brief Labels whose clock (the one resource) is a given value.
+class Labels {
+    public:
+        Labels()
+            : graph_(half_way_test::two_node_graph(
+                  std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                  /*arc_value=*/1.0)),
+              pool_(std::make_unique<LabelFactory<Composed>>(&graph_->get_resource_factory())) {}
+
+        /// @brief A label whose clock is @p value.
+        const Label<Composed>& at(double value) {
+            auto& made = pool_.get_next_label(graph_->get_node(0));
+            made.get_resource().get_component<RealResource>(0).set_value(value);
+            return made;
+        }
+
+    private:
+        std::unique_ptr<ResourceGraph<RealResource>> graph_;
+        LabelPool<Composed> pool_;
+};
+
+/// @brief The half-way point at @p h, read on the one component.
+inline detail::HalfWay<Composed> at(double h) {
+    return {h, 0, &critical_value<RealResource, Composed>};
+}
+
+}  // namespace half_way_point_test
+
+/// @brief Off by default; on at the point it is given.
+TEST(HalfWay, IsOffByDefaultAndOnAtItsPoint) {
+    namespace hwt = half_way_point_test;
+    EXPECT_FALSE(detail::HalfWay<hwt::Composed>{}.on());
+    const auto on = hwt::at(30.0);
+    EXPECT_TRUE(on.on());
+    EXPECT_EQ(on.h(), 30.0);
+}
+
+/// @brief Forward is past above H, backward below it, and neither exactly at H.
+///
+/// A label exactly on H must survive in both directions, or a path crossing there is lost.
+TEST(HalfWay, ForwardIsPastAboveHBackwardBelowIt) {
+    namespace hwt = half_way_point_test;
+    hwt::Labels labels;
+    const auto half_way = hwt::at(50.0);
+
+    EXPECT_FALSE(half_way.past<ForwardDirection>(labels.at(49.0)));
+    EXPECT_TRUE(half_way.past<ForwardDirection>(labels.at(51.0)));
+    EXPECT_FALSE(half_way.past<BackwardDirection>(labels.at(51.0)));
+    EXPECT_TRUE(half_way.past<BackwardDirection>(labels.at(49.0)));
+
+    // Exactly at H: neither direction stops.
+    EXPECT_FALSE(half_way.past<ForwardDirection>(labels.at(50.0)));
+    EXPECT_FALSE(half_way.past<BackwardDirection>(labels.at(50.0)));
+}
+
+/// @brief Turned off, the point holds nothing back, in either direction, for any value.
+TEST(HalfWay, TurnedOffHoldsNothingBack) {
+    namespace hwt = half_way_point_test;
+    hwt::Labels labels;
+    auto half_way = hwt::at(50.0);
+    ASSERT_TRUE(half_way.on());
+    half_way.turn_off();
+    EXPECT_FALSE(half_way.on());
+    for (const double value : {-1000.0, 0.0, 49.0, 50.0, 51.0, 1000.0}) {
+        EXPECT_FALSE(half_way.past<ForwardDirection>(labels.at(value)));
+        EXPECT_FALSE(half_way.past<BackwardDirection>(labels.at(value)));
+    }
+}

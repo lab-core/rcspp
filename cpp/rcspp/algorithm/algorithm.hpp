@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "rcspp/algorithm/label_buckets.hpp"
+#include "rcspp/algorithm/labelling/policies.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -122,30 +123,42 @@ using LabelIteratorPair =
 
 namespace detail {
 
+/// @brief The label an entry of a queue holds: a @c parts::StoredLabel's @c label, or a pair's
+///        first member.
+template <typename EntryType>
+[[nodiscard]] auto* label_of(const EntryType& entry) {
+    if constexpr (requires { entry.label; }) {
+        return entry.label;
+    } else {
+        return entry.first;
+    }
+}
+
 /// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
 ///        meaning non-dominated first, then cheaper first.
 ///
 /// What happens to the entries cut is the caller's: a dominated one is usually released, a
 /// non-dominated one kept aside for a later phase or dropped.
 ///
+/// @tparam EntryType A queue entry: a label and its position in its node's container.
 /// @param queue The queue; sorted, best first, when anything is cut (and @p sort is set).
 /// @param keep  How many entries stay.
 /// @param sort  Whether to sort first; without it the queue's own order decides what stays.
 /// @return The entries cut, best first; empty when @p queue held at most @p keep.
-template <typename ResourceType>
-std::list<LabelIteratorPair<ResourceType>> split_off_excess(
-    std::list<LabelIteratorPair<ResourceType>>* queue, size_t keep, bool sort = true) {
-    std::list<LabelIteratorPair<ResourceType>> excess;
+template <typename EntryType>
+std::list<EntryType> split_off_excess(std::list<EntryType>* queue, size_t keep, bool sort = true) {
+    std::list<EntryType> excess;
     if (queue->size() <= keep) {
         return excess;
     }
     if (sort) {
-        queue->sort([](const LabelIteratorPair<ResourceType>& lhs,
-                       const LabelIteratorPair<ResourceType>& rhs) {
-            if (lhs.first->dominated != rhs.first->dominated) {
-                return !lhs.first->dominated;  // non-dominated first
+        queue->sort([](const EntryType& lhs, const EntryType& rhs) {
+            const auto* left = label_of(lhs);
+            const auto* right = label_of(rhs);
+            if (left->dominated != right->dominated) {
+                return !left->dominated;  // non-dominated first
             }
-            return lhs.first->get_cost() < rhs.first->get_cost();  // then cheaper first
+            return left->get_cost() < right->get_cost();  // then cheaper first
         });
     }
     excess.splice(excess.end(),
@@ -639,6 +652,39 @@ class Algorithm {
                     return false;
             }
             return false;
+        }
+
+        /// @brief Counts one extension of a label along an arc, and logs the progress every
+        ///        100 000.
+        ///
+        /// Every extension that drew a label counts towards @ref get_number_of_extended_labels:
+        /// all but the unreachable ones.
+        ///
+        /// @param outcome How the extension ended.
+        void count_extension(parts::ExtensionOutcome outcome) {
+            if (outcome == parts::ExtensionOutcome::Unreachable) {
+                return;
+            }
+            if (++num_extended_labels_ % 100000 == 0) {  // NOLINT
+                print_labels();
+                LOG_DEBUG("Processed ", num_extended_labels_, " labels so far...\n");
+            }
+        }
+
+        /// @brief Records the path a label extended **backward** holds.
+        ///
+        /// Such a label ends at a source, and its path ends at the sink its chain started from:
+        /// the destination of its last arc.
+        ///
+        /// @param label A backward label at a source.
+        void record_backward_solution(const Label<ResourceType>& label) {
+            std::vector<size_t> arc_ids;
+            append_suffix_arc_ids(label, &arc_ids);
+            if (arc_ids.empty()) {
+                return;
+            }
+            const size_t end_node_id = graph_->get_arc(arc_ids.back())->destination->id;
+            record_path(label.get_cost(), std::move(arc_ids), end_node_id);
         }
 
         /// @brief Release all label memory held by the pool and label containers.

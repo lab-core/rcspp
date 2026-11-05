@@ -231,21 +231,13 @@ class DominanceAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         /// @tparam LabelDirection The direction @p label was extended in.
         template <typename LabelDirection>
         [[nodiscard]] std::vector<size_t> path_arc_ids(const Label<ResourceType>& label) const {
-            std::vector<size_t> arc_ids;
-            const Label<ResourceType>* cur = &label;
             if constexpr (LabelDirection::backward) {
-                while (cur != nullptr && cur->get_out_arc() != nullptr) {
-                    arc_ids.push_back(cur->get_out_arc()->id);
-                    cur = cur->prev_label;
-                }
+                std::vector<size_t> arc_ids;
+                append_suffix_arc_ids(label, &arc_ids);
+                return arc_ids;
             } else {
-                while (cur != nullptr && cur->get_in_arc() != nullptr) {
-                    arc_ids.push_back(cur->get_in_arc()->id);
-                    cur = cur->prev_label;
-                }
-                std::ranges::reverse(arc_ids);
+                return prefix_arc_ids(label);
             }
-            return arc_ids;
         }
 
         void record_solution(const Label<ResourceType>& label) override {
