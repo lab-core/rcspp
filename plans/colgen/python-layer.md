@@ -1,7 +1,8 @@
 # Pure-Python column generation layer (`T-1.15`): design
 
 Status: **accepted 2026-11-03**, steps A–F done (commits 1–6; step F's review F.1–F.22 and its fixes, `D-131`–`D-135`),
-PR branch `feature/column-generation-pure-python` made; next: step G. Records of every step: `python-layer-records.md`.
+PR branch `feature/column-generation-pure-python` made; step G done 2026-11-06 (`python-layer-runs.md`); next: step H.
+Records of every step: `python-layer-records.md`.
 On top of the stack (`D-119`), highspy in place (`D-120`), the C++ layer's features the Python way (`D-132`, superseding
 `D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed
 (`D-125`, §7), no standalone C++ run (`D-126`). Built on `D-111`, `D-112`, `D-114`, `D-116`, `D-117`, `D-118`.
@@ -121,7 +122,7 @@ Sonnet implements, Opus reviews; one step per chat, in order. Prompts: the READM
 | D | Opus | review of C (close: master problem, artificial cost, self-test) (done: D.1–D.21) |
 | E | Sonnet | commits 5–6 |
 | F | Opus | review of E (close: the loop against `column_generation.cpp`); full suite once; the PR branch (done: F.1–F.22, fixes below, `D-135`) |
-| G | Sonnet | quick runs (§6, `D-123`) |
+| G | Sonnet | quick runs (§6, `D-123`) (done 2026-11-06: `python-layer-runs.md`) |
 | H | Opus | read the quick runs; plan the full comparison and `Q-41`'s rule |
 
 Rules for every implementing chat:
