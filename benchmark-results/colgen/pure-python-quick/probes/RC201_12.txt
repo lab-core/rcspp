@@ -1,0 +1,106 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 2 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 2 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201_12.txt
+nb_customers: 21
+construct_graph: 1 ms
+construct_graph: 1 ms
+PROBE {"instance": "RC201_12", "lp": 427.235576835984, "status": "Optimal", "B15": {"iterations": 16, "master_s": 0.029409800006760634, "pricing_s": 0.09444799999982934, "run_s": 0.12749059999987367, "getSolution_calls": 16, "getSolution_s": 8.1900001532631e-05, "getLp_calls": 2, "getLp_s": 1.340000017080456e-05, "row_bounds_calls": 0, "largest_user_cost_calls": 1, "duals_calls": 16, "duals_s": 0.0008999000001495006, "primal_calls": 0, "final_columns": 1070, "final_entries": 7136, "getSolution_final_us": 2.7550000595510937, "getLp_final_us": 7.3799999881885014, "getInfo_us": 18.34450000387733}, "B16": {"batches": 15, "mean_columns": 70, "mean_entries": 474.4, "solver_side_now_us": 68.80000000819564, "solver_side_int32_us": 64.69999971159268, "build_uint32_us": 87.60000127949752, "build_int32_us": 125.80000111483969, "column_batch_uint32_us": 353.19999915373046, "column_batch_int32_us": 397.10000055492856}, "D12": {"pure": {"total_ms": 8.21929999619897, "per_call_ms": [2.625, 1.471, 0.686, 0.852, 0.296, 0.372, 0.31, 0.281, 0.245, 0.184, 0.237, 0.196, 0.155, 0.155, 0.154]}, "cpp": {"total_ms": 0.9806000016396865, "per_call_ms": [0.373, 0.192, 0.088, 0.097, 0.025, 0.035, 0.028, 0.026, 0.028, 0.011, 0.023, 0.012, 0.006, 0.03, 0.007]}, "parts": {"columns": 1050, "to_arrays_ms": 3.6326000008557457, "to_arrays_per_column_us": 3.459619048434044, "to_arrays_and_concatenate_ms": 3.8891000003786758, "solver_add_columns_ms_in_run": 2.9430999893520493, "add_columns_ms_in_run": 13.045599996985402, "add_columns_calls_in_run": 16}}, "copy": {"batches": 15, "share_us": 311.6999996564118, "copy_us": 410.29999920283444, "copy_only_us": 68.99999971210491, "batch_follows_callers_array": true, "batch_arrays_writable": false}}
+
+B15
+  iterations                       16
+  master_s                         0.0294
+  pricing_s                        0.0944
+  run_s                            0.1275
+  getSolution_calls                16
+  getSolution_s                    0.0001
+  getLp_calls                      2
+  getLp_s                          0.0000
+  row_bounds_calls                 0
+  largest_user_cost_calls          1
+  duals_calls                      16
+  duals_s                          0.0009
+  primal_calls                     0
+  final_columns                    1070
+  final_entries                    7136
+  getSolution_final_us             2.7550
+  getLp_final_us                   7.3800
+  getInfo_us                       18.3445
+
+B16
+  batches                          15
+  mean_columns                     70
+  mean_entries                     474.4000
+  solver_side_now_us               68.8000
+  solver_side_int32_us             64.7000
+  build_uint32_us                  87.6000
+  build_int32_us                   125.8000
+  column_batch_uint32_us           353.2000
+  column_batch_int32_us            397.1000
+
+copy
+  batches                          15
+  share_us                         311.7000
+  copy_us                          410.3000
+  copy_only_us                     69.0000
+  batch_follows_callers_array      True
+  batch_arrays_writable            False
+
+D12
+  pure: total 8.219 ms over 15 calls
+  cpp: total 0.981 ms over 15 calls
+  columns                          1050
+  to_arrays_ms                     3.6326
+  to_arrays_per_column_us          3.4596
+  to_arrays_and_concatenate_ms     3.8891
+  solver_add_columns_ms_in_run     2.9431
+  add_columns_ms_in_run            13.0456
+  add_columns_calls_in_run         16

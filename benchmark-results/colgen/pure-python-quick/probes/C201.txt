@@ -1,0 +1,86 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 43 ms
+construct_graph: 53 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 35 ms
+construct_graph: 47 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 50 ms
+construct_graph: 37 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 36 ms
+construct_graph: 37 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 42 ms
+construct_graph: 38 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 36 ms
+construct_graph: 44 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 35 ms
+construct_graph: 44 ms
+PROBE {"instance": "C201", "lp": 591.5565566715024, "status": "Optimal", "B15": {"iterations": 190, "master_s": 29.383009999985006, "pricing_s": 13.615559599984408, "run_s": 43.073990999999296, "getSolution_calls": 190, "getSolution_s": 0.007605899987538578, "getLp_calls": 2, "getLp_s": 2.4600001779617742e-05, "row_bounds_calls": 0, "largest_user_cost_calls": 1, "duals_calls": 190, "duals_s": 0.02246510003169533, "primal_calls": 0, "final_columns": 38074, "final_entries": 661893, "getSolution_final_us": 23.49500000491389, "getLp_final_us": 1864.0700000105426, "getInfo_us": 17.533499994897284}, "B16": {"batches": 189, "mean_columns": 200.9206349206349, "mean_entries": 3501.5502645502647, "solver_side_now_us": 2698.700000109966, "solver_side_int32_us": 2614.299999549985, "build_uint32_us": 1674.0000010031508, "build_int32_us": 1701.699999102857, "column_batch_uint32_us": 5293.399999573012, "column_batch_int32_us": 6414.00000131398}, "D12": {"pure": {"total_ms": 272.6261000025261, "per_call_ms": [15.767, 13.43, 10.62, 9.254, 9.174, 3.17, 4.839, 3.63, 3.671, 2.08, 2.816, 2.711, 1.895, 3.353, 2.748, 1.835, 2.671, 2.388, 2.232, 1.751, 2.547, 3.623, 2.734, 1.927, 2.4, 2.37, 2.736, 1.864, 3.434, 1.588, 1.884, 2.132, 2.233, 1.381, 2.58, 1.522, 2.335, 1.34, 1.1, 0.893, 2.179, 3.599, 2.038, 1.645, 2.305, 1.002, 1.212, 1.653, 1.626, 1.563, 1.572, 1.134, 1.535, 1.537, 1.277, 1.046, 1.551, 1.408, 2.017, 1.43, 2.116, 1.448, 1.112, 3.217, 1.84, 2.803, 1.452, 1.058, 1.042, 1.196, 0.695, 1.262, 0.961, 0.848, 1.035, 1.11, 1.467, 1.023, 0.798, 1.026, 1.024, 1.166, 1.391, 1.01, 1.113, 1.285, 0.969, 1.05, 0.636, 1.011, 1.079, 1.036, 0.804, 0.913, 0.929, 1.064, 0.911, 1.137, 1.083, 0.95, 0.967, 0.78, 0.697, 0.641, 1.055, 0.55, 0.896, 0.79, 1.106, 0.714, 0.829, 0.761, 1.409, 0.779, 0.754, 0.824, 0.607, 0.645, 0.725, 0.87, 0.518, 0.614, 0.578, 0.532, 0.86, 0.727, 0.743, 0.745, 0.538, 0.7, 0.515, 0.689, 0.559, 0.433, 0.482, 0.351, 0.335, 0.332, 0.436, 0.676, 0.306, 0.372, 0.581, 0.498, 0.412, 0.559, 0.721, 0.484, 0.689, 0.391, 0.303, 0.534, 0.374, 0.297, 0.362, 0.445, 0.378, 0.291, 0.431, 0.39, 0.617, 0.259, 0.251, 0.502, 0.457, 2.041, 0.411, 0.442, 0.324, 0.263, 0.307, 0.355, 0.407, 0.277, 0.319, 0.19, 0.252, 0.269, 0.249, 0.364, 0.358, 0.292, 0.462, 0.484, 0.346, 0.255, 0.418, 0.264, 0.555]}, "cpp": {"total_ms": 60.96169998818368, "per_call_ms": [3.232, 3.276, 2.444, 1.852, 2.103, 0.664, 0.836, 0.566, 0.601, 0.343, 0.962, 0.422, 0.88, 0.636, 0.445, 0.329, 0.46, 0.407, 0.574, 0.296, 0.447, 0.821, 1.024, 0.312, 0.472, 0.342, 0.428, 1.211, 1.219, 0.277, 0.297, 0.473, 0.553, 0.234, 0.592, 0.265, 0.344, 0.255, 0.185, 0.142, 0.417, 0.585, 0.752, 0.364, 0.36, 0.205, 0.234, 0.326, 0.304, 0.302, 0.201, 0.18, 0.323, 0.281, 0.28, 0.169, 0.181, 0.273, 0.387, 0.271, 0.46, 0.324, 0.219, 1.69, 0.445, 1.623, 0.342, 0.214, 0.287, 0.249, 0.118, 0.211, 0.162, 0.153, 0.187, 0.196, 0.321, 0.186, 0.131, 0.179, 0.259, 0.295, 0.219, 0.261, 0.23, 0.256, 0.182, 0.196, 0.103, 0.176, 0.209, 0.162, 0.124, 0.143, 0.166, 0.194, 0.135, 0.261, 0.191, 0.17, 0.173, 1.381, 0.121, 0.108, 0.222, 0.092, 0.396, 0.143, 0.211, 0.136, 0.166, 0.142, 0.28, 0.137, 0.151, 0.165, 0.135, 0.115, 0.131, 0.171, 0.076, 0.104, 0.1, 0.088, 0.186, 0.135, 0.123, 0.182, 0.089, 0.123, 0.089, 0.131, 0.106, 0.065, 0.08, 0.047, 0.04, 0.044, 0.07, 0.09, 0.037, 0.048, 0.096, 0.11, 0.067, 0.095, 0.16, 0.084, 0.122, 0.064, 0.047, 0.098, 0.09, 0.045, 0.06, 0.069, 0.055, 0.054, 0.077, 0.06, 0.118, 0.033, 0.035, 0.087, 0.086, 2.071, 0.091, 0.092, 0.056, 0.06, 0.043, 0.058, 0.07, 0.038, 0.05, 0.014, 0.03, 0.029, 0.025, 0.034, 0.048, 0.035, 0.075, 0.085, 0.049, 0.027, 0.065, 0.031, 0.097]}, "parts": {"columns": 37974, "to_arrays_ms": 175.39690000012342, "to_arrays_per_column_us": 4.618868172963697, "to_arrays_and_concatenate_ms": 157.7041000000463, "solver_add_columns_ms_in_run": 84.49349999500555, "add_columns_ms_in_run": 391.2460000046849, "add_columns_calls_in_run": 190}}, "copy": {"batches": 189, "share_us": 4717.599998912192, "copy_us": 7679.5999993919395, "copy_only_us": 1855.000000432483, "batch_follows_callers_array": true, "batch_arrays_writable": false}}
+
+B15
+  iterations                       190
+  master_s                         29.3830
+  pricing_s                        13.6156
+  run_s                            43.0740
+  getSolution_calls                190
+  getSolution_s                    0.0076
+  getLp_calls                      2
+  getLp_s                          0.0000
+  row_bounds_calls                 0
+  largest_user_cost_calls          1
+  duals_calls                      190
+  duals_s                          0.0225
+  primal_calls                     0
+  final_columns                    38074
+  final_entries                    661893
+  getSolution_final_us             23.4950
+  getLp_final_us                   1864.0700
+  getInfo_us                       17.5335
+
+B16
+  batches                          189
+  mean_columns                     200.9206
+  mean_entries                     3501.5503
+  solver_side_now_us               2698.7000
+  solver_side_int32_us             2614.3000
+  build_uint32_us                  1674.0000
+  build_int32_us                   1701.7000
+  column_batch_uint32_us           5293.4000
+  column_batch_int32_us            6414.0000
+
+copy
+  batches                          189
+  share_us                         4717.6000
+  copy_us                          7679.6000
+  copy_only_us                     1855.0000
+  batch_follows_callers_array      True
+  batch_arrays_writable            False
+
+D12
+  pure: total 272.626 ms over 189 calls
+  cpp: total 60.962 ms over 189 calls
+  columns                          37974
+  to_arrays_ms                     175.3969
+  to_arrays_per_column_us          4.6189
+  to_arrays_and_concatenate_ms     157.7041
+  solver_add_columns_ms_in_run     84.4935
+  add_columns_ms_in_run            391.2460
+  add_columns_calls_in_run         190

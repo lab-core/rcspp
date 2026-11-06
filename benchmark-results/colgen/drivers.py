@@ -1,7 +1,11 @@
 """One column generation run in this process; the last line printed is `RESULT <json>`.
 
   drivers.py example --instance C101_25
-  drivers.py layer --instance C101_25 --loop cpp|python --master highs|highspy|gurobipy --pricing exact|heuristic
+  drivers.py layer --instance C101_25 --loop cpp|python|purepython --master highs|highspy|gurobipy --pricing exact|heuristic
+
+`--loop purepython` runs the pure-Python layer (rcspp.python_column_generation: its own loop, master problem, graph
+pricer and master solvers; no `highs` master there); `cpp` and `python` run the C++-backed layer
+(rcspp.column_generation) with its C++ loop or the Python loop of examples/python/column_generation_loop.py.
 """
 
 import argparse
@@ -91,13 +95,23 @@ def run_cpp_example(name):
     )
 
 
-def master_model(kind, rows):
+def layer_module(loop):
+    """The package of a loop option: the pure-Python layer, or the C++-backed one."""
+    if loop == "purepython":
+        import rcspp.python_column_generation as cg
+    else:
+        import rcspp.column_generation as cg
+    return cg
+
+
+def master_model(cg, kind, rows):
     """The user's rows (customer 0 free, customers 1..n equal 1) for each master solver."""
-    import rcspp.column_generation as cg
 
     lower = [-math.inf] + [1.0] * (rows - 1)
     upper = [math.inf] + [1.0] * (rows - 1)
     if kind == "highs":
+        if not hasattr(cg, "HighsMasterSolver"):
+            sys.exit("the pure-Python layer has no HighsMasterSolver: use highspy")
         return cg.HighsMasterSolver(row_lower=lower, row_upper=upper)
     if kind == "highspy":
         import highspy
@@ -148,7 +162,7 @@ def add_single_customer_routes(master, pricer, instance):
 
 
 def run_layer(name, loop, master_kind, pricing):
-    import rcspp.column_generation as cg
+    cg = layer_module(loop)
     from vrp.vrp import VRP
 
     class FiniteVRP(VRP):
@@ -168,7 +182,7 @@ def run_layer(name, loop, master_kind, pricing):
             greedy = AlgorithmParams()
             greedy.stop_after_X_solutions = int(os.environ["COLGEN_HEURISTIC_CAP"])
         stages = [cg.PricingStage("greedy", greedy), cg.PricingStage("simple")]
-    master = cg.MasterProblem(master_model(master_kind, rows))
+    master = cg.MasterProblem(master_model(cg, master_kind, rows))
     pricer = master.add_pricer(cg.GraphPricer(graph, stages), cg.ConvexityRow())
     if os.environ.get("COLGEN_INIT") == "single":
         add_single_customer_routes(master, pricer, instance)  # the example's starting columns
@@ -176,7 +190,7 @@ def run_layer(name, loop, master_kind, pricing):
     if os.environ.get("COLGEN_ARTIFICIAL_COST"):  # override of the automatic cost (7e7 on R201_25 breaks HiGHS)
         params.initialization = cg.ArtificialColumns(cost=float(os.environ["COLGEN_ARTIFICIAL_COST"]))
     start = time.perf_counter()
-    if loop == "cpp":
+    if loop in ("cpp", "purepython"):
         result = cg.ColumnGeneration(master, params).run()
         stats = result.statistics
         fields = dict(
@@ -207,7 +221,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("driver", choices=["example", "layer", "cpp"])
     parser.add_argument("--instance", required=True)
-    parser.add_argument("--loop", default="cpp", choices=["cpp", "python"])
+    parser.add_argument("--loop", default="cpp", choices=["cpp", "python", "purepython"])
     parser.add_argument("--master", default="highs", choices=["highs", "highspy", "gurobipy"])
     parser.add_argument("--pricing", default="exact", choices=["exact", "heuristic"])
     args = parser.parse_args()
