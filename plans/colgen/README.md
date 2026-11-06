@@ -15,7 +15,12 @@ RC201_12 over highspy and gurobipy (and C101_50, C201 over highspy); times withi
 on the small instances (C201: +4.7 %, noisy machine); probes of B.15, B.16, D.12 and the `ColumnBatch` copy with
 proposals. Decided (`D-137`, `D-135` confirmed): B.15, B.16, D.12 unchanged; `ColumnBatch` and `RowBatch` copy
 their inputs (folded into commit 1; hashes after it). Records: `python-layer-records.md`,
-`python-layer-runs.md`. Now: step H (plan the full comparison, `Q-41`'s rule). Then `T-1.16`.
+`python-layer-runs.md`. Step H done 2026-11-06 (`python-layer-comparison.md`): the pure layer adds 1–2.4 ms per
+CG iteration, spread over `add_columns`, the master solver, the graph pricer and the loop (`F-47`); LP values equal
+with tabu too; capped greedy does not finish on R2 instances (`F-48`). **Proposed, for the user:** the matrix
+(`D-138`: 4 configurations × exact/tabu × single/big-M, three tiers, about 1.5 h plus 6 h overnight on the idle
+desktop), `Q-41`'s rule (`D-139`: within max(5 %, 0.25 s) per cell; the floor is the user's call), D.12 unchanged
+(`D-140`). **Next:** once accepted, the driver changes and the matrix. Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
@@ -87,6 +92,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `python-layer.md` | the pure-Python layer (`T-1.15`): contents, fix A + B, pool option, commits, comparison with the C++ layer | before coding `T-1.15` |
 | `python-layer-records.md` | the pure-Python layer's step records and review findings (B., D., F.) | before fixing or reviewing that layer |
 | `python-layer-runs.md` | the pure-Python layer's runs against the C++-backed one (step G): LP values, times, probes of B.15, B.16, D.12, the `ColumnBatch` copy | before deciding those items, planning the full comparison |
+| `python-layer-comparison.md` | step H: where the pure layer's extra time goes, the full comparison matrix, `Q-41`'s rule, D.12 after heuristic runs | before running the full comparison or deciding `Q-41` |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
