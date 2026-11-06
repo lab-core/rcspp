@@ -259,4 +259,4 @@ clean. Not pushed: both branches need a force push. Backups: `backup/python-way-
 
 | # | `feature/column-generation` | `feature/column-generation-pure-python` |
 |---|---|---|
-| 1–6 | `25fa89b9`, `2164eae7`, `84f8c104`, `b05216d8`, `de07cb88`, `50d0cfe6` | `40579d5e`, `44da43a9`, `3de00ca8`, `b3d16425`, `c50d13ec`, `a69dfccf` |
+| 1–6 | `4881e169`, `0e620a91`, `ad46b14d`, `2ed8bbd5`, `4c5e1269`, `6c899842` | `6f9e8d6a`, `3b723ec6`, `354af3c6`, `d31492c1`, `fab75719`, `510e9b65` |
