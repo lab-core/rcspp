@@ -1,7 +1,8 @@
 # Pure-Python column generation layer (`T-1.15`): design
 
 Status: **accepted 2026-11-03**, steps A–F done (commits 1–6; step F's review F.1–F.22 and its fixes, `D-131`–`D-135`),
-PR branch `feature/column-generation-pure-python` made; step G done 2026-11-06 (`python-layer-runs.md`); next: step H.
+PR branch `feature/column-generation-pure-python` made; step G done 2026-11-06 (`python-layer-runs.md`); step H done
+2026-11-06 (`python-layer-comparison.md`); next: the full matrix, once `D-138`–`D-140` are accepted.
 Records of every step: `python-layer-records.md`.
 On top of the stack (`D-119`), highspy in place (`D-120`), the C++ layer's features the Python way (`D-132`, superseding
 `D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed
@@ -93,7 +94,8 @@ Step records (A–E, the reviews B, D, F and their fixes): `python-layer-records
 - **First, quick runs** as before the presentation: `drivers.py` gets a layer option for the pure-Python package;
   a few small instances (C101_25, R201_25, RC201_12), exact pricing, single-customer start, 1 repeat. Only to check
   that LP values match and nothing is far off.
-- **Then** (to plan after the quick runs): the full matrix and the rule that decides `Q-41`.
+- **Then** (planned in step H, `python-layer-comparison.md`): the full matrix (`D-138`) and the rule that decides
+  `Q-41` (`D-139`).
 
 ## 7. The pool (`Q-47` → `D-125`: postponed to `T-2.2`; the analysis, kept for then)
 
@@ -123,7 +125,7 @@ Sonnet implements, Opus reviews; one step per chat, in order. Prompts: the READM
 | E | Sonnet | commits 5–6 |
 | F | Opus | review of E (close: the loop against `column_generation.cpp`); full suite once; the PR branch (done: F.1–F.22, fixes below, `D-135`) |
 | G | Sonnet | quick runs (§6, `D-123`) (done 2026-11-06: `python-layer-runs.md`) |
-| H | Opus | read the quick runs; plan the full comparison and `Q-41`'s rule |
+| H | Opus | read the quick runs; plan the full comparison and `Q-41`'s rule (done 2026-11-06: `python-layer-comparison.md`, `D-138`–`D-140` proposed) |
 
 Rules for every implementing chat:
 
