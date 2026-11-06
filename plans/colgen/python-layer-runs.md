@@ -166,3 +166,13 @@ writable. The layer's own path builds fresh arrays each call, so only a user bui
 Decisions asked: B.15 (proposal: none), B.16 (keep the widths), D.12 (leave it; look again with a heuristic stage),
 and the copy in `ColumnBatch` (proposal: copy). Not run, outside this step: heuristic pricing, the big-M start,
 the full matrix, repeats on an idle machine, the Gurobi probes (the copies of B.15 are HiGHS's).
+
+## Fold of the `ColumnBatch` copy (2026-11-06, `D-137`)
+
+`ColumnBatch` and `RowBatch` copy their input arrays (`_array` in `types.py`: `np.array`, then read-only; no view).
+`test_the_arrays_of_a_batch_cannot_be_written` was extended first and fails without the change. Folded into commit 1
+on both branches (`fixup!` + autosquash; the rest of the tree is unchanged); the pure-Python tests pass (262). The
+hashes of commits 1-6 changed again: `feature/column-generation` `4881e169`, `0e620a91`, `ad46b14d`, `2ed8bbd5`,
+`4c5e1269`, `6c899842`; `feature/column-generation-pure-python` `6f9e8d6a`, `3b723ec6`, `354af3c6`, `d31492c1`,
+`fab75719`, `510e9b65` (the records of steps A-F keep the hashes of their time). Backups:
+`backup/before-batch-copy`, `backup/pure-python-before-batch-copy`. Not pushed: both branches need a force push.

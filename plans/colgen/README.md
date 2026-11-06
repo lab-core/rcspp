@@ -8,14 +8,14 @@ slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
 **Next:** `T-1.15`, the pure-Python layer (`python-layer.md`): on top of the stack, the C++ layer's features written the
 Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–F done: commits 1–6
-(`25fa89b9`, `2164eae7`, `84f8c104`, `b05216d8`, `de07cb88`, `50d0cfe6`), reviews B, D, F and the Python-way review
+(`4881e169`, `0e620a91`, `ad46b14d`, `2ed8bbd5`, `4c5e1269`, `6c899842`), reviews B, D, F and the Python-way review
 folded in (`D-127`–`D-136`); copied to `feature/column-generation-pure-python` (not pushed: force push needed).
 Step G done 2026-11-06 (`python-layer-runs.md`): LP values, iterations and columns equal on C101_25, R201_25 and
 RC201_12 over highspy and gurobipy (and C101_50, C201 over highspy); times within 0–30 ms of the C++-backed layer
 on the small instances (C201: +4.7 %, noisy machine); probes of B.15, B.16, D.12 and the `ColumnBatch` copy with
-proposals. Decided (`D-137`, `D-135` confirmed): B.15, B.16, D.12 unchanged; `ColumnBatch` and `RowBatch` to copy
-their inputs (code change not made yet). Records: `python-layer-records.md`, `python-layer-runs.md`. Now: step H
-(plan the full comparison, `Q-41`'s rule). Then `T-1.16`.
+proposals. Decided (`D-137`, `D-135` confirmed): B.15, B.16, D.12 unchanged; `ColumnBatch` and `RowBatch` copy
+their inputs (folded into commit 1; hashes after it). Records: `python-layer-records.md`,
+`python-layer-runs.md`. Now: step H (plan the full comparison, `Q-41`'s rule). Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
