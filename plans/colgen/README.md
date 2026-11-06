@@ -10,8 +10,12 @@ Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optio
 Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–F done: commits 1–6
 (`25fa89b9`, `2164eae7`, `84f8c104`, `b05216d8`, `de07cb88`, `50d0cfe6`), reviews B, D, F and the Python-way review
 folded in (`D-127`–`D-136`); copied to `feature/column-generation-pure-python` (not pushed: force push needed).
-Records: `python-layer-records.md`. Now: confirm `D-135`, then step G, the quick runs (`python-layer.md` §6). Then
-`T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
+Step G done 2026-11-06 (`python-layer-runs.md`): LP values, iterations and columns equal on C101_25, R201_25 and
+RC201_12 over highspy and gurobipy (and C101_50, C201 over highspy); times within 0–30 ms of the C++-backed layer
+on the small instances (C201: +4.7 %, noisy machine); probes of B.15, B.16, D.12 and the `ColumnBatch` copy with
+proposals, awaiting the user. Records: `python-layer-records.md`, `python-layer-runs.md`. Now: confirm `D-135`,
+decide B.15, B.16, D.12 and the copy, then step H (plan the full comparison, `Q-41`'s rule). Then `T-1.16`.
+History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## New chat
@@ -81,6 +85,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `packaging.md` | study notes: Gurobi from Python (B1, B2, C API, adapters), Python packages, C++ packaging and flags | before `T-1.11`, `T-1.12`, or any packaging change |
 | `python-layer.md` | the pure-Python layer (`T-1.15`): contents, fix A + B, pool option, commits, comparison with the C++ layer | before coding `T-1.15` |
 | `python-layer-records.md` | the pure-Python layer's step records and review findings (B., D., F.) | before fixing or reviewing that layer |
+| `python-layer-runs.md` | the pure-Python layer's runs against the C++-backed one (step G): LP values, times, probes of B.15, B.16, D.12, the `ColumnBatch` copy | before deciding those items, planning the full comparison |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
