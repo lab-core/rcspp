@@ -1,0 +1,16 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+10:35:17,0.0,35.6,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
+10:35:23,29.4,35.6,197,dwm.exe 27%; svchost.exe 27%; chrome.exe 26%
+10:35:29,22.4,35.6,115,Code.exe 23%; System 14%; dwm.exe 12%
+10:35:35,25.6,35.6,178,msedgewebview2.exe 37%; chrome.exe 34%; Code.exe 22%
+10:35:41,23.0,35.6,121,Code.exe 17%; chrome.exe 16%; dwm.exe 12%
+10:35:47,24.3,35.6,148,chrome.exe 42%; Code.exe 24%; dwm.exe 16%
+10:35:53,27.2,35.5,171,chrome.exe 51%; Code.exe 21%; dwm.exe 16%
+10:35:59,21.7,35.3,116,Code.exe 20%; chrome.exe 19%; dwm.exe 13%
+10:36:05,19.9,35.4,114,chrome.exe 18%; Code.exe 18%; dwm.exe 16%
+10:36:11,30.5,35.6,204,chrome.exe 62%; chrome.exe 30%; Code.exe 22%
+10:36:17,27.7,35.6,184,chrome.exe 31%; Code.exe 21%; dwm.exe 20%
+10:36:23,25.1,35.6,144,chrome.exe 41%; Code.exe 23%; dwm.exe 14%
+10:36:29,24.1,35.6,148,chrome.exe 34%; dwm.exe 21%; Code.exe 20%
+10:36:35,31.7,35.7,228,chrome.exe 78%; chrome.exe 29%; Code.exe 21%
+10:36:41,31.4,35.7,221,chrome.exe 60%; Code.exe 27%; dwm.exe 24%

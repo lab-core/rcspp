@@ -36,6 +36,7 @@ Quick scripts in `benchmark-results/colgen/` (not shipped, left out of the PR br
 |---|---|
 | `drivers.py` | one run in one process, last line `RESULT <json>`: `example` (Python VRP example), `layer` (new layer), `cpp` (C++ example) |
 | `run_matrix.py` | the runner: one subprocess per run, resumable, stats, logs, `summary.md` |
+| `python_layer_probes.py` | probes of the pure-Python layer (copies of the HiGHS solution, integer widths, `add_columns`, `ColumnBatch` copies) |
 | `run_matrix.ps1` | launcher: builds what is missing, sets `PYTHONPATH`, starts the runner with the venv's Python |
 | `after_large.sh`, `chain.sh` | the single-start runs queued behind the large run (`chain.sh` waits for a stop, then runs it) |
 | `small/`, `large/`, `single-small/`, `single-large/` | results: `results.csv`, `summary.md`, `status.txt`, `machine.csv`, `logs/` |
@@ -43,7 +44,10 @@ Quick scripts in `benchmark-results/colgen/` (not shipped, left out of the PR br
 Configurations (names in `run_matrix.py`): `example-mip` (Python example, python-mip picking Gurobi), `example-cpp` (C++
 example `rcspp-ng-cg-comparison`, ng size 0 = cycles allowed), and `layer-{cpp,python}-{highs,highspy,gurobipy}-{exact,
 heuristic}` (C++ `ColumnGeneration.run()` or the Python loop `examples/python/column_generation_loop.py`; exact =
-`simple`, heuristic = `greedy` then `simple`). Instances are in `instances/`: small C101_25, R101_25, R201_25,
+`simple`, heuristic = `greedy` then `simple`), and `layer-purepython-{highspy,gurobipy}-{exact,heuristic}` (the
+pure-Python layer `rcspp.python_column_generation`, driver option `--loop purepython`; run with
+`PYTHONPATH=python/src`, the launcher's build folder has no such package; results of 2026-11-06 in
+`pure-python-quick*/`, plan `python-layer-runs.md`). Instances are in `instances/`: small C101_25, R101_25, R201_25,
 RC201_12, C101_50, R101_50, RC101_50; large C101, R101, RC101, C201, R201, RC201.
 
 ## How to run (Windows, this machine's setup)
