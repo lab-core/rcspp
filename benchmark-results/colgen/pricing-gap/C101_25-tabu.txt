@@ -1,0 +1,76 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 3 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 3 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 3 ms
+construct_graph: 2 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C101_25.txt
+nb_customers: 26
+construct_graph: 2 ms
+construct_graph: 2 ms
+PROBE {"instance": "C101_25", "pricing": "tabu", "cap": 20, "repeats": 7, "outcomes": [["cpp", 191.8136197786562, 66, 412], ["pure", 191.8136197786562, 66, 412]], "medians": {"cpp": {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0418882000012673, "master": 0.0393732, "pricing": 1.0024313, "rest": 8.670000101163033e-05}, "pure": {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.1096371000003273, "master": 0.047260900000765105, "pricing": 1.0525327999894216, "rest": 0.009485599999607075, "solve_calls": 82, "paths": 412, "urc_inner": 0.0020250000052328687, "urc_wrapper": 0.0026392000017949613, "solve_inner": 1.0126746000078128, "solve_wrapper": 1.0155022000071767, "to_result": 0.003868299992973334, "price": 1.0250820000001113, "add_columns": 0.025931699996363022, "to_arrays": 0.0011331000132486224, "add_columns_without_to_arrays": 0.024826099992424133, "loop_price": 0.0011219999814784387, "price_python": 0.0101482999871223, "solutions_list": 0.00010180000026593916}}, "runs": {"cpp": [{"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0222442999984196, "master": 0.0394931, "pricing": 0.9826454, "rest": 0.00010579999841953125}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.1235501000010117, "master": 0.0397577, "pricing": 1.0837057, "rest": 8.670000101163033e-05}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0603300999991916, "master": 0.0403836, "pricing": 1.019851, "rest": 9.549999919156171e-05}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0418882000012673, "master": 0.0393732, "pricing": 1.0024313, "rest": 8.370000126722843e-05}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0796396999994613, "master": 0.038067, "pricing": 1.0414876, "rest": 8.50999994612689e-05}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.003935000000638, "master": 0.0363368, "pricing": 0.9675002, "rest": 9.800000063797665e-05}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0126770999995642, "master": 0.0379095, "pricing": 0.9746845, "rest": 8.309999956424008e-05}], "pure": [{"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0785375999985263, "master": 0.04755020000084187, "pricing": 1.0209316000073159, "rest": 0.010055799990368541, "solve_calls": 82, "paths": 412, "urc_inner": 0.0020506999953795457, "urc_wrapper": 0.0026392000017949613, "solve_inner": 0.9828818000078172, "solve_wrapper": 0.985616600006324, "to_result": 0.003780300001380965, "price": 0.9945397999963461, "add_columns": 0.02538349999304046, "to_arrays": 0.0011331000132486224, "add_columns_without_to_arrays": 0.024250399979791837, "loop_price": 0.0010083000179292867, "price_python": 0.009607299993149354, "solutions_list": 0.00010119999933522195}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.1349020000016026, "master": 0.04848359999414242, "pricing": 1.0768103999998857, "rest": 0.009608000007574446, "solve_calls": 82, "paths": 412, "urc_inner": 0.0021135000042704633, "urc_wrapper": 0.002730799991695676, "solve_inner": 1.0367813000048045, "solve_wrapper": 1.0396697999967728, "to_result": 0.00381159998869407, "price": 1.0490430999961973, "add_columns": 0.02659370001128991, "to_arrays": 0.0012054999897372909, "add_columns_without_to_arrays": 0.02538820002155262, "loop_price": 0.0011735999923985219, "price_python": 0.0101482999871223, "solutions_list": 0.00013419999959296547}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.1096371000003273, "master": 0.047260900000765105, "pricing": 1.0525327999894216, "rest": 0.009843400010140613, "solve_calls": 82, "paths": 412, "urc_inner": 0.002103399994666688, "urc_wrapper": 0.0027111999970657052, "solve_inner": 1.0126746000078128, "solve_wrapper": 1.0155022000071767, "to_result": 0.004071400004249881, "price": 1.0250820000001113, "add_columns": 0.026175999983024667, "to_arrays": 0.001165199993920396, "add_columns_without_to_arrays": 0.02501079998910427, "loop_price": 0.001274800006285659, "price_python": 0.010303999997631763, "solutions_list": 0.00010060000022349413}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.135637900000802, "master": 0.046826399990095524, "pricing": 1.0794269999914832, "rest": 0.009384500019223196, "solve_calls": 82, "paths": 412, "urc_inner": 0.001989799999137176, "urc_wrapper": 0.002585700005511171, "solve_inner": 1.0390606000019034, "solve_wrapper": 1.042272500011677, "to_result": 0.004018699992229813, "price": 1.051699000008739, "add_columns": 0.026606000001265784, "to_arrays": 0.0011102000244136434, "add_columns_without_to_arrays": 0.02549579997685214, "loop_price": 0.0011219999814784387, "price_python": 0.010648600007698406, "solutions_list": 0.00010180000026593916}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0783134999983304, "master": 0.04514500000004773, "pricing": 1.0244279000035021, "rest": 0.008740599994780496, "solve_calls": 82, "paths": 412, "urc_inner": 0.0018376999996689847, "urc_wrapper": 0.0024083999978756765, "solve_inner": 0.9862748999894393, "solve_wrapper": 0.9889730000122654, "to_result": 0.003868299992973334, "price": 0.9978829999981826, "add_columns": 0.025500599998849793, "to_arrays": 0.001144799985922873, "add_columns_without_to_arrays": 0.02435580001292692, "loop_price": 0.0010443000064697117, "price_python": 0.009770400009074365, "solutions_list": 0.00010180000026593916}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.0819210999998177, "master": 0.0453529000042181, "pricing": 1.0276184999966063, "rest": 0.00894969999899331, "solve_calls": 82, "paths": 412, "urc_inner": 0.0018583000000944594, "urc_wrapper": 0.0024724999911995837, "solve_inner": 0.9903127999896242, "solve_wrapper": 0.9930227999921044, "to_result": 0.0038176000052771997, "price": 1.001948800008904, "add_columns": 0.024579399994763662, "to_arrays": 0.0011090999687439762, "add_columns_without_to_arrays": 0.023470300026019686, "loop_price": 0.001090299992938526, "price_python": 0.009777700019185431, "solutions_list": 0.00013109999963489827}, {"lp": 191.8136197786562, "iterations": 66, "columns": 412, "total": 1.1565335000013874, "master": 0.048971599997457815, "pricing": 1.0980763000043225, "rest": 0.009485599999607075, "solve_calls": 82, "paths": 412, "urc_inner": 0.0020250000052328687, "urc_wrapper": 0.002644600004714448, "solve_inner": 1.058606400001736, "solve_wrapper": 1.0614560000049096, "to_result": 0.004050599989568582, "price": 1.0710202999980538, "add_columns": 0.025931699996363022, "to_arrays": 0.0011056000039388891, "add_columns_without_to_arrays": 0.024826099992424133, "loop_price": 0.0011243000099057099, "price_python": 0.010388899991085054, "solutions_list": 0.00010199999996984843}]}}
+C101_25 tabu (cap 20), 7 repeats, medians in ms
+  outcome ('cpp', 191.8136197786562, 66, 412)
+  outcome ('pure', 191.8136197786562, 66, 412)
+  cpp: lp 191.8136197786562, iterations 66, columns 412, total 1041.89, master 39.37, pricing 1002.43, rest 0.09
+  pure: lp 191.8136197786562, iterations 66, columns 412, total 1109.64, master 47.26, pricing 1052.53, rest 9.49, solve_calls 82, paths 412, urc_inner 2.03, urc_wrapper 2.64, solve_inner 1012.67, solve_wrapper 1015.50, to_result 3.87, price 1025.08, add_columns 25.93, to_arrays 1.13, add_columns_without_to_arrays 24.83, loop_price 1.12, price_python 10.15, solutions_list 0.10
