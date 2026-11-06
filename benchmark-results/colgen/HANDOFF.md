@@ -37,6 +37,7 @@ Quick scripts in `benchmark-results/colgen/` (not shipped, left out of the PR br
 | `drivers.py` | one run in one process, last line `RESULT <json>`: `example` (Python VRP example), `layer` (new layer), `cpp` (C++ example) |
 | `run_matrix.py` | the runner: one subprocess per run, resumable, stats, logs, `summary.md` |
 | `python_layer_probes.py` | probes of the pure-Python layer (copies of the HiGHS solution, integer widths, `add_columns`, `ColumnBatch` copies) |
+| `pricing_gap_probe.py` | the pure-Python layer's extra time against the C++-backed one, split by slice (`--pricing exact\|heuristic\|tabu`); results in `pricing-gap/` |
 | `run_matrix.ps1` | launcher: builds what is missing, sets `PYTHONPATH`, starts the runner with the venv's Python |
 | `after_large.sh`, `chain.sh` | the single-start runs queued behind the large run (`chain.sh` waits for a stop, then runs it) |
 | `small/`, `large/`, `single-small/`, `single-large/` | results: `results.csv`, `summary.md`, `status.txt`, `machine.csv`, `logs/` |
