@@ -233,3 +233,30 @@ What differs from the batch plan:
   Also: the HiGHS Ctrl-C test waits 50 ms after the callback (a GIL switch inside it would abort the solve), and the
   registry docstring says where a name is built. Left: `solve_restricted_master_integer` returns the master solver's
   status unchecked (as C++; nothing reads it).
+
+Python-way review (2026-11-06, Opus; the user's question: any C++ notion left where Python has its own? `D-136`,
+all ✔). The loop still matches `column_generation.cpp` (proof rule, tolerance floor, time checks, hooks).
+
+| # | finding | fix |
+|---|---|---|
+| P.1 | `ArtificialColumns(cost=0.0)`: 0 means automatic (a placeholder value, as D.8) | `cost=None`; ≤ 0, `inf`, NaN refused |
+| P.2 | `ConvexityRow.max_paths = inf` means "no row"; "not both" checked in `add_pricer` only | `float \| None`, checked in `__post_init__` |
+| P.3 | `MasterProblem.pricer(i)`, `convexity_row(i)`, `number_of_pricers`: getters by index | `pricers`: tuple of `PricerEntry` |
+| P.4 | `default_*` constants named as C++ `constexpr`; rcspp's Python uses capitals | `DEFAULT_*`, `AUTOMATIC_COST_FACTOR` |
+| P.5 | tolerances, initializations: private numbers, no `repr`, no `==` (grids print `<object at 0x…>`) | hand-written `repr` (`eval` builds it back), `==`, `hash` |
+| P.6 | unknown column id (`variable`, `column`, `primal`): `IndexError`, pybind11's `std::out_of_range` | `KeyError` |
+| P.7 | `_solution_list_factory`, `_string_list_factory` only for pyright | `field(default_factory=list[Solution])` |
+| P.8 | `artificial_cost` 0, `ColumnGenerationResult.objective` `inf` when none | `None` |
+| P.9 | enum values 0…N only mattered for the binding's `__int__` | `auto()` |
+| P.10 | `MasterSolverSelfTestReport` frozen but its list appended to | `failures` a tuple, built first |
+| P.11 | `RowBatch` / `ColumnBatch`: the arrays (shared with the caller's) and `names` writable through the getters; no `repr` | read-only views, `names` a tuple, `repr` (`ColumnBatch(3 columns, 7 entries)`); the dataclass form kept out (no simpler); widths B.16 and `scipy.sparse` (`D-16`) wait for step G |
+
+Record: a fixup per commit, autosquashed (conflicts in `__init__.py` only); the final tree equals the tested one.
+Each commit passes its own tests and mypy `--strict` (13, 60, 84, 145, 178, 262 tests); bandit wants `# nosec B307`
+on the two `eval` of a `repr`. Whole Python suite 683 passed, 1 skipped; 100 % of the package's lines; pyright strict
+clean. Not pushed: both branches need a force push. Backups: `backup/python-way-fixes`,
+`backup/pure-python-before-fixes`.
+
+| # | `feature/column-generation` | `feature/column-generation-pure-python` |
+|---|---|---|
+| 1–6 | `25fa89b9`, `2164eae7`, `84f8c104`, `b05216d8`, `de07cb88`, `50d0cfe6` | `40579d5e`, `44da43a9`, `3de00ca8`, `b3d16425`, `c50d13ec`, `a69dfccf` |

@@ -1,6 +1,6 @@
 # Column generation layer: plan
 
-Status (2026-11-03): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
+Status (2026-11-06): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
 with the C++ layer (`D-111`, `T-1.15`); whether the C++ layer stays is open (`Q-41`). Until then the C++ layer is
 frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Big-M start (`T-1.13`)
 done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
@@ -8,11 +8,10 @@ slower with exact pricing on R201, tabu first cuts it 5.3 times (`F-41`).
 Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optional).
 **Next:** `T-1.15`, the pure-Python layer (`python-layer.md`): on top of the stack, the C++ layer's features written the
 Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–F done: commits 1–6
-(`df83c093`, `be1bbdf0`, `8c8e9285`, `c8561444`, `620fdde9`, `79bc41b7`), reviews B, D, F folded in (`D-127`–`D-135`;
-F: Python-way API, the C++ features the binding lacks, no mirror test, the C++ cases replicated); copied to
-`feature/column-generation-pure-python`. Records: `python-layer-records.md`. Now: confirm `D-135`, then step G, the quick
-runs (`python-layer.md` §6). Then `T-1.16`. History: `decisions.md`; measurements and how
-to run them: `benchmark-results/colgen/HANDOFF.md`.
+(`25fa89b9`, `2164eae7`, `84f8c104`, `b05216d8`, `de07cb88`, `50d0cfe6`), reviews B, D, F and the Python-way review
+folded in (`D-127`–`D-136`); copied to `feature/column-generation-pure-python` (not pushed: force push needed).
+Records: `python-layer-records.md`. Now: confirm `D-135`, then step G, the quick runs (`python-layer.md` §6). Then
+`T-1.16`. History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
 ## New chat
