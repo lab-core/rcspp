@@ -13,8 +13,9 @@ folded in (`D-127`–`D-136`); copied to `feature/column-generation-pure-python`
 Step G done 2026-11-06 (`python-layer-runs.md`): LP values, iterations and columns equal on C101_25, R201_25 and
 RC201_12 over highspy and gurobipy (and C101_50, C201 over highspy); times within 0–30 ms of the C++-backed layer
 on the small instances (C201: +4.7 %, noisy machine); probes of B.15, B.16, D.12 and the `ColumnBatch` copy with
-proposals, awaiting the user. Records: `python-layer-records.md`, `python-layer-runs.md`. Now: confirm `D-135`,
-decide B.15, B.16, D.12 and the copy, then step H (plan the full comparison, `Q-41`'s rule). Then `T-1.16`.
+proposals. Decided (`D-137`, `D-135` confirmed): B.15, B.16, D.12 unchanged; `ColumnBatch` and `RowBatch` to copy
+their inputs (code change not made yet). Records: `python-layer-records.md`, `python-layer-runs.md`. Now: step H
+(plan the full comparison, `Q-41`'s rule). Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
