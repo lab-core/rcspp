@@ -2,7 +2,8 @@
 
 Status: **accepted 2026-11-03**, steps A–F done (commits 1–6; step F's review F.1–F.22 and its fixes, `D-131`–`D-135`),
 PR branch `feature/column-generation-pure-python` made; step G done 2026-11-06 (`python-layer-runs.md`); step H done
-2026-11-06 (`python-layer-comparison.md`); next: the full matrix, once `D-138`–`D-140` are accepted.
+2026-11-06 (`python-layer-comparison.md`); full matrix run 2026-11-07/08 (§6 there): 108 / 108 cells equivalent,
+`D-141` proposed (Python only); next: the user decides `D-139`–`D-141`.
 Records of every step: `python-layer-records.md`.
 On top of the stack (`D-119`), highspy in place (`D-120`), the C++ layer's features the Python way (`D-132`, superseding
 `D-121`), VRP not ported (`D-122`), quick runs first (`D-123`), one highspy master solver (`D-124`), pool postponed
