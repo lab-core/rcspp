@@ -9,7 +9,8 @@ Heuristic pricing is done (`T-1.14`, `F-40`; `D-117`: no default cap, tabu optio
 **Next:** `T-1.15`, the pure-Python layer (`python-layer.md`): on top of the stack, the C++ layer's features written the
 Python way (`D-132`, superseding `D-121`); design `D-119`–`D-126`, pool postponed. Steps A–F done: commits 1–6
 (`4881e169`, `0e620a91`, `ad46b14d`, `2ed8bbd5`, `4c5e1269`, `6c899842`), reviews B, D, F and the Python-way review
-folded in (`D-127`–`D-136`); copied to `feature/column-generation-pure-python` (not pushed: force push needed).
+folded in (`D-127`–`D-136`); copied to `feature/column-generation-pure-python` (pushed, on #80's head `8bb6f36c`;
+the same six patches as here, new hashes `6f9e8d6a`…`510e9b65`).
 Step G done 2026-11-06 (`python-layer-runs.md`): LP values, iterations and columns equal on C101_25, R201_25 and
 RC201_12 over highspy and gurobipy (and C101_50, C201 over highspy); times within 0–30 ms of the C++-backed layer
 on the small instances (C201: +4.7 %, noisy machine); probes of B.15, B.16, D.12 and the `ColumnBatch` copy with
@@ -25,7 +26,12 @@ desktop), `Q-41`'s rule (`D-139`: within max(5 %, 0.25 s) per cell; the floor is
 equivalent by `D-139` (also with a 0.1 s floor). **Proposed:** `D-141`, Python only. **Next:** the user decides
 `D-139`–`D-141` (`D-141` with the colleagues; presentation 2026-11-09, slides done 2026-11-09 in
 `benchmark-results/colgen/presentation/python-layer/`: 9 slides + 3 backup, no plan IDs, the same-API slide, a
-chart of the runs over 100 s against their run-to-run spread), then the last PR (`python-layer.md` §2).
+chart of the runs over 100 s against their run-to-run spread), then the last PR (`python-layer.md` §2). PR
+description for the six commits drafted 2026-11-09 (base #80; the user opens the PR and reviews it there; the review
+comments go to a later chat). PR #88 review done 2026-11-09 (R.1–R.22 in `python-layer-records.md`: two HiGHS
+Ctrl-C / interrupt bugs, tests, the user's comments, a readability pass), approved and folded into commits 1–6 on
+both branches (hashes in the record); worktree `../rcspp-dev` on `feature/column-generation-pure-python`. Both
+branches force-pushed 2026-11-09.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
