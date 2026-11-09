@@ -1,0 +1,4 @@
+[1/8] R201 layer-cpp-highspy-exact rep 0
+started 07:57:36, running 110.6 min, peak 365 MB
+after it: about 0 min + 7 runs on instances not yet run
+create a file STOP in this folder to stop after this run

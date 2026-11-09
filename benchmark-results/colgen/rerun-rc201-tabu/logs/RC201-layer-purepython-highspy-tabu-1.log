@@ -1,0 +1,6 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\RC201.txt
+nb_customers: 101
+construct_graph: 39 ms
+construct_graph: 44 ms
+RESULT {"status": "Optimal", "lp": 1112.8413818039526, "iterations": 71, "rest_s": 0.0381299999426119, "columns": 21411, "master_s": 5.939375900066807, "pricing_s": 42.36396649997914}

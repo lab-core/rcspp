@@ -1,0 +1,263 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+02:53:10,0.0,25.4,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
+02:53:16,12.3,25.4,42,System 16%; MsMpEng.exe 12%; explorer.exe 1%
+02:53:22,12.0,25.4,18,System 3%; MsMpEng.exe 2%; Discord.exe 2%
+02:53:27,13.1,25.4,28,System 6%; Code.exe 2%; RiotClientServices.exe 2%
+02:53:33,13.6,25.4,33,System 14%; MsMpEng.exe 7%; Code.exe 1%
+02:53:39,12.6,25.4,26,System 18%; NVIDIA Share.exe 2%; Code.exe 2%
+02:53:45,12.7,25.4,36,System 10%; MsMpEng.exe 8%; Code.exe 7%
+02:53:51,12.1,25.4,22,System 5%; CurseForge.exe 1%; nvsphelper64.exe 1%
+02:53:56,11.8,25.4,15,System 5%; claude.exe 2%; Code.exe 1%
+02:54:02,11.9,25.2,29,System 12%; Discord.exe 2%; CurseForge.exe 2%
+02:54:08,12.5,25.4,23,MsMpEng.exe 6%; NVIDIA Share.exe 2%; Code.exe 2%
+02:54:13,12.7,25.4,26,System 14%; Discord.exe 1%; MsMpEng.exe 1%
+02:54:19,11.9,25.4,15,System 5%; Discord.exe 1%; CurseForge.exe 1%
+02:54:25,12.1,25.4,44,MsMpEng.exe 17%; System 11%; explorer.exe 3%
+02:54:31,12.0,25.4,26,MsMpEng.exe 10%; System 3%; explorer.exe 2%
+02:54:36,11.5,25.4,24,System 7%; MsMpEng.exe 4%; Code.exe 2%
+02:54:42,12.9,25.4,39,System 17%; MsMpEng.exe 6%; Discord.exe 2%
+02:54:48,12.8,25.3,36,System 10%; MsMpEng.exe 6%; Code.exe 5%
+02:54:54,13.0,25.3,30,Code.exe 14%; nordvpn-service.exe 3%; System 2%
+02:54:59,12.4,25.3,38,MsMpEng.exe 14%; System 7%; explorer.exe 2%
+02:55:05,11.8,25.4,36,MsMpEng.exe 14%; System 5%; explorer.exe 3%
+02:55:11,12.0,25.4,31,System 11%; MsMpEng.exe 7%; Discord.exe 2%
+02:55:16,13.5,25.4,42,System 16%; MsMpEng.exe 6%; NVIDIA Share.exe 2%
+02:55:22,11.8,25.4,20,MsMpEng.exe 6%; Code.exe 2%; Discord.exe 1%
+02:55:28,13.1,25.4,40,System 12%; MsMpEng.exe 7%; svchost.exe 4%
+02:55:33,14.7,25.6,45,Code.exe 14%; Code.exe 11%; Code.exe 3%
+02:55:39,12.0,25.4,19,System 6%; Code.exe 2%; rustdesk.exe 2%
+02:55:45,12.6,25.4,23,System 10%; MsMpEng.exe 2%; Code.exe 2%
+02:55:51,12.2,25.5,16,System 6%; rustdesk.exe 1%; claude.exe 1%
+02:55:56,11.5,25.5,17,System 6%; tailscaled.exe 1%; NVIDIA Share.exe 1%
+02:56:02,12.7,25.4,37,System 16%; MsMpEng.exe 7%; CurseForge.exe 1%
+02:56:08,11.6,25.4,16,Discord.exe 1%; MsMpEng.exe 1%; CurseForge.exe 1%
+02:56:14,12.9,25.5,29,System 11%; Code.exe 2%; Discord.exe 2%
+02:56:19,12.0,25.5,22,System 5%; CurseForge.exe 2%; csrss.exe 1%
+02:56:25,12.6,25.5,21,System 6%; Discord.exe 2%; MsMpEng.exe 2%
+02:56:31,12.4,25.5,25,System 6%; GoogleDriveFS.exe 2%; MsMpEng.exe 1%
+02:56:37,11.1,25.4,23,MsMpEng.exe 6%; System 6%; CurseForge.exe 2%
+02:56:42,11.5,25.4,13,System 3%; Discord.exe 1%; Code.exe 1%
+02:56:48,13.0,25.5,28,System 14%; Code.exe 7%; Code.exe 1%
+02:56:54,12.7,25.5,28,System 10%; MsMpEng.exe 5%; svchost.exe 4%
+02:57:00,13.7,25.5,33,System 12%; claude.exe 2%; csrss.exe 1%
+02:57:06,12.6,25.5,26,System 7%; csrss.exe 2%; rustdesk.exe 1%
+02:57:11,11.4,25.4,23,System 7%; MsMpEng.exe 7%; Code.exe 2%
+02:57:17,13.0,25.5,30,System 15%; GoogleDriveFS.exe 2%; CurseForge.exe 1%
+02:57:23,12.3,25.5,24,System 9%; Code.exe 2%; rustdesk.exe 1%
+02:57:29,12.7,25.6,22,System 12%; MsMpEng.exe 2%; Code.exe 2%
+02:57:34,13.2,25.5,33,System 15%; NVIDIA Share.exe 2%; CurseForge.exe 2%
+02:57:40,12.7,25.6,21,System 9%; Code.exe 2%; MsMpEng.exe 2%
+02:57:46,12.0,25.4,26,System 8%; MsMpEng.exe 6%; Code.exe 1%
+02:57:52,12.4,25.4,21,System 6%; CurseForge.exe 2%; CrossDeviceService.exe 2%
+02:57:57,13.4,25.5,33,System 9%; OneDrive.exe 2%; NordUpdateService.exe 2%
+02:58:03,11.7,25.5,13,CurseForge.exe 1%; System 1%; Discord.exe 1%
+02:58:09,12.9,25.5,30,System 14%; Discord.exe 2%; CurseForge.exe 1%
+02:58:15,13.0,25.5,35,System 18%; Code.exe 5%; MsMpEng.exe 2%
+02:58:20,11.6,25.5,17,System 7%; Code.exe 2%; Code.exe 1%
+02:58:26,11.9,25.5,16,System 5%; CurseForge.exe 1%; Code.exe 1%
+02:58:32,14.2,25.3,57,msedgewebview2.exe 38%; System 8%; CurseForge.exe 1%
+02:58:38,12.3,25.4,26,MsMpEng.exe 8%; System 3%; Code.exe 2%
+02:58:44,12.0,25.4,20,System 10%; Discord.exe 1%; CurseForge.exe 1%
+02:58:49,12.5,25.4,26,System 17%; CurseForge.exe 1%; MsMpEng.exe 1%
+02:58:55,12.1,25.4,21,System 11%; CurseForge.exe 1%; NVIDIA Share.exe 1%
+02:59:01,13.2,25.5,29,System 10%; nordvpn-service.exe 1%; RiotClientServices.exe 1%
+02:59:07,11.9,25.5,19,Discord.exe 1%; CurseForge.exe 1%; MsMpEng.exe 1%
+02:59:12,11.7,25.5,16,System 5%; NVIDIA Share.exe 1%; Code.exe 1%
+02:59:18,12.6,25.5,25,System 14%; claude.exe 1%; CurseForge.exe 1%
+02:59:24,10.7,25.3,15,System 6%; Code.exe 2%; MsMpEng.exe 1%
+02:59:29,13.1,25.4,32,System 10%; MsMpEng.exe 8%; explorer.exe 1%
+02:59:35,12.9,25.4,30,System 12%; Code.exe 2%; services.exe 2%
+02:59:41,11.5,25.4,16,System 6%; claude.exe 1%; MsMpEng.exe 1%
+02:59:47,13.3,25.5,31,System 9%; Code.exe 8%; NVIDIA Share.exe 2%
+02:59:52,12.2,25.5,19,System 7%; Discord.exe 1%; tailscaled.exe 1%
+02:59:58,12.9,25.5,30,Discord.exe 12%; System 8%; nordvpn-service.exe 2%
+03:00:04,12.9,25.5,24,System 7%; Discord.exe 2%; NVIDIA Share.exe 1%
+03:00:10,12.1,25.5,24,System 12%; MsMpEng.exe 2%; Discord.exe 2%
+03:00:15,12.7,25.4,28,System 12%; MsMpEng.exe 2%; Discord.exe 2%
+03:00:21,11.6,25.5,13,System 4%; CurseForge.exe 2%; Discord.exe 1%
+03:00:27,12.9,25.4,40,MsMpEng.exe 10%; System 9%; svchost.exe 4%
+03:00:33,14.5,25.6,46,Code.exe 17%; System 11%; Code.exe 3%
+03:00:39,12.8,25.4,32,System 7%; Code.exe 6%; Code.exe 4%
+03:00:44,12.5,25.4,22,System 8%; Code.exe 2%; Discord.exe 2%
+03:00:50,12.5,25.4,28,System 15%; CurseForge.exe 2%; rustdesk.exe 1%
+03:00:56,11.5,25.5,15,System 6%; Discord.exe 2%; Code.exe 2%
+03:01:02,12.7,25.5,22,System 8%; CurseForge.exe 2%; Code.exe 2%
+03:01:07,12.9,25.5,28,System 8%; Discord.exe 1%; MsMpEng.exe 1%
+03:01:13,11.6,25.5,18,System 7%; MsMpEng.exe 2%; CurseForge.exe 1%
+03:01:19,12.5,25.5,24,System 12%; Discord.exe 1%; CurseForge.exe 1%
+03:01:25,13.1,25.5,25,System 10%; Discord.exe 2%; Code.exe 2%
+03:01:30,12.1,25.4,26,System 9%; MsMpEng.exe 4%; Code.exe 2%
+03:01:36,13.1,25.4,44,System 14%; MsMpEng.exe 10%; Discord.exe 2%
+03:01:42,12.5,25.4,38,System 16%; MsMpEng.exe 10%; explorer.exe 2%
+03:01:48,12.1,25.4,21,System 10%; CurseForge.exe 1%; rustdesk.exe 1%
+03:01:53,11.8,25.4,19,System 6%; CurseForge.exe 2%; Code.exe 1%
+03:01:59,12.9,25.4,33,MsMpEng.exe 7%; Code.exe 7%; System 7%
+03:02:05,12.1,25.4,16,MsMpEng.exe 2%; Code.exe 2%; System 1%
+03:02:10,11.9,25.4,22,MsMpEng.exe 5%; Code.exe 2%; System 2%
+03:02:16,11.6,25.4,14,System 2%; WhatsApp.Root.exe 1%; Code.exe 1%
+03:02:22,12.2,25.4,21,System 10%; NVIDIA Share.exe 1%; Code.exe 1%
+03:02:28,11.9,25.4,32,System 10%; MsMpEng.exe 7%; Code.exe 2%
+03:02:33,12.7,25.4,21,System 6%; Code.exe 2%; MsMpEng.exe 2%
+03:02:39,11.2,25.4,11,System 5%; Code.exe 1%; Discord.exe 1%
+03:02:45,12.2,25.4,23,System 12%; MsMpEng.exe 5%; Discord.exe 2%
+03:02:51,13.1,25.3,55,System 24%; MsMpEng.exe 16%; explorer.exe 4%
+03:02:56,11.9,25.3,22,System 7%; MsMpEng.exe 5%; rustdesk.exe 1%
+03:03:02,13.0,25.3,34,System 12%; MsMpEng.exe 6%; claude.exe 3%
+03:03:08,12.5,25.3,30,Code.exe 9%; MsMpEng.exe 6%; System 2%
+03:03:14,12.4,25.3,22,System 6%; MsMpEng.exe 4%; NVIDIA Share.exe 2%
+03:03:19,11.8,25.3,34,System 15%; MsMpEng.exe 8%; explorer.exe 1%
+03:03:25,11.7,25.2,33,MsMpEng.exe 11%; System 7%; explorer.exe 2%
+03:03:31,12.6,25.3,36,MsMpEng.exe 12%; System 8%; explorer.exe 2%
+03:03:36,12.4,25.3,27,System 11%; MsMpEng.exe 6%; Discord.exe 2%
+03:03:42,11.5,25.3,18,System 6%; MsMpEng.exe 5%; Code.exe 1%
+03:03:48,12.8,25.3,28,System 14%; MsMpEng.exe 6%; Code.exe 2%
+03:03:54,12.4,25.4,37,System 11%; MsMpEng.exe 8%; svchost.exe 3%
+03:03:59,13.0,25.4,29,Code.exe 6%; System 4%; MsMpEng.exe 2%
+03:04:05,12.2,25.4,18,NVIDIA Share.exe 2%; System 1%; svchost.exe 1%
+03:04:11,12.9,25.4,26,System 5%; NVIDIA Share.exe 2%; Discord.exe 2%
+03:04:17,12.8,25.5,20,System 3%; Discord.exe 2%; NVIDIA Share.exe 2%
+03:04:23,12.9,25.4,29,System 14%; Code.exe 2%; NVIDIA Share.exe 1%
+03:04:28,12.0,25.4,21,MsMpEng.exe 5%; System 3%; Code.exe 2%
+03:04:34,11.5,25.4,18,System 4%; services.exe 3%; Code.exe 1%
+03:04:40,11.8,25.4,18,System 5%; Discord.exe 2%; MsMpEng.exe 2%
+03:04:46,12.4,25.5,21,System 7%; Code.exe 2%; rustdesk.exe 1%
+03:04:51,12.4,25.5,23,System 10%; svchost.exe 2%; MsMpEng.exe 1%
+03:04:57,12.3,25.5,27,System 12%; nordvpn-service.exe 2%; tailscaled.exe 2%
+03:05:03,12.3,25.4,28,System 7%; MsMpEng.exe 7%; Code.exe 2%
+03:05:09,12.3,25.4,22,System 9%; Code.exe 2%; Discord.exe 1%
+03:05:15,12.7,25.5,22,System 12%; Code.exe 2%; MsMpEng.exe 1%
+03:05:20,13.2,25.5,33,System 17%; NVIDIA Share.exe 2%; MsMpEng.exe 1%
+03:05:26,15.4,25.5,62,System 15%; Code.exe 12%; Code.exe 8%
+03:05:32,13.3,25.4,37,System 10%; Code.exe 9%; Code.exe 3%
+03:05:38,12.3,25.5,34,MsMpEng.exe 8%; System 8%; Code.exe 4%
+03:05:43,17.2,25.6,43,Code.exe 23%; System 3%; MsMpEng.exe 2%
+03:05:49,13.0,25.6,33,System 17%; Code.exe 4%; MsMpEng.exe 3%
+03:05:55,14.2,25.6,43,System 19%; Code.exe 7%; svchost.exe 2%
+03:06:01,12.3,25.6,18,System 6%; MsMpEng.exe 2%; NVIDIA Share.exe 1%
+03:06:07,11.7,25.3,19,System 5%; rustdesk.exe 2%; CurseForge.exe 2%
+03:06:12,12.2,25.4,21,System 6%; MsMpEng.exe 5%; Discord.exe 2%
+03:06:18,12.8,25.4,26,System 11%; CurseForge.exe 1%; tailscaled.exe 1%
+03:06:24,13.0,25.4,25,System 9%; rustdesk.exe 2%; MsMpEng.exe 2%
+03:06:30,11.0,25.5,13,System 6%; CurseForge.exe 1%; MsMpEng.exe 1%
+03:06:35,12.3,25.5,23,System 11%; MsMpEng.exe 1%; NVIDIA Share.exe 1%
+03:06:41,11.6,25.5,16,System 6%; Code.exe 2%; CurseForge.exe 1%
+03:06:47,12.3,25.5,22,System 10%; MsMpEng.exe 1%; Discord.exe 1%
+03:06:53,12.4,25.5,21,System 5%; svchost.exe 2%; claude.exe 2%
+03:06:59,12.3,25.4,27,MsMpEng.exe 7%; System 6%; explorer.exe 2%
+03:07:04,11.8,25.4,22,System 7%; Code.exe 2%; MsMpEng.exe 1%
+03:07:10,13.0,25.4,28,System 15%; MsMpEng.exe 2%; Code.exe 1%
+03:07:16,11.6,25.4,14,System 5%; rustdesk.exe 1%; Code.exe 1%
+03:07:22,14.7,25.4,47,System 18%; Code.exe 8%; MsMpEng.exe 3%
+03:07:27,13.8,25.4,29,System 8%; Discord.exe 2%; NVIDIA Share.exe 1%
+03:07:33,11.8,25.5,24,System 6%; NVIDIA Share.exe 1%; MsMpEng.exe 1%
+03:07:39,12.0,25.5,14,Code.exe 2%; System 2%; CurseForge.exe 1%
+03:07:45,13.0,25.5,27,System 10%; MsMpEng.exe 2%; CurseForge.exe 1%
+03:07:50,11.6,25.3,22,System 7%; MsMpEng.exe 6%; Code.exe 2%
+03:07:56,11.9,25.3,17,System 2%; MsMpEng.exe 2%; svchost.exe 2%
+03:08:02,12.0,25.3,17,System 2%; Discord.exe 2%; MsMpEng.exe 1%
+03:08:08,12.5,25.4,20,System 6%; MsMpEng.exe 2%; Code.exe 2%
+03:08:14,12.0,25.4,23,System 11%; Discord.exe 2%; CurseForge.exe 1%
+03:08:19,14.1,25.4,33,System 12%; NordUpdateService.exe 4%; MsMpEng.exe 3%
+03:08:25,11.8,25.4,27,System 16%; rustdesk.exe 1%; Code.exe 1%
+03:08:31,14.7,25.4,50,msedgewebview2.exe 34%; System 7%; MsMpEng.exe 2%
+03:08:37,12.2,25.4,18,System 10%; Code.exe 1%; claude.exe 1%
+03:08:42,12.0,25.4,20,System 8%; Discord.exe 1%; rustdesk.exe 1%
+03:08:48,12.2,25.4,17,System 8%; MsMpEng.exe 2%; Code.exe 1%
+03:08:54,14.3,25.3,54,System 23%; Code.exe 8%; MsMpEng.exe 6%
+03:09:00,12.0,25.4,18,CurseForge.exe 2%; tailscaled.exe 1%; NVIDIA Share.exe 1%
+03:09:05,12.2,25.4,19,System 2%; MsMpEng.exe 2%; CrossDeviceService.exe 2%
+03:09:11,12.8,25.4,31,System 20%; CurseForge.exe 1%; MsMpEng.exe 1%
+03:09:17,12.4,25.4,16,System 6%; CurseForge.exe 1%; Code.exe 1%
+03:09:23,12.7,25.4,32,System 19%; Discord.exe 2%; CurseForge.exe 1%
+03:09:29,12.0,25.5,19,System 7%; CurseForge.exe 1%; MsMpEng.exe 1%
+03:09:34,12.3,25.5,23,System 9%; Code.exe 2%; MsMpEng.exe 2%
+03:09:40,12.0,25.5,14,System 3%; MsMpEng.exe 1%; CurseForge.exe 1%
+03:09:46,12.4,25.5,26,System 13%; MsMpEng.exe 1%; Code.exe 1%
+03:09:52,13.6,25.5,30,System 18%; NVIDIA Share.exe 2%; Discord.exe 1%
+03:09:57,13.1,25.4,44,MsMpEng.exe 12%; System 8%; svchost.exe 2%
+03:10:03,12.8,25.4,33,MsMpEng.exe 11%; System 9%; explorer.exe 2%
+03:10:09,11.4,25.4,22,System 7%; MsMpEng.exe 5%; explorer.exe 1%
+03:10:15,13.2,25.3,33,System 13%; Code.exe 8%; Code.exe 1%
+03:10:20,12.5,25.3,30,System 9%; MsMpEng.exe 4%; rustdesk.exe 2%
+03:10:26,13.2,25.4,30,System 11%; svchost.exe 4%; MsMpEng.exe 4%
+03:10:32,14.3,25.5,44,Code.exe 12%; System 8%; Code.exe 4%
+03:10:38,16.6,25.6,55,Code.exe 13%; MsMpEng.exe 11%; Code.exe 9%
+03:10:43,13.3,25.4,38,System 12%; svchost.exe 8%; Code.exe 3%
+03:10:49,11.5,25.4,13,System 2%; claude.exe 1%; MsMpEng.exe 1%
+03:10:55,13.0,25.4,32,System 10%; MsMpEng.exe 6%; svchost.exe 2%
+03:11:01,12.5,25.4,26,System 6%; OneDrive.exe 2%; Discord.exe 2%
+03:11:07,12.9,25.4,26,System 12%; rustdesk.exe 1%; NVIDIA Share.exe 1%
+03:11:12,12.6,25.4,39,MsMpEng.exe 13%; System 12%; explorer.exe 2%
+03:11:18,12.5,25.4,42,MsMpEng.exe 16%; System 7%; explorer.exe 3%
+03:11:24,13.3,25.4,36,System 15%; MsMpEng.exe 6%; Discord.exe 2%
+03:11:29,12.9,25.4,35,Code.exe 9%; System 7%; MsMpEng.exe 5%
+03:11:35,11.8,25.3,20,System 7%; rustdesk.exe 2%; rustdesk.exe 1%
+03:11:41,12.2,25.4,26,MsMpEng.exe 6%; System 6%; Code.exe 1%
+03:11:47,16.0,25.4,46,MsMpEng.exe 16%; System 9%; svchost.exe 2%
+03:11:53,13.0,25.3,51,System 20%; MsMpEng.exe 14%; svchost.exe 3%
+03:11:58,13.7,25.4,45,Code.exe 9%; MsMpEng.exe 8%; System 7%
+03:12:04,13.0,25.4,30,MsMpEng.exe 9%; System 5%; explorer.exe 2%
+03:12:10,12.8,25.4,28,MsMpEng.exe 7%; svchost.exe 4%; System 2%
+03:12:16,12.5,25.4,37,System 15%; MsMpEng.exe 5%; rustdesk.exe 2%
+03:12:22,12.4,25.4,25,System 12%; Code.exe 2%; CurseForge.exe 1%
+03:12:27,12.9,25.4,27,System 9%; Code.exe 2%; rustdesk.exe 1%
+03:12:33,11.2,25.5,11,MsMpEng.exe 2%; System 1%; Discord.exe 1%
+03:12:39,12.8,25.5,20,System 8%; CurseForge.exe 2%; Code.exe 2%
+03:12:45,11.5,25.5,18,System 7%; Discord.exe 1%; rustdesk.exe 1%
+03:12:51,12.9,25.4,31,System 11%; MsMpEng.exe 8%; Discord.exe 2%
+03:12:56,12.2,25.4,21,System 7%; MsMpEng.exe 2%; Code.exe 1%
+03:13:02,12.3,25.5,20,System 4%; rustdesk.exe 1%; csrss.exe 1%
+03:13:08,12.2,25.5,20,System 6%; svchost.exe 2%; MsMpEng.exe 1%
+03:13:14,12.0,25.5,15,System 5%; Discord.exe 2%; CurseForge.exe 2%
+03:13:20,13.1,25.5,29,Code.exe 9%; System 6%; NVIDIA Share.exe 1%
+03:13:26,12.3,25.4,28,System 12%; MsMpEng.exe 5%; Code.exe 2%
+03:13:31,11.6,25.4,13,System 2%; Discord.exe 2%; Code.exe 2%
+03:13:37,13.3,25.5,27,System 11%; Code.exe 2%; rustdesk.exe 1%
+03:13:43,12.5,25.5,25,System 15%; MsMpEng.exe 1%; CurseForge.exe 1%
+03:13:49,12.4,25.5,20,System 7%; CurseForge.exe 1%; MsMpEng.exe 1%
+03:13:55,13.4,25.5,32,System 17%; CrossDeviceService.exe 2%; MsMpEng.exe 1%
+03:14:00,12.5,25.5,30,System 7%; MsMpEng.exe 6%; claude.exe 2%
+03:14:06,11.6,25.5,18,System 8%; svchost.exe 2%; MsMpEng.exe 1%
+03:14:12,12.4,25.5,20,System 8%; MsMpEng.exe 2%; Code.exe 2%
+03:14:18,12.9,25.6,29,System 17%; Code.exe 1%; tailscaled.exe 1%
+03:14:24,14.9,25.6,36,System 12%; CrossDeviceService.exe 3%; NVIDIA Share.exe 2%
+03:14:30,12.8,25.6,35,System 23%; Code.exe 2%; MsMpEng.exe 1%
+03:14:35,13.0,25.4,34,System 12%; MsMpEng.exe 7%; rustdesk.exe 2%
+03:14:41,12.1,25.4,16,System 6%; MsMpEng.exe 1%; Code.exe 1%
+03:14:47,12.9,25.5,30,System 10%; Code.exe 8%; Code.exe 1%
+03:14:53,12.0,25.4,15,System 2%; MsMpEng.exe 2%; CurseForge.exe 1%
+03:14:59,12.3,25.5,26,System 10%; nordvpn-service.exe 3%; claude.exe 1%
+03:15:04,12.2,25.5,21,System 6%; rustdesk.exe 2%; Discord.exe 2%
+03:15:10,12.1,25.5,18,System 3%; svchost.exe 3%; Code.exe 1%
+03:15:16,12.2,25.5,20,System 7%; rustdesk.exe 2%; MsMpEng.exe 1%
+03:15:22,12.7,25.4,28,MsMpEng.exe 6%; rustdesk.exe 2%; System 2%
+03:15:27,12.9,25.4,28,System 6%; svchost.exe 4%; gamingservices.exe 2%
+03:15:33,12.5,25.4,20,System 10%; CurseForge.exe 1%; RiotClientServices.exe 1%
+03:15:39,14.5,25.6,49,Code.exe 17%; System 8%; MsMpEng.exe 4%
+03:15:45,11.8,25.5,16,Code.exe 2%; MsMpEng.exe 1%; CurseForge.exe 1%
+03:15:50,12.1,25.4,18,System 6%; GoogleDriveFS.exe 2%; MsMpEng.exe 1%
+03:15:56,12.9,25.4,27,System 14%; Discord.exe 2%; MsMpEng.exe 1%
+03:16:02,14.2,25.4,37,System 10%; Code.exe 9%; Discord.exe 2%
+03:16:08,11.9,25.4,20,System 6%; svchost.exe 3%; CurseForge.exe 2%
+03:16:14,11.6,25.3,22,System 6%; Discord.exe 2%; Code.exe 2%
+03:16:19,12.4,25.3,31,MsMpEng.exe 7%; System 6%; Discord.exe 2%
+03:16:25,12.5,25.4,15,Discord.exe 2%; System 1%; MsMpEng.exe 1%
+03:16:31,11.9,25.4,21,System 11%; Code.exe 2%; Discord.exe 1%
+03:16:37,12.1,25.4,21,System 8%; Discord.exe 2%; nordsec-threatprotection-service.exe 1%
+03:16:43,11.9,25.4,11,System 2%; Code.exe 2%; CurseForge.exe 1%
+03:16:48,11.9,25.4,20,System 11%; CurseForge.exe 2%; NVIDIA Share.exe 1%
+03:16:54,13.9,25.5,29,System 15%; CurseForge.exe 1%; MsMpEng.exe 1%
+03:17:00,12.9,25.5,30,System 17%; Discord.exe 2%; CurseForge.exe 1%
+03:17:06,13.7,25.5,31,System 9%; MsMpEng.exe 3%; svchost.exe 3%
+03:17:12,11.9,25.5,16,System 8%; MsMpEng.exe 1%; Discord.exe 1%
+03:17:17,13.0,25.4,32,Code.exe 9%; MsMpEng.exe 6%; System 4%
+03:17:23,11.8,25.4,14,System 2%; Code.exe 2%; MsMpEng.exe 1%
+03:17:29,12.1,25.4,22,System 10%; Code.exe 2%; CurseForge.exe 1%
+03:17:35,12.5,25.4,22,System 7%; NVIDIA Share.exe 2%; MsMpEng.exe 2%
+03:17:40,11.7,25.5,18,System 8%; Code.exe 2%; MsMpEng.exe 1%
+03:17:46,12.4,25.5,24,System 12%; Code.exe 2%; rustdesk.exe 2%
+03:17:52,12.4,25.5,22,System 8%; CurseForge.exe 2%; MsMpEng.exe 1%
+03:17:58,12.3,25.5,25,System 16%; Code.exe 1%; Discord.exe 1%
+03:18:03,13.1,25.5,27,System 7%; MsMpEng.exe 2%; NVIDIA Share.exe 1%
+03:18:09,13.0,25.5,26,System 4%; svchost.exe 3%; Code.exe 2%
+03:18:15,12.2,25.5,23,System 14%; CurseForge.exe 1%; NVIDIA Share.exe 1%

@@ -38,6 +38,12 @@ Quick scripts in `benchmark-results/colgen/` (not shipped, left out of the PR br
 | `run_matrix.py` | the runner: one subprocess per run, resumable, stats, logs, `summary.md` |
 | `python_layer_probes.py` | probes of the pure-Python layer (copies of the HiGHS solution, integer widths, `add_columns`, `ColumnBatch` copies) |
 | `pricing_gap_probe.py` | the pure-Python layer's extra time against the C++-backed one, split by slice (`--pricing exact\|heuristic\|tabu`); results in `pricing-gap/` |
+| `full_comparison.sh` | the full comparison of the two layers (`D-138`), tier after tier into `full-*/`; stops on an LP mismatch or a `STOP` file; resumable |
+| `overnight_reruns.sh` | re-runs after it: RC201 tabu × 3 (`rerun-rc201-tabu/`), the small tier again (`rerun-small-single/`), a second long repeat (`full-long-single/`) |
+| `full_comparison_verdict.py` | applies `Q-41`'s rule (`D-139`) per cell: `[--floor 0.25] [folders]`, default every `full-*/` |
+| `full-*/`, `rerun-*/`, `full-probes/` | results of the full comparison (`plans/colgen/python-layer-comparison.md` §6); `full-long-bigm-exact/` stopped, no results |
+| `presentation/python-layer/` | draft charts and slides of the comparison: `make_data.py`, then `latexmk -pdf slides.tex` |
+| configs `layer-{cpp,purepython}-{highspy,gurobipy}-tabu` | tabu (cap 20, 1000 iterations) then `simple`; `COLGEN_INIT=bigm` gives both layers `ArtificialColumns(cost=1e4 × max(1, cost scale))` |
 | `run_matrix.ps1` | launcher: builds what is missing, sets `PYTHONPATH`, starts the runner with the venv's Python |
 | `after_large.sh`, `chain.sh` | the single-start runs queued behind the large run (`chain.sh` waits for a stop, then runs it) |
 | `small/`, `large/`, `single-small/`, `single-large/` | results: `results.csv`, `summary.md`, `status.txt`, `machine.csv`, `logs/` |

@@ -1,0 +1,36 @@
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 35 ms
+construct_graph: 38 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 32 ms
+construct_graph: 40 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 32 ms
+construct_graph: 33 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 33 ms
+construct_graph: 39 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 39 ms
+construct_graph: 32 ms
+InstanceReader::read()
+file_path_=C:\Users\marbe\Desktop\programming\git\rcspp\instances\C201.txt
+nb_customers: 101
+construct_graph: 33 ms
+construct_graph: 33 ms
+PROBE {"instance": "C201", "pricing": "exact", "cap": 20, "repeats": 3, "outcomes": [["cpp", 591.5565566715024, 190, 37974], ["pure", 591.5565566715024, 190, 37974]], "medians": {"cpp": {"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 35.57687420000002, "master": 26.2351944, "pricing": 9.3554172, "rest": 0.00044820000001877247}, "pure": {"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 36.51902189999964, "master": 26.465365000010934, "pricing": 9.969906800008175, "rest": 0.062275399970531, "solve_calls": 190, "paths": 37974, "urc_inner": 0.07582190001994604, "urc_wrapper": 0.07775749996653758, "solve_inner": 9.438190800003213, "solve_wrapper": 9.444791199970496, "to_result": 0.09204999996291008, "price": 9.62457890000951, "add_columns": 0.3415265999828989, "to_arrays": 0.07975379991330556, "add_columns_without_to_arrays": 0.26105719964471064, "loop_price": 0.003676900003483752, "price_python": 0.10839350005335291, "solutions_list": 0.004652300001907861}}, "runs": {"cpp": [{"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 35.761706799999956, "master": 26.3101752, "pricing": 9.4510703, "rest": 0.00046129999995692117}, {"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 35.4490833000018, "master": 26.0932285, "pricing": 9.3554172, "rest": 0.00043760000180448344}, {"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 35.57687420000002, "master": 26.2351944, "pricing": 9.3412316, "rest": 0.00044820000001877247}], "pure": [{"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 36.51902189999964, "master": 26.465365000010934, "pricing": 9.99163819999012, "rest": 0.062018699998589, "solve_calls": 190, "paths": 37974, "urc_inner": 0.07445550002739765, "urc_wrapper": 0.07646179999574088, "solve_inner": 9.444080800010852, "solve_wrapper": 9.450854700033233, "to_result": 0.09914059997390723, "price": 9.633822799984046, "add_columns": 0.35413850000259117, "to_arrays": 0.07975379991330556, "add_columns_without_to_arrays": 0.2743847000892856, "loop_price": 0.003676900003483752, "price_python": 0.1152864999457961, "solutions_list": 0.0045066999991831835}, {"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 36.56366709999929, "master": 26.531484900020587, "pricing": 9.969906800008175, "rest": 0.062275399970531, "solve_calls": 190, "paths": 37974, "urc_inner": 0.07799459995294455, "urc_wrapper": 0.07991529996797908, "solve_inner": 9.438190800003213, "solve_wrapper": 9.444791199970496, "to_result": 0.09204999996291008, "price": 9.62457890000951, "add_columns": 0.3415265999828989, "to_arrays": 0.08046940033818828, "add_columns_without_to_arrays": 0.26105719964471064, "loop_price": 0.0038013000157661736, "price_python": 0.10839350005335291, "solutions_list": 0.004652300001907861}, {"lp": 591.5565566715024, "iterations": 190, "columns": 37974, "total": 36.19482979999884, "master": 26.276614400001563, "pricing": 9.855324100022699, "rest": 0.06289129997458076, "solve_calls": 190, "paths": 37974, "urc_inner": 0.07582190001994604, "urc_wrapper": 0.07775749996653758, "solve_inner": 9.335490099972958, "solve_wrapper": 9.342081899972982, "to_result": 0.09011969998391578, "price": 9.517558399988047, "add_columns": 0.33408939999935683, "to_arrays": 0.07854639974902966, "add_columns_without_to_arrays": 0.25554300025032717, "loop_price": 0.003676300035294844, "price_python": 0.10624639999514329, "solutions_list": 0.004696799998782808}]}}
+C201 exact (cap 20), 3 repeats, medians in ms
+  outcome ('cpp', 591.5565566715024, 190, 37974)
+  outcome ('pure', 591.5565566715024, 190, 37974)
+  cpp: lp 591.5565566715024, iterations 190, columns 37974, total 35576.87, master 26235.19, pricing 9355.42, rest 0.45
+  pure: lp 591.5565566715024, iterations 190, columns 37974, total 36519.02, master 26465.37, pricing 9969.91, rest 62.28, solve_calls 190, paths 37974, urc_inner 75.82, urc_wrapper 77.76, solve_inner 9438.19, solve_wrapper 9444.79, to_result 92.05, price 9624.58, add_columns 341.53, to_arrays 79.75, add_columns_without_to_arrays 261.06, loop_price 3.68, price_python 108.39, solutions_list 4.65

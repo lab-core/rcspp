@@ -35,10 +35,11 @@ for _loop in ("cpp", "python"):
 
 # The pure-Python layer (rcspp.python_column_generation): no C++ HiGHS master there, so highspy and gurobipy only.
 for _master in ("highspy", "gurobipy"):
-    for _pricing in ("exact", "heuristic"):
+    for _pricing in ("exact", "heuristic", "tabu"):
         CONFIGS[f"layer-purepython-{_master}-{_pricing}"] = [
             "layer", "--loop", "purepython", "--master", _master, "--pricing", _pricing,
         ]
+    CONFIGS[f"layer-cpp-{_master}-tabu"] = ["layer", "--loop", "cpp", "--master", _master, "--pricing", "tabu"]
 
 FIELDS = [
     "instance", "config", "repeat", "exit_code", "status", "lp", "iterations", "columns",
