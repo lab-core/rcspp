@@ -1,7 +1,7 @@
 # Separation: Python layer shipped, C++ layer as an example (`D-142`, `D-143`)
 
 Source: the colleagues' meeting of 2026-11-09 (feedback below), the analysis given to the user the same day. Facts
-checked on `origin/feature/column-generation-pure-python` (`510e9b65` era); re-check before relying on them.
+checked on `origin/feature/column-generation-pure-python` (head `82fa4e58`, 2026-11-09); re-check before relying on them.
 
 ## 1. The meeting's feedback (user's words, condensed)
 
