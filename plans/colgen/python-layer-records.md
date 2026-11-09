@@ -260,3 +260,47 @@ clean. Not pushed: both branches need a force push. Backups: `backup/python-way-
 | # | `feature/column-generation` | `feature/column-generation-pure-python` |
 |---|---|---|
 | 1–6 | `4881e169`, `0e620a91`, `ad46b14d`, `2ed8bbd5`, `4c5e1269`, `6c899842` | `6f9e8d6a`, `3b723ec6`, `354af3c6`, `d31492c1`, `fab75719`, `510e9b65` |
+
+PR #88 review (2026-11-09, Opus, then the user's comments on the PR; R.1–R.10 the agent's, R.11–R.22 the user's or
+their global points). Fixes on `pr88-fixes` (from the PR head `510e9b65`; worktree `../rcspp-dev`), as `fixup!` commits
+(32) for the user to review; not folded yet, not pushed.
+
+| # | finding | outcome |
+|---|---|---|
+| R.1 | HiGHS: Ctrl-C during a solve was raised in a callback handler (ours, or the user's), which breaks the `Highs` object for good (every later `run()` kError / kNotset) | fixed: SIGINT held back around every solve (main thread only), the program's handler called once the solve returns; an integer solve with a time limit stops at once from the deadline handler; class docstring says how Ctrl-C works; tests for an LP and an integer solve |
+| R.2 | HiGHS: the deadline handler's interrupt request outlives the solve and stops the next solve of an unchanged model at its first callback (only when stopped in the search, not at the first callback) | fixed: the handler only ever requests (a false one would cancel a user handler's request, found while fixing) and withdraws its request after the solve through the saved `data_in`; stepped-clock test, and a test that a user's interrupt is kept |
+| R.3 | `ConvexityRow(existing_row=1.0)` accepted, fails in the first solve | fixed: `operator.index`, numpy integers taken |
+| R.4, R.20 | nothing tested `ColumnType.Binary` (HiGHS's upper bounds of 1 and their removal) | fixed: self-test steps 5–6 (binary 1.5 at `x1 = x4 = 1`, then integer 1.0 again), two fake mistakes; the HiGHS and Gurobi scripts too. The C++ self-test has no binary step: follow-up |
+| R.5 | an exact non-last stage that proves did not stop the call: untested | fixed: test |
+| R.6 | the threshold filter (`<` vs `<=`) untested: the engine never returns paths at its bound | fixed: test with a stage's own search returning one |
+| R.7 | time left untested in four places (Gurobi INF_OR_UNBD retry, HiGHS LP retry, pricer stages, loop request) | fixed: four tests, each failing on the full-timeout mutation |
+| R.8 | end-to-end HiGHS Ctrl-C test: 50 ms wait to keep Ctrl-C out of the test's callback | fixed by R.1: interrupts as soon as the simplex starts |
+| R.9 | `[tool.pyright]` strict repo-wide | no change (the user: it reproduces what VS Code shows) |
+| R.10 | `run`'s Raises missed the `TypeError`; the PR text says "pricers' cost scale" | docstring fixed; the PR text is the user's |
+| R.11 | quoted annotations; `typing` collection types | `from __future__ import annotations` (graph.py, both master solvers), `collections.abc` |
+| R.12, R.21 | non-ASCII; blocks packed together; bare properties | readability pass on the package and its tests: blank lines (after a block, before a block after a statement, before a step comment; not in class bodies), ASCII, `# MARK: Title` sections (the user's VS Code minimap), property docstrings |
+| R.13 | `__slots__` without a reason | removed |
+| R.15, R.16 | `PricingStatus`, `PricingChanges` undocumented | documented from the C++ header, with what proves and that the loop never calls `update` |
+| R.17 | one message for an id used twice in a batch and an id already used | two, naming the id. The C++-backed Gurobi solver keeps the single message: follow-up |
+| R.18 | `_relax` hard to follow (the generated columns keep the last integer solve's type) | rewritten with comments |
+| R.19 | `max_paths` read as VRP | name kept (RCSPP vocabulary, C++ API), docstring generic |
+| R.22 | the user's docstring edit (HiGHS class) | folded as is |
+| — | `__len__`, the `GurobipyMasterSolver` name, maximization tested, `Var.LB =` | kept: used and as the C++-backed layer; a rename would be both layers; tested; enough (lazy update) |
+
+Fold plan (dry-run done): autosquash every fixup but the six readability ones (no conflict), then rebuild each commit
+by running the readability script and the pre-commit formatters on its tree, plus the hand edits (`types.py`
+docstrings, one rewrapped line), with `commit-tree`; the tip's tree equals `pr88-fixes`. Each commit passes its tests
+(13, 65, 90, 153, 189, 274), pyright strict and flake8; the whole Python suite 695 passed, 1 skipped (with the
+`graph.py` change). Scripts in the session scratchpad (`rebuild.sh`, `transform.sh`, `readability.py`,
+`manual.patch`).
+
+Folded 2026-11-09 after the user's approval, by the plan above (autosquash without conflict, then the readability
+rebuild; the tip's tree equals the reviewed `pr88-fixes`). Each commit passes its tests (13, 65, 90, 153, 189, 274),
+pyright strict and every pre-commit hook; whole Python suite 695 passed, 1 skipped. `feature/column-generation`
+rebuilt the same way: its 28 commits replayed, each `feat(python)` commit given the code of its folded twin (the docs
+commits unchanged, the tip's code equal to the PR's). Both branches force-pushed (with lease) the same day. Backups:
+`backup/pr88-fixes-before-fold`, `backup/column-generation-before-pr88-fold`; the reviewed fixups stay on `pr88-fixes`.
+
+| # | `feature/column-generation` | `feature/column-generation-pure-python` |
+|---|---|---|
+| 1-6 | `bea1b805`, `6481c126`, `3eed93dc`, `89896b00`, `c6ecdf03`, `b804c9f9` | `8e451a56`, `f762ff4d`, `679d6017`, `9edfe6f2`, `9098c74d`, `82fa4e58` |
