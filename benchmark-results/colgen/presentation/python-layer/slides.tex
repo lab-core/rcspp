@@ -1,23 +1,60 @@
-% Temporary slides: the pure-Python column generation layer against the C++-backed one (step H, overnight re-runs).
-% Data: python make_data.py (writes cells.dat, buckets.tex, long.tex), then latexmk -pdf slides.tex
+% The pure-Python column generation layer against the C++-backed one: the full comparison, for the colleagues.
+% Data: python make_data.py (writes cells.dat, noise.dat, buckets.tex, long.tex), then latexmk -pdf slides.tex
 \documentclass[aspectratio=169]{beamer}
+
 \usetheme{Boadilla}
+\usecolortheme{default}
+
 \usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
 \usepackage{booktabs}
+\usepackage{listings}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
+
 \definecolor{GLBlue}{RGB}{22,63,95}
+\definecolor{GLGray}{RGB}{96,104,114}
+\definecolor{GLLight}{RGB}{232,240,248}
 \definecolor{GLOrange}{RGB}{214,110,30}
-\setbeamercolor{structure}{fg=GLBlue}
+\definecolor{GLRed}{RGB}{190,40,40}
+
+\setbeamercolor{normal text}{fg=black,bg=white}
+\setbeamercolor{title}{fg=GLBlue}
+\setbeamercolor{subtitle}{fg=GLGray}
 \setbeamercolor{frametitle}{fg=GLBlue,bg=GLBlue!6}
+\setbeamercolor{titlelike}{fg=GLBlue}
+\setbeamercolor{author}{fg=GLGray}
+\setbeamercolor{date}{fg=GLGray}
+\setbeamercolor{structure}{fg=GLBlue}
+\setbeamercolor{itemize item}{fg=GLBlue}
+\setbeamercolor{itemize subitem}{fg=GLGray}
+\setbeamercolor{block title}{fg=white,bg=GLBlue}
+\setbeamercolor{block body}{fg=black,bg=GLLight}
+
+\setbeamerfont{title}{size=\LARGE,series=\bfseries}
+\setbeamerfont{subtitle}{size=\normalsize}
+\setbeamerfont{frametitle}{size=\Large,series=\bfseries}
+
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{headline}{}
 \setbeamertemplate{footline}[frame number]
+\setbeamertemplate{itemize subitem}[triangle]
 
-\title{Pure-Python column generation layer}
-\subtitle{Against the C++-backed layer: the full comparison}
-\author{Leo Marbehan}
-\date{November 8, 2026 (draft)}
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{GLBlue}\bfseries,
+  commentstyle=\color{GLGray}\itshape,
+  stringstyle=\color{GLBlue!70!black},
+  backgroundcolor=\color{GLLight},
+  frame=single,
+  rulecolor=\color{GLBlue},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+}
 
 \pgfplotsset{
   cases/.style={
@@ -31,107 +68,235 @@
 }
 
 \makeatletter\let\inputrows\@@input\makeatother
+
+\title{Column generation in Python only?}
+\subtitle{The pure-Python layer against the C++-backed one}
+\author{Leo Marbehan}
+\date{November 9, 2026}
+
 \begin{document}
 
 \begin{frame}[plain]
   \titlepage
 \end{frame}
 
-\begin{frame}{In one slide}
-  \begin{itemize}
-    \item 108 cases: 14 instances $\times$ \{highspy, gurobipy\} $\times$ \{exact, tabu\} $\times$ \{single-customer, big-M start\}
-    \item 1,204 runs in all (full comparison + overnight re-runs), \textbf{0 failed}
-    \item \textbf{Same LP value, iterations and columns} in every case: the layers take the same path
-    \item Pure layer: \textbf{1--5 ms more per iteration}: visible below 1 s, noise above 10 s
-    \item Rule (D-139): pass when $P - C \le \max(5\,\%\cdot C,\ 0.25\,\mathrm{s})$
-    \item[$\Rightarrow$] \textbf{108 / 108 pass} (also with a 0.1 s floor) $\Rightarrow$ proposal: \textbf{Python only}
-  \end{itemize}
+%--------------------------------------------------------------
+\begin{frame}{The question}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{C++-backed layer} (\texttt{rcspp.column\_generation})
+      \begin{itemize}\small
+        \item loop, master problem, pricer in C++
+        \item reached from Python through bindings
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{Pure-Python layer} (\texttt{rcspp.python\_column\_generation})
+      \begin{itemize}\small
+        \item the same features, written in Python
+        \item no bindings of its own
+      \end{itemize}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.6em}
+  Both call the \textbf{same C++ RCSPP search} for pricing and the same LP solvers (HiGHS through
+  \texttt{highspy}, Gurobi through \texttt{gurobipy}).
+
+  \vspace{0.8em}
+  \begin{block}{Can we keep only the pure-Python layer?}
+    Yes, if it is as fast in practice. Short answer from the measurements:
+    \textbf{same results, same speed within measurement noise on realistic runs}.
+  \end{block}
 \end{frame}
 
-\begin{frame}{Pure layer's extra time, in \%, against run length}
+%--------------------------------------------------------------
+\begin{frame}[fragile]{Same API in both layers}
+  The benchmark drivers switch layers by \textbf{the imported module only}:
+
+  \vspace{0.3em}
+\begin{lstlisting}
+def layer_module(loop):
+    if loop == "purepython":
+        import rcspp.python_column_generation as cg
+    else:
+        import rcspp.column_generation as cg
+    return cg
+
+cg = layer_module(loop)                     # the only switch
+master = cg.MasterProblem(cg.HighspyMasterSolver(model))   # or GurobipyMasterSolver
+graph_pricer = cg.GraphPricer(graph, [cg.PricingStage("simple")])
+pricer = master.add_pricer(graph_pricer, cg.ConvexityRow())
+result = cg.ColumnGeneration(master, params).run()
+result.status, result.objective, result.statistics.generated_columns
+\end{lstlisting}
+
+  \small One difference: the pure layer's options are immutable, set in the constructor
+  (\texttt{ColumnGenerationParams(initialization=...)}) instead of by assignment.
+\end{frame}
+
+%--------------------------------------------------------------
+\begin{frame}{What was run, and correctness}
+  \begin{itemize}
+    \item \textbf{108 cases}: 14 Solomon instances (12 to 100 customers)
+      $\times$ \{HiGHS, Gurobi\} $\times$ \{exact pricing, tabu then exact\} $\times$ \{single-customer routes,
+      big-M start\}
+    \item Both layers back to back in each repeat, on one desktop machine
+    \item Repeats by run length: 5 below a few seconds, 3 up to a minute, 1--2 for the longest
+    \item \textbf{1,204 runs, 0 failed}
+    \item[$\Rightarrow$] \textbf{Same LP value, same iterations, same columns in every case}: the two layers take
+      exactly the same path; only the time can differ
+  \end{itemize}
+
+  \vspace{0.5em}
+  \small Not run: exact pricing from the big-M start on the two longest instances (about 12 h; pricing takes over
+  99\,\% of the time there, so the layers cannot differ by more than the noise).
+\end{frame}
+
+%--------------------------------------------------------------
+\begin{frame}{Extra time of the pure layer, against run length}
   \centering
   \begin{tikzpicture}
-    \begin{axis}[width=0.92\textwidth, height=0.72\textheight, xmode=log,
+    \begin{axis}[width=0.9\textwidth, height=0.66\textheight, xmode=log,
         xlabel={C++-backed solve time (s), median}, ylabel={pure $-$ C++-backed (\%)},
         ymin=-20, ymax=65, grid=major, grid style={gray!20},
         legend pos=north east, legend style={font=\scriptsize}, legend cell align=left]
       \addplot[cases] table[x=C, y=pct, meta=pricing] {cells.dat};
-      \legend{exact, exact (big-M), tabu, tabu (big-M)}
-      \addplot[red, thick, dashed, domain=0.008:3000, samples=200] {max(5, 25/x)};
+      \legend{exact, exact (big-M start), tabu, tabu (big-M start)}
+      \addplot[GLRed, thick, dashed, domain=0.008:3000, samples=200] {max(5, 25/x)};
       \addplot[gray, thin, domain=0.008:3000] {0};
-      \node[red, font=\scriptsize, anchor=south west] at (axis cs:300,5) {pass line};
+      \node[GLRed, font=\scriptsize, anchor=south west] at (axis cs:200,5) {pass line};
     \end{axis}
   \end{tikzpicture}
 
-  \scriptsize Every point below the dashed line passes. One point per case; small tier from the quieter overnight re-run.
+  \scriptsize Rule set before the runs: a case passes when the pure layer is at most 5\,\% slower,
+  or at most 0.25\,s slower. \textbf{108 / 108 pass} (also with 0.1\,s). Below 1\,s: up to +60\,\%, but at most +0.1\,s.
 \end{frame}
 
-\begin{frame}{Pure layer's extra time, in seconds}
+%--------------------------------------------------------------
+\begin{frame}{Long runs: the difference is smaller than the noise}
   \centering
   \begin{tikzpicture}
-    \begin{axis}[width=0.92\textwidth, height=0.72\textheight, xmode=log, ymode=log,
-        xlabel={C++-backed solve time (s), median}, ylabel={pure $-$ C++-backed (s), positive only},
-        ymin=0.001, ymax=100, grid=major, grid style={gray!20},
-        legend pos=north west, legend style={font=\scriptsize}, legend cell align=left,
-        restrict y to domain*=-7:5]
-      \addplot[cases] table[x=C, y=diff, meta=pricing] {cells.dat};
-      \legend{exact, exact (big-M), tabu, tabu (big-M)}
-      \addplot[red, thick, dashed, domain=0.008:3000, samples=200] {max(0.05*x, 0.25)};
+    \begin{axis}[width=0.66\textwidth, height=0.6\textheight, xmin=-7, xmax=7, ymin=-0.7, ymax=8.7,
+        y dir=reverse, ytick={0,...,8}, yticklabels from table={noise.dat}{label},
+        table/col sep=comma, y tick label style={font=\scriptsize}, x tick label style={font=\scriptsize},
+        xlabel={pure $-$ C++-backed (\%)}, xmajorgrids, grid style={gray!20},
+        legend style={font=\scriptsize, at={(0.5,1.03)}, anchor=south, legend columns=4,
+          /tikz/every even column/.append style={column sep=6pt}}, legend cell align=left]
+      \addplot[draw=none, mark=none, forget plot, error bars/.cd, x dir=both, x explicit,
+        error bar style={line width=6pt, gray!30}, error mark=none]
+        table[x expr=0, y=index, x error=spread] {noise.dat};
+      \addlegendimage{line width=6pt, gray!30}
+      \addlegendentry{run-to-run spread}
+      \addplot[only marks, mark=*, GLBlue, mark size=2.2pt]
+        table[x=pct, y=index, restrict expr to domain={\thisrow{repeats}}{2:9}] {noise.dat};
+      \addlegendentry{difference (2 repeats)}
+      \addplot[only marks, mark=o, GLBlue, thick, mark size=2.2pt]
+        table[x=pct, y=index, restrict expr to domain={\thisrow{repeats}}{0:1}] {noise.dat};
+      \addlegendentry{difference (1 repeat)}
+      \addplot[only marks, mark=|, GLRed, very thick, mark size=4pt] table[x=expected, y=index] {noise.dat};
+      \addlegendentry{expected extra time}
+      \draw[gray] (axis cs:0,-0.7) -- (axis cs:0,8.7);
     \end{axis}
   \end{tikzpicture}
 
-  \scriptsize Log scale: the 10 cases where the pure layer is faster are not shown.
+  \vspace{-0.3em}
+  \scriptsize\raggedright
+  The 9 cases over 100\,s. Grey: how much two repeats of \emph{the same layer} differ (fastest to slowest), 2--6\,\%.
+  Red: what the pure layer's extra cost per iteration (at most 5\,ms) adds up to: under 0.3\,\%.
+  With 2 repeats, every difference sits inside its case's noise; with 1 repeat (+0.6 to +2.3\,\%), inside the noise
+  seen on the same instance. The pure layer is faster in 3 of 9. One RC201 re-run even gave it $-16$\,\%:
+  another program was busy during the C++-backed run.
 \end{frame}
 
-\begin{frame}{By run length}
+%--------------------------------------------------------------
+\begin{frame}{Where the extra milliseconds go}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[ybar stacked, width=0.78\textwidth, height=0.56\textheight, bar width=22pt,
+        ylabel={pure $-$ C++-backed (ms per run)}, ymin=0, ymax=85,
+        xtick={1,...,5}, enlarge x limits=0.15,
+        xticklabels={C101\_25 exact\\18 it., RC201\_12 exact\\16 it., C101\_50 exact\\54 it.,
+          C101\_25 tabu\\66 it., C101\_50 tabu\\67 it.},
+        x tick label style={font=\scriptsize, align=center, text width=1.2cm}, ylabel style={font=\small},
+        y tick label style={font=\scriptsize},
+        legend style={font=\scriptsize, at={(0.5,1.03)}, anchor=south, legend columns=2,
+          /tikz/every even column/.append style={column sep=8pt}}, legend cell align=left]
+      \addplot+[fill=GLBlue, draw=GLBlue] coordinates {(1,9.5) (2,11.2) (3,28.7) (4,25.9) (5,32.0)};
+      \addplot+[fill=GLBlue!40, draw=GLBlue!40] coordinates {(1,3.3) (2,2.8) (3,11.1) (4,7.9) (5,11.6)};
+      \addplot+[fill=GLOrange, draw=GLOrange] coordinates {(1,3.1) (2,3.8) (3,10.3) (4,10.2) (5,12.9)};
+      \addplot+[fill=gray!50, draw=gray!50] coordinates {(1,4.3) (2,3.3) (3,15.5) (4,10.6) (5,21.7)};
+      \legend{adding columns to the master, master LP solve (options set per solve),
+        pricer's Python wrapper, loop bookkeeping}
+    \end{axis}
+  \end{tikzpicture}
+
+  \scriptsize About 1--2\,ms per iteration (up to 5\,ms on the master-heavy C201), plus 2--5\,ms once, spread over
+  four places. The pricing search itself is the same C++ call in both layers.
+\end{frame}
+
+%--------------------------------------------------------------
+\begin{frame}{Proposal}
+  \begin{enumerate}
+    \item \textbf{Accept the pass rule} as set before the runs (5\,\%, or 0.25\,s for short runs)
+    \item \textbf{Keep only the pure-Python layer}: speed is no longer an argument for the C++ one
+      \begin{itemize}\small
+        \item gain: one implementation; no bindings for the loop; fewer builds, less code; users extend pricers
+          and master solvers in Python
+        \item cost: \textbf{C++ users lose column generation}; we drop the earlier goal ``usable from C++ and
+          Python, loop written once in C++''. If C++ users matter, that is the reason to keep it
+        \item work: remove the C++ layer and its bindings, rename the pure package to
+          \texttt{column\_generation}; rework or close the open C++ pull requests
+      \end{itemize}
+    \item \textbf{No C++ helper} to speed up adding columns: it would save at most 0.2\,\% (C201)
+  \end{enumerate}
+
+  \vspace{0.4em}
+  \small Optional, later: two cheap Python speed-ups (fewer checks when adding columns; not resetting the HiGHS
+  options on every solve).
+\end{frame}
+
+%--------------------------------------------------------------
+\begin{frame}{Caveats}
+  \begin{itemize}
+    \item The longest runs have only 1--2 repeats (up to 30\,min each)
+    \item The machine was not fully idle the first night (browser, editor at times up to a full core); runs
+      disturbed by other programs are flagged in the raw results
+    \item All runs on one machine; timings from another machine are not comparable
+    \item Short runs ($<$ 1\,s) do show the pure layer slower in \%, but by at most 0.1\,s
+  \end{itemize}
+\end{frame}
+
+%--------------------------------------------------------------
+\appendix
+\begin{frame}{Backup: by run length}
   \centering
   \begin{tabular}{lrrrrr}
     \toprule
     C++-backed run & cases & range (\%) & median (\%) & largest (s) & pure faster \\
     \midrule
-    \inputrows buckets.tex 
+    \inputrows buckets.tex
     \bottomrule
   \end{tabular}
 
   \vspace{1em}
-  \begin{itemize}\small
-    \item Below 1 s: up to +60\,\%, but at most +0.1 s
-    \item Over 100 s: $-1$ to $+2.3$\,\%: within run-to-run noise (R201 exact: $\pm 5$\,\% between repeats)
-  \end{itemize}
+  \small The \% shrinks as runs get longer: the extra cost is per iteration, while the time of an iteration grows
+  with the instance.
 \end{frame}
 
-\begin{frame}{The long cases (C++-backed over 30 s)}
+\begin{frame}{Backup: the cases over 30\,s}
   \centering\scriptsize
   \begin{tabular}{llllrrrrr}
     \toprule
     instance & master & pricing & start & C++ (s) & pure (s) & diff (s) & diff & repeats \\
     \midrule
-    \inputrows long.tex 
+    \inputrows long.tex
     \bottomrule
   \end{tabular}
 \end{frame}
 
-\begin{frame}{Where the extra milliseconds go (gap probe, F-47)}
-  \centering
-  \begin{tikzpicture}
-    \begin{axis}[ybar stacked, width=0.9\textwidth, height=0.66\textheight, bar width=22pt,
-        ylabel={pure $-$ C++-backed (ms per run)}, ymin=0,
-        symbolic x coords={C101\_25 exact, RC201\_12 exact, C101\_50 exact, C101\_25 tabu, C101\_50 tabu},
-        xtick=data, x tick label style={font=\scriptsize},
-        legend style={font=\scriptsize, at={(0.02,0.98)}, anchor=north west}, legend cell align=left,
-        reverse legend]
-      \addplot+[fill=GLBlue] coordinates {(C101\_25 exact,9.5) (RC201\_12 exact,11.2) (C101\_50 exact,28.7) (C101\_25 tabu,25.9) (C101\_50 tabu,32.0)};
-      \addplot+[fill=GLBlue!40] coordinates {(C101\_25 exact,3.3) (RC201\_12 exact,2.8) (C101\_50 exact,11.1) (C101\_25 tabu,7.9) (C101\_50 tabu,11.6)};
-      \addplot+[fill=GLOrange] coordinates {(C101\_25 exact,3.1) (RC201\_12 exact,3.8) (C101\_50 exact,10.3) (C101\_25 tabu,10.2) (C101\_50 tabu,12.9)};
-      \addplot+[fill=gray!50] coordinates {(C101\_25 exact,4.3) (RC201\_12 exact,3.3) (C101\_50 exact,15.5) (C101\_25 tabu,10.6) (C101\_50 tabu,21.7)};
-      \legend{add\_columns, master (HiGHS options per solve), GraphPricer's Python, loop}
-    \end{axis}
-  \end{tikzpicture}
-
-  \scriptsize 18--67 iterations: about 1--2 ms per iteration, plus 2--5 ms once. The pricing search is the same C++ call.
-\end{frame}
-
-\begin{frame}{The master-heavy case: C201 (190 iterations, 38,000 columns)}
+\begin{frame}{Backup: C201, the master-heavy case}
+  \framesubtitle{190 iterations, 38,000 columns}
   \centering
   \begin{tabular}{lrr}
     \toprule
@@ -142,30 +307,15 @@
     \midrule
     difference, total (ms) & +942 (+2.6\,\%) & +753 (+1.6\,\%) \\
     \quad master LP solves & +230 & +309 \\
-    \quad pricing slice & +615 & +380 \\
-    \qquad of which \texttt{add\_columns} (pure, whole) & 342 & 268 \\
-    \qquad of which GraphPricer's Python & 108 & 101 \\
-    \quad loop rest & +62 & +64 \\
+    \quad pricing & +615 & +380 \\
+    \qquad of which adding columns (pure, whole) & 342 & 268 \\
+    \qquad of which the pricer's Python wrapper & 108 & 101 \\
+    \quad loop bookkeeping & +62 & +64 \\
     \bottomrule
   \end{tabular}
 
   \vspace{0.8em}\small
-  Probe, 3 repeats. Full matrix on C201: $-1.5$ to $+2.6$\,\%, all pass.
-\end{frame}
-
-\begin{frame}{Decisions to take}
-  \begin{enumerate}
-    \item \textbf{D-139}: the rule, floor 0.25 s (outcome identical with 0.1 s)
-    \item \textbf{Q-41 / D-141}: Python only
-      \begin{itemize}\small
-        \item gain: one implementation, no bindings layer for the loop
-        \item cost: C++ users lose the column generation layer (supersedes D-02, D-08, D-15, D-37)
-        \item stack: drafts \#61, \#69, \#72, \#76, Python PRs 5--6, \#80 reworked or closed
-      \end{itemize}
-    \item \textbf{D-140}: no C++ helper for \texttt{add\_columns} (saves $\le$ 0.2\,\% on C201)
-  \end{enumerate}
-  \vspace{0.5em}
-  \small Caveats: long tier 1--2 repeats; desktop not fully idle; exact pricing from big-M on R201/RC201 not run (pricing $>$ 99\,\%).
+  Timed probe over HiGHS, 3 repeats. The one place where the gap is clearly measurable, and still under 3\,\%.
 \end{frame}
 
 \end{document}
