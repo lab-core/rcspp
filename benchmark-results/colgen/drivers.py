@@ -182,13 +182,31 @@ def run_layer(name, loop, master_kind, pricing):
             greedy = AlgorithmParams()
             greedy.stop_after_X_solutions = int(os.environ["COLGEN_HEURISTIC_CAP"])
         stages = [cg.PricingStage("greedy", greedy), cg.PricingStage("simple")]
+    elif pricing == "tabu":  # tabu then simple, as the big-M runs and the full comparison (cap 20, 1000 iterations)
+        from rcspp.graph import AlgorithmParams
+
+        tabu = AlgorithmParams()
+        tabu.stop_after_X_solutions = 20
+        tabu.max_iterations = 1000
+        stages = [cg.PricingStage("tabu", tabu), cg.PricingStage("simple")]
     master = cg.MasterProblem(master_model(cg, master_kind, rows))
-    pricer = master.add_pricer(cg.GraphPricer(graph, stages), cg.ConvexityRow())
+    graph_pricer = cg.GraphPricer(graph, stages)
+    pricer = master.add_pricer(graph_pricer, cg.ConvexityRow())
     if os.environ.get("COLGEN_INIT") == "single":
         add_single_customer_routes(master, pricer, instance)  # the example's starting columns
-    params = cg.ColumnGenerationParams()
+    initialization = None
+    if os.environ.get("COLGEN_INIT") == "bigm":
+        # The same artificial cost in both layers: the pure layer's automatic one (factor 1e4 times the cost scale);
+        # the C++-backed layer's factor (1e6) is a constant.
+        initialization = cg.ArtificialColumns(cost=1e4 * max(1.0, graph_pricer.cost_scale()))
     if os.environ.get("COLGEN_ARTIFICIAL_COST"):  # override of the automatic cost (7e7 on R201_25 breaks HiGHS)
-        params.initialization = cg.ArtificialColumns(cost=float(os.environ["COLGEN_ARTIFICIAL_COST"]))
+        initialization = cg.ArtificialColumns(cost=float(os.environ["COLGEN_ARTIFICIAL_COST"]))
+    params = cg.ColumnGenerationParams()
+    if initialization is not None:
+        if loop == "purepython":  # frozen parameters there
+            params = cg.ColumnGenerationParams(initialization=initialization)
+        else:
+            params.initialization = initialization
     start = time.perf_counter()
     if loop in ("cpp", "purepython"):
         result = cg.ColumnGeneration(master, params).run()
@@ -223,7 +241,7 @@ def main():
     parser.add_argument("--instance", required=True)
     parser.add_argument("--loop", default="cpp", choices=["cpp", "python", "purepython"])
     parser.add_argument("--master", default="highs", choices=["highs", "highspy", "gurobipy"])
-    parser.add_argument("--pricing", default="exact", choices=["exact", "heuristic"])
+    parser.add_argument("--pricing", default="exact", choices=["exact", "heuristic", "tabu"])
     args = parser.parse_args()
     if args.driver == "example":
         run_example(args.instance)

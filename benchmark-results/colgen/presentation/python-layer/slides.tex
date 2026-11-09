@@ -1,0 +1,171 @@
+% Temporary slides: the pure-Python column generation layer against the C++-backed one (step H, overnight re-runs).
+% Data: python make_data.py (writes cells.dat, buckets.tex, long.tex), then latexmk -pdf slides.tex
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Boadilla}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\definecolor{GLBlue}{RGB}{22,63,95}
+\definecolor{GLOrange}{RGB}{214,110,30}
+\setbeamercolor{structure}{fg=GLBlue}
+\setbeamercolor{frametitle}{fg=GLBlue,bg=GLBlue!6}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{headline}{}
+\setbeamertemplate{footline}[frame number]
+
+\title{Pure-Python column generation layer}
+\subtitle{Against the C++-backed layer: the full comparison}
+\author{Leo Marbehan}
+\date{November 8, 2026 (draft)}
+
+\pgfplotsset{
+  cases/.style={
+    scatter, only marks, scatter src=explicit symbolic,
+    scatter/classes={
+      exact={mark=*,GLBlue},
+      exactbigm={mark=o,GLBlue,thick},
+      tabu={mark=square*,GLOrange},
+      tabubigm={mark=square,GLOrange,thick}},
+    mark size=1.8pt},
+}
+
+\makeatletter\let\inputrows\@@input\makeatother
+\begin{document}
+
+\begin{frame}[plain]
+  \titlepage
+\end{frame}
+
+\begin{frame}{In one slide}
+  \begin{itemize}
+    \item 108 cases: 14 instances $\times$ \{highspy, gurobipy\} $\times$ \{exact, tabu\} $\times$ \{single-customer, big-M start\}
+    \item 1,204 runs in all (full comparison + overnight re-runs), \textbf{0 failed}
+    \item \textbf{Same LP value, iterations and columns} in every case: the layers take the same path
+    \item Pure layer: \textbf{1--5 ms more per iteration}: visible below 1 s, noise above 10 s
+    \item Rule (D-139): pass when $P - C \le \max(5\,\%\cdot C,\ 0.25\,\mathrm{s})$
+    \item[$\Rightarrow$] \textbf{108 / 108 pass} (also with a 0.1 s floor) $\Rightarrow$ proposal: \textbf{Python only}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Pure layer's extra time, in \%, against run length}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[width=0.92\textwidth, height=0.72\textheight, xmode=log,
+        xlabel={C++-backed solve time (s), median}, ylabel={pure $-$ C++-backed (\%)},
+        ymin=-20, ymax=65, grid=major, grid style={gray!20},
+        legend pos=north east, legend style={font=\scriptsize}, legend cell align=left]
+      \addplot[cases] table[x=C, y=pct, meta=pricing] {cells.dat};
+      \legend{exact, exact (big-M), tabu, tabu (big-M)}
+      \addplot[red, thick, dashed, domain=0.008:3000, samples=200] {max(5, 25/x)};
+      \addplot[gray, thin, domain=0.008:3000] {0};
+      \node[red, font=\scriptsize, anchor=south west] at (axis cs:300,5) {pass line};
+    \end{axis}
+  \end{tikzpicture}
+
+  \scriptsize Every point below the dashed line passes. One point per case; small tier from the quieter overnight re-run.
+\end{frame}
+
+\begin{frame}{Pure layer's extra time, in seconds}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[width=0.92\textwidth, height=0.72\textheight, xmode=log, ymode=log,
+        xlabel={C++-backed solve time (s), median}, ylabel={pure $-$ C++-backed (s), positive only},
+        ymin=0.001, ymax=100, grid=major, grid style={gray!20},
+        legend pos=north west, legend style={font=\scriptsize}, legend cell align=left,
+        restrict y to domain*=-7:5]
+      \addplot[cases] table[x=C, y=diff, meta=pricing] {cells.dat};
+      \legend{exact, exact (big-M), tabu, tabu (big-M)}
+      \addplot[red, thick, dashed, domain=0.008:3000, samples=200] {max(0.05*x, 0.25)};
+    \end{axis}
+  \end{tikzpicture}
+
+  \scriptsize Log scale: the 10 cases where the pure layer is faster are not shown.
+\end{frame}
+
+\begin{frame}{By run length}
+  \centering
+  \begin{tabular}{lrrrrr}
+    \toprule
+    C++-backed run & cases & range (\%) & median (\%) & largest (s) & pure faster \\
+    \midrule
+    \inputrows buckets.tex 
+    \bottomrule
+  \end{tabular}
+
+  \vspace{1em}
+  \begin{itemize}\small
+    \item Below 1 s: up to +60\,\%, but at most +0.1 s
+    \item Over 100 s: $-1$ to $+2.3$\,\%: within run-to-run noise (R201 exact: $\pm 5$\,\% between repeats)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The long cases (C++-backed over 30 s)}
+  \centering\scriptsize
+  \begin{tabular}{llllrrrrr}
+    \toprule
+    instance & master & pricing & start & C++ (s) & pure (s) & diff (s) & diff & repeats \\
+    \midrule
+    \inputrows long.tex 
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{Where the extra milliseconds go (gap probe, F-47)}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[ybar stacked, width=0.9\textwidth, height=0.66\textheight, bar width=22pt,
+        ylabel={pure $-$ C++-backed (ms per run)}, ymin=0,
+        symbolic x coords={C101\_25 exact, RC201\_12 exact, C101\_50 exact, C101\_25 tabu, C101\_50 tabu},
+        xtick=data, x tick label style={font=\scriptsize},
+        legend style={font=\scriptsize, at={(0.02,0.98)}, anchor=north west}, legend cell align=left,
+        reverse legend]
+      \addplot+[fill=GLBlue] coordinates {(C101\_25 exact,9.5) (RC201\_12 exact,11.2) (C101\_50 exact,28.7) (C101\_25 tabu,25.9) (C101\_50 tabu,32.0)};
+      \addplot+[fill=GLBlue!40] coordinates {(C101\_25 exact,3.3) (RC201\_12 exact,2.8) (C101\_50 exact,11.1) (C101\_25 tabu,7.9) (C101\_50 tabu,11.6)};
+      \addplot+[fill=GLOrange] coordinates {(C101\_25 exact,3.1) (RC201\_12 exact,3.8) (C101\_50 exact,10.3) (C101\_25 tabu,10.2) (C101\_50 tabu,12.9)};
+      \addplot+[fill=gray!50] coordinates {(C101\_25 exact,4.3) (RC201\_12 exact,3.3) (C101\_50 exact,15.5) (C101\_25 tabu,10.6) (C101\_50 tabu,21.7)};
+      \legend{add\_columns, master (HiGHS options per solve), GraphPricer's Python, loop}
+    \end{axis}
+  \end{tikzpicture}
+
+  \scriptsize 18--67 iterations: about 1--2 ms per iteration, plus 2--5 ms once. The pricing search is the same C++ call.
+\end{frame}
+
+\begin{frame}{The master-heavy case: C201 (190 iterations, 38,000 columns)}
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    & exact & tabu \\
+    \midrule
+    C++-backed (s) & 35.58 & 46.04 \\
+    pure (s) & 36.52 & 46.79 \\
+    \midrule
+    difference, total (ms) & +942 (+2.6\,\%) & +753 (+1.6\,\%) \\
+    \quad master LP solves & +230 & +309 \\
+    \quad pricing slice & +615 & +380 \\
+    \qquad of which \texttt{add\_columns} (pure, whole) & 342 & 268 \\
+    \qquad of which GraphPricer's Python & 108 & 101 \\
+    \quad loop rest & +62 & +64 \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.8em}\small
+  Probe, 3 repeats. Full matrix on C201: $-1.5$ to $+2.6$\,\%, all pass.
+\end{frame}
+
+\begin{frame}{Decisions to take}
+  \begin{enumerate}
+    \item \textbf{D-139}: the rule, floor 0.25 s (outcome identical with 0.1 s)
+    \item \textbf{Q-41 / D-141}: Python only
+      \begin{itemize}\small
+        \item gain: one implementation, no bindings layer for the loop
+        \item cost: C++ users lose the column generation layer (supersedes D-02, D-08, D-15, D-37)
+        \item stack: drafts \#61, \#69, \#72, \#76, Python PRs 5--6, \#80 reworked or closed
+      \end{itemize}
+    \item \textbf{D-140}: no C++ helper for \texttt{add\_columns} (saves $\le$ 0.2\,\% on C201)
+  \end{enumerate}
+  \vspace{0.5em}
+  \small Caveats: long tier 1--2 repeats; desktop not fully idle; exact pricing from big-M on R201/RC201 not run (pricing $>$ 99\,\%).
+\end{frame}
+
+\end{document}

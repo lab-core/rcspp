@@ -1,0 +1,7 @@
+TIER rerun-rc201-tabu start 01:35
+TIER rerun-rc201-tabu done 01:48, failed runs: 0
+TIER rerun-small-single start 01:48
+TIER rerun-small-single done 01:59, failed runs: 0
+TIER full-long-single start 01:59
+TIER full-long-single done 05:09, failed runs: 0
+ALL DONE 05:09
