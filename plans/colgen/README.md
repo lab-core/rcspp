@@ -1,6 +1,6 @@
 # Column generation layer: plan
 
-Status (2026-11-08): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
+Status (2026-11-09): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
 with the C++ layer (`D-111`, `T-1.15`); whether the C++ layer stays is open (`Q-41`). Until then the C++ layer is
 frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Big-M start (`T-1.13`)
 done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
@@ -23,8 +23,10 @@ desktop), `Q-41`'s rule (`D-139`: within max(5 %, 0.25 s) per cell; the floor is
 (`D-140`). Full matrix run 2026-11-07/08 on the desktop (`D-138` accepted for running;
 `python-layer-comparison.md` §6–7, `F-49`): 1,204 runs, LP, iterations and columns equal everywhere, 108 / 108 cells
 equivalent by `D-139` (also with a 0.1 s floor). **Proposed:** `D-141`, Python only. **Next:** the user decides
-`D-139`–`D-141` (`D-141` with the colleagues; presentation 2026-11-09, draft slides in
-`benchmark-results/colgen/presentation/python-layer/`), then the last PR (`python-layer.md` §2). Then `T-1.16`.
+`D-139`–`D-141` (`D-141` with the colleagues; presentation 2026-11-09, slides done 2026-11-09 in
+`benchmark-results/colgen/presentation/python-layer/`: 9 slides + 3 backup, no plan IDs, the same-API slide, a
+chart of the runs over 100 s against their run-to-run spread), then the last PR (`python-layer.md` §2).
+Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
