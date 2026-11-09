@@ -1,4 +1,4 @@
-"""Temporary: data files for slides.tex (pure-Python layer against C++-backed), from the full-*/ and rerun-*/ runs."""
+"""Data files for slides.tex (pure-Python layer against C++-backed), from the full-*/ and rerun-*/ runs."""
 import csv, json, os, statistics
 from collections import defaultdict
 
@@ -13,6 +13,7 @@ EOL = r" \\" + "\n"
 END_PCT = r"\,\% & "
 cells = defaultdict(lambda: defaultdict(list))
 paths = defaultdict(set)
+iterations = {}
 for folder, start in TIERS.items():
     with open(os.path.join(COLGEN, folder, "results.csv")) as f:
         for r in csv.DictReader(f):
@@ -21,19 +22,30 @@ for folder, start in TIERS.items():
             key = (folder, r["instance"], master, pricing, start)
             cells[key][layer].append(float(r["solve_s"]))
             paths[key].add((r["lp"][:12], r["iterations"], r["columns"]))
+            iterations[key] = int(r["iterations"])
 rows = []
 for key, t in cells.items():
     c, p = statistics.median(t["cpp"]), statistics.median(t["purepython"])
-    rows.append((key, c, p, p - c, 100 * (p - c) / c, len(t["cpp"])))
+    spread = max(100 * (max(t[layer]) - min(t[layer])) / statistics.median(t[layer]) for layer in t)
+    rows.append((key, c, p, p - c, 100 * (p - c) / c, len(t["cpp"]), spread))
 rows.sort(key=lambda row: row[1])
 with open(os.path.join(HERE, "cells.dat"), "w") as f:
     f.write("C P diff pct pricing\n")
-    for key, c, p, d, pct, n in rows:
+    for key, c, p, d, pct, n, _ in rows:
         f.write(f"{c:.6f} {p:.6f} {d:.6f} {pct:.4f} {key[3]}{'' if key[4] == 'single' else 'bigm'}\n")
 with open(os.path.join(HERE, "long.tex"), "w") as f:
-    for key, c, p, d, pct, n in rows:
+    for key, c, p, d, pct, n, _ in rows:
         if c > 30:
             f.write(f"{key[1]} & {key[2]} & {key[3]} & {key[4]} & {c:.1f} & {p:.1f} & {d:+.2f} & {pct:+.1f}" + END_PCT + f"{n}" + EOL)
+# Cells over 100 s against their noise: spread = fastest to slowest repeat of one layer, in % of its median (the larger of the
+# two layers); expected = the pure layer's measured extra cost per iteration (at most 5 ms) times the iterations.
+with open(os.path.join(HERE, "noise.dat"), "w") as f:  # comma-separated: the labels have spaces
+    f.write("index,label,pct,spread,repeats,expected\n")
+    long_rows = [r for r in rows if r[1] > 100]
+    for index, (key, c, p, d, pct, n, spread) in enumerate(reversed(long_rows)):
+        start = "big-M" if key[4] == "bigm" else "single"
+        label = f"{key[1]} {key[2]} {key[3]} {start} ({c:.0f} s)"
+        f.write(f"{index},{label},{pct:.3f},{spread:.3f},{n},{100 * 0.005 * iterations[key] / c:.3f}\n")
 buckets = [(0, 1), (1, 10), (10, 100), (100, 1e9)]
 with open(os.path.join(HERE, "buckets.tex"), "w") as f:
     for lo, hi in buckets:

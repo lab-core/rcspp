@@ -1,0 +1,10 @@
+index,label,pct,spread,repeats,expected
+0,R201 highspy exact single (1797 s),-1.049,5.408,2,0.010
+1,R201 gurobipy exact single (1608 s),0.290,2.035,2,0.014
+2,R201 highspy tabu big-M (1222 s),2.302,0.000,1,0.028
+3,RC201 highspy exact single (959 s),-0.304,2.821,2,0.025
+4,RC201 gurobipy exact single (944 s),-0.298,2.575,2,0.029
+5,R201 gurobipy tabu big-M (829 s),0.585,0.000,1,0.043
+6,R201 highspy tabu single (188 s),1.274,3.309,2,0.173
+7,R201 gurobipy tabu single (158 s),0.036,5.890,2,0.205
+8,RC201 gurobipy tabu big-M (130 s),0.943,0.000,1,0.288
