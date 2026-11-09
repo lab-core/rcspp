@@ -32,6 +32,11 @@ comments go to a later chat). PR #88 review done 2026-11-09 (R.1–R.22 in `pyth
 Ctrl-C / interrupt bugs, tests, the user's comments, a readability pass), approved and folded into commits 1–6 on
 both branches (hashes in the record); worktree `../rcspp-dev` on `feature/column-generation-pure-python`. Both
 branches force-pushed 2026-11-09.
+Colleagues' meeting 2026-11-09: Python only ships, the C++ layer and its bindings stay as an isolated example
+(`D-142`, amends `D-141`); the VRP examples ported to the layers after a speed check (`D-143`, supersedes `D-122`).
+Feedback, analysis, inventory of what moves and open questions: `separation.md` (`Q-50`–`Q-55`, `T-1.17`–`T-1.19`).
+**Next (2026-11-10, another machine):** the user decides `D-139`–`D-143` and `Q-50`–`Q-55`, then designs the
+separation (`T-1.17`); `T-1.18`, `T-1.19` can run beside it; then the last PR.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
@@ -105,6 +110,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `python-layer-records.md` | the pure-Python layer's step records and review findings (B., D., F.) | before fixing or reviewing that layer |
 | `python-layer-runs.md` | the pure-Python layer's runs against the C++-backed one (step G): LP values, times, probes of B.15, B.16, D.12, the `ColumnBatch` copy | before deciding those items, planning the full comparison |
 | `python-layer-comparison.md` | step H: where the pure layer's extra time goes, the full comparison matrix, `Q-41`'s rule, D.12 after heuristic runs | before running the full comparison or deciding `Q-41` |
+| `separation.md` | the colleagues' feedback of 2026-11-09, C++ layer as an example: what moves, open questions, PR shapes, VRP comparisons | before `T-1.17`–`T-1.19` |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
