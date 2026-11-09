@@ -2,7 +2,8 @@
 
 Step H of `python-layer.md` §8 (2026-11-06, Opus): the step G runs read (`python-layer-runs.md`), the gap probed,
 the full matrix and `Q-41`'s rule planned. Proposed: `D-138` (matrix), `D-139` (rule), `D-140` (D.12). Findings:
-`F-47`, `F-48`. No code under `python/` or `tests/` changed; no layer commit touched; nothing pushed.
+`F-47`, `F-48`. Results (§6, 2026-11-08): all 108 cells equivalent, `F-49`, proposed `D-141`; analysis
+for the user in §7. No code under `python/` or `tests/` changed; no layer commit touched; nothing pushed.
 
 ## 1. Where the gap comes from (`F-47`)
 
@@ -125,3 +126,108 @@ Unchanged by the heuristic runs: leave `add_columns` as it is, no C++ helper. Th
 per run with tabu (`to_arrays` and the concatenation); the per-call cost is elsewhere. Should `D-139` single out
 `add_columns`, the first step is fewer Python steps per call (checks, `ColumnBatch` of a few columns), measured with
 `pricing_gap_probe.py`; a C++ helper only if that is not enough.
+
+## 6. Results (2026-11-07/08, desktop; `F-49`, proposed `D-141`)
+
+`D-138` run as planned (`full_comparison.sh`, 2026-11-07 02:00–07:57), except `exact` + `bigm` on R201 and RC201
+(stopped by the user: pricing over 99 %, cannot change the verdict). Overnight re-runs (`overnight_reruns.sh`,
+2026-11-08 01:35–05:09): RC201 tabu × 4 configurations × 3 repeats (`rerun-rc201-tabu/`), the small tier from the
+single-customer start again on a quieter machine (`rerun-small-single/`, 5 repeats), a second repeat of the long tier
+from the single-customer start (`full-long-single/`, now 2 repeats). 1,204 runs, **0 failed, no LP mismatch; LP
+value, iterations and columns equal between the layers in every cell**. Verdict: `full_comparison_verdict.py`.
+Machine not fully idle in the first night (Chrome, VS Code, Discord: other processes at 25–150 % of a core, peaks
+3.5 cores at 01:35 on 2026-11-08); the overnight small tier at 17 % on average.
+
+The tables use `rerun-small-single/` for the small tier from the single-customer start, the other `full-*/` folders
+as they are: 108 cells, 872 runs (`presentation/python-layer/make_data.py`). Medians, pure − C++-backed:
+
+| C++-backed run | cells | range (%) | median (%) | largest (s) | pure faster in |
+|---|---|---|---|---|---|
+| 0–1 s | 52 | +0.9 to +59.7 | +7.5 | +0.098 | 0 |
+| 1–10 s | 30 | -0.9 to +7.5 | +2.5 | +0.199 | 4 |
+| 10–100 s | 17 | -1.5 to +3.9 | +1.0 | +1.215 | 3 |
+| over 100 s | 9 | -1.0 to +2.3 | +0.3 | +28.145 | 3 |
+
+**`D-139`: 108 / 108 cells equivalent**, with the 0.25 s floor and with 0.1 s. Cells above 30 s:
+
+| instance | master | pricing | start | C++-backed (s) | pure (s) | difference (s) | difference | repeats |
+|---|---|---|---|---|---|---|---|---|
+| C201 | gurobipy | exact | bigm | 32.4 | 32.4 | +0.02 | +0.1 % | 3 |
+| C201 | highspy | exact | bigm | 32.7 | 33.3 | +0.63 | +1.9 % | 3 |
+| C201 | highspy | exact | single | 36.8 | 37.8 | +0.95 | +2.6 % | 3 |
+| RC201 | highspy | tabu | single | 48.0 | 49.1 | +1.03 | +2.1 % | 2 |
+| C201 | highspy | tabu | single | 48.5 | 48.9 | +0.39 | +0.8 % | 3 |
+| C201 | highspy | tabu | bigm | 49.7 | 50.7 | +1.02 | +2.0 % | 3 |
+| C201 | gurobipy | tabu | single | 51.5 | 50.7 | -0.78 | -1.5 % | 3 |
+| C201 | gurobipy | tabu | bigm | 61.1 | 61.0 | -0.11 | -0.2 % | 3 |
+| RC201 | gurobipy | tabu | single | 67.0 | 67.9 | +0.84 | +1.3 % | 2 |
+| RC201 | highspy | tabu | bigm | 75.4 | 76.6 | +1.21 | +1.6 % | 1 |
+| RC201 | gurobipy | tabu | bigm | 130.1 | 131.4 | +1.23 | +0.9 % | 1 |
+| R201 | gurobipy | tabu | single | 158.5 | 158.5 | +0.06 | +0.0 % | 2 |
+| R201 | highspy | tabu | single | 188.3 | 190.7 | +2.40 | +1.3 % | 2 |
+| R201 | gurobipy | tabu | bigm | 829.1 | 834.0 | +4.85 | +0.6 % | 1 |
+| RC201 | gurobipy | exact | single | 944.3 | 941.5 | -2.81 | -0.3 % | 2 |
+| RC201 | highspy | exact | single | 958.6 | 955.7 | -2.91 | -0.3 % | 2 |
+| R201 | highspy | tabu | bigm | 1222.4 | 1250.5 | +28.14 | +2.3 % | 1 |
+| R201 | gurobipy | exact | single | 1608.1 | 1612.8 | +4.67 | +0.3 % | 2 |
+| R201 | highspy | exact | single | 1796.9 | 1778.1 | -18.86 | -1.0 % | 2 |
+
+- RC201 tabu over highspy: +4.6 % with 1 repeat in the first night, +2.1 % over 2 repeats (`full-long-single/`) and
+  over 3 (`rerun-rc201-tabu/`: 47.35 s against 48.34 s). Its gurobipy cell in the re-run: −16.5 %, noise (the first
+  repeat ran with Chrome at a full core; spread 17.7 s).
+- C201 (master-heavy, 190 iterations), probes (`full-probes/`, 3 repeats): exact 35.58 s against 36.52 s (+0.94 s:
+  master +0.23, pricing slice +0.61 of which the pure `add_columns` 0.34 and the GraphPricer's Python 0.11, rest
+  +0.06); tabu 46.04 s against 46.79 s (+0.75 s). The full matrix on C201: −1.5 % to +2.6 %.
+- R201 exact: the two repeats of one layer differ by about 5 % (97 s): more than the gap between the layers.
+- Draft slides for the user (not for presenting as they are): `benchmark-results/colgen/presentation/python-layer/`.
+
+**Outcome by `D-139`'s table: Python only** (proposed `D-141`), once the user accepts `D-139`; it supersedes `D-02`,
+`D-08`, `D-15`, `D-37` (C++ users lose the column generation layer) and decides the frozen stack's fate. The user
+decides, with the colleagues.
+
+## 7. For the user: the decisions, the analysis behind them, what is left (2026-11-08)
+
+Written from the chat after the runs, so that another machine or session loses nothing.
+
+**Decisions to take** (none accepted yet, except `D-138` for running):
+
+| # | decision | proposal | why |
+|---|---|---|---|
+| 1 | `D-139`, the rule | accept, floor 0.25 s | fixed before reading the results was the intent; the outcome is the same with 0.1 s (largest small-run difference +0.098 s) |
+| 2 | `Q-41` → `D-141` | Python only | speed is no longer an argument for the C++ layer: 108 / 108 cells pass, the long runs are within run-to-run noise |
+| 3 | `D-140`, D.12 | no C++ helper for building the batch | it would save at most ~80 ms of 36 s on C201 (0.2 %), 1–4 ms per run with tabu |
+
+**What Python only costs and gains** (decision 2, with the colleagues, who accepted `D-111`):
+
+- Cost: C++ users lose the column generation layer (`D-02` "usable from C++ and Python" reversed; `D-08`, `D-15`,
+  `D-37` "the loop written once, in C++" reversed). If C++ users of column generation matter, that is the reason to
+  keep the C++ layer; speed is not.
+- Gain: one implementation, in Python; no bindings layer for the loop, fewer builds and less code to maintain;
+  users extend pricers and master solvers in Python.
+- Work left: the last PR of `python-layer.md` §2 (drop the C++ layer and bindings, rename the pure package to
+  `column_generation`); the frozen stack's drafts and PRs reworked or closed.
+
+**Where the remaining gap is, and the cheap speed-ups** (optional, not needed by `D-139`): 1–5 ms per iteration,
+in four places (`F-47`): `add_columns` (~0.4 ms per call in checks, `ColumnBatch`, de-duplication), the 8 HiGHS
+options set and restored around every master solve, the GraphPricer's wrappers and `_to_pricing_result`, the loop's
+copies of duals and records. The first two are the cheap ones, in Python, measured with `pricing_gap_probe.py`.
+
+**Not run, and why it does not matter:** `exact` + `bigm` on R201 and RC201 (about 12 h; R201 6836 s per
+configuration, pricing over 99 %, so the layers cannot differ by more than noise there).
+
+**Caveats to state when presenting:** the long tier has 1–2 repeats (2 for the single-customer start); the desktop
+was not fully idle in the first night (Chrome at a full core at times; runs over 50 % of a core are flagged `*` in
+`summary.md`); all runs on one machine.
+
+**Presentation (Monday 2026-11-09), suggested flow:** the message (same results, same speed within noise on
+realistic runs); correctness (1,204 runs, LP, iterations and columns identical); the % against run length chart
+with the pass line; where the milliseconds go (stacked bars, `F-47`); same API (the drivers switch layers by module
+only, `drivers.layer_module`); the decision (`D-139`, `D-141`, what it costs); caveats. Draft charts and slides:
+`benchmark-results/colgen/presentation/python-layer/` (`make_data.py` writes the data, then
+`latexmk -pdf slides.tex`; quick and dirty, the stacked bar's legend overlaps).
+
+**To resume on another machine:** results are all in `benchmark-results/colgen/full-*/`, `rerun-*/`,
+`full-probes/`; `full_comparison_verdict.py [--floor s] [folders]` re-applies `D-139`; `make_data.py` rebuilds the
+slide data. Timings from another machine do not mix with these (desktop) ones: re-run whole cells there if needed
+(`full_comparison.sh` and `overnight_reruns.sh` are resumable; a `STOP` file in a folder stops after the current
+run).
