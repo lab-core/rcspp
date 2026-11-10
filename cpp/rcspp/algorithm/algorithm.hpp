@@ -108,23 +108,21 @@ class Algorithm {
 
         virtual ~Algorithm() = default;
 
-        /**
-         * @brief Whether the last @ref solve's result is a proof of optimality
-         *        (@c SolveResult::proven).
-         *
-         * The default implementation answers whether the last solve ended with status
-         * @c AlgorithmStatus::Complete, with nothing lost that the status cannot see: no arc
-         * masked, an exact admission rule, no memory pressure (@c ProofLoss). It is recorded when
-         * the solve ends, before @c release_after_solve (the default) empties the label queues:
-         * reading @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any
-         * other early stop. @c false before the first solve. A heuristic ends @c Complete only when
-         * it ran out of paths to try: @c strategy::Greedy then enumerated every path, and the tabu
-         * searches found none before any arc was tabu (a tabu arc loses the proof:
-         * @c ProofLoss::HeuristicDriver). @c DiversificationSearch overrides it to answer
-         * @c false.
-         *
-         * @return true if the last solve's result is a proof, false otherwise.
-         */
+        /// @brief Whether the last @ref solve's result is a proof of optimality
+        ///        (@c SolveResult::proven).
+        ///
+        /// The default implementation answers whether the last solve ended with status
+        /// @c AlgorithmStatus::Complete, with nothing lost that the status cannot see: no arc
+        /// masked, an exact admission rule, no memory pressure (@c ProofLoss). It is recorded when
+        /// the solve ends, before @c release_after_solve (the default) empties the label queues:
+        /// reading @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any
+        /// other early stop. @c false before the first solve. A heuristic ends @c Complete only
+        /// when it ran out of paths to try: @c strategy::Greedy then enumerated every path, and the
+        /// tabu searches found none before any arc was tabu (a tabu arc loses the proof:
+        /// @c ProofLoss::HeuristicDriver). @c DiversificationSearch overrides it to answer
+        /// @c false.
+        ///
+        /// @return true if the last solve's result is a proof, false otherwise.
         [[nodiscard]] virtual bool is_optimal() const { return last_solve_proven_; }
 
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
