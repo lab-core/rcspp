@@ -85,6 +85,13 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             search_.schedule.initialize(context_);
         }
 
+        /// @brief Empties the search for another run of this solve (@ref Search::restart): the
+        ///        start labels can then be stored again, whatever the retention.
+        void restart_search() {
+            search_.restart(this->graph_->get_number_of_nodes(),
+                            make_directed_container<Direction>(this->params_.labels));
+        }
+
         void initialize_labels() override {
             // At the start of a solve the pool is already empty (Algorithm::initialize clears
             // it), so this releases nothing: it only makes the start safe to repeat.

@@ -35,9 +35,14 @@ struct RunEnd {
         /// @brief Whether the run recorded an end-node label: with @c end_runs_at_end_node, the
         ///        label it ended at.
         bool recorded = false;
-        /// @brief Whether the run ended with no label waiting: not stopped by a budget, an
-        ///        interrupt or the memory limit.
+        /// @brief Whether the run ended with no label waiting and none held back: not stopped
+        ///        by a budget, an interrupt or the memory limit, nor cut short by the per-node
+        ///        quota or memory pressure.
         bool exhausted = false;
+        /// @brief Whether the run ran out of labels to take while a cut (the per-node quota,
+        ///        memory pressure) still held some back, after its @c max_phases phases: it
+        ///        found no path, but that does not show none is left.
+        bool ended_with_stored_aside = false;
         /// @brief Whether the run added a solution the solve did not have.
         bool new_solution = false;
         /// @brief The cost of the end-node label the run recorded last; infinite when none.

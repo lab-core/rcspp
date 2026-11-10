@@ -11,7 +11,9 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "rcspp/rcspp.hpp"
@@ -762,6 +764,47 @@ struct DrivenDive {
         static constexpr bool backward = false;
 };
 
+/// @brief A FIFO search that names no retention, so keeps its labels at the nodes
+///        (@c parts::KeepAtNodes), run by @p DriverType.
+template <typename DriverType>
+struct DrivenAtNodes {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::FifoSchedule<ResourceType>;
+        using driver = DriverType;
+};
+
+/// @brief A graph whose only feasible path a per-node quota of 1 cuts.
+///
+/// source(0) -> 1 [-5], source(0) -> 2 [-1], 2 -> 1 [0], 1 -> sink(3) [0]; the sink needs a value
+/// of at least -2. A dive takes node 1 first along 0 -> 1 (value -5), which cannot reach the sink,
+/// then along 0 -> 2 -> 1 (value -1), which can, but the quota of 1 per node cuts that label.
+///
+/// @return Owning pointer to the configured ResourceGraph.
+inline std::unique_ptr<ResourceGraph<RealResource>> make_quota_cut_graph() {
+    constexpr double kInf = std::numeric_limits<double>::infinity();
+    constexpr double kSinkMin = -2.0;
+    constexpr double kDeep = -5.0;
+    constexpr double kShallow = -1.0;
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(
+        std::make_unique<AdditionExtensionFunction<RealResource>>(),
+        std::make_unique<MinMaxFeasibilityFunction<RealResource>>(
+            -kInf,
+            kInf,
+            std::map<size_t, std::pair<double, double>>{{3, {kSinkMin, kInf}}}),
+        std::make_unique<ValueCostFunction<RealResource>>(),
+        std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/false);
+    g->add_node(3, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(kDeep), 0, 1);
+    g->add_arc<RealResource>(std::make_tuple(kShallow), 0, 2);
+    g->add_arc<RealResource>(std::make_tuple(0.0), 2, 1);
+    g->add_arc<RealResource>(std::make_tuple(0.0), 1, 3);
+    return g;
+}
+
 }  // namespace
 
 /// @brief A driver runs the search again and again: each run ends at its first path, whose arcs
@@ -820,4 +863,54 @@ TEST(DrivenSearch, ADrivenStrategyDoesNotSearchBidirectionally) {
     EXPECT_THROW((void)g->create_algorithm<DrivenDive<OneRun>>(
                      params.with_container<LabelList<ResourceTypeComposition<RealResource>>>()),
                  std::invalid_argument);
+}
+
+/// @brief A driven search that keeps its labels at the nodes starts each run again from the
+///        start labels: reseeding keeps one container per node.
+TEST(DrivenSearch, ReseedsASearchThatKeepsLabelsAtTheNodes) {
+    auto g = make_two_path_graph();
+    const auto result = g->solve<DrivenAtNodes<MaskEachPath>>(AlgorithmBaseParams{});
+    ASSERT_EQ(result.solutions.size(), 2U);
+    EXPECT_NEAR(result.solutions[0].cost, kBestPathCost, 1e-9);
+    EXPECT_NEAR(result.solutions[1].cost, kAltPathCost, 1e-9);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+    ASSERT_EQ(driven_runs().size(), 3U);
+    EXPECT_TRUE(driven_runs()[2].exhausted);
+}
+
+/// @brief A run that found no path while the per-node quota held a label back, past its phases,
+///        is held back, not exhausted: the tabu searches do not take it for proof that no path
+///        exists, and the solve is truncated, not complete.
+TEST(DrivenSearch, ARunCutByTheQuotaEndsWithLabelsStoredAsideNotExhausted) {
+    auto g = make_quota_cut_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    params.max_extended_labels_per_node = 1;
+    const auto tabu = g->solve<strategy::Tabu>(params);
+    EXPECT_TRUE(tabu.solutions.empty());
+    EXPECT_EQ(tabu.status, AlgorithmStatus::Truncated);
+    const auto improving = g->solve<strategy::ImprovingTabu>(params);
+    EXPECT_TRUE(improving.solutions.empty());
+    EXPECT_EQ(improving.status, AlgorithmStatus::Truncated);
+
+    const auto runs = g->solve<DrivenDive<MaskEachPath>>(params);
+    EXPECT_TRUE(runs.solutions.empty());
+    ASSERT_EQ(driven_runs().size(), 1U);
+    EXPECT_TRUE(driven_runs()[0].ended_with_stored_aside);
+    EXPECT_FALSE(driven_runs()[0].exhausted);
+}
+
+/// @brief A driven run goes on with the labels the per-node quota held back, in up to
+///        max_phases phases, as a search that is not driven does.
+TEST(DrivenSearch, ARunGoesOnWithTheLabelsStoredAsideInItsPhases) {
+    auto g = make_quota_cut_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    params.max_extended_labels_per_node = 1;
+    params.max_phases = 2;
+    for (const auto& result :
+         {g->solve<strategy::Tabu>(params), g->solve<strategy::ImprovingTabu>(params)}) {
+        ASSERT_EQ(result.solutions.size(), 1U);
+        EXPECT_NEAR(result.solutions[0].cost, -1.0, 1e-9);
+    }
 }
