@@ -74,6 +74,9 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
             tabu_.begin(*graph, this->get_arc_mask());
             algo_->set_arc_mask(&tabu_.mask());
+            // The first inner solve reads the graph afresh; the next ones, on the same graph
+            // with only the mask changed, may keep what it computed from it (the bound).
+            algo_->set_graph_unchanged(false);
         }
 
         void main_loop() override {
@@ -93,6 +96,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                 // solve, the tabu arcs hard in the inner algorithm's mask
                 std::vector<Solution> sols =
                     algo_->solve(this->graph_, this->upper_bound_).solutions;
+                algo_->set_graph_unchanged(true);
                 if (sols.empty()) {
                     break;
                 }
