@@ -365,7 +365,7 @@ class Algorithm {
             if (outcome == parts::ExtensionOutcome::Unreachable) {
                 return;
             }
-            if (++number_of_extended_labels_ % 100000 == 0) {  // NOLINT
+            if (++number_of_extended_labels_ % kProgressReportInterval == 0) {
                 print_labels();
                 LOG_DEBUG("Processed ", number_of_extended_labels_, " labels so far...\n");
             }
