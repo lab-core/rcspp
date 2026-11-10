@@ -65,10 +65,10 @@ class Driven : public Base {
         /// @brief Records that the solve's result is not a proof, for @p loss.
         void lose_proof(ProofLoss loss) { this->proof_.record(loss); }
 
-        /// @brief Starts a new run from the start labels: the schedule is emptied, and the pool
-        ///        takes back every label of the previous run.
+        /// @brief Starts a new run from the start labels: the containers and the schedule are
+        ///        emptied, and the pool takes back every label of the previous run.
         void reseed() {
-            this->search_.clear();
+            this->restart_search();
             this->initialize_labels();
         }
 
@@ -80,13 +80,33 @@ class Driven : public Base {
         }
 
         /// @brief One run, unless the driver refused to run.
+        ///
+        /// A run that runs out of labels to take while a cut held some back goes on with them, in
+        /// up to @c max_phases phases, as a search that is not driven does. Past the last phase,
+        /// the labels a cut still holds back wait again, and the run is @c ended_with_stored_aside,
+        /// not
+        /// @c exhausted.
         void main_loop() override {
             run_ = {};
             if (refused_) {
                 return;
             }
-            this->run_loop(kNoLimit);
-            run_.exhausted = this->number_of_waiting_labels() == 0;
+            for (size_t phase = 1;; ++phase) {
+                // Ended at a path or by a stop, or stopped with labels waiting: the run is over.
+                if (this->run_loop(kNoLimit) || this->number_of_waiting_labels() > 0) {
+                    break;
+                }
+                // Out of labels to take: give back what the cuts held back, if any.
+                this->prepare_next_phase();
+                if (this->number_of_waiting_labels() == 0) {
+                    run_.exhausted = true;
+                    break;
+                }
+                if (phase >= this->params_.max_phases) {
+                    run_.ended_with_stored_aside = true;
+                    break;
+                }
+            }
         }
 
         bool prepare_next_run(size_t number_of_runs) override {

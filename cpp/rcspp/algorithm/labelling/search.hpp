@@ -140,9 +140,16 @@ struct Search {
         ///        @p prototype (which carries the container's configuration and direction), an
         ///        empty schedule and no work.
         void reset(size_t number_of_nodes, const ContainerType& prototype) {
+            restart(number_of_nodes, prototype);
+            work = 0;
+        }
+
+        /// @brief Empties the search for another run of the same solve: one container per node,
+        ///        each a copy of @p prototype, and an empty schedule; the work done so far stays.
+        ///        No label is released (the pool owns them).
+        void restart(size_t number_of_nodes, const ContainerType& prototype) {
             labels.reset(number_of_nodes, prototype);
             schedule.clear();
-            work = 0;
         }
 
         /// @brief Forgets every stored and waiting label, releasing none (the pool owns them).

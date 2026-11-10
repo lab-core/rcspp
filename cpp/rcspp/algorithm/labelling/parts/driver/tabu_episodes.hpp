@@ -86,10 +86,13 @@ namespace rcspp::parts {
 ///
 /// After an episode that found a path, its arcs become tabu, and the adaptive tenure shrinks when
 /// the path was new and grows when it was not; after one that ran out of paths, the solve ends if
-/// no arc is tabu (no path exists), and the tenure grows otherwise. Then the tenures age, and the
-/// next episode starts from the sources. @c max_iterations counts episodes, and must be finite.
-/// A run stopped by a budget, an interrupt or the memory limit ends the solve, its labels still
-/// waiting, so the status says why.
+/// no arc is tabu (no path exists), and the tenure grows otherwise. An episode that found no path
+/// while a cut held labels back (@c RunEnd::ended_with_stored_aside: the per-node quota, past @c
+/// max_phases) counts as one that ran out of paths, except that with no arc tabu its labels still
+/// wait, so the status says the solve was truncated. Then the tenures age, and the next episode
+/// starts from the sources. @c max_iterations counts episodes, and must be finite. A run stopped by
+/// a budget, an interrupt or the memory limit ends the solve, its labels still waiting, so the
+/// status says why.
 ///
 /// The search's schedule drops a child reached along a tabu arc unless every child is
 /// (@ref TabuChildFilter).
@@ -119,10 +122,12 @@ class TabuEpisodes {
                 } else {
                     tabu_.list().grow_extra();
                 }
-            } else if (!run.exhausted) {
+            } else if (!run.exhausted && !run.ended_with_stored_aside) {
                 return false;  // stopped: the labels wait, and the status says why
             } else if (tabu_.list().empty()) {
-                return false;  // out of paths with no arc tabu: no feasible path exists
+                // Out of paths with no arc tabu: no feasible path exists, or (held back) the next
+                // episode would repeat this one, and the labels held back wait.
+                return false;
             } else {
                 tabu_.list().grow_extra();
             }

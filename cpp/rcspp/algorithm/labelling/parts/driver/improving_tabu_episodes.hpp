@@ -45,12 +45,12 @@ class ImprovingTabuEpisodes {
         template <typename SearchType>
         bool after_run(SearchType& search, size_t number_of_runs) {
             const RunEnd& run = search.last_run();
-            if (!run.recorded && !run.exhausted) {
+            if (!run.recorded && !run.exhausted && !run.ended_with_stored_aside) {
                 return false;  // stopped: the labels wait, and the status says why
             }
             if (number_of_runs == 1) {  // the construction
                 if (!run.recorded) {
-                    return false;  // no feasible path exists
+                    return false;  // no feasible path exists, or (held back) the labels wait
                 }
                 best_cost_ = run.cost;
                 if (best_cost_ < search.upper_bound()) {
