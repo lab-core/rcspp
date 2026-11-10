@@ -77,6 +77,9 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             build_inner(inner_iteration_budget(graph->get_number_of_nodes()));
             tabu_.begin(*graph, this->get_arc_mask());
             algo_->set_arc_mask(&tabu_.mask());
+            // The first inner solve reads the graph afresh; the next ones, on the same graph
+            // with only the mask changed, may keep what it computed from it (the bound).
+            algo_->set_graph_unchanged(false);
         }
 
         /// @brief Builds the inner algorithm with @p max_iterations, unless the one built for the
@@ -113,6 +116,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                 // solve, the tabu arcs hard in the inner algorithm's mask
                 std::vector<Solution> sols =
                     algo_->solve(this->graph_, this->upper_bound_).solutions;
+                algo_->set_graph_unchanged(true);
                 if (sols.empty()) {
                     break;
                 }
