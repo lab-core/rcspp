@@ -17,32 +17,30 @@
 
 namespace rcspp {
 
-/**
- * @brief DiversificationSearch: Tabu-based diversification algorithm for RCSPP.
- *
- * This class implements a diversification strategy for resource-constrained shortest path problems
- * (RCSPP) using a tabu-based search. The algorithm wraps another Algorithm instance and repeatedly
- * solves the problem, each time removing arcs from the graph that were used in previous solutions
- * (tabu arcs), to encourage exploration of new and diverse solutions and to escape local optima.
- *
- * The tabu mechanism works by maintaining a list of recently removed arcs (tabu list) with a
- * configurable tenure. Arcs used in a solution are removed from the graph for a number of
- * iterations, preventing their immediate reuse. Random noise can be added to the tenure to further
- * diversify the search.
- *
- * Typical use cases include:
- *   - Metaheuristic frameworks for RCSPP where solution diversity is important.
- *   - Escaping local optima in iterative improvement algorithms.
- *   - Generating a set of diverse solutions for post-processing or ensemble methods.
- *
- * Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
- * algorithm is built from this algorithm's params, searching forward, with one solution and at
- * most 20 iterations per solve.
- *
- * @tparam ResourceType       The resource type carried by labels.
- * @tparam LabelContainerType The per-node container.
- * @tparam Inner              The strategy solved each time (a descriptor, as @c strategy::Greedy).
- */
+/// @brief DiversificationSearch: Tabu-based diversification algorithm for RCSPP.
+///
+/// This class implements a diversification strategy for resource-constrained shortest path problems
+/// (RCSPP) using a tabu-based search. The algorithm wraps another Algorithm instance and repeatedly
+/// solves the problem, each time removing arcs from the graph that were used in previous solutions
+/// (tabu arcs), to encourage exploration of new and diverse solutions and to escape local optima.
+///
+/// The tabu mechanism works by maintaining a list of recently removed arcs (tabu list) with a
+/// configurable tenure. Arcs used in a solution are removed from the graph for a number of
+/// iterations, preventing their immediate reuse. Random noise can be added to the tenure to further
+/// diversify the search.
+///
+/// Typical use cases include:
+///   - Metaheuristic frameworks for RCSPP where solution diversity is important.
+///   - Escaping local optima in iterative improvement algorithms.
+///   - Generating a set of diverse solutions for post-processing or ensemble methods.
+///
+/// Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
+/// algorithm is built from this algorithm's params, searching forward, with one solution and at
+/// most 20 iterations per solve.
+///
+/// @tparam ResourceType       The resource type carried by labels.
+/// @tparam LabelContainerType The per-node container.
+/// @tparam Inner              The strategy solved each time (a descriptor, as @c strategy::Greedy).
 template <typename ResourceType, typename LabelContainerType, typename Inner>
 class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType> {
     public:
