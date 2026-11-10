@@ -7,9 +7,11 @@
 #include <limits>
 
 #include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/driver/driver.hpp"
 #include "rcspp/algorithm/labelling/parts/driver/tabu_episodes.hpp"
 #include "rcspp/algorithm/limits.hpp"
+#include "rcspp/algorithm/tabu/tabu_arcs.hpp"
 
 namespace rcspp::parts {
 
@@ -26,11 +28,11 @@ namespace rcspp::parts {
 class ImprovingTabuEpisodes {
     public:
         explicit ImprovingTabuEpisodes(const AlgorithmBaseParams& params)
-            : params_(&params), tabu_(params) {}
+            : params_(&params), tabu_(params, ArcMask::State::Soft) {}
 
         template <typename SearchType>
         bool begin(SearchType& search) {
-            tabu_.begin(search);
+            tabu_detail::begin(tabu_, search);
             search.end_runs_at_end_node();
             best_cost_ = std::numeric_limits<double>::infinity();
             number_of_non_improving_episodes_ = 0;
@@ -54,7 +56,7 @@ class ImprovingTabuEpisodes {
                 }
                 best_cost_ = run.cost;
                 if (best_cost_ < search.upper_bound()) {
-                    tabu_.add(search, run.arc_ids);
+                    tabu_detail::add(tabu_, search, run.arc_ids);
                 }
             } else {
                 if (!run.recorded) {
@@ -72,7 +74,7 @@ class ImprovingTabuEpisodes {
                     } else {
                         ++number_of_non_improving_episodes_;
                     }
-                    tabu_.add(search, run.arc_ids);
+                    tabu_detail::add(tabu_, search, run.arc_ids);
                 }
                 if (number_of_non_improving_episodes_ >=
                     params_->non_improving_episodes_before_growth) {
