@@ -74,6 +74,7 @@
 #include "rcspp/algorithm/solution_pool.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
 #include "rcspp/algorithm/strategies.hpp"
+#include "rcspp/algorithm/tabu/tabu_arcs.hpp"
 #include "rcspp/algorithm/tabu/tabu_list.hpp"
 #include "rcspp/general/clonable.hpp"
 #include "rcspp/graph/arc.hpp"

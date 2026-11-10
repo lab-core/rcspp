@@ -11,75 +11,30 @@
 #include "rcspp/algorithm/labelling/parts/driver/driver.hpp"
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/proof_record.hpp"
-#include "rcspp/algorithm/tabu/tabu_list.hpp"
-
-namespace rcspp::detail {
-
-/// @brief The tabu arcs of a driven search: a tabu list (@ref TabuList) and the soft mask the
-///        search reads, kept in step.
-///
-/// The mask starts as the one the algorithm was given (@c Algorithm::set_arc_mask), or open; an
-/// arc made tabu goes soft, and goes back to that state when its tenure runs out. An arc of a path
-/// found is never hard, so a tabu arc never hides a hard one.
-class TabuArcs {
-    public:
-        explicit TabuArcs(const AlgorithmBaseParams& params)
-            : params_(&params), tabu_(params.seed) {}
-
-        /// @brief Empties the list, and has @p search's runs read the mask, which starts as the
-        ///        one it was given.
-        template <typename SearchType>
-        void begin(SearchType& search) {
-            tabu_.clear();
-            given_ = search.get_arc_mask();
-            const size_t number_of_arc_ids = search.graph().get_arc_id_bound();
-            mask_.reset(number_of_arc_ids);
-            if (given_ != nullptr) {
-                for (size_t arc_id = 0; arc_id < number_of_arc_ids; ++arc_id) {
-                    mask_.set(arc_id, given_->state(arc_id));
-                }
-            }
-            search.use_arc_mask(&mask_);
-        }
-
-        /// @brief Makes the arcs of a path tabu, all but those with an exempt end
-        ///        (@c tabu_exempt_node_ids); the first arc made tabu loses @p search's proof.
-        template <typename SearchType>
-        void add(SearchType& search, const std::vector<size_t>& arc_ids) {
-            const auto& exempt = params_->tabu_exempt_node_ids;
-            for (const size_t arc_id : arc_ids) {
-                const auto* arc = search.graph().get_arc(arc_id);
-                if (exempt.contains(arc->origin->id) || exempt.contains(arc->destination->id)) {
-                    continue;
-                }
-                tabu_.add(arc_id, params_->tabu_tenure, params_->tabu_random_noise);
-                if (tabu_.is_tabu(arc_id)) {
-                    mask_.set(arc_id, ArcMask::State::Soft);
-                    search.lose_proof(ProofLoss::HeuristicDriver);
-                }
-            }
-        }
-
-        /// @brief One episode older: the tenures shorten, and each arc whose tenure ran out goes
-        ///        back to its state in the mask given.
-        void age() {
-            tabu_.age([this](size_t arc_id) {
-                mask_.set(arc_id, given_ != nullptr ? given_->state(arc_id) : ArcMask::State::Open);
-            });
-        }
-
-        [[nodiscard]] TabuList& list() { return tabu_; }
-
-    private:
-        const AlgorithmBaseParams* params_;
-        TabuList tabu_;
-        ArcMask mask_;
-        const ArcMask* given_ = nullptr;
-};
-
-}  // namespace rcspp::detail
+#include "rcspp/algorithm/tabu/tabu_arcs.hpp"
 
 namespace rcspp::parts {
+
+namespace tabu_detail {
+
+/// @brief Starts @p tabu for a solve of @p search, whose runs then read its mask, soft where an
+///        arc is tabu.
+template <typename SearchType>
+void begin(detail::TabuArcs& tabu, SearchType& search) {
+    tabu.begin(search.graph(), search.get_arc_mask());
+    search.use_arc_mask(&tabu.mask());
+}
+
+/// @brief Makes the arcs of the path @p search found tabu; the first arc made tabu loses its
+///        proof.
+template <typename SearchType>
+void add(detail::TabuArcs& tabu, SearchType& search, const std::vector<size_t>& arc_ids) {
+    if (tabu.add(search.graph(), arc_ids)) {
+        search.lose_proof(ProofLoss::HeuristicDriver);
+    }
+}
+
+}  // namespace tabu_detail
 
 /// @brief Tabu's driver: episodes of a dive, each ending at its first path, whose arcs are then
 ///        tabu (soft in the search's mask) for @c tabu_tenure episodes.
@@ -99,11 +54,11 @@ namespace rcspp::parts {
 class TabuEpisodes {
     public:
         explicit TabuEpisodes(const AlgorithmBaseParams& params)
-            : params_(&params), tabu_(params) {}
+            : params_(&params), tabu_(params, ArcMask::State::Soft) {}
 
         template <typename SearchType>
         bool begin(SearchType& search) {
-            tabu_.begin(search);
+            tabu_detail::begin(tabu_, search);
             search.end_runs_at_end_node();
             if (params_->max_iterations >= kNoLimit) {
                 LOG_ERROR("max_iterations must be set to a finite value for strategy::Tabu.\n");
@@ -116,7 +71,7 @@ class TabuEpisodes {
         bool after_run(SearchType& search, size_t number_of_runs) {
             const RunEnd& run = search.last_run();
             if (run.recorded) {
-                tabu_.add(search, run.arc_ids);
+                tabu_detail::add(tabu_, search, run.arc_ids);
                 if (run.new_solution) {
                     tabu_.list().shrink_extra();
                 } else {
