@@ -32,11 +32,11 @@ checked on `origin/feature/column-generation-pure-python` (head `82fa4e58`, 2026
 
 | piece | where now | becomes |
 |---|---|---|
-| C++ layer | `cpp/rcspp/column_generation/` (+ `gurobi/`, `highs/`), `cpp/rcspp/column_generation.hpp` | `examples/cpp/column_generation/` (path to decide, `Q-53`) |
+| C++ layer | `cpp/rcspp/column_generation/` (+ `gurobi/`, `highs/`), `cpp/rcspp/column_generation.hpp` | `examples/column_generation/cpp/` (`D-150`) |
 | CMake options | `CMakeLists.txt:14-17` `USE_COLUMN_GENERATION{,_GUROBI,_HIGHS}`; HiGHS fetch `:114-150`; install rules `:209-232`; components `:264-266`; `cmake/rcsppConfig.cmake.in:4-21` | the example's own CMake over `find_package(rcspp)`; the root keeps none of them |
-| bindings | `python/bindings/column_generation.cpp` (1022 lines), `column_generation_highs.cpp` (316), `graph_pricer.hpp` (55), `active_call.hpp` (68), registration in `rcspp.cpp:15-47` | an extension module of the example |
-| graph pricer hook | `graph_impl.hpp:619` fills `graph_pricer_factories()` (`graph_pricer.hpp:52`), keyed by `PyTypeObject*`, per bound graph type | to redesign: the example module needs the C++ graph behind a `rcspp._core` object |
-| interrupt state | `g_active_calls` defined in `graph.cpp:12`, handler `graph.cpp:22,50` | shared with the core module's solve? (`Q-50`) |
+| bindings | `python/bindings/column_generation.cpp` (1022 lines), `column_generation_highs.cpp` (316), `graph_pricer.hpp` (55), `active_call.hpp` (68), registration in `rcspp.cpp:15-47` | sources under `examples/`, compiled into `_core` behind the example's option (`D-144`) |
+| graph pricer hook | `graph_impl.hpp:619` fills `graph_pricer_factories()` (`graph_pricer.hpp:52`), keyed by `PyTypeObject*`, per bound graph type | stays as an inert hook in core, filled only with the option on (`D-144`) |
+| interrupt state | `g_active_calls` defined in `graph.cpp:12`, handler `graph.cpp:22,50` | shared for free: same `_core` (`D-144`) |
 | C++-backed package | `python/src/rcspp/column_generation/` (`graph_pricer.py`, `master_solvers/`, `params.py`, `registry.py`), `_core/column_generation.pyi` | with the example module, under another name |
 | pure layer | `python/src/rcspp/python_column_generation/` | renamed `rcspp.column_generation` (`D-141`) |
 | C++ tests | `tests/cpp/test_column_generation*.{cpp,hpp}`, `tests/cpp/highs/`, `tests/cpp/gurobi/` | with the example |
@@ -49,18 +49,18 @@ The pure layer imports only `rcspp._core.graph` (`Algorithm`, `AlgorithmParams`,
 calls `graph.update_reduced_costs` (`graph_pricer.py:261`). The stack changed `graph_impl.hpp` (132 lines) and
 `cpp/rcspp/CMakeLists.txt`: which of those engine changes the pure layer needs decides the PR shape (`Q-54`).
 
-## 4. Open questions (in `questions.md`)
+## 4. Questions (in `questions.md`; all decided 2026-11-10)
 
-| ID | question |
-|---|---|
-| `Q-50` | The example's bindings as a separate module: pybind11 shares types across modules only with the same internals (pybind11 version, compiler ABI, no `module_local`); else a C-level handle exported by `_core`, or the example binds its own graphs |
-| `Q-51` | The wheel without HiGHS (pure layer over `highspy`)? |
-| `Q-52` | Is the example built and tested by default (option name, on/off), out of the coverage gates? |
-| `Q-53` | Layout and names: `examples/cpp/column_generation/` + `examples/python/...`? Python package name of the C++-backed layer |
-| `Q-54` | The stack's shape (#61, #69, #72, #76, PRs 5–6, #80, #88) |
-| `Q-55` | VRP equivalence rule: `D-139`'s (LP equal, time within max(5 %, 0.25 s)); iterations may differ |
+| ID | question | outcome |
+|---|---|---|
+| `Q-50` | The example's bindings as a separate module: pybind11 shares types across modules only with the same internals (pybind11 version, compiler ABI, no `module_local`); else a C-level handle exported by `_core`, or the example binds its own graphs | `D-144`: compiled into `_core` behind an option, sources apart, inert hooks |
+| `Q-51` | The wheel without HiGHS (pure layer over `highspy`)? | `D-145`: yes |
+| `Q-52` | Is the example built and tested by default (option name, on/off), out of the coverage gates? | `D-146`: off by default, on in CI |
+| `Q-53` | Layout and names: `examples/cpp/column_generation/` + `examples/python/...`? Python package name of the C++-backed layer | `D-150`: `examples/column_generation/`, `cpp_column_generation`, C++ names kept |
+| `Q-54` | The stack's shape (#61, #69, #72, #76, PRs 5–6, #80, #88) | `D-147`: merged at once, PRs kept, paths rewritten |
+| `Q-55` | VRP equivalence rule: `D-139`'s (LP equal, time within max(5 %, 0.25 s)); iterations may differ | `D-148`: yes |
 
-`Q-54` options:
+`Q-54` options (superseded by `D-147`):
 
 | option | how | for | against |
 |---|---|---|---|
@@ -78,7 +78,10 @@ No pool is used by either VRP example; `rcspp.pricing_pool` and `SolutionPool` s
 
 ## 6. Steps
 
-1. The user decides `D-139`–`D-143`, `Q-50`–`Q-55` (design chat).
-2. Prototype `Q-50` (a minimal module taking a `rcspp._core` graph), check `Q-54`'s dependency; `T-1.17`.
+1. Done 2026-11-10: `D-139`–`D-143` accepted; `D-144`–`D-149` from `Q-50`–`Q-52`, `Q-54`, `Q-55`.
+2. `T-1.17`: layout `D-150`, options `D-151`; prototype `D-144`: with the option on, `_core`
+   builds with the binding sources taken from `examples/`; off, it has no column generation symbols; a
+   `rcspp.graph` graph goes into the example's pricer and Ctrl-C interrupts it; MSVC and Linux. Then check
+   which stack changes (`graph_impl.hpp`, packaging) the pure PR needs at its head (`D-147`).
 3. `T-1.18` (Python VRP) and `T-1.19` (C++ VRP): can run beside step 2 on the current builds.
 4. The last PR(s): rename, move, README and wheel tidied (`python-layer.md` §2).
