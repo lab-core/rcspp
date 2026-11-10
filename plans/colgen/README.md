@@ -35,8 +35,13 @@ branches force-pushed 2026-11-09.
 Colleagues' meeting 2026-11-09: Python only ships, the C++ layer and its bindings stay as an isolated example
 (`D-142`, amends `D-141`); the VRP examples ported to the layers after a speed check (`D-143`, supersedes `D-122`).
 Feedback, analysis, inventory of what moves and open questions: `separation.md` (`Q-50`–`Q-55`, `T-1.17`–`T-1.19`).
-**Next (2026-11-10, another machine):** the user decides `D-139`–`D-143` and `Q-50`–`Q-55`, then designs the
-separation (`T-1.17`); `T-1.18`, `T-1.19` can run beside it; then the last PR.
+Design chat 2026-11-10: `D-139`–`D-143` accepted; `D-144` (the example's bindings compiled into `_core` behind an
+off-by-default option, sources under `examples/`, inert hooks in core), `D-145` (wheel without HiGHS), `D-146`
+(example on in CI, out of the coverage gates), `D-147` (stack merged at once, PRs kept with paths rewritten, pure
+layer its own PR), `D-148` (VRP rule), `D-149` (what the layers lack, e.g. pools, stays), `D-150` (one folder
+`examples/column_generation/`, top-level package `cpp_column_generation`, C++ names kept); `D-151` (option names
+`USE_COLUMN_GENERATION_EXAMPLE{,_GUROBI,_HIGHS}`). **Next:** `T-1.17`: the `D-144` prototype (`separation.md` §6);
+`T-1.18` can run beside it; `T-1.19` after the layout; then the last PRs.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
@@ -73,7 +78,8 @@ Task:
 ## Goal
 
 A **generic** column generation (CG) layer (branch-and-price designed but not implemented yet, `D-20`), built on
-the `rcspp` pricing engine. Usable from C++ and Python. Built from switchable components (LP solver, pricing strategy, stabilization…).
+the `rcspp` pricing engine. Usable from Python; the C++ layer is an example to copy (`D-142`). Built from
+switchable components (LP solver, pricing strategy, stabilization…).
 Fast by default. Diagnostics are cheap or can be switched off. It must support a benchmark project that compares
 configurations.
 
