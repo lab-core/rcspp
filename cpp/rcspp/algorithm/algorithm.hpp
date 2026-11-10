@@ -273,6 +273,21 @@ class Algorithm {
         /// @brief The mask later solves read; @c nullptr when none was set.
         [[nodiscard]] const ArcMask* get_arc_mask() const { return arc_mask_; }
 
+        /// @brief Promises that the graph, its arcs' costs included, stays as the last solve read
+        ///        it, until this is set back to @c false.
+        ///
+        /// A search may then keep what it computed from the graph alone, such as the completion
+        /// bound, from one solve on the same graph to the next, instead of computing it again.
+        /// The arc mask is not part of the promise: such a bound does not read it. Off by default;
+        /// @ref DiversificationSearch sets it between the solves of its inner algorithm.
+        ///
+        /// @param unchanged Whether the graph stays unchanged.
+        void set_graph_unchanged(bool unchanged) { graph_unchanged_ = unchanged; }
+
+        /// @brief Whether the graph is promised unchanged since the last solve
+        ///        (@ref set_graph_unchanged).
+        [[nodiscard]] bool is_graph_unchanged() const { return graph_unchanged_; }
+
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
@@ -685,6 +700,7 @@ class Algorithm {
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
         const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
+        bool graph_unchanged_ = false;       ///< see @ref set_graph_unchanged
 
         /// @brief What this solve lost that its status cannot see; reset at @ref initialize,
         ///        which records a mask that is not empty.

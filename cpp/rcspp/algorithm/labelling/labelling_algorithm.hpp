@@ -74,15 +74,29 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             context_ = this->make_context(search_, Role::Single);
             // The incumbent prune adds the completion bound whenever it is valid (an additive
             // cost), so the bound is computed then, as well as for an order that reads it (A*).
-            const bool reads_bound =
+            refresh_completion_bound(
+                *graph,
                 parts::reads_completion_bound_v<typename search_type::schedule_type> ||
-                context_.prune_adds_completion_bound;
-            search_.completion_bound = reads_bound ? compute_completion_bound<Direction>(*graph)
-                                                   : CompletionBound<ResourceType>{};
+                    context_.prune_adds_completion_bound);
             if (!decltype(search_.admission)::is_exact(context_.admission)) {
                 this->proof_.record(ProofLoss::RelaxedAdmission);
             }
             search_.schedule.initialize(context_);
+        }
+
+        /// @brief Gives the search its completion bound when @p needed, and none otherwise.
+        ///
+        /// The bound reads the graph alone (not the arc mask): when the graph is promised
+        /// unchanged since the last solve (@ref Algorithm::set_graph_unchanged), the bound that
+        /// solve computed on it is kept, and not computed again.
+        void refresh_completion_bound(const Graph<ResourceType>& graph, bool needed) {
+            if (!needed) {
+                search_.completion_bound = {};
+                completion_bound_graph_ = nullptr;
+            } else if (!this->is_graph_unchanged() || completion_bound_graph_ != &graph) {
+                search_.completion_bound = compute_completion_bound<Direction>(graph);
+                completion_bound_graph_ = &graph;
+            }
         }
 
         /// @brief Empties the search for another run of this solve (@ref Search::restart): the
@@ -189,6 +203,8 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         search_type search_;
         SearchContext<ResourceType> context_;
+        /// @brief The graph @c search_.completion_bound was computed on; null when it holds none.
+        const Graph<ResourceType>* completion_bound_graph_ = nullptr;
 };
 
 }  // namespace rcspp::detail
