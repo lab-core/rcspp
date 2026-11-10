@@ -14,7 +14,7 @@
 #include "rcspp/algorithm/limits.hpp"
 #include "rcspp/algorithm/make_algorithm.hpp"
 #include "rcspp/algorithm/proof_record.hpp"
-#include "rcspp/algorithm/tabu/tabu_list.hpp"
+#include "rcspp/algorithm/tabu/tabu_arcs.hpp"
 
 namespace rcspp {
 
@@ -50,7 +50,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         DiversificationSearch(ResourceFactory<ResourceType>* resource_factory,
                               AlgorithmParams<LabelContainerType> params)
             : Algorithm<ResourceType, LabelContainerType>(resource_factory, std::move(params)),
-              tabu_(this->params_.seed) {
+              tabu_(this->params_, ArcMask::State::Hard) {
             auto inner_params = this->params_;
             inner_params.direction = SearchDirection::Forward;
             inner_params.max_solutions = 1;  // only need one solution per iteration
@@ -72,15 +72,10 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
         ///        algorithm was given, or open.
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
-            const size_t number_of_arc_ids = graph->get_arc_id_bound();
-            mask_.reset(number_of_arc_ids);
-            if (const ArcMask* given = this->get_arc_mask(); given != nullptr) {
-                for (size_t arc_id = 0; arc_id < number_of_arc_ids; ++arc_id) {
-                    mask_.set(arc_id, given->state(arc_id));
-                }
-            }
-            algo_->set_arc_mask(&mask_);
+            tabu_.begin(*graph, this->get_arc_mask());
+            algo_->set_arc_mask(&tabu_.mask());
         }
+
         void main_loop() override {
             // check stopping criteria
             if (this->params_.max_iterations >= kNoLimit) {
@@ -119,33 +114,21 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
                 // grow extra tenure when no novel solution was added (matches the
                 // original heuristic; success leaves the extra tenure unchanged)
                 if (!added) {
-                    tabu_.grow_extra();
+                    tabu_.list().grow_extra();
                 }
 
                 // decrement tenures, and put back the arcs whose tenure expired: each goes back
                 // to its state in the mask given
-                const ArcMask* given = this->get_arc_mask();
-                tabu_.age([this, given](size_t arc_id) {
-                    mask_.set(arc_id,
-                              given != nullptr ? given->state(arc_id) : ArcMask::State::Open);
-                });
+                tabu_.age();
             }
 
             LOG_DEBUG("DiversificationSearch: WHILE nb iter: ", i, "\n");
         }
 
+        /// @brief Leaves the arcs of @p sol out of the next iterations, but those with an exempt
+        ///        end (@c tabu_exempt_node_ids).
         void tabu_solution(const Solution& sol) {
-            // leave the following arcs out of the next iterations
-            for (auto arc_id : sol.path_arc_ids) {
-                // skip an arc already out, or exempt
-                const auto* arc = this->graph_->get_arc(arc_id);
-                if (mask_.is_hard(arc_id) ||
-                    this->params_.tabu_exempt_node_ids.contains(arc->origin->id) ||
-                    this->params_.tabu_exempt_node_ids.contains(arc->destination->id)) {
-                    continue;
-                }
-                mask_.set(arc_id, ArcMask::State::Hard);
-                tabu_.add(arc_id, this->params_.tabu_tenure, this->params_.tabu_random_noise);
+            if (tabu_.add(*this->graph_, sol.path_arc_ids)) {
                 this->proof_.record(ProofLoss::HeuristicDriver);
             }
         }
@@ -166,8 +149,7 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
     private:
         std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> algo_;
-        TabuList tabu_;
-        ArcMask mask_;  ///< what the inner algorithm leaves out: the tabu arcs, hard
+        detail::TabuArcs tabu_;  ///< the tabu arcs, hard in the mask the inner algorithm reads
 };
 
 }  // namespace rcspp
