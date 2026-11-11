@@ -606,12 +606,13 @@ class ResourceGraph:
         chosen = params.direction if direction is None else _search_direction(direction)
         # Set for this call only: the caller's params keep their own direction, and their
         # resources numbered in registration order, where C++ numbers them by type slot.
+        # Translated before any field changes: a position the graph does not have raises,
+        # and leaves the params as they were.
         previous = params.direction
         previous_ignored = params.dominance_ignored_components
+        ignored = {self._component_index(position) for position in previous_ignored}
         params.direction = chosen
-        params.dominance_ignored_components = {
-            self._component_index(position) for position in previous_ignored
-        }
+        params.dominance_ignored_components = ignored
         try:
             return self._graph.solve(algorithm, upper_bound, params, preprocess, cost_index)
         finally:
