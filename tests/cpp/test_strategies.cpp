@@ -88,7 +88,7 @@ inline Model model(uint32_t seed) {
     config.capacity_binds = true;
     config.mixed_sign_costs = true;
     config.seed = seed;
-    Model m{.built = test_util::build_instance(config), .params = {}};
+    Model m{.built = test_util::build_instance(config), .params = AlgorithmParams<List>{}};
     m.params.critical_resource_index = m.built.clock_index;
     m.params.half_way_point = m.built.clock_is_usable ? m.built.clock_upper_bound / 2.0 : 0.0;
     return m;
