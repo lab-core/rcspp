@@ -1,6 +1,6 @@
 # Column generation layer: plan
 
-Status (2026-11-09): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
+Status (2026-11-10): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
 with the C++ layer (`D-111`, `T-1.15`); whether the C++ layer stays is open (`Q-41`). Until then the C++ layer is
 frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Big-M start (`T-1.13`)
 done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
@@ -40,8 +40,16 @@ off-by-default option, sources under `examples/`, inert hooks in core), `D-145` 
 (example on in CI, out of the coverage gates), `D-147` (stack merged at once, PRs kept with paths rewritten, pure
 layer its own PR), `D-148` (VRP rule), `D-149` (what the layers lack, e.g. pools, stays), `D-150` (one folder
 `examples/column_generation/`, top-level package `cpp_column_generation`, C++ names kept); `D-151` (option names
-`USE_COLUMN_GENERATION_EXAMPLE{,_GUROBI,_HIGHS}`). **Next:** `T-1.17`: the `D-144` prototype (`separation.md` §6);
-`T-1.18` can run beside it; `T-1.19` after the layout; then the last PRs.
+`USE_COLUMN_GENERATION_EXAMPLE{,_GUROBI,_HIGHS}`). `D-144` prototype done 2026-11-10 (`separation.md` §7, `F-50`;
+local throwaway branch `prototype/column-generation-example`, `a2ed4f5d`): only inert hooks left in core; MSVC off (no
+column generation symbols) and on (C++ and Python tests pass, Ctrl-C stops the example's pricer) pass; Linux gcc 11
+off passes, on needs gcc >= 13 (`<format>`). The pure layer needs from the stack only `graph.py`'s helpers (#77) and
+numpy, extras, `highspy` test requirement (#78). Prototype review fixed 2026-11-10 (`separation.md` §7): five
+commits `eb5ca442`…`325bba34` on the prototype branch (local, not pushed); Linux gcc 13 on (Docker: C++ 697, core
+Python 544, example 89 with both SIGINT tests), MSVC on (C++ 729, core 579, example 116) and off (C++ 602, core
+579, example skips, no column generation symbols in `_core`) pass. Isort moves the example tests' path-setting
+import after the package's unless `# isort: split` holds it. **Next:**
+`T-1.17`'s stack rewrite (`D-147`); `T-1.18` can run beside it; `T-1.19` after the layout; then the last PRs.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
