@@ -427,6 +427,14 @@ def test_greedy_and_tabu_search_backward_but_not_bidirectionally(algorithm):
         rg.solve(algorithm=algorithm, direction="bidirectional", params=params)
 
 
+def test_a_retired_algorithm_value_is_refused():
+    """``Algorithm(6)`` was ``Bidirectional``: it is refused, not run as another
+    algorithm, and ``BoundGuidedGreedy`` takes the next value."""
+    assert int(Algorithm.BoundGuidedGreedy) == 7
+    with pytest.raises(ValueError, match="unknown algorithm: 6"):
+        _cost_only_graph([1.0]).solve(algorithm=Algorithm(6))
+
+
 def test_an_unknown_direction_is_refused():
     """A misspelt direction names the valid ones."""
     with pytest.raises(ValueError, match="forward, backward, bidirectional"):
