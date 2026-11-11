@@ -195,6 +195,12 @@ def test_relaxed_admission_names_resources_in_registration_order():
     params.dominance_ignored_components = {3}
     with pytest.raises(ValueError, match="registered resource"):
         rg.solve(params=params, preprocess=False)
+    # A refused call leaves the caller's params as they were, its direction too.
+    direction = params.direction
+    with pytest.raises(ValueError, match="registered resource"):
+        rg.solve(params=params, preprocess=False, direction="backward")
+    assert params.direction == direction
+    assert params.dominance_ignored_components == {3}
 
 
 def test_k_best_admission_keeps_the_cheapest_labels():
