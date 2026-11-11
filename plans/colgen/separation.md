@@ -79,9 +79,74 @@ No pool is used by either VRP example; `rcspp.pricing_pool` and `SolutionPool` s
 ## 6. Steps
 
 1. Done 2026-11-10: `D-139`–`D-143` accepted; `D-144`–`D-149` from `Q-50`–`Q-52`, `Q-54`, `Q-55`.
-2. `T-1.17`: layout `D-150`, options `D-151`; prototype `D-144`: with the option on, `_core`
-   builds with the binding sources taken from `examples/`; off, it has no column generation symbols; a
+2. `T-1.17`: layout `D-150`, options `D-151`; prototype `D-144` (done 2026-11-10, §7, `F-50`): with the option
+   on, `_core` builds with the binding sources taken from `examples/`; off, it has no column generation symbols; a
    `rcspp.graph` graph goes into the example's pricer and Ctrl-C interrupts it; MSVC and Linux. Then check
    which stack changes (`graph_impl.hpp`, packaging) the pure PR needs at its head (`D-147`).
 3. `T-1.18` (Python VRP) and `T-1.19` (C++ VRP): can run beside step 2 on the current builds.
 4. The last PR(s): rename, move, README and wheel tidied (`python-layer.md` §2).
+
+## 7. The `D-144` prototype (2026-11-10, `F-50`)
+
+Branch `prototype/column-generation-example` (local, not pushed; throwaway): `a2ed4f5d` (the split) and
+`a5a6a53c` (CI turns the example on) on the pure branch's `82fa4e58`, then the review fixes `eb5ca442`…`325bba34`
+(below), in `../rcspp-dev`. Do not merge it: it shows the shape, the stack's commits are rewritten separately
+(`D-147`).
+
+| piece | in the prototype |
+|---|---|
+| layer | `examples/column_generation/cpp/rcspp/column_generation/` (+ `gurobi/`, `highs/`); include paths unchanged |
+| example CMake | `examples/column_generation/CMakeLists.txt`: in rcspp's build over `rcspp_objects`; alone over `find_package(rcspp)` (written, not run); HiGHS fetch moved here |
+| bindings | `examples/column_generation/bindings/`: `column_generation{,_highs}.cpp`, `graph_pricer.hpp`, new `graph_pricer_factory.hpp` (`make_graph_pricer` out of `graph_impl.hpp`), `cpp_column_generation.cpp` (submodule), `bindings.cmake` (sources, includes, defines on `_core`) |
+| hooks left in core | `python/CMakeLists.txt`: one `include(bindings.cmake)` under the option; `rcspp.cpp`: one declaration + one call; `graph_impl.hpp`: one `#include "graph_pricer_factory.hpp"` + one `register_graph_pricer<...>(rg)` call, both `#ifdef RCSPP_USE_COLUMN_GENERATION_EXAMPLE` |
+| Python | `examples/column_generation/python/cpp_column_generation/` over `rcspp._core.cpp_column_generation`; loop script beside it; stub moved as `_core.pyi` (placement open) |
+| tests | `examples/column_generation/tests/{cpp,python}/`, own gtest CMake (3 executables); `tests/find_package` column generation consumers deleted |
+
+Left for the real PRs: **CI (`D-146`)**: done in `a5a6a53c` (`ci.yml` and `ci-full.yml` configure with the example and
+HiGHS on, ctest runs its C++ tests, a step runs its Python tests with `PYTHONPATH=build/python`, outside the gates); the
+deleted `tests/find_package` consumers could become a run of the example's standalone build. `.pre-commit-config.yaml`
+lints `cpp/rcspp/` only (the example's C++ unlinted; old excludes); `generate_umbrella_include.cmake`'s `EXCLUDED` now
+unused; `docs/installation.md`, `examples/README.md`, `AGENT.md` still name the old options; clang-tidy on the mid-file
+include not checked (builds ran without it); the pure package not renamed yet; `drivers.py` not adapted.
+
+**Review fixes (`T-1.17`, 2026-11-10):** `eb5ca442` (CI), `77c327d4` (build), `0dc28c12` (lint), `c63d010e`
+(names), `325bba34` (SIGINT test).
+
+| finding | fix |
+|---|---|
+| CI load on the required gate | `ci.yml` back to before the example; `ci-full.yml`'s test matrix (Linux, macOS, Windows, Windows Debug C++-only) builds and tests it |
+| lint, type-check | black, isort, flake8, bandit on `examples/column_generation/`; cpplint, clang-tidy, cppcheck on its `cpp/` (master solvers excluded, as before); `graph_impl.hpp`'s NOLINT gone; stub at `examples/column_generation/python/typings/rcspp/_core/cpp_column_generation.pyi` through pyright's `stubPath`; `extraPaths` has the example; pyright strict: 0 errors on the example |
+| install | the fetched HiGHS folder is `EXCLUDE_FROM_ALL`, so `cmake --install` leaves it out |
+| wheel | `pyproject.toml` pins `-DUSE_COLUMN_GENERATION_EXAMPLE=OFF` |
+| coupling | `graph_pricer_factory.hpp` lists the `graph_impl.hpp` names it uses |
+| stale names in moved files | fixed; the loop script's run instructions build with the example |
+| Ctrl-C (asked, yes) | `test_column_generation_interrupt.py`: SIGINT to the pricing thread stops `GraphPricer.price` and `ColumnGeneration.run` (POSIX only). After an abort: the stage reports `SolverLimit`, later stages stop at once (the flag stays set), the loop solves the LP once more and ends `NotProven`, the binding raises |
+| standalone build (asked, yes) | `install_and_find_package` also builds the example alone over the install (layer and its test, googletest reused) and runs ctest; on Windows the tests copy `rcspp.dll` beside them |
+| old flags (asked, yes) | `-DUSE_COLUMN_GENERATION{,_GUROBI,_HIGHS}=ON` stops the configure, naming the new option |
+
+**Left for the last PRs:** the rename of `python_column_generation` to `rcspp.column_generation` and its references
+(its `__init__.py:3,6,8` still call `rcspp.column_generation` the C++-backed one); `examples/README.md`,
+`docs/installation.md` (`find_package` `COMPONENTS`), `AGENT.md`; the empty `COMPONENTS` machinery in
+`tests/find_package` and `check_install.cmake`; `generate_umbrella_include.cmake`'s unused `EXCLUDED`; the static
+`rcspp_column_generation` built in-tree though unused; the installed-HiGHS path (`FIND_PACKAGE_ARGS`) not exercised.
+The stale pre-commit excludes are gone: extending the hooks moved them to the example's path.
+
+### Stack changes the pure PR (#88) needs at its head (`D-147`)
+
+The pure layer uses no C++ or binding change of the stack: `update_reduced_costs`, `Column.to_arrays`,
+`Solution` and `ActiveCall` are on `main` already. What it needs:
+
+| change | commit (PR) | keep as |
+|---|---|---|
+| `graph.py` `_algorithm`, `_chosen_direction` | `956c3af3` (#77) | as is (engine side) |
+| `numpy>=1.24` dependency | `11fd42d7` (#78) | as is |
+| extras `highspy`, `gurobipy` | `60defc4c` (#78) | the extras only; its wheel HiGHS goes (`D-145`) |
+| `highspy` in `tests/python/requirements.txt` | `ad06f467` (#78) | as is |
+
+What #88's head must change, by the stack PR that brought it (rewrite targets): options and HiGHS fetch
+(#61, #76 → `USE_COLUMN_GENERATION_EXAMPLE*` in the example); install rules, components,
+`rcsppConfig.cmake.in` components, `tests/find_package` consumers (#80 → gone; keep `4a5a5589`'s plain install);
+`cpp/rcspp/CMakeLists.txt` exclusions (`8fb5d102` → gone, the folder has left); `graph_impl.hpp` pricer code
+and `graph_pricer.hpp` (#77 → example, two hooks stay); `active_call.hpp` extraction (#77 → stays in core,
+the example includes it); `rcspp/__init__.py` import and `_core/__init__.pyi` line (#77 → gone);
+`pyproject.toml` wheel HiGHS and test command (#80 → gone); `FindGUROBI.cmake` move to `cmake/` (stays).
