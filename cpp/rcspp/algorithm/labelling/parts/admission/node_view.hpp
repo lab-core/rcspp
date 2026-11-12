@@ -9,7 +9,14 @@
 
 namespace rcspp::parts {
 
-/// @brief One node's container, as an admission rule sees it.
+/// @brief One node's container, as an admission rule sees it: the rule can ask whether a label
+///        there dominates the candidate, and evict labels.
+///
+/// To evict a label is to erase it from the container and mark it dominated; it is not released
+/// here. A label still waiting in its schedule is released when the schedule or the take rule
+/// finds it marked (@c TakeRule::live). One already extended is not released during the solve:
+/// it stays in the pool, pinned by the labels extended from it, until the pool is reset at the
+/// next solve.
 ///
 /// @tparam ContainerType The per-node label container.
 template <typename ContainerType>

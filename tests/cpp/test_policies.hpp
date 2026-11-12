@@ -19,6 +19,26 @@ namespace policies_test {
 
 using Composed = ResourceTypeComposition<RealResource>;
 using List = LabelList<Composed>;
+
+/// A retention with every member but clear(): it must not satisfy parts::Retention.
+struct NoClear {
+        static constexpr bool records_at_take = false;
+        void reset(size_t /*num_nodes*/, const List& /*prototype*/) {}
+        parts::NodeView<List> node(size_t /*pos*/) { return parts::NodeView<List>(&container_); }
+        std::list<Label<Composed>*>::iterator store(size_t /*pos*/, Label<Composed>* /*label*/) {
+            return {};
+        }
+        void erase(const std::list<Label<Composed>*>::iterator& /*position*/) {}
+        [[nodiscard]] const std::list<Label<Composed>*>& labels_at(size_t /*pos*/) const {
+            return none_;
+        }
+        [[nodiscard]] const std::vector<List>& containers() const { return containers_; }
+
+    private:
+        std::list<Label<Composed>*> none_;
+        List container_;
+        std::vector<List> containers_;
+};
 using BackwardList = LabelList<Composed, BackwardDirection>;
 using Buckets = LabelBuckets<RealResource, RealResource, Composed>;
 
@@ -116,7 +136,9 @@ TEST(Policies, ANodeViewReadsEitherContainerInEitherDirection) {
 TEST(Policies, KeepAtNodesStoresAndErasesAtEachNode) {
     namespace pt = policies_test;
     pt::Fixture f;
-    static_assert(parts::Retention<parts::KeepAtNodes<pt::List>, pt::Composed>);
+    static_assert(parts::Retention<parts::KeepAtNodes<pt::List>, pt::Composed, pt::List>);
+    static_assert(!parts::Retention<pt::NoClear, pt::Composed, pt::List>,
+                  "a retention without clear() does not satisfy the concept");
     static_assert(!parts::KeepAtNodes<pt::List>::records_at_take);
 
     parts::KeepAtNodes<pt::List> kept;

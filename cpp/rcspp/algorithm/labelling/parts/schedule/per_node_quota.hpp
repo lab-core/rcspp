@@ -11,7 +11,13 @@ namespace rcspp::parts {
 
 // ─── The helpers the schedules share ────────────────────────────────────────────────────────
 
-/// @brief The labels taken at each node, against the per-node quota.
+/// @brief How many labels each node has handed out in the current phase, against the per-node
+///        quota.
+///
+/// The quota is @c *context.quota: the params' @c max_extended_labels_per_node (@c kNoLimit means
+/// none). A label counts when the schedule hands it out, whatever the take rule then does with
+/// it: an end-node label, or one the incumbent prunes, counts too. A label found dominated does
+/// not count. The counts start again at each phase (@ref restart).
 class PerNodeQuota {
     public:
         /// @brief No label taken yet, at any of @p number_of_nodes nodes.
@@ -20,8 +26,9 @@ class PerNodeQuota {
         /// @brief No label taken yet, for the next phase.
         void restart() { std::ranges::fill(taken_, 0); }
 
-        /// @brief Whether one more label may be taken at node position @p pos, counting it if
-        ///        so.
+        /// @brief Counts one more label taken at node position @p pos, if the quota allows it.
+        ///
+        /// @return Whether it did.
         [[nodiscard]] bool try_take(size_t pos, size_t quota) {
             size_t& taken = taken_.at(pos);
             if (taken < quota) {

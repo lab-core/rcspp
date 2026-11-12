@@ -18,13 +18,13 @@
 
 namespace rcspp::detail {
 
-/// @brief What a search is part of: the whole difference between a single-direction search and a
-///        side of a bidirectional one.
+/// @brief Whether a search runs alone or as one side of a bidirectional search. A cut reads it
+///        (@c parts::StoredAsideLabels::store_aside, through @ref SearchContext::abandons).
 enum class Role : std::uint8_t {
-    /// A single-direction search: a cut stores the label aside; the prune reads the cost.
+    /// A single-direction search: a cut stores the label aside for the next phase.
     Single,
-    /// A bidirectional side: a cut abandons the label, and counts it; the prune adds the bound; a
-    /// label past the half-way point is kept and not extended.
+    /// One side of a bidirectional search, which runs one phase: a cut abandons the label (it
+    /// stays in its container, never extended) and counts it.
     BidirectionalSide,
 };
 
@@ -37,23 +37,36 @@ struct SearchContext {
         const Graph<ResourceType>* graph = nullptr;
         LabelPool<ResourceType>* pool = nullptr;
         const AlgorithmBaseParams* params = nullptr;
-        double upper_bound = std::numeric_limits<double>::infinity();  ///< the solve's
-        double* incumbent = nullptr;  ///< the best cost found so far
-        size_t* quota = nullptr;      ///< the per-node quota; memory pressure tightens it
+        /// The cost upper bound the solve was given (`cost_upper_bound`): a path costing at or
+        /// above it is not returned. It does not change during the solve; +infinity: no bound.
+        double upper_bound = std::numeric_limits<double>::infinity();
+        /// The incumbent: the cost of the cheapest path found so far, or @ref upper_bound until a
+        /// cheaper one is found. The take rule lowers it at each end-node label. The incumbent
+        /// prune (@c prune_by_incumbent) reads it.
+        double* incumbent = nullptr;
+        /// The per-node quota: the most labels a schedule hands out at one node in one phase. It
+        /// starts at @c max_extended_labels_per_node (@c kNoLimit: no quota).
+        size_t* quota = nullptr;
         const std::unordered_set<Solution>* solutions = nullptr;  ///< those recorded so far
         parts::AdmissionContext admission;                        ///< the rule and what it reads
         const CompletionBound<ResourceType>* completion_bound = nullptr;  ///< the completion bound
         Role role = Role::Single;
-        size_t* number_of_abandoned_labels = nullptr;  ///< a side: counts the labels a cut abandons
-        const HalfWay<ResourceType>* half_way = nullptr;  ///< a side: where it stops
+        /// Whether the incumbent prune adds the completion bound to a label's cost: the bound is
+        /// valid (the cost is additive). Otherwise the prune compares the cost alone.
+        bool prune_adds_completion_bound = false;
+        /// A bidirectional side: counts the labels its cuts abandon. Null for a single-direction
+        /// search, whose cuts store labels aside.
+        size_t* number_of_abandoned_labels = nullptr;
+        /// A bidirectional side: the half-way point, past which a label is kept unextended
+        /// (@ref HalfWay). Null for a single-direction search.
+        const HalfWay<ResourceType>* half_way = nullptr;
 
-        /// @brief Whether a cut abandons a label (and the incumbent prune adds the bound): a
-        ///        bidirectional side runs one phase, so it cannot store a label aside for the
-        ///        next.
+        /// @brief Whether a cut abandons a label instead of storing it aside: on a bidirectional
+        ///        side, which runs one phase, so there is no next phase to store it for.
         [[nodiscard]] bool abandons() const { return role == Role::BidirectionalSide; }
 
-        /// @brief Whether the solutions recorded so far spend the solve's budget
-        ///        (@c max_solutions).
+        /// @brief Whether the run ends now that an end-node label was recorded: once the solve
+        ///        holds @c max_solutions solutions.
         [[nodiscard]] bool should_end_run() const {
             return solutions->size() >= params->max_solutions;
         }

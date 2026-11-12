@@ -212,8 +212,8 @@ class Label {
 /// @brief The arcs of the path a forward label ends, from its source, in path order.
 ///
 /// Follows the @c prev_label chain through each label's in-arc, in O(hops), and reverses it.
-/// Every accepted label keeps its predecessor alive (see @c Label::ref_count) until it is
-/// released.
+/// The chain stays whole while @p label is alive: a label pins its predecessor
+/// (@c Label::ref_count) until it is itself released.
 ///
 /// @param label A label extended forward.
 /// @return The arc ids, from the source to @p label's node; empty for a start label.

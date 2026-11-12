@@ -139,9 +139,16 @@ TEST(TakeRule, ALabelAtOrAboveTheIncumbentIsPrunedWhenAsked) {
                         trt::Verdict::EraseAndRelease))
         << "4 >= 4";
     f.context.role = detail::Role::BidirectionalSide;
+    EXPECT_TRUE(trt::is(trt::Forward::live(label, search, f.context), trt::Verdict::Extend))
+        << "the role alone does not add the bound";
+    f.context.prune_adds_completion_bound = true;
     EXPECT_TRUE(
         trt::is(trt::Forward::live(label, search, f.context), trt::Verdict::EraseAndRelease))
         << "3 + 2 >= 4 with the bound";
+    f.context.role = detail::Role::Single;
+    EXPECT_TRUE(
+        trt::is(trt::Forward::live(label, search, f.context), trt::Verdict::EraseAndRelease))
+        << "a single-direction search adds the bound too when it is valid";
 }
 
 /// @brief An end-node label lowers the incumbent when below the upper bound, stays stored, and is

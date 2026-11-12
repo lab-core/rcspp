@@ -247,13 +247,14 @@ TEST(PerNodeQuota, CountsTheLabelsTakenAtEachNode) {
 }
 
 /// @brief The bound a prune reads, and the one an order reads: -infinity counts as 0 for an
-///        order; no bound is 0 everywhere.
-TEST(CompletionBound, ReadsTheBoundForAPruneAndForAnOrder) {
+///        order; no bound reads -infinity for a prune and 0 for an order.
+TEST(CompletionBounds, ReadsTheBoundAndItsOrderTerm) {
     namespace st = schedules_test;
     st::Fixture f;
     const auto entry = f.label(1, 1.0);
     detail::CompletionBound<st::Composed> bound;
-    EXPECT_EQ(bound(*entry.label), 0.0);
+    EXPECT_EQ(bound(*entry.label), -std::numeric_limits<double>::infinity())
+        << "no bound computed: a prune reads -infinity and prunes nothing";
     EXPECT_EQ(bound.order_term(*entry.label), 0.0);
     bound.by_position = {0.0, 2.5, 0.0};
     EXPECT_EQ(bound(*entry.label), 2.5);
