@@ -21,9 +21,10 @@ namespace rcspp::parts {
 ///        quota.
 ///
 /// Among equal keys the older label (smaller id) comes first, so the order is total and the same
-/// with every standard library. As in @ref FifoSchedule, a label taken while dominated is
-/// released, and one over its node's quota is cut; @ref next goes on to the next label either
-/// way.
+/// with every standard library. As in @ref FifoSchedule, a label that comes up while dominated is
+/// released, and one over its node's quota is stored aside for the next phase, until a later
+/// memory-pressure event releases it (@ref StoredAsideLabels). Neither is handed out: @ref next
+/// goes on to the next label.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam KeyType      The order: @ref CostPlusBoundKey (the default) or @ref CostKey.
@@ -62,6 +63,9 @@ class BestFirstSchedule {
 
         /// @brief Sizes the per-node counts for the graph being solved, and starts an empty heap
         ///        whose order reads @p context (its bound).
+        ///
+        /// The heap keeps a pointer to @p context: the context must stay at the same address until
+        /// the next @c initialize (the algorithm's member, @c context_, does).
         void initialize(detail::SearchContext<ResourceType>& context) {
             context_ = &context;
             taken_.reset(context.graph->get_number_of_nodes());
@@ -106,8 +110,9 @@ class BestFirstSchedule {
         }
 
         /// @brief When the heap holds more than @p limit × nodes labels, keeps that many of the
-        ///        best (non-dominated first, then lowest key); of the rest, best first, a dominated
-        ///        label is released and a non-dominated one is cut.
+        ///        best (non-dominated first, then lowest key). Of the rest, best first, a dominated
+        ///        label is released and a non-dominated one is stored aside for the next phase,
+        ///        until a later memory-pressure event releases it (@ref StoredAsideLabels).
         void trim(detail::SearchContext<ResourceType>& context, size_t limit) {
             const size_t max_total = limit * context.graph->get_number_of_nodes();
             if (heap_.size() <= max_total) {
