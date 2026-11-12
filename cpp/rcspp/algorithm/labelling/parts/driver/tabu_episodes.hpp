@@ -25,8 +25,8 @@ void begin(detail::TabuArcs& tabu, SearchType& search) {
     search.use_arc_mask(&tabu.mask());
 }
 
-/// @brief Makes the arcs of the path @p search found tabu; the first arc made tabu loses its
-///        proof.
+/// @brief Makes the arcs @p arc_ids (the path the last run found) tabu; once one is, the
+///        solve's result is not a proof (@c ProofLoss::HeuristicDriver).
 template <typename SearchType>
 void add(detail::TabuArcs& tabu, SearchType& search, const std::vector<size_t>& arc_ids) {
     if (tabu.add(search.graph(), arc_ids)) {
@@ -37,20 +37,29 @@ void add(detail::TabuArcs& tabu, SearchType& search, const std::vector<size_t>& 
 }  // namespace tabu_detail
 
 /// @brief Tabu's driver: episodes of a dive, each ending at its first path, whose arcs are then
-///        tabu (soft in the search's mask) for @c tabu_tenure episodes.
+///        tabu (soft in the search's mask) for the next episodes: the tenure (@c tabu_tenure
+///        plus the adaptive extra) minus one, since the episode that makes an arc tabu also ages
+///        the list. With a tenure of 1 an arc is never tabu.
 ///
-/// After an episode that found a path, its arcs become tabu, and the adaptive tenure shrinks when
-/// the path was new and grows when it was not; after one that ran out of paths, the solve ends if
-/// no arc is tabu (no path exists), and the tenure grows otherwise. An episode that found no path
-/// while a cut held labels back (@c RunEnd::ended_with_stored_aside: the per-node quota, past @c
-/// max_phases) counts as one that ran out of paths, except that with no arc tabu its labels still
-/// wait, so the status says the solve was truncated. Then the tenures age, and the next episode
-/// starts from the sources. @c max_iterations counts episodes, and must be finite. A run stopped by
-/// a budget, an interrupt or the memory limit ends the solve, its labels still waiting, so the
-/// status says why.
+/// An episode is one run of the driven search (@c detail::Driven): a dive from the start labels
+/// that ends at the first end-node label it records. The search's schedule releases a child
+/// reached along a tabu arc, unless every child is (aspiration by default, @ref TabuChildFilter):
+/// the child is not kept for a later episode.
 ///
-/// The search's schedule drops a child reached along a tabu arc unless every child is
-/// (@ref TabuChildFilter).
+/// After an episode that found a path, the path's arcs become tabu (all but those with an end in
+/// @c tabu_exempt_node_ids), and the adaptive tenure shrinks when the path was a new solution and
+/// grows when it was not (a duplicate, or not below the upper bound). After one that ran out of
+/// paths, the solve ends if no arc is tabu (no path exists), and the tenure grows otherwise. An
+/// episode that found no path while labels the per-node quota or memory pressure stored aside
+/// were left after its last phase (@c RunEnd::ended_with_stored_aside) counts as one that ran out
+/// of paths, except that with no arc tabu its labels still wait, so the status says the solve was
+/// truncated. Then the tenures age (once per episode, the episode that made an arc tabu
+/// included), and the next episode starts from the start labels again (@c reseed).
+///
+/// @c max_iterations counts episodes, and must be finite; a solve that spends it ends
+/// @c Truncated, the next episode's start labels waiting. A run stopped by the time limit, an
+/// interrupt or the memory limit ends the solve, its labels still waiting, so the solve's status
+/// says which stop.
 class TabuEpisodes {
     public:
         explicit TabuEpisodes(const AlgorithmBaseParams& params)
@@ -80,13 +89,15 @@ class TabuEpisodes {
             } else if (!run.exhausted && !run.ended_with_stored_aside) {
                 return false;  // stopped: the labels wait, and the status says why
             } else if (tabu_.list().empty()) {
-                // Out of paths with no arc tabu: no feasible path exists, or (held back) the next
-                // episode would repeat this one, and the labels held back wait.
+                // Out of paths with no arc tabu: no feasible path exists, or (stored aside) the
+                // next episode would repeat this one, and the labels stored aside wait.
                 return false;
             } else {
                 tabu_.list().grow_extra();
             }
             tabu_.age();
+            // Reseeded even after the last episode: the start labels then wait, so a solve that
+            // spends max_iterations ends Truncated, not Complete.
             search.reseed();
             return number_of_runs < params_->max_iterations;
         }

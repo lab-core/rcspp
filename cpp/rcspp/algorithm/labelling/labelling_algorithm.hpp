@@ -99,16 +99,19 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             }
         }
 
-        /// @brief Empties the search for another run of this solve (@ref Search::restart): the
-        ///        start labels can then be stored again, whatever the retention.
+        /// @brief Empties the search for another run of this solve (@ref Search::restart): every
+        ///        node's container and the schedule are emptied, so that the start labels can be
+        ///        stored and queued again; the completion bound and the work count are kept.
         void restart_search() {
             search_.restart(this->graph_->get_number_of_nodes(),
                             make_directed_container<Direction>(this->params_.labels));
         }
 
         void initialize_labels() override {
-            // At the start of a solve the pool is already empty (Algorithm::initialize clears
-            // it), so this releases nothing: it only makes the start safe to repeat.
+            // At the start of a solve the pool is already empty (Algorithm::initialize clears it).
+            // This matters when a driver starts another run (Driven::reseed): every label of the
+            // previous run goes back to the pool, those waiting for a successor's release
+            // (pending_release) included.
             this->label_pool_.release_all_labels();
             search_.create_start_labels(*this->graph_, &this->label_pool_);
         }
@@ -162,15 +165,16 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
         ///        counts.
         ///
         /// Called between phases (@c Algorithm::solve), and once more at the end of the solve, so
-        /// that labels still held back count as waiting and the status reads Truncated.
+        /// that labels still stored aside count as waiting and the status reads Truncated.
+        /// A driven run also calls it between its phases (@c Driven::main_loop).
         void prepare_next_phase() override { search_.schedule.prepare_next_phase(context_); }
 
         /// @brief Relieves memory pressure (@c Algorithm::relieve_memory_pressure): the quota
         ///        drops to `memory_pressure_max_labels_per_node`, and the schedule keeps about
         ///        that many labels per node and stores the rest aside for the next phase. From
         ///        the second call on, what the earlier calls stored aside is released first, and
-        ///        is lost. Any call makes the result possibly not optimal
-        ///        (@c Algorithm::memory_pressure_was_triggered).
+        ///        is lost. Any call makes the result not a proof
+        ///        (@c ProofLoss::MemoryPressure).
         void on_memory_pressure() override { this->relieve_memory_pressure(search_, context_); }
 
         /// @brief Releases the pool, then forgets the containers and the schedule, so that no
