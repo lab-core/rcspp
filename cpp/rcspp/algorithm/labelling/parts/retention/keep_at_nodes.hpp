@@ -12,8 +12,16 @@
 
 namespace rcspp::parts {
 
-/// @brief Kept labels live in their node's container until dominated or the solve ends: every
-///        labelling search.
+/// @brief Kept labels live in their node's container, where dominance reads them, and the labels
+///        at the end nodes are read as the solutions when the loop ends. The retention of every
+///        exact search.
+///
+/// It owns one container per node, of the type the params chose (@c LabelList,
+/// @c LabelBuckets), and forwards to it. The strategy chooses the retention (whether labels are
+/// stored at the nodes); the user chooses the container (how they are stored).
+///
+/// A label leaves its container when it is evicted (dominated), when the take rule erases it
+/// (@c Verdict::EraseAndRelease: pruned, or of infinite cost), or when the solve ends.
 ///
 /// @tparam ContainerType The per-node label container, comparing labels in the search's
 ///                       direction.

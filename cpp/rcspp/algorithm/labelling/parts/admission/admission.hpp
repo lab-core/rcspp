@@ -26,10 +26,14 @@ struct AdmissionContext {
 /// @brief Whether a candidate label is kept at its node.
 ///
 /// @c admit reads the candidate and the node it would be stored at, through a node view
-/// (@ref NodeView): it decides keep or reject, and may evict labels the candidate dominates there,
-/// but touches nothing else. @c exact says whether the rule keeps every label exact dominance
-/// keeps. It must answer @c true only for such a rule: a search whose admission is not exact is
-/// never reported proven.
+/// (@ref NodeView). It decides keep or reject, and it may evict labels from the node, those the
+/// candidate dominates; it touches nothing else. An evicted label is erased from its node's
+/// container and marked dominated, but not released here (see @ref NodeView). @c exact says
+/// whether the rule keeps every label exact dominance keeps. It must answer @c true only for such
+/// a rule: a search whose admission is not exact is never reported proven.
+///
+/// @c admit is a const member function; @c exact is static: whether a rule is exact depends only
+/// on the params (@ref AdmissionContext), not on the rule object.
 ///
 /// @tparam AdmissionType The rule.
 /// @tparam ResourceType  The resource type carried by labels.

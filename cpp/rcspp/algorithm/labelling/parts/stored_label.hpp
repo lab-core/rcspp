@@ -9,10 +9,11 @@
 
 /// @brief The parts a labelling strategy is built from, and the concepts they meet.
 ///
-/// A strategy (@c rcspp::strategy) names its schedule, and may name its admission rule, its
-/// retention, its observer and its interleave; each is given the resource type and the search's
-/// direction. The library's parts are in the headers of `rcspp/algorithm/labelling/parts/`, one
-/// per kind of part; a part of one's own meets the same concept.
+/// A search is built from a schedule, an admission rule, a retention and an observer (each a
+/// template on the resource type and the search's direction). The library's parts are in the
+/// subdirectories of `rcspp/algorithm/labelling/parts/`, one per kind of part, each with its
+/// concept; a part of one's own meets the same concept. How the parts work together: the comment
+/// at the top of `labelling/search.hpp`.
 namespace rcspp::parts {
 
 /// @brief One label and where it is stored at its node.
@@ -20,7 +21,8 @@ namespace rcspp::parts {
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
 struct StoredLabel {
-        Label<ResourceType>* label = nullptr;  ///< none: no label
+        /// The label; null: no label (what a schedule's @c next() returns once none is left).
+        Label<ResourceType>* label = nullptr;
         /// @brief Its position in its node's container.
         typename std::list<Label<ResourceType>*>::iterator position;
 };

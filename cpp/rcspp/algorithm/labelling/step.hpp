@@ -13,9 +13,9 @@
 
 namespace rcspp::detail {
 
-/// @brief Carries out one unit of @p search's work: takes the next label from its schedule and
-///        carries out what the take rule decides (extends it along every arc its direction
-///        walks, or drops it).
+/// @brief Runs one step of @p search, the unit a main loop counts against @c max_iterations: it
+///        takes the next label from the schedule, runs the take rule on it, and either extends
+///        it along every arc its direction walks or carries out the verdict (@ref Search::apply).
 ///
 /// An end-node label the rule records goes to @p record; every extension's outcome goes to
 /// @p count.
@@ -25,7 +25,8 @@ namespace rcspp::detail {
 /// @param record Callable `(const Label&)`: records an end-node label as a solution.
 /// @param count  Callable `(parts::ExtensionOutcome)`: counts the extensions and logs the
 ///               progress.
-/// @return @c true when a budget is spent (@c max_solutions): the caller ends its loop.
+/// @return @c true when a recorded path ends the run (@ref SearchContext::should_end_run): the
+///         caller ends its loop.
 template <typename SearchType, typename RecordCallable, typename CountCallable>
 bool step(SearchType& search, SearchContext<typename SearchType::resource_type>& context,
           const RecordCallable& record, const CountCallable& count) {

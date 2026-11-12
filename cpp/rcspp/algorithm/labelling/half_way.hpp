@@ -16,8 +16,10 @@ namespace rcspp::detail {
 /// @brief Where a bidirectional search's two sides stop: forward labels above `H`, backward
 ///        labels below it, on a critical resource that acts as a clock.
 ///
-/// The clock must be monotone (never decreasing along an arc), so that each path crosses `H` on
-/// exactly one arc and is found exactly once at the join; @ref half_way_off_reason checks it.
+/// `H` is the half-way point: a value of the critical resource (the params'
+/// @c critical_resource_index and @c half_way_point). The clock must be monotone (never decreasing
+/// along an arc), so that each path crosses `H` on exactly one arc and the join produces it at
+/// most once (a path whose clock never rises above `H` is found by the forward search instead).
 /// The take rule reads @ref past for each side, and the join reads it for the forward labels it
 /// pairs. Off, it holds no label back.
 ///
