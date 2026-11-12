@@ -128,8 +128,8 @@ rg.add_arc((5.0,  2), 1, 2, cost=5.0)
 
 # 4. Solve
 result = rg.solve()                          # returns SolveResult
-result = rg.solve(algorithm="simple",        # or "greedy", "pushing", "astar",
-                                             # "bidirectional", …
+result = rg.solve(algorithm="simple",        # or "pushing", "pulling", "astar",
+                                             # "greedy", "tabu"
                   upper_bound=-1e-9,         # prune cost ≥ this
                   params=AlgorithmParams(),
                   preprocess=True,
@@ -584,27 +584,28 @@ cpp/rcspp/algorithm/
   labelling/
     parts/                       rcspp::parts: the parts a strategy is built from, one header per
                                  kind, each with its concept
-      common.hpp                 StoredLabel, ExtensionOutcome
-      node_view.hpp              NodeView: a node as an admission rule sees it
-      admission.hpp              DominanceAdmission
-      retention.hpp              KeepAtNodes
-      observer.hpp               NoObserver
-      interleave.hpp             LeastWorkFirst
-      schedules.hpp              the schedule concepts, PerNodeQuota, StoredAsideLabels, FifoSchedule,
-                                 BestFirstSchedule, CostKey, CostPlusBoundKey
-      node_schedules.hpp         NodeQueues, SweepSchedule, PullSchedule
+      stored_label.hpp           StoredLabel
+      extension_outcome.hpp      ExtensionOutcome
+      admission/                 Admission (the concept), NodeView, DominanceAdmission
+      retention/                 Retention (the concept), KeepAtNodes
+      observer/                  Observer (the concept), NoObserver
+      interleave/                Interleave (the concept), LeastWorkFirst
+      schedule/                  the schedule concepts (schedule.hpp), PerNodeQuota,
+                                 StoredAsideLabels, NodeQueues; FifoSchedule, BestFirstSchedule
+                                 with CostKey and CostPlusBoundKey, SweepSchedule, PullSchedule
     context.hpp                  SearchContext, Role: what every part reads of its solve
     take_rule.hpp                TakeRule, Decision, Verdict: the checks a label goes through
                                  when it is taken
     step.hpp                     step, step_node: one unit of work
     search.hpp                   Search, SearchParts: one direction's labels, parts, bound and work
-    bounds.hpp                   CompletionBound, compute_completion_bound: the cost still to pay, by node
-    half_way.hpp                 HalfWay, make_half_way, half_way_off_reason and its checks
+    completion_bound.hpp         CompletionBound, compute_completion_bound: the cost still to pay, by node
+    half_way.hpp                 HalfWay, make_half_way
+    half_way_checks.hpp          half_way_off_reason and its checks
     join.hpp                     JoinOptions, join: pairs the two halves
     labelling_algorithm.hpp      LabellingAlgorithm: one search, forward or backward
     bidirectional_labelling_algorithm.hpp
                                  BidirectionalLabellingAlgorithm: two searches and the join
-cpp/rcspp/testing/
-  optimum_problem.hpp        rcspp::test_support::optimum_problem: an exact strategy against
+cpp/rcspp/test_support/
+  optimum_problem.hpp            rcspp::test_support::optimum_problem: an exact strategy against
                                  forward Simple
 ```
