@@ -69,6 +69,23 @@ labels carry a composition of resource types.
 :undoc-members:
 ```
 
+```{doxygenenum} rcspp::AlgorithmStatus
+```
+
+```{doxygenstruct} rcspp::BidirectionalStats
+:members:
+```
+
+## Strategies
+
+A solve names its algorithm by a strategy, a struct of `rcspp::strategy`:
+`graph.solve<strategy::AStar>(params)`. See "How the labelling algorithms are built" in the
+algorithms guide.
+
+```{doxygennamespace} rcspp::strategy
+:members:
+```
+
 ---
 
 ## Label containers
