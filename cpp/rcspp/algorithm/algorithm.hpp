@@ -458,12 +458,14 @@ class Algorithm {
             return timed_out_;
         }
 
-        /// @brief Returns true when solve() should terminate the outer loop.
+        /// @brief Whether a loop must stop: @p iteration has reached @c max_iterations (0, the
+        ///        default, skips this check), @c max_solutions solutions are held, the time limit
+        ///        has passed, or the caller's @c should_stop callback asks to stop
+        ///        (@ref is_interrupted).
         ///
-        /// Checks (in order): iteration budget, solution budget, timeout, and the
-        /// external stop callback.  Pass iteration=0 to skip the iteration check.
+        /// Every loop asks it: @ref solve's loop over phases, and each algorithm's own loop.
         ///
-        /// @param iteration Current iteration index (default 0 = no iteration limit check).
+        /// @param iteration The loop's iteration count (0 skips the iteration check).
         bool should_end_loop(size_t iteration = 0) {
             return iteration >= params_.max_iterations ||
                    solutions_.size() >= params_.max_solutions || is_time_out() || is_interrupted();
@@ -489,7 +491,12 @@ class Algorithm {
         /// from subsequent ones (prune & discard stored labels to free more memory).
         bool memory_pressure_triggered_ = false;
 
+        /// @brief The cost upper bound the caller gave this solve: a path is recorded only when
+        ///        it costs less. Fixed for the solve.
         double upper_bound_ = std::numeric_limits<double>::infinity();
+        /// @brief The incumbent: the cost of the cheapest path to an end node found so far in
+        ///        this solve, or @ref upper_bound_ before any. It only falls; the incumbent prune
+        ///        (@c prune_by_incumbent) and the join compare with it.
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
 
