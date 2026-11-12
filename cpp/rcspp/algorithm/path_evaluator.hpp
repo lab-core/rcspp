@@ -58,6 +58,8 @@ struct PathEvaluation {
 /// fresh label at the destination, and its feasibility. It shares nothing with the searches but
 /// the model's own functions, so it checks what any search returns, a heuristic's included.
 ///
+/// Every arc of the path must carry an extender, as every arc of a @c ResourceGraph does.
+///
 /// Evaluate on the graph the solve ran on, after the solve returned: a solve that preprocesses
 /// restores the arcs it removed before it returns, and a solution's arc ids are the graph's.
 ///

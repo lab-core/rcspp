@@ -14,6 +14,7 @@
 
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/make_algorithm.hpp"
+#include "rcspp/algorithm/path_evaluator.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
@@ -24,54 +25,51 @@
 /// @brief Helpers for testing a strategy of one's own.
 namespace rcspp::test_support {
 
-/// @brief What is wrong with @p solution as a path of @p graph, or "".
+/// @brief The name of @p fault, for a message.
+[[nodiscard]] inline std::string path_fault_name(PathFault fault) {
+    switch (fault) {
+        case PathFault::None:
+            return "none";
+        case PathFault::Empty:
+            return "empty path";
+        case PathFault::UnknownArc:
+            return "unknown arc";
+        case PathFault::Disconnected:
+            return "disconnected";
+        case PathFault::NotFromSource:
+            return "does not start at a source";
+        case PathFault::NotToSink:
+            return "does not end at a sink";
+        case PathFault::Unreachable:
+            return "unreachable";
+        case PathFault::Infeasible:
+            return "infeasible";
+        case PathFault::NodesDisagree:
+            return "node ids disagree with the arcs";
+        case PathFault::CostDisagrees:
+            return "cost disagrees with the replay";
+    }
+    return "unknown fault";
+}
+
+/// @brief What is wrong with @p solution as a path of @p graph, or "": the first fault
+///        @ref PathEvaluator finds, and where.
 ///
-/// Extends a fresh source resource arc by arc through each arc's extender, and requires the path
-/// to start at a source and end at a sink, every arc to follow the last, every node on the way to
-/// be feasible, and the replayed cost to be the reported one.
-template <typename ComposedType>
-[[nodiscard]] std::string path_problem(
-    const Graph<ComposedType>& graph, const Solution& solution,
-    double tolerance = 1e-6) {  // NOLINT(readability-magic-numbers)
-    if (solution.path_arc_ids.empty()) {
-        return "empty path";
+/// @param graph     The graph the solve ran on.
+/// @param solution  The solution to check.
+/// @param tolerance How far the reported cost may be from the replayed one (relative to the
+///                  cost's magnitude, absolute below 1).
+template <typename ResourceType>
+[[nodiscard]] std::string path_problem(const Graph<ResourceType>& graph, const Solution& solution,
+                                       double tolerance = kDefaultPathCostTolerance) {
+    const PathEvaluation evaluation =
+        PathEvaluator<ResourceType>(graph).evaluate(solution, tolerance);
+    if (evaluation.is_valid()) {
+        return "";
     }
-    const auto* first = graph.get_arc(solution.path_arc_ids.front());
-    if (first == nullptr) {
-        return "unknown arc id";
-    }
-    if (!first->origin->source) {
-        return "path does not start at a source";
-    }
-    auto current = std::make_unique<Resource<ComposedType>>(*first->origin->resource);
-    const Arc<ComposedType>* previous = nullptr;
-    for (const size_t arc_id : solution.path_arc_ids) {
-        const auto* arc = graph.get_arc(arc_id);
-        if (arc == nullptr) {
-            return "unknown arc id";
-        }
-        if (previous != nullptr && previous->destination != arc->origin) {
-            return "path is not contiguous at arc " + std::to_string(arc_id);
-        }
-        if (arc->extender == nullptr) {
-            return "arc has no extender";
-        }
-        auto extended = std::make_unique<Resource<ComposedType>>(*arc->destination->resource);
-        arc->extender->extend(*current, extended.get());
-        if (!extended->is_feasible()) {
-            return "path is infeasible at node " + std::to_string(arc->destination->id);
-        }
-        current = std::move(extended);
-        previous = arc;
-    }
-    if (!previous->destination->sink) {
-        return "path does not end at a sink";
-    }
-    if (std::abs(current->get_cost() - solution.cost) > tolerance) {
-        return "path costs " + std::to_string(current->get_cost()) + " but is reported at " +
-               std::to_string(solution.cost);
-    }
-    return "";
+    return "path fault: " + path_fault_name(evaluation.fault) + ", at position " +
+           std::to_string(evaluation.position) + " (replayed cost " +
+           std::to_string(evaluation.cost) + ", reported " + std::to_string(solution.cost) + ")";
 }
 
 /// @brief Solves @p graph with @p Strategy in each direction it does not refuse, and compares
