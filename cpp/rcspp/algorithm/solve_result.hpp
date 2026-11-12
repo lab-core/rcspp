@@ -51,19 +51,21 @@ enum class AlgorithmStatus {
 ///
 /// On @c SolveResult::bidirectional, which only a bidirectional search fills.
 struct BidirectionalStats {
-        /// @brief Whether the half-way point was in force for this solve.
+        /// @brief Whether the half-way point was on for this solve.
         ///
-        /// Without the bound, a bidirectional solve does more work than a forward search alone.
-        /// A disabled bound costs speed, not optimality.
+        /// Without it, a bidirectional solve does more work than a forward search alone. A
+        /// half-way point that is off costs speed, not optimality.
         bool half_way_used = false;
 
-        /// @brief Why the half-way point was off for this solve; empty when it was in force.
+        /// @brief Why the half-way point was off for this solve; empty when it was on.
         std::string half_way_off_reason;
 
         /// @brief How many distinct complete paths only the join pass produced.
         ///
         /// A path the join produced at several nodes counts once; a path that one of the two
-        /// searches also reached on its own does not count.
+        /// searches also reached on its own does not count. Counted as the join records them,
+        /// before the solve keeps its @c max_solutions cheapest solutions, so it can exceed the
+        /// joined paths returned.
         size_t number_of_joined_paths = 0;
 };
 

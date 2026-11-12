@@ -22,8 +22,8 @@ namespace rcspp::detail {
 ///
 /// The member must be declared by @p LabelContainerType, not inherited: a container derived from
 /// @c LabelList that does not declare it would otherwise be swapped for a plain list. A member
-/// function inherited from a base has the base's member-pointer type, which the second test
-/// rejects.
+/// function inherited from a base has the base's member-pointer type, which the @c std::same_as
+/// test on @c &LabelContainerType::with_direction rejects.
 ///
 /// @tparam LabelContainerType The container type of the algorithm's params.
 /// @tparam Direction          The search's direction policy.
