@@ -16,13 +16,18 @@
 
 namespace rcspp::detail {
 
-/// @brief A labelling search run several times by @p DriverType (@c parts::Driver), which
-///        changes it between runs.
+/// @brief A labelling search run several times in one solve by @p DriverType
+///        (@c parts::Driver), which changes it between runs.
 ///
-/// Each run takes labels until none waits, a stop applies, or (with @c end_runs_at_end_node) it
-/// records an end-node label; the solve's loop then asks the driver whether to run again, in
-/// place of the phases. @c max_iterations does not count a run's labels: a driver counts its
-/// runs against it, if it reads it. The members the driver calls are public.
+/// A run is one call of @ref main_loop. It takes labels until a label it records ends it
+/// (@c end_runs_at_end_node, or @c max_solutions reached), a stop applies (the time limit, an
+/// interrupt, the memory limit), or no label is left. A run that runs out of labels while the
+/// per-node quota or memory pressure stored some aside goes on with them, in up to
+/// @c max_phases phases, as a search that is not driven does (@ref main_loop). After each run,
+/// the solve's loop (@c Algorithm::solve) records the labels left at the end nodes, then calls
+/// @ref prepare_next_run, which asks the driver whether to run again. @c max_iterations does not
+/// count a run's labels: a driver counts its runs against it, if it reads it. The members the
+/// driver calls are public.
 ///
 /// @tparam Base       The search: a @c LabellingAlgorithm.
 /// @tparam DriverType The driver.
@@ -55,18 +60,29 @@ class Driven : public Base {
         /// @brief How the last run ended.
         [[nodiscard]] const parts::RunEnd& last_run() const { return run_; }
 
-        /// @brief Has the runs of this solve read @p mask instead of the one @c set_arc_mask set;
-        ///        the driver owns it, and may change it between runs.
+        /// @brief Makes the runs of this solve read @p mask instead of the one @c set_arc_mask
+        ///        set (@c get_arc_mask), which they then do not read at all.
+        ///
+        /// Call it from the driver's @c begin: the search's context, which holds the mask, is
+        /// built afresh at the start of each solve. The driver owns @p mask, and may change it
+        /// between runs. A driver that must keep the hard arcs of the mask set copies their
+        /// states first, as @c detail::TabuArcs::begin does. Unlike @c set_arc_mask, this
+        /// records no loss of proof: a driver whose mask may hide a path calls @ref lose_proof.
         void use_arc_mask(const ArcMask* mask) { this->context_.arc_mask = mask; }
 
-        /// @brief Ends each run of this solve once it records an end-node label.
+        /// @brief Has each run end once it records an end-node label, whatever the retention:
+        ///        the take rule records the label when it is taken.
         void end_runs_at_end_node() { this->context_.run_ends_at_end_node = true; }
 
         /// @brief Records that the solve's result is not a proof, for @p loss.
         void lose_proof(ProofLoss loss) { this->proof_.record(loss); }
 
-        /// @brief Starts a new run from the start labels: the containers and the schedule are
-        ///        emptied, and the pool takes back every label of the previous run.
+        /// @brief Readies the next run from the start labels: the containers and the schedule
+        ///        are emptied, the pool takes back every label of the previous run (those still
+        ///        waiting too), and the start labels are created again.
+        ///
+        /// They wait until the next run takes them: a driver that reseeds and then stops leaves
+        /// them waiting, so the solve ends @c Truncated, not @c Complete.
         void reseed() {
             this->restart_search();
             this->initialize_labels();
@@ -81,22 +97,23 @@ class Driven : public Base {
 
         /// @brief One run, unless the driver refused to run.
         ///
-        /// A run that runs out of labels to take while a cut held some back goes on with them, in
-        /// up to @c max_phases phases, as a search that is not driven does. Past the last phase,
-        /// the labels a cut still holds back wait again, and the run is @c ended_with_stored_aside,
-        /// not
-        /// @c exhausted.
+        /// A run that runs out of labels to take while the per-node quota or memory pressure
+        /// stored some aside goes on with them, in up to @c max_phases phases, as a search that
+        /// is not driven does. Past the last phase, the labels still stored aside are put back to
+        /// wait, and the run @c ended_with_stored_aside, not @c exhausted.
         void main_loop() override {
             run_ = {};
             if (refused_) {
                 return;
             }
             for (size_t phase = 1;; ++phase) {
-                // Ended at a path or by a stop, or stopped with labels waiting: the run is over.
+                // A label it recorded ended the run (end_runs_at_end_node, max_solutions), or a
+                // stop (time limit, interrupt, memory limit) left labels waiting: the run is over.
                 if (this->run_loop(kNoLimit) || this->number_of_waiting_labels() > 0) {
                     break;
                 }
-                // Out of labels to take: give back what the cuts held back, if any.
+                // Out of labels to take: put back what was stored aside for the next phase, if
+                // any.
                 this->prepare_next_phase();
                 if (this->number_of_waiting_labels() == 0) {
                     run_.exhausted = true;

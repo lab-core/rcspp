@@ -20,8 +20,8 @@ namespace rcspp::parts {
 /// is memory pressure: from its second event on, @c Algorithm::relieve_memory_pressure first has
 /// the schedule release everything stored aside (@ref release, through
 /// @c release_stored_aside), the quota's labels included. Those labels are never extended; the
-/// result may then not be optimal (@c Algorithm::memory_pressure_was_triggered), although the
-/// status may read @c Complete. On a side of a bidirectional search, which runs one phase, a cut
+/// result is then not a proof (@c ProofLoss::MemoryPressure), although the status may read
+/// @c Complete. On a side of a bidirectional search, which runs one phase, a cut
 /// label is abandoned instead: left in its container, never extended, and counted.
 ///
 /// @tparam ResourceType The resource type carried by labels.

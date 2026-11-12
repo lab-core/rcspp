@@ -30,7 +30,8 @@ namespace rcspp {
 /// The tabu mechanism works by maintaining a list of recent tabu arcs (tabu list) with a
 /// configurable tenure. Arcs used in a solution are hard in the inner algorithm's arc mask
 /// (@ref ArcMask) for a number of iterations, preventing their reuse; the graph is not edited, so
-/// arc ids and the arcs' order stay the graph's. Random noise can be added to the tenure to further
+/// arc ids, and the order in which a search tries a node's arcs, stay the graph's. Random noise
+/// can be added to the tenure to further
 /// diversify the search. A mask the algorithm was given (@c Algorithm::set_arc_mask) is read too:
 /// its hard arcs stay out.
 ///
@@ -41,8 +42,14 @@ namespace rcspp {
 ///
 /// Reached through @c strategy::Diversification<Inner>, which names the inner strategy; the inner
 /// algorithm is built from this algorithm's params, searching forward, with one solution and at
-/// most @ref inner_iteration_budget iterations per solve (labels taken, for a labelling search such
-/// as Greedy): 20 for each node of the graph, and never fewer than 1000.
+/// most @ref inner_iteration_budget iterations per solve (20 for each node of the graph, and never
+/// fewer than 1000): labels taken for a labelling search such as Greedy, episodes for a driven one
+/// such as Tabu.
+///
+/// Its solve never ends @c Complete (@ref number_of_waiting_labels answers 1): the status is
+/// @c MaxSolutions when it found @c max_solutions paths, a stop's status after a stop, and
+/// @c Truncated otherwise, even when the inner search found no path left. So it is never proven
+/// (@c is_optimal and @c SolveResult::proven answer false).
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container.
@@ -67,8 +74,6 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
 
         [[nodiscard]] bool is_optimal() const override { return false; }
 
-        // Run diversification search using tabu-based strategy and collect solutions. The search
-        // runs up to max_iterations or max_solutions.
     protected:
         /// @brief Starts the solve: builds the inner algorithm for the graph's size, and the mask
         ///        it reads starts as the one this algorithm was given, or open.
@@ -99,6 +104,8 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             inner_max_iterations_ = max_iterations;
         }
 
+        /// @brief Solves the inner algorithm again and again, up to max_iterations times or until
+        ///        max_solutions paths are found, or until it finds none.
         void main_loop() override {
             // check stopping criteria
             if (this->params_.max_iterations >= kNoLimit) {
@@ -149,8 +156,13 @@ class DiversificationSearch : public Algorithm<ResourceType, LabelContainerType>
             LOG_DEBUG("DiversificationSearch: WHILE nb iter: ", i, "\n");
         }
 
-        /// @brief Leaves the arcs of @p sol out of the next iterations, but those with an exempt
-        ///        end (@c tabu_exempt_node_ids).
+        /// @brief Leaves the arcs of @p sol out of the next iterations, except those with an end
+        ///        in @c tabu_exempt_node_ids.
+        ///
+        /// The first arc left out is recorded as a loss of proof (@c ProofLoss::HeuristicDriver),
+        /// for the record only: this algorithm's solve never ends @c Complete
+        /// (@ref number_of_waiting_labels answers 1), so it is never proven, and
+        /// @c proof_lost_by names its status.
         void tabu_solution(const Solution& sol) {
             if (tabu_.add(*this->graph_, sol.path_arc_ids)) {
                 this->proof_.record(ProofLoss::HeuristicDriver);

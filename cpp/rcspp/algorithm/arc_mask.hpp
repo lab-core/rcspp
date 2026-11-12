@@ -11,9 +11,10 @@ namespace rcspp {
 
 /// @brief Arcs a search must not use (hard) or should avoid (soft), by arc id.
 ///
-/// A labelling search never extends a label along a hard arc: no label is drawn, as if the arc
-/// were not in the graph. A soft arc is extended as any other; a depth-first schedule's child
-/// filter reads it (the tabu searches drop a child reached through one unless every child is). The
+/// A labelling search never extends a label along a hard arc: no label is drawn from the pool for
+/// it, as if the arc were not in the graph. A soft arc is extended as any other; a depth-first
+/// schedule's child filter reads it (the tabu searches release a child reached through one,
+/// unless every child is). The
 /// mask never edits the graph: arc ids, and every bound computed on the whole graph, stay valid.
 ///
 /// An arc id the mask was not sized for is open. @ref Algorithm::set_arc_mask hands one to a
