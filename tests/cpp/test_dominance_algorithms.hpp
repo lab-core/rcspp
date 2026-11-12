@@ -226,6 +226,26 @@ TEST(AStarDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeA
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
+/// @brief The same for Pushing.
+TEST(PushingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<PushingDominanceAlgorithm>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
+/// @brief The same for Pulling.
+TEST(PullingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<PullingDominanceAlgorithm>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
 /// @brief Timeout=0 returns Timeout status.
 TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();

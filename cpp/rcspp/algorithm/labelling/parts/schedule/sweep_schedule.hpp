@@ -15,9 +15,12 @@ namespace rcspp::parts {
 /// @brief Hands labels out node by node, in the sweep order of @p Direction: all of one node's
 ///        waiting labels, then the next node's, wrapping around (Pushing's order).
 ///
-/// Moving to a node cuts its labels to the per-node quota, keeping the cheapest. The first node of
-/// a sweep is loaded without a cut. A label handed out may have been dominated since it was
-/// queued: the take rule releases it.
+/// Moving to a node cuts its labels to the per-node quota, keeping the best (non-dominated first,
+/// then cheapest): the quota applies per visit, end nodes included, rather than per phase. When a
+/// sweep starts (a solve, or a new phase), its first node is loaded without a cut
+/// (@c NodeQueues::restart); at a new phase, that node's restored labels skip the quota for this
+/// one visit, as in the Pushing search this replaced. A label handed out may have been dominated
+/// since it was queued: the take rule releases it.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam Direction    @ref ForwardDirection or @ref BackwardDirection.
@@ -46,7 +49,7 @@ class SweepSchedule {
             return stored;
         }
 
-        /// @brief The labels waiting to be handed out.
+        /// @brief The labels waiting to be handed out, the current node's included.
         [[nodiscard]] size_t size() const { return queues_.size(); }
 
         /// @brief Queues a newly kept label at its node.
@@ -58,7 +61,7 @@ class SweepSchedule {
             queues_.restore_stored_aside();
         }
 
-        /// @brief Cuts every node's queue to its @p limit cheapest labels.
+        /// @brief Cuts every node's queue to its @p limit best labels.
         void trim(detail::SearchContext<ResourceType>& context, size_t limit) {
             queues_.trim(context, limit);
         }

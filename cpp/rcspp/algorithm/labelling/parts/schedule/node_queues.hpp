@@ -19,8 +19,13 @@ namespace rcspp::parts {
 ///        order of @p Direction: ascending positions going forward, descending going backward.
 ///
 /// The queue of the node being visited is held apart, as the current labels. A cut (the
-/// per-node quota, memory pressure) keeps a node's cheapest labels; of the excess, a dominated
-/// label is released, and a non-dominated one is cut (@ref StoredAsideLabels).
+/// per-node quota, memory pressure) keeps a node's @p limit best labels: non-dominated first,
+/// then cheapest (@c detail::split_off_excess). Of the excess, a dominated label is released,
+/// and a non-dominated one is stored aside for the next phase, until a later memory-pressure
+/// event releases it (@ref StoredAsideLabels).
+///
+/// Both kinds of schedule keep their labels in it: @ref SweepSchedule takes them off node by
+/// node, @ref PullSchedule pulls from them.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam Direction    @ref ForwardDirection or @ref BackwardDirection.
@@ -29,10 +34,10 @@ class NodeQueues {
     public:
         using queue_type = std::list<StoredLabel<ResourceType>>;
 
-        /// @brief Empties every queue and sizes them for @p number_of_nodes nodes, for a new solve:
-        /// what
-        ///        an earlier solve left in them names labels the new one is about to recycle. The
-        ///        visit starts at the sweep's first node.
+        /// @brief Empties every queue and sizes them for @p number_of_nodes nodes, for a new solve.
+        ///
+        /// An earlier solve's queues point to labels the pool is about to hand out again. The
+        /// visit starts at the sweep's first node.
         void reset(size_t number_of_nodes) {
             clear();
             waiting_.resize(number_of_nodes);
@@ -51,7 +56,7 @@ class NodeQueues {
             ++number_of_labels_;
         }
 
-        /// @brief The labels waiting, the current ones included.
+        /// @brief The labels it holds, the current node's included.
         [[nodiscard]] size_t size() const { return number_of_labels_; }
 
         /// @brief The labels of the node being visited.
@@ -89,7 +94,8 @@ class NodeQueues {
             return wrapped;
         }
 
-        /// @brief Takes the label at @p position off the current labels.
+        /// @brief Takes the label at @p position off the current labels. It stays stored at its
+        ///        node: this does not erase it from the node's container.
         ///
         /// @return The position after it.
         typename queue_type::iterator remove_current(typename queue_type::iterator position) {
@@ -103,12 +109,12 @@ class NodeQueues {
             current_.clear();
         }
 
-        /// @brief Cuts the current labels to the @p limit cheapest.
+        /// @brief Cuts the current labels to the @p limit best.
         void cut_to(detail::SearchContext<ResourceType>& context, size_t limit) {
             cut_queue(context, &current_, limit);
         }
 
-        /// @brief Cuts every node's queue, the current one included, to its @p limit cheapest.
+        /// @brief Cuts every node's queue, the current one included, to its @p limit best.
         void trim(detail::SearchContext<ResourceType>& context, size_t limit) {
             cut_queue(context, &current_, limit);
             for (auto& queue : waiting_) {
@@ -155,8 +161,8 @@ class NodeQueues {
             current_.splice(current_.end(), waiting_.at(position_));
         }
 
-        /// @brief Cuts @p queue to its @p limit cheapest; of the excess, a dominated label is
-        ///        released and a non-dominated one is cut.
+        /// @brief Cuts @p queue to its @p limit best; of the excess, a dominated label is
+        ///        released and a non-dominated one is stored aside (@ref StoredAsideLabels).
         void cut_queue(detail::SearchContext<ResourceType>& context, queue_type* queue,
                        size_t limit) {
             auto excess = detail::split_off_excess(queue, limit);
