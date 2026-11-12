@@ -107,7 +107,8 @@ template <typename CriticalResourceType, typename ResourceType>
             &critical_value<CriticalResourceType, ResourceType>};
 }
 
-/// @brief Checks that the chosen critical resource really is monotone along every arc.
+/// @brief Probes whether the critical resource is monotone along every arc: for each probe
+///        value, the extended value is not below it.
 ///
 /// For each arc and probe value `x`, extends a resource whose critical component is `x` and
 /// requires the result to be at least `x`. Raw arc consumptions are not enough: an extension that
@@ -179,7 +180,8 @@ template <typename CriticalResourceType, typename... ResourceTypes>
 /// @param graph                   The graph whose nodes carry the function objects.
 /// @param critical_resource_index Position of the critical resource within its type slot.
 /// @return `true` when the clock's dominance is increasing; `false` otherwise, including when the
-///         type is absent or the graph has no usable node.
+///         type is absent or the graph's first node carries no resource (only that node is
+///         read).
 template <typename CriticalResourceType, typename... ResourceTypes>
 [[nodiscard]] bool critical_resource_dominance_is_increasing(
     const Graph<ResourceTypeComposition<ResourceTypes...>>& graph, size_t critical_resource_index) {

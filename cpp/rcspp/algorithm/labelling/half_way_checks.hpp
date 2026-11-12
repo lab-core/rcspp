@@ -31,7 +31,9 @@ enum class HalfWayOff : unsigned {
     IndexOutOfRange,     ///< `critical_resource_index` names no component of the critical type
 };
 
-/// @brief Whether this process has not yet reported the half-way point being off for @p reason.
+/// @brief Marks @p reason as reported, and says whether this is the first time in this process.
+///        Each @ref HalfWayOff value is a bit of one atomic word, so the enum must stay under 32
+///        values.
 ///
 /// Tracked per process, not per algorithm, so a pricing loop that builds a new algorithm for
 /// every solve warns only once.
@@ -133,8 +135,12 @@ inline void report_half_way_off(HalfWayOff reason, const std::string& why) {
 ///
 /// The seven checks, in this order: the critical type absent from the model; no
 /// `half_way_point` given; the index out of range; not a threshold; no ceiling at a sink; not
-/// monotone; not increasing in the dominance order. The model checks ran before the solve, so a
-/// setting that does not fit the model turns the point off rather than throwing.
+/// monotone; not increasing in the dominance order.
+///
+/// These checks never throw. The model checks a bidirectional search needs
+/// (`BackwardExtensionCheck`, `JoinCheck`) already passed before the solve, so the solve is correct
+/// without the point. A setting that does not fit the model only makes it slower, so it turns the
+/// point off.
 ///
 /// @tparam CriticalResourceType The critical resource's type.
 /// @tparam ResourceType         The resource type carried by labels.

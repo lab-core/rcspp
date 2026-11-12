@@ -11,7 +11,8 @@ namespace rcspp::parts {
 ///
 /// @c should_step_forward is handed both sides; each has @c schedule.size(), the labels waiting,
 /// and
-/// @c work, the arcs it has extended. It answers @c true for the forward side.
+/// @c work, the extensions it has tried. It answers @c true for the forward side. @c
+/// should_step_forward is a const member function.
 ///
 /// @tparam InterleaveType The interleave.
 /// @tparam ForwardType    The forward side.

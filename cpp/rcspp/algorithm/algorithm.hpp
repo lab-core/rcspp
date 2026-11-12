@@ -529,8 +529,9 @@ class Algorithm {
 
         /// @brief Build and record a Solution from an explicit path.
         ///
-        /// Used when no single label holds the path (e.g. joined pairs). Paths costing at least
-        /// `upper_bound_` are dropped here, for every caller.
+        /// Used when no single label holds the path (e.g. joined pairs). Dropped here, for every
+        /// caller: a path costing at least `upper_bound_`, an empty one, and one already recorded
+        /// (`solutions_` hashes a solution by its arc ids).
         ///
         /// @param cost         Total cost of the path.
         /// @param path_arc_ids Arc ids of the path, in traversal order.
@@ -610,16 +611,16 @@ class Algorithm {
         /// @brief Effective per-node extension cap.
         ///
         /// Starts at @ref AlgorithmBaseParams::max_extended_labels_per_node at the
-        /// beginning of each solve and is tightened to
-        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node when
-        /// @ref on_memory_pressure() fires.  Subclasses use this instead of
-        /// @c params_.max_extended_labels_per_node wherever the per-node limit is enforced.
+        /// beginning of each solve and is lowered to
+        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node by
+        /// @ref relieve_memory_pressure. The schedules read it through
+        /// @c SearchContext::quota, in place of @c max_extended_labels_per_node.
         size_t quota_ = kNoLimit;
 
         /// @brief True after on_memory_pressure() has been called at least once this solve.
         ///
-        /// Used by subclasses to distinguish a first pressure event (prune & store aside)
-        /// from subsequent ones (prune & discard stored labels to free more memory).
+        /// Read by @ref relieve_memory_pressure, which releases what is stored aside on every call
+        /// but the first, and reported by @ref memory_pressure_was_triggered.
         bool memory_pressure_triggered_ = false;
 
         /// @brief The cost upper bound the caller gave this solve: a path is recorded only when
