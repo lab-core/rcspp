@@ -265,12 +265,12 @@ New features are summarised, with a pointer to where they are documented.
 ### Fixed
 
 - **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs**
-  (Simple and A\*, forward and backward). The prune now compares a label's cost plus its
-  completion bound with the incumbent, as a bidirectional side always did; before, it compared
-  the cost alone, and a label whose path goes on to a negative arc could be dropped. Under a cost
-  that is not additive
-  there is no valid bound, and the prune compares the cost alone, as before. A solve with the
-  prune on runs one Bellman–Ford pass more, to compute the bound.
+  (Simple, A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
+  plus its completion bound with the incumbent, as a bidirectional side always did; before, it
+  compared the cost alone, and a label whose path goes on to a negative arc could be dropped.
+  Under a cost that is not additive there is no valid bound, and the prune compares the cost
+  alone, as before. A solve with the prune on runs one Bellman–Ford pass more, to compute the
+  bound.
 - **The completion bound is no longer trusted on a cost that only declares itself additive.**
   The bound measures each arc's share of the cost once, from the start value, so it holds only if
   no arc ever adds less than that. A floor (`AdditionExtensionFunction` with a `min_value`), a

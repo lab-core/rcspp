@@ -228,6 +228,26 @@ TEST(AStarDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeA
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
+/// @brief The same for Pushing.
+TEST(PushingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<PushingDominanceAlgorithm>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
+/// @brief The same for Pulling.
+TEST(PullingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<PullingDominanceAlgorithm>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
 /// @brief The upper bound of the floor graph's tests: only the path 0-1-2 (cost 2) is below it.
 constexpr double kFloorUpperBound = 2.5;
 
