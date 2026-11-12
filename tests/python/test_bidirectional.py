@@ -412,7 +412,7 @@ def test_greedy_and_tabu_refuse_backward(algorithm):
     ValueError."""
     params = AlgorithmParams()
     params.max_iterations = 10  # the tabu search refuses to run without a finite budget
-    with pytest.raises(ValueError, match="does not support the backward direction"):
+    with pytest.raises(ValueError, match="cannot search backward"):
         _cost_only_graph([1.0, 2.0]).solve(algorithm=algorithm, direction="backward", params=params)
 
 

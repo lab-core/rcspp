@@ -74,12 +74,19 @@ template <typename ComposedType>
     return "";
 }
 
-/// @brief Whether @p Strategy, in every direction it searches, finds forward Simple's optimum on
-///        @p graph, or, like Simple, nothing, along paths that replay: "" when it does, otherwise
-///        what went wrong first.
+/// @brief Solves @p graph with @p Strategy in each direction it does not refuse, and compares
+///        each result with forward Simple's: returns "" when every solve finds Simple's optimum
+///        cost (or, like Simple, no path) along paths that replay through the model
+///        (@ref path_problem); otherwise the first disagreement, prefixed by its direction.
 ///
-/// Every exact strategy must pass on every model: it changes the order of the work, never its
-/// answer. A strategy whose admission rule is not exact may fail, and that is not a defect.
+/// An exact strategy (one that changes the order of the work, never its answer) must pass on
+/// every model. A strategy that drops labels may fail, and that is not a defect: one whose
+/// admission rule is not exact, or one stopped by a budget.
+///
+/// Every solve, the reference included, uses @p params with only the direction changed, and
+/// without preprocessing. So @p params must not limit the search (no @c max_iterations,
+/// @c timeout_s, @c max_solutions, per-node quota, or admission rule other than @c Exact), or
+/// the reference is no optimum either. The solves' status is not read.
 ///
 /// @code
 /// EXPECT_EQ(rcspp::test_support::optimum_problem<MyStrategy>(graph, params), "");
@@ -87,12 +94,18 @@ template <typename ComposedType>
 ///
 /// @tparam Strategy             The strategy to test.
 /// @tparam CostResourceType     The cost resource type.
-/// @tparam CriticalResourceType The bidirectional search's clock type.
+/// @tparam CriticalResourceType The type of the critical resource (@c critical_resource_index),
+///                              whose value decides where a bidirectional search's two halves
+///                              stop (its half-way point).
 /// @param graph  The model; solved without preprocessing, and left unchanged.
-/// @param params The params of every solve, but their direction; a bidirectional solve reads
-///               their `critical_resource_index` and `half_way_point`.
+/// @param params The params of every solve, except their direction, which this function sets;
+///               a bidirectional solve reads their `critical_resource_index` and
+///               `half_way_point`.
 /// @param tolerance How far two optima may be apart.
 /// @return "", or a description of the first disagreement.
+/// @throws ModelRefused when the model checks refuse a backward or bidirectional solve.
+/// @throws std::invalid_argument when @p Strategy searches backward or bidirectionally and
+///         @p LabelContainerType cannot compare backward (no `with_direction` of its own).
 template <typename Strategy, typename CostResourceType = RealResource,
           typename CriticalResourceType = CostResourceType, typename GraphType,
           typename LabelContainerType>

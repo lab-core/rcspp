@@ -126,7 +126,8 @@ auto optimal = graph.solve();
 
 AlgorithmParams<LabelList<Resources>> params;
 
-// Greedy (fast, non-optimal)
+// Greedy: fast and non-optimal within a budget; with none it tries every path
+params.max_iterations = 10'000;  // labels taken
 auto greedy = graph.solve<strategy::Greedy>(ub, params);
 
 // Diversification search — collect N diverse solutions

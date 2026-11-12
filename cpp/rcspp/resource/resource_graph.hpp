@@ -286,16 +286,18 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         ///        graph's resources.
         ///
         /// @tparam Strategy             The strategy, e.g. @c strategy::Simple (see
-        ///                              @c rcspp::strategy), or one of one's own.
+        ///                              @c rcspp::strategy), or a strategy you write yourself.
         /// @tparam LabelContainerType   The per-node label container.
-        /// @tparam CostResourceType     The cost resource type.
+        /// @tparam CostResourceType     The cost resource type; here it only sets the default of
+        ///                              @p CriticalResourceType.
         /// @tparam CriticalResourceType The resource type whose value decides where a bidirectional
         ///                              search's two halves stop (its half-way point); defaults to
         ///                              @p CostResourceType.
         /// @param params The algorithm's params, including the search direction.
         /// @return The algorithm, behind its base class.
         /// @throws std::invalid_argument when @p Strategy cannot search in the direction the params
-        ///         ask for.
+        ///         ask for, or a backward or bidirectional search is asked for with a container
+        ///         that cannot compare backward (no with_direction of its own).
         template <typename Strategy = strategy::Simple,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,
                   typename CostResourceType = RealResource,
@@ -326,7 +328,9 @@ class ResourceGraph : public Graph<ResourceTypeComposition<ResourceTypes...>> {
         /// @param cost_index  Index of the cost component to use.
         /// @return The solutions found and the search's status; empty if the graph has no source
         ///         or no sink, or another solve is running.
-        /// @throws std::invalid_argument when @p Strategy cannot search in `params.direction`.
+        /// @throws std::invalid_argument when @p Strategy cannot search in `params.direction`, or
+        ///         that direction is backward or bidirectional and @p LabelContainerType has no
+        ///         form that compares backward (no with_direction of its own).
         /// @throws ModelRefused when the model checks find a problem; the graph is left unchanged.
         template <typename Strategy = strategy::Simple,
                   typename LabelContainerType = LabelList<ResourceCompositionType>,

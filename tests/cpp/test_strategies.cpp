@@ -94,7 +94,36 @@ inline Model model(uint32_t seed) {
     return m;
 }
 
+/// @brief A descriptor that names its admission rule as a plain type, which would be ignored.
+struct PlainAdmission {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::FifoSchedule<ResourceType>;
+        using admission = AtMostThree;
+};
+
+/// @brief The same, written correctly: a template on the resource type and the direction.
+struct TemplatedAdmission {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::FifoSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = AtMostThree;
+};
+
 }  // namespace strategies_test
+
+/// @brief A descriptor that names a templated part as a plain type is refused (it would be
+///        ignored); the library's strategies and a correct one are not.
+TEST(Strategies, APlainTypePartIsRefused) {
+    namespace st = strategies_test;
+    static_assert(!detail::NoPlainTypeParts<st::PlainAdmission>);
+    static_assert(detail::NoPlainTypeParts<st::TemplatedAdmission>);
+    static_assert(detail::NoPlainTypeParts<strategy::Simple>);
+    static_assert(detail::NoPlainTypeParts<strategy::AStar>);
+    static_assert(detail::NoPlainTypeParts<strategy::Pushing>);
+    static_assert(detail::NoPlainTypeParts<strategy::Pulling>);
+    static_assert(detail::NoPlainTypeParts<strategy::Greedy>);
+    static_assert(detail::NoPlainTypeParts<st::SimpleAtMostThree>);
+}
 
 /// @brief The parts of the library meet their concepts; a malformed part fails the concept it
 ///        breaks, which is the check make_algorithm runs and names in its message.
@@ -149,7 +178,7 @@ TEST(Strategies, AStrategyOfOnesOwnSolvesInEveryDirection) {
 
 /// @brief The exact strategy of one's own finds forward Simple's optimum in every direction, along
 ///        paths that replay; so do the library's.
-TEST(Strategies, ExpectSameOptimumPassesOnExactStrategies) {
+TEST(Strategies, OptimumProblemIsEmptyForExactStrategies) {
     namespace st = strategies_test;
     for (const uint32_t seed : {1U, 2U, 3U}) {
         auto m = st::model(seed);

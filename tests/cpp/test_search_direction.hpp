@@ -233,8 +233,7 @@ TEST(SearchDirection, RefusalsNameTheClass) {
     const std::string greedy = message([&] {
         (void)g->create_algorithm<strategy::Greedy>(sdt::params(SearchDirection::Backward));
     });
-    EXPECT_NE(greedy.find("Greedy does not support the backward direction"), std::string::npos)
-        << greedy;
+    EXPECT_NE(greedy.find("Greedy cannot search backward"), std::string::npos) << greedy;
 
     test_util::Labelling<strategy::Pushing, sdt::Composed, sdt::List> pushing(
         &g->get_resource_factory(),

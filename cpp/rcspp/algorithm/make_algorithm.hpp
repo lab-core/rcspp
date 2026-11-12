@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -40,12 +41,24 @@ namespace rcspp::detail {
 template <template <typename, typename> class>
 struct TemplateProbe {};
 
-/// @brief Whether @p Strategy names a class of its own (`algorithm<R, LC>`), as the heuristics
-///        do, rather than a schedule.
+/// @brief Whether @p Strategy names a class of its own,
+///        `template <typename ResourceType, typename LabelContainerType> using algorithm = ...;`,
+///        rather than a schedule, as the heuristics do. The class derives from
+///        `Algorithm<ResourceType, LabelContainerType>` and is built from
+///        `(ResourceFactory<ResourceType>*, AlgorithmParams<LabelContainerType>)`; it searches
+///        forward only.
 template <typename Strategy>
 concept ClassStrategy = requires {
     typename TemplateProbe<Strategy::template algorithm>;
 };  // NOLINT(whitespace/newline)
+
+/// @brief Whether @p Strategy names none of its templated parts as a plain type: a plain
+///        `using admission = ...;` (or retention, observer) would not be read, and the default
+///        part would be used instead.
+template <typename Strategy>
+concept NoPlainTypeParts = !requires { typename Strategy::admission; } && !requires {
+    typename Strategy::retention;
+} && !requires { typename Strategy::observer; };  // NOLINT(whitespace/newline)
 
 /// @brief The schedule @p Strategy names, given the resource type and @p Direction.
 template <typename Strategy, typename ResourceType, typename Direction>
@@ -103,8 +116,10 @@ using interleave_of_t = typename decltype(interleave_of<Strategy>())::type;
 
 /// @brief The parts of @p Strategy's search in @p Direction (see @ref search_parts_t).
 ///
-/// A strategy that names no retention gets @c parts::KeepAtNodes itself, not an alias of it, so
-/// that its preset is the exact search's.
+/// A strategy that names no retention gets @c parts::KeepAtNodes itself, not @c retention_of's
+/// alias template: an alias template is a different template argument, so
+/// @c SearchParts<Schedule, Admission, alias, Observer> would be a different class from the exact
+/// search's @c SearchParts<Schedule>, instantiated again and not equal to it.
 template <typename Strategy, typename ResourceType, typename Direction>
 consteval auto search_parts_of() {
     using Schedule = schedule_of_t<Strategy, ResourceType, Direction>;
@@ -196,6 +211,11 @@ constexpr void check_strategy() {
             requires { typename TemplateProbe<Strategy::template schedule>; },
             "a strategy names a schedule: template <typename ResourceType, typename "
             "Direction> using schedule = ...; or a class of its own, as `algorithm`");
+        static_assert(NoPlainTypeParts<Strategy>,
+                      "a strategy's admission, retention and observer are templates on the "
+                      "resource type and the direction: template <typename ResourceType, "
+                      "typename Direction> using admission = ...; a plain `using admission = "
+                      "...;` would be ignored");
         using Forward = search_parts_t<Strategy, ResourceType, ForwardDirection>;
         using Backward = search_parts_t<Strategy, ResourceType, BackwardDirection>;
         using ForwardList = LabelList<ResourceType>;
@@ -234,7 +254,9 @@ template <typename LabelContainerType>
 /// @tparam Strategy             The descriptor (@c rcspp::strategy, or one of one's own).
 /// @tparam ResourceType         The resource type carried by labels.
 /// @tparam LabelContainerType   The per-node container of the params.
-/// @tparam CriticalResourceType The type of the bidirectional search's clock.
+/// @tparam CriticalResourceType The type of the critical resource (@c critical_resource_index),
+///                              whose value decides where a bidirectional search's two halves
+///                              stop (its half-way point).
 /// @param resource_factory The graph's resource factory.
 /// @param params           The algorithm's params; their direction picks the class.
 /// @return The algorithm, behind its base class.
@@ -247,13 +269,20 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
     ResourceFactory<ResourceType>* resource_factory, AlgorithmParams<LabelContainerType> params) {
     const SearchDirection direction = params.direction;
     if (!searches<Strategy>(direction)) {
-        throw std::invalid_argument(template_name<Strategy>() + " does not support the " +
-                                    std::string(to_string(direction)) + " direction");
+        throw std::invalid_argument(template_name<Strategy>() + " cannot search " +
+                                    std::string(to_string(direction)) +
+                                    ": it declares backward = false or bidirectional = false, "
+                                    "or is a class of its own (forward only)");
     }
     using R = ResourceType;
     using LC = LabelContainerType;
     if constexpr (ClassStrategy<Strategy>) {
         using Class = typename Strategy::template algorithm<R, LC>;
+        static_assert(std::derived_from<Class, Algorithm<R, LC>> &&
+                          std::constructible_from<Class, ResourceFactory<R>*, AlgorithmParams<LC>>,
+                      "a strategy's algorithm<ResourceType, LabelContainerType> derives from "
+                      "rcspp::Algorithm<ResourceType, LabelContainerType> and is constructed from "
+                      "(ResourceFactory<ResourceType>*, AlgorithmParams<LabelContainerType>)");
         return std::make_unique<Class>(resource_factory, std::move(params));
     } else {
         check_strategy<Strategy, R>();
