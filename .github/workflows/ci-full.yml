@@ -72,12 +72,15 @@ jobs:
           cache: ${{ matrix.suites != 'cpp' && 'pip' || '' }}
           cache-dependency-path: tests/python/requirements.txt
 
+      # The column generation example is built and tested here, so that it does not rot. Not in the
+      # coverage gate: it is not part of the library.
       - name: Configure
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
             -DUSE_PYTHON=${{ matrix.suites != 'cpp' && 'ON' || 'OFF' }} \
             -DUSE_TESTS=${{ matrix.suites != 'python' && 'ON' || 'OFF' }} \
+            -DUSE_COLUMN_GENERATION_EXAMPLE=ON \
             "-DCMAKE_CXX_CLANG_TIDY="
 
       - name: Build
