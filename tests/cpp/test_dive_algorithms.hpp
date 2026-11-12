@@ -751,6 +751,22 @@ struct OneRun {
         }
 };
 
+/// @brief Ends the first run at its first path, notes how it ended, and stops.
+struct RecordOneRun {
+        explicit RecordOneRun(const AlgorithmBaseParams& /*params*/) {}
+        template <typename SearchType>
+        bool begin(SearchType& search) {
+            search.end_runs_at_end_node();
+            driven_runs().clear();
+            return true;
+        }
+        template <typename SearchType>
+        bool after_run(SearchType& search, size_t /*number_of_runs*/) {
+            driven_runs().push_back(search.last_run());
+            return false;
+        }
+};
+
 /// @brief Greedy's parts, run by @p DriverType.
 template <typename DriverType>
 struct DrivenDive {
@@ -772,6 +788,29 @@ struct DrivenAtNodes {
         using schedule = parts::FifoSchedule<ResourceType>;
         using driver = DriverType;
 };
+
+/// @brief Three source-to-sink paths, -1 (0 -> 4), -2 (0 -> 1 -> 4) and -3 (0 -> 2 -> 3 -> 4):
+///        first in, first out takes the label at the sink of the -1 path before the others reach
+///        the sink.
+inline std::unique_ptr<ResourceGraph<RealResource>> make_three_path_graph() {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    for (size_t node_id = 1; node_id <= 3; ++node_id) {
+        g->add_node(node_id, /*source=*/false, /*sink=*/false);
+    }
+    g->add_node(4, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(-1.0), 0, 4);
+    g->add_arc<RealResource>(std::make_tuple(-1.0), 0, 1);
+    g->add_arc<RealResource>(std::make_tuple(-1.0), 0, 2);
+    g->add_arc<RealResource>(std::make_tuple(-1.0), 1, 4);
+    g->add_arc<RealResource>(std::make_tuple(-1.0), 2, 3);
+    g->add_arc<RealResource>(std::make_tuple(-1.0), 3, 4);
+    return g;
+}
 
 /// @brief A graph whose only feasible path a per-node quota of 1 cuts.
 ///
@@ -913,4 +952,15 @@ TEST(DrivenSearch, ARunGoesOnWithTheLabelsStoredAsideInItsPhases) {
         ASSERT_EQ(result.solutions.size(), 1U);
         EXPECT_NEAR(result.solutions[0].cost, -1.0, 1e-9);
     }
+}
+
+/// @brief A run that ends at its first path records it whatever the retention: under
+///        KeepAtNodes, first in, first out takes the -1 path's sink label first, and the run ends
+///        there (before the fix, the run went on and read -3 from the sink at its end).
+TEST(DrivenSearch, ARunEndsAtItsFirstPathWhateverTheRetention) {
+    auto g = make_three_path_graph();
+    (void)g->solve<DrivenAtNodes<RecordOneRun>>(AlgorithmBaseParams{});
+    ASSERT_EQ(driven_runs().size(), 1U);
+    EXPECT_TRUE(driven_runs()[0].recorded);
+    EXPECT_DOUBLE_EQ(driven_runs()[0].cost, -1.0);
 }

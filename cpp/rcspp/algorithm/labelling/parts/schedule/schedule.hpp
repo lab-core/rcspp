@@ -35,8 +35,8 @@ struct IgnoreErase {
 ///   counted. The solve's loop runs while it is above 0, and the status reads it.
 /// - @c prepare_next_phase(context) starts the next phase: it hands back what the cuts stored
 ///   aside, and starts the quota counts again. It is called between phases
-///   (@c Algorithm::solve), and once more when the solve ends, before the status is read, so
-///   that labels held back count as waiting.
+///   (@c Algorithm::prepare_next_run, @c Driven::main_loop), and once more when the solve ends,
+///   before the status is read, so that labels stored aside count as waiting.
 /// - @c trim(context, limit) is called under memory pressure
 ///   (@c Algorithm::relieve_memory_pressure). It cuts the labels waiting down to @p limit per
 ///   node (@ref SweepSchedule, @ref PullSchedule), or to @p limit × the number of nodes in all
@@ -44,7 +44,7 @@ struct IgnoreErase {
 /// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
 ///   It erases each label stored aside from its node, through @p erase, and releases it.
 /// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
-///   new solve (@c Search::reset).
+///   new solve, and at each run of a driven search (@c Search::reset, @c Search::restart).
 ///
 /// A schedule loses no label without a trace. Every label pushed is one of these:
 /// - handed out (@c next, or @c current for a pulling schedule);
@@ -52,8 +52,11 @@ struct IgnoreErase {
 /// - cut through @ref StoredAsideLabels: stored aside, so it waits again after
 ///   @c prepare_next_phase and the status reads it; or, on a bidirectional side, abandoned and
 ///   counted (@c Algorithm::has_abandoned_labels);
-/// - released by @c release_stored_aside under memory pressure, which the solve reports
-///   (@c Algorithm::memory_pressure_was_triggered).
+/// - released by @c release_stored_aside under memory pressure, which the proof records
+///   (@c ProofLoss::MemoryPressure);
+/// - dropped by a child filter (@ref DepthFirstSchedule), which the proof records through the
+///   arc mask (@c ProofLoss::ArcsMasked for a mask set with @c set_arc_mask,
+///   @c ProofLoss::HeuristicDriver once a driver makes an arc tabu).
 ///
 /// A schedule releases through the pool and erases only through the callable it is handed.
 ///

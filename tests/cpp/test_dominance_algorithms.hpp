@@ -278,6 +278,137 @@ TEST(GreedyAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
+/// @brief A cost the model does not declare additive: the value, but with no @c CostKind.
+class UndeclaredValueCost : public Clonable<UndeclaredValueCost, CostFunction<RealResource>> {
+    public:
+        [[nodiscard]] auto get_cost(const RealResource& resource) const -> double override {
+            return resource.get_value();
+        }
+};
+
+/// @brief Under a cost that is not additive there is no valid completion bound: the incumbent
+///        prune compares the cost alone, which drops the cheapest path here, and the solve says
+///        its result is not a proof (@c ProofLoss::IncumbentPrune).
+TEST(SimpleDominanceAlgorithmTest, IncumbentPruneOnANonAdditiveCostIsNotAProof) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<UndeclaredValueCost>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(0.0), 0, 2);
+    g->add_arc<RealResource>(std::make_tuple(5.0), 0, 1);
+    g->add_arc<RealResource>(std::make_tuple(-10.0), 1, 2);
+    AlgorithmBaseParams params;
+    const auto exact = g->solve<strategy::Simple>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(exact), -5.0);
+    EXPECT_TRUE(exact.proven);
+    params.prune_by_incumbent = true;
+    const auto pruned = g->solve<strategy::Simple>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(pruned), 0.0) << "the cost alone prunes the label at 1";
+    EXPECT_EQ(pruned.status, AlgorithmStatus::Complete);
+    EXPECT_FALSE(pruned.proven);
+    EXPECT_EQ(pruned.proof_lost_by, "incumbent_prune");
+}
+
+/// @brief A forward A* search that shows its completion bound and makes the promise that the
+///        graph is unchanged, for the bound cache's test.
+class BoundCacheProbe
+    : public test_util::Labelling<strategy::AStar, ResourceTypeComposition<RealResource>> {
+    public:
+        using test_util::Labelling<strategy::AStar,
+                                   ResourceTypeComposition<RealResource>>::LabellingAlgorithm;
+
+        /// @brief The completion bound at node position @p pos, as the last solve left it.
+        [[nodiscard]] double bound_at(size_t pos) const {
+            return this->search_.completion_bound.by_position.at(pos);
+        }
+
+        /// @brief Promises, or withdraws the promise, that the graph is unchanged.
+        void promise_unchanged(bool unchanged) { this->set_graph_unchanged(unchanged); }
+};
+
+/// @brief The completion bound is kept while the graph is promised unchanged, and recomputed
+///        once the promise is withdrawn: here a cheaper arc 1 -> 2 changes the bound at the
+///        source from -5 to -15.
+TEST(BoundCache, KeptWhileTheGraphIsPromisedUnchangedAndRecomputedOtherwise) {
+    auto g = make_prune_negative_arc_graph();
+    g->sort_nodes();
+    g->build_csr();
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.release_after_solve = false;
+    BoundCacheProbe probe(&g->get_resource_factory(), params);
+    const double kInf = std::numeric_limits<double>::infinity();
+    const size_t source = g->get_node(0)->pos();
+
+    (void)probe.solve(g.get(), kInf);
+    EXPECT_DOUBLE_EQ(probe.bound_at(source), -5.0);
+
+    g->update_arc<RealResource>(g->get_arc(2), 0, {-20.0});  // 1 -> 2
+    probe.promise_unchanged(true);
+    (void)probe.solve(g.get(), kInf);
+    EXPECT_DOUBLE_EQ(probe.bound_at(source), -5.0) << "kept: the graph was promised unchanged";
+
+    probe.promise_unchanged(false);
+    (void)probe.solve(g.get(), kInf);
+    EXPECT_DOUBLE_EQ(probe.bound_at(source), -15.0) << "recomputed";
+}
+
+/// @brief A depth-first schedule with Tabu's child filter, and the default retention, which keeps
+///        labels at the nodes.
+struct FilteredDepthFirstAtNodes {
+        template <typename ResourceType, typename Direction>
+        using schedule =
+            parts::DepthFirstSchedule<ResourceType, parts::CostKey, parts::TabuChildFilter>;
+};
+
+/// @brief The search that runs it forward, showing what its nodes hold.
+class FilteredProbe : public test_util::Labelling<FilteredDepthFirstAtNodes,
+                                                  ResourceTypeComposition<RealResource>> {
+    public:
+        using test_util::Labelling<FilteredDepthFirstAtNodes,
+                                   ResourceTypeComposition<RealResource>>::LabellingAlgorithm;
+
+        /// @brief How many labels node position @p pos holds.
+        [[nodiscard]] size_t stored_at(size_t pos) const {
+            return this->search_.labels.labels_at(pos).size();
+        }
+};
+
+/// @brief A child the filter drops is erased from its node as well as released, so a retention
+///        that keeps labels at the nodes holds no released label: 0 -> 1 is open and 0 -> 2 soft,
+///        so the child at 2 is dropped, and node 2 holds nothing.
+TEST(DepthFirstSchedule, AChildTheFilterDropsIsErasedFromItsNode) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/false);
+    g->add_node(3, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 1);  // arc 0
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 2);  // arc 1: soft
+    g->add_arc<RealResource>(std::make_tuple(1.0), 1, 3);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 2, 3);
+    g->sort_nodes();
+    g->build_csr();
+    ArcMask mask(g->get_arc_id_bound());
+    mask.set(1, ArcMask::State::Soft);
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.release_after_solve = false;
+    FilteredProbe probe(&g->get_resource_factory(), params);
+    probe.set_arc_mask(&mask);
+    const auto result = probe.solve(g.get(), std::numeric_limits<double>::infinity());
+    ASSERT_EQ(result.solutions.size(), 1U);
+    EXPECT_EQ(result.solutions[0].path_arc_ids, (std::vector<size_t>{0, 2}));
+    EXPECT_EQ(probe.stored_at(g->get_node(2)->pos()), 0U) << "the dropped child is erased";
+    EXPECT_TRUE(probe.get_label_pool().check_ref_count_consistency());
+}
+
 /// @brief The same for Pulling.
 TEST(PullingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
     auto g = make_prune_negative_arc_graph();

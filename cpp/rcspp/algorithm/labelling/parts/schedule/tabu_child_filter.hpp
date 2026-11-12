@@ -13,8 +13,9 @@
 namespace rcspp::parts {
 
 /// @brief Tabu's rule: a child reached along a soft arc of the search's mask (a tabu arc) is
-///        dropped, unless every child is (aspiration: the search can always go on). The others
-///        keep their order.
+///        dropped (released, not kept for a later episode), unless every child is: then every
+///        child is kept, so the dive can always go on (aspiration by default). The others keep
+///        their order.
 struct TabuChildFilter {
         template <typename ResourceType>
         void select(std::vector<StoredLabel<ResourceType>>& children,

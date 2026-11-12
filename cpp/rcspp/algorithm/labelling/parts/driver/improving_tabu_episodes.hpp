@@ -25,6 +25,9 @@ namespace rcspp::parts {
 /// other episode counts as one more without improving, and @c non_improving_episodes_before_growth
 /// of them in a row grow the tenure. An episode's dive stops at its first path, whatever it costs:
 /// only the count reads the best cost. @c max_iterations must be finite.
+///
+/// The construction does not age the list, so its arcs stay tabu for the full tenure; a later
+/// episode's arcs, as in @ref TabuEpisodes, for one less.
 class ImprovingTabuEpisodes {
     public:
         explicit ImprovingTabuEpisodes(const AlgorithmBaseParams& params)
@@ -52,7 +55,7 @@ class ImprovingTabuEpisodes {
             }
             if (number_of_runs == 1) {  // the construction
                 if (!run.recorded) {
-                    return false;  // no feasible path exists, or (held back) the labels wait
+                    return false;  // no feasible path exists, or (stored aside) the labels wait
                 }
                 best_cost_ = run.cost;
                 if (best_cost_ < search.upper_bound()) {
@@ -61,7 +64,9 @@ class ImprovingTabuEpisodes {
             } else {
                 if (!run.recorded) {
                     if (tabu_.list().empty()) {
-                        return false;  // out of paths with no arc tabu: nothing is left to find
+                        // Out of paths with no arc tabu: no path is left, or (stored aside) the
+                        // next episode would repeat this one, and the labels stored aside wait.
+                        return false;
                     }
                     tabu_.list().grow_extra();
                     ++number_of_non_improving_episodes_;
@@ -83,6 +88,8 @@ class ImprovingTabuEpisodes {
                 }
                 tabu_.age();
             }
+            // Reseeded even after the last episode: the start labels then wait, so a solve that
+            // spends max_iterations ends Truncated, not Complete.
             search.reseed();
             return number_of_runs - 1 < params_->max_iterations;
         }
@@ -90,7 +97,9 @@ class ImprovingTabuEpisodes {
     private:
         const AlgorithmBaseParams* params_;
         detail::TabuArcs tabu_;
-        double best_cost_ = std::numeric_limits<double>::infinity();
+        double best_cost_ = std::numeric_limits<double>::infinity();  ///< the best cost found so
+                                                                      ///< far in this solve
+        /// episodes in a row that did not improve @ref best_cost_
         size_t number_of_non_improving_episodes_ = 0;
 };
 

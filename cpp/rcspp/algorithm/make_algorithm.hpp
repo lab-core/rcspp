@@ -227,7 +227,8 @@ constexpr void check_parts() {
 }
 
 /// @brief Checks each part of @p Strategy against its concept, in each direction it searches, and
-///        names the first that fails.
+///        names the first that fails. The driver is checked when its search is built
+///        (@c Driven's constructor).
 ///
 /// A class strategy has no parts to check.
 template <typename Strategy, typename ResourceType>

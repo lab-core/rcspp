@@ -253,13 +253,13 @@ class SolveResult:
     @property
     def proof_lost_by(self) -> str:
         """
-        Why the result is not a proof; empty when it is: the status's name when the search did not finish ('truncated', 'timeout', ...), otherwise 'arcs_masked', 'relaxed_admission' or 'memory_pressure'.
+        Why the result is not a proof; empty when it is. When the search did not finish: the status's name ('truncated', 'timeout', 'max_solutions', 'interrupted', 'memory_limit'). Otherwise, the first loss: 'relaxed_admission' (admission_rule), 'heuristic_driver' (a tabu search made an arc tabu), 'incumbent_prune' (prune_by_incumbent on a cost that is not additive) or 'memory_pressure'. ('arcs_masked' comes only from the C++ arc masks.)
         """
 
     @property
     def proven(self) -> bool:
         """
-        Whether the result is a proof that no better path exists (none at all when none is returned): status is 'complete', no arc was masked, the admission rule is exact, and memory pressure did not trim the labels.
+        Whether the result is a proof that no better path exists (none at all when none is returned): status is 'complete', the admission rule is exact, memory pressure did not trim the labels, a tabu search never made an arc tabu (so a tabu solve is a proof only when its first episode found no path), and the incumbent prune did not compare a cost that is not additive. proof_lost_by says why it is not.
         """
 
     @property
@@ -286,7 +286,6 @@ class Row:
     def index(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
 
 class AlgorithmParams:
-    prune_by_incumbent: bool
     return_dominated_solutions: bool
     tabu_random_noise: bool
     def __init__(self) -> None: ...
@@ -347,7 +346,11 @@ class AlgorithmParams:
         self, arg0: typing.SupportsInt | typing.SupportsIndex
     ) -> None: ...
     @property
-    def max_iterations(self) -> int: ...
+    def max_iterations(self) -> int:
+        """
+        The most iterations of one main loop (default: no limit). For a labelling search, one label taken (Pulling: one node visited), counted again at each phase; for the tabu searches, one episode (a dive to a path), which must be finite: 0 runs no episode for tabu, and the construction alone for ImprovingTabu. A solve it stops with labels still waiting ends 'truncated'.
+        """
+
     @max_iterations.setter
     def max_iterations(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
     @property
@@ -403,6 +406,14 @@ class AlgorithmParams:
         self, arg0: typing.SupportsInt | typing.SupportsIndex
     ) -> None: ...
     @property
+    def prune_by_incumbent(self) -> bool:
+        """
+        Whether a search drops a label that cannot lead to a path cheaper than the incumbent (the cheapest path found so far, or the upper bound until one is found): its cost plus its completion bound is at or above the incumbent (default False). Exact under an additive cost; under another, the cost alone is compared and the result is not a proof ('incumbent_prune').
+        """
+
+    @prune_by_incumbent.setter
+    def prune_by_incumbent(self, arg0: bool) -> None: ...
+    @property
     def release_after_solve(self) -> bool:
         """
         If true (default), release label memory after solve(). Set to false when the same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() overhead.
@@ -421,7 +432,11 @@ class AlgorithmParams:
         self, arg0: collections.abc.Set[typing.SupportsInt | typing.SupportsIndex]
     ) -> None: ...
     @property
-    def tabu_tenure(self) -> int: ...
+    def tabu_tenure(self) -> int:
+        """
+        The tabu searches' base tenure: an arc made tabu stays tabu for the next tabu_tenure - 1 episodes, plus an adaptive extra (default 5).
+        """
+
     @tabu_tenure.setter
     def tabu_tenure(self, arg0: typing.SupportsInt | typing.SupportsIndex) -> None: ...
     @property

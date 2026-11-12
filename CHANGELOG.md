@@ -67,8 +67,9 @@ New features are summarised, with a pointer to where they are documented.
   `rcspp::strategy`: `graph.solve<strategy::Simple>(params)`, likewise `strategy::AStar`,
   `Pushing`, `Pulling`, `Greedy`, `Tabu`, `ImprovingTabu` and `Diversification<Inner>` (Greedy by
   default). `SimpleDominanceAlgorithm`, `AStarDominanceAlgorithm`, `PushingDominanceAlgorithm` and
-  `PullingDominanceAlgorithm` are gone, with no alias; the heuristics keep their classes, which
-  their descriptors name. `ResourceGraph::create_algorithm<Strategy, LabelContainerType,
+  `PullingDominanceAlgorithm` are gone, with no alias, and so are the heuristics' classes but
+  `DiversificationSearch` (see the Greedy and tabu entries above), which
+  `strategy::Diversification` names as its `algorithm`. `ResourceGraph::create_algorithm<Strategy, LabelContainerType,
   CostResourceType, CriticalResourceType>(params)` returns
   `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`, built for `params.direction`
   from the strategy's parts; `solve` takes its template parameters in the same order, so the
@@ -100,6 +101,9 @@ New features are summarised, with a pointer to where they are documented.
   chose the direction of `can_be_merged`, which no algorithm called before this release; the join
   test now follows the extension the function is paired with. Drop the third argument:
   `MinMaxFeasibilityFunction(min, max)`.
+- **`AlgorithmBaseParams::diversification_tenure` is now `non_improving_episodes_before_growth`**
+  (C++ only): the number of episodes in a row that do not improve the best cost before
+  `strategy::ImprovingTabu` grows its adaptive tabu tenure. `DiversificationSearch` never read it.
 - **`can_be_merged` is now `can_be_joined`**, on feasibility functions, resources and
   compositions, to match the join it serves. An override of your own must be renamed; it is only
   called when the function's `join_rule()` is `JoinRule::Custom`. `TrivialFeasibilityFunction`
@@ -230,8 +234,9 @@ New features are summarised, with a pointer to where they are documented.
 ### Added
 
 - **Drivers**: a descriptor may name a `driver` (`parts::Driver`), which runs its search several
-  times in one solve in place of the phases: it decides at the start whether to run, and after
-  each run, reading how it ended (`parts::RunEnd`), whether to run again; between runs it may
+  times in one solve, each run up to `max_phases` phases: it decides at the start whether to run,
+  and after each run, reading how it ended (`parts::RunEnd`: a path recorded, no label left, or
+  labels stored aside left after the last phase), whether to run again; between runs it may
   mask arcs, end each run at its first path, and start again from the start labels. A driven run
   counts no iterations (`max_iterations` is the driver's to read). A driver that changes the
   search records `ProofLoss::HeuristicDriver`. Forward and backward; not bidirectionally. See "A
@@ -239,11 +244,12 @@ New features are summarised, with a pointer to where they are documented.
 - **`SolveResult::proven` and `proof_lost_by`** (C++ and Python): whether the result is a proof
   that no better path exists, and why not. It is a proof when the status is `Complete` and nothing
   a finished search can still lose was lost (`ProofLoss`, in `rcspp/algorithm/proof_record.hpp`):
-  no arc masked, an exact admission rule, no memory pressure. `proof_lost_by` names the status
+  no arc masked, an exact admission rule, no arc made tabu by a driver, no memory pressure, and
+  no incumbent prune on a cost that is not additive. `proof_lost_by` names the status
   when the search did not finish, otherwise the first loss. A quota that cut nothing leaves the
   proof. `Algorithm::is_optimal()` now answers the same, so a masked solve, one with a relaxed
-  admission rule, or one memory pressure trimmed is no longer reported optimal. See "What `status`
-  cannot tell you, and `proven` does" in `docs/advanced/algorithms.md`.
+  admission rule, or one memory pressure trimmed is no longer reported optimal. See "Is the
+  result a proof? `status` and `proven`" in `docs/advanced/algorithms.md`.
 - **Arc masks** (`rcspp/algorithm/arc_mask.hpp`): `ArcMask` marks arcs, by id, hard (never used)
   or soft (to be avoided, which a child filter reads); `Algorithm::set_arc_mask` has every later
   solve leave the hard arcs out, as if they were not in the graph, without editing it, so arc ids
@@ -309,7 +315,7 @@ New features are summarised, with a pointer to where they are documented.
   `prune_by_incumbent`, it prunes on lower bounds of the cost still to come, computed from
   the cost function itself, so they hold whichever components the objective reads. What it
   reports about its bound and its join is in `SolveResult::bidirectional`, a
-  `BidirectionalStats`, empty from every other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
+  `BidirectionalStats`, empty from every other algorithm. See "Bidirectional search" in `docs/advanced/algorithms.md`.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
@@ -383,7 +389,8 @@ New features are summarised, with a pointer to where they are documented.
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it
   compared the cost alone, and a label whose path goes on to a negative arc could be dropped. Under
   a cost that is not additive there is no valid bound, and the prune compares the cost alone, as
-  before. A solve with the prune on runs one Bellman–Ford pass more, to compute the bound.
+  before, and the result is not reported as a proof (`proof_lost_by == "incumbent_prune"`). A
+  solve with the prune on runs one Bellman–Ford pass more, to compute the bound.
 - **A second memory-pressure event no longer erases a label twice.** Each event after the first
   releases the labels the quota or the memory trim stored aside, erasing each from its node
   through the position it was stored with. A label stored aside stays at its node, and when a

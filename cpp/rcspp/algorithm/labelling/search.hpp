@@ -56,8 +56,10 @@ namespace rcspp::detail {
 //   - BidirectionalLabellingAlgorithm runs two, one per direction, taking the next step from the
 //     side that has done less work (parts::Interleave). Each side stops extending at the half-way
 //     point, and the join pairs their labels into paths (join).
-//   - A dive (Greedy) keeps no labels at the nodes (parts::KeepWhileWaiting) and goes depth first
-//     (parts::DepthFirstSchedule).
+//   - Driven runs one search several times under a driver (parts::Driver: the tabu searches),
+//     changing it between runs; each run runs up to max_phases phases.
+//   - A dive (Greedy, the tabu searches) keeps no labels at the nodes (parts::KeepWhileWaiting)
+//     and goes depth first (parts::DepthFirstSchedule).
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a
@@ -133,7 +135,7 @@ struct Search {
         typename PartsType::observer observer;           ///< told of every extension
         CompletionBound<ResourceType> completion_bound;  ///< the completion bound; empty: none
         /// The extensions tried this solve, one per label and arc, masked and unreachable arcs
-        /// included; the interleave compares it.
+        /// included (kept across a driver's runs); the interleave compares it.
         size_t work = 0;
 
         /// @brief Empties the search for a new solve: one container per node, each a copy of

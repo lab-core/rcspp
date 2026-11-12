@@ -34,9 +34,10 @@ enum class Role : std::uint8_t {
 ///        @c Algorithm::make_context, one per search (two for a bidirectional search).
 ///
 /// The pointers are valid for the solve. Each points to the graph or to a member of the
-/// algorithm, except @ref completion_bound (the search's own, @c Search::completion_bound). The
-/// take rule lowers
-/// @c *incumbent.
+/// algorithm, except @ref completion_bound (the search's own, @c Search::completion_bound) and @ref
+/// arc_mask (the caller's mask, set by @c Algorithm::set_arc_mask, or a driver's, set by
+/// @c Driven::use_arc_mask). The take rule lowers @c *incumbent, and a driver may change
+/// @ref arc_mask and @ref run_ends_at_end_node between runs.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -69,7 +70,8 @@ struct SearchContext {
         /// (@ref HalfWay). Null for a single-direction search.
         const HalfWay<ResourceType>* half_way = nullptr;
         /// Set by a driver (@c Driven::end_runs_at_end_node): each run ends once it records an
-        /// end-node label.
+        /// end-node label, whatever the retention: the take rule records the label when it is
+        /// taken.
         bool run_ends_at_end_node = false;
 
         /// @brief Whether a cut abandons a label instead of storing it aside: on a bidirectional

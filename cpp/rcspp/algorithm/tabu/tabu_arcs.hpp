@@ -19,8 +19,9 @@ namespace rcspp::detail {
 /// The mask starts as the one the algorithm was given (@c Algorithm::set_arc_mask), or open. An
 /// arc made tabu takes the state the owner chose: soft for the tabu searches' drivers, which
 /// still extend along it when they must, hard for @ref DiversificationSearch, which leaves it
-/// out. When its tenure runs out, it goes back to its state in the mask given. An arc of a path
-/// found is never hard, so a tabu arc never hides a hard one.
+/// out. When its tenure runs out, it goes back to its state in the mask given. A path found
+/// never uses an arc the mask given makes hard, so making an arc tabu never turns a hard arc
+/// soft.
 class TabuArcs {
     public:
         /// @brief Tabu arcs with the params' tenure, noise, seed and exempt nodes.
@@ -30,7 +31,9 @@ class TabuArcs {
         TabuArcs(const AlgorithmBaseParams& params, ArcMask::State tabu_state)
             : params_(&params), tabu_state_(tabu_state), tabu_(params.seed) {}
 
-        /// @brief Empties the list, and starts the mask as @p given (open when null).
+        /// @brief Empties the list, its adaptive extra tenure included, and starts the mask as
+        ///        @p given (open when null). The noise's random generator is not reseeded: it
+        ///        goes on from the previous solve.
         ///
         /// @param graph The graph being solved, which sizes the mask.
         /// @param given The mask the algorithm was given, or null; must outlive the solve.
@@ -71,8 +74,9 @@ class TabuArcs {
             return made_tabu;
         }
 
-        /// @brief One iteration older: the tenures shorten, and each arc whose tenure ran out
-        ///        goes back to its state in the mask given.
+        /// @brief One step older (an episode for the tabu searches' drivers, an inner solve for
+        ///        @ref DiversificationSearch): the tenures shorten, and each arc whose tenure ran
+        ///        out goes back to its state in the mask given.
         void age() {
             tabu_.age([this](size_t arc_id) {
                 mask_.set(arc_id, given_ != nullptr ? given_->state(arc_id) : ArcMask::State::Open);
