@@ -1,6 +1,6 @@
 # Column generation layer: plan
 
-Status (2026-11-10): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
+Status (2026-11-11): **Python layer only (`D-116`).** A pure-Python column generation layer is built, then compared
 with the C++ layer (`D-111`, `T-1.15`); whether the C++ layer stays is open (`Q-41`). Until then the C++ layer is
 frozen as it is: stacked drafts #61, #69, #72, #76, the Python PRs 5–6 and packaging #80. Big-M start (`T-1.13`)
 done: fix A + B (`D-118`) reaches `Optimal` up to R201 and ships with `T-1.15`; the big-M start stays 3.9 times
@@ -48,8 +48,12 @@ numpy, extras, `highspy` test requirement (#78). Prototype review fixed 2026-11-
 commits `eb5ca442`…`325bba34` on the prototype branch (local, not pushed); Linux gcc 13 on (Docker: C++ 697, core
 Python 544, example 89 with both SIGINT tests), MSVC on (C++ 729, core 579, example 116) and off (C++ 602, core
 579, example skips, no column generation symbols in `_core`) pass. Isort moves the example tests' path-setting
-import after the package's unless `# isort: split` holds it. **Next:**
-`T-1.17`'s stack rewrite (`D-147`); `T-1.18` can run beside it; `T-1.19` after the layout; then the last PRs.
+import after the package's unless `# isort: split` holds it. Stack rebased onto `main` `6367ee56` (#56–#59)
+2026-11-11, first step of `T-1.17`'s rewrite (`separation.md` §8): one branch per PR, local only (not pushed),
+backups `backup/colgen-<name>-before-main-rebase`, worktree `../rcspp-rebase`; 7 conflicts kept both sides; main's
+renames applied in the commits that brought the old names; every head passes on MSVC, #88 on Linux gcc 13.
+`F-53` decided 2026-11-12 (`D-152`, `D-153`). **Next:** the user's force-push; then
+the fold map (`T-1.17`, `D-147`); `T-1.18` can run beside it; `T-1.19` after the layout; then the last PRs.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).

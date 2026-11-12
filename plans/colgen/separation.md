@@ -150,3 +150,53 @@ What #88's head must change, by the stack PR that brought it (rewrite targets): 
 and `graph_pricer.hpp` (#77 → example, two hooks stay); `active_call.hpp` extraction (#77 → stays in core,
 the example includes it); `rcspp/__init__.py` import and `_core/__init__.pyi` line (#77 → gone);
 `pyproject.toml` wheel HiGHS and test command (#80 → gone); `FindGUROBI.cmake` move to `cmake/` (stays).
+
+## 8. The stack rebased onto `main` (`T-1.17`, `D-147`; 2026-11-11)
+
+First step of the stack rewrite: the eight branches rebased from `129b15e0` onto `origin/main` `6367ee56` (#56–#59),
+one branch per PR, no path moves, no fold. Local only, not pushed. Backups at the origin heads:
+`backup/colgen-<name>-before-main-rebase` (no upstream). Rebased in worktree `../rcspp-rebase` one branch at a time
+with `--onto` (`--update-refs` would also move the backups, which point at the same commits); `../rcspp-dev` stayed
+on the prototype, untouched; `-packaging` got a local branch.
+
+| PR | branch | old head | new head | commits | MSVC C++ / Python |
+|---|---|---|---|---|---|
+| #61 | `-core` | `5ce1d6c1` | `e764bc87` | 18 | 652 / 313 |
+| #69 | `-gurobi` | `1c29b50f` | `00e8c0b9` | 20 | 687 / 313 |
+| #72 | `-pricer` | `3fd7b82f` | `76b873c5` | 7 | 706 / 313 |
+| #76 | `-highs` | `9bc883b3` | `fce956b3` | 17 | 730 / 313 |
+| #77 | `-python` | `eea811dc` | `2f7b0577` | 10 | 730 / 370 |
+| #78 | `-python-masters` | `7916c6c9` | `5e58755b` | 7 | 730 / 429 |
+| #80 | `-packaging` | `8bb6f36c` | `6c79e917` | 5 | 731 / 429 |
+| #88 | `-pure-python` | `82fa4e58` | `c623f120` | 6 | 731 / 703 |
+
+MSVC 14.51, Gurobi and HiGHS on, all passed (8 disabled C++ benchmarks; 1 Python skip). Linux at #88: gcc 13.3
+in Docker `ubuntu:24.04`, HiGHS on, no Gurobi, `-j2` (the engine ran out of memory twice at more, `F-52`): build
+clean, C++ 707 passed (8 disabled), Python 639 passed, 17 skipped.
+Pre-commit on each PR's files: all hooks pass (`cppcheck`, `cpplint` run in Docker: the column generation findings
+equal the old heads'; main's naming check over both umbrella headers reports nothing).
+
+**Conflicts and judgment calls** (main's code kept, the stack's change carried over in main's names):
+
+| where | commit (PR) | resolution |
+|---|---|---|
+| `tests/cpp/CMakeLists.txt` | Gurobi master solver (#69); option rename (#80) | main's docs-samples block, then the stack's `if(USE_GUROBI)` after a blank line; #80 renames that guard |
+| `graph_impl.hpp`, `active_call.hpp` | `ActiveCall` to its own header (#77) | the move kept; the moved class takes main's `Callable` / `ResultType`, so it equals main's byte for byte |
+| `_core/__init__.pyi` | column generation types (#77) | main's generated format, `column_generation` added to the import and `__all__` |
+| `graph.py` | algorithm and direction (#77); graph pricer (#88) | the stack's annotations on main's `origin_node_id` / `destination_node_id`; `Optional` dropped (unused on main) |
+| `_core/graph.pyi` | pure master problem (#88) | main's generated stub kept: the stack's hand-typed `Column.to_arrays` dropped (open, below) |
+
+**Main's renames applied in the commits that brought the old names** (tree rewrite of each PR's range, so every
+commit has main's spelling; CHANGELOG "Renamed, with no alias" / "Removed"): `AlgorithmStatus::COMPLETE`… to
+`Complete`… and `ClockResourceType` to `CriticalResourceType` (#72; one commit message too); `RG`, `RC`, `LC` to
+`ResourceGraphType`, `CompositionType`, `LabelContainerType` in the graph pricer code of `graph_impl.hpp` (#77, did
+not compile); `range_buckets=` to `bucket_width=` and `get_arcs_size()` to `number_of_arcs()` in the two graph pricer
+tests (#77, #88). Main's flake8-builtins flags the pure layer's `types.py` and `statistics.py` (A005): per-file
+ignores in `.flake8` with a comment, as main does for `resource.py`, in the commits that add each module (#88).
+
+**Diff check (step 4):** per PR and per file, the diff against the rebased base equals the old one (hunk positions
+ignored) for #61, #69, #76, #78, #80; the 13 files that differ in #72, #77, #88 hold only the changes above.
+
+**`F-53`, decided 2026-11-12:** `D-152` (a typed `Protocol` cast in `master_problem.py`, in the master problem
+commit; #88's head `96976db7` became `c623f120`, MSVC 731 / 703 again, pyright strict clean) and `D-153` (the
+hand-written stub waits for the fold).
