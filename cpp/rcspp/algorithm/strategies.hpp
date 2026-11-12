@@ -106,10 +106,13 @@ struct Greedy {
 };
 
 /// @brief Episodes of Greedy's dive, each ending at its first path, whose arcs are then tabu for
-///        @c tabu_tenure episodes: a child reached along a tabu arc is dropped unless every child
-///        is (@c parts::TabuEpisodes, @c parts::TabuChildFilter). Forward only.
+///        the next @c tabu_tenure − 1 episodes, plus an adaptive extra that grows after an episode
+///        that found nothing new and shrinks after one that did (@c parts::TabuEpisodes): a child
+///        reached along a tabu arc is dropped unless every child is (@c parts::TabuChildFilter).
+///        Forward only.
 ///
-/// @c max_iterations counts episodes, and must be finite.
+/// @c max_iterations counts episodes, and must be finite: with no limit the solve logs an error
+/// and runs no episode; 0 runs no episode either (the solve returns nothing).
 struct Tabu {
         template <typename ResourceType, typename Direction>
         using schedule =
@@ -123,10 +126,15 @@ struct Tabu {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Tabu's episodes after a first dive with no arc tabu, counting the episodes that do not
-///        improve on the best cost (@c parts::ImprovingTabuEpisodes). Forward only.
+/// @brief Tabu's episodes after a first dive with no arc tabu, the construction
+///        (@c parts::ImprovingTabuEpisodes). Each @c non_improving_episodes_before_growth
+///        episodes in a row that find no path strictly cheaper than the best so far lengthen the
+///        tabu tenure; an episode that does find one shortens it. Each episode still ends at its
+///        first path, whatever it costs. Forward only.
 ///
-/// @c max_iterations counts the episodes after the first dive, and must be finite.
+/// @c max_iterations counts the episodes after the construction, and must be finite (otherwise
+/// the solve logs an error and runs nothing); 0 runs the construction alone, and returns its
+/// path.
 struct ImprovingTabu {
         template <typename ResourceType, typename Direction>
         using schedule =
