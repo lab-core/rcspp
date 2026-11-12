@@ -48,13 +48,16 @@ namespace rcspp::detail {
 //      step visit one node and pull into it (step_node).
 //   3. The next phase: if the per-node quota or memory pressure stored labels aside, they are
 //      queued again and the loop runs again, up to max_phases phases.
-//   4. The solutions: the end-node labels, read when the search ends (KeepAtNodes).
+//   4. The solutions: the end-node labels, recorded when they are taken (a dive's retention,
+//      KeepWhileWaiting) or read when the search ends (KeepAtNodes).
 //
 // Who runs the searches:
 //   - LabellingAlgorithm runs one search, forward or backward.
 //   - BidirectionalLabellingAlgorithm runs two, one per direction, taking the next step from the
 //     side that has done less work (parts::Interleave). Each side stops extending at the half-way
 //     point, and the join pairs their labels into paths (join).
+//   - A dive (Greedy) keeps no labels at the nodes (parts::KeepWhileWaiting) and goes depth first
+//     (parts::DepthFirstSchedule).
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a

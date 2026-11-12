@@ -539,8 +539,10 @@ converged, say — has to read this too.  `could_be_non_optimal()` will not tell
 
 A dive: from each label it takes, it extends along every arc and goes on with the cheapest child,
 keeping the other children for later; at a dead end it goes back to the last label still waiting.
-Each path to a sink is recorded when its label is taken. It keeps every feasible label it waits on,
-and none behind it. With no budget it tries every path, and so finds the optimum, but its work grows
+Each path to a sink is recorded when its label is taken. It compares no labels: every feasible label
+is kept until it is extended, and none is stored at the nodes. A label is released once its
+children are made, and lives on only while a label extended from it still waits. With no budget it
+tries every path, and so finds the optimum, but its work grows
 with the number of paths; with one, it is fast, with no optimality guarantee.
 
 As in every labelling search, `max_iterations` counts the labels taken, and
@@ -576,14 +578,18 @@ Wraps another algorithm (default: `Greedy`) and repeatedly solves the
 subproblem after removing solution arcs, collecting a pool of diverse
 solutions.
 
-```python
-params = AlgorithmParams()
-params.max_solutions = 20    # collect 20 distinct solutions
-params.max_iterations         = 100
-params.seed                   = 42
+Diversification is C++ only: Python does not offer it.
 
-result = rg.solve(algorithm="greedy", params=params)
-# In C++, strategy::Diversification<Inner> diversifies any inner strategy
+<!-- docs-check: skip -->
+
+```cpp
+AlgorithmParams<LabelList<Resources>> params;
+params.max_solutions = 20;    // collect 20 distinct solutions
+params.max_iterations = 100;  // at most 100 inner solves
+params.tabu_tenure = 5;       // a path's arcs stay out for 5 solves
+params.seed = 42;
+// Greedy by default; strategy::Diversification<strategy::AStar> diversifies another
+const SolveResult result = graph.solve<strategy::Diversification<>>(ub, params);
 ```
 
 ## Search directions
@@ -941,8 +947,9 @@ struct SimpleAtMostThree {
 };
 ```
 
-This one is a dive: depth first, keeping every feasible label and none behind it. `DepthFirstSchedule`
-settles a label's children together once it is extended, and hands them out next, cheapest first
+This one is a dive: depth first, keeping every feasible label until it is extended, and storing
+none at the nodes. `DepthFirstSchedule` places a label's children together once it is extended,
+and hands them out next, cheapest first
 (its key), each child's subtree before its next sibling; its filter (`KeepAllChildren` by default)
 may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
 stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
@@ -970,9 +977,10 @@ the contract:
 
 - **An admission rule says whether it is exact.** `is_exact(context)` answers `true` only for a rule that
   keeps every label exact dominance keeps; a search whose rule is not exact is not a proof.
-- **A schedule loses no label silently.** Every label pushed is handed out, released as dominated,
-  or cut through `parts::StoredAsideLabels`, so that the solve's status sees the cut and reports
-  `Truncated`.
+- **A schedule loses no label without a trace.** Every label pushed is handed out; released
+  because it was found dominated, or evicted; stored aside through `parts::StoredAsideLabels`, so
+  that it waits again in the next phase and the status reads it (or, on a bidirectional side,
+  abandoned and counted); or released under memory pressure, which the solve reports.
 - **A part touches only what its interface gives it.** An admission rule reads and evicts through
   the node view (`is_dominated`, `evict_dominated_by`, `size`); a schedule releases through the pool
   and erases through the callable it is handed. The reference counts depend on it.

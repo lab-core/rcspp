@@ -19,8 +19,9 @@ namespace rcspp::parts {
 /// it: an end-node label, or one the incumbent prunes, counts too. A label found dominated does
 /// not count. The counts start again at each phase (@ref restart).
 ///
-/// The schedules that hand out one label at a time (FIFO, best-first) use this class. The
-/// node-by-node schedules apply the quota differently. @ref SweepSchedule cuts a node's queue to
+/// The schedules that hand out one label at a time (FIFO, best-first, depth-first) use this
+/// class. The node-by-node schedules apply the quota differently. @ref SweepSchedule cuts a
+/// node's queue to
 /// it each time it visits the node, so per visit rather than per phase, end nodes included.
 /// @ref PullSchedule cuts a node's new labels to it after each pull, except at an end node.
 class PerNodeQuota {

@@ -21,15 +21,18 @@ namespace rcspp::parts {
 /// @brief Hands labels out depth first: the children of the label extended last, lowest key
 ///        first, before any label waiting from earlier; up to the per-node quota (Greedy's order).
 ///
-/// Each label's children are settled together, once the step has extended it along every arc
-/// (@ref PlacesChildren): the filter drops some (they are released), and the rest are sorted by
-/// key, keeping the order of their arcs among equal keys, and handed out next, in that order,
-/// each child's own children before its next sibling. A search that runs out of children so goes
-/// back to the most recent label still waiting: a backtracking dive. The start labels, pushed
-/// before any label is extended, are handed out in the order pushed.
+/// Once the step has extended a label along every arc, it calls @ref place_children
+/// (@ref PlacesChildren), which handles the label's children together. The filter drops some
+/// (they are erased from their node and released at once; see @ref place_children). The others
+/// are sorted by key, ties kept in the order of their arcs, and put on top of the stack. So each
+/// child's own children are handed out before its next sibling. When a label has no child left
+/// to hand out, the search goes back to the most recently pushed label still waiting: a
+/// backtracking dive. The start labels, pushed before any label is extended, are handed out in
+/// the order pushed.
 ///
-/// As in @ref FifoSchedule, a label taken while dominated is released, and one over its node's
-/// quota is cut; @ref next goes on to the next label either way.
+/// As in @ref FifoSchedule, a label that comes up while dominated is released, and one over its
+/// node's quota is stored aside for the next phase, until a later memory-pressure event releases
+/// it (@ref StoredAsideLabels). Neither is handed out: @ref next goes on to the next label.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam KeyType      The order among a label's children: @ref CostKey (the default) or
@@ -58,7 +61,7 @@ class DepthFirstSchedule {
         /// @brief The next label in depth-first order and its position in its node's container; a
         ///        null label when none is left.
         StoredLabel<ResourceType> next(detail::SearchContext<ResourceType>& context) {
-            // Labels pushed and never settled are the start labels: handed out in the order
+            // Labels pushed and never placed are the start labels: handed out in the order
             // pushed.
             stack_.insert(stack_.end(), children_.rbegin(), children_.rend());
             children_.clear();
@@ -85,16 +88,27 @@ class DepthFirstSchedule {
         [[nodiscard]] size_t size() const { return stack_.size() + children_.size(); }
 
         /// @brief Takes a newly kept label: a child of the label being extended, until
-        ///        @ref settle.
+        ///        @ref place_children.
         void push(const StoredLabel<ResourceType>& stored) { children_.push_back(stored); }
 
-        /// @brief Settles the children pushed since the last settle: releases those the filter
-        ///        drops, sorts the others by key (stable: their arcs' order breaks ties), and puts
-        ///        them on top of the stack, the lowest key to be handed out first.
-        void place_children(detail::SearchContext<ResourceType>& context) {
+        /// @brief Places the children pushed since the last placing: erases from its node
+        ///        (through @p erase) and releases each child the filter drops, sorts the others by
+        ///        key (stable: their arcs' order breaks ties), and puts them on top of the stack,
+        ///        the lowest key to be handed out first.
+        ///
+        /// The search stored every child at its node before this runs, so a dropped child must
+        /// be erased there too, or a retention that stores labels would keep a released label. A
+        /// dropped child was admitted first, so labels it dominated at its node were evicted and
+        /// stay evicted.
+        ///
+        /// @param erase Callable `(const LabelIterator&)` erasing a label from its node.
+        template <typename EraseCallable>
+        void place_children(detail::SearchContext<ResourceType>& context,
+                            const EraseCallable& erase) {
             rejected_.clear();
             filter_.select(children_, rejected_, context);
             for (const auto& stored : rejected_) {
+                erase(stored.position);
                 context.pool->release_with_ref_count(stored.label);
             }
             const KeyType key{};
@@ -116,9 +130,10 @@ class DepthFirstSchedule {
             stack_.insert(stack_.end(), restored.rbegin(), restored.rend());
         }
 
-        /// @brief Keeps the @p limit × nodes labels to be handed out first; of the rest, which a
+        /// @brief Keeps the @p limit × nodes labels to be handed out first. Of the rest, which a
         ///        dive would reach last, a dominated label is released and a non-dominated one is
-        ///        cut.
+        ///        stored aside for the next phase, until a later memory-pressure event releases it
+        ///        (@ref StoredAsideLabels).
         void trim(detail::SearchContext<ResourceType>& context, size_t limit) {
             const size_t max_total = limit * context.graph->get_number_of_nodes();
             stack_.insert(stack_.end(), children_.rbegin(), children_.rend());
@@ -155,8 +170,8 @@ class DepthFirstSchedule {
 
     private:
         std::vector<StoredLabel<ResourceType>> stack_;     ///< next label at the back
-        std::vector<StoredLabel<ResourceType>> children_;  ///< pushed since the last settle
-        std::vector<StoredLabel<ResourceType>> rejected_;  ///< the filter's, during a settle
+        std::vector<StoredLabel<ResourceType>> children_;  ///< pushed since the last placing
+        std::vector<StoredLabel<ResourceType>> rejected_;  ///< the filter's, during a placing
         StoredAsideLabels<ResourceType> stored_aside_;
         PerNodeQuota taken_;
         FilterType filter_;

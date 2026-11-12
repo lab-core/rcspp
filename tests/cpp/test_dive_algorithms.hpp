@@ -158,20 +158,21 @@ TEST(GreedyAlgorithmTest, ZeroTimeoutReportsTimeout) {
     EXPECT_EQ(result.status, AlgorithmStatus::Timeout);
 }
 
-/// @brief With prune_by_incumbent, Greedy drops a label whose cost reaches the incumbent when it is
-///        taken, as every labelling search does; without it, it returns both paths under the
-///        upper bound.
+/// @brief With prune_by_incumbent, Greedy drops a label that cannot lead to a path cheaper than
+///        the incumbent (its cost plus its completion bound reaches it), as every labelling search
+///        does; without it, it returns both paths under the upper bound.
 ///
-/// The incumbent starts at the upper bound, -1, and the source label costs 0: it is dropped, and
-/// nothing is found. The prune is a heuristic's with negative costs, which a partial path's cost
-/// does not bound.
-TEST(GreedyAlgorithmTest, PruneByIncumbentDropsALabelAtTheIncumbent) {
+/// Under the upper bound -1 both paths (-6 and -4) qualify. The source label costs 0, but its
+/// bound is -6, so it is kept. Greedy finds -6 first; the label at 2 (cost -1, bound -3) then
+/// reaches the incumbent and is dropped, so only the optimum is returned.
+TEST(GreedyAlgorithmTest, PruneByIncumbentDropsALabelThatCannotImprove) {
     auto g = make_two_path_graph();
     AlgorithmBaseParams params;
     EXPECT_EQ(g->solve<strategy::Greedy>(params, -1.0).solutions.size(), 2U);
     params.prune_by_incumbent = true;
     const auto pruned = g->solve<strategy::Greedy>(params, -1.0);
-    EXPECT_TRUE(pruned.solutions.empty());
+    ASSERT_EQ(pruned.solutions.size(), 1U);
+    EXPECT_NEAR(pruned.solutions[0].cost, kBestPathCost, 1e-9);
     EXPECT_EQ(pruned.solutions.size(), g->solve<strategy::Simple>(params, -1.0).solutions.size());
 }
 

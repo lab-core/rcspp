@@ -69,8 +69,12 @@ inline constexpr bool releases_taken_labels_v = [] {
     }
 }();
 
-/// @brief A retention template as a descriptor names it, which a strategy's @c retention<R, Dir>
-///        member must be: `using retention = parts::Retain<parts::KeepWhileWaiting>;`.
+/// @brief Wraps a retention template (one on the per-node container type) so that a strategy
+///        can name it before the container type is known. A strategy's @c retention member
+///        names one:
+///        `template <typename ResourceType, typename Direction> using retention =
+///        parts::Retain<parts::KeepWhileWaiting>;`. The search then gives it the container the
+///        params chose (@c type<ContainerType>).
 ///
 /// @tparam RetentionTemplate The retention, a template on the per-node container type.
 template <template <typename> class RetentionTemplate>

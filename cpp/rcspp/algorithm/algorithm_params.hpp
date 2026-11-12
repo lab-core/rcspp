@@ -96,8 +96,18 @@ struct AlgorithmBaseParams {
         /// bidirectional search runs one.
         size_t max_phases = 1;
 
-        // maximum number of iterations: labels taken by a labelling search (Greedy included),
-        // episodes by the tabu searches and diversification
+        /// @brief The most iterations of one main loop (no limit by default, @ref kNoLimit).
+        ///
+        /// What an iteration is depends on the algorithm:
+        /// - a labelling search (`Simple`, `Pushing`, `AStar`, `Greedy`): one label taken from the
+        ///   schedule; `Pulling`: one node visited. The count starts again at each phase, so a
+        ///   solve may make up to `max_phases × max_iterations`. A bidirectional search counts
+        ///   the iterations of both sides together.
+        /// - the tabu searches: one episode (one dive to a path); the labels a dive takes are not
+        ///   counted. Must be finite.
+        /// - `DiversificationSearch`: one solve of the inner algorithm. Must be finite.
+        ///
+        /// A solve it stops with labels still waiting ends @c AlgorithmStatus::Truncated.
         size_t max_iterations = kNoLimit;
 
         // wall-clock timeout in seconds; solve() returns early when elapsed >= timeout_s
@@ -212,7 +222,8 @@ struct AlgorithmBaseParams {
         /// @brief Number of main-loop iterations between consecutive RSS checks.
         ///
         /// Larger values reduce measurement overhead; smaller values react
-        /// faster to memory spikes.  Must be > 0.
+        /// faster to memory spikes.  Must be > 0. Counted like max_iterations, within one phase:
+        /// a phase shorter than this never reads the memory.
         size_t memory_check_interval = kDefaultMemoryCheckInterval;
 
         /// @brief Pressure threshold as a fraction of the effective memory limit.
@@ -226,9 +237,10 @@ struct AlgorithmBaseParams {
         ///
         /// Each time a memory check finds the pressure threshold reached
         /// (@ref memory_pressure_fraction), the search trims the labels waiting to be extended.
-        /// `Pushing` and `Pulling` keep this many at each node; `Simple` and `AStar` keep this
-        /// many times the number of nodes in all, the best (non-dominated, then cheapest; A* by
-        /// its key). Of the labels trimmed, a dominated one is released, and a non-dominated one
+        /// `Pushing` and `Pulling` keep this many at each node; `Simple`, `AStar` and `Greedy`
+        /// keep this many times the number of nodes in all: the best (non-dominated, then
+        /// cheapest; A* by its key) or, for Greedy's dive, those it would take first. Of the
+        /// labels trimmed, a dominated one is released, and a non-dominated one
         /// is stored aside for the next phase, or abandoned on a side of a bidirectional search.
         /// From the second trim of a solve on, every label stored aside is released first, to
         /// free memory. The per-node quota (@ref max_extended_labels_per_node) is also lowered to

@@ -81,11 +81,14 @@ struct Pulling {
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };
 
-/// @brief A greedy dive: depth first, the cheapest child first, every feasible label kept and
-///        none behind; at a dead end it goes back to the last label still waiting, and each path
-///        to a sink is recorded when its label is taken. Forward only.
+/// @brief A greedy dive: depth first, the cheapest child first. Every feasible label is kept,
+///        with no dominance test (@c parts::AdmitAll), but only while it waits to be taken:
+///        nothing stays at the nodes behind the dive (@c parts::KeepWhileWaiting). At a dead end
+///        the dive goes back to the last label still waiting. Each path to a sink is recorded
+///        when its label is taken. Forward only.
 ///
-/// @c max_iterations counts the labels taken, as in every labelling search.
+/// @c max_iterations counts the labels taken. With no limit (the default), Greedy tries every
+/// path, and so finds the optimum, with work that grows with the number of paths.
 struct Greedy {
         template <typename ResourceType, typename Direction>
         using schedule = parts::DepthFirstSchedule<ResourceType>;

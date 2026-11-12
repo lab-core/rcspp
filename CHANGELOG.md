@@ -8,8 +8,9 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Behaviour changes
 
-- **Greedy runs on the labelling kernel**, as a dive: depth first, the cheapest child first, every
-  feasible label kept and none behind (`parts::DepthFirstSchedule`, `AdmitAll`, `KeepWhileWaiting`). It
+- **Greedy runs on the labelling kernel**, as a dive: depth first, the cheapest child first,
+  keeping every feasible label until it is extended, and storing none at the nodes
+  (`parts::DepthFirstSchedule`, `AdmitAll`, `KeepWhileWaiting`). It
   draws the same labels, in the same order, and returns the same paths as before, with these
   differences:
   - **`max_iterations` counts the labels taken**, as in every labelling search; it counted dives.
@@ -331,13 +332,12 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Fixed
 
-- **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs**
-  (Simple, A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
+- **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs** (Simple,
+  A\*, Pushing and Pulling, forward and backward, and Greedy). The prune now compares a label's cost
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it
-  compared the cost alone, and a label whose path goes on to a negative arc could be dropped.
-  Under a cost that is not additive there is no valid bound, and the prune compares the cost
-  alone, as before. A solve with the prune on runs one Bellman–Ford pass more, to compute the
-  bound.
+  compared the cost alone, and a label whose path goes on to a negative arc could be dropped. Under
+  a cost that is not additive there is no valid bound, and the prune compares the cost alone, as
+  before. A solve with the prune on runs one Bellman–Ford pass more, to compute the bound.
 - **A second memory-pressure event no longer erases a label twice.** Each event after the first
   releases the labels the quota or the memory trim stored aside, erasing each from its node
   through the position it was stored with. A label stored aside stays at its node, and when a
