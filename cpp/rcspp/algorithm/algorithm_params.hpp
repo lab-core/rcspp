@@ -64,14 +64,35 @@ struct AlgorithmBaseParams {
         // whether to also return dominated solutions found at the sink nodes
         bool return_dominated_solutions = false;
 
-        // if true, prune label if greater than the best upper bound
+        /// @brief Whether a search drops a label that cannot lead to a path cheaper than the
+        ///        incumbent (the cheapest path found so far in this solve, or the solve's upper
+        ///        bound until one is found): its cost plus its completion bound is at or above the
+        ///        incumbent (default false).
+        ///
+        /// Exact under an additive cost: one Bellman–Ford run per solve computes the bound. Under
+        /// another cost, the label's cost alone is compared, which may drop the cheapest path when
+        /// arcs have negative costs. (Pushing, Pulling and A*, not yet on the labelling kernel,
+        /// still compare the cost alone.)
         bool prune_by_incumbent = false;
 
-        // truncated labeling: at most this many labels extended per node in each phase
+        /// @brief The per-node quota: at most this many labels are taken at each node in each
+        ///        phase (no limit by default, @ref kNoLimit).
+        ///
+        /// A non-dominated label over its node's quota is not lost: a single-direction search
+        /// stores it aside and extends it in the next phase (@ref max_phases). A bidirectional
+        /// search, which runs one phase, abandons it: it stays in its node's container, never
+        /// extended. Labels still stored aside, or abandoned, when the solve ends make it
+        /// @c AlgorithmStatus::Truncated. Memory pressure may lower the quota
+        /// (@ref memory_pressure_max_labels_per_node).
         size_t max_extended_labels_per_node = kNoLimit;
 
-        // maximum number of passes for the resolution if previous pass ended early with not enough
-        // solutions
+        /// @brief How many phases a solve may run (default 1).
+        ///
+        /// A phase extends labels until none waits or a stop applies. When labels were stored
+        /// aside (by the per-node quota or a memory-pressure trim), the next phase puts them
+        /// back and extends them, with the per-node counts started again. Labels still stored
+        /// aside after the last phase make the solve @c AlgorithmStatus::Truncated. A
+        /// bidirectional search runs one.
         size_t max_phases = 1;
 
         // maximum number of iterations/loops (for algorithms that use it)
@@ -199,12 +220,18 @@ struct AlgorithmBaseParams {
         /// growth reaches the hard limit.  Default 0.8 triggers at 80 %.
         double memory_pressure_fraction = kDefaultMemoryPressureFraction;
 
-        /// @brief Max unprocessed labels to retain per node under memory pressure.
+        /// @brief How many waiting labels a memory-pressure trim keeps, per node (default 200).
         ///
-        /// When @ref on_memory_pressure() fires, each per-node unprocessed
-        /// queue is trimmed to this many entries (cheapest labels kept).
-        /// Dominated excess labels are recycled; non-dominated excess labels
-        /// are stored for a future phase, consistent with truncated labeling.
+        /// Each time a memory check finds the pressure threshold reached
+        /// (@ref memory_pressure_fraction), the search trims the labels waiting to be extended.
+        /// `Pushing` and `Pulling` keep this many at each node; `Simple` and `AStar` keep this
+        /// many times the number of nodes in all, the best (non-dominated, then cheapest; A* by
+        /// its key). Of the labels trimmed, a dominated one is released, and a non-dominated one
+        /// is stored aside for the next phase, or abandoned on a side of a bidirectional search.
+        /// From the second trim of a solve on, every label stored aside is released first, to
+        /// free memory. The per-node quota (@ref max_extended_labels_per_node) is also lowered to
+        /// this value for the rest of the solve. The result may then not be optimal
+        /// (@c Algorithm::memory_pressure_was_triggered).
         size_t memory_pressure_max_labels_per_node = kDefaultMemoryPressureMaxLabelsPerNode;
 
         /// @brief Wrap these base params in an AlgorithmParams with the given container.

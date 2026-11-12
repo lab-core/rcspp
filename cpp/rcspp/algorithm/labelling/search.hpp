@@ -35,11 +35,20 @@ namespace rcspp::detail {
 // Every part reads the solve through the search's context (SearchContext): the graph, the params,
 // the label pool, the completion bound, the incumbent and the search's role.
 //
-// One step (step) takes a label off the schedule and runs the take rule on it (TakeRule: the live
-// checks, then the fixed ones). If the label passes, the step extends it along every arc leaving
-// its node (Search::extend_along: look-ahead, extension, feasibility, admission; a kept label is
-// stored, queued and reported). The solutions are the end-node labels, read when the search ends
-// (KeepAtNodes).
+// A solve, step by step:
+//   1. Start: an empty search, its context, its completion bound when something reads it
+//      (compute_completion_bound), and one start label per start node.
+//   2. The loop: `step` until no label waits or a stop applies (a budget, an interrupt, the memory
+//      limit). One step takes a label off the schedule and runs the take rule on it (TakeRule:
+//      the live checks, then the fixed ones). If the label passes, the step extends it along
+//      every arc leaving its node (Search::extend_along: look-ahead, extension, feasibility,
+//      admission; a kept label is stored, queued and reported).
+//   3. The next phase: if the per-node quota or memory pressure stored labels aside, they are
+//      queued again and the loop runs again, up to max_phases phases.
+//   4. The solutions: the end-node labels, read when the search ends (KeepAtNodes).
+//
+// Who runs the searches:
+//   - LabellingAlgorithm runs one search, forward or backward.
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a
@@ -59,6 +68,11 @@ namespace rcspp::detail {
 //                     next phase (parts::StoredAsideLabels).
 //   abandon           what a bidirectional side does with a cut label: leaves it in its
 //                     container, never extended, and counts it.
+//   run               one call of main_loop, one turn of Algorithm::solve's loop. A search
+//                     that is not driven makes one run per phase; a driven one (Driven)
+//                     makes as many as its driver asks, each of up to max_phases phases.
+//   phase             one pass over the labels waiting; the next phase starts with the labels
+//                     stored aside.
 //   role              whether the search runs alone or as a side of a bidirectional search
 //                     (Role).
 //   half-way point    where a bidirectional side stops: a label past it is kept, not extended.

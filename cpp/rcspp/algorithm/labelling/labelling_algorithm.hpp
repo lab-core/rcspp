@@ -12,6 +12,7 @@
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
+#include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
@@ -28,11 +29,15 @@ namespace rcspp::detail {
 /// @brief A single-direction labelling search assembled from @p PartsType: one @ref Search, run
 ///        by the one @ref step, in @p Direction.
 ///
-/// Each solve starts with an empty schedule and one start label per start node; the loop takes
-/// one unit of work per iteration until the schedule is empty or a stop applies, checking the
-/// memory first; the solutions are read from the labels at the end nodes at the end. A forward
-/// label holds the path from a source to its node; a backward label, the path from its node to a
-/// sink.
+/// Each solve starts with an empty schedule and one start label per start node. The loop
+/// (@ref main_loop) runs one @c step per iteration until the schedule is empty or a stop applies:
+/// that is one phase. A label the per-node quota (`max_extended_labels_per_node`) or memory
+/// pressure cuts is not lost. The schedule stores it aside, and @ref prepare_next_phase queues it
+/// again for the next phase, up to `max_phases` (@c Algorithm::solve). Solutions are recorded
+/// when a step takes an end-node label, if the retention records at take or
+/// `return_dominated_solutions` is set, and after each phase from the labels stored at the end
+/// nodes. A forward label holds the path from a source to its node; a backward label, the path
+/// from its node to a sink.
 ///
 /// @tparam ResourceType       The resource type carried by labels.
 /// @tparam LabelContainerType The per-node container its params hold; a backward search keeps it
@@ -66,12 +71,17 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             search_.reset(graph->get_number_of_nodes(),
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
+            // The incumbent prune adds the completion bound whenever it is valid (an additive
+            // cost), so the bound is computed then.
+            search_.completion_bound = context_.prune_adds_completion_bound
+                                           ? compute_completion_bound<Direction>(*graph)
+                                           : CompletionBound<ResourceType>{};
             search_.schedule.initialize(context_);
         }
 
         void initialize_labels() override {
-            // Release every label of the previous solve (pending ones included), so the pool
-            // starts afresh.
+            // At the start of a solve the pool is already empty (Algorithm::initialize clears
+            // it), so this releases nothing: it only makes the start safe to repeat.
             this->label_pool_.release_all_labels();
             search_.create_start_labels(*this->graph_, &this->label_pool_);
         }
@@ -80,6 +90,7 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
             return search_.schedule.size();
         }
 
+        /// @brief One phase: at most `max_iterations` steps. Each phase has its own count.
         void main_loop() override {
             size_t iteration = 0;
             while (number_of_waiting_labels() > 0 && !this->should_end_loop(iteration)) {
@@ -105,8 +116,19 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
         void print_labels() const override { search_.print(*this->graph_); }
 
+        /// @brief Queues again what the schedule's cuts stored aside, and resets its per-node
+        ///        counts.
+        ///
+        /// Called between phases (@c Algorithm::solve), and once more at the end of the solve, so
+        /// that labels still held back count as waiting and the status reads Truncated.
         void prepare_next_phase() override { search_.schedule.prepare_next_phase(context_); }
 
+        /// @brief Relieves memory pressure (@c Algorithm::relieve_memory_pressure): the quota
+        ///        drops to `memory_pressure_max_labels_per_node`, and the schedule keeps about
+        ///        that many labels per node and stores the rest aside for the next phase. From
+        ///        the second call on, what the earlier calls stored aside is released first, and
+        ///        is lost. Any call makes the result possibly not optimal
+        ///        (@c Algorithm::memory_pressure_was_triggered).
         void on_memory_pressure() override { this->relieve_memory_pressure(search_, context_); }
 
         /// @brief Releases the pool, then forgets the containers and the schedule, so that no
