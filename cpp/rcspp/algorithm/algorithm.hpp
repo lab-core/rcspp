@@ -156,7 +156,7 @@ class Algorithm {
                 // main labeling loop
                 main_loop();
 
-                // extract solutions any remaining solutions
+                // record the paths the run left at the end nodes
                 record_remaining_solutions();
 
                 // prepare next phase (if any)
@@ -184,7 +184,7 @@ class Algorithm {
             // Put back the labels a phase held back (truncated labeling, memory pressure) before
             // the status is read: they were never extended, so a run that used up its phases with
             // labels held back is Truncated, not Complete, whether or not the labels are released
-            // below. When they are kept, this also readies the next solve().
+            // below.
             prepare_next_phase();
 
             // sort solutions
@@ -397,14 +397,21 @@ class Algorithm {
             record_path(label.get_cost(), std::move(arc_ids), end_node_id);
         }
 
-        /// @brief The context of one search of this solve: every pointer is this algorithm's
-        ///        member, or the search's bound.
+        /// @brief Builds the context one search of this solve reads (@c detail::SearchContext).
         ///
-        /// @param search    The search (a @c detail::Search); its bound is the one the context
-        ///                  reads.
+        /// Every pointer in it points to the graph being solved, into this algorithm (its pool,
+        /// params, incumbent, quota and solutions), or into @p search (its completion bound): the
+        /// context is valid while this algorithm and the search live. It also says whether the
+        /// incumbent prune adds the completion bound (@c prune_adds_completion_bound: the prune is
+        /// on and the cost is additive, @ref is_cost_additive).
+        ///
+        /// @param search    The search (a @c detail::Search).
         /// @param role      Whether it runs alone or as a side of a bidirectional search.
-        /// @param number_of_abandoned_labels A side: counts the labels its cuts abandon.
-        /// @param half_way  A side: where it stops.
+        /// @param number_of_abandoned_labels For a bidirectional side only (null otherwise): the
+        /// counter of the
+        ///                  labels its cuts abandon.
+        /// @param half_way  For a bidirectional side only (null otherwise): the half-way point
+        ///                  past which the side does not extend a label.
         template <typename SearchType>
         detail::SearchContext<ResourceType> make_context(
             // NOLINTNEXTLINE(readability-non-const-parameter): stored in the context
@@ -421,17 +428,35 @@ class Algorithm {
                 .admission = {},
                 .completion_bound = &search.completion_bound,
                 .role = role,
+                .prune_adds_completion_bound =
+                    params_.prune_by_incumbent && is_cost_additive(*graph_),
                 .number_of_abandoned_labels = number_of_abandoned_labels,
                 .half_way = half_way,
             };
         }
 
-        /// @brief Relieves memory pressure on one search: tightens the per-node quota to
-        ///        @c memory_pressure_max_labels_per_node (never loosening it), releases what an
-        ///        earlier call stored aside, sets the pressure flag, and has the schedule trim.
+        /// @brief Whether the cost of @p graph's model is additive (@c Resource::is_cost_additive,
+        ///        read off any node's resource): the completion bound is then a valid lower bound
+        ///        on the cost still to pay, which the incumbent prune can add.
+        static bool is_cost_additive(const Graph<ResourceType>& graph) {
+            for (const size_t node_id : graph.get_node_ids()) {
+                const auto* node = graph.get_node(node_id);
+                if (node != nullptr && node->resource != nullptr) {
+                    return node->resource->is_cost_additive();
+                }
+            }
+            return true;
+        }
+
+        /// @brief Relieves memory pressure on one search.
         ///
-        /// What the trim cuts is stored aside, or abandoned and counted on a bidirectional side.
-        /// The result may be non-optimal; @ref memory_pressure_was_triggered reports it.
+        /// In order: lowers the per-node quota to @c memory_pressure_max_labels_per_node (never
+        /// raising it); on every call but the first of the solve, releases every label the
+        /// search has stored aside in this phase, whether the quota or an earlier trim stored
+        /// it (those labels are lost); sets the pressure flag; and has the schedule trim its
+        /// waiting labels. What the trim takes off is stored aside, or abandoned and counted on
+        /// a bidirectional side (which stores nothing aside, so the release finds nothing
+        /// there). The result may then not be optimal (@ref memory_pressure_was_triggered).
         ///
         /// @param search The search (a @c detail::Search).
         /// @param context    Its context.
