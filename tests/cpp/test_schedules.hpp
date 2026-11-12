@@ -687,8 +687,8 @@ struct Dive {
 
 }  // namespace dfs_test
 
-/// @brief Labels pushed and not settled (the start labels) come out in the order pushed; a label's
-///        children, once settled, come out next, cheapest first and in their order on ties, each
+/// @brief Labels pushed and not placed (the start labels) come out in the order pushed; a label's
+///        children, once placed, come out next, cheapest first and in their order on ties, each
 ///        child's own children before its next sibling.
 TEST(DepthFirstSchedule, HandsOutEachLabelsChildrenCheapestFirstBeforeTheirSiblings) {
     namespace st = schedules_test;
@@ -705,19 +705,19 @@ TEST(DepthFirstSchedule, HandsOutEachLabelsChildrenCheapestFirstBeforeTheirSibli
     dfs.push(f.label(1, 3.0));
     dfs.push(f.label(1, 1.0));
     dfs.push(f.label(2, 1.0));
-    dfs.place_children(f.context);
+    dfs.place_children(f.context, parts::IgnoreErase<st::Composed>{});
     EXPECT_EQ(dfs.size(), 4U);
     const auto first = dfs.next(f.context);
     EXPECT_EQ(first.label->get_end_node()->id, 1U);
     EXPECT_EQ(first.label->get_cost(), 1.0);
 
     dfs.push(f.label(2, 0.5));
-    dfs.place_children(f.context);
+    dfs.place_children(f.context, parts::IgnoreErase<st::Composed>{});
     EXPECT_EQ(bft::drain(&dfs, f.context),
               (std::vector<std::pair<size_t, double>>{{2, 0.5}, {2, 1.0}, {1, 3.0}, {0, 9.0}}));
 }
 
-/// @brief The children the filter drops are released when they are settled; the others keep
+/// @brief The children the filter drops are released when they are placed; the others keep
 ///        their order.
 TEST(DepthFirstSchedule, ReleasesTheChildrenTheFilterDrops) {
     namespace st = schedules_test;
@@ -728,7 +728,7 @@ TEST(DepthFirstSchedule, ReleasesTheChildrenTheFilterDrops) {
     for (const double cost : {2.0, 1.5, 4.0, 0.5}) {
         dfs.push(f.label(1, cost));
     }
-    dfs.place_children(f.context);
+    dfs.place_children(f.context, parts::IgnoreErase<st::Composed>{});
     EXPECT_EQ(f.in_use(), 2U);
     EXPECT_EQ(bft::drain(&dfs, f.context),
               (std::vector<std::pair<size_t, double>>{{1, 0.5}, {1, 1.5}}));
@@ -747,7 +747,7 @@ TEST(DepthFirstSchedule, CutsWhatTheQuotaCutsAsTheRoleSays) {
         dfs.push(f.label(1, 2.0));
         dfs.push(f.label(1, 1.0));
         dfs.push(f.label(1, 0.5, /*dominated=*/true));
-        dfs.place_children(f.context);
+        dfs.place_children(f.context, parts::IgnoreErase<st::Composed>{});
         EXPECT_EQ(bft::drain(&dfs, f.context), (std::vector<std::pair<size_t, double>>{{1, 1.0}}));
         EXPECT_EQ(f.in_use(), 2U) << "the dominated label is released";
         dfs.prepare_next_phase(f.context);
