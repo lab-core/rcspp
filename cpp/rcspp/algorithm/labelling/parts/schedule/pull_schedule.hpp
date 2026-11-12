@@ -13,15 +13,28 @@
 
 namespace rcspp::parts {
 
-/// @brief Visits the nodes one at a time, in the sweep order of @p Direction, pulling into each
-///        from the labels waiting at the nodes its in-arcs come from (Pulling's order).
+/// @brief Visits the nodes one at a time, in the sweep order of @p Direction, and pulls into
+///        each: along each arc into the node, it extends the labels waiting at the node the arc
+///        comes from (Pulling's order).
 ///
-/// A visit first puts the last node's new labels back in that node's queue, where its successors
-/// pull them from; then moves to the next node; on the first sweep it keeps the
-/// labels already waiting there, on later loops it drops them (they have been pulled from); then
-/// pulls along each of the node's in-arcs (@c Direction::in_arcs, from @c Direction::tail) and
-/// cuts the node's new labels to the per-node quota, unless the node is an end node. The caller
-/// then filters those labels (@ref current, @ref remove_current).
+/// A visit (@ref visit_next_node) does, in order:
+/// 1. It puts the previous node's new labels back in that node's queue, where the nodes its
+///    arcs lead to will pull them from.
+/// 2. It moves to the next node, wrapping around at the end of the sweep.
+/// 3. On the first sweep, it keeps the labels already waiting at the node (start
+///    labels, or labels a cut stored aside for this phase). On a later sweep, it drops them from
+///    the schedule: every node they lead to has been visited, and has pulled from them, since
+///    this node's last visit. A dropped label stays stored at its node (the retention), where
+///    dominance and the end of the solve read it.
+/// 4. It pulls along each of the node's in-arcs in the direction's sense
+///    (@c Direction::in_arcs, from @c Direction::tail).
+/// 5. It cuts the node's labels to the per-node quota, unless the node is an end node. An
+///    end-node label is never extended, and the quota limits the labels extended.
+///
+/// The caller then runs the take rule on the node's labels (@ref current), and takes off
+/// those it drops (@ref remove_current; @c detail::step_node). The first visit is to the sweep's
+/// second node. The first node is pulled from on the first sweep, and pulled into only from the
+/// second loop.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 /// @tparam Direction    @ref ForwardDirection or @ref BackwardDirection.
@@ -46,7 +59,8 @@ class PullSchedule {
                 first_sweep_ = false;  // a new sweep starts
             }
             if (!first_sweep_) {
-                // Once a loop has been made, the labels waiting here have been pulled from.
+                // Every node these labels lead to has been visited since this node's last visit,
+                // and has pulled from them; they stay stored at the node.
                 queues_.drop_current();
             }
 
@@ -61,7 +75,8 @@ class PullSchedule {
                 }
             }
 
-            // Cut the number of labels extended per node (unless an end node).
+            // The quota limits the labels extended: an end-node label is never extended, so an
+            // end node is not cut.
             if (!Direction::is_end_node(node)) {
                 queues_.cut_to(context, *context.quota);
             }
@@ -70,14 +85,15 @@ class PullSchedule {
         /// @brief The new labels of the node being visited.
         queue_type& current() { return queues_.current(); }
 
-        /// @brief Takes the label at @p position off the node's new labels.
+        /// @brief Takes the label at @p position off the node's new labels. It stays stored at
+        ///        its node: this does not erase it from the node's container.
         ///
         /// @return The position after it.
         typename queue_type::iterator remove_current(typename queue_type::iterator position) {
             return queues_.remove_current(position);
         }
 
-        /// @brief The labels waiting.
+        /// @brief The labels it holds, the current node's included.
         [[nodiscard]] size_t size() const { return queues_.size(); }
 
         /// @brief Queues a newly kept label at its node.
@@ -89,7 +105,7 @@ class PullSchedule {
             queues_.restore_stored_aside();
         }
 
-        /// @brief Cuts every node's queue to its @p limit cheapest labels.
+        /// @brief Cuts every node's queue to its @p limit best labels.
         void trim(detail::SearchContext<ResourceType>& context, size_t limit) {
             queues_.trim(context, limit);
         }
