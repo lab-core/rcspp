@@ -12,7 +12,7 @@ equal to `origin` the same day: `e764bc87`, `00e8c0b9`, `76b873c5`, `fce956b3`, 
 | `fold-map-targets.md` | where each §7 item goes; each PR head's builds, tests and description; the final state |
 | `tools/fold_filter.py` | the snapshot filter (writes objects only, never a ref) |
 
-## 1. Method (`D-154`, proposed)
+## 1. Method (`D-154`)
 
 Three passes, in this order, from the eight current branches (never from the prototype):
 
@@ -78,7 +78,7 @@ the hand-written files (not produced by A: the five CMake files, `bindings.cmake
 With `Q-56`, pure-layer residue: `__init__.py:3-8` (written against the C++-backed `rcspp.column_generation`;
 `221af3f0`), `master_problem.py:146` comment ("the C++-backed layer's" → the example's; `ca634a3c`).
 
-## 3. Rewrite order and checks (`D-158`, proposed)
+## 3. Rewrite order and checks (`D-158`)
 
 | step | do | check |
 |---|---|---|
@@ -93,15 +93,15 @@ With `Q-56`, pure-layer residue: `__init__.py:3-8` (written against the C++-back
 Build folders (`F-51`, `F-52`): a fresh MSVC folder per head with the option on (exports.def, junction), one off
 folder reused; delete `rcspp.dir/Release/exports.def` when the objects change.
 
-## 4. Raised with the user (not decided here)
+## 4. Raised with the user (decided 2026-11-12: `D-159`–`D-162`)
 
-| ID | question | proposal |
+| ID | question | outcome |
 |---|---|---|
-| `Q-56` | Rename the pure package to `rcspp.column_generation` in #88? | yes, as the user prefers: the filter maps it from its first commit, so #88 adds `rcspp.column_generation` directly and no rename commit exists; #77 never adds a C++-backed `rcspp.column_generation` |
-| `Q-57` | New names (`D-12`): the example's Python tests share basenames with the renamed pure tests (`F-55`) | `X/tests/python/test_cpp_column_generation*.py` and `cpp_column_generation_fakes.py`, after the package |
-| `Q-58` | The old-flag configure error (`USE_COLUMN_GENERATION*` stops the configure) | drop it: after the fold no commit ever had those options (`F-55`); the PR descriptions say it once |
-| `Q-59` | Shipped: the wheel installs only its `python` component (`install.components`), which came with the wheel's HiGHS (`77a43e27`) | keep it, moved to `2e0bdb37` with its own reason: without it the wheel also gets the C++ library, headers and CMake package that the plain install adds |
+| `Q-56` | Rename the pure package to `rcspp.column_generation` in #88? | yes, as the user prefers: the filter maps it from its first commit, so #88 adds `rcspp.column_generation` directly and no rename commit exists; #77 never adds a C++-backed `rcspp.column_generation` → `D-159` |
+| `Q-57` | New names (`D-12`): the example's Python tests share basenames with the renamed pure tests (`F-55`) | `X/tests/python/test_cpp_column_generation*.py` and `cpp_column_generation_fakes.py`, after the package → `D-160` |
+| `Q-58` | The old-flag configure error (`USE_COLUMN_GENERATION*` stops the configure) | drop it: after the fold no commit ever had those options (`F-55`); the PR descriptions say it once → `D-161` |
+| `Q-59` | Shipped: the wheel installs only its `python` component (`install.components`), which came with the wheel's HiGHS (`77a43e27`) | keep it, moved to `2e0bdb37` with its own reason: without it the wheel also gets the C++ library, headers and CMake package that the plain install adds → `D-162` |
 
-Decided in this map, proposed (not shipped, no new name): `D-154` (method), `D-155` (the example's CMake written in
+Decided in this map, accepted by the user 2026-11-12: `D-154` (method), `D-155` (the example's CMake written in
 its final form where it first appears), `D-156` (`[tool.pyright]` moves to #77), `D-157` (no static
 `rcspp_column_generation`), `D-158` (order, CI per PR, README in #80).

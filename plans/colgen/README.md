@@ -54,8 +54,8 @@ backups `backup/colgen-<name>-before-main-rebase`, worktree `../rcspp-rebase`; 7
 renames applied in the commits that brought the old names; every head passes on MSVC, #88 on Linux gcc 13.
 `F-53` decided 2026-11-12 (`D-152`, `D-153`); the eight branches force-pushed by the user (checked equal to `origin`
 2026-11-12). Fold map written 2026-11-12 (`fold-map.md`, `fold-map-commits.md`, `fold-map-targets.md`; filter
-`tools/fold_filter.py`, dry run `F-54`, traps `F-55`): 90 commits → 89, proposed `D-154`–`D-158`. **Next:** the user
-answers `Q-56`–`Q-59` and accepts `D-154`–`D-158`; then the rewrite chat (`fold-map.md` §3); `T-1.18` can run beside
+`tools/fold_filter.py`, dry run `F-54`, traps `F-55`): 90 commits → 89, `D-154`–`D-158` accepted 2026-11-12,
+`Q-56`–`Q-59` decided (`D-159`–`D-162`). **Next:** the rewrite chat (`fold-map.md` §3); `T-1.18` can run beside
 it; `T-1.19` after the layout; `drivers.py` after the push.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
