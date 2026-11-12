@@ -56,8 +56,9 @@ result = rg.solve(algorithm="simple")
 
 Like `Pushing`, node by node in sweep order (ascending positions forward, descending backward).
 But each visit *pulls* into the node the labels of its predecessors (forward) or successors
-(backward), instead of each label being *pushed* along its out-arcs. It searches forward and
-backward.
+(backward), instead of each label being *pushed* along its out-arcs. It searches forward, backward
+and bidirectionally; bidirectionally, a label past the half-way point is stored but never pulled
+from.
 
 ## `Bidirectional`
 

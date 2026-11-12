@@ -252,6 +252,21 @@ TEST(LabellingStrategiesTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArcBa
     check(make_prune_negative_arc_graph()->solve<strategy::Pulling>(params), "Pulling");
 }
 
+/// @brief Bidirectionally too (the half-way point off): each side adds its completion bound.
+TEST(LabellingStrategiesTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArcBidirectionally) {
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    params.direction = SearchDirection::Bidirectional;
+    const auto check = [&params](const auto& result, const char* name) {
+        EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0) << name;
+        EXPECT_EQ(result.status, AlgorithmStatus::Complete) << name;
+    };
+    check(make_prune_negative_arc_graph()->solve<strategy::Simple>(params), "Simple");
+    check(make_prune_negative_arc_graph()->solve<strategy::AStar>(params), "AStar");
+    check(make_prune_negative_arc_graph()->solve<strategy::Pushing>(params), "Pushing");
+    check(make_prune_negative_arc_graph()->solve<strategy::Pulling>(params), "Pulling");
+}
+
 /// @brief The same for Pulling.
 TEST(PullingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
     auto g = make_prune_negative_arc_graph();
