@@ -56,7 +56,8 @@ renames applied in the commits that brought the old names; every head passes on 
 2026-11-12). Fold map written 2026-11-12 (`fold-map.md`, `fold-map-commits.md`, `fold-map-targets.md`; filter
 `tools/fold_filter.py`, dry run `F-54`, traps `F-55`): 90 commits → 89, `D-154`–`D-158` accepted 2026-11-12,
 `Q-56`–`Q-59` decided (`D-159`–`D-162`). **Next:** the rewrite chat (`fold-map.md` §3); `T-1.18` can run beside
-it; `T-1.19` after the layout; `drivers.py` after the push.
+it; `T-1.19` after the layout (also the benchmark's pure C++ leg, `D-164`); `drivers.py` after the push; then
+`T-1.20` (many cheap iterations over three legs, `F-56`, `D-163`), a colleague's question of 2026-11-12.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
