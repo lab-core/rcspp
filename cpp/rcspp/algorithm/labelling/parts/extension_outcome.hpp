@@ -12,7 +12,9 @@ enum class ExtensionOutcome : std::uint8_t {
     Unreachable,  ///< the look-ahead ruled the arc out; no label was drawn
     Infeasible,   ///< the extended label failed its feasibility test and was released
     Rejected,     ///< the admission rule rejected the extended label, which was released
-    Accepted,     ///< the extended label was kept and handed on to be extended in turn
+    /// the extended label was kept and handed on: extended in turn or, at an end node, read as a
+    /// path, when it is taken or once the search ends, as the retention says
+    Accepted,
 };
 
 }  // namespace rcspp::parts

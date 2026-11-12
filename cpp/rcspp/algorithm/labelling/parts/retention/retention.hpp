@@ -13,21 +13,44 @@ namespace rcspp::parts {
 
 /// @brief Where the labels a search keeps live, and what an admission rule may do to a node.
 ///
-/// @c node gives the view an admission rule reads and evicts through; @c store keeps a label at
-/// its node and returns its position there; @c erase takes a stored label out.
-/// @c records_at_take says whether solutions are recorded when an end-node label is taken,
-/// because nothing stays at the end nodes to read them from at the end.
+/// The strategy chooses the retention: whether labels are stored at the nodes at all. The user
+/// chooses the container, through the params (@c LabelList, @c LabelBuckets): how they are
+/// stored. A retention that stores labels owns one container per node, of that type, and forwards
+/// to it, so the kernel reaches storage through one interface.
+///
+/// The search calls:
+/// - @c reset(number_of_nodes, prototype) at the start of each solve: one container per node, each
+/// a
+///   copy of @p prototype;
+/// - @c node(pos), the view an admission rule reads and evicts through (@ref NodeView);
+/// - @c store(pos, label), which keeps a newly admitted label at its node and returns its position
+///   there, and @c erase(position), which takes a stored label out;
+/// - @c labels_at(pos), the labels stored at a node: the end nodes' are read as the solutions when
+///   the loop ends (@c Search::labels_at_end_nodes);
+/// - @c containers(), every node's container (@c Search::print);
+/// - @c clear(), which forgets every label, releasing none (@c Search::clear).
+///
+/// @c records_at_take says whether a solution is recorded when its end-node label is taken,
+/// rather than read from the end nodes when the loop ends: a retention that stores nothing at the
+/// end nodes must say @c true.
 ///
 /// @tparam RetentionType The retention.
 /// @tparam ResourceType  The resource type carried by labels.
-template <typename RetentionType, typename ResourceType>
-concept Retention = requires(RetentionType retention, size_t pos, Label<ResourceType>* label,
-                             const typename std::list<Label<ResourceType>*>::iterator& position) {
+/// @tparam ContainerType The per-node container of the params.
+template <typename RetentionType, typename ResourceType, typename ContainerType>
+concept Retention = requires(RetentionType retention, const RetentionType const_retention,
+                             size_t pos, Label<ResourceType>* label,
+                             const typename std::list<Label<ResourceType>*>::iterator& position,
+                             const ContainerType& prototype) {
+    retention.reset(pos, prototype);
+    retention.clear();
     retention.node(pos);
     {
         retention.store(pos, label)
     } -> std::same_as<typename std::list<Label<ResourceType>*>::iterator>;
     retention.erase(position);
+    const_retention.labels_at(pos);
+    const_retention.containers();
     { RetentionType::records_at_take } -> std::convertible_to<bool>;
 };
 

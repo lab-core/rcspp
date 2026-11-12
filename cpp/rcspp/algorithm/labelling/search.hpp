@@ -25,8 +25,48 @@
 
 namespace rcspp::detail {
 
-/// @brief A named combination of a search's parts. Every member is a type, so a preset costs
-///        nothing at run time.
+// ─── How a labelling solve runs ─────────────────────────────────────────────────────────────
+//
+// A search (Search) is one direction's labels and four parts, named by a SearchParts:
+//   - the schedule (parts::Schedule) holds the labels waiting to be extended and picks the next;
+//   - the admission rule (parts::Admission) says whether a new label is kept at its node;
+//   - the retention (parts::Retention) says where kept labels live;
+//   - the observer (parts::Observer) is told how each extension ended.
+// Every part reads the solve through the search's context (SearchContext): the graph, the params,
+// the label pool, the completion bound, the incumbent and the search's role.
+//
+// One step (step) takes a label off the schedule and runs the take rule on it (TakeRule: the live
+// checks, then the fixed ones). If the label passes, the step extends it along every arc leaving
+// its node (Search::extend_along: look-ahead, extension, feasibility, admission; a kept label is
+// stored, queued and reported). The solutions are the end-node labels, read when the search ends
+// (KeepAtNodes).
+//
+// Words used throughout:
+//   end node          where a path ends in the search's direction: a sink going forward, a
+//                     source going backward. A start node is the other end.
+//   upper bound       the cost the caller asked to beat; only cheaper paths are solutions.
+//   incumbent         the cost of the best path found so far in this solve.
+//   completion bound  a lower bound on the cost still to pay from a node to an end node (A*'s h).
+//   hand out / take   a schedule hands out a label: its next() takes the label off the schedule
+//                     and gives it to the step, which takes it.
+//   live / fixed      the take rule's checks whose answer can change while a label waits, and
+//                     those whose answer is fixed when the label is created.
+//   erase / release   erase: take a label out of its node's container; release: give it back to
+//                     the pool, through the reference counts (a label pins its predecessor).
+//   cut               the per-node quota or a trim under memory pressure takes a non-dominated
+//                     label out of the work.
+//   store aside       what a single-direction search does with a cut label: keeps it for the
+//                     next phase (parts::StoredAsideLabels).
+//   abandon           what a bidirectional side does with a cut label: leaves it in its
+//                     container, never extended, and counts it.
+//   role              whether the search runs alone or as a side of a bidirectional search
+//                     (Role).
+//   half-way point    where a bidirectional side stops: a label past it is kept, not extended.
+//   search            one direction's labels and parts (Search). An algorithm runs one search, or
+//                     two (its sides).
+
+/// @brief The parts of one @ref Search, as member types: its schedule, admission rule,
+///        retention and observer. Every member is a type, so it costs nothing at run time.
 ///
 /// @tparam ScheduleType      The order labels are taken in (@c parts::Schedule).
 /// @tparam AdmissionType     Whether a new label is kept (@c parts::Admission).
@@ -102,10 +142,17 @@ struct Search {
 
         /// @brief Extends @p label along @p arc.
         ///
-        /// In this order: the look-ahead (an unreachable head draws no label); a label is drawn
-        /// and extended; an infeasible one is released; the admission rule decides; a kept label
-        /// is stored, queued, and pinned to @p label (its predecessor stays alive until it is
-        /// released); a rejected one is released at once. The observer is told every outcome.
+        /// The steps, in order; each of the first three can end the extension:
+        ///  1. @c Unreachable: when @p label can no longer reach the arc's head (the look-ahead,
+        ///     @c Label::is_reachable), the arc is skipped; no label is taken from the pool.
+        ///  2. @c Infeasible: a label is taken from the pool and extended along the arc; when it
+        ///     fails its feasibility test it goes back to the pool at once.
+        ///  3. @c Rejected: the admission rule decides whether to keep the new label at its node
+        ///     (it may evict labels there); a rejected label goes back to the pool at once.
+        ///  4. @c Accepted: the new label is stored at its node and pushed to the schedule, and
+        ///     @p label becomes its predecessor. That pins @p label: it is not freed while the new
+        ///     label is alive (@c Label::ref_count).
+        /// The observer is told the outcome in every case.
         ///
         /// @param label The label to extend.
         /// @param arc   The arc to extend it along, one @p Direction walks from its node.
@@ -154,7 +201,9 @@ struct Search {
             return ExtensionOutcome::Accepted;
         }
 
-        /// @brief Carries out what the take rule decided for a label it did not extend.
+        /// @brief Carries out the take rule's verdict for a label the step does not extend:
+        ///        nothing for @c Keep, release for @c Release, erase then release for
+        ///        @c EraseAndRelease.
         ///
         /// @param taken   The label and its position in its node's container.
         /// @param verdict What to do with it.
@@ -163,7 +212,7 @@ struct Search {
                    LabelPool<ResourceType>* pool) {
             switch (verdict) {
                 case Verdict::Extend:
-                case Verdict::Keep:  // an end-node, boundary or abandoned label stays stored
+                case Verdict::Keep:  // stays stored: at an end node, or past the half-way point
                     return;
                 case Verdict::EraseAndRelease:
                     labels.erase(taken.position);

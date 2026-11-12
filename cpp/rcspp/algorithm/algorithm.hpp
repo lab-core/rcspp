@@ -354,8 +354,9 @@ class Algorithm {
             return false;
         }
 
-        /// @brief Counts one extension of a label along an arc, and logs the progress every
-        ///        100 000.
+        /// @brief Counts one extension of a label along an arc
+        ///        (@ref get_number_of_extended_labels), and logs the progress every
+        ///        @ref kProgressReportInterval extensions.
         ///
         /// Every extension that drew a label counts towards @ref get_number_of_extended_labels:
         /// all but the unreachable ones.
@@ -367,14 +368,16 @@ class Algorithm {
             }
             if (++number_of_extended_labels_ % kProgressReportInterval == 0) {
                 print_labels();
-                LOG_DEBUG("Processed ", number_of_extended_labels_, " labels so far...\n");
+                LOG_DEBUG("Made ", number_of_extended_labels_, " extensions so far...\n");
             }
         }
 
-        /// @brief Records the path a label extended **backward** holds.
+        /// @brief Records the path a backward label at a source holds.
         ///
-        /// Such a label ends at a source, and its path ends at the sink its chain started from:
-        /// the destination of its last arc.
+        /// A backward label is extended from a sink toward the sources: its path runs from the
+        /// label's own node (here a source) to the sink its search started from, which is the
+        /// destination of the path's last arc. A path costing at least the upper bound is dropped
+        /// (@ref record_path).
         ///
         /// @param label A backward label at a source.
         void record_backward_solution(const Label<ResourceType>& label) {

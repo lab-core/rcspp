@@ -28,7 +28,7 @@ constexpr double kDefaultMemoryLimitFraction = 0.9;
 constexpr size_t kDefaultMemoryCheckInterval = 50'000;
 /// Default per-node queue size cap when memory pressure is triggered.
 constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
-/// Number of extended labels between two debug progress reports.
+/// Number of extensions (@c Algorithm::count_extension) between two debug progress reports.
 constexpr size_t kProgressReportInterval = 100'000;
 
 struct AlgorithmBaseParams {

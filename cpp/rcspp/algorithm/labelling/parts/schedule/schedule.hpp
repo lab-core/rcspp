@@ -15,8 +15,9 @@
 
 namespace rcspp::parts {
 
-/// @brief An erase callable for a schedule told to release what it stored aside, when the caller
-///        has no container to erase from: it erases nothing.
+/// @brief An erase callable that erases nothing: the stand-in the @ref Schedule concept checks
+///        @c release_stored_aside with. (The search passes its own, which erases through the
+///        retention: @c Search::erase.)
 template <typename ResourceType>
 struct IgnoreErase {
         void operator()(const LabelIterator<ResourceType>& /*position*/) const {}
@@ -50,8 +51,13 @@ concept Schedule = requires(ScheduleType schedule, const ScheduleType const_sche
     schedule.clear();
 };
 
-/// @brief A schedule that hands out one label at a time: @c next returns it with its position in
-///        its node's container, or a null label once none is left.
+/// @brief A schedule the step takes labels from, one at a time: @c next takes the next label off
+///        the schedule and returns it, with its position in its node's container, or a null label
+///        once none is left.
+///
+/// The step then judges that label and extends it along every arc leaving its node; the children
+/// are pushed back. The schedule no longer holds the label it returned. (To hand out a label is
+/// to take it off the schedule and give it to the step.)
 template <typename ScheduleType, typename ResourceType>
 concept LabelSchedule =
     Schedule<ScheduleType, ResourceType> &&
