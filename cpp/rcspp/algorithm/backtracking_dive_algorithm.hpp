@@ -23,7 +23,9 @@ namespace detail {
 enum class DiveEnd {
     Sink,       ///< the current label reached a sink
     Exhausted,  ///< every path was tried: with no arc tabu, no feasible path exists
-    Stopped,    ///< a budget, an interrupt or the memory limit stopped it, with paths left to try
+    /// A budget, an interrupt or the memory limit stopped it, with paths left to try; the solve's
+    /// status says which.
+    Stopped,
 };
 
 }  // namespace detail
