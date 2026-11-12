@@ -52,8 +52,11 @@ import after the package's unless `# isort: split` holds it. Stack rebased onto 
 2026-11-11, first step of `T-1.17`'s rewrite (`separation.md` §8): one branch per PR, local only (not pushed),
 backups `backup/colgen-<name>-before-main-rebase`, worktree `../rcspp-rebase`; 7 conflicts kept both sides; main's
 renames applied in the commits that brought the old names; every head passes on MSVC, #88 on Linux gcc 13.
-`F-53` decided 2026-11-12 (`D-152`, `D-153`). **Next:** the user's force-push; then
-the fold map (`T-1.17`, `D-147`); `T-1.18` can run beside it; `T-1.19` after the layout; then the last PRs.
+`F-53` decided 2026-11-12 (`D-152`, `D-153`); the eight branches force-pushed by the user (checked equal to `origin`
+2026-11-12). Fold map written 2026-11-12 (`fold-map.md`, `fold-map-commits.md`, `fold-map-targets.md`; filter
+`tools/fold_filter.py`, dry run `F-54`, traps `F-55`): 90 commits → 89, proposed `D-154`–`D-158`. **Next:** the user
+answers `Q-56`–`Q-59` and accepts `D-154`–`D-158`; then the rewrite chat (`fold-map.md` §3); `T-1.18` can run beside
+it; `T-1.19` after the layout; `drivers.py` after the push.
 Then `T-1.16`.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
@@ -129,6 +132,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `python-layer-runs.md` | the pure-Python layer's runs against the C++-backed one (step G): LP values, times, probes of B.15, B.16, D.12, the `ColumnBatch` copy | before deciding those items, planning the full comparison |
 | `python-layer-comparison.md` | step H: where the pure layer's extra time goes, the full comparison matrix, `Q-41`'s rule, D.12 after heuristic runs | before running the full comparison or deciding `Q-41` |
 | `separation.md` | the colleagues' feedback of 2026-11-09, C++ layer as an example: what moves, open questions, PR shapes, VRP comparisons | before `T-1.17`–`T-1.19` |
+| `fold-map.md` (+ `-commits`, `-targets`, `tools/fold_filter.py`) | the stack's rewrite into `examples/column_generation/`: method, filter, every commit, where each item goes, PR heads, final state | before rewriting the stack |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here

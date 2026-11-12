@@ -154,7 +154,7 @@ the example includes it); `rcspp/__init__.py` import and `_core/__init__.pyi` li
 ## 8. The stack rebased onto `main` (`T-1.17`, `D-147`; 2026-11-11)
 
 First step of the stack rewrite: the eight branches rebased from `129b15e0` onto `origin/main` `6367ee56` (#56–#59),
-one branch per PR, no path moves, no fold. Local only, not pushed. Backups at the origin heads:
+one branch per PR, no path moves, no fold. Force-pushed 2026-11-12; fold: `fold-map.md`. Backups at the old heads:
 `backup/colgen-<name>-before-main-rebase` (no upstream). Rebased in worktree `../rcspp-rebase` one branch at a time
 with `--onto` (`--update-refs` would also move the backups, which point at the same commits); `../rcspp-dev` stayed
 on the prototype, untouched; `-packaging` got a local branch.
