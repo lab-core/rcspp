@@ -5,8 +5,8 @@
 
 namespace rcspp::parts {
 
-/// @brief Takes from whichever side has extended fewer arcs so far, forward on a tie, and from
-///        the other side once one has nothing left.
+/// @brief Takes from whichever side has tried fewer extensions so far, forward on a tie, and
+///        from the other side once one has nothing left.
 ///
 /// The sides share no labels, so the order changes neither side's labels, only what exists when
 /// a run stops early: a timeout, `max_iterations` or the memory limit then finds both halves
