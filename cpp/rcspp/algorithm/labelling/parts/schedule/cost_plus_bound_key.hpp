@@ -14,7 +14,7 @@ namespace rcspp::parts {
 
 /// @brief Orders labels by their cost plus their completion bound, g + h: A*'s order.
 ///
-/// The bound is read as an order reads it (@c detail::CompletionBound::order_term), which counts a
+/// The bound enters as its order term (@c detail::CompletionBound::order_term), which counts a
 /// failed bound (-infinity, a negative-cost cycle) as 0, so an order never collapses.
 struct CostPlusBoundKey {
         /// @brief Whether the key reads the search's completion bound.
