@@ -60,10 +60,10 @@ current stance, if any.
 | Q-53 | **Layout and names of the example:** C++ under `examples/cpp/column_generation/`, its module and Python package where, named how? | next design chat: paths, option name, Python package name (`D-12`: full words); bindings in `_core` (`D-144`) | `T-1.17` | → D-150 |
 | Q-54 | **The stack's shape:** shipped part first onto `main` then an examples-only PR (A), or a last move PR on top (B)? | A, if the pure layer's needs from the stack (`graph_impl.hpp`, packaging) split out cleanly (`separation.md` §4) | `T-1.17`, the last PR | → D-147 |
 | Q-55 | **VRP equivalence rule (`D-143`)** | `D-139`'s: LP equal, time within max(5 %, 0.25 s); iterations may differ | `T-1.18`, `T-1.19` | → D-148 |
-| Q-56 | **The pure package renamed `rcspp.column_generation` in #88?** | yes (the user's preference): the filter maps it from #88's first commit, no rename commit; #77 no longer adds a C++-backed `rcspp.column_generation` | the fold (`T-1.17`) | open |
-| Q-57 | **New names (`D-12`) for the example's Python tests**, whose basenames clash with the renamed pure tests (`F-55`) | `test_cpp_column_generation*.py`, `cpp_column_generation_fakes.py`, after the package | the fold | open |
-| Q-58 | **Keep the old-flag configure error?** (`USE_COLUMN_GENERATION*` stops the configure) | drop it: no commit of the folded stack has those options (`F-55`); the PR descriptions name the new options | the fold | open |
-| Q-59 | **Shipped: the wheel installs only its `python` component** (`install.components`, from the wheel's HiGHS) | keep it, moved to `2e0bdb37` with its reason: else the wheel also carries the C++ library, headers and CMake package of the plain install | the fold | open |
+| Q-56 | **The pure package renamed `rcspp.column_generation` in #88?** | yes (the user's preference): the filter maps it from #88's first commit, no rename commit; #77 no longer adds a C++-backed `rcspp.column_generation` | the fold (`T-1.17`) | → D-159 |
+| Q-57 | **New names (`D-12`) for the example's Python tests**, whose basenames clash with the renamed pure tests (`F-55`) | `test_cpp_column_generation*.py`, `cpp_column_generation_fakes.py`, after the package | the fold | → D-160 |
+| Q-58 | **Keep the old-flag configure error?** (`USE_COLUMN_GENERATION*` stops the configure) | drop it: no commit of the folded stack has those options (`F-55`); the PR descriptions name the new options | the fold | → D-161 |
+| Q-59 | **Shipped: the wheel installs only its `python` component** (`install.components`, from the wheel's HiGHS) | keep it, moved to `2e0bdb37` with its reason: else the wheel also carries the C++ library, headers and CMake package of the plain install | the fold | → D-162 |
 
 ## Q-04: pros and cons
 
