@@ -31,11 +31,12 @@ namespace rcspp::detail {
 
 /// @brief A stop that ends a bidirectional search while labels are still waiting to be extended.
 ///
-/// `max_solutions` and `max_iterations` are not run-level stops: the join always runs after
+/// `max_solutions` and `max_iterations` are not early stops here: the join always runs after
 /// either.
 enum class EarlyStop { None, Timeout, Interrupted, MemoryLimit };
 
-/// @brief Whether the join still runs after @p stop.
+/// @brief Whether the join still runs after @p stop, by default (`join_after_early_stop = true`;
+///        false skips it after every early stop, @ref BidirectionalLabellingAlgorithm::run_join).
 ///
 /// A timeout or the memory limit means "stop searching", but the paths both halves already hold
 /// are valid columns that a pricing loop needs. So the join still runs, keeping only paths
@@ -51,10 +52,17 @@ enum class EarlyStop { None, Timeout, Interrupted, MemoryLimit };
 /// @brief Bidirectional labelling: a forward search, a backward search, and a join.
 ///
 /// Two searches (@ref Search), one per direction, share one label pool and one incumbent. Each
-/// iteration runs the one @ref step on the side @p InterleaveType picks. Each side keeps a label
-/// past the half-way point stored, unextended, and prunes on its cost plus its completion bound;
-/// what a quota or memory pressure cuts is abandoned (left in its container, never extended, and
-/// counted), since the search runs one phase. The join then pairs the two halves.
+/// iteration runs the one @ref step on the side @p InterleaveType picks. The sides meet at the
+/// half-way point `H` (@ref HalfWay), a value of the critical resource set by `half_way_point`.
+/// It is off by default, and when it does not fit the model (@ref half_way_off_reason). A label
+/// past `H` (forward: above it; backward: below it) stays stored at its node, unextended. With
+/// `prune_by_incumbent`, a side prunes a label on its cost plus its completion bound. What a
+/// quota or memory pressure cuts is abandoned (left in its container, never extended, and
+/// counted), since the search runs one phase.
+///
+/// After the main loop, @ref record_remaining_solutions records the paths each search finished
+/// on its own, then runs the join (@ref join, join.hpp), which pairs the forward labels past `H`
+/// with the backward labels at the same node.
 ///
 /// The model checks it needs (@c BackwardExtensionCheck and @c JoinCheck) run before the solve.
 ///
@@ -135,6 +143,9 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                 backward_.completion_bound = compute_completion_bound<BackwardDirection>(*graph);
             }
 
+            // Both sides share the label pool and the incumbent. As a bidirectional side, each
+            // abandons what a cut takes, prunes on cost plus bound, and stops at the half-way
+            // point.
             forward_context_ = this->make_context(forward_,
                                                   Role::BidirectionalSide,
                                                   &number_of_abandoned_labels_,
@@ -148,8 +159,7 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         }
 
         void initialize_labels() override {
-            // Release every label of the previous solve (pending ones included), so the pool
-            // starts afresh.
+            // No-op: Algorithm::initialize already emptied the pool.
             this->label_pool_.release_all_labels();
             forward_.create_start_labels(*this->graph_, &this->label_pool_);
             backward_.create_start_labels(*this->graph_, &this->label_pool_);
@@ -183,23 +193,27 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                 const auto count = [this](parts::ExtensionOutcome outcome) {
                     this->count_extension(outcome);
                 };
-                const bool spent = interleave_.should_step_forward(forward_, backward_)
-                                       ? step(
-                                             forward_,
-                                             forward_context_,
-                                             [this](const Label<ResourceType>& label) {
-                                                 this->record_solution(label);
-                                             },
-                                             count)
-                                       : step(
-                                             backward_,
-                                             backward_context_,
-                                             [this](const Label<ResourceType>& label) {
-                                                 this->record_backward_solution(label);
-                                             },
-                                             count);
+                // One unit of work on the side the interleave picks. A backward label holds its
+                // path from its node to a sink, so it records the path the other way round
+                // (record_backward_solution).
+                bool spent = false;
+                if (interleave_.should_step_forward(forward_, backward_)) {
+                    spent = step(
+                        forward_,
+                        forward_context_,
+                        [this](const Label<ResourceType>& label) { this->record_solution(label); },
+                        count);
+                } else {
+                    spent = step(
+                        backward_,
+                        backward_context_,
+                        [this](const Label<ResourceType>& label) {
+                            this->record_backward_solution(label);
+                        },
+                        count);
+                }
                 if (spent) {
-                    return;
+                    return;  // a recorded path ends the run (max_solutions)
                 }
             }
         }
@@ -209,23 +223,31 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         ///  1. Forward labels at a sink: paths the forward search finished on its own.
         ///  2. Backward labels at a source: paths the backward search finished on its own, turned
         ///     into forward order.
-        ///  3. The join: a forward label that crossed `H` on its last arc, paired with a backward
-        ///     label at the same node.
+        ///  3. The join: a forward label past `H` (any non-start forward label when the point is
+        ///     off), paired with a backward label at the same node.
         ///
-        /// 1 and 2 are needed because the join only sees paths that cross `H`. They run first, so
-        /// the join prunes against the best path found so far. A path found twice is kept once.
-        /// The join is skipped after an interrupt.
+        /// 1 and 2 are needed because the join only sees paths that cross `H`. They run first so
+        /// that `joined_paths` counts only the paths the join alone adds: `record_path` drops a
+        /// path it already holds. The join prunes against the incumbent, which a search lowers
+        /// when it takes an end-node label (`TakeRule::fixed`), not when 1 and 2 record one; after
+        /// an early stop, a label still waiting at an end node has not lowered it. The join is
+        /// skipped after an interrupt.
         void record_remaining_solutions() override {
+            // 1. The forward labels at a sink.
             for (const auto* label : forward_.labels_at_end_nodes(*this->graph_)) {
                 this->record_solution(*label);
             }
+            // 2. The backward labels at a source, recorded in forward order.
             for (const auto* label : backward_.labels_at_end_nodes(*this->graph_)) {
                 this->record_backward_solution(*label);
             }
+            // 3. The join.
             run_join();
         }
 
-        /// @brief The forward labels at the sinks.
+        /// @brief The forward labels at the sinks. Only the base `record_remaining_solutions`
+        ///        reads this, and this class overrides that to read both sides and the join; the
+        ///        override is here because `Algorithm` requires it.
         [[nodiscard]] std::list<Label<ResourceType>*> labels_at_end_nodes() const override {
             return forward_.labels_at_end_nodes(*this->graph_);
         }
@@ -266,7 +288,7 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         }
 
     private:
-        /// @brief Which run-level stop, if any, ended the search with labels still to extend.
+        /// @brief Which early stop, if any, ended the search with labels still to extend.
         ///
         /// The schedules are tested first, so an exhausted search is never reported as stopped
         /// and `is_time_out()` (which sets `timed_out_`) is not called. An interrupt is reported
@@ -275,7 +297,7 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         /// @return The stop, or @c EarlyStop::None.
         [[nodiscard]] EarlyStop early_stop() {
             if (number_of_waiting_labels() == 0) {
-                return EarlyStop::None;
+                return EarlyStop::None;  // an exhausted search did not stop early
             }
             if (this->is_interrupted()) {
                 return EarlyStop::Interrupted;
@@ -283,6 +305,7 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
             if (this->is_time_out()) {
                 return EarlyStop::Timeout;
             }
+            // An effective limit of 0: no memory limit was set.
             if (this->memory_limit_.effective_limit > 0 && this->memory_limit_.is_exceeded()) {
                 return EarlyStop::MemoryLimit;
             }
@@ -293,8 +316,11 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
         ///
         /// After a timeout or the memory limit the join still runs (see @ref join_runs_after),
         /// with the incumbent cutoff forced on. It is skipped after an interrupt, or after any
-        /// run-level stop when `join_after_early_stop` is false.
+        /// early stop when `join_after_early_stop` is false.
         void run_join() {
+            // Why the search stopped with labels still waiting, if it did. After an interrupt the
+            // join is skipped; after a timeout or the memory limit it runs, pruning against the
+            // incumbent (below), unless join_after_early_stop is off.
             const EarlyStop stop = early_stop();
             const bool stopped_early = stop != EarlyStop::None;
             if (stopped_early && (!this->params_.join_after_early_stop || !join_runs_after(stop))) {
@@ -304,7 +330,9 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
                 return;
             }
 
-            // Counts what the join adds: record_path drops a path it already holds.
+            // Counts the paths the join adds. Algorithm::record_path drops a path already
+            // recorded (same arc ids) and one at or above the upper bound, so the change in the
+            // number of solutions counts only the new ones.
             auto record = [this](double cost, std::vector<size_t> arc_ids, size_t end_node_id) {
                 const size_t before = this->solutions_.size();
                 this->record_path(cost, std::move(arc_ids), end_node_id);

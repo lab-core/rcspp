@@ -33,12 +33,13 @@ struct JoinOptions {
         ///        every stored non-start forward label is paired.
         HalfWay<ResourceType> half_way;
 
-        /// @brief Whether to drop pairs costing at least the incumbent (the cheapest complete
-        ///        path found so far). The join prunes against the incumbent anyway when
-        ///        @ref upper_bound is infinite.
+        /// @brief Whether to drop pairs costing at least the incumbent (the cost of the cheapest
+        ///        complete path found so far, lowered as the join finds cheaper ones). The join
+        ///        prunes against the incumbent anyway when @ref upper_bound is infinite.
         bool prune_by_incumbent = true;
 
-        /// @brief The caller's fixed bound. Always applied.
+        /// @brief The solve's cost upper bound (`cost_upper_bound`): a pair costing at least this
+        ///        is dropped, whatever the other options say.
         double upper_bound = std::numeric_limits<double>::infinity();
 
         /// @brief When below @c kNoLimit, keep only this many cheapest distinct joined paths and
@@ -192,14 +193,26 @@ template <typename GraphType, typename ResourceType>
 /// @brief Pairs each node's boundary forward labels with the backward labels stored there, and
 ///        hands every accepted path to @p on_path.
 ///
-/// Forward **boundary labels** -- labels whose own last arc crossed `H`, so they were stored but
-/// never extended -- are paired with the backward labels at the same node. Each complete path
-/// crosses `H` on exactly one arc, so it is produced once. Feasibility needs no test (infeasible
-/// labels are never stored); each pair is checked with `can_be_joined`, and its cost is the sum of
-/// the two halves (the join arc is inside the forward half). Forward labels a quota abandoned
-/// contribute nothing. Cost bounds are tested on a pair's total cost, or on a forward label plus
-/// the cheapest backward label at the node; never on one half's cost alone, which is not a lower
-/// bound under reduced costs.
+/// A forward **boundary label** is a non-start label past the half-way point `H`
+/// (@ref HalfWay::past): its last arc, the **join arc**, took the clock above `H`, so it was
+/// stored at its node and never extended. With the half-way point off, every non-start forward
+/// label counts as a boundary label. Each boundary label at a node is paired with every backward
+/// label stored at that node; sinks are skipped.
+///
+/// With the point on, the clock is monotone, so a complete path crosses `H` on exactly one arc
+/// and the join produces it at most once. With the point off, a path is produced at each interior
+/// node where both its halves are stored, so the same path can reach @p on_path several times;
+/// `Algorithm::record_path` (and, with a cap, the kept set) drops the repeats.
+///
+/// A label a cut abandoned (the per-node quota, memory pressure) stays in its container. It is
+/// paired like any other when it is a boundary label, but it was never extended, so the paths
+/// through its descendants are missing.
+///
+/// Each half is feasible on its own, since infeasible labels are never stored. Whether the two
+/// halves fit together is tested with `can_be_joined`, an exact test. A pair's cost is the sum of
+/// the two halves' costs; the join arc is counted once, in the forward half. Cost bounds are
+/// tested on a pair's total cost, or on a forward label plus the cheapest backward label at the
+/// node; never on one half's cost alone, which is not a lower bound under reduced costs.
 ///
 /// @tparam ResourceType      The resource type carried by labels.
 /// @tparam ForwardContainer  Per-node forward label container.
@@ -212,7 +225,9 @@ template <typename GraphType, typename ResourceType>
 /// @param options   What the pass may pair and keep.
 /// @param incumbent The cost of the cheapest complete path found so far; lowered in place as
 ///                  cheaper joins are found.
-/// @param on_path   Invoked once per accepted join.
+/// @param on_path   Called once per path kept: as each is found, or, when
+///                  options.max_solutions is below kNoLimit, for the kept paths, cheapest first,
+///                  at the end of the pass.
 template <typename ResourceType, typename ForwardContainer, typename BackwardContainer,
           typename OnPath>
 void join(  // NOLINT(readability-function-cognitive-complexity)
@@ -238,7 +253,9 @@ void join(  // NOLINT(readability-function-cognitive-complexity)
 
     for (const size_t node_id : graph.get_node_ids()) {
         const auto* node = graph.get_node(node_id);
-        // Paths ending at a sink were already recorded by the forward search.
+        // At a sink the only backward label is the start label, so a pair there is the forward
+        // label's own path, already recorded with the forward labels at the sinks
+        // (record_remaining_solutions).
         if (node == nullptr || node->sink) {
             continue;
         }
