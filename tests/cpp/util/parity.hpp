@@ -330,7 +330,7 @@ struct Setting {
 /// - `exact`: the defaults. `pre`: the solve preprocesses the graph.
 /// - `quota`: 2 labels extended per node. `phases` (one direction only): and 3 phases.
 /// - `dominated`: dominated solutions returned. `stop`: and the search stops after 3.
-/// - `prune`: upper bound 0, pruned on. `early`: 30 iterations.
+/// - `prune` (bidirectional only): upper bound 0, pruned on. `early`: 30 iterations.
 /// - `pressure`: pressure forced on the 3rd and 7th memory checks, one check per iteration, and
 ///   2 labels per node under pressure.
 /// - `reuse`: three exact solves on one object, each with the previous best cost + 5 as its
@@ -390,7 +390,9 @@ std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection directi
         s.params.max_solutions = 3;
         all.push_back(s);
     }
-    {
+    if (bidirectional) {
+        // Bidirectional only: a single-direction search's incumbent prune now adds the
+        // completion bound, and the frozen copies keep the base's prune on the cost alone.
         SettingType s{"prune", base()};
         s.params.prune_by_incumbent = true;
         s.upper_bound = 0.0;
