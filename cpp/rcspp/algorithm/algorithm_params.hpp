@@ -33,15 +33,10 @@ struct AlgorithmBaseParams {
         void check() const {  // NOLINT(readability-make-member-function-const)
             if (max_phases > 1 && max_extended_labels_per_node >= kNoLimit) {
                 LOG_WARN(
-                    "AlgorithmParams: max_extended_labels_per_node == MAX and max_phases > 1. "
-                    "max_phases will not have any effects, set max_extended_labels_per_node to "
-                    "a lower value.\n");
-            }
-            if (max_phases > 1 && max_solutions >= kNoLimit) {
-                LOG_WARN(
-                    "AlgorithmParams: max_solutions == MAX and max_phases > 1. "
-                    "max_phases will not have any effects, set max_solutions to a "
-                    "lower value.\n");
+                    "AlgorithmParams: max_phases > 1 with no per-node quota "
+                    "(max_extended_labels_per_node is unlimited): a further phase runs only when "
+                    "memory pressure stores labels aside, or when a bidirectional search stops at "
+                    "max_iterations.\n");
             }
             if (direction == SearchDirection::Bidirectional && max_phases > 1) {
                 LOG_WARN(
@@ -135,7 +130,7 @@ struct AlgorithmBaseParams {
 
         /// @brief Whether the join still runs after a timeout or the memory limit (default true).
         ///
-        /// Bidirectional only. With the half-way point in force, few forward labels reach a sink,
+        /// Bidirectional only. With the half-way point on, few forward labels reach a sink,
         /// so an early stop without the join returns almost nothing. With this set, the join
         /// still runs and keeps only paths cheaper than the best one found so far. An interrupt
         /// (`should_stop`) always skips the join. Set false to skip the join after a timeout or

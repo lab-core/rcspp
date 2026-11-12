@@ -18,6 +18,12 @@ namespace rcspp {
 /// @brief Compile-time policy holding the direction-dependent operations of the labeling loop.
 ///
 /// The loop is written once against @c Direction and instantiated for each direction.
+///
+/// Every member is named from the search's point of view, not the graph's: a label at a node is
+/// extended along the node's @ref out_arcs and reaches the arc's @ref head. Going forward these
+/// are the graph's out-arcs and the arc's destination; going backward, the graph's in-arcs and
+/// the arc's origin. Likewise the start nodes are the sources forward and the sinks backward, and
+/// the end nodes the reverse.
 struct ForwardDirection {
         /// @brief Direction tag for `if constexpr` where a policy member does not suffice.
         static constexpr bool backward = false;
@@ -103,7 +109,8 @@ struct ForwardDirection {
         }
 };
 
-/// @brief The mirror of @ref ForwardDirection: walk in-arcs, land on origins, extend backward.
+/// @brief The mirror of @ref ForwardDirection: its @c out_arcs are the graph's in-arcs, its
+///        @c head an arc's origin, and labels extend backward.
 ///
 /// A backward label stores the latest value at which the rest of the path is still feasible
 /// (a deadline), so it uses the backward extension, feasibility and dominance forms.

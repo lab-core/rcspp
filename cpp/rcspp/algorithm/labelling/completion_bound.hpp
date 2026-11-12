@@ -17,8 +17,11 @@
 
 namespace rcspp::detail {
 
-/// @brief A lower bound on the cost a label still has to pay to become a complete path, read by
-///        the label's node; empty means no bound (0 everywhere).
+/// @brief The completion bound: for each node, a lower bound on the cost a label there still has
+///        to pay to become a complete path.
+///
+/// Empty means no bound: it reads -infinity, so a prune reading it prunes nothing, and its order
+/// term reads 0, as for a negative-cost cycle.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>
@@ -26,14 +29,16 @@ struct CompletionBound {
         /// @brief The bound at each node position; empty when there is none.
         std::vector<double> by_position;
 
-        /// @brief The bound, as a prune reads it: -infinity where the relaxation found a
-        ///        negative-cost cycle, so that nothing is pruned there.
+        /// @brief The bound at @p label's node: -infinity where the relaxation found a
+        ///        negative-cost cycle or no bound was computed, so that a prune reading it prunes
+        ///        nothing.
         [[nodiscard]] double operator()(const Label<ResourceType>& label) const {
-            return by_position.empty() ? 0.0 : by_position[label.get_end_node()->pos()];
+            return by_position.empty() ? -std::numeric_limits<double>::infinity()
+                                       : by_position[label.get_end_node()->pos()];
         }
 
-        /// @brief The bound, as an order reads it: -infinity counts as 0, so a bound that failed
-        ///        orders labels by their cost alone.
+        /// @brief The bound as a term of an order's key (cost plus bound, A*'s order): -infinity
+        ///        counts as 0, so a bound that failed orders labels by their cost alone.
         [[nodiscard]] double order_term(const Label<ResourceType>& label) const {
             const double bound = (*this)(label);
             return bound == -std::numeric_limits<double>::infinity() ? 0.0 : bound;
@@ -47,13 +52,14 @@ struct CompletionBound {
 /// label has after it is extended along the arc, minus the cost it had before. That is the cost
 /// the search compares, so the bound holds whichever component or components the cost function
 /// reads. Dropping the resource constraints can only lower a path's cost, so the relaxed distance
-/// is a lower bound. The share is well defined under an additive cost, which every backward and
-/// bidirectional solve checks; under another cost it is the share from the start values, a bound
-/// that a forward search reads only to order its labels.
+/// is a lower bound. The share is the same from any label only under an additive cost, which
+/// every backward and bidirectional solve checks. Under another cost the share is computed from
+/// the origin node's resource values and the result is not a bound: only a forward search's
+/// order reads it then (A*), and an order needs no bound to stay exact.
 ///
-/// A node no end node is reached from is bounded by +infinity. A negative-cost cycle leaves no
-/// finite bound: the result is then -infinity everywhere, which no prune reads and which an order
-/// reads as 0 (@ref CompletionBound::order_term).
+/// A node from which no end node of @p Direction can be reached is bounded by +infinity. A
+/// negative-cost cycle leaves no finite bound: the result is then -infinity everywhere, which a
+/// prune reads as "prune nothing" and an order as 0 (@ref CompletionBound::order_term).
 ///
 /// @tparam Direction    The search's direction policy: the bound is to its end nodes.
 /// @tparam ResourceType The resource type carried by labels.
