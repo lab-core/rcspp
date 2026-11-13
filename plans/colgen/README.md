@@ -67,6 +67,11 @@ after the push; then `T-1.20` (many cheap iterations over three legs, `F-56`, `D
 (Opus) now, then `T-1.7`, then a benchmark design chat (`T-1.10` earlier, grown by each follow-up task); the comment
 on #60 just before the merge; the merge waits. The plan branch still tracks the pre-fold stack: `drivers.py` runs the
 folded code from a checkout of #88 (`../rcspp-dev`).
+Read of the folded PRs done 2026-11-13 (`fold-review.md`, `F-58`): heads as expected; 45 findings, 2 blockers (no
+CHANGELOG entries; #80's install test leaks into FetchContent consumers), 18 should fix, 25 nits; **Next:** the user
+answered 2026-11-13 (`D-167`–`D-170`). Fixes done (`fold-review.md` §5): one commit per PR on local `fix/*`
+(worktree `../rcspp-fix`), HiGHS bound bug fixed with a test, every head passes MSVC off and on, pre-commit clean;
+branches force-pushed and titles and bodies applied 2026-11-13. **Next:** the user runs run-ci on #88; then `T-1.7`.
 2026-11-13: drivers adapted (commit `feat(benchmark): run the drivers on the folded stack from a source checkout`):
 `COLGEN_SOURCE_DIRECTORY`, default `../rcspp-dev`; every layer configuration on C101_25 equals the recorded runs
 (`benchmark-results/colgen/post-fold-check*/`, `comparison.md`); `AlgorithmParams.stop_after_X_solutions` is
@@ -147,6 +152,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `separation.md` | the colleagues' feedback of 2026-11-09, C++ layer as an example: what moves, open questions, PR shapes, VRP comparisons | before `T-1.17`–`T-1.19` |
 | `fold-map.md` (+ `-commits`, `-targets`, `tools/fold_filter.py`) | the stack's rewrite into `examples/column_generation/`: method, filter, every commit, where each item goes, PR heads, final state | before rewriting the stack |
 | `fold-record.md` | the rewrite as done: heads, checks, departures, the Linux run, step 6 | before the push or a stack review |
+| `fold-review.md` | the read of the eight folded PRs: heads, findings `V.`, coverage, questions | before the fixups or the merge |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
