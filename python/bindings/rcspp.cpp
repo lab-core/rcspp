@@ -11,6 +11,10 @@
 
 namespace py = pybind11;
 
+#ifdef RCSPP_USE_COLUMN_GENERATION_EXAMPLE
+// The C++ column generation example's bindings (examples/column_generation/bindings).
+void init_cpp_column_generation(py::module_&);
+#endif
 void init_graph(py::module_&);
 void init_resource(py::module_&);
 void init_solution_pool(py::module_&);
@@ -33,6 +37,11 @@ PYBIND11_MODULE(_core, m) {
 
     auto solution_pool_submodule = m.def_submodule("solution_pool", "Solution pool classes");
     init_solution_pool(solution_pool_submodule);
+
+#ifdef RCSPP_USE_COLUMN_GENERATION_EXAMPLE
+    // After graph: its Solution is part of the example's API.
+    init_cpp_column_generation(m);
+#endif
 
     auto logger_submodule = m.def_submodule("logger", "Logging control");
 

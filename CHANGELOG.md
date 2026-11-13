@@ -227,6 +227,8 @@ New features are summarised, with a pointer to where they are documented.
   `FindGUROBI.cmake` moves to `cmake/`, shared by the examples. A graph pricer that prices a
   `ResourceGraph` through stages, from the cheapest search to an exact one. A master solver over
   HiGHS (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`; HiGHS found installed, or else fetched).
+  With `USE_PYTHON`, its bindings in `rcspp._core.cpp_column_generation` and the Python package
+  `cpp_column_generation` over them (in the example's folder, not in rcspp).
 
 ### Fixed
 
