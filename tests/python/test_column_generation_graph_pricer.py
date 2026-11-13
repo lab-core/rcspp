@@ -368,6 +368,24 @@ def test_refused_graphs_and_stages() -> None:
         GraphPricer(two_path_graph(), [])
 
 
+def test_a_tabu_stage_needs_a_finite_number_of_iterations() -> None:
+    # The tabu search refuses the default number of iterations and searches nothing.
+    for algorithm in ("tabu", Algorithm.Tabu):
+        with pytest.raises(ValueError, match="tabu stage needs a finite params.max_iterations"):
+            GraphPricer(two_path_graph(), [PricingStage(algorithm)])
+
+    with pytest.raises(ValueError, match="tabu stage needs a finite params.max_iterations"):
+        GraphPricer(two_path_graph(), [PricingStage("tabu", AlgorithmParams())])
+
+    params = AlgorithmParams()
+    params.max_iterations = 100
+    pricer = GraphPricer(two_path_graph(), [PricingStage("tabu", params)])
+
+    # With them, it searches: it finds the path the exact search finds with these duals.
+    result = pricer.price(np.array([10.0, 0.0]), PricingRequest())
+    assert [path.column.cost for path in result.columns] == [COST_A]
+
+
 def test_wrong_types_are_refused() -> None:
     with pytest.raises(TypeError, match="expected a ResourceGraph"):
         GraphPricer(object())  # type: ignore[arg-type]
@@ -481,7 +499,9 @@ def test_a_search_that_returns_something_else_is_refused() -> None:
 
 
 def test_the_pricer_shows_its_stages_and_the_last_one_run() -> None:
-    stages = [PricingStage("greedy"), PricingStage("tabu"), PricingStage("simple")]
+    tabu = AlgorithmParams()
+    tabu.max_iterations = 100
+    stages = [PricingStage("greedy"), PricingStage("tabu", tabu), PricingStage("simple")]
     pricer = GraphPricer(two_path_graph(), stages)
     assert pricer.stages == tuple(stages) and pricer.last_stage_index is None
 

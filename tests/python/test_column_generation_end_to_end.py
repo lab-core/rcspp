@@ -15,7 +15,7 @@ import os
 import sys
 import threading
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import numpy as np
 import pytest
@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from column_generation_fakes import ScriptedPricer, make_path  # noqa: E402
 
 from rcspp import presets  # noqa: E402
-from rcspp._core.graph import Solution  # noqa: E402
+from rcspp._core.graph import AlgorithmParams, Solution  # noqa: E402
 from rcspp.column_generation import (  # noqa: E402
     ColumnGeneration,
     ColumnGenerationParams,
@@ -348,9 +348,18 @@ def test_a_heuristic_stage_before_the_exact_one_gives_the_same_lp(
     make_model: Callable[[], UserModel],
 ) -> None:
     graph = routing_graph(Toy.capacity, Toy.demands, Toy.distances)
-    stages = [PricingStage("tabu"), PricingStage("simple")]
-    result = from_scratch(make_model(), graph, Toy.customers, stages=stages)
+    tabu = AlgorithmParams()
+    tabu.max_iterations = 1000
+    stages = [PricingStage("tabu", tabu), PricingStage("simple")]
+    master = master_from_scratch(make_model(), graph, Toy.customers, stages=stages)
+    pricer = cast(GraphPricer, master.pricers[0].pricer)
 
+    # The first pricing call ends with the tabu stage: it found columns on its own.
+    first = ColumnGeneration(master, ColumnGenerationParams(max_iterations=1)).run()
+    assert first.statistics.generated_columns > 0
+    assert pricer.last_stage_index == 0
+
+    result = ColumnGeneration(master).run()
     assert result.status == ColumnGenerationStatus.Optimal
     assert result.objective == pytest.approx(Toy.lp, abs=TOLERANCE)
 
