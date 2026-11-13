@@ -33,6 +33,10 @@ constexpr size_t kDefaultMemoryPressureMaxLabelsPerNode = 200;
 constexpr size_t kProgressReportInterval = 100'000;
 
 struct AlgorithmBaseParams {
+        /// @brief Logs a warning for each setting that has no effect or contradicts another;
+        ///        never throws. Called by the Algorithm constructor. The errors that make a solve
+        ///        throw (@c max_admitted_labels_per_node 0, an unknown component in
+        ///        @c dominance_ignored_components) are found when the solve starts.
         void check() const {  // NOLINT(readability-make-member-function-const)
             if (max_phases > 1 && max_extended_labels_per_node >= kNoLimit) {
                 LOG_WARN(
@@ -55,6 +59,13 @@ struct AlgorithmBaseParams {
             check_admission();
         }
 
+        /// @brief Whether these params alone may make a solve stop before it is exhaustive, or
+        ///        drop a path an exact search keeps: a limit on solutions or on labels per node,
+        ///        a timeout, or an admission rule that is not exact.
+        ///
+        /// A @c false answer does not make a solve a proof: an interrupt, the memory limit, a
+        /// finite @c max_iterations, the incumbent prune or an arc mask can still cut it short.
+        /// Read @c SolveResult::proven after the solve.
         [[nodiscard]] bool could_be_non_optimal() const {
             return ((max_solutions < kNoLimit) || (max_extended_labels_per_node < kNoLimit) ||
                     std::isfinite(timeout_s) || is_admission_inexact());
@@ -204,7 +215,8 @@ struct AlgorithmBaseParams {
         /// solve is not proven (`ProofLoss::RelaxedAdmission`), unless the rule is at its limit:
         /// no component left out, no limit on k. Honoured by every labelling search (`Simple`,
         /// `Pushing`, `Pulling`, `AStar`), in every direction, and by both sides of a
-        /// bidirectional search; the dives keep every label and ignore it.
+        /// bidirectional search. Greedy and the tabu searches keep every label
+        /// (@c parts::AdmitAll) and ignore it.
         parts::AdmissionRule admission_rule = parts::AdmissionRule::Exact;
 
         /// @brief `Relaxed`: the components left out of dominance.

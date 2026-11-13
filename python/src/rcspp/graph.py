@@ -604,10 +604,11 @@ class ResourceGraph:
                 )
             algorithm = factory()
         chosen = params.direction if direction is None else _search_direction(direction)
-        # Set for this call only: the caller's params keep their own direction, and their
-        # resources numbered in registration order, where C++ numbers them by type slot.
-        # Translated before any field changes: a position the graph does not have raises,
-        # and leaves the params as they were.
+        # Two fields are changed for this call only, and restored in `finally`: the direction, and
+        # dominance_ignored_components, which the caller gives as registration positions and C++
+        # reads as component indices (type slot, then registration order: see _component_index).
+        # The positions are translated before either field changes, so a position the graph does
+        # not have raises ValueError with the caller's params untouched.
         previous = params.direction
         previous_ignored = params.dominance_ignored_components
         ignored = {self._component_index(position) for position in previous_ignored}

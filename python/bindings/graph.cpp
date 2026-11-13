@@ -110,7 +110,9 @@ void init_graph(py::module_& m) {
         "default), Relaxed (dominance over the resources not in dominance_ignored_components) or "
         "KBest (dominance, then at most max_admitted_labels_per_node labels at each node, the "
         "cheapest). Relaxed "
-        "and KBest are heuristics: the solve is not proven.")
+        "and KBest are heuristics: a solve with either is not proven, unless the rule is at its "
+        "limit (Relaxed with no resource left out, KBest with max_admitted_labels_per_node at its "
+        "default).")
         .value("Exact", parts::AdmissionRule::Exact)
         .value("Relaxed", parts::AdmissionRule::Relaxed)
         .value("KBest", parts::AdmissionRule::KBest);
@@ -336,22 +338,28 @@ void init_graph(py::module_& m) {
                        &PyAlgorithmParams::admission_rule,
                        "Whether a new label is kept at its node: AdmissionRule.Exact (dominance, "
                        "the default), Relaxed or KBest. Relaxed and KBest drop labels exact "
-                       "dominance keeps: every path returned is feasible and correctly priced, "
-                       "but the optimum may be missed, and result.proven is False. Read by every "
-                       "labelling algorithm (simple, pushing, pulling, astar), in every "
-                       "direction; greedy and tabu keep every label and ignore it.")
+                       "dominance keeps: every path returned is feasible and correctly priced, but "
+                       "the optimum may be missed, and result.proven is False (unless the rule is "
+                       "at its limit: nothing left out, no limit on k). Read by every labelling "
+                       "algorithm (simple, pushing, pulling, astar), in every direction; greedy "
+                       "and tabu keep every label and ignore it.")
         .def_readwrite("dominance_ignored_components",
                        &PyAlgorithmParams::dominance_ignored_components,
                        "Relaxed: the resources left out of dominance, by their position in the "
-                       "order they were registered (0 is the first, the cost's). Two labels that "
-                       "differ only there compare as equal there. A position the graph does not "
-                       "have raises ValueError. Leaving out the bidirectional clock turns the "
-                       "half-way point off.")
+                       "order they were registered (0 is the first, the cost's with the default "
+                       "cost_index). Two labels that differ only there compare as equal there. "
+                       "solve() raises ValueError for a position the graph does not have, whatever "
+                       "the rule. Leaving out the bidirectional clock turns the half-way point "
+                       "off. Messages from the search number resources the C++ way, by type and "
+                       "then by registration order within a type: 'component N' in "
+                       "result.bidirectional.half_way_off_reason and in the model checks' messages "
+                       "is in that numbering, not in this one.")
         .def_readwrite("max_admitted_labels_per_node",
                        &PyAlgorithmParams::max_admitted_labels_per_node,
-                       "KBest: the most labels each node keeps, at least 1 (0 raises ValueError): "
-                       "at a full node, a new label takes the place of the costliest when it "
-                       "costs less. The default, no limit, keeps every label dominance keeps.");
+                       "KBest: the most labels each node keeps, at least 1 (a KBest solve with 0 "
+                       "raises ValueError): at a full node, a new label takes the place of the "
+                       "costliest when it costs less, and is dropped otherwise. The default, "
+                       "1073741823 (no limit), keeps every label dominance keeps.");
 
     py::class_<PyBucketAlgorithmParams, PyAlgorithmParams>(m, "BucketAlgorithmParams")
         .def(py::init<>())

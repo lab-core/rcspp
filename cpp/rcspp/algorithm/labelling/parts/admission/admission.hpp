@@ -10,6 +10,7 @@
 
 #include "rcspp/algorithm/dominance_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/node_view.hpp"
+#include "rcspp/algorithm/limits.hpp"
 #include "rcspp/label/label.hpp"
 #include "rcspp/label/label_list.hpp"
 
@@ -25,15 +26,13 @@ enum class AdmissionRule : std::uint8_t {
 /// @brief What an admission rule reads besides the candidate and its node. Built once per solve
 ///        from the params.
 struct AdmissionContext {
-        /// @brief No limit on the labels a node keeps under @c KBest.
-        static constexpr size_t kAllLabels = std::numeric_limits<size_t>::max();
-
         AdmissionRule rule = AdmissionRule::Exact;
         /// @c Relaxed: the components left out of dominance; none, or a mask that leaves nothing
         /// out: dominance is exact.
         const DominanceMask* dominance_mask = nullptr;
-        /// @c KBest: the most labels a node keeps; @ref kAllLabels: every label dominance keeps.
-        size_t k = kAllLabels;
+        /// @c KBest: the most labels a node keeps; @c kNoLimit (the default): every label
+        ///        dominance keeps.
+        size_t max_labels_per_node = kNoLimit;
 
         /// @brief The mask @c Relaxed compares over, or none when it would leave nothing out.
         [[nodiscard]] const DominanceMask* relaxed_mask() const {
@@ -44,9 +43,10 @@ struct AdmissionContext {
 /// @brief Whether a candidate label is kept at its node.
 ///
 /// @c admit reads the candidate and the node it would be stored at, through a node view
-/// (@ref NodeView). It decides keep or reject, and it may evict labels from the node, those the
-/// candidate dominates; it touches nothing else. An evicted label is erased from its node's
-/// container and marked dominated, but not released here (see @ref NodeView). @c exact says
+/// (@ref NodeView). It decides keep or reject, and it may evict labels from the node: those the
+/// candidate dominates, and under @c KBest the costliest. It touches nothing else. An evicted
+/// label is erased from its node's container and marked dominated, but not released here (see
+/// @ref NodeView). @c exact says
 /// whether the rule keeps every label exact dominance keeps. It must answer @c true only for such
 /// a rule: a search whose admission is not exact is never reported proven.
 ///

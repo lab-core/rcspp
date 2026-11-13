@@ -565,10 +565,7 @@ class Algorithm {
                 .solutions = &solutions_,
                 .admission = {.rule = params_.admission_rule,
                               .dominance_mask = &dominance_mask_,
-                              .max_labels_per_node =
-                                  params_.max_admitted_labels_per_node >= kNoLimit
-                                      ? parts::AdmissionContext::kAllLabels
-                                      : params_.max_admitted_labels_per_node},
+                              .max_labels_per_node = params_.max_admitted_labels_per_node},
                 .completion_bound = &search.completion_bound,
                 .arc_mask = arc_mask_,
                 .role = role,

@@ -218,8 +218,10 @@ class LabelBuckets : public LabelList<ResourceType, Direction> {
         }
 
         /// @brief Marks and removes all labels @p label dominates over the components @p mask
-        ///        leaves in, with the same early exits: leaving out the bucket or the sort
-        ///        resource weakens the relaxation, since the exits assume they order dominance.
+        ///        leaves in. The early exits stay: they skip the labels that the bucket and sort
+        ///        resources say cannot be dominated. So when the mask leaves out the bucket or
+        ///        the sort resource, some labels the mask would drop are never compared and are
+        ///        kept: buckets relax less than a @c LabelList with the same mask, never more.
         ///
         /// @return Number of labels removed.
         size_t remove_dominated_labels(const Label<ResourceType>& label,
