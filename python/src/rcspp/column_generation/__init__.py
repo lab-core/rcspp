@@ -1,14 +1,13 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
-"""Column generation in pure Python: the features of the C++ column generation example
-(``cpp_column_generation``), with the loop, the master problem and the master solvers written in
-Python.
+"""Column generation: a master problem, its pricers and the loop that runs them, in Python.
 
-The same classes as in the example, with an API written for Python: abstract base classes,
-properties and frozen option records. This package imports nothing of the example. A
-:class:`HighspyMasterSolver` and a :class:`GurobipyMasterSolver` work on the user's ``highspy``
+Pricing runs rcspp's C++ search; the master's LP is solved through ``highspy`` or ``gurobipy``.
+A :class:`HighspyMasterSolver` and a :class:`GurobipyMasterSolver` work on the user's ``highspy``
 or ``gurobipy`` model itself; each imports its LP solver's package when it is used, so that
-importing rcspp does not load it.
+importing this package does not load it. The API is written for Python: abstract base classes,
+properties and frozen option records. It has the classes and calls of the C++ column generation
+example (``examples/column_generation``), and imports nothing of it.
 
 A master solver or a pricer written in Python is a subclass of :class:`MasterSolver` or
 :class:`Pricer`. A :class:`GraphPricer` prices a :class:`~rcspp.graph.ResourceGraph`, and a

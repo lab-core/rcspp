@@ -156,8 +156,9 @@ class GraphPricer(Pricer):
     Each call writes the reduced costs into the graph (an arc's cost minus the duals of its
     rows, in the cost component ``cost_index``), then runs the stages from the first: it
     stops at the first stage that finds a path below the threshold, or whose search proves
-    that none exists. A call proves that no improving path exists only when an exact stage
-    finished. :attr:`last_stage_index` tells which stage the last call ended with.
+    that none exists, or when the request's time is up. A call proves that no improving path
+    exists only when an exact stage finished. :attr:`last_stage_index` tells which stage the
+    last call ended with.
 
     The pricer keeps the graph alive; do not solve the graph elsewhere during a run.
 
@@ -191,7 +192,7 @@ class GraphPricer(Pricer):
             raise TypeError("GraphPricer: cost_index must be an integer") from None
 
         if cost_index < 0:
-            raise ValueError(f"cost_index must be non-negative, got {cost_index}")
+            raise ValueError(f"GraphPricer: cost_index must be non-negative, got {cost_index}")
 
         given: list[object] = list(stages) if stages is not None else [PricingStage()]
 

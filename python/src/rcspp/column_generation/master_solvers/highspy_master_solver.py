@@ -183,10 +183,9 @@ class HighspyMasterSolver(MasterSolver):
     - **Ctrl-C:** HiGHS does not stop on Ctrl-C. The master solver holds it back during a
       solve, so that it never reaches a callback handler (an exception that leaves one breaks
       the model for good), and passes it to the program's handler (``KeyboardInterrupt`` by
-      default) once the solve has returned. An
-      integer solve with a time limit stops at once, from the same callback as the limit;
-      other solves run to their end. Only in the main thread, which is where Python delivers
-      Ctrl-C.
+      default) once the solve has returned. An integer solve with a time limit stops at
+      once, from the same callback as the limit; other solves run to their end. Only in the
+      main thread, which is where Python delivers Ctrl-C.
     - **Errors:** an option HiGHS refuses raises ``ValueError``.
 
     Args:
