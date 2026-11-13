@@ -156,7 +156,7 @@ class Algorithm {
                 record_remaining_solutions();
 
                 // prepare next phase (if any)
-                if (++num_phases < params_.max_phases) {
+                if (++num_phases < max_phases()) {
                     prepare_next_phase();
                 } else {
                     break;
@@ -498,6 +498,13 @@ class Algorithm {
         [[nodiscard]] virtual bool has_abandoned_labels() const { return false; }
 
         virtual void prepare_next_phase() {}
+
+        /// @brief How many phases a solve may run: @c max_phases by default.
+        ///
+        /// A later phase extends the labels a quota or memory pressure stored aside. A search
+        /// that abandons them instead runs one phase: a second would only restart the
+        /// @c max_iterations count and record the paths at the end nodes again.
+        [[nodiscard]] virtual size_t max_phases() const { return params_.max_phases; }
 
         virtual void main_loop() = 0;
 
