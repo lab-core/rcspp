@@ -14,7 +14,8 @@ target_include_directories(_core PRIVATE "${example_bindings_dir}" "${PY_BINDING
 target_link_libraries(_core PRIVATE rcspp_column_generation_objects)
 target_compile_definitions(_core PRIVATE RCSPP_USE_COLUMN_GENERATION_EXAMPLE)
 
-# The HiGHS master solver, and HiGHS itself (static: it ends up in the module).
+# The HiGHS master solver, and HiGHS itself (a fetched HiGHS is static and ends up in the module;
+# an installed one may be a shared library the module then needs).
 if(USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
   target_sources(_core PRIVATE "${example_bindings_dir}/column_generation_highs.cpp")
   target_link_libraries(_core PRIVATE rcspp_column_generation_highs)
