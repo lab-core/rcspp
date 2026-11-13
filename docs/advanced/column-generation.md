@@ -102,6 +102,8 @@ print(result.status, result.objective)  # ColumnGenerationStatus.Optimal 37.5
 
 With Gurobi, only the master's model changes:
 
+<!-- docs test: gurobipy master -->
+
 ```python
 import gurobipy as gp
 
@@ -185,6 +187,8 @@ columns to that model; variables it did not add are left alone.
 
 A pricer's convexity row bounds how many of its paths the solution uses, e.g. the fleet size:
 
+<!-- docs test: fragment -->
+
 ```python
 master.add_pricer(pricer, ConvexityRow(max_paths=2))     # the master adds "sum of paths <= 2"
 master.add_pricer(pricer, ConvexityRow(existing_row=3))  # row 3 of your model
@@ -248,6 +252,8 @@ If your model is feasible as it is (starting columns, slack variables), skip the
 with `initialization="none"`. Starting columns of a pricer go through the master, which gives
 them their convexity entry:
 
+<!-- docs test: fragment -->
+
 ```python
 k = master.add_pricer(GraphPricer(graph))
 master.add_columns(k, starting_routes)  # Solutions, each with its column
@@ -260,10 +266,10 @@ params = ColumnGenerationParams(initialization="none")
 from rcspp.column_generation import ColumnGenerationParams, RelaxationParams
 
 params = ColumnGenerationParams(
-    max_iterations=500,                       # LP solves
-    timeout_s=60.0,                           # wall clock, LP and pricing
-    relaxation=RelaxationParams(threads=1),   # options of every LP solve
-    tolerances="relative",                    # or "absolute" (the default), or an object
+    max_iterations=500,                           # LP solves
+    timeout_s=60.0,                               # wall clock, LP and pricing
+    relaxation=RelaxationParams(timeout_s=5.0),   # options of every LP solve
+    tolerances="relative",                        # or "absolute" (the default), or an object
     on_iteration=lambda info: print(info.iteration, info.objective, info.new_columns),
 )
 result = ColumnGeneration(master, params).run()
@@ -294,6 +300,8 @@ pricing.
 
 Each pricer is one block of the master, e.g. one vehicle type: give each its own graph and its own
 convexity row. Columns know their pricer (`MasterColumn.pricer`).
+
+<!-- docs test: fragment -->
 
 ```python
 large = master.add_pricer(GraphPricer(large_vehicle_graph), ConvexityRow(max_paths=1))
