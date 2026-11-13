@@ -35,6 +35,23 @@ for folder in (
     sys.path.insert(0, folder)
 
 
+def check_rcspp_source():
+    """Stop unless `rcspp` comes from the source checkout (its build folder, as run_matrix.ps1 sets PYTHONPATH).
+
+    Without the launcher, the virtual environment's installed `rcspp` is imported instead: an older package in which
+    `rcspp.column_generation` may be another layer, so a run would measure the wrong code without failing.
+    """
+    import rcspp
+
+    package = os.path.abspath(rcspp.__file__)
+    source = os.path.normcase(SOURCE)  # the drive letter's case differs between the two on Windows
+    if os.path.commonpath([os.path.normcase(package), source]) != source:
+        sys.exit(
+            f"rcspp is imported from {package}, not from the source checkout {SOURCE}: run through run_matrix.ps1, "
+            "or put the checkout's build python folder first on PYTHONPATH"
+        )
+
+
 def read_instance(name):
     from vrp.instance_reader import InstanceReader
 
@@ -258,6 +275,8 @@ def main():
     parser.add_argument("--master", default="highs", choices=["highs", "highspy", "gurobipy"])
     parser.add_argument("--pricing", default="exact", choices=["exact", "heuristic", "tabu"])
     args = parser.parse_args()
+    if args.driver != "cpp":  # the C++ example runs from ../rcspp-main and imports nothing
+        check_rcspp_source()
     if args.driver == "example":
         run_example(args.instance)
     elif args.driver == "cpp":
