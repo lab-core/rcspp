@@ -168,10 +168,81 @@ class OwnedHighsMasterSolver final : public MasterSolver {
         // The HiGHS column of column `id`.
         [[nodiscard]] HighsInt column(ColumnId id) const { return solver_.column(id); }
 
+        // The HiGHS model.
+        [[nodiscard]] const Highs& highs() const { return *highs_; }
+
     private:
         std::unique_ptr<Highs> highs_;
         HighsMasterSolver solver_;
 };
+
+// The cost, bounds and entries of columns `ids` in the HiGHS model of `solver`, the entries in
+// compressed sparse column form over the model's rows.
+py::tuple model_columns(const OwnedHighsMasterSolver& solver, const InputArray<ColumnId>& ids) {
+    const std::vector<ColumnId> id_values = to_vector(ids, "ids");
+    const Highs& highs = solver.highs();
+    const auto count = static_cast<py::ssize_t>(id_values.size());
+    py::array_t<double> cost(count);
+    py::array_t<double> lower(count);
+    py::array_t<double> upper(count);
+    std::vector<std::int64_t> starts{0};
+    std::vector<std::int64_t> row_indices;
+    std::vector<double> values;
+
+    // A column has at most one entry per row.
+    std::vector<HighsInt> column_rows(static_cast<size_t>(highs.getNumRow()));
+    std::vector<double> column_values(column_rows.size());
+    for (size_t index = 0; index < id_values.size(); ++index) {
+        const HighsInt column = solver.column(id_values[index]);
+        HighsInt got = 0;
+        HighsInt entries = 0;
+        HighsInt start = 0;
+        highs.getCols(column,
+                      column,
+                      got,
+                      cost.mutable_data() + index,
+                      lower.mutable_data() + index,
+                      upper.mutable_data() + index,
+                      entries,
+                      &start,
+                      column_rows.data(),
+                      column_values.data());
+
+        row_indices.insert(row_indices.end(), column_rows.begin(), column_rows.begin() + entries);
+        values.insert(values.end(), column_values.begin(), column_values.begin() + entries);
+        starts.push_back(static_cast<std::int64_t>(row_indices.size()));
+    }
+
+    return py::make_tuple(
+        cost,
+        lower,
+        upper,
+        py::array_t<std::int64_t>(static_cast<py::ssize_t>(starts.size()), starts.data()),
+        py::array_t<std::int64_t>(static_cast<py::ssize_t>(row_indices.size()), row_indices.data()),
+        py::array_t<double>(static_cast<py::ssize_t>(values.size()), values.data()));
+}
+
+// The bounds and names of the rows of the HiGHS model of `solver` from row `first` on.
+py::tuple model_rows(const OwnedHighsMasterSolver& solver, HighsInt first) {
+    const HighsLp& model = solver.highs().getLp();
+    if (first < 0 || first > model.num_row_) {
+        throw std::out_of_range(
+            "HighsMasterSolver.model_rows: first must be between 0 and the "
+            "number of rows of the model");
+    }
+
+    const auto begin = static_cast<size_t>(first);
+    const auto end = static_cast<size_t>(model.num_row_);
+    const auto count = static_cast<py::ssize_t>(end - begin);
+    std::vector<std::string> names;
+    names.reserve(end - begin);
+    for (size_t row = begin; row < end; ++row) {
+        names.push_back(row < model.row_names_.size() ? model.row_names_[row] : std::string());
+    }
+    return py::make_tuple(py::array_t<double>(count, model.row_lower_.data() + begin),
+                          py::array_t<double>(count, model.row_upper_.data() + begin),
+                          names);
+}
 
 }  // namespace
 
@@ -230,5 +301,16 @@ void init_column_generation_highs(py::module_& m) {
         .def("column",
              &OwnedHighsMasterSolver::column,
              py::arg("id"),
-             "The HiGHS column of column id.");
+             "The HiGHS column of column id.")
+        .def("model_columns",
+             &model_columns,
+             py::arg("ids"),
+             "The columns ids as the HiGHS model holds them: (cost, lower, upper, starts, "
+             "row_indices, values), the entries in compressed sparse column form over the "
+             "model's rows, and the costs in the model's own sense.")
+        .def("model_rows",
+             &model_rows,
+             py::arg("first") = 0,
+             "The rows of the HiGHS model from row first on: (lower, upper, names), an unnamed "
+             "row's name empty. The rows added during a run come after the model's own.");
 }

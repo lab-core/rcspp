@@ -20,4 +20,11 @@ if(USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
   target_sources(_core PRIVATE "${example_bindings_dir}/column_generation_highs.cpp")
   target_link_libraries(_core PRIVATE rcspp_column_generation_highs)
   target_compile_definitions(_core PRIVATE RCSPP_USE_COLUMN_GENERATION_EXAMPLE_HIGHS)
+  # HiGHS is built with hidden symbols, but the standard library templates it instantiates keep
+  # theirs; on Linux the linker hides those too, so that the module exports nothing of HiGHS and
+  # another HiGHS in the process (highspy's) keeps its own. macOS binds each module's symbols to
+  # that module already.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(_core PRIVATE "LINKER:--exclude-libs,ALL")
+  endif()
 endif()
