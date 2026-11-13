@@ -319,6 +319,23 @@ TEST_F(HighsMasterSolverTest, LpSolvesLeaveTheIntegralityAsItIs) {
     EXPECT_EQ(highs.getLp().col_upper_[solver.column(1)], kHighsInf);
 }
 
+TEST_F(HighsMasterSolverTest, AColumnAddedAfterABinarySolveKeepsItsBound) {
+    HighsMasterSolver solver(highs, lp_rows());
+    MasterProblem master(solver);
+    ScriptedPricer pricer;
+    const size_t pricer_index = master.add_pricer(pricer);
+    master.add_columns(pricer_index, lp_columns());
+    ASSERT_EQ(solver.solve_integer({.column_type = ColumnType::Binary}), SolverStatus::Optimal);
+
+    // A column added after the binary solve, before the bounds come back: only the three
+    // columns that solve bounded get theirs back, and the new one keeps its own.
+    master.add_columns(pricer_index, {make_path(2.0, covering({0}))});
+    ASSERT_EQ(solver.solve_relaxation({}), SolverStatus::Optimal);
+    for (ColumnId id = 0; id < 4; ++id) {
+        EXPECT_EQ(highs.getLp().col_upper_[solver.column(id)], kHighsInf) << id;
+    }
+}
+
 TEST_F(HighsMasterSolverTest, AddsRowsWithNamesRangesIncluded) {
     HighsMasterSolver solver(highs, {});
     MasterProblem master(solver);

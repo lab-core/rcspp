@@ -134,7 +134,9 @@ class HighsMasterSolver final : public MasterSolver {
         Highs& highs_;
         std::vector<HighsInt> rows_;
         SolverColumns<HighsInt> columns_;
-        // The upper bound of each generated column before a binary integer solve, to put back.
+        // The columns a binary integer solve bounded, and their upper bounds before it, to put
+        // back: columns added since keep theirs.
+        std::vector<HighsInt> binary_columns_;
         std::vector<double> upper_bounds_;
         // The last integer solve made the generated columns binary.
         bool binary_bounds_ = false;
