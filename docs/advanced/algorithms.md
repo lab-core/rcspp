@@ -4,6 +4,11 @@ title: Algorithms
 
 # Algorithms
 
+This page has three parts. First, each algorithm and what it returns (`Simple` to
+`Diversification`, and whether a result is a proof). Then the options every labelling search
+shares (arc masks, threshold pruning, admission rules, search directions, model checks, bucket
+containers). Last, how the algorithms are built from parts, and how to write one of your own.
+
 ## Choosing an algorithm
 
 | Algorithm | Optimal | Speed | When to use |
@@ -1011,8 +1016,8 @@ auto result = graph.solve<strategy::Simple, Buckets>(ub, params);
 
 ## How the labelling algorithms are built
 
-Every labelling search (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) and every
-dive (`Greedy`, `BoundGuidedGreedy`, `Tabu` and `ImprovingTabu`, forward or backward) runs on one
+Every exact labelling search (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) and
+every heuristic (`Greedy`, `BoundGuidedGreedy`, `Tabu` and `ImprovingTabu`, forward or backward) runs on one
 kernel, in `cpp/rcspp/algorithm/labelling/`. A strategy is not a class with its own loop but a
 *descriptor*: a struct in `rcspp::strategy` that names its parts. The parts a descriptor may name
 are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::detail`). Only
@@ -1182,7 +1187,7 @@ and hands them out next, cheapest first
 (its key), each child's subtree before its next sibling; its filter (`KeepAllChildren` by default)
 may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
 stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
-label is released once extended, living on while a label extended from it waits. A dive searches
+label is released once extended, living on while a label extended from it waits. A heuristic searches
 forward or backward; this one, like Greedy, says it does not search bidirectionally:
 
 <!-- docs-check: file-scope -->

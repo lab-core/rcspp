@@ -917,9 +917,9 @@ TEST(DrivenSearch, ReseedsASearchThatKeepsLabelsAtTheNodes) {
     EXPECT_TRUE(driven_runs()[2].exhausted);
 }
 
-/// @brief A run that found no path while the per-node quota held a label back, past its phases,
-///        is held back, not exhausted: the tabu searches do not take it for proof that no path
-///        exists, and the solve is truncated, not complete.
+/// @brief A run that found no path while the per-node quota stored a label aside, past its phases,
+///        ended with labels stored aside, not exhausted: the tabu searches do not take it for proof
+///        that no path exists, and the solve is truncated, not complete.
 TEST(DrivenSearch, ARunCutByTheQuotaEndsWithLabelsStoredAsideNotExhausted) {
     auto g = make_quota_cut_graph();
     AlgorithmBaseParams params;
@@ -939,7 +939,7 @@ TEST(DrivenSearch, ARunCutByTheQuotaEndsWithLabelsStoredAsideNotExhausted) {
     EXPECT_FALSE(driven_runs()[0].exhausted);
 }
 
-/// @brief A driven run goes on with the labels the per-node quota held back, in up to
+/// @brief A driven run goes on with the labels the per-node quota stored aside, in up to
 ///        max_phases phases, as a search that is not driven does.
 TEST(DrivenSearch, ARunGoesOnWithTheLabelsStoredAsideInItsPhases) {
     auto g = make_quota_cut_graph();

@@ -9,7 +9,8 @@
 
 namespace rcspp::parts {
 
-/// @brief Keeps every feasible label, comparing none: a dive's admission. It is exact, since it
+/// @brief Keeps every feasible label, comparing none: a heuristic's admission. It is exact, since
+/// it
 ///        keeps every label exact dominance keeps (and more).
 struct AdmitAll {
         /// @brief Whether the rule keeps every label exact dominance keeps: always.

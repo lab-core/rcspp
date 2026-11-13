@@ -62,7 +62,7 @@ inline Outcome solve(const AlgorithmBaseParams& params) {
     return {.status = result.status, .optimal = algorithm->is_optimal()};
 }
 
-/// @brief One extension per node and phase, and a single phase: labels are held back.
+/// @brief One extension per node and phase, and a single phase: labels are stored aside.
 inline AlgorithmBaseParams truncated(bool release_after_solve) {
     AlgorithmBaseParams params;
     params.max_extended_labels_per_node = 1;
@@ -256,7 +256,7 @@ TEST(SolveStatus, ATimedOutSolveIsNotOptimal) {
     EXPECT_FALSE(outcome.optimal);
 }
 
-// Releasing the labels used to hide the ones a phase held back: Complete instead of Truncated.
+// Releasing the labels used to hide the ones a phase stored aside: Complete instead of Truncated.
 TEST(SolveStatus, ATruncatedRunThatUsesUpItsPhasesIsNotComplete) {
     namespace sst = solve_status_test;
     const sst::Outcome outcome = sst::solve<rcspp::strategy::Simple>(sst::truncated(true));
