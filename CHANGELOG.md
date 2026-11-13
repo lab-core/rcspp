@@ -222,7 +222,9 @@ New features are summarised, with a pointer to where they are documented.
   `-DUSE_COLUMN_GENERATION_EXAMPLE=ON` (off by default) and kept tested, not part of the library:
   nothing of it is installed, and the wheel does not have it. A column generation layer over the
   pricing engine: a master problem over a swappable master solver, a loop with statistics and
-  hooks, tolerances and initializations.
+  hooks, tolerances and initializations. A master solver over Gurobi
+  (`-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON`), and a self-test that checks any master solver.
+  `FindGUROBI.cmake` moves to `cmake/`, shared by the examples.
 
 ### Fixed
 

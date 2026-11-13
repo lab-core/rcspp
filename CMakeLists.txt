@@ -19,7 +19,7 @@ option(USE_COLUMN_GENERATION_EXAMPLE_GUROBI
 
 enable_testing()
 
-# Find modules (FindGUROBI.cmake) shared by the library and the examples.
+# Find modules (FindGUROBI.cmake) shared by the examples.
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Coverage instrumentation -----------------------------------------------------
