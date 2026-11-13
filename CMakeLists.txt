@@ -11,6 +11,9 @@ option(USE_VRP "Enable vrp testing" OFF)
 option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
+option(USE_COLUMN_GENERATION_EXAMPLE
+       "Build the C++ column generation example (examples/column_generation) and, with USE_PYTHON, its bindings"
+       OFF)
 
 enable_testing()
 
@@ -76,6 +79,13 @@ file(MAKE_DIRECTORY ${BUILD_INCLUDE_DIR})
 
 # Build the core librairy ------------------------------------------------------
 add_subdirectory(cpp/rcspp)
+
+# C++ column generation example ------------------------------------------------
+# Not part of the library: its C++ layer, master solvers and tests build from its own folder, and
+# python/CMakeLists.txt adds its bindings to the Python module.
+if(USE_COLUMN_GENERATION_EXAMPLE)
+  add_subdirectory(examples/column_generation)
+endif()
 
 # VRP column generation example + benchmarks -----------------------------------
 # The VRP application is an example consumer of the rcspp library; it and its

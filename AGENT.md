@@ -360,6 +360,7 @@ cmake --build build --parallel
 # USE_PYTHON=ON   — build pybind11 extension
 # USE_TESTS=ON    — build GoogleTest suite (default: ON)
 # USE_VRP=ON      — build VRP benchmark (needs Gurobi)
+# USE_COLUMN_GENERATION_EXAMPLE=ON        — the C++ column generation example (examples/column_generation)
 # USE_COVERAGE=ON — instrument with gcov (gcc only)
 ```
 
