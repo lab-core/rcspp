@@ -12,7 +12,7 @@ option(USE_PYTHON "Enable Python bindings via pybind11" OFF)
 option(USE_TESTS "Enable tests for RCSPP" ON)
 option(USE_COVERAGE "Instrument C++ targets with gcov-style coverage" OFF)
 option(USE_COLUMN_GENERATION_EXAMPLE
-       "Build the C++ column generation example (examples/column_generation) into the Python module"
+       "Build the C++ column generation example (examples/column_generation) and, with USE_PYTHON, its bindings"
        OFF)
 
 enable_testing()

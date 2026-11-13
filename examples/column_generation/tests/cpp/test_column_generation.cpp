@@ -2,7 +2,7 @@
 // All rights reserved.
 
 // The column generation layer, tested with a scripted master solver and scripted pricers (no LP
-// solver, no graph), in its own translation unit; see the note at the top of test_main.cpp.
+// solver, no graph).
 
 #include <gtest/gtest.h>
 
