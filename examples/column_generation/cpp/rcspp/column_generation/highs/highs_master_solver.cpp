@@ -231,6 +231,7 @@ SolverStatus HighsMasterSolver::solve_integer(const IntegerParams& params) {
             const HighsLp& model = highs_.getLp();
             std::vector<double> lower;
             std::vector<double> upper;
+            binary_columns_.assign(generated.begin(), generated.end());
             upper_bounds_.clear();
             for (const HighsInt index : generated) {
                 lower.push_back(model.col_lower_[index]);
@@ -315,12 +316,11 @@ void HighsMasterSolver::restore_upper_bounds() {
     }
     const HighsLp& model = highs_.getLp();
     std::vector<double> lower;
-    const std::span<const HighsInt> generated = columns_.all();
-    for (const HighsInt index : generated) {
+    for (const HighsInt index : binary_columns_) {
         lower.push_back(model.col_lower_[index]);
     }
-    highs_.changeColsBounds(static_cast<HighsInt>(generated.size()),
-                            generated.data(),
+    highs_.changeColsBounds(static_cast<HighsInt>(binary_columns_.size()),
+                            binary_columns_.data(),
                             lower.data(),
                             upper_bounds_.data());
     binary_bounds_ = false;
