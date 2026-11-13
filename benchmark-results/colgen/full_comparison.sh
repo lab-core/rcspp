@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Past-run record: targets the pre-fold names (python_column_generation, USE_COLUMN_GENERATION*); not ported.
 # The full comparison of the pure-Python and the C++-backed column generation layers, tier after tier.
 #   bash benchmark-results/colgen/full_comparison.sh        (from the repo root; resumable: done runs are skipped)
 # Stops at the first tier whose summary lists an LP mismatch. A file STOP in the tier's folder stops after its run.

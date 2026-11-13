@@ -1,3 +1,4 @@
+# Past-run record: targets the pre-fold names (python_column_generation, USE_COLUMN_GENERATION*); not ported.
 """Replays the duals of an exact run through simple, greedy and tabu pricing (plans: T-1.14, F-40).
 
 Runs the Python example on an instance, records the duals of every iteration, then prices the first, middle and

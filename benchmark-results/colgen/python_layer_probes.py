@@ -1,3 +1,4 @@
+# Past-run record: targets the pre-fold names (python_column_generation, USE_COLUMN_GENERATION*); not ported.
 """Probes of the pure-Python layer (step G of plans/colgen/python-layer.md): what four open items wait on.
 
   python_layer_probes.py --instance R201_25 [--master highspy] [--repeats 5]

@@ -3,6 +3,28 @@
 State of the work on 2026-11-01, written so a new chat (possibly on another machine) can continue. The plan is
 `plans/colgen/measurements.md`; this file is what happened and what is left. Branch `feature/column-generation`.
 
+## Update 2026-11-13 (after the fold)
+
+The drivers run the folded stack (`plans/colgen/fold-record.md`) from a **source checkout**, not from this branch's own
+(pre-fold) copy of the code.
+
+- **Source checkout:** `COLGEN_SOURCE_DIRECTORY`, default `../rcspp-dev` next to this repository (branch
+  `feature/column-generation-pure-python`, #88's head; its `extern/pybind11` submodule initialized). The drivers take
+  the VRP example, the instances, the pure package and the example's package and loop script from it. Results and
+  scripts stay here.
+- **Names:** `--loop purepython` is `rcspp.column_generation` (the shipped package); `--loop cpp` and `--loop python`
+  are the package `cpp_column_generation` of `examples/column_generation/python/`, its bindings in
+  `rcspp._core.cpp_column_generation`, and the loop script `column_generation_loop.py` in the same folder.
+  Config names, driver options and `RESULT` fields are unchanged.
+- **Build:** `_core` is built in the source checkout's `build-python-highs` (Release) with `-DUSE_PYTHON=ON
+  -DUSE_TESTS=OFF -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`, and
+  `-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON` when `GUROBI_HOME` exists; the launcher configures and builds it when
+  missing. `PYTHONPATH` = that build's `python`, the source's `python/src`, the example's `python` (in this order).
+- **AlgorithmParams:** `stop_after_X_solutions` is `max_solutions` since main's renames (`COLGEN_HEURISTIC_CAP`).
+- The probe and replay scripts and the two `.sh` runners are records of past runs, written for the old names and not
+  ported; a line at the top of each says so.
+- Check run of the folded code on C101_25: `post-fold-check/` (see the plan README status).
+
 ## Update 2026-11-02 (after the presentation)
 
 What is next now lives in the plan (`plans/colgen/README.md` status, `T-1.13` to `T-1.16`); "Next" below is
@@ -50,11 +72,11 @@ Quick scripts in `benchmark-results/colgen/` (not shipped, left out of the PR br
 
 Configurations (names in `run_matrix.py`): `example-mip` (Python example, python-mip picking Gurobi), `example-cpp` (C++
 example `rcspp-ng-cg-comparison`, ng size 0 = cycles allowed), and `layer-{cpp,python}-{highs,highspy,gurobipy}-{exact,
-heuristic}` (C++ `ColumnGeneration.run()` or the Python loop `examples/python/column_generation_loop.py`; exact =
-`simple`, heuristic = `greedy` then `simple`), and `layer-purepython-{highspy,gurobipy}-{exact,heuristic}` (the
-pure-Python layer `rcspp.python_column_generation`, driver option `--loop purepython`; run with
-`PYTHONPATH=python/src`, the launcher's build folder has no such package; results of 2026-11-06 in
-`pure-python-quick*/`, plan `python-layer-runs.md`). Instances are in `instances/`: small C101_25, R101_25, R201_25,
+heuristic}` (C++ `ColumnGeneration.run()` or the Python loop `column_generation_loop.py` of the C++ example; exact = `simple`,
+heuristic = `greedy` then `simple`), and `layer-purepython-{highspy,gurobipy}-{exact,heuristic}` (the pure-Python layer
+`rcspp.column_generation`, driver option `--loop purepython`; results of 2026-11-06 in `pure-python-quick*/`, plan
+`python-layer-runs.md`; recorded before the fold under the names `rcspp.python_column_generation` and
+`rcspp.column_generation` for the C++-backed layer). Instances are in `instances/`: small C101_25, R101_25, R201_25,
 RC201_12, C101_50, R101_50, RC101_50; large C101, R101, RC101, C201, R201, RC201.
 
 ## How to run (Windows, this machine's setup)
@@ -67,8 +89,11 @@ RC201_12, C101_50, R101_50, RC101_50; large C101, R101, RC101, C201, R201, RC201
 - Stop cleanly: create a file `STOP` in the output folder; the runner stops after the run in progress.
   `status.txt` shows the run in progress, refreshed every 5 s.
 - Environment variables read by the layer driver: `COLGEN_INIT=single` (start from the example's single-customer
-  columns instead of artificial columns), `COLGEN_ARTIFICIAL_COST=<x>` (explicit artificial cost; only tried by hand).
-- Needs: `.venv` with highspy, gurobipy (licensed), python-mip, psutil, numpy; `build-python-highs` built (`_core`).
+  columns instead of artificial columns) or `bigm` (the same explicit artificial cost in both layers),
+  `COLGEN_HEURISTIC_CAP=<n>` (greedy's `max_solutions`), `COLGEN_ARTIFICIAL_COST=<x>` (explicit artificial cost; only
+  tried by hand), `COLGEN_SOURCE_DIRECTORY` (the source checkout, default `../rcspp-dev`).
+- Needs: `.venv` with highspy, gurobipy (licensed), python-mip, psutil, numpy; the source checkout with `_core` built
+  in its `build-python-highs` (the launcher configures and builds it, see the update above).
   The C++ example needs a `main` worktree at `../rcspp-main` with `USE_VRP` and Gurobi (`GUROBI_HOME`), built in
   `build-v2`; the launcher does that. It edits `examples/cpp/vrp/vrp.hpp` there (`kRouteRelaxation` from `None` to
   `NgPath`, a `static_assert` of the example); nothing in this branch is touched. The worktree is not tracked.
@@ -159,11 +184,13 @@ are pushed too; the packaging PR is #80 (draft).
 2. Python: a venv with `tests/python/requirements.txt`, then `pip install gurobipy mip psutil` (the requirements leave
    python-mip out on Windows; it works there). Gurobi needs the machine's license (`GUROBI_HOME`, a license file);
    without one, skip the gurobipy and Gurobi configurations (`--configs`).
-3. Build with HiGHS for the layer configurations: `cmake -S . -B build-python-highs -DUSE_PYTHON=ON
-   -DUSE_COLUMN_GENERATION_HIGHS=ON [-DUSE_COLUMN_GENERATION_GUROBI=ON]` (the options were renamed from `USE_HIGHS`
-   and `USE_GUROBI`), then build `_core`. Run with `PYTHONPATH=build-python-highs/python`. Code that imports from
-   `python/src` looks for the module in `build/`, `out/` or `cmake-build-*/`: on the first machine a junction
-   `cmake-build-release/python/rcspp` pointed at `build-python-highs/python/rcspp`.
+3. The rcspp code is a separate source checkout: a worktree of #88's head (`feature/column-generation-pure-python`)
+   at `../rcspp-dev`, or any folder named by `COLGEN_SOURCE_DIRECTORY`; initialize its `extern/pybind11` submodule.
+   The launcher then builds `_core` in its `build-python-highs`: `cmake -S <source> -B <source>/build-python-highs
+   -DUSE_PYTHON=ON -DUSE_TESTS=OFF -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON
+   [-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON] -DPython_EXECUTABLE=<venv python>`, then `cmake --build ... --config
+   Release --target _core`. The launcher sets `PYTHONPATH` (build's `python`, source's `python/src`, the example's
+   `python`); running `drivers.py` by hand needs the same.
 4. The C++ example needs the `../rcspp-main` worktree and its `build-v2` (the launcher makes both, with `USE_VRP` and
    Gurobi); on Linux, adapt the `.ps1` steps or build `rcspp-ng-cg-comparison` by hand.
 5. Results of a new machine go in new output folders (machine names in the folder or in `--output`), not mixed with

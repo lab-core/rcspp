@@ -3,9 +3,15 @@
   drivers.py example --instance C101_25
   drivers.py layer --instance C101_25 --loop cpp|python|purepython --master highs|highspy|gurobipy --pricing exact|heuristic
 
-`--loop purepython` runs the pure-Python layer (rcspp.python_column_generation: its own loop, master problem, graph
-pricer and master solvers; no `highs` master there); `cpp` and `python` run the C++-backed layer
-(rcspp.column_generation) with its C++ loop or the Python loop of examples/python/column_generation_loop.py.
+`--loop purepython` runs the pure-Python layer (rcspp.column_generation: its own loop, master problem, graph pricer
+and master solvers; no `highs` master there); `cpp` and `python` run the C++ column generation example
+(examples/column_generation, its package cpp_column_generation over the bindings in rcspp._core) with its C++ loop or
+the Python loop of examples/column_generation/python/column_generation_loop.py.
+
+The code comes from a source checkout of rcspp (the folded stack), given by COLGEN_SOURCE_DIRECTORY and defaulting to
+../rcspp-dev next to this repository: the VRP example, the instances, the example's Python package and loop script. The
+compiled `_core` (built with USE_COLUMN_GENERATION_EXAMPLE=ON) and the pure package are found through PYTHONPATH, which
+run_matrix.ps1 sets. The `cpp` driver runs the C++ example of ../rcspp-main and does not use the checkout.
 """
 
 import argparse
@@ -15,15 +21,24 @@ import os
 import sys
 import time
 
+# This repository (results and scripts) and the source checkout the code is taken from.
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(ROOT, "examples", "python"))
-sys.path.insert(0, os.path.join(ROOT, "instances"))
+SOURCE = os.path.abspath(
+    os.environ.get("COLGEN_SOURCE_DIRECTORY") or os.path.join(ROOT, "..", "rcspp-dev")
+)
+EXAMPLE = os.path.join(SOURCE, "examples", "column_generation")
+for folder in (
+    os.path.join(SOURCE, "examples", "python"),  # vrp
+    os.path.join(EXAMPLE, "python"),  # cpp_column_generation, column_generation_loop
+    os.path.join(SOURCE, "instances"),
+):
+    sys.path.insert(0, folder)
 
 
 def read_instance(name):
     from vrp.instance_reader import InstanceReader
 
-    return InstanceReader(os.path.join(ROOT, "instances", name + ".txt")).read()
+    return InstanceReader(os.path.join(SOURCE, "instances", name + ".txt")).read()
 
 
 def emit(**fields):
@@ -98,9 +113,9 @@ def run_cpp_example(name):
 def layer_module(loop):
     """The package of a loop option: the pure-Python layer, or the C++-backed one."""
     if loop == "purepython":
-        import rcspp.python_column_generation as cg
-    else:
         import rcspp.column_generation as cg
+    else:
+        import cpp_column_generation as cg
     return cg
 
 
@@ -180,13 +195,13 @@ def run_layer(name, loop, master_kind, pricing):
             from rcspp.graph import AlgorithmParams
 
             greedy = AlgorithmParams()
-            greedy.stop_after_X_solutions = int(os.environ["COLGEN_HEURISTIC_CAP"])
+            greedy.max_solutions = int(os.environ["COLGEN_HEURISTIC_CAP"])
         stages = [cg.PricingStage("greedy", greedy), cg.PricingStage("simple")]
     elif pricing == "tabu":  # tabu then simple, as the big-M runs and the full comparison (cap 20, 1000 iterations)
         from rcspp.graph import AlgorithmParams
 
         tabu = AlgorithmParams()
-        tabu.stop_after_X_solutions = 20
+        tabu.max_solutions = 20
         tabu.max_iterations = 1000
         stages = [cg.PricingStage("tabu", tabu), cg.PricingStage("simple")]
     master = cg.MasterProblem(master_model(cg, master_kind, rows))

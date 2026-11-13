@@ -1,0 +1,2 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+10:43:14,0.0,45.7,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
