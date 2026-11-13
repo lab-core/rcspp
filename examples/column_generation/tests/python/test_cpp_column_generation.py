@@ -767,7 +767,7 @@ def test_the_self_test_needs_master_solvers_that_add_rows() -> None:
 # ── Master solvers over a model ──────────────────────────────────────────────
 
 
-def test_importing_rcspp_loads_no_lp_solver_package() -> None:
+def test_importing_the_package_loads_no_lp_solver_package() -> None:
     # A new process: this one may have loaded them already.
     code = (
         "import sys, cpp_column_generation as column_generation;"
@@ -789,12 +789,12 @@ def test_importing_rcspp_loads_no_lp_solver_package() -> None:
     ("master_solver", "package"),
     [("GurobipyMasterSolver", "gurobipy"), ("HighspyMasterSolver", "highspy")],
 )
-def test_a_master_solver_without_its_package_names_the_extra(
+def test_a_master_solver_without_its_package_names_the_package(
     monkeypatch: pytest.MonkeyPatch, master_solver: str, package: str
 ) -> None:
     if not hasattr(column_generation, master_solver):
         pytest.skip(f"rcspp built without {master_solver}")
     monkeypatch.setitem(sys.modules, package, None)  # as if it were not installed
 
-    with pytest.raises(ImportError, match=rf"pip install rcspp\[{package}\]"):
+    with pytest.raises(ImportError, match=rf"pip install {package}$"):
         getattr(column_generation, master_solver)(object())

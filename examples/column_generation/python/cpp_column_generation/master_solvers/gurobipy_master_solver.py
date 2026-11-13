@@ -19,7 +19,7 @@ from rcspp._core.cpp_column_generation import (
     SolverStatus,
 )
 
-# gurobipy is imported where it is used, so that importing rcspp does not load it.
+# gurobipy is imported where it is used, so that importing cpp_column_generation does not load it.
 if TYPE_CHECKING:
     import gurobipy as gp
 
@@ -119,7 +119,7 @@ class GurobipyMasterSolver(MasterSolver):
     and reads its duals: when the run ends, the model holds the generated columns,
     continuous. During a run the model is the master solver's: what it holds between two
     solves must not be relied on. When the run ends, the user's variable types come back
-    (:meth:`restore_user_model`). Needs gurobipy (``pip install rcspp[gurobipy]``).
+    (:meth:`restore_user_model`). Needs gurobipy (``pip install gurobipy``).
 
     - **Sense:** a maximizing model works too: the master solver negates the costs it adds,
       the objective and the duals, so that the master is seen as a minimization.
@@ -147,7 +147,7 @@ class GurobipyMasterSolver(MasterSolver):
             import gurobipy  # noqa: F401  # pyright: ignore[reportUnusedImport]
         except ImportError as error:
             raise ImportError(
-                "GurobipyMasterSolver needs gurobipy: pip install rcspp[gurobipy]"
+                "GurobipyMasterSolver needs gurobipy: pip install gurobipy"
             ) from error
 
         super().__init__()

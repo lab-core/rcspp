@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
   "networkx>=3,<4",
-  # Column generation returns numpy arrays (duals, column values, column batches).
+  # rcspp.pricing_pool imports numpy, and column generation works on numpy arrays.
   "numpy>=1.24",
 ]
 
