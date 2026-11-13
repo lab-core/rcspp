@@ -36,10 +36,11 @@ MOVES = [
         EXAMPLE + "python/typings/rcspp/_core/cpp_column_generation.pyi",
     ),
     ("python/src/rcspp/column_generation/", EXAMPLE + "python/cpp_column_generation/"),
-    ("tests/python/test_column_generation", EXAMPLE + "tests/python/test_column_generation"),
+    # Named after the example's package: the renamed pure tests take the old names (D-160).
+    ("tests/python/test_column_generation", EXAMPLE + "tests/python/test_cpp_column_generation"),
     (
         "tests/python/column_generation_fakes.py",
-        EXAMPLE + "tests/python/column_generation_fakes.py",
+        EXAMPLE + "tests/python/cpp_column_generation_fakes.py",
     ),
     ("examples/python/column_generation_loop.py", EXAMPLE + "python/column_generation_loop.py"),
 ]
@@ -86,6 +87,11 @@ EXAMPLE_RULES = [
     (re.compile(r"^from \.graph import", re.MULTILINE), "from rcspp._core.graph import"),
     (re.compile(r"\brcspp\._core\.column_generation\b"), "rcspp._core.cpp_column_generation"),
     (re.compile(r"\brcspp\.column_generation\b"), "cpp_column_generation"),
+    (re.compile(r"\bcolumn_generation_fakes\b"), "cpp_column_generation_fakes"),
+    (
+        re.compile(r"^(from|import) test_column_generation", re.MULTILINE),
+        r"\1 test_cpp_column_generation",
+    ),
     (
         re.compile(r"\bRCSPP_USE_(?:COLUMN_GENERATION_)?(GUROBI|HIGHS)\b"),
         r"RCSPP_USE_COLUMN_GENERATION_EXAMPLE_\1",

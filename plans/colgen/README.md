@@ -55,10 +55,14 @@ renames applied in the commits that brought the old names; every head passes on 
 `F-53` decided 2026-11-12 (`D-152`, `D-153`); the eight branches force-pushed by the user (checked equal to `origin`
 2026-11-12). Fold map written 2026-11-12 (`fold-map.md`, `fold-map-commits.md`, `fold-map-targets.md`; filter
 `tools/fold_filter.py`, dry run `F-54`, traps `F-55`): 90 commits → 89, `D-154`–`D-158` accepted 2026-11-12,
-`Q-56`–`Q-59` decided (`D-159`–`D-162`). **Next:** the rewrite chat (`fold-map.md` §3); `T-1.18` can run beside
-it; `T-1.19` after the layout (also the benchmark's pure C++ leg, `D-164`); `drivers.py` after the push; then
-`T-1.20` (many cheap iterations over three legs, `F-56`, `D-163`), a colleague's question of 2026-11-12.
-Then `T-1.16`.
+`Q-56`–`Q-59` decided (`D-159`–`D-162`). Rewrite done 2026-11-12 (`fold-record.md`): 89 commits, every head passes on
+MSVC off and on with §8's totals, pre-commit clean, final state the 16 intended differences; departures and `F-57`
+recorded; Linux gcc 13 passes at #77, #80, #88 (`fold-record.md` §5); `Q-60` decided (`D-166`, a #88 fixup); the eight
+branches moved and force-pushed 2026-11-13, PR descriptions updated. **Next:** `T-1.18`; `T-1.19`
+after the layout (also the benchmark's pure C++ leg, `D-164`); `drivers.py`
+after the push; then `T-1.20` (many cheap iterations over three legs, `F-56`, `D-163`), a colleague's question of
+2026-11-12. Triage (`D-165`): `T-1.7` and a read of each folded PR before the stack leaves draft, then the merge; then
+`T-1.18`–`T-1.21` and `T-1.16` as follow-up PRs; then re-scoping `T-1.9`, `T-1.10` and phases 2–4.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
@@ -134,6 +138,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `python-layer-comparison.md` | step H: where the pure layer's extra time goes, the full comparison matrix, `Q-41`'s rule, D.12 after heuristic runs | before running the full comparison or deciding `Q-41` |
 | `separation.md` | the colleagues' feedback of 2026-11-09, C++ layer as an example: what moves, open questions, PR shapes, VRP comparisons | before `T-1.17`–`T-1.19` |
 | `fold-map.md` (+ `-commits`, `-targets`, `tools/fold_filter.py`) | the stack's rewrite into `examples/column_generation/`: method, filter, every commit, where each item goes, PR heads, final state | before rewriting the stack |
+| `fold-record.md` | the rewrite as done: heads, checks, departures, the Linux run, step 6 | before the push or a stack review |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here

@@ -64,6 +64,7 @@ current stance, if any.
 | Q-57 | **New names (`D-12`) for the example's Python tests**, whose basenames clash with the renamed pure tests (`F-55`) | `test_cpp_column_generation*.py`, `cpp_column_generation_fakes.py`, after the package | the fold | → D-160 |
 | Q-58 | **Keep the old-flag configure error?** (`USE_COLUMN_GENERATION*` stops the configure) | drop it: no commit of the folded stack has those options (`F-55`); the PR descriptions name the new options | the fold | → D-161 |
 | Q-59 | **Shipped: the wheel installs only its `python` component** (`install.components`, from the wheel's HiGHS) | keep it, moved to `2e0bdb37` with its reason: else the wheel also carries the C++ library, headers and CMake package of the plain install | the fold | → D-162 |
+| Q-60 | **The pure layer's isolation test guards nothing after the renames**: `test_the_layer_imports_nothing_of_the_cpp_layer` (`tests/python/test_column_generation.py`) forbids modules matching `(^\|\.)column_generation($\|\.)`, which the example's names (`cpp_column_generation`,`rcspp._core.cpp_column_generation`) do not match; the prototype has it too | a fixup of #88's first commit: forbid `cpp_column_generation` in any form (`(^\|\.)cpp_column_generation($\|\.)`), and keep the old pattern out (the package's own absolute imports would match it); a test name change is not needed | #88's final description, before the push | → D-166 |
 
 ## Q-04: pros and cons
 
