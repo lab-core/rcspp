@@ -225,7 +225,8 @@ New features are summarised, with a pointer to where they are documented.
   hooks, tolerances and initializations. A master solver over Gurobi
   (`-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON`), and a self-test that checks any master solver.
   `FindGUROBI.cmake` moves to `cmake/`, shared by the examples. A graph pricer that prices a
-  `ResourceGraph` through stages, from the cheapest search to an exact one.
+  `ResourceGraph` through stages, from the cheapest search to an exact one. A master solver over
+  HiGHS (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`; HiGHS found installed, or else fetched).
 
 ### Fixed
 
