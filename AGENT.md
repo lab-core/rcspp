@@ -146,6 +146,9 @@ problems = rg.check_model("backward")        # the model checks, without solving
 result.solutions            # list[Solution], best-first
 result.status               # AlgorithmStatus enum
 result.status_string()      # "complete" | "timeout" | "max_solutions" | …
+result.proven               # True only when the result is a proof of optimality
+result.proof_lost_by        # why not: "truncated", "relaxed_admission", "memory_pressure", …
+result.bidirectional        # BidirectionalStats, or None unless direction="bidirectional"
 # How many labels the search extended is on the algorithm, not on SolveResult:
 #   auto algo = graph.create_algorithm<strategy::Simple>(params);
 #   graph.solve(algo.get());
@@ -190,6 +193,9 @@ p.max_iterations          = 1000
 p.timeout_s               = 30.0
 p.tabu_tenure             = 5
 p.seed                    = 42
+p.prune_by_threshold      = True       # drop labels that cannot beat upper_bound
+p.admission_rule          = AdmissionRule.KBest   # heuristic: at most max_admitted_labels_per_node per node
+p.max_admitted_labels_per_node             = 5
 p.limit_to_available_ram  = True
 p.memory_limit_fraction   = 0.8
 
@@ -558,8 +564,12 @@ void add_my_resource(ResourceGraph<RealResource, MyResource>& graph) {
 
 ### Custom algorithm (C++)
 
-Inherit from `Algorithm<ResourceType, LabelContainerType>` and override
-`main_loop()`:
+Inherit from `Algorithm<ResourceType, LabelContainerType>` and implement its hooks:
+`initialize_labels`, `number_of_waiting_labels`, `main_loop`, `labels_at_end_nodes` and
+`get_path_arc_ids`. Name the class in a descriptor,
+`struct MyStrategy { template <typename ResourceType, typename LabelContainerType>
+using algorithm = MyAlgorithm<ResourceType, LabelContainerType>; };`,
+and solve it as any strategy, `graph.solve<MyStrategy>(params)`, forward only:
 
 <!-- docs-check: file-scope -->
 
@@ -571,7 +581,7 @@ class MyAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 };
 ```
 
-A new *labelling* search, or a new dive, needs no loop of its own: it is a descriptor of its
+A new *labelling* search, or a new heuristic, needs no loop of its own: it is a descriptor of its
 parts, as every `strategy::` but `Diversification` is (`docs/advanced/algorithms.md`, "How the
 labelling algorithms are built" and "A strategy of one's own"). The kernel's files:
 
@@ -585,7 +595,9 @@ cpp/rcspp/algorithm/
   dominance_mask.hpp             DominanceMask: the components the relaxed rule leaves out
   proof_record.hpp               ProofLoss, ProofRecord: whether a result is a proof, and why not
   diversification_search.hpp     DiversificationSearch: an inner strategy solved under a hard mask
-  tabu_list.hpp                  TabuList: the tabu searches' tenures
+  tabu/tabu_list.hpp             TabuList: the tabu searches' tenures
+  tabu/tabu_arcs.hpp             TabuArcs: tabu arcs kept in step with an arc mask (Tabu,
+                                 Diversification)
   path_evaluator.hpp             PathEvaluator, PathEvaluation: replays a path through the model
   labelling/
     parts/                       rcspp::parts: the parts a strategy is built from, one header per

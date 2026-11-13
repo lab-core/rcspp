@@ -76,8 +76,8 @@ bool step_node(SearchType& search, SearchContext<typename SearchType::resource_t
 ///        (@ref step_node).
 ///
 /// Once a label is extended, a schedule that places children (@c parts::PlacesChildren, a
-/// dive's) places the labels just pushed; and a retention that keeps nothing behind
-/// (@c parts::releases_taken_labels_v, a dive's) has the label released, as it has one the
+/// heuristic's) places the labels just pushed; and a retention that keeps nothing behind
+/// (@c parts::releases_taken_labels_v, a heuristic's) has the label released, as it has one the
 /// rule keeps at an end node. Each branch is chosen at compile time: the other searches compile
 /// to the step without them.
 ///

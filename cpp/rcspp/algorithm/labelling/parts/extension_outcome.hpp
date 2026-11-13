@@ -16,7 +16,7 @@ enum class ExtensionOutcome : std::uint8_t {
     /// which was released
     Rejected,
     /// the extended label was kept and handed on: extended in turn or, at an end node, read as a
-    /// path, when it is taken or once the search ends, as the retention says (a dive's child
+    /// path, when it is taken or once the search ends, as the retention says (a heuristic's child
     /// filter may still drop it: @c parts::DepthFirstSchedule::place_children)
     Accepted,
 };
