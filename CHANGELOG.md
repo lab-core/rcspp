@@ -410,10 +410,13 @@ New features are summarised, with a pointer to where they are documented.
   `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
   `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
 - **`AlgorithmParams.prune_by_incumbent` in Python.** The C++ field was not bound, so Python
-  users could not turn pruning by the upper bound on.
+  users could not turn pruning by the incumbent on.
 
 ### Fixed
 
+- **`Algorithm(n)` with a value no algorithm has raises `ValueError`** in Python. It returned an
+  empty result with status `complete`. Value 6, the retired `Algorithm.Bidirectional`, is one of
+  them: use `direction="bidirectional"`. `Algorithm.BoundGuidedGreedy` is 7.
 - **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs** (Simple,
   A\*, Pushing and Pulling, forward and backward, and Greedy). The prune now compares a label's cost
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it
