@@ -552,12 +552,11 @@ class ResourceGraph:
         """Solve the RCSPP.
 
         Args:
-            algorithm: ``Algorithm.Simple`` (default), ``Algorithm.Pushing``,
-                ``Algorithm.Pulling``, ``Algorithm.Greedy``, ``Algorithm.Tabu``,
-                ``Algorithm.AStar``, ``Algorithm.BoundGuidedGreedy``, or the equivalent
-                strings ``'bound_guided_greedy'``, ``'simple'``,
-                ``'pushing'``, ``'pulling'``, ``'greedy'``, ``'tabu'``,
-                ``'astar'``.
+            algorithm: an ``Algorithm``, or its name: ``'simple'`` (default),
+                ``'pushing'``, ``'pulling'``, ``'astar'`` (the exact labelling algorithms),
+                ``'greedy'``, ``'bound_guided_greedy'``, ``'tabu'`` (the heuristics, whose
+                budget is ``max_iterations``). See :class:`Algorithm` and
+                :doc:`the algorithms guide </advanced/algorithms>`.
             upper_bound: Prune paths with cost ≥ this value.
             params: :class:`AlgorithmParams` (defaults to ``AlgorithmParams()``).
             preprocess: Run preprocessing before solving.
@@ -565,9 +564,10 @@ class ResourceGraph:
                 or ``int`` slot in canonical order that the user registered).
                 Defaults to 0.
             direction: ``'forward'``, ``'backward'`` or ``'bidirectional'`` (or a
-                ``SearchDirection``). Every labelling algorithm (``'simple'``,
-                ``'pushing'``, ``'pulling'``, ``'astar'``) searches in each;
-                ``'greedy'`` and ``'tabu'`` search forward or backward, and raise
+                ``SearchDirection``). The exact labelling algorithms (``'simple'``,
+                ``'pushing'``, ``'pulling'``, ``'astar'``) search in each; the heuristics
+                (``'greedy'``, ``'bound_guided_greedy'``, ``'tabu'``) search forward or
+                backward, and raise
                 ``ValueError`` for ``'bidirectional'``. A bidirectional search goes forward from the
                 sources and backward from the sinks, and joins the two halves in
                 the middle: set ``params.critical_resource_index`` (the clock)

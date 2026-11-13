@@ -81,7 +81,18 @@ void init_graph(py::module_& m) {
 
     // ── Algorithm enum ────────────────────────────────────────────────────────
 
-    py::enum_<SolverAlgorithm>(m, "Algorithm")
+    py::enum_<SolverAlgorithm>(
+        m,
+        "Algorithm",
+        "The algorithm ResourceGraph.solve runs; solve also takes its name in snake_case. The "
+        "exact labelling algorithms, in every direction: Simple (labels taken first in, first "
+        "out), Pushing (node by node, in sweep order), Pulling (node by node, each pulling from "
+        "its neighbours) and AStar (lowest cost plus a lower bound on the cost still to pay "
+        "first). The heuristics, which search forward or backward: Greedy (depth first, cheapest "
+        "child first), BoundGuidedGreedy (Greedy's dive with the children taken by cost plus that "
+        "lower bound; meant with prune_by_threshold) and Tabu (Greedy's dive in episodes, the arcs "
+        "of each path tabu for the next episodes; max_iterations counts episodes and must be "
+        "finite). A heuristic with no max_iterations tries every path.")
         .value("Simple", SolverAlgorithm::Simple)
         .value("Pushing", SolverAlgorithm::Pushing)
         .value("Pulling", SolverAlgorithm::Pulling)
@@ -96,8 +107,9 @@ void init_graph(py::module_& m) {
                                "SearchDirection",
                                "Which way a search runs: Forward from the sources, Backward from "
                                "the sinks, or Bidirectional (both at once, joined in the middle). "
-                               "Every labelling algorithm (simple, pushing, pulling, astar) "
-                               "supports all three; greedy and tabu search Forward or Backward.")
+                               "The exact labelling algorithms (simple, pushing, pulling, astar) "
+                               "search in all three; the heuristics (greedy, bound_guided_greedy, "
+                               "tabu) search Forward or Backward.")
         .value("Forward", SearchDirection::Forward)
         .value("Backward", SearchDirection::Backward)
         .value("Bidirectional", SearchDirection::Bidirectional);
@@ -253,12 +265,16 @@ void init_graph(py::module_& m) {
                        "alone is compared and the result is not a proof ('incumbent_prune').")
         .def_readwrite("prune_by_threshold",
                        &PyAlgorithmParams::prune_by_threshold,
-                       "Whether a labelling search drops a label whose cost plus a lower bound on "
-                       "the cost still to pay from its node reaches the solve's upper_bound "
-                       "(default False): no path through it could be returned. The paths returned "
-                       "are the same; fewer labels are extended. Needs an additive cost (a zero "
-                       "or value cost under an addition, for every resource the cost reads); "
-                       "another raises ValueError.")
+                       "Whether a search drops a label whose cost plus a lower bound on the cost "
+                       "still to pay from its node is at or above the solve's upper_bound (default "
+                       "False): no path through it could be returned. The paths returned are the "
+                       "same; fewer labels are extended. Read by every algorithm (simple, pushing, "
+                       "pulling, astar, greedy, bound_guided_greedy, tabu), in every direction; "
+                       "bound_guided_greedy is meant to be used with it. With no upper_bound, only "
+                       "labels that can reach no end node are dropped. Needs an additive cost: "
+                       "every resource the cost reads uses TrivialCostFunction, or "
+                       "ValueCostFunction under an addition (AdditionExtensionFunction); another "
+                       "raises ValueError when solve() starts.")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)
@@ -316,10 +332,11 @@ void init_graph(py::module_& m) {
         .def_readwrite("direction",
                        &PyAlgorithmParams::direction,
                        "Which way the search runs: SearchDirection.Forward (default), Backward or "
-                       "Bidirectional. Every labelling algorithm (simple, pushing, pulling, "
-                       "astar) searches in each; greedy and tabu search Forward or Backward, and "
-                       "raise ValueError for Bidirectional. ResourceGraph.solve's `direction` "
-                       "argument overrides it for that call only.")
+                       "Bidirectional. The exact labelling algorithms (simple, pushing, pulling, "
+                       "astar) search in each; the heuristics (greedy, bound_guided_greedy, tabu) "
+                       "search Forward or Backward, and raise ValueError for Bidirectional. "
+                       "ResourceGraph.solve's `direction` argument overrides it for that call "
+                       "only.")
         // -- Bidirectional parameters ------------------------------------
         .def_readwrite("critical_resource_index",
                        &PyAlgorithmParams::critical_resource_index,
@@ -349,9 +366,10 @@ void init_graph(py::module_& m) {
                        "the default), Relaxed or KBest. Relaxed and KBest drop labels exact "
                        "dominance keeps: every path returned is feasible and correctly priced, but "
                        "the optimum may be missed, and result.proven is False (unless the rule is "
-                       "at its limit: nothing left out, no limit on k). Read by every labelling "
-                       "algorithm (simple, pushing, pulling, astar), in every direction; greedy "
-                       "and tabu keep every label and ignore it.")
+                       "at its limit: nothing left out, no limit on k). Read by the exact "
+                       "labelling algorithms (simple, pushing, pulling, astar), in every "
+                       "direction; the heuristics (greedy, bound_guided_greedy, tabu) keep every "
+                       "label and ignore it.")
         .def_readwrite("dominance_ignored_components",
                        &PyAlgorithmParams::dominance_ignored_components,
                        "Relaxed: the resources left out of dominance, by their position in the "

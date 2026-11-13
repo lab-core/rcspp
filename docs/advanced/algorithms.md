@@ -11,11 +11,16 @@ title: Algorithms
 | `Simple` | ✓ | medium | Default; correct answer needed |
 | `Pushing` | ✓ | medium–fast | Dense graphs; pushing dominance forward |
 | `Pulling` | ✓ | medium–fast | Dense graphs; pulling dominance from in-arcs |
-| `Simple`, `direction="bidirectional"` | ✓ | fast–slow | Long routes with a tight, monotone clock |
+| `Simple`, `AStar`, `Pushing` or `Pulling` with `direction="bidirectional"` | ✓ | fast–slow | Long routes with a tight, monotone clock |
 | `AStar` | ✓ | fast–slow | Good heuristic available |
 | `Greedy` | ✗ | fast | Quick feasible solution; large graphs |
+| `BoundGuidedGreedy` | ✗ | fast | Greedy guided by a lower bound on the cost still to pay; with `prune_by_threshold` and a tight `upper_bound` |
 | `Tabu` | ✗ | medium | Metaheuristic diversity |
-| `Diversification` | ✗ | configurable | Generate a diverse pool of solutions |
+| `ImprovingTabu` (C++) | ✗ | medium | Tabu that counts the episodes that do not improve |
+| `Diversification` (C++) | ✗ | configurable | Generate a diverse pool of solutions |
+
+✗: no guarantee within a budget (`max_iterations`). With no budget, a heuristic tries every path,
+and so finds the optimum, at a cost that grows with the number of paths.
 
 ## What every algorithm returns
 
@@ -586,11 +591,11 @@ params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 result = rg.solve(algorithm="greedy", params=params)
 ```
 
-### Bounded Greedy
+### Bound-guided Greedy
 
-`BoundGuidedGreedy` (`algorithm="bound_guided_greedy"`) is Greedy's dive with a label's children taken by
-cost plus a lower bound on the cost still to pay, not by cost alone, so each step goes toward the
-cheapest completion. It is meant with `prune_by_threshold`, which drops, under the same bound, the
+`BoundGuidedGreedy` (`algorithm="bound_guided_greedy"`) is Greedy's dive with a label's children
+taken by cost plus a lower bound on the cost still to pay, not by cost alone, so each step goes
+toward the cheapest completion. It is meant with `prune_by_threshold`, which drops, under the same bound, the
 labels that cannot beat the upper bound. The bound costs one Bellman–Ford run at the start of each
 solve. With no budget, it finds the optimum, as Greedy does.
 
@@ -801,7 +806,7 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 | Direction | Searched by |
 |---|---|
 | Forward | every algorithm |
-| Backward | `Simple`, `AStar`, `Pushing`, `Pulling` |
+| Backward | `Simple`, `AStar`, `Pushing`, `Pulling`, and the heuristics: `Greedy`, `BoundGuidedGreedy`, `Tabu`, `ImprovingTabu` |
 | Bidirectional | `Simple`, `AStar`, `Pushing`, `Pulling` |
 
 Backward, each labelling algorithm runs as it does forward, on the graph read in reverse. `Pushing`

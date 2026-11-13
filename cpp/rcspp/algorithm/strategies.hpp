@@ -106,13 +106,15 @@ struct Greedy {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Greedy's dive with the children taken by cost plus completion bound, lowest first
-///        (@c parts::CostPlusBoundKey), not by cost alone: each step goes toward the cheapest
-///        completion. Meant with @c prune_by_threshold, which drops, under the same bound, the
-///        labels that cannot beat the upper bound. Forward or backward; not bidirectionally.
+/// @brief Greedy's dive with each label's children taken by cost plus completion bound (g + h,
+///        A*'s key; @c parts::CostPlusBoundKey), lowest first, so each step heads toward the
+///        cheapest completion. A heuristic: no dominance, and a path found is not a proof unless
+///        the dive runs out of paths. Meant with @c prune_by_threshold, which drops, under the
+///        same bound, the labels that cannot beat the upper bound. Forward or backward; not
+///        bidirectionally.
 ///
-/// @c max_iterations counts the labels taken, as in Greedy. The bound is computed at the start of
-/// each solve: one Bellman–Ford run over the arcs' shares of the cost, from the end nodes.
+/// @c max_iterations counts the labels taken, as in Greedy. The completion bound is A*'s (see
+/// AStar), computed at the start of each solve.
 struct BoundGuidedGreedy {
         template <typename ResourceType, typename Direction>
         using schedule = parts::DepthFirstSchedule<ResourceType, parts::CostPlusBoundKey>;
