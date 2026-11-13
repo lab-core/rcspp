@@ -8,6 +8,324 @@ RCSPP arises naturally as the pricing subproblem in column-generation (CG)
 algorithms for vehicle routing and crew scheduling.  This page describes the
 full integration pattern.
 
+## The column generation package
+
+The package `rcspp.column_generation` runs the whole loop in Python: you build the master LP in **highspy** or
+**gurobipy**, describe the pricing problem as a `ResourceGraph`, and the loop solves the master, prices its duals
+with rcspp's search and adds the columns it finds, until no improving column is left. The sections after this one
+describe the concepts and the building blocks for writing a loop of your own.
+
+### Installing a master solver
+
+The package itself needs only rcspp and numpy. The master LP is solved by one of two master
+solvers, each over a model of its own LP solver; install the one you use:
+
+```bash
+pip install rcspp[highspy]    # HighspyMasterSolver, over a highspy.Highs model
+pip install rcspp[gurobipy]   # GurobipyMasterSolver, over a gurobipy.Model
+```
+
+| | `HighspyMasterSolver` | `GurobipyMasterSolver` |
+|---|---|---|
+| LP solver | [HiGHS](https://highs.dev), open source (MIT) | [Gurobi](https://www.gurobi.com), commercial |
+| Licence | none | a Gurobi licence (free for academics); without one, small models only |
+| Model you build | `highspy.Highs` | `gurobipy.Model` |
+
+Both offer the same features and give the same results: choose the solver you already work
+with.
+
+### A first run
+
+Three customers with demands 4, 5 and 6, vehicles of capacity 11, each customer visited exactly
+once. The master has one row per customer; the pricing graph has the depot as its source and,
+again, as its sink.
+
+```python
+import highspy
+
+from rcspp import presets
+from rcspp.column_generation import (
+    ColumnGeneration,
+    ConvexityRow,
+    GraphPricer,
+    HighspyMasterSolver,
+    MasterProblem,
+)
+from rcspp.graph import ResourceGraph
+
+capacity = 11.0
+demands = [4.0, 5.0, 6.0]  # customers 1, 2 and 3
+distances = [  # 0 is the depot
+    [0.0, 10.0, 10.0, 10.0],
+    [10.0, 0.0, 4.0, 5.0],
+    [10.0, 4.0, 0.0, 6.0],
+    [10.0, 5.0, 6.0, 0.0],
+]
+customers = len(demands)
+sink = customers + 1  # the depot again, as the end of a route
+
+# The pricing graph: cost, load, and each customer at most once per route.
+graph = ResourceGraph()
+presets.add_cost_resource(graph)
+presets.add_capacity_resource(graph, "real", capacity)
+presets.add_elementary_resource(graph, "bitset", range(sink + 1))
+
+graph.add_node(0, source=True)
+for customer in range(1, customers + 1):
+    graph.add_node(customer)
+graph.add_node(sink, sink=True)
+
+for origin in range(customers + 1):
+    for destination in range(1, sink + 1):
+        place = 0 if destination == sink else destination
+        if place == origin:
+            continue
+        distance = distances[origin][place]
+        demand = 0.0 if destination == sink else demands[destination - 1]
+        # An arc into customer j covers master row j - 1.
+        rows = [] if destination == sink else [(destination - 1, 1.0)]
+        graph.add_arc((distance, demand, set()), origin, destination, distance, rows)
+
+# The master: one row per customer, "visited exactly once", empty for now.
+model = highspy.Highs()
+model.setOptionValue("output_flag", False)
+for customer in range(customers):
+    model.addRow(1.0, 1.0, 0, [], [])
+
+master = MasterProblem(HighspyMasterSolver(model))
+master.add_pricer(GraphPricer(graph), ConvexityRow(max_paths=2))  # at most two vehicles
+loop = ColumnGeneration(master)
+result = loop.run()
+
+print(result.status, result.objective)  # ColumnGenerationStatus.Optimal 37.5
+```
+
+With Gurobi, only the master's model changes:
+
+```python
+import gurobipy as gp
+
+from rcspp.column_generation import GurobipyMasterSolver
+
+model = gp.Model()
+model.Params.OutputFlag = 0
+for customer in range(customers):
+    model.addLConstr(gp.LinExpr(), gp.GRB.EQUAL, 1.0)
+
+master = MasterProblem(GurobipyMasterSolver(model))
+```
+
+#### Reading the solution
+
+The master keeps every column with the path it came from. Column values are read by id:
+
+```python
+import numpy as np
+
+from rcspp.column_generation import ColumnTag
+
+ids = np.array([column.id for column in master.columns], dtype=np.uint64)
+for column, value in zip(master.columns, master.solver.primal(ids)):
+    if column.tag == ColumnTag.Real and value > 1e-6:
+        path = list(column.solution.path_node_ids)
+        print(f"{value:.2f} x {path}, cost {column.solution.column.cost}")
+# 0.50 x [0, 1, 2, 4], cost 24.0
+# 0.50 x [0, 1, 3, 4], cost 25.0
+# 0.50 x [0, 2, 3, 4], cost 26.0
+```
+
+The LP optimum uses half of three routes. An integer plan over the columns generated so far
+comes from the master's MIP. It is a heuristic: the best plan may need a column that column
+generation never produced.
+
+```python
+from rcspp.column_generation import IntegerParams
+
+loop.solve_restricted_master_integer(IntegerParams(timeout_s=10.0))
+print(master.solver.objective())  # 44.0: routes {1, 2} and {3}
+```
+
+When the run ends, your model holds the generated columns, and you can keep working with it in
+highspy or gurobipy.
+
+### The pieces
+
+| class | role |
+|---|---|
+| `MasterProblem` | the master's rows, its pricers and the columns generated so far |
+| `HighspyMasterSolver`, `GurobipyMasterSolver` | solve the master LP over your model and read its duals |
+| `GraphPricer` | prices a `ResourceGraph`: writes the reduced costs into its arcs, then searches |
+| `PricingStage` | one search of a graph pricer: an algorithm and its parameters |
+| `ColumnGeneration` | the loop: solve the master, price, add columns, until convergence or a limit |
+| `ColumnGenerationParams` | the run's limits, tolerances, initialization and hooks |
+
+`MasterSolver` and `Pricer` are abstract base classes: subclass them to use another LP solver or
+another pricing method ([Your own components](#your-own-components)).
+
+### The master is your model
+
+You build the master's rows in your LP solver, with their names and anything else you need:
+slack variables, starting columns, other constraints. The master solver adds the generated
+columns to that model; variables it did not add are left alone.
+
+- **Rows:** every row of the model is a master row by default, in the model's order; pass
+  `rows=` to the master solver to use only some of them (row indices for highspy, constraints
+  for gurobipy). `MasterProblem.add_rows` and `add_rows_between` append rows to the model.
+- **Duals:** one per master row, with one convention for both solvers:
+  `π_i = d(objective)/d(rhs_i)`, so a `>=` row has `π >= 0` and a `<=` row `π <= 0`. A
+  maximizing model works too: the master solver negates its costs and duals, so that the master
+  is always seen as a minimization.
+- **During a run** the model belongs to the master solver: integer variables are relaxed for
+  the LP solves, and the solver options a solve sets (time limit, threads, output) are put back
+  after it. When the run ends, by an exception too, the model gets your settings back.
+- **Ctrl-C** stops a run with `KeyboardInterrupt`, the model restored. HiGHS does not stop
+  inside an LP solve: the interrupt arrives when that solve returns.
+
+#### Convexity rows
+
+A pricer's convexity row bounds how many of its paths the solution uses, e.g. the fleet size:
+
+```python
+master.add_pricer(pricer, ConvexityRow(max_paths=2))     # the master adds "sum of paths <= 2"
+master.add_pricer(pricer, ConvexityRow(existing_row=3))  # row 3 of your model
+master.add_pricer(pricer)                                # no convexity row
+```
+
+Each column of the pricer gets a 1 in its convexity row. Without one, any number of paths may be
+used.
+
+### Pricing
+
+`GraphPricer(graph, stages)` prices a `ResourceGraph` whose arcs carry the master rows they cover
+(the `rows` argument of `add_arc`, or `add_rows_to_arc`). The graph's first resource is the real
+cost; the pricer writes the reduced costs into it at each call.
+
+A pricer runs its stages in order, and stops at the first one that finds a column or proves that
+none exists. Cheap heuristic stages come first, an exact one last:
+
+```python
+from rcspp.column_generation import PricingStage
+from rcspp.graph import AlgorithmParams
+
+tabu = AlgorithmParams()
+tabu.max_solutions = 20     # stop after 20 columns
+tabu.max_iterations = 1000  # tabu needs a finite number of iterations
+
+pricer = GraphPricer(graph, [PricingStage("tabu", tabu), PricingStage("simple")])
+```
+
+| stage | finds | proves that no improving column exists |
+|---|---|---|
+| `"greedy"`, `"tabu"` | improving paths, fast | no |
+| `"simple"` and the other exact algorithms | the best paths | yes, when the search finishes |
+
+A run ends `Optimal` only when an exact stage finished and found nothing. A stage also takes the
+other arguments of `ResourceGraph.solve`: its `direction` (`"forward"`, `"backward"`,
+`"bidirectional"`) and the algorithm's parameters (see [Algorithms](algorithms.md)). For a
+search of your own, pass `search=` and say whether it is `exact`.
+
+Exact pricing gets slow when the duals are poor, at the start of a run in particular: a heuristic
+stage before it often saves most of that time.
+
+### Starting the master
+
+The first master LP needs a feasible solution before any column exists. By default
+(`ArtificialColumns`), the master gets one costly artificial column per row that needs one;
+pricing then brings real columns that push them out. Their cost is automatic, 10⁴ times the
+scale of the pricers' costs, or set it yourself:
+
+```python
+from rcspp.column_generation import ArtificialColumns, ColumnGenerationParams
+
+params = ColumnGenerationParams(initialization=ArtificialColumns(cost=1e5))
+```
+
+A run that converges with an artificial column still in use ends `Infeasible`: no solution
+exists **at that cost** (`result.statistics.artificial_cost`). A solution whose columns cost
+more per row could still exist; raise the cost if that can happen.
+
+If your model is feasible as it is (starting columns, slack variables), skip the initialization
+with `initialization="none"`. Starting columns of a pricer go through the master, which gives
+them their convexity entry:
+
+```python
+k = master.add_pricer(GraphPricer(graph))
+master.add_columns(k, starting_routes)  # Solutions, each with its column
+params = ColumnGenerationParams(initialization="none")
+```
+
+### Options and hooks
+
+```python
+from rcspp.column_generation import ColumnGenerationParams, RelaxationParams
+
+params = ColumnGenerationParams(
+    max_iterations=500,                       # LP solves
+    timeout_s=60.0,                           # wall clock, LP and pricing
+    relaxation=RelaxationParams(threads=1),   # options of every LP solve
+    tolerances="relative",                    # or "absolute" (the default), or an object
+    on_iteration=lambda info: print(info.iteration, info.objective, info.new_columns),
+)
+result = ColumnGeneration(master, params).run()
+```
+
+`on_converged` is called after each proven convergence with the master, its duals and its column
+values. It returns `ConvergenceAction.Continue` after changing something (adding rows, changing a
+pricer's graph) to solve and price again, or `ConvergenceAction.Stop`. `run()` may also be called
+again on the same loop after such changes.
+
+#### How a run ends
+
+| `result.status` | meaning |
+|---|---|
+| `Optimal` | no improving column exists, and no artificial column is used |
+| `NotProven` | no new column, but a pricer did not prove it found the best ones |
+| `Infeasible` | converged with an artificial column in use: no solution at the artificial cost |
+| `RestrictedMasterInfeasible` | the master LP has no solution with its columns so far (no initialization) |
+| `Unbounded` | the master LP is unbounded: look for a missing convexity row or bound |
+| `TimeLimit`, `IterationLimit` | stopped by `timeout_s` or `max_iterations` |
+| `SolverError` | an LP solve failed for another reason |
+
+`result.objective` is the last master LP value, `result.lower_bound` a proven lower bound, and
+`result.statistics` holds the number of columns generated and the time spent in LP solves and in
+pricing.
+
+### Several pricers
+
+Each pricer is one block of the master, e.g. one vehicle type: give each its own graph and its own
+convexity row. Columns know their pricer (`MasterColumn.pricer`).
+
+```python
+large = master.add_pricer(GraphPricer(large_vehicle_graph), ConvexityRow(max_paths=1))
+small = master.add_pricer(GraphPricer(small_vehicle_graph), ConvexityRow(max_paths=4))
+```
+
+### Your own components
+
+- **A pricer:** subclass `Pricer` and implement `price(duals, request)`, returning a
+  `PricingResult` with the new columns (`Solution`s with their `column`) and a `PricingStatus`.
+  Only an exact call (`exact_stage=True`) that ends `Optimal` or `Infeasible` proves that no
+  improving column exists.
+- **A master solver:** subclass `MasterSolver` for another LP solver. The loop trusts its
+  answers, so check it with `master_solver_self_test(minimizing, maximizing)`: it solves small
+  LPs with known optima, duals and integer solutions through the interface, and reports every
+  check that failed.
+- **Initializations and tolerances by name:** `register_initialization` and
+  `register_tolerances` make your own classes usable as names in `ColumnGenerationParams`, e.g.
+  in configuration files and benchmark grids.
+
+Every class and option is described in its docstring, e.g.
+`help(rcspp.column_generation.GraphPricer)`.
+
+### The C++ example
+
+The repository also has the same column generation written in C++ over the C++ library, with
+Gurobi and HiGHS master solvers and Python bindings: `examples/column_generation/`. It is an
+example to read or copy, not part of the library or of the Python package; its README tells how
+to build it and run its tests.
+
+---
+
 ## Concept
 
 In a CG loop the LP master provides dual values `π` (one per constraint).  The
