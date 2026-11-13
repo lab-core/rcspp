@@ -17,7 +17,7 @@ from the repo's existing set. "Still on stacks" = also present at the tips of th
 | I-10 | `fix(python): on Windows, the second Ctrl-C kills Python instead of raising KeyboardInterrupt` | bug | draft (found 2026-10-28 measuring `D-87`) | `F-31` |
 | I-11 | `fix(build): cmake --install installs no rcspp headers` | bug | created: #79 (2026-10-30); no open PR fixes it, fixed in `T-1.12` (`D-107`) | `F-33` |
 | I-12 | `docs: add rcspp.column_generation to the Python API reference` | documentation | created: #94 (2026-11-13); after the stack merges | `F-60` (2), `F-61` (3) |
-| I-13 | `fix(algorithm): tabu search with default parameters logs an error and returns no path` | bug | draft (2026-11-13), after #88's tabu check | `F-60` (1) |
+| I-13 | `fix(algorithm): tabu search with default parameters logs an error and returns no path` | bug | created: #95 (2026-11-13) | `F-60` (1) |
 
 ## Files
 

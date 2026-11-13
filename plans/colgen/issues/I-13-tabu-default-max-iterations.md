@@ -40,7 +40,7 @@ Either way, a default call should not silently return nothing. Option 2 changes 
 
 ## Found by
 
-The column generation pricer (#88) runs a tabu stage before an exact one. With default parameters the tabu stage searched nothing and the exact stage did all the work; #88 is changed to require a finite `max_iterations` for a tabu stage, but `ResourceGraph.solve("tabu")` itself still behaves as above.
+The column generation pricer (#88) runs a tabu stage before an exact one. With default parameters the tabu stage searched nothing and the exact stage did all the work; #88 will require a finite `max_iterations` for a tabu stage, but `ResourceGraph.solve("tabu")` itself still behaves as above.
 
 ---
 
