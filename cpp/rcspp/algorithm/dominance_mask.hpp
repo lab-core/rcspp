@@ -11,7 +11,8 @@ namespace rcspp {
 /// @brief The components a dominance test leaves out: relaxed dominance compares labels over the
 ///        others only, so more labels are dropped.
 ///
-/// Components are numbered as the model checks number them: type slots in the order of the
+/// Components are numbered as @c AlgorithmBaseParams::dominance_ignored_components numbers them
+/// (and as the model checks' messages do): type slots in the order of the
 /// `ResourceGraph`'s template parameters, then registration order within a type. A component the
 /// mask was not sized for is compared. An empty mask leaves nothing out: dominance is exact.
 class DominanceMask {

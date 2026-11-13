@@ -109,8 +109,10 @@ class LabelList {
                 });
         }
 
-        /// @brief Removes the costliest label, marking it dominated, when it costs more than
-        ///        @p cost; of labels of equal cost, the last in the container's order.
+        /// @brief Removes the costliest label when it costs more than @p cost (of labels of equal
+        ///        cost, the last in the container's order), and marks it dominated, as an evicted
+        ///        label is, so that a schedule still holding it releases it when taken instead of
+        ///        extending it.
         /// @return Whether a label was removed.
         bool remove_costliest_above(double cost) {
             auto costliest = labels_.end();

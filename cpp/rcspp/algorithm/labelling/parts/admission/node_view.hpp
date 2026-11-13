@@ -52,8 +52,9 @@ class NodeView {
             container_->remove_dominated_labels(label, mask);
         }
 
-        /// @brief Removes the node's costliest label, marking it dominated, when it costs more
-        ///        than @p cost.
+        /// @brief Removes the node's costliest label when it costs more than @p cost, and marks
+        ///        it dominated, as an evicted label is: a schedule that still holds it releases
+        ///        it when it comes up, instead of extending it.
         ///
         /// @return Whether a label was removed.
         bool evict_costliest_above(double cost) { return container_->remove_costliest_above(cost); }
