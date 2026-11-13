@@ -49,6 +49,7 @@ class PricingStage:
         params: Its :class:`AlgorithmParams` or :class:`BucketAlgorithmParams`; ``None``
             for the defaults. Copied when the pricer is built: changing them afterwards
             changes nothing. The time limit of a pricing call caps ``params.timeout_s``.
+            A ``tabu`` stage needs a finite ``max_iterations``, which the defaults are not.
         direction: ``"forward"``, ``"backward"`` or ``"bidirectional"``; ``None`` as in
             ``solve``.
         exact: Whether a finished search proves that no better path exists. ``None``
@@ -172,8 +173,9 @@ class GraphPricer(Pricer):
     Raises:
         TypeError: When ``graph`` is not a :class:`~rcspp.graph.ResourceGraph`, a stage is not a
             :class:`PricingStage`, or ``cost_index`` is not an integer.
-        ValueError: For a negative ``cost_index``, no stage, or a stage whose algorithm or
-            direction the graph refuses.
+        ValueError: For a negative ``cost_index``, no stage, a stage whose algorithm or
+            direction the graph refuses, or a ``tabu`` stage without a finite
+            ``params.max_iterations``.
     """
 
     def __init__(
@@ -310,6 +312,18 @@ class GraphPricer(Pricer):
             params = params._to_cpp(self._internals._full_registration_order)
 
         params = _copied(params)
+
+        # The tabu search refuses the default number of iterations: it logs an error and
+        # searches nothing, so the stage would hand every call over to the next one.
+        if (
+            algorithm == Algorithm.Tabu
+            and params.max_iterations >= AlgorithmParams().max_iterations
+        ):
+            raise ValueError(
+                "GraphPricer: a tabu stage needs a finite params.max_iterations "
+                "(the tabu search refuses the default)"
+            )
+
         direction = _chosen_direction(params, stage.direction)
         exact = stage.exact if stage.exact is not None else algorithm not in _HEURISTICS
         return _ResolvedStage(_algorithm_search(algorithm, params, direction), exact)
