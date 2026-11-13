@@ -40,7 +40,7 @@ class MasterSolver {
         virtual void row_bounds(std::span<double> lower, std::span<double> upper) const = 0;
 
         /// @brief Appends rows. Optional: only master solvers that set @c Capabilities::add_rows
-        ///        override it; a master solver wrapping a user's model, whose rows exist, does not.
+        ///        override it.
         ///
         /// New rows get the next row numbers. A master solver may refuse rows its solver cannot
         /// hold, e.g. ranges: the batch then adds nothing.

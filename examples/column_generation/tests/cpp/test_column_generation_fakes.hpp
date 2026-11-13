@@ -131,8 +131,8 @@ class ScriptedMasterSolver final : public MasterSolver {
         double largest_user_cost_value = 0.0;
 };
 
-/// @brief The smallest master solver: a wrapped model whose rows already exist, so it keeps the
-///        base class's @c add_rows and reports no capability.
+/// @brief The smallest master solver: a model whose rows already exist, so it keeps the base
+///        class's @c add_rows and reports no capability.
 class WrappedModelMasterSolver final : public MasterSolver {
     public:
         [[nodiscard]] size_t number_of_rows() const override { return 0; }

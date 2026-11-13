@@ -70,7 +70,8 @@ class MasterProblem {
         /// @brief Constructs a master over @p solver.
         ///
         /// @param solver The LP solver holding the master. Its existing rows are the master's
-        ///                rows; it must not hold columns the master did not add.
+        ///                rows. It may hold variables of its own (a user's slacks or starting
+        ///                columns): the master ignores them.
         explicit MasterProblem(MasterSolver& solver) : solver_(solver) {}
 
         /// @brief Appends @p count rows with the same sense and right-hand side.
