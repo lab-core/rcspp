@@ -422,7 +422,7 @@ def test_a_master_solver_without_its_package_names_the_extra(
         layer.HighspyMasterSolver(object())  # type: ignore[arg-type]
 
 
-def test_the_layer_imports_nothing_of_the_cpp_layer() -> None:
+def test_the_package_imports_nothing_of_the_example() -> None:
     root = os.path.dirname(layer.__file__)
     checked = 0
 
