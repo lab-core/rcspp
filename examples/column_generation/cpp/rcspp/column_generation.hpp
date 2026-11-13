@@ -5,8 +5,8 @@
 /// @brief Umbrella header of the column generation example (rcspp::column_generation,
 ///        USE_COLUMN_GENERATION_EXAMPLE).
 ///
-/// Column generation is a library of its own, so rcspp.hpp does not include it. This header pulls
-/// in all of it but its master solvers, which have headers and libraries of their own:
+/// The column generation example is not part of the library, so rcspp.hpp does not include it. This
+/// header pulls in all of it but its master solvers, which have headers and libraries of their own:
 /// rcspp/column_generation/highs/highs_master_solver.hpp (rcspp::column_generation_highs) and
 /// rcspp/column_generation/gurobi/gurobi_master_solver.hpp (rcspp::column_generation_gurobi).
 ///

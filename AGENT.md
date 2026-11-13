@@ -32,6 +32,7 @@ tests/
 examples/
   cpp/                ← VRP C++ benchmark
   python/             ← VRP Python example (solve_vrp.py)
+  column_generation/  ← C++ column generation example (USE_COLUMN_GENERATION_EXAMPLE)
 extern/pybind11/      ← submodule
 ```
 

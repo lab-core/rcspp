@@ -33,14 +33,11 @@ python examples/python/solve_vrp.py instances/C101_5.txt --subproblem-only
 python examples/python/solve_vrp.py instances/C101_5.txt
 ```
 
-A column generation loop written in Python over the bindings of the C++ column generation
-example is in
-[`column_generation/python/column_generation_loop.py`](column_generation/python/column_generation_loop.py);
-it needs rcspp built with that example and its HiGHS master solver
-(`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`), and highspy installed.
-
 ## C++ column generation (`examples/column_generation/`)
 
 A column generation layer in C++ over rcspp, with master solvers over Gurobi and HiGHS, Python
 bindings and tests, built with `-DUSE_COLUMN_GENERATION_EXAMPLE=ON`: see its
-[README](column_generation/README.md).
+[README](column_generation/README.md). A column generation loop written in Python over its bindings is
+in [`column_generation/python/column_generation_loop.py`](column_generation/python/column_generation_loop.py);
+it needs the example's HiGHS master solver (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`) and
+highspy.

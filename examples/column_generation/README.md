@@ -2,7 +2,7 @@
 
 A column generation layer written in C++ over rcspp's pricing engine, with master solvers over Gurobi and HiGHS,
 Python bindings and tests. It is an example to read and copy, not part of the library: nothing here is installed, and
-the wheel does not have it. In Python, the package's `rcspp.column_generation` is the same layer written in Python.
+the wheel does not have it. rcspp's Python package ships `rcspp.column_generation`, the same layer written in Python.
 
 | folder | contents |
 |---|---|

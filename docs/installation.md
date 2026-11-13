@@ -25,15 +25,15 @@ This installs pre-built wheels for Linux, macOS, and Windows (Python 3.11+).
 git clone --recursive https://github.com/lab-core/rcspp.git
 cd rcspp
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build --config Release
 ```
 
-To also build the Python bindings:
+To also build the Python bindings in `build/python` (put that folder on `PYTHONPATH`; to install
+the package instead, run `pip install .` from the repository's root):
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DRCSPP_BUILD_PYTHON=ON
-cmake --build build
-pip install python/
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_PYTHON=ON
+cmake --build build --config Release
 ```
 
 ### Include in your CMake project
@@ -41,7 +41,7 @@ pip install python/
 Install the library (headers, library and CMake package) into a prefix:
 
 ```bash
-cmake --install build --prefix /path/to/prefix
+cmake --install build --prefix /path/to/prefix --config Release
 ```
 
 then find it from your project, with `-DCMAKE_PREFIX_PATH=/path/to/prefix` if the prefix is not
