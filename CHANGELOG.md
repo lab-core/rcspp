@@ -26,6 +26,10 @@ New features are summarised, with a pointer to where they are documented.
   `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
   `auto`, or build the algorithm directly. With constructor arguments beyond the params,
   `create_algorithm` still returns the type it names.
+- **A bidirectional search runs one phase, whatever `max_phases` is.** With a finite
+  `max_iterations`, one that stopped with labels waiting used to start another phase, which only
+  restarted the iteration count and ran the join again; `max_iterations` now caps the whole
+  bidirectional search. The warning on `max_phases > 1` already said it runs one phase.
 - **`preprocess` only says whether a solve may reduce the graph.** A backward or bidirectional
   search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
   says, and also when `Algorithm::solve` is called directly; a model that fails them is refused

@@ -169,6 +169,11 @@ class BidirectionalLabellingAlgorithm : public Algorithm<ResourceType, LabelCont
             return forward_.schedule.size() + backward_.schedule.size();
         }
 
+        /// @brief One phase, whatever @c max_phases is: the quota and memory pressure abandon
+        ///        labels instead of storing them aside, so a later phase would only restart the
+        ///        @c max_iterations count and run the join again.
+        [[nodiscard]] size_t max_phases() const override { return 1; }
+
         /// @brief Whether the quota or memory pressure abandoned a label this solve.
         ///
         /// A bidirectional search runs one phase, so what a cut takes off a schedule is never
