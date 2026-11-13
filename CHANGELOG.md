@@ -224,7 +224,8 @@ New features are summarised, with a pointer to where they are documented.
   pricing engine: a master problem over a swappable master solver, a loop with statistics and
   hooks, tolerances and initializations. A master solver over Gurobi
   (`-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON`), and a self-test that checks any master solver.
-  `FindGUROBI.cmake` moves to `cmake/`, shared by the examples.
+  `FindGUROBI.cmake` moves to `cmake/`, shared by the examples. A graph pricer that prices a
+  `ResourceGraph` through stages, from the cheapest search to an exact one.
 
 ### Fixed
 
