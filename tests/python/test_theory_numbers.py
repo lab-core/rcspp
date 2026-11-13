@@ -104,8 +104,23 @@ def test_page1_column_generation(p1):
     assert p1["early_lower_bound_iteration_0"] == approx(12)
 
 
+def test_page1_new_column(p1):
+    """Section 1.11: a negative reduced cost lowers the cost at iteration 0 only."""
+    step0 = p1["new_column"]["iteration_0"]
+    assert step0 == approx(
+        {"reduced_cost": -16, "rate": -16, "rate_from_reduced_costs": -16, "value_after": 44}
+    )
+    step1 = p1["new_column"]["iteration_1"]
+    assert step1["columns_above_zero"] == 2  # three constraints: degenerate
+    assert step1["reduced_cost"] == approx(-15) and step1["priced_rate"] == approx(-15)
+    assert step1["rate"] == approx(1) and step1["rate_from_reduced_costs"] == approx(1)
+    assert step1["old_duals_on_p13"] == approx(40)  # above c = 25: the old duals cannot return
+    assert step1["value_after"] == approx(44)
+
+
 def test_page1_exercises(p1):
-    """Check yourself 2 and 3."""
+    """Check yourself 2, 3 and 6."""
+    assert p1["new_column"]["exercise_p13_first"] == approx(45)
     assert p1["exercise_2_reduced_costs"] == approx({"p_12": 0, "p_13": 0, "p_23": -13})
     assert p1["exercise_3_lp"] == approx(12)
     assert p1["exercise_3_ip"] == approx(12)

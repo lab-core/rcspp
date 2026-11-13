@@ -423,7 +423,8 @@ is visible. The dual values are those returned by an actual LP solver (HiGHS).
 ### What to notice
 
 - **The RMP value never goes up.** Adding a column only enlarges the feasible set.
-- **Iteration 2 stalled** (44 → 44). At iteration 1 the LP solution is **degenerate**: there are three
+- **Iteration 2 stalled** (44 → 44): a column with negative reduced cost did not lower the cost. Section 1.11
+  explains why. At iteration 1 the LP solution is **degenerate**: there are three
   constraints but only two variables above zero. Many dual vectors are then equally valid (any $\pi$ with
   $\pi_1 + \pi_2 = 24$, $\pi_3 = 20$ and $\pi_1, \pi_2 \le 20$), and the solver just returns one of them. Here
   that choice decided which path was priced next. Master problems like this are *very* degenerate in practice.
@@ -437,7 +438,78 @@ is visible. The dual values are those returned by an actual LP solver (HiGHS).
 
 ---
 
-## 1.11 A lower bound before the end
+## 1.11 Does a new column always lower the cost?
+
+No. Iteration 0 added $p_{12}$, with reduced cost −16, and the RMP value dropped by exactly 16, from 60 to 44.
+Iteration 1 added $p_{13}$, with reduced cost −15, and the value did not move. A negative reduced cost says a
+column is *worth* adding. It does not say the LP can actually use it.
+
+### How the cost moves when the solution moves
+
+Start from the RMP solution $x$ and change it by $\Delta x$, keeping every customer covered exactly once, so
+$\sum_p a_{ip}\,\Delta x_p = 0$ for every customer $i$. Substituting $c_p = \bar c_p + \sum_i a_{ip}\pi_i$ (the
+definition of the reduced cost, section 1.7):
+
+$$
+\sum_p c_p\,\Delta x_p
+= \sum_p \bar c_p\,\Delta x_p + \sum_i \pi_i \underbrace{\sum_p a_{ip}\,\Delta x_p}_{=\,0}
+= \sum_p \bar c_p\,\Delta x_p .
+$$
+
+**The cost changes at the rate of the reduced costs of the columns that move.** The columns in use have
+$\bar c_p = 0$ (section 1.7), so they can go up or down at no cost. The new column brings its $\bar c_p < 0$. What
+decides the outcome is which *other* columns must move to keep every customer covered, and whether they can.
+
+### Iteration 0: the new column takes over
+
+All three single-customer routes are in use: $x_1 = x_2 = x_3 = 1$. As $x_{12}$ grows by $\theta$, customers 1 and 2
+are covered by $p_{12}$ instead, so $x_1$ and $x_2$ go down by $\theta$. The cost changes by
+$24 - 20 - 20 = -16$ per unit, which is $\bar c_{p_{12}}$: the columns that make room are in use, so they cost
+nothing to move. The step goes on until $x_1$ and $x_2$ reach 0, at $\theta = 1$, and the value drops from 60 to 44.
+
+### Iteration 1: the new column has nowhere to go
+
+Now $x_{12} = x_3 = 1$ and $x_1 = x_2 = 0$. The duals $\pi = (20, 4, 20)$ make $p_1$, $p_3$ and $p_{12}$ all cost
+nothing extra ($\bar c = 0$). $\bar c_{p_{13}} = 25 - 20 - 20 = -15$ is the rate of letting $p_{13}$ take customers 1
+and 3 over from $p_1$ and $p_3$. But $x_1$ is already 0: it cannot go down.
+
+Customer 1 is covered by $p_{12}$, so $p_{12}$ has to make room instead. $p_{12}$ also covers customer 2, which then
+falls back on $p_2$, a column at zero with reduced cost $+16$:
+
+| column | change | $\bar c_p$ | cost change |
+|---|---|---|---|
+| $p_{13}$ | $+\theta$ | −15 | $-15\,\theta$ |
+| $p_3$ | $-\theta$ | 0 | 0 |
+| $p_{12}$ | $-\theta$ | 0 | 0 |
+| $p_2$ | $+\theta$ | +16 | $+16\,\theta$ |
+| **total** | | | $+\theta$ |
+
+Any other way to use $p_{13}$ also raises $x_1$, which costs more. So the best the LP can do with $p_{13}$ is to
+leave it at 0, and the value stays at 44.
+
+This is **degeneracy**: three constraints, but only two columns above zero. The duals are fixed by three columns
+with $\bar c = 0$, and one of them, $p_1$, sits at zero. The reduced cost assumes $p_1$ can give customer 1 up; it
+cannot.
+
+### What *is* guaranteed
+
+- **The value never goes up.** Adding a column only enlarges the feasible set.
+- **Without degeneracy, it goes down.** When as many columns are above zero as there are constraints, all the
+  columns that fix the duals can make room, so the new column enters with a positive step, as at iteration 0.
+- **The duals must change.** The old duals violate the new column's dual constraint (section 1.6):
+  $\pi_1 + \pi_3 = 40 > 25$. Every optimal dual of the new RMP satisfies it, so the old $\pi$ cannot come back.
+  Iteration 2's duals $(4, 20, 20)$ give $\pi_1 + \pi_3 = 24$.
+- **No column comes back.** At the RMP's optimal duals, every column already in the RMP has $\bar c_p \ge 0$
+  ($\bar c_{p_{13}} = +1$ at iteration 2), so pricing never returns it again. There are finitely many paths, so
+  the loop ends. (In floating point this needs the small margin of the pricing bound: see page 4, section 4.5.)
+
+So a stall is not wasted. The new column changes the duals, and pricing at the new duals finds a column that does
+help: here $p_{23}$, after which the three pairs together reach 37.5. On large instances a stall can last many
+iterations, which is the tailing off of section 1.10.
+
+---
+
+## 1.12 A lower bound before the end
 
 You don't have to wait for convergence to know how far you are from the LP optimum. Assume all constraints are
 equalities with $b_i$ as right-hand side, as in the example. Let $\bar c^{\min} \le 0$ be the best reduced cost that
@@ -463,7 +535,7 @@ weak here, but on large instances it lets you stop early with a guaranteed gap.
 
 ---
 
-## 1.12 After column generation: integer solutions
+## 1.13 After column generation: integer solutions
 
 Column generation gives the **LP** optimum (37.5 here), which is only a lower bound. A real plan needs integers.
 
@@ -476,7 +548,7 @@ Column generation gives the **LP** optimum (37.5 here), which is only a lower bo
 
 ---
 
-## 1.13 Where this lives in the code
+## 1.14 Where this lives in the code
 
 ### In the library (generic)
 
@@ -527,6 +599,8 @@ limits), so its final "no negative path" really proves LP optimality.
    what is its sign?
 5. In a rostering problem with constraints "at least $b_t$ employees in period $t$", what sign do the duals have,
    and does covering a period make a schedule's reduced cost go up or down?
+6. At iteration 0, suppose pricing had returned $p_{13}$ instead of $p_{12}$. As $x_{13}$ grows, which columns make
+   room, at what rate does the cost change, and how far can it grow? What is the new RMP value?
 
 ### Answers
 
@@ -545,3 +619,6 @@ limits), so its final "no negative path" really proves LP optimality.
    using a vehicle becomes *more* expensive in pricing.
 5. "$\ge$" constraints give $\pi_t \ge 0$. Covering period $t$ subtracts $\pi_t$, so the reduced cost goes *down*:
    schedules that cover understaffed periods become attractive.
+6. $p_1$ and $p_3$ make room: both are in use, so the cost changes at $\bar c_{p_{13}} = 25 - 20 - 20 = -15$ per
+   unit. $x_{13}$ grows until $x_1$ and $x_3$ reach 0, at 1, and the value drops from 60 to 45 ($p_{13} + p_2$). No
+   degeneracy, so the full reduced cost is gained.
