@@ -11,6 +11,7 @@ equal to `origin` the same day: `e764bc87`, `00e8c0b9`, `76b873c5`, `fce956b3`, 
 | `fold-map-commits.md` | every commit of the eight PRs: keep, rewrite, drop, split, new; new messages |
 | `fold-map-targets.md` | where each §7 item goes; each PR head's builds, tests and description; the final state |
 | `tools/fold_filter.py` | the snapshot filter (writes objects only, never a ref) |
+| `fold-record.md` | the rewrite as done (2026-11-12): heads, checks, departures, what is pending |
 
 ## 1. Method (`D-154`)
 
