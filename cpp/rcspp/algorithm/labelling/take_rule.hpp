@@ -138,10 +138,13 @@ struct TakeRule {
         ///        plus its completion bound is at or above it, with a margin of the params'
         ///        tolerance, relative to the upper bound when that is above 1 in magnitude.
         ///
-        /// Exact under an additive cost: the bound is a fixed point of the arcs' shares, so a
-        /// label it puts out of reach has only descendants out of reach, and dominates only labels
-        /// out of reach. A bound of -infinity (a negative-cost cycle) puts nothing out of reach;
-        /// one of +infinity (no end node reached) puts the label out of reach of any upper bound.
+        /// Dropping such a label loses no path below the upper bound, under an additive cost. The
+        /// bound is consistent: at each arc, the bound at the tail is at most the arc's share plus
+        /// the bound at the head. So every label extended from it would be out of reach too. And
+        /// every label it evicted at admission cost at least as much at the same node, so it was
+        /// out of reach too. A bound of -infinity (a negative-cost cycle) puts nothing out of
+        /// reach; one of +infinity (no end node reached) puts the label out of reach of any upper
+        /// bound.
         [[nodiscard]] static bool is_out_of_reach(const Label<ResourceType>& label,
                                                   const SearchContext<ResourceType>& context) {
             const double margin =
