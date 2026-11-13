@@ -180,6 +180,9 @@ New features are summarised, with a pointer to where they are documented.
   `DominanceAlgorithm`'s write-only counters
   (`nb_infeasible_labels_`, `nb_update_non_dom_iter_`, `nb_extend_iter_`, `total_extend_time_`,
   `total_update_non_dom_time_`).
+- **A plain `cmake --install` installs the C++ library alone**: the library, its headers and the
+  CMake package `find_package(rcspp)` reads. It no longer installs the Python extension and
+  package, which the wheel build installs (`pip install .`), nor GoogleTest.
 
 ### Added
 
@@ -306,7 +309,8 @@ New features are summarised, with a pointer to where they are documented.
   HiGHS (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`; HiGHS found installed, or else fetched).
   With `USE_PYTHON`, its bindings in `rcspp._core.cpp_column_generation` and the Python package
   `cpp_column_generation` over them (in the example's folder, not in rcspp), with master solvers
-  over a user's highspy or gurobipy model and a column generation loop written in Python.
+  over a user's highspy or gurobipy model and a column generation loop written in Python. It also
+  builds on its own over an installed rcspp; see `examples/column_generation/README.md`.
 
 ### Fixed
 
@@ -402,5 +406,8 @@ New features are summarised, with a pointer to where they are documented.
 - The Python bindings hold the GIL while they release the array `_add_rows_bulk` returns.
 - The Windows wheel build no longer pins the "Visual Studio 17 2022" generator, which the current
   GitHub runner image does not have.
+- **`cmake --install` installs a usable package** (#79): the headers were not installed, and
+  there was no package file for `find_package(rcspp)`. `rcspp::rcspp` is also the target's name
+  in a build.
 - **numpy is a dependency** (`numpy>=1.24`): `rcspp.pricing_pool` imports it, so an install
   without numpy could not import that module.

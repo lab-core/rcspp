@@ -179,9 +179,10 @@ install(FILES
     DESTINATION ${RCSPP_CMAKE_INSTALL_DIR}
 )
 
-# A check that the installed package works: install into a folder of the build, then build small
-# program against it with find_package(rcspp).
-if(USE_TESTS)
+# A check that the installed package works: install into a folder of the build, then build a small
+# program against it with find_package(rcspp). rcspp's own build only: a project that adds rcspp
+# with FetchContent does not get it.
+if(USE_TESTS AND PROJECT_IS_TOP_LEVEL)
   # With the column generation example on, the check also builds it on its own against the
   # install, as its users would, and runs its tests: the layer only (its master solvers would fetch
   # and build HiGHS a second time), with the googletest already downloaded.
@@ -192,22 +193,22 @@ if(USE_TESTS)
         -DCMAKE_CXX_CLANG_TIDY=)
     list(JOIN example_configure_arguments "|" example_configure_arguments)
     set(example_check_arguments
-        -DEXAMPLE_SOURCE_DIR=${CMAKE_SOURCE_DIR}/examples/column_generation
-        -DEXAMPLE_BUILD_DIR=${CMAKE_BINARY_DIR}/install-check/example
+        -DEXAMPLE_SOURCE_DIR=${PROJECT_SOURCE_DIR}/examples/column_generation
+        -DEXAMPLE_BUILD_DIR=${PROJECT_BINARY_DIR}/install-check/example
         "-DEXAMPLE_ARGUMENTS=${example_configure_arguments}")
   endif()
   add_test(NAME install_and_find_package
       COMMAND ${CMAKE_COMMAND}
-          -DBUILD_DIR=${CMAKE_BINARY_DIR}
+          -DBUILD_DIR=${PROJECT_BINARY_DIR}
           -DCONFIG=$<CONFIG>
-          -DPREFIX=${CMAKE_BINARY_DIR}/install-check/prefix
-          -DCONSUMER_SOURCE_DIR=${CMAKE_SOURCE_DIR}/tests/find_package
-          -DCONSUMER_BUILD_DIR=${CMAKE_BINARY_DIR}/install-check/build
+          -DPREFIX=${PROJECT_BINARY_DIR}/install-check/prefix
+          -DCONSUMER_SOURCE_DIR=${PROJECT_SOURCE_DIR}/tests/find_package
+          -DCONSUMER_BUILD_DIR=${PROJECT_BINARY_DIR}/install-check/build
           -DGENERATOR=${CMAKE_GENERATOR}
           -DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
           -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
           ${example_check_arguments}
-          -P ${CMAKE_SOURCE_DIR}/tests/find_package/check_install.cmake
+          -P ${PROJECT_SOURCE_DIR}/tests/find_package/check_install.cmake
   )
 endif()
 endif()

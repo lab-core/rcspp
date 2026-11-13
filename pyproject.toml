@@ -54,7 +54,8 @@ cmake.args = [
   # The column generation example stays out of the wheel, whatever the environment sets.
   "-DUSE_COLUMN_GENERATION_EXAMPLE=OFF",
 ]
-# The Python package only: not the C++ library, headers and CMake package of the plain install.
+# The Python package only. The C++ library, headers and CMake package already install only outside
+# the wheel build; this also keeps out any install rules a dependency adds.
 install.components = ["python"]
 
 [tool.cibuildwheel]
