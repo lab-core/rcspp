@@ -17,7 +17,8 @@ namespace rcspp::parts {
 ///   it dominates there.
 /// - @c Relaxed: the same, over the components the context's mask leaves in.
 /// - @c KBest: exact dominance; then, at a node that already holds k labels, the candidate takes
-///   the place of the costliest when it costs less, and is dropped otherwise.
+///   the place of the costliest (evicted, and marked dominated) when it costs less, and is
+///   dropped otherwise.
 struct DominanceAdmission {
         /// @brief Whether the rule keeps every label exact dominance keeps: @c Exact does, and
         ///        the others at their limit (a mask that leaves nothing out, no limit on k).
@@ -28,7 +29,7 @@ struct DominanceAdmission {
                 case AdmissionRule::Relaxed:
                     return context.relaxed_mask() == nullptr;
                 case AdmissionRule::KBest:
-                    return context.max_labels_per_node == AdmissionContext::kAllLabels;
+                    return context.max_labels_per_node >= kNoLimit;
             }
             return true;
         }
