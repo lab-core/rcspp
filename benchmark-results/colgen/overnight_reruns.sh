@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Past-run record: targets the pre-fold names (python_column_generation, USE_COLUMN_GENERATION*); not ported.
 # Overnight re-runs after the full comparison (step H): the closest cell, a quiet small tier, a second long repeat.
 #   bash benchmark-results/colgen/overnight_reruns.sh        (from anywhere; resumable: done runs are skipped)
 # Stops at the first tier whose summary lists an LP mismatch. A file STOP in the tier's folder stops after its run.

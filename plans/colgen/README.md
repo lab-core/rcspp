@@ -63,6 +63,14 @@ after the layout (also the benchmark's pure C++ leg, `D-164`); `drivers.py`
 after the push; then `T-1.20` (many cheap iterations over three legs, `F-56`, `D-163`), a colleague's question of
 2026-11-12. Triage (`D-165`): `T-1.7` and a read of each folded PR before the stack leaves draft, then the merge; then
 `T-1.18`–`T-1.21` and `T-1.16` as follow-up PRs; then re-scoping `T-1.9`, `T-1.10` and phases 2–4.
+2026-11-13: run-ci passed on #88's head. The user's order: `drivers.py` (Sonnet) and the read of the folded PRs
+(Opus) now, then `T-1.7`, then a benchmark design chat (`T-1.10` earlier, grown by each follow-up task); the comment
+on #60 just before the merge; the merge waits. The plan branch still tracks the pre-fold stack: `drivers.py` runs the
+folded code from a checkout of #88 (`../rcspp-dev`).
+2026-11-13: drivers adapted (commit `feat(benchmark): run the drivers on the folded stack from a source checkout`):
+`COLGEN_SOURCE_DIRECTORY`, default `../rcspp-dev`; every layer configuration on C101_25 equals the recorded runs
+(`benchmark-results/colgen/post-fold-check*/`, `comparison.md`); `AlgorithmParams.stop_after_X_solutions` is
+`max_solutions` now; `example-mip` is not deterministic (LP equal).
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 

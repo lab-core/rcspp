@@ -1,3 +1,4 @@
+# Past-run record: targets the pre-fold names (python_column_generation, USE_COLUMN_GENERATION*); not ported.
 """Where the pure-Python layer's extra time goes (step H of plans/colgen/python-layer.md): its pricing slice, split.
 
   pricing_gap_probe.py --instance R201_25 [--pricing exact|heuristic|tabu] [--cap 100] [--repeats 7]

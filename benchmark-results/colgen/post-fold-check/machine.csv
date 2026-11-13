@@ -1,0 +1,19 @@
+time,cpu_percent,memory_percent,other_cpu,busiest_others
+10:40:54,0.0,46.1,0,wslservice.exe 0%; winlogon.exe 0%; wininit.exe 0%
+10:41:01,34.9,46.1,163,MsMpEng.exe 55%; claude.exe 26%; Code.exe 22%
+10:41:07,32.5,46.1,171,MsMpEng.exe 48%; Code.exe 22%; System 18%
+10:41:14,37.8,45.9,154,MsMpEng.exe 47%; Code.exe 19%; claude.exe 17%
+10:41:20,40.4,45.9,230,MsMpEng.exe 54%; Code.exe 26%; dwm.exe 19%
+10:41:26,31.7,46.1,171,MsMpEng.exe 53%; System 20%; Code.exe 19%
+10:41:33,37.4,46.1,198,MsMpEng.exe 63%; Code.exe 26%; claude.exe 23%
+10:41:39,29.1,46.1,132,MsMpEng.exe 36%; Code.exe 19%; Code.exe 13%
+10:41:45,31.6,45.2,158,MsMpEng.exe 37%; Code.exe 23%; Code.exe 21%
+10:41:51,33.9,45.7,190,MsMpEng.exe 52%; svchost.exe 26%; claude.exe 21%
+10:41:57,28.5,45.7,126,MsMpEng.exe 34%; Code.exe 23%; claude.exe 10%
+10:42:03,34.4,46.1,139,MsMpEng.exe 29%; Code.exe 21%; claude.exe 13%
+10:42:10,31.2,45.9,147,MsMpEng.exe 53%; Code.exe 20%; System 16%
+10:42:16,33.9,46.2,174,MsMpEng.exe 58%; Code.exe 21%; System 15%
+10:42:22,23.4,46.2,99,MsMpEng.exe 22%; Code.exe 16%; System 14%
+10:42:28,32.9,46.0,161,MsMpEng.exe 52%; Code.exe 22%; System 12%
+10:42:34,26.8,45.6,128,MsMpEng.exe 31%; Code.exe 17%; Code.exe 12%
+10:42:40,31.2,45.8,208,MsMpEng.exe 41%; Code.exe 30%; System 29%
