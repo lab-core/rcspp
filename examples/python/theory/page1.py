@@ -50,7 +50,10 @@ def numbers() -> dict:
         for it in history
     ]
 
-    # 1.11: the early lower bound at iteration 0, with kappa = 3
+    # 1.11: does a new column always lower the cost? The two steps of 1.10 that add a pair route
+    out["new_column"] = _new_column(history)
+
+    # 1.12: the early lower bound at iteration 0, with kappa = 3
     first = history[0]
     out["early_lower_bound_iteration_0"] = first.value + 3 * first.best_reduced_cost
 
@@ -67,6 +70,61 @@ def numbers() -> dict:
     out["exercise_3_lp"] = toy.master_lp(near_routes, near_costs).value
     out["exercise_3_ip"] = toy.master_ip(near_routes, near_costs).value
     return out
+
+
+def _new_column(history) -> dict:
+    """Section 1.11: what adding p_12 at iteration 0, then p_13 at iteration 1, does to the LP.
+
+    A change dx of the column values that keeps every customer covered once changes the cost by
+    sum_p c_p dx_p = sum_p cbar_p dx_p, since the dual terms cancel. So the cost moves at the rate
+    of the reduced costs of the columns that move.
+    """
+    sink = toy.SINK
+    p1, p2, p3 = [0, 1, sink], [0, 2, sink], [0, 3, sink]
+    p12, p13 = [0, 1, 2, sink], [0, 1, 3, sink]
+    cost = toy.route_cost
+
+    def lp(columns):
+        return toy.master_lp(columns, [cost(c) for c in columns])
+
+    def reduced(route, duals):
+        pi = dict(zip(toy.CUSTOMERS, duals))
+        return cost(route) - sum(pi[i] for i in route[1:-1])
+
+    def rate(direction, duals=None):
+        """The cost change per unit along ``direction``, from the costs or the reduced costs."""
+        if duals is None:
+            return sum(cost(r) * d for r, d in direction)
+        return sum(reduced(r, duals) * d for r, d in direction)
+
+    pi0, pi1 = history[0].duals, history[1].duals
+    # Iteration 0 -> 1: x_1 = x_2 = x_3 = 1. p_12 takes over customers 1 and 2 from p_1 and p_2.
+    grow_p12 = [(p12, 1), (p1, -1), (p2, -1)]
+    # Iteration 1 -> 2: x_12 = x_3 = 1, x_1 = x_2 = 0. Where p_13 covers customer 1, p_12 must
+    # make room, and customer 2, which p_12 covered too, falls back to p_2.
+    grow_p13 = [(p13, 1), (p3, -1), (p12, -1), (p2, 1)]
+    # What the duals of iteration 1 price: p_13 taking over from p_1 and p_3, but x_1 is already 0
+    priced_p13 = [(p13, 1), (p1, -1), (p3, -1)]
+    lp1 = lp([p1, p2, p3, p12])
+    return {
+        "iteration_0": {
+            "reduced_cost": reduced(p12, pi0),
+            "rate": rate(grow_p12),
+            "rate_from_reduced_costs": rate(grow_p12, pi0),
+            "value_after": lp([p1, p2, p3, p12]).value,
+        },
+        "iteration_1": {
+            "columns_above_zero": sum(x > toy.EPSILON for x in lp1.x),
+            "reduced_cost": reduced(p13, pi1),
+            "priced_rate": rate(priced_p13),
+            "rate": rate(grow_p13),
+            "rate_from_reduced_costs": rate(grow_p13, pi1),
+            "old_duals_on_p13": dict(zip(toy.CUSTOMERS, pi1))[1] + dict(zip(toy.CUSTOMERS, pi1))[3],
+            "value_after": lp([p1, p2, p3, p12, p13]).value,
+        },
+        # Check yourself 6: add p_13 at iteration 0 instead of p_12
+        "exercise_p13_first": lp([p1, p2, p3, p13]).value,
+    }
 
 
 def _name(route) -> str:
@@ -106,7 +164,15 @@ def report() -> str:
             f" pi = {_fmt(it['duals'])}, best reduced cost {it['best_reduced_cost']:g},"
             f" adds {it['added']}"
         )
-    lines.append(f"1.11 early lower bound at iteration 0: {n['early_lower_bound_iteration_0']:g}")
+    for name, step in n["new_column"].items():
+        if name.startswith("iteration"):
+            lines.append(
+                f"1.11 {name}: " + ", ".join(f"{k} = {v:g}" for k, v in step.items())
+            )
+    lines.append(
+        f"     exercise, p_13 at iteration 0: RMP {n['new_column']['exercise_p13_first']:g}"
+    )
+    lines.append(f"1.12 early lower bound at iteration 0: {n['early_lower_bound_iteration_0']:g}")
     lines.append(
         "Exercise 2, pi = (5, 19, 20): "
         + ", ".join(f"{k}: {v:g}" for k, v in n["exercise_2_reduced_costs"].items())

@@ -34,7 +34,7 @@ $x_{12} = x_{13} = x_{32} = \tfrac12$. The best integer plan is again **44** ($p
 Two numbers bracket the optimal plan cost $z^*$:
 
 - a **lower bound** $LB$: the master LP optimum. No plan is cheaper. (During column generation, the bound of page 1,
-  section 1.11 gives one even before convergence.)
+  section 1.12 gives one even before convergence.)
 - an **upper bound** $UB$: the cost of any real plan found so far.
 
 $$
@@ -150,7 +150,7 @@ No branch is left open, so the lower bound (the smallest LP among open branches)
   *artificial* column per customer (cost larger than any real plan). If the final LP of a node still uses one, that
   node has no feasible plan and is pruned.
 - **Each node needs exact pricing** to produce a valid lower bound (page 4). The early lower bound of page 1,
-  section 1.11 lets you stop a node's column generation as soon as that bound reaches the current upper bound.
+  section 1.12 lets you stop a node's column generation as soon as that bound reaches the current upper bound.
 - **Other branching rules** exist. *Ryan–Foster* branching ("customers $i$ and $j$ are served by the same vehicle, or
   not") is popular in set partitioning. Its "same vehicle" branch can be enforced by removing arcs, but its
   "different vehicles" branch needs an extra resource in pricing.
