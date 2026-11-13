@@ -76,6 +76,11 @@ branches force-pushed and titles and bodies applied 2026-11-13. **Next:** the us
 `COLGEN_SOURCE_DIRECTORY`, default `../rcspp-dev`; every layer configuration on C101_25 equals the recorded runs
 (`benchmark-results/colgen/post-fold-check*/`, `comparison.md`); `AlgorithmParams.stop_after_X_solutions` is
 `max_solutions` now; `example-mip` is not deterministic (LP equal).
+Order since 2026-11-13 (`D-171`): **Next:** `T-1.7`, a commit in #88 with no default master solver (`D-172`,
+`D-173`; run-ci on #88's fixes running); then `T-1.10`'s runner, grown by `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`,
+`T-1.20` in that order; then the re-scoping chat (`T-1.9`, phases 2–4); the comment on #60 just before the merge; the
+merge waits for the user. The runner's questions (where it lives, the master solver benchmark apart, what each run
+records, statistics, `T-1.9`) wait for `T-1.10`'s design chat. Stale questions closed 2026-11-13.
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
