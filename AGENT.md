@@ -361,6 +361,7 @@ cmake --build build --parallel
 # USE_TESTS=ON    — build GoogleTest suite (default: ON)
 # USE_VRP=ON      — build VRP benchmark (needs Gurobi)
 # USE_COLUMN_GENERATION_EXAMPLE=ON        — the C++ column generation example (examples/column_generation)
+# USE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON — its Gurobi master solver; finds Gurobi (fails without it)
 # USE_COVERAGE=ON — instrument with gcov (gcc only)
 ```
 
