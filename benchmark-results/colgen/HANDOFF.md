@@ -20,6 +20,12 @@ The drivers run the folded stack (`plans/colgen/fold-record.md`) from a **source
   -DUSE_TESTS=OFF -DUSE_COLUMN_GENERATION_EXAMPLE=ON -DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`, and
   `-DUSE_COLUMN_GENERATION_EXAMPLE_GUROBI=ON` when `GUROBI_HOME` exists; the launcher configures and builds it when
   missing. `PYTHONPATH` = that build's `python`, the source's `python/src`, the example's `python` (in this order).
+- **Run through the launcher** (or set that `PYTHONPATH` by hand): `.venv` has an older `rcspp` installed, whose
+  `rcspp.column_generation` is the pre-fold C++-backed layer. `drivers.py example|layer` stops when `rcspp` does not
+  come from the source checkout.
+- **What is measured follows the checkout:** the launcher refreshes the build's copy of the Python sources at each
+  start, so moving `../rcspp-dev` to another branch changes the code under test.
+- **`example-mip` is not deterministic:** LP equal, iterations and columns vary between runs (C101_25: 23 to 35).
 - **AlgorithmParams:** `stop_after_X_solutions` is `max_solutions` since main's renames (`COLGEN_HEURISTIC_CAP`).
 - The probe and replay scripts and the two `.sh` runners are records of past runs, written for the old names and not
   ported; a line at the top of each says so.
