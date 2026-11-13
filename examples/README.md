@@ -36,4 +36,5 @@ python examples/python/solve_vrp.py instances/C101_5.txt
 A column generation loop written in Python over the bindings of the C++ column generation
 example is in
 [`column_generation/python/column_generation_loop.py`](column_generation/python/column_generation_loop.py);
-it needs rcspp built with that example.
+it needs rcspp built with that example and its HiGHS master solver
+(`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`), and highspy installed.

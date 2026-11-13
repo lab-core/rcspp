@@ -7,7 +7,7 @@ in C++, and a :class:`HighsMasterSolver` (when rcspp is built with HiGHS) solves
 in C++, so a run over them never calls Python. A :class:`HighspyMasterSolver` is one over a
 copy of the user's ``highspy`` model. A :class:`GurobipyMasterSolver` works on the user's
 ``gurobipy`` model itself, from Python. Each imports its LP solver's package when it is
-used, so that importing rcspp does not load it.
+used, so that importing cpp_column_generation does not load it.
 
 A master solver, a pricer, tolerances or an initialization written in Python is a subclass
 of :class:`MasterSolver`, :class:`Pricer`, :class:`Tolerances` or

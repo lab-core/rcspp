@@ -32,9 +32,7 @@ class HighspyMasterSolver(HighsMasterSolver):
         try:
             import highspy
         except ImportError as error:
-            raise ImportError(
-                "HighspyMasterSolver needs highspy: pip install rcspp[highspy]"
-            ) from error
+            raise ImportError("HighspyMasterSolver needs highspy: pip install highspy") from error
 
         lp = model.getLp()
         integrality = list(lp.integrality_)

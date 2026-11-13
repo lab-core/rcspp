@@ -228,7 +228,8 @@ New features are summarised, with a pointer to where they are documented.
   `ResourceGraph` through stages, from the cheapest search to an exact one. A master solver over
   HiGHS (`-DUSE_COLUMN_GENERATION_EXAMPLE_HIGHS=ON`; HiGHS found installed, or else fetched).
   With `USE_PYTHON`, its bindings in `rcspp._core.cpp_column_generation` and the Python package
-  `cpp_column_generation` over them (in the example's folder, not in rcspp).
+  `cpp_column_generation` over them (in the example's folder, not in rcspp), with master solvers
+  over a user's highspy or gurobipy model and a column generation loop written in Python.
 
 ### Fixed
 
@@ -272,3 +273,5 @@ New features are summarised, with a pointer to where they are documented.
 - The Python bindings hold the GIL while they release the array `_add_rows_bulk` returns.
 - The Windows wheel build no longer pins the "Visual Studio 17 2022" generator, which the current
   GitHub runner image does not have.
+- **numpy is a dependency** (`numpy>=1.24`): `rcspp.pricing_pool` imports it, so an install
+  without numpy could not import that module.
