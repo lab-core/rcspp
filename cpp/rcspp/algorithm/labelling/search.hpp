@@ -27,7 +27,8 @@ namespace rcspp::detail {
 
 // ─── How a labelling solve runs ─────────────────────────────────────────────────────────────
 //
-// A search (Search) is one direction's labels and four parts, named by a SearchParts:
+// A solve (Algorithm::solve) runs one or two searches. A search (Search) is one direction's labels
+// and four parts, named by a SearchParts:
 //   - the schedule (parts::Schedule) holds the labels waiting to be extended and picks the next;
 //   - the admission rule (parts::Admission) says whether a new label is kept at its node;
 //   - the retention (parts::Retention) says where kept labels live;
@@ -50,6 +51,9 @@ namespace rcspp::detail {
 //
 // Who runs the searches:
 //   - LabellingAlgorithm runs one search, forward or backward.
+//   - BidirectionalLabellingAlgorithm runs two, one per direction, taking the next step from the
+//     side that has done less work (parts::Interleave). Each side stops extending at the half-way
+//     point, and the join pairs their labels into paths (join).
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a
@@ -124,7 +128,9 @@ struct Search {
         schedule_type schedule;                          ///< the order labels are taken in
         typename PartsType::observer observer;           ///< told of every extension
         CompletionBound<ResourceType> completion_bound;  ///< the completion bound; empty: none
-        size_t work = 0;                                 ///< arcs extended this solve
+        /// The extensions tried this solve, one per label and arc, masked and unreachable arcs
+        /// included; the interleave compares it.
+        size_t work = 0;
 
         /// @brief Empties the search for a new solve: one container per node, each a copy of
         ///        @p prototype (which carries the container's configuration and direction), an

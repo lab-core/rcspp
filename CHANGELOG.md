@@ -26,6 +26,10 @@ New features are summarised, with a pointer to where they are documented.
   `std::unique_ptr<Strategy<…>>`, or called a member only `Strategy` has, no longer compiles; use
   `auto`, or build the algorithm directly. With constructor arguments beyond the params,
   `create_algorithm` still returns the type it names.
+- **A bidirectional search runs one phase, whatever `max_phases` is.** With a finite
+  `max_iterations`, one that stopped with labels waiting used to start another phase, which only
+  restarted the iteration count and ran the join again; `max_iterations` now caps the whole
+  bidirectional search. The warning on `max_phases > 1` already said it runs one phase.
 - **`preprocess` only says whether a solve may reduce the graph.** A backward or bidirectional
   search runs the model checks its direction needs before any preprocessing, whatever `preprocess`
   says, and also when `Algorithm::solve` is called directly; a model that fails them is refused
@@ -157,15 +161,18 @@ New features are summarised, with a pointer to where they are documented.
   over the per-node quota), so `max_iterations` counts labels taken, as in the other searches. A
   search stopped by `max_iterations` does more work before it stops, and the memory checks, every
   `memory_check_interval` iterations, fall at other labels.
-- **Removed: the strategy classes' hooks.** Simple, in every direction, A\*, Pushing and Pulling are
-  built from the labelling kernel's parts: a schedule, an admission rule, a retention and an
-  observer. Each is a `detail::LabellingAlgorithm`, no longer a `DominanceAlgorithm`. There is no
-  `extend`, `extend_label`, `update_non_dominated_labels`, `remove_label`,
-  `add_new_unprocessed_label` or `next_label_iterator` to override, and no
-  `non_dominated_labels_by_node_pos_`. A subclass that overrides one of the hooks with `override` no
-  longer compiles; one that overrides it without `override` still compiles, but the function is no
-  longer called. What they return, and the labels they extend, do not change.
-  `NodeUnprocessedLabelsManager` is gone.
+- **Removed: the strategy classes' hooks, and `DominanceAlgorithm`.** Simple, in every direction,
+  A\*, Pushing and Pulling are built from the labelling kernel's parts: a schedule, an admission
+  rule, a retention and an observer. Each is a `detail::LabellingAlgorithm`, and the bidirectional
+  search a `detail::BidirectionalLabellingAlgorithm` of two kernel searches. There is no `extend`,
+  `extend_label`, `update_non_dominated_labels`, `remove_label`, `add_new_unprocessed_label` or
+  `next_label_iterator` to override, and no `non_dominated_labels_by_node_pos_`. A subclass that
+  overrides one of the hooks with `override` no longer compiles; one that overrides it without
+  `override` still compiles, but the function is no longer called. What they return, and the labels
+  they extend, do not change. Gone with them, with no alias: `DominanceAlgorithm` and its body,
+  `NodeUnprocessedLabelsManager`, `LabelIteratorPair`, `HalfWayPolicy`, `Joiner` and `JoinOptions`,
+  and `DominanceAlgorithm`'s write-only counters (`nb_infeasible_labels_`,
+  `nb_update_non_dom_iter_`, `nb_extend_iter_`, `total_extend_time_`, `total_update_non_dom_time_`).
 
 ### Added
 

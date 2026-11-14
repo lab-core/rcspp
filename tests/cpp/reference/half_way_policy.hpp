@@ -1,3 +1,5 @@
+// Frozen copy of cpp/rcspp/algorithm/half_way_policy.hpp at 9c80f174,
+// for the parity tests. Do not edit.
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
@@ -15,7 +17,7 @@
 #include "rcspp/resource/resource_traits.hpp"
 #include "rcspp/utils/logger.hpp"
 
-namespace rcspp {
+namespace rcspp::reference {
 
 /// @brief Why a bidirectional solve is running without the half-way point.
 enum class HalfWayOff : unsigned {
@@ -60,12 +62,12 @@ class HalfWayPolicy {
         ///                             `half_way_point` is 0, so there `H` is never derived.
         HalfWayPolicy(double half_way_point, double resource_upper_bound) {
             if (half_way_point > 0.0) {
-                point_ = half_way_point;
+                h_ = half_way_point;
             } else if (std::isfinite(resource_upper_bound) && resource_upper_bound > 0.0) {
-                point_ = resource_upper_bound / 2.0;
+                h_ = resource_upper_bound / 2.0;
             } else {
                 // No explicit H and no finite R.
-                point_ = 0.0;
+                h_ = 0.0;
                 enabled_ = false;
             }
         }
@@ -75,7 +77,7 @@ class HalfWayPolicy {
         /// @param critical_value The label's value on the critical resource.
         /// @return `true` when the label is beyond `H` and the bound is in force.
         [[nodiscard]] bool should_stop_forward(double critical_value) const {
-            return enabled_ && critical_value > point_;
+            return enabled_ && critical_value > h_;
         }
 
         /// @brief Whether a backward label is below the half-way point and should be discarded.
@@ -85,7 +87,7 @@ class HalfWayPolicy {
         /// @param critical_value The label's value on the critical resource.
         /// @return `true` when the label is short of `H` and the bound is in force.
         [[nodiscard]] bool should_stop_backward(double critical_value) const {
-            return enabled_ && critical_value < point_;
+            return enabled_ && critical_value < h_;
         }
 
         /// @brief Turns the bound off: both searches run to completion, correct but slower.
@@ -95,10 +97,10 @@ class HalfWayPolicy {
         [[nodiscard]] bool enabled() const { return enabled_; }
 
         /// @brief The half-way point `H`.
-        [[nodiscard]] double point() const { return point_; }
+        [[nodiscard]] double h() const { return h_; }
 
     private:
-        double point_ = 0.0;
+        double h_ = 0.0;
         bool enabled_ = true;
 };
 
@@ -227,4 +229,4 @@ template <typename CriticalResourceType, typename... ResourceTypes>
     }
 }
 
-}  // namespace rcspp
+}  // namespace rcspp::reference

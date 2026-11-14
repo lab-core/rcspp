@@ -37,10 +37,6 @@ namespace rcspp {
 template <typename ResourceType>
 using LabelIterator = std::list<Label<ResourceType>*>::iterator;
 
-template <typename ResourceType>
-using LabelIteratorPair =
-    std::pair<Label<ResourceType>*, typename std::list<Label<ResourceType>*>::iterator>;
-
 namespace detail {
 
 template <typename ResourceType>
@@ -160,7 +156,7 @@ class Algorithm {
                 record_remaining_solutions();
 
                 // prepare next phase (if any)
-                if (++num_phases < params_.max_phases) {
+                if (++num_phases < max_phases()) {
                     prepare_next_phase();
                 } else {
                     break;
@@ -503,6 +499,13 @@ class Algorithm {
 
         virtual void prepare_next_phase() {}
 
+        /// @brief How many phases a solve may run: @c max_phases by default.
+        ///
+        /// A later phase extends the labels a quota or memory pressure stored aside. A search
+        /// that abandons them instead runs one phase: a second would only restart the
+        /// @c max_iterations count and record the paths at the end nodes again.
+        [[nodiscard]] virtual size_t max_phases() const { return params_.max_phases; }
+
         virtual void main_loop() = 0;
 
         /// @brief Records the solutions still sitting at the end nodes when the loop ends.
@@ -533,8 +536,9 @@ class Algorithm {
 
         /// @brief Build and record a Solution from an explicit path.
         ///
-        /// Used when no single label holds the path (e.g. joined pairs). Paths costing at least
-        /// `upper_bound_` are dropped here, for every caller.
+        /// Used when no single label holds the path (e.g. joined pairs). Dropped here, for every
+        /// caller: a path costing at least `upper_bound_`, an empty one, and one already recorded
+        /// (`solutions_` hashes a solution by its arc ids).
         ///
         /// @param cost         Total cost of the path.
         /// @param path_arc_ids Arc ids of the path, in traversal order.
@@ -614,16 +618,16 @@ class Algorithm {
         /// @brief Effective per-node extension cap.
         ///
         /// Starts at @ref AlgorithmBaseParams::max_extended_labels_per_node at the
-        /// beginning of each solve and is tightened to
-        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node when
-        /// @ref on_memory_pressure() fires.  Subclasses use this instead of
-        /// @c params_.max_extended_labels_per_node wherever the per-node limit is enforced.
+        /// beginning of each solve and is lowered to
+        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node by
+        /// @ref relieve_memory_pressure. The schedules read it through
+        /// @c SearchContext::quota, in place of @c max_extended_labels_per_node.
         size_t quota_ = kNoLimit;
 
         /// @brief True after on_memory_pressure() has been called at least once this solve.
         ///
-        /// Used by subclasses to distinguish a first pressure event (prune & store aside)
-        /// from subsequent ones (prune & discard stored labels to free more memory).
+        /// Read by @ref relieve_memory_pressure, which releases what is stored aside on every call
+        /// but the first, and reported by @ref memory_pressure_was_triggered.
         bool memory_pressure_triggered_ = false;
 
         /// @brief The cost upper bound the caller gave this solve: a path is recorded only when
