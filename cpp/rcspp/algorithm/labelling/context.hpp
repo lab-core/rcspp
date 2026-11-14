@@ -8,6 +8,7 @@
 #include <limits>
 #include <unordered_set>
 
+#include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/algorithm_params.hpp"
 #include "rcspp/algorithm/labelling/completion_bound.hpp"
 #include "rcspp/algorithm/labelling/half_way.hpp"
@@ -28,8 +29,13 @@ enum class Role : std::uint8_t {
     BidirectionalSide,
 };
 
-/// @brief What every part of a search reads of its solve. Built once per solve
-///        (@c Algorithm::make_context); every pointer is the algorithm's member.
+/// @brief What every part of a search reads of its solve. Built at the start of each solve by
+///        @c Algorithm::make_context, one per search.
+///
+/// The pointers are valid for the solve. Each points to the graph or to a member of the
+/// algorithm, except @ref completion_bound (the search's own, @c Search::completion_bound). The
+/// take rule lowers
+/// @c *incumbent.
 ///
 /// @tparam ResourceType The resource type carried by labels.
 template <typename ResourceType>

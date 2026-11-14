@@ -176,6 +176,34 @@ TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
+/// @brief With prune_by_incumbent, a single-direction search adds the completion bound to a
+///        label's cost before comparing it with the incumbent, so a label whose path goes on to a
+///        negative arc is not pruned: 0->2 costs 0, 0->1 costs 5 and 1->2 costs -10, so the label
+///        at 1 (cost 5) leads to the optimum, -5, although the path 0->2 (cost 0) is found first.
+TEST(SimpleDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    g->add_node(1, /*source=*/false, /*sink=*/false);
+    g->add_node(2, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(0.0), 0, 2);  // FIFO takes this path first
+    g->add_arc<RealResource>(std::make_tuple(5.0), 0, 1);
+    g->add_arc<RealResource>(std::make_tuple(-10.0), 1, 2);
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<SimpleDominanceAlgorithm>(params);
+    ASSERT_FALSE(result.solutions.empty());
+    double best = std::numeric_limits<double>::infinity();
+    for (const auto& solution : result.solutions) {
+        best = std::min(best, solution.cost);
+    }
+    EXPECT_DOUBLE_EQ(best, -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
 /// @brief Timeout=0 returns Timeout status.
 TEST(SimpleDominanceAlgorithmTest, ZeroTimeoutReportsTimeout) {
     auto g = make_dom_two_path_graph();
@@ -489,7 +517,8 @@ TEST(DominanceAlgorithms, ExtendedLabelCountIsPerSolve) {
 
 namespace dominance_override_test {
 
-/// @brief How many times a counting override ran.
+/// @brief How many times a counting override ran, or how many outcomes the counting observer
+///        saw.
 inline int calls = 0;
 
 /// @brief Counts the calls to the protected virtual on top of @p Base.
@@ -525,18 +554,41 @@ inline std::unique_ptr<ResourceGraph<RealResource>> line() {
     return graph;
 }
 
+/// @brief Counts the extensions the admission rule decided on: the feasible candidates.
+struct CountingObserver {
+        template <typename ResourceType>
+        void on_extension(const Label<ResourceType>& /*label*/, const Arc<ResourceType>& /*arc*/,
+                          parts::ExtensionOutcome outcome) {
+            if (outcome == parts::ExtensionOutcome::Rejected ||
+                outcome == parts::ExtensionOutcome::Accepted) {
+                ++calls;
+            }
+        }
+};
+
+/// @brief Simple's search, with the counting observer.
+template <typename ResourceType, typename LabelContainerType>
+using CountedSimple = detail::LabellingAlgorithm<
+    ResourceType, LabelContainerType, ForwardDirection,
+    detail::SearchParts<parts::FifoSchedule<ResourceType>, parts::DominanceAdmission,
+                        parts::KeepAtNodes, CountingObserver>>;
+
 }  // namespace dominance_override_test
 
+/// @brief Simple's search, built with an observer, tells it of each feasible candidate its
+///        admission rule decides on: three on the three-arc line.
+TEST(DominanceAlgorithms, TheAdmissionRuleSeesEveryFeasibleCandidate) {
+    namespace dot = dominance_override_test;
+    dot::calls = 0;
+    auto simple = dot::line()->solve<dot::CountedSimple>(AlgorithmBaseParams{});
+    EXPECT_EQ(simple.solutions.size(), 1U);
+    EXPECT_EQ(dot::calls, 3);
+}
+
 /// @brief A subclass override of the protected virtual `update_non_dominated_labels(const Label&)`
-///        runs, for `Simple` and `Pushing`.
+///        runs, for `Pushing`.
 TEST(DominanceAlgorithms, ASubclassOverrideOfUpdateNonDominatedLabelsRuns) {
     namespace dot = dominance_override_test;
-
-    dot::calls = 0;
-    auto simple =
-        dot::line()->solve<dot::Counting<SimpleDominanceAlgorithm>::Algo>(AlgorithmBaseParams{});
-    EXPECT_EQ(simple.solutions.size(), 1U);
-    EXPECT_EQ(dot::calls, 3) << "Simple";
 
     dot::calls = 0;
     auto pushing =

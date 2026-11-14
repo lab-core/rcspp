@@ -118,6 +118,9 @@ class Observed : public AlgorithmType {
         void observe(Observation* into, std::vector<size_t> forced_pressure_checks) {
             observation_ = into;
             forced_ = std::move(forced_pressure_checks);
+            if constexpr (requires { this->search_.observer.trace; }) {
+                this->search_.observer.trace = into != nullptr ? &into->trace : nullptr;
+            }
         }
 
         /// @brief Records the counts and the result of the solve that returned @p result.
@@ -184,8 +187,14 @@ class Observed : public AlgorithmType {
 
     private:
         /// @brief The containers of a single-direction search, or a bidirectional search's forward
-        ///        ones.
-        decltype(auto) own_labels() const { return (this->non_dominated_labels_by_node_pos_); }
+        ///        ones: a kernel search's, or a frozen copy's.
+        decltype(auto) own_labels() const {
+            if constexpr (requires { this->search_.labels.containers(); }) {
+                return (this->search_.labels.containers());
+            } else {
+                return (this->non_dominated_labels_by_node_pos_);
+            }
+        }
 
         std::vector<size_t> forced_;
 };
@@ -207,6 +216,37 @@ class Traced : public Observed<AlgorithmType> {
             Observed<AlgorithmType>::extend_label(label, arc);
         }
 };
+
+/// @brief An observer that records every extension a kernel search tries, as (label id, arc id),
+///        whatever its outcome: the trace a frozen copy's @ref Traced records.
+struct TracingObserver {
+        /// @brief Where the entries go; null records nothing.
+        std::vector<TraceEntry>* trace = nullptr;
+
+        template <typename ResourceType>
+        void on_extension(const rcspp::Label<ResourceType>& label,
+                          const rcspp::Arc<ResourceType>& arc,
+                          rcspp::parts::ExtensionOutcome /*outcome*/) {
+            if (trace != nullptr) {
+                trace->push_back({label.id, arc.id});
+            }
+        }
+};
+
+/// @brief A preset of the library's parts on @p ScheduleTemplate, with the tracing observer: the
+///        preset of a public class with one more type argument.
+template <template <typename> class ScheduleTemplate>
+using TracedParts =
+    rcspp::detail::SearchParts<ScheduleTemplate<Composed>, rcspp::parts::DominanceAdmission,
+                               rcspp::parts::KeepAtNodes, TracingObserver>;
+
+/// @brief The library's single-direction search on @p ScheduleTemplate, in @p Direction, traced:
+///        the parity side of a ported class.
+template <template <typename> class ScheduleTemplate, typename LabelContainerType,
+          typename Direction = rcspp::ForwardDirection>
+using TracedLabellingAlgorithm =
+    Observed<rcspp::detail::LabellingAlgorithm<Composed, LabelContainerType, Direction,
+                                               TracedParts<ScheduleTemplate>>>;
 
 /// @brief An instance a parity run solves, and where its bidirectional clock is.
 struct Case {
@@ -290,7 +330,7 @@ struct Setting {
 /// - `exact`: the defaults. `pre`: the solve preprocesses the graph.
 /// - `quota`: 2 labels extended per node. `phases` (one direction only): and 3 phases.
 /// - `dominated`: dominated solutions returned. `stop`: and the search stops after 3.
-/// - `prune`: upper bound 0, pruned on. `early`: 30 iterations.
+/// - `prune` (bidirectional only): upper bound 0, pruned on. `early`: 30 iterations.
 /// - `pressure`: pressure forced on the 3rd and 7th memory checks, one check per iteration, and
 ///   2 labels per node under pressure.
 /// - `reuse`: three exact solves on one object, each with the previous best cost + 5 as its
@@ -350,7 +390,9 @@ std::vector<Setting<LabelContainerType>> settings(rcspp::SearchDirection directi
         s.params.max_solutions = 3;
         all.push_back(s);
     }
-    {
+    if (bidirectional) {
+        // Bidirectional only: a single-direction search's incumbent prune now adds the
+        // completion bound, and the frozen copies keep the base's prune on the cost alone.
         SettingType s{"prune", base()};
         s.params.prune_by_incumbent = true;
         s.upper_bound = 0.0;
