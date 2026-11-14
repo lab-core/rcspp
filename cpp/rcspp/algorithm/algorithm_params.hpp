@@ -71,13 +71,14 @@ struct AlgorithmBaseParams {
         ///
         /// Exact under an additive cost: one Bellman–Ford run per solve computes the bound. Under
         /// another cost, the label's cost alone is compared, which may drop the cheapest path when
-        /// arcs have negative costs. (Pushing and Pulling, not yet on the labelling kernel, still
-        /// compare the cost alone.)
+        /// arcs have negative costs.
         bool prune_by_incumbent = false;
 
         /// @brief The per-node quota: at most this many labels are taken at each node in each
         ///        phase (no limit by default, @ref kNoLimit).
         ///
+        /// Pushing and Pulling apply it per visit of a node rather than per phase
+        /// (@c parts::PerNodeQuota).
         /// A non-dominated label over its node's quota is not lost: a single-direction search
         /// stores it aside and extends it in the next phase (@ref max_phases). A bidirectional
         /// search, which runs one phase, abandons it: it stays in its node's container, never

@@ -157,14 +157,15 @@ New features are summarised, with a pointer to where they are documented.
   over the per-node quota), so `max_iterations` counts labels taken, as in the other searches. A
   search stopped by `max_iterations` does more work before it stops, and the memory checks, every
   `memory_check_interval` iterations, fall at other labels.
-- **Removed: the strategy classes' hooks.** Simple, in every direction, and A\* are built from
-  the labelling kernel's parts: a schedule, an admission rule, a retention and an observer. Each
-  is a `detail::LabellingAlgorithm`, no longer a `DominanceAlgorithm`. There is no `extend`,
-  `extend_label`, `update_non_dominated_labels`, `remove_label`, `add_new_unprocessed_label` or
-  `next_label_iterator` to override, and no `non_dominated_labels_by_node_pos_`. A subclass that
-  overrides one of the hooks with `override` no longer compiles; one that overrides it without
-  `override` still compiles, but the function is no longer called. What they return, and the
-  labels they extend, do not change.
+- **Removed: the strategy classes' hooks.** Simple, in every direction, A\*, Pushing and Pulling are
+  built from the labelling kernel's parts: a schedule, an admission rule, a retention and an
+  observer. Each is a `detail::LabellingAlgorithm`, no longer a `DominanceAlgorithm`. There is no
+  `extend`, `extend_label`, `update_non_dominated_labels`, `remove_label`,
+  `add_new_unprocessed_label` or `next_label_iterator` to override, and no
+  `non_dominated_labels_by_node_pos_`. A subclass that overrides one of the hooks with `override` no
+  longer compiles; one that overrides it without `override` still compiles, but the function is no
+  longer called. What they return, and the labels they extend, do not change.
+  `NodeUnprocessedLabelsManager` is gone.
 
 ### Added
 
@@ -264,12 +265,12 @@ New features are summarised, with a pointer to where they are documented.
 ### Fixed
 
 - **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs**
-  (Simple and A\*, forward and backward). The prune now compares a label's cost plus its
-  completion bound with the incumbent, as a bidirectional side always did; before, it compared
-  the cost alone, and a label whose path goes on to a negative arc could be dropped. Under a cost
-  that is not additive
-  there is no valid bound, and the prune compares the cost alone, as before. A solve with the
-  prune on runs one Bellman–Ford pass more, to compute the bound.
+  (Simple, A\*, Pushing and Pulling, forward and backward). The prune now compares a label's cost
+  plus its completion bound with the incumbent, as a bidirectional side always did; before, it
+  compared the cost alone, and a label whose path goes on to a negative arc could be dropped.
+  Under a cost that is not additive there is no valid bound, and the prune compares the cost
+  alone, as before. A solve with the prune on runs one Bellman–Ford pass more, to compute the
+  bound.
 - **A second memory-pressure event no longer erases a label twice.** Each event after the first
   releases the labels the quota or the memory trim stored aside, erasing each from its node
   through the position it was stored with. A label stored aside stays at its node, and when a

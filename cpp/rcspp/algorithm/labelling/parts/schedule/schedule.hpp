@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <list>
 
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
@@ -37,8 +38,9 @@ struct IgnoreErase {
 ///   (@c Algorithm::solve), and once more when the solve ends, before the status is read, so
 ///   that labels held back count as waiting.
 /// - @c trim(context, limit) is called under memory pressure
-///   (@c Algorithm::relieve_memory_pressure). It cuts the labels waiting down to @p limit × the
-///   number of nodes in all (@ref FifoSchedule, @ref BestFirstSchedule).
+///   (@c Algorithm::relieve_memory_pressure). It cuts the labels waiting down to @p limit per
+///   node (@ref SweepSchedule, @ref PullSchedule), or to @p limit × the number of nodes in all
+///   (@ref FifoSchedule, @ref BestFirstSchedule).
 /// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
 ///   It erases each label stored aside from its node, through @p erase, and releases it.
 /// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
@@ -75,6 +77,27 @@ concept LabelSchedule =
     Schedule<ScheduleType, ResourceType> &&
     requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context) {
         { schedule.next(context) } -> std::same_as<StoredLabel<ResourceType>>;
+    };
+
+/// @brief A schedule that pulls: @c visit_next_node moves to the next node and extends into it
+///        every label waiting at its predecessors. Pulling's schedule.
+///
+/// @c visit_next_node calls `extend(label, arc)` for each label waiting at the tail of each arc
+/// entering the node (in the direction's sense: @c Direction::in_arcs, @c Direction::tail). The
+/// labels it extends stay where they are, for the other nodes they lead to. @c current is the
+/// node's new labels, which the step then judges (@c detail::step_node), taking a label off with
+/// @c remove_current.
+template <typename ScheduleType, typename ResourceType>
+concept PullingSchedule =
+    Schedule<ScheduleType, ResourceType> &&
+    requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context,
+             void (*extend)(Label<ResourceType>*, const Arc<ResourceType>*),
+             typename std::list<StoredLabel<ResourceType>>::iterator position) {
+        schedule.visit_next_node(context, extend);
+        schedule.current();
+        {
+            schedule.remove_current(position)
+        } -> std::same_as<typename std::list<StoredLabel<ResourceType>>::iterator>;
     };
 
 /// @brief Whether @p ScheduleType's order reads the search's completion bound: a schedule says so

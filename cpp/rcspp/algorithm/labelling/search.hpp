@@ -42,7 +42,8 @@ namespace rcspp::detail {
 //      limit). One step takes a label off the schedule and runs the take rule on it (TakeRule:
 //      the live checks, then the fixed ones). If the label passes, the step extends it along
 //      every arc leaving its node (Search::extend_along: look-ahead, extension, feasibility,
-//      admission; a kept label is stored, queued and reported).
+//      admission; a kept label is stored, queued and reported). A pulling schedule instead has the
+//      step visit one node and pull into it (step_node).
 //   3. The next phase: if the per-node quota or memory pressure stored labels aside, they are
 //      queued again and the loop runs again, up to max_phases phases.
 //   4. The solutions: the end-node labels, read when the search ends (KeepAtNodes).
