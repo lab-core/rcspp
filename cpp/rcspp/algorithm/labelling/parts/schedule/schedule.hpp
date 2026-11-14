@@ -40,15 +40,22 @@ struct IgnoreErase {
 /// - @c trim(context, limit) is called under memory pressure
 ///   (@c Algorithm::relieve_memory_pressure). It cuts the labels waiting down to @p limit per
 ///   node (@ref SweepSchedule, @ref PullSchedule), or to @p limit × the number of nodes in all
-///   (@ref FifoSchedule, @ref BestFirstSchedule).
+///   (@ref FifoSchedule, @ref BestFirstSchedule, @ref DepthFirstSchedule).
 /// - @c release_stored_aside(context, erase) is called from the second memory-pressure event on.
 ///   It erases each label stored aside from its node, through @p erase, and releases it.
 /// - @c clear() forgets every label, releasing none (the pool owns them). It is called at each
 ///   new solve (@c Search::reset).
 ///
-/// A schedule loses no label silently: every label pushed is handed out, released as dominated,
-/// or stored aside through @ref StoredAsideLabels, so that the solve's status sees the cut. A
-/// schedule releases through the pool and erases only through the callable it is handed.
+/// A schedule loses no label without a trace. Every label pushed is one of these:
+/// - handed out (@c next, or @c current for a pulling schedule);
+/// - released because it was found dominated, or evicted (see @ref Admission);
+/// - cut through @ref StoredAsideLabels: stored aside, so it waits again after
+///   @c prepare_next_phase and the status reads it; or, on a bidirectional side, abandoned and
+///   counted (@c Algorithm::has_abandoned_labels);
+/// - released by @c release_stored_aside under memory pressure, which the solve reports
+///   (@c Algorithm::memory_pressure_was_triggered).
+///
+/// A schedule releases through the pool and erases only through the callable it is handed.
 ///
 /// @tparam ScheduleType The schedule.
 /// @tparam ResourceType The resource type carried by labels.
@@ -99,6 +106,17 @@ concept PullingSchedule =
             schedule.remove_current(position)
         } -> std::same_as<typename std::list<StoredLabel<ResourceType>>::iterator>;
     };
+
+/// @brief A schedule that places a label's children: once the step has extended a label along
+///        every arc, @c place_children(context, erase) orders the labels pushed since (the label's
+///        children) among the labels waiting, and erases (through @p erase) and releases those a
+///        child filter drops. A depth-first schedule places children; the others order each
+///        label as it is pushed.
+template <typename ScheduleType, typename ResourceType>
+concept PlacesChildren =
+    requires(ScheduleType schedule, detail::SearchContext<ResourceType>& context) {
+        schedule.place_children(context, IgnoreErase<ResourceType>{});
+    };  // NOLINT(whitespace/newline)
 
 /// @brief Whether @p ScheduleType's order reads the search's completion bound: a schedule says so
 ///        with `static constexpr bool reads_completion_bound = true`; one that does not say reads

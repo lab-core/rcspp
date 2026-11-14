@@ -16,6 +16,7 @@
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/labelling/parts/observer/no_observer.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/keep_at_nodes.hpp"
+#include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 #include "rcspp/algorithm/labelling/take_rule.hpp"
 #include "rcspp/graph/graph.hpp"
@@ -47,13 +48,16 @@ namespace rcspp::detail {
 //      step visit one node and pull into it (step_node).
 //   3. The next phase: if the per-node quota or memory pressure stored labels aside, they are
 //      queued again and the loop runs again, up to max_phases phases.
-//   4. The solutions: the end-node labels, read when the search ends (KeepAtNodes).
+//   4. The solutions: the end-node labels, recorded when they are taken (a dive's retention,
+//      KeepWhileWaiting) or read when the search ends (KeepAtNodes).
 //
 // Who runs the searches:
 //   - LabellingAlgorithm runs one search, forward or backward.
 //   - BidirectionalLabellingAlgorithm runs two, one per direction, taking the next step from the
 //     side that has done less work (parts::Interleave). Each side stops extending at the half-way
 //     point, and the join pairs their labels into paths (join).
+//   - A dive (Greedy) keeps no labels at the nodes (parts::KeepWhileWaiting) and goes depth first
+//     (parts::DepthFirstSchedule).
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a
@@ -226,6 +230,10 @@ struct Search {
         ///        nothing for @c Keep, release for @c Release, erase then release for
         ///        @c EraseAndRelease.
         ///
+        /// Under a retention that stores nothing (@c parts::releases_taken_labels_v, a dive's), a
+        /// @c Keep label is released too. It is an end-node label, and the step has already
+        /// recorded it (such a retention records at take).
+        ///
         /// @param taken   The label and its position in its node's container.
         /// @param verdict What to do with it.
         /// @param pool    The label pool.
@@ -233,7 +241,11 @@ struct Search {
                    LabelPool<ResourceType>* pool) {
             switch (verdict) {
                 case Verdict::Extend:
-                case Verdict::Keep:  // stays stored: at an end node, or past the half-way point
+                    return;
+                case Verdict::Keep:  // at an end node, or past the half-way point: stays stored
+                    if constexpr (parts::releases_taken_labels_v<retention_type>) {
+                        pool->release_with_ref_count(taken.label);
+                    }
                     return;
                 case Verdict::EraseAndRelease:
                     labels.erase(taken.position);

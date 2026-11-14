@@ -537,11 +537,20 @@ converged, say — has to read this too.  `could_be_non_optimal()` will not tell
 
 ## `Greedy`
 
-Extends labels greedily (best-cost-first) with limited backtracking.
-Much faster than the exact algorithms; no optimality guarantee.
+A dive: from each label it takes, it extends along every arc and goes on with the cheapest child,
+keeping the other children for later; at a dead end it goes back to the last label still waiting.
+Each path to a sink is recorded when its label is taken. It compares no labels: every feasible label
+is kept until it is extended, and none is stored at the nodes. A label is released once its
+children are made, and lives on only while a label extended from it still waits. With no budget it
+tries every path, and so finds the optimum, but its work grows
+with the number of paths; with one, it is fast, with no optimality guarantee.
+
+As in every labelling search, `max_iterations` counts the labels taken, and
+`max_extended_labels_per_node` (with `max_phases`) caps the labels taken at each node.
 
 ```python
 params = AlgorithmParams()
+params.max_iterations = 10_000            # take at most 10 000 labels
 params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)
@@ -569,14 +578,18 @@ Wraps another algorithm (default: `Greedy`) and repeatedly solves the
 subproblem after removing solution arcs, collecting a pool of diverse
 solutions.
 
-```python
-params = AlgorithmParams()
-params.max_solutions = 20    # collect 20 distinct solutions
-params.max_iterations         = 100
-params.seed                   = 42
+Diversification is C++ only: Python does not offer it.
 
-result = rg.solve(algorithm="greedy", params=params)
-# In C++, strategy::Diversification<Inner> diversifies any inner strategy
+<!-- docs-check: skip -->
+
+```cpp
+AlgorithmParams<LabelList<Resources>> params;
+params.max_solutions = 20;    // collect 20 distinct solutions
+params.max_iterations = 100;  // at most 100 inner solves
+params.tabu_tenure = 5;       // a path's arcs stay out for 5 solves
+params.seed = 42;
+// Greedy by default; strategy::Diversification<strategy::AStar> diversifies another
+const SolveResult result = graph.solve<strategy::Diversification<>>(ub, params);
 ```
 
 ## Search directions
@@ -885,9 +898,9 @@ at compile time: it would not be read.
 
 | Member | What it decides | Built in (`rcspp::parts`) | Concept |
 |---|---|---|---|
-| `schedule<ResourceType, Direction>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CostPlusBoundKey`, `SweepSchedule`, `PullSchedule` | `Schedule`, and either `LabelSchedule` (hands the step one label at a time) or `PullingSchedule` (one node at a time, as `PullSchedule` does) |
-| `admission<ResourceType, Direction>` | whether a new label is kept at its node | `DominanceAdmission` (default) | `Admission` |
-| `retention<ResourceType, Direction>` | where kept labels live, as `template <C> using type` | `KeepAtNodes` (default) | `Retention` |
+| `schedule<ResourceType, Direction>` | the order labels are taken in, the per-node quota, the trim under memory pressure (required) | `FifoSchedule`, `BestFirstSchedule<R, Key>` with `CostKey` or `CostPlusBoundKey`, `SweepSchedule`, `PullSchedule`, `DepthFirstSchedule<R, Key, Filter>` | `Schedule`, and either `LabelSchedule` (hands the step one label at a time) or `PullingSchedule` (one node at a time, as `PullSchedule` does) |
+| `admission<ResourceType, Direction>` | whether a new label is kept at its node | `DominanceAdmission` (default), `AdmitAll` | `Admission` |
+| `retention<ResourceType, Direction>` | where kept labels live, as `template <typename ContainerType> using type` (`Retain<RetentionTemplate>` names a library one) | `KeepAtNodes` (default), `KeepWhileWaiting` | `Retention` |
 | `observer<ResourceType, Direction>` | told of every extension | `NoObserver` (default) | `Observer` |
 | `interleave` | which side of a bidirectional search works next | `LeastWorkFirst` (default) | `Interleave` |
 | `backward`, `bidirectional` | whether the strategy searches in that direction | `true` (default) | |
@@ -934,15 +947,40 @@ struct SimpleAtMostThree {
 };
 ```
 
+This one is a dive: depth first, keeping every feasible label until it is extended, and storing
+none at the nodes. `DepthFirstSchedule` places a label's children together once it is extended,
+and hands them out next, cheapest first
+(its key), each child's subtree before its next sibling; its filter (`KeepAllChildren` by default)
+may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
+stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
+label is released once extended, living on while a label extended from it waits. A dive searches
+forward only:
+
+<!-- docs-check: file-scope -->
+
+```cpp
+struct Dive {
+        template <typename ResourceType, typename Direction>
+        using schedule = rcspp::parts::DepthFirstSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = rcspp::parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
+};
+```
+
 **The contract.** `create_algorithm` checks every part of a descriptor against its concept before it
 builds anything, and names the first that fails. Three rules the concepts cannot check are part of
 the contract:
 
 - **An admission rule says whether it is exact.** `is_exact(context)` answers `true` only for a rule that
   keeps every label exact dominance keeps; a search whose rule is not exact is not a proof.
-- **A schedule loses no label silently.** Every label pushed is handed out, released as dominated,
-  or cut through `parts::StoredAsideLabels`, so that the solve's status sees the cut and reports
-  `Truncated`.
+- **A schedule loses no label without a trace.** Every label pushed is handed out; released
+  because it was found dominated, or evicted; stored aside through `parts::StoredAsideLabels`, so
+  that it waits again in the next phase and the status reads it (or, on a bidirectional side,
+  abandoned and counted); or released under memory pressure, which the solve reports.
 - **A part touches only what its interface gives it.** An admission rule reads and evicts through
   the node view (`is_dominated`, `evict_dominated_by`, `size`); a schedule releases through the pool
   and erases through the callable it is handed. The reference counts depend on it.

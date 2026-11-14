@@ -267,6 +267,17 @@ TEST(LabellingStrategiesTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArcBi
     check(make_prune_negative_arc_graph()->solve<strategy::Pulling>(params), "Pulling");
 }
 
+/// @brief Greedy's dive shares the take rule: it takes the label at 2 (cost 0) first, then keeps
+///        the label at 1 (cost 5), whose bound brings it to -5, and finds the optimum.
+TEST(GreedyAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<strategy::Greedy>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
 /// @brief The same for Pulling.
 TEST(PullingDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
     auto g = make_prune_negative_arc_graph();
