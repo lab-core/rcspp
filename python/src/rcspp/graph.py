@@ -584,7 +584,8 @@ class ResourceGraph:
 
             A ``complete`` status alone does not prove the answer optimal: if
             memory pressure dropped labels, only the labels that were kept were
-            all processed. Check ``result.memory_pressure_triggered`` -- see
+            all processed. ``result.proven`` says whether it is a proof, and
+            ``result.proof_lost_by`` why not -- see
             :doc:`the algorithms guide </advanced/algorithms>`.
         """
         if cost_index < 0:

@@ -29,6 +29,29 @@ New features are summarised, with a pointer to where they are documented.
   `GreedyAlgorithm` and `rcspp/algorithm/greedy.hpp` are gone, with no alias: `strategy::Greedy` is
   a descriptor of the kernel's parts, solved as before (`graph.solve<strategy::Greedy>(params)`,
   `create_algorithm<strategy::Greedy>`); in Python, `algorithm="greedy"` is unchanged.
+- **The tabu searches run on the labelling kernel**: Greedy's dive, with a child filter that drops
+  a child reached along a tabu arc unless every child is (`parts::TabuChildFilter`), run episode
+  after episode by a driver (`parts::TabuEpisodes`, `parts::ImprovingTabuEpisodes`) that makes each
+  path's arcs tabu, as soft arcs of the search's mask. They draw the same labels, in the same
+  order, and return the same paths and status as before; `max_iterations` still counts episodes.
+  Like every labelling search, they now apply `max_extended_labels_per_node`, `prune_by_incumbent`
+  and memory pressure, read a mask set with `Algorithm::set_arc_mask`, and look at the stop
+  conditions before each label they take (every 4096 steps before). A solve that made an arc tabu
+  is not a proof (`ProofLoss::HeuristicDriver`), and `is_optimal()` of Improving Tabu now answers
+  `proven`, true only when its first dive proves that no path exists. `TabuSearchAlgorithm`,
+  `ImprovingTabuSearch`, `BacktrackingDiveAlgorithm` and their headers are gone, with no alias:
+  `strategy::Tabu` and `strategy::ImprovingTabu` are descriptors, solved as before; in Python,
+  `algorithm="tabu"` is unchanged.
+- **Diversification leaves arcs out through an arc mask**, not by removing them from a copy of the
+  graph: the inner algorithm reads a mask whose tabu arcs are hard. No copy is made, and an arc
+  whose tenure runs out keeps its place among its node's arcs; before, it was put back last, so
+  later dives tried a node's arcs in another order. And the copy listed its sources in the order
+  of the graph's node map (a hash map, so the standard library's order), not the order they were
+  added: on a graph with several sources, the first dive could start from another source. Both
+  are gone; on a graph with one source, the golden runs return what they did, and on the four
+  with two sources the answers change (on one, the best path found went from -33 to -17, which
+  the tabu searches also find there; on another from 6 to -1). A mask set with
+  `Algorithm::set_arc_mask` is now read too.
 - **No path passes through a source or continues past a sink, in any algorithm.** A path starts
   at a source and ends at a sink, with neither strictly inside it. Before, every algorithm could
   extend a label into a source, and `pulling` and `greedy` (with the tabu and diversification
@@ -44,8 +67,9 @@ New features are summarised, with a pointer to where they are documented.
   `rcspp::strategy`: `graph.solve<strategy::Simple>(params)`, likewise `strategy::AStar`,
   `Pushing`, `Pulling`, `Greedy`, `Tabu`, `ImprovingTabu` and `Diversification<Inner>` (Greedy by
   default). `SimpleDominanceAlgorithm`, `AStarDominanceAlgorithm`, `PushingDominanceAlgorithm` and
-  `PullingDominanceAlgorithm` are gone, with no alias; the heuristics keep their classes, which
-  their descriptors name. `ResourceGraph::create_algorithm<Strategy, LabelContainerType,
+  `PullingDominanceAlgorithm` are gone, with no alias, and so are the heuristics' classes but
+  `DiversificationSearch` (see the Greedy and tabu entries above), which
+  `strategy::Diversification` names as its `algorithm`. `ResourceGraph::create_algorithm<Strategy, LabelContainerType,
   CostResourceType, CriticalResourceType>(params)` returns
   `std::unique_ptr<Algorithm<ResourceType, LabelContainerType>>`, built for `params.direction`
   from the strategy's parts; `solve` takes its template parameters in the same order, so the
@@ -77,6 +101,9 @@ New features are summarised, with a pointer to where they are documented.
   chose the direction of `can_be_merged`, which no algorithm called before this release; the join
   test now follows the extension the function is paired with. Drop the third argument:
   `MinMaxFeasibilityFunction(min, max)`.
+- **`AlgorithmBaseParams::diversification_tenure` is now `non_improving_episodes_before_growth`**
+  (C++ only): the number of episodes in a row that do not improve the best cost before
+  `strategy::ImprovingTabu` grows its adaptive tabu tenure. `DiversificationSearch` never read it.
 - **`can_be_merged` is now `can_be_joined`**, on feasibility functions, resources and
   compositions, to match the join it serves. An override of your own must be renamed; it is only
   called when the function's `join_rule()` is `JoinRule::Custom`. `TrivialFeasibilityFunction`
@@ -130,7 +157,9 @@ New features are summarised, with a pointer to where they are documented.
     `extract_solution(label)` is `record_solution` and `extract_solution(cost, arc_ids, end)` is
     `record_path`, `memory_limit_reached` is `check_memory`; `best_cost_upper_bound_` is
     `incumbent_`, `cost_upper_bound_` is `upper_bound_` and `effective_max_labels_per_node_` is
-    `quota_`. `initialize` is protected: only `solve` calls it.
+    `quota_`; `should_stop(iteration)` is `should_end_loop`, `num_extended_labels_` is
+    `number_of_extended_labels_` and `last_solve_complete_` is `last_solve_proven_`.
+    `initialize` is protected: only `solve` calls it.
   - The params' "no limit", `MAX_INT`, is `kNoLimit`.
   - The direction policies' `arcs`, `terminals`, `is_terminal` and `apply_start` are `out_arcs`,
     `end_nodes`, `is_end_node` and `set_start`, named for what they are in the direction's own
@@ -204,6 +233,29 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Drivers**: a descriptor may name a `driver` (`parts::Driver`), which runs its search several
+  times in one solve, each run up to `max_phases` phases: it decides at the start whether to run,
+  and after each run, reading how it ended (`parts::RunEnd`: a path recorded, no label left, or
+  labels stored aside left after the last phase), whether to run again; between runs it may
+  mask arcs, end each run at its first path, and start again from the start labels. A driven run
+  counts no iterations (`max_iterations` is the driver's to read). A driver that changes the
+  search records `ProofLoss::HeuristicDriver`. Forward and backward; not bidirectionally. See "A
+  strategy of one's own" in `docs/advanced/algorithms.md`.
+- **`SolveResult::proven` and `proof_lost_by`** (C++ and Python): whether the result is a proof
+  that no better path exists, and why not. It is a proof when the status is `Complete` and nothing
+  a finished search can still lose was lost (`ProofLoss`, in `rcspp/algorithm/proof_record.hpp`):
+  no arc masked, an exact admission rule, no arc made tabu by a driver, no memory pressure, and
+  no incumbent prune on a cost that is not additive. `proof_lost_by` names the status
+  when the search did not finish, otherwise the first loss. A quota that cut nothing leaves the
+  proof. `Algorithm::is_optimal()` now answers the same, so a masked solve, one with a relaxed
+  admission rule, or one memory pressure trimmed is no longer reported optimal. See "Is the
+  result a proof? `status` and `proven`" in `docs/advanced/algorithms.md`.
+- **Arc masks** (`rcspp/algorithm/arc_mask.hpp`): `ArcMask` marks arcs, by id, hard (never used)
+  or soft (to be avoided, which a child filter reads); `Algorithm::set_arc_mask` has every later
+  solve leave the hard arcs out, as if they were not in the graph, without editing it, so arc ids
+  and the bounds computed on the whole graph stay valid. `Graph::get_arc_id_bound` sizes a mask;
+  an extension along a hard arc ends `parts::ExtensionOutcome::Masked` and draws no label. C++
+  only. See "Leaving arcs out of a solve" in `docs/advanced/algorithms.md`.
 - **The parts of a dive**, in `rcspp::parts`: `DepthFirstSchedule<ResourceType, KeyType, FilterType>` takes labels depth
   first, settling each label's children together, cheapest first (`CostKey`), after a filter
   (`KeepAllChildren` by default, or a `ChildFilter` of one's own); `AdmitAll` keeps every feasible
@@ -263,7 +315,7 @@ New features are summarised, with a pointer to where they are documented.
   `prune_by_incumbent`, it prunes on lower bounds of the cost still to come, computed from
   the cost function itself, so they hold whichever components the objective reads. What it
   reports about its bound and its join is in `SolveResult::bidirectional`, a
-  `BidirectionalStats`, empty from every other algorithm. See "`Bidirectional`" in `docs/advanced/algorithms.md`.
+  `BidirectionalStats`, empty from every other algorithm. See "Bidirectional search" in `docs/advanced/algorithms.md`.
 
 - **Model checks for a backward and a bidirectional search** (`cpp/rcspp/validation/`):
   `BackwardExtensionCheck` and `JoinCheck`, which find a model whose backward semantics are
@@ -337,7 +389,8 @@ New features are summarised, with a pointer to where they are documented.
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it
   compared the cost alone, and a label whose path goes on to a negative arc could be dropped. Under
   a cost that is not additive there is no valid bound, and the prune compares the cost alone, as
-  before. A solve with the prune on runs one Bellman–Ford pass more, to compute the bound.
+  before, and the result is not reported as a proof (`proof_lost_by == "incumbent_prune"`). A
+  solve with the prune on runs one Bellman–Ford pass more, to compute the bound.
 - **A second memory-pressure event no longer erases a label twice.** Each event after the first
   releases the labels the quota or the memory trim stored aside, erasing each from its node
   through the position it was stored with. A label stored aside stays at its node, and when a

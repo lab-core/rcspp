@@ -90,14 +90,17 @@ struct TakeRule {
         /// In this order:
         /// 1. A label at an end node stays stored (@c Verdict::Keep), and lowers the incumbent
         ///    when it costs less than the upper bound. It is to be recorded now
-        ///    (@c Decision::record) in two cases; otherwise its path is read at the end of the
+        ///    (@c Decision::record) in three cases; otherwise its path is read at the end of the
         ///    solve, from the labels left at the end nodes:
         ///    - the retention records at take (@c records_at_take): it keeps nothing at the end
         ///      nodes;
         ///    - @c return_dominated_solutions is set: a later label may dominate this one and
         ///      erase it from its node before the end, so only a record made now returns it. A
         ///      label dominated before it is taken is released by @ref live, and is never
-        ///      recorded.
+        ///      recorded;
+        ///    - a run that ends at its first path (@c SearchContext::run_ends_at_end_node),
+        ///      whatever the retention: the label also stays stored at its node, and
+        ///      @c record_path drops it as a duplicate when the run ends.
         ///    The caller records it, then asks @ref SearchContext::should_end_run whether to stop.
         /// 2. A label of infinite cost is erased and released.
         /// 3. On a bidirectional side, a label past the half-way point stays stored, unextended
@@ -113,7 +116,8 @@ struct TakeRule {
                 }
                 return {.verdict = Verdict::Keep,
                         .record = SearchType::retention_type::records_at_take ||
-                                  context.params->return_dominated_solutions};
+                                  context.params->return_dominated_solutions ||
+                                  context.run_ends_at_end_node};
             }
             if (std::isinf(label.get_cost())) {
                 return {.verdict = Verdict::EraseAndRelease};

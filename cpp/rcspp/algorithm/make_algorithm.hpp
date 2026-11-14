@@ -15,6 +15,7 @@
 #include "rcspp/algorithm/container_direction.hpp"
 #include "rcspp/algorithm/direction.hpp"
 #include "rcspp/algorithm/labelling/bidirectional_labelling_algorithm.hpp"
+#include "rcspp/algorithm/labelling/driven.hpp"
 #include "rcspp/algorithm/labelling/labelling_algorithm.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/admission.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/dominance_admission.hpp"
@@ -114,6 +115,31 @@ consteval auto interleave_of() {
 template <typename Strategy>
 using interleave_of_t = typename decltype(interleave_of<Strategy>())::type;
 
+/// @brief Whether @p Strategy names a driver (`using driver = ...`), which runs its search several
+///        times in one solve.
+template <typename Strategy>
+concept DrivenStrategy = requires { typename Strategy::driver; };  // NOLINT(whitespace/newline)
+
+/// @brief The single-direction search @p Strategy builds in @p Direction: a
+///        @ref LabellingAlgorithm, run by its driver when it names one (@ref Driven).
+template <typename Strategy, typename ResourceType, typename LabelContainerType, typename Direction,
+          typename PartsType>
+consteval auto single_search_of() {
+    using Search = LabellingAlgorithm<ResourceType, LabelContainerType, Direction, PartsType>;
+    if constexpr (DrivenStrategy<Strategy>) {
+        return std::type_identity<Driven<Search, typename Strategy::driver>>{};
+    } else {
+        return std::type_identity<Search>{};
+    }
+}
+
+/// @brief The single-direction search @p Strategy builds in @p Direction (@ref single_search_of).
+template <typename Strategy, typename ResourceType, typename LabelContainerType, typename Direction,
+          typename PartsType>
+using single_search_t =
+    typename decltype(single_search_of<Strategy, ResourceType, LabelContainerType, Direction,
+                                       PartsType>())::type;
+
 /// @brief The parts of @p Strategy's search in @p Direction (see @ref search_parts_t).
 ///
 /// A strategy that names no retention gets @c parts::KeepAtNodes itself, not @c retention_of's
@@ -145,7 +171,7 @@ using search_parts_t =
 
 /// @brief Whether @p Strategy searches in @p direction: forward always; backward and
 ///        bidirectionally unless it says otherwise (`backward = false`, `bidirectional = false`)
-///        or it is a class of its own.
+///        or it is a class of its own; never bidirectionally when it names a driver.
 template <typename Strategy>
 constexpr bool searches(SearchDirection direction) {
     switch (direction) {
@@ -160,7 +186,7 @@ constexpr bool searches(SearchDirection direction) {
                 return true;
             }
         case SearchDirection::Bidirectional:
-            if constexpr (ClassStrategy<Strategy>) {
+            if constexpr (ClassStrategy<Strategy> || DrivenStrategy<Strategy>) {
                 return false;
             } else if constexpr (requires { Strategy::bidirectional; }) {
                 return Strategy::bidirectional;
@@ -201,7 +227,8 @@ constexpr void check_parts() {
 }
 
 /// @brief Checks each part of @p Strategy against its concept, in each direction it searches, and
-///        names the first that fails.
+///        names the first that fails. The driver is checked when its search is built
+///        (@c Driven's constructor).
 ///
 /// A class strategy has no parts to check.
 template <typename Strategy, typename ResourceType>
@@ -247,9 +274,10 @@ template <typename LabelContainerType>
 
 /// @brief Builds the algorithm that searches for @p Strategy in `params.direction`.
 ///
-/// A labelling strategy becomes a @ref LabellingAlgorithm forward or backward, and a
-/// @ref BidirectionalLabellingAlgorithm bidirectionally, with each direction's parts
-/// (@ref search_parts_t); a class strategy builds its own class, forward only.
+/// A labelling strategy becomes a @ref LabellingAlgorithm forward or backward, run by its driver
+/// when it names one (@ref Driven), and a @ref BidirectionalLabellingAlgorithm bidirectionally,
+/// with each direction's parts (@ref search_parts_t); a class strategy builds its own class,
+/// forward only.
 ///
 /// @tparam Strategy             The descriptor (@c rcspp::strategy, or one of one's own).
 /// @tparam ResourceType         The resource type carried by labels.
@@ -289,14 +317,15 @@ std::unique_ptr<Algorithm<ResourceType, LabelContainerType>> make_algorithm(
         using Forward = search_parts_t<Strategy, R, ForwardDirection>;
         switch (direction) {
             case SearchDirection::Forward:
-                return std::make_unique<LabellingAlgorithm<R, LC, ForwardDirection, Forward>>(
-                    resource_factory,
-                    std::move(params));
+                return std::make_unique<
+                    single_search_t<Strategy, R, LC, ForwardDirection, Forward>>(resource_factory,
+                                                                                 std::move(params));
             case SearchDirection::Backward:
                 if constexpr (searches<Strategy>(SearchDirection::Backward) &&
                               has_directed_container_v<LC, BackwardDirection>) {
                     using Backward = search_parts_t<Strategy, R, BackwardDirection>;
-                    return std::make_unique<LabellingAlgorithm<R, LC, BackwardDirection, Backward>>(
+                    return std::make_unique<
+                        single_search_t<Strategy, R, LC, BackwardDirection, Backward>>(
                         resource_factory,
                         std::move(params));
                 } else {

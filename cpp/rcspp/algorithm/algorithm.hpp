@@ -18,8 +18,10 @@
 #include <vector>
 
 #include "rcspp/algorithm/algorithm_params.hpp"
+#include "rcspp/algorithm/arc_mask.hpp"
 #include "rcspp/algorithm/labelling/parts/extension_outcome.hpp"
 #include "rcspp/algorithm/limits.hpp"
+#include "rcspp/algorithm/proof_record.hpp"
 #include "rcspp/algorithm/search_direction.hpp"
 #include "rcspp/algorithm/solution.hpp"
 #include "rcspp/algorithm/solve_result.hpp"
@@ -106,23 +108,45 @@ class Algorithm {
 
         virtual ~Algorithm() = default;
 
-        /**
-         * @brief Whether the last @ref solve processed every label, so that its result is optimal.
-         *
-         * The default implementation answers whether the last solve ended with status
-         * @c AlgorithmStatus::Complete. It is recorded when the solve ends, before
-         * @c release_after_solve (the default) empties the label queues: reading
-         * @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any other
-         * early stop.
-         * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
-         * paths to try: @c strategy::Greedy then enumerated every path, and
-         * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
-         * @c DiversificationSearch override it to answer @c false.
-         *
-         * @return true if the last solve processed every label, false otherwise.
-         */
-        [[nodiscard]] virtual bool is_optimal() const { return last_solve_complete_; }
+        /// @brief Whether the last @ref solve's result is a proof of optimality
+        ///        (@c SolveResult::proven).
+        ///
+        /// The default implementation answers whether the last solve ended with status
+        /// @c AlgorithmStatus::Complete, with nothing lost that the status cannot see: no arc
+        /// masked, an exact admission rule, no memory pressure (@c ProofLoss). It is recorded when
+        /// the solve ends, before @c release_after_solve (the default) empties the label queues:
+        /// reading @ref number_of_waiting_labels afterwards would answer 0 after a timeout or any
+        /// other early stop. @c false before the first solve. A heuristic ends @c Complete only
+        /// when it ran out of paths to try: @c strategy::Greedy then enumerated every path, and the
+        /// tabu searches found none before any arc was tabu (a tabu arc loses the proof:
+        /// @c ProofLoss::HeuristicDriver). @c DiversificationSearch overrides it to answer
+        /// @c false.
+        ///
+        /// @return true if the last solve's result is a proof, false otherwise.
+        [[nodiscard]] virtual bool is_optimal() const { return last_solve_proven_; }
 
+        /// @brief Solves @p graph: returns the paths found that cost less than
+        ///        @p cost_upper_bound, cheapest first, and why the search ended.
+        ///
+        /// A solve checks the direction and the model, resets this algorithm's state
+        /// (@ref initialize) and creates the start labels (@ref initialize_labels). Then it
+        /// repeats runs until no label waits or a stop applies (@ref should_end_loop): each run
+        /// extends labels (@ref main_loop), records the paths at the end nodes
+        /// (@ref record_remaining_solutions), and asks @ref prepare_next_run whether another run
+        /// follows (the next phase, or a driver's next run). It then puts back the labels still
+        /// stored aside (@ref prepare_next_phase), sets the status (@ref AlgorithmStatus) and
+        /// whether the result is a proof (@c SolveResult::proven), and releases the label memory
+        /// unless @c release_after_solve is false. Each solve starts afresh: nothing of one
+        /// solve's labels is reused by the next.
+        ///
+        /// @param graph            The graph; it must not change during the solve.
+        /// @param cost_upper_bound Only paths cheaper than this are returned; +infinity for no
+        ///                         bound.
+        /// @return The paths, each once, at most @c max_solutions, cheapest first; and the
+        ///         status.
+        /// @throws std::invalid_argument when the algorithm does not support the direction.
+        /// @throws ModelRefused when the model checks of a backward or bidirectional search
+        ///         fail.
         virtual SolveResult solve(const Graph<ResourceType>* graph, double cost_upper_bound) {
             require_supported_direction();
             // The checks this direction needs, whoever calls: ResourceGraph::solve ran them
@@ -134,7 +158,7 @@ class Algorithm {
             // initialization
             Timer timer(true);
             timed_out_ = false;
-            last_solve_complete_ = false;
+            last_solve_proven_ = false;
             solve_timer_ = &timer;
             memory_limit_.resolve(params_.max_memory_gb,
                                   params_.limit_to_available_ram,
@@ -147,7 +171,7 @@ class Algorithm {
             // initialize labels
             this->initialize_labels();
 
-            size_t num_phases = 0;
+            size_t runs = 0;
             while (!should_end_loop() && number_of_waiting_labels() > 0) {
                 // main labeling loop
                 main_loop();
@@ -155,10 +179,8 @@ class Algorithm {
                 // record the paths the run left at the end nodes
                 record_remaining_solutions();
 
-                // prepare next phase (if any)
-                if (++num_phases < max_phases()) {
-                    prepare_next_phase();
-                } else {
+                // the next phase, or a driver's next run (if any)
+                if (!prepare_next_run(++runs)) {
                     break;
                 }
             }
@@ -199,7 +221,7 @@ class Algorithm {
             }
 
             // Determine the exit status. "All labels processed" (number_of_waiting_labels() == 0)
-            // means the search finished and the result is optimal, so it takes precedence over the
+            // means the search finished, so it takes precedence over the
             // early-stop reasons below: a timeout / interrupt / memory flag must NOT downgrade a
             // finished, optimal run. This matters because is_interrupted() and
             // memory_limit_.is_exceeded() are re-evaluated here — the external stop callback may
@@ -224,14 +246,22 @@ class Algorithm {
             }
             // Recorded now: releasing the label memory below empties the queues, after which
             // number_of_waiting_labels() would read 0 whatever the run did.
-            last_solve_complete_ = status == AlgorithmStatus::Complete;
+            if (memory_pressure_triggered_) {
+                proof_.record(ProofLoss::MemoryPressure);
+            }
+            const bool complete = status == AlgorithmStatus::Complete;
+            last_solve_proven_ = complete && proof_.is_intact();
 
             // Optionally release label memory so RAM is reclaimed when the caller returns.
             if (params_.release_after_solve) {
                 release_label_memory();
             }
 
-            SolveResult result{.solutions = std::move(solutions), .status = status};
+            SolveResult result{
+                .solutions = std::move(solutions),
+                .status = status,
+                .proven = last_solve_proven_,
+                .proof_lost_by = complete ? to_string(proof_.first_loss()) : to_string(status)};
             annotate(&result);
             return result;
         }
@@ -248,10 +278,30 @@ class Algorithm {
             return params_.should_stop && params_.should_stop();
         }
 
+        /// @brief Sets the arc mask later solves read: they leave out the arcs @p mask makes hard
+        ///        (a hard arc), as if they were not in the graph, and a child filter may avoid
+        ///        those it makes soft (a soft arc); @c nullptr (the default) leaves every arc in.
+        ///
+        /// A labelling search never extends a label along a hard arc. The graph is not edited:
+        /// arc ids, and the bounds computed on the whole graph, are unchanged, so the paths
+        /// returned name the graph's own arcs. The mask is read at the start of each solve, and
+        /// not owned: it must outlive the solves that read it. A soft arc changes nothing for a
+        /// search whose schedule does not read it (every exact search). A mask that is not all
+        /// open (any hard or soft arc) costs the solve its proof (@c ProofLoss::ArcsMasked), a
+        /// soft-only one included.
+        ///
+        /// @param mask The mask, sized for the graph's arc ids (@c Graph::get_arc_id_bound).
+        void set_arc_mask(const ArcMask* mask) { arc_mask_ = mask; }
+
+        /// @brief The mask later solves read; @c nullptr when none was set.
+        [[nodiscard]] const ArcMask* get_arc_mask() const { return arc_mask_; }
+
         /// @brief Read-only access to the label pool, for diagnostics and tests.
         [[nodiscard]] const LabelPool<ResourceType>& get_label_pool() const { return label_pool_; }
 
-        /// @brief How many labels the last solve extended; a machine-independent work measure.
+        /// @brief How many extensions the last solve made that drew a label from the pool: every
+        ///        extension of a label along an arc but those masked or unreachable (the
+        ///        infeasible and the rejected ones count). A machine-independent work measure.
         ///
         /// @return The number of label extensions performed.
         [[nodiscard]] size_t get_number_of_extended_labels() const {
@@ -269,6 +319,31 @@ class Algorithm {
         }
 
     protected:
+        template <typename, typename, typename>
+        friend class DiversificationSearch;
+
+        /// @brief Promises that the graph, costs included, has not changed since the last solve,
+        ///        so that the completion bound computed then can be kept
+        ///        (@c LabellingAlgorithm::refresh_completion_bound), until this is set back to @c
+        ///        false.
+        ///
+        /// Protected: only @ref DiversificationSearch makes this promise, between its inner
+        /// solves. A wrong promise leaves a stale bound, so wrong pruning and ordering. The arc
+        /// mask is not part of the promise: the bound does not read it.
+        ///
+        /// @param unchanged Whether the graph stays unchanged.
+        void set_graph_unchanged(bool unchanged) { graph_unchanged_ = unchanged; }
+
+        /// @brief Whether the graph is promised unchanged since the last solve
+        ///        (@ref set_graph_unchanged).
+        [[nodiscard]] bool is_graph_unchanged() const { return graph_unchanged_; }
+
+        /// @brief Starts a solve: stores the graph and the upper bound, sets the incumbent to
+        ///        the upper bound, clears the pool and the solutions, resets the counters, the
+        ///        quota, the pressure flag and the proof record, and records the proof losses
+        ///        known at the start (an arc mask, a prune on a cost that is not additive).
+        ///
+        /// An override calls this first, then sets up its own search(es).
         virtual void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) {
             if (!graph->get_sorted_nodes().empty() && !graph->are_nodes_sorted()) {
                 LOG_FATAL(
@@ -287,6 +362,13 @@ class Algorithm {
             number_of_extended_labels_ = 0;
             quota_ = params_.max_extended_labels_per_node;
             memory_pressure_triggered_ = false;
+            proof_.reset();
+            if (arc_mask_ != nullptr && !arc_mask_->empty()) {
+                proof_.record(ProofLoss::ArcsMasked);
+            }
+            if (params_.prune_by_incumbent && !is_cost_additive(*graph)) {
+                proof_.record(ProofLoss::IncumbentPrune);
+            }
         }
 
         /// @brief Throws unless this algorithm supports the direction its params ask for.
@@ -361,11 +443,12 @@ class Algorithm {
         ///        @ref kProgressReportInterval extensions.
         ///
         /// Every extension that drew a label counts towards @ref get_number_of_extended_labels:
-        /// all but the unreachable ones.
+        /// all but the masked and the unreachable ones.
         ///
         /// @param outcome How the extension ended.
         void count_extension(parts::ExtensionOutcome outcome) {
-            if (outcome == parts::ExtensionOutcome::Unreachable) {
+            if (outcome == parts::ExtensionOutcome::Masked ||
+                outcome == parts::ExtensionOutcome::Unreachable) {
                 return;
             }
             if (++number_of_extended_labels_ % kProgressReportInterval == 0) {
@@ -395,8 +478,9 @@ class Algorithm {
         /// @brief Builds the context one search of this solve reads (@c detail::SearchContext).
         ///
         /// Every pointer in it points to the graph being solved, into this algorithm (its pool,
-        /// params, incumbent, quota and solutions), or into @p search (its completion bound): the
-        /// context is valid while this algorithm and the search live. It also says whether the
+        /// params, incumbent, quota and solutions), into @p search (its completion bound), or to
+        /// the arc mask set with @ref set_arc_mask: the context is valid while this algorithm, the
+        /// search and the mask live. It also says whether the
         /// incumbent prune adds the completion bound (@c prune_adds_completion_bound: the prune is
         /// on and the cost is additive, @ref is_cost_additive).
         ///
@@ -422,6 +506,7 @@ class Algorithm {
                 .solutions = &solutions_,
                 .admission = {},
                 .completion_bound = &search.completion_bound,
+                .arc_mask = arc_mask_,
                 .role = role,
                 .prune_adds_completion_bound =
                     params_.prune_by_incumbent && is_cost_additive(*graph_),
@@ -451,7 +536,7 @@ class Algorithm {
         /// it (those labels are lost); sets the pressure flag; and has the schedule trim its
         /// waiting labels. What the trim takes off is stored aside, or abandoned and counted on
         /// a bidirectional side (which stores nothing aside, so the release finds nothing
-        /// there). The result may then not be optimal (@ref memory_pressure_was_triggered).
+        /// there). The result is then not a proof (@c ProofLoss::MemoryPressure).
         ///
         /// @param search The search (a @c detail::Search).
         /// @param context    Its context.
@@ -479,10 +564,24 @@ class Algorithm {
         /// label pointer containers (non-dominated sets, unprocessed queues).
         virtual void release_label_memory() { label_pool_.release(); }
 
-        // ── Core virtuals ───────────────────────────────────────────────────
+        // ── The hooks solve() calls ─────────────────────────────────────────
+        //
+        // Implemented by detail::LabellingAlgorithm (one search, forward or backward),
+        // detail::Driven (a LabellingAlgorithm that a driver runs several times: it overrides
+        // initialize, main_loop, prepare_next_run and record_solution),
+        // detail::BidirectionalLabellingAlgorithm and DiversificationSearch. See solve() for the
+        // order of the calls, and the overview at the top of labelling/search.hpp for a
+        // labelling search.
 
+        /// @brief Releases every label of the previous solve, then creates and queues one start
+        ///        label per start node (the sources forward, the sinks backward, both
+        ///        bidirectionally). DiversificationSearch creates none.
         virtual void initialize_labels() = 0;
 
+        /// @brief How many labels wait in the schedule(s) to be taken. Labels stored aside are
+        ///        not counted until @ref prepare_next_phase puts them back. solve() runs while it
+        ///        is positive, and ends @c Complete only when it is 0 (DiversificationSearch
+        ///        answers 1, so it never ends @c Complete).
         [[nodiscard]] virtual size_t number_of_waiting_labels() const = 0;
 
         /// @brief Whether the last solve abandoned labels it will never extend.
@@ -496,6 +595,13 @@ class Algorithm {
         /// @return @c true when a label was cut and left unextended.
         [[nodiscard]] virtual bool has_abandoned_labels() const { return false; }
 
+        /// @brief Puts the labels stored aside (by the per-node quota or a memory-pressure trim)
+        ///        back into the schedule, and starts the per-node counts again.
+        ///
+        /// Called by @ref prepare_next_run between two phases, and once more after the last run,
+        /// so that labels still stored aside count in @ref number_of_waiting_labels when the
+        /// status is set. Does nothing by default: a bidirectional search abandons labels
+        /// instead of storing them aside.
         virtual void prepare_next_phase() {}
 
         /// @brief How many phases a solve may run: @c max_phases by default.
@@ -505,6 +611,25 @@ class Algorithm {
         /// @c max_iterations count and record the paths at the end nodes again.
         [[nodiscard]] virtual size_t max_phases() const { return params_.max_phases; }
 
+        /// @brief Prepares the next run of the solve's loop, and says whether there is one.
+        ///
+        /// The default starts the next phase while @ref max_phases allows it: the labels stored
+        /// aside are extended in it. A driven search asks its driver instead (@c detail::Driven).
+        ///
+        /// @param number_of_runs How many runs the loop has made.
+        /// @return Whether to run again.
+        virtual bool prepare_next_run(size_t number_of_runs) {
+            if (number_of_runs < max_phases()) {
+                prepare_next_phase();
+                return true;
+            }
+            return false;
+        }
+
+        /// @brief One run: takes labels (or, for Pulling, visits nodes) until none waits or a
+        ///        stop applies (@ref should_end_loop, @c max_iterations, the memory limit,
+        ///        @c max_solutions). solve() calls it once per phase, or once per run of a
+        ///        driver.
         virtual void main_loop() = 0;
 
         /// @brief Records the solutions still sitting at the end nodes when the loop ends.
@@ -517,12 +642,21 @@ class Algorithm {
             }
         }
 
+        /// @brief The labels stored at the end nodes (the sinks forward, the sources backward);
+        ///        @ref record_remaining_solutions records their paths.
         [[nodiscard]] virtual std::list<Label<ResourceType>*> labels_at_end_nodes() const = 0;
 
+        /// @brief Logs every stored label, node by node, at the trace log level.
         virtual void print_labels() const {}
 
+        /// @brief The arc ids of the path @p label holds, in path order (from the source).
         virtual std::vector<size_t> get_path_arc_ids(const Label<ResourceType>& label) = 0;
 
+        /// @brief Records the path a forward label at an end node holds, from a source to the
+        ///        label's node, unless it costs at least the upper bound (@ref record_path).
+        ///
+        /// A backward LabellingAlgorithm overrides it to call @ref record_backward_solution;
+        /// Driven also notes the path as the end of its run.
         virtual void record_solution(const Label<ResourceType>& end_label) {
             if (end_label.get_cost() >= upper_bound_) {
                 return;
@@ -626,7 +760,7 @@ class Algorithm {
         /// @brief True after on_memory_pressure() has been called at least once this solve.
         ///
         /// Read by @ref relieve_memory_pressure, which releases what is stored aside on every call
-        /// but the first, and reported by @ref memory_pressure_was_triggered.
+        /// but the first, and by solve(), which then records @c ProofLoss::MemoryPressure.
         bool memory_pressure_triggered_ = false;
 
         /// @brief The cost upper bound the caller gave this solve: a path is recorded only when
@@ -637,11 +771,17 @@ class Algorithm {
         ///        (@c prune_by_incumbent) and the join compare with it.
         double incumbent_ = std::numeric_limits<double>::infinity();
         std::unordered_set<Solution> solutions_;
+        const ArcMask* arc_mask_ = nullptr;  ///< the hard arcs a solve leaves out; none by default
+        bool graph_unchanged_ = false;       ///< see @ref set_graph_unchanged
+
+        /// @brief What this solve lost that its status cannot see; reset at @ref initialize,
+        ///        which records a mask that is not empty.
+        ProofRecord proof_;
 
         size_t number_of_extended_labels_ = 0;
 
         bool timed_out_ = false;
-        bool last_solve_complete_ = false;    ///< Whether the last solve() ended Complete.
+        bool last_solve_proven_ = false;      ///< Whether the last solve() was a proof.
         const Timer* solve_timer_ = nullptr;  ///< Points to solve()'s timer; null outside solve().
 };
 

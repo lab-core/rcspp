@@ -178,6 +178,13 @@ TEST(TakeRule, AnEndNodeLabelLowersTheIncumbentAndIsKept) {
     EXPECT_TRUE(trt::is(trt::Forward::fixed(f.label(2, 7.0), search, f.context),
                         trt::Verdict::Keep,
                         /*record=*/true));
+    f.params.return_dominated_solutions = false;
+    f.context.run_ends_at_end_node = true;
+    EXPECT_TRUE(trt::is(trt::Forward::fixed(f.label(2, 7.0), search, f.context),
+                        trt::Verdict::Keep,
+                        /*record=*/true))
+        << "a run that ends at its first path, whatever the retention";
+    f.context.run_ends_at_end_node = false;
 
     // Going backward, the end nodes are the sources.
     EXPECT_TRUE(
@@ -223,7 +230,7 @@ TEST(TakeRule, ALabelPastTheHalfWayPointIsKeptStored) {
 }
 
 /// @brief The live checks come first: a label both dominated and at an end node is released by
-///        them, so the settled checks, which would record it, never run for it.
+///        them, so the fixed checks, which would record it, never run for it.
 TEST(TakeRule, TheLiveChecksComeFirst) {
     namespace trt = take_rule_test;
     trt::Fixture f;

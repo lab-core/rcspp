@@ -56,8 +56,10 @@ namespace rcspp::detail {
 //   - BidirectionalLabellingAlgorithm runs two, one per direction, taking the next step from the
 //     side that has done less work (parts::Interleave). Each side stops extending at the half-way
 //     point, and the join pairs their labels into paths (join).
-//   - A dive (Greedy) keeps no labels at the nodes (parts::KeepWhileWaiting) and goes depth first
-//     (parts::DepthFirstSchedule).
+//   - Driven runs one search several times under a driver (parts::Driver: the tabu searches),
+//     changing it between runs; each run runs up to max_phases phases.
+//   - A dive (Greedy, the tabu searches) keeps no labels at the nodes (parts::KeepWhileWaiting)
+//     and goes depth first (parts::DepthFirstSchedule).
 //
 // Words used throughout:
 //   end node          where a path ends in the search's direction: a sink going forward, a
@@ -133,16 +135,23 @@ struct Search {
         typename PartsType::observer observer;           ///< told of every extension
         CompletionBound<ResourceType> completion_bound;  ///< the completion bound; empty: none
         /// The extensions tried this solve, one per label and arc, masked and unreachable arcs
-        /// included; the interleave compares it.
+        /// included (kept across a driver's runs); the interleave compares it.
         size_t work = 0;
 
         /// @brief Empties the search for a new solve: one container per node, each a copy of
         ///        @p prototype (which carries the container's configuration and direction), an
         ///        empty schedule and no work.
         void reset(size_t number_of_nodes, const ContainerType& prototype) {
+            restart(number_of_nodes, prototype);
+            work = 0;
+        }
+
+        /// @brief Empties the search for another run of the same solve: one container per node,
+        ///        each a copy of @p prototype, and an empty schedule; the work done so far stays.
+        ///        No label is released (the pool owns them).
+        void restart(size_t number_of_nodes, const ContainerType& prototype) {
             labels.reset(number_of_nodes, prototype);
             schedule.clear();
-            work = 0;
         }
 
         /// @brief Forgets every stored and waiting label, releasing none (the pool owns them).
@@ -167,26 +176,33 @@ struct Search {
 
         /// @brief Extends @p label along @p arc.
         ///
-        /// The steps, in order; each of the first three can end the extension:
-        ///  1. @c Unreachable: when @p label can no longer reach the arc's head (the look-ahead,
+        /// The steps, in order; each of the first four can end the extension:
+        ///  1. @c Masked: when the arc mask leaves the arc out (a hard arc, @c
+        ///  SearchContext::arc_mask),
+        ///     the arc is skipped; no label is taken from the pool.
+        ///  2. @c Unreachable: when @p label can no longer reach the arc's head (the look-ahead,
         ///     @c Label::is_reachable), the arc is skipped; no label is taken from the pool.
-        ///  2. @c Infeasible: a label is taken from the pool and extended along the arc; when it
+        ///  3. @c Infeasible: a label is taken from the pool and extended along the arc; when it
         ///     fails its feasibility test it goes back to the pool at once.
-        ///  3. @c Rejected: the admission rule decides whether to keep the new label at its node
+        ///  4. @c Rejected: the admission rule decides whether to keep the new label at its node
         ///     (it may evict labels there); a rejected label goes back to the pool at once.
-        ///  4. @c Accepted: the new label is stored at its node and pushed to the schedule, and
+        ///  5. @c Accepted: the new label is stored at its node and pushed to the schedule, and
         ///     @p label becomes its predecessor. That pins @p label: it is not freed while the new
         ///     label is alive (@c Label::ref_count).
         /// The observer is told the outcome in every case.
         ///
         /// @param label The label to extend.
         /// @param arc   The arc to extend it along, one @p Direction walks from its node.
-        /// @param context   The search's context: the pool and the admission rule.
+        /// @param context   The search's context: the arc mask, the pool and the admission rule.
         /// @return How the extension ended.
         parts::ExtensionOutcome extend_along(Label<ResourceType>* label,
                                              const Arc<ResourceType>* arc,
                                              SearchContext<ResourceType>& context) {
             using parts::ExtensionOutcome;
+            if (context.arc_mask != nullptr && context.arc_mask->is_hard(arc->id)) {
+                observer.on_extension(*label, *arc, ExtensionOutcome::Masked);
+                return ExtensionOutcome::Masked;
+            }
             auto* head_node = Direction::head(*arc);
 
             // Skip the arc when the label can no longer reach the node it lands on. Both

@@ -4,16 +4,18 @@
 #pragma once
 
 #include "rcspp/algorithm/diversification_search.hpp"
-#include "rcspp/algorithm/improving_tabu_search.hpp"
 #include "rcspp/algorithm/labelling/parts/admission/admit_all.hpp"
+#include "rcspp/algorithm/labelling/parts/driver/improving_tabu_episodes.hpp"
+#include "rcspp/algorithm/labelling/parts/driver/tabu_episodes.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/keep_while_waiting.hpp"
 #include "rcspp/algorithm/labelling/parts/retention/retention.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/best_first_schedule.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/cost_key.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/depth_first_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/fifo_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/pull_schedule.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/sweep_schedule.hpp"
-#include "rcspp/algorithm/tabu_search.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/tabu_child_filter.hpp"
 
 /// @brief The strategies a solve names: @c graph.solve<strategy::AStar>(...).
 ///
@@ -31,22 +33,25 @@
 ///   extension (default: @c parts::NoObserver);
 /// - `using interleave = ...;` which side of a bidirectional search works next (default:
 ///   @c parts::LeastWorkFirst);
+/// - `using driver = ...;` runs the search several times in one solve, each run up to
+///   @c max_phases phases (@c parts::Driver; default: none, one run). A strategy with a driver
+///   never searches bidirectionally;
 /// - `static constexpr bool backward = false;` or `bidirectional = false;` the strategy refuses
 ///   that direction: @c create_algorithm then throws @c std::invalid_argument when asked for it.
 ///
 /// The first four are templates on the resource type and the search's direction, so a strategy
 /// can use a different part forward and backward; a plain type there is refused at compile time.
-/// @c interleave is a plain type. The direction itself is chosen at run time, with
+/// @c interleave and @c driver are plain types. The direction itself is chosen at run time, with
 /// @c params.direction. The library's strategies below are written exactly as one's own would
 /// be; docs/advanced/algorithms.md, "A strategy of one's own", gives examples and the rules the
 /// concepts cannot check.
 ///
-/// Greedy is a dive, built from the depth-first parts; it searches forward only.
+/// Greedy, Tabu and ImprovingTabu are dives, built from the depth-first parts; the tabu searches
+/// add a driver. They search forward only.
 ///
-/// The other heuristics (the tabu searches, diversification) are not labelling searches: their
-/// descriptors name a class of their own,
+/// Diversification is not a labelling search: its descriptor names a class of its own,
 /// `template <typename ResourceType, typename LabelContainerType> using algorithm = ...;`, and
-/// search forward only.
+/// searches forward only.
 namespace rcspp::strategy {
 
 /// @brief Labels taken first in, first out.
@@ -100,16 +105,47 @@ struct Greedy {
         static constexpr bool bidirectional = false;
 };
 
-/// @brief Dives that make the arcs they use tabu (@ref TabuSearchAlgorithm), forward only.
+/// @brief Episodes of Greedy's dive, each ending at its first path, whose arcs are then tabu for
+///        the next @c tabu_tenure − 1 episodes, plus an adaptive extra that grows after an episode
+///        that found nothing new and shrinks after one that did (@c parts::TabuEpisodes): a child
+///        reached along a tabu arc is dropped unless every child is (@c parts::TabuChildFilter).
+///        Forward only.
+///
+/// @c max_iterations counts episodes, and must be finite: with no limit the solve logs an error
+/// and runs no episode; 0 runs no episode either (the solve returns nothing).
 struct Tabu {
-        template <typename ResourceType, typename LabelContainerType>
-        using algorithm = TabuSearchAlgorithm<ResourceType, LabelContainerType>;
+        template <typename ResourceType, typename Direction>
+        using schedule =
+            parts::DepthFirstSchedule<ResourceType, parts::CostKey, parts::TabuChildFilter>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        using driver = parts::TabuEpisodes;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 
-/// @brief Tabu dives that improve on the incumbent (@ref ImprovingTabuSearch), forward only.
+/// @brief Tabu's episodes after a first dive with no arc tabu, the construction
+///        (@c parts::ImprovingTabuEpisodes). Each @c non_improving_episodes_before_growth
+///        episodes in a row that find no path strictly cheaper than the best so far lengthen the
+///        tabu tenure; an episode that does find one shortens it. Each episode still ends at its
+///        first path, whatever it costs. Forward only.
+///
+/// @c max_iterations counts the episodes after the construction, and must be finite (otherwise
+/// the solve logs an error and runs nothing); 0 runs the construction alone, and returns its
+/// path.
 struct ImprovingTabu {
-        template <typename ResourceType, typename LabelContainerType>
-        using algorithm = ImprovingTabuSearch<ResourceType, LabelContainerType>;
+        template <typename ResourceType, typename Direction>
+        using schedule =
+            parts::DepthFirstSchedule<ResourceType, parts::CostKey, parts::TabuChildFilter>;
+        template <typename ResourceType, typename Direction>
+        using admission = parts::AdmitAll;
+        template <typename ResourceType, typename Direction>
+        using retention = parts::Retain<parts::KeepWhileWaiting>;
+        using driver = parts::ImprovingTabuEpisodes;
+        static constexpr bool backward = false;
+        static constexpr bool bidirectional = false;
 };
 
 /// @brief Repeated solves of @p Inner, forward only, each solve leaving out (as hard arcs of the

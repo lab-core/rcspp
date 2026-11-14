@@ -18,12 +18,12 @@ namespace rcspp {
  * @ref age step.
  *
  * This class is consumed by composition: it does not assume how the algorithm dives,
- * filters arcs, or interprets a solution. Two examples in this package:
- *
- *   - @ref TabuSearchAlgorithm consults @ref is_tabu while extending labels and calls
- *     @ref add for each arc on a found path.
- *   - @ref DiversificationSearch removes arcs from a graph clone when calling @ref add
- *     and passes a "restore arc" callback to @ref age so expired arcs come back.
+ * filters arcs, or interprets a solution. Its one user in this package is
+ * @c detail::TabuArcs, which keeps it in step with an arc mask: it calls @ref add for each
+ * arc of a path found and sets that arc's state in the mask, and passes @ref age a callback
+ * that sets each expired arc back to its state in the mask the algorithm was given. The tabu
+ * searches' drivers (@c parts::TabuEpisodes, @c parts::ImprovingTabuEpisodes) make the tabu arcs
+ * soft in that mask; @ref DiversificationSearch makes them hard.
  *
  * The @ref grow_extra / @ref shrink_extra split (rather than a single update) is
  * deliberate: each algorithm decides which heuristic of "what counts as a successful
@@ -57,8 +57,8 @@ class TabuList {
         }
 
         /// Decrement every tenure; remove expired entries. @p on_expire is called once
-        /// for each arc whose tenure just hit zero (e.g. to restore the arc on a graph
-        /// clone). Pass a no-op for "just forget the entry".
+        /// for each arc whose tenure just hit zero (e.g. to set the arc back in a mask, as
+        /// @c detail::TabuArcs::age does). Pass a no-op for "just forget the entry".
         template <typename OnExpire>
         void age(OnExpire&& on_expire) {
             for (auto it = tenure_.begin(); it != tenure_.end();) {

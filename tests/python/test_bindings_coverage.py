@@ -119,6 +119,20 @@ def test_solve_result_repr():
     assert "SolveResult" in s
 
 
+def test_solve_result_proven():
+    """A complete solve is a proof; one its budget stops says why it is not."""
+    rg = _make_graph()
+    result = rg.solve()
+    assert result.proven
+    assert result.proof_lost_by == ""
+    assert "proven=True" in repr(result)
+    params = AlgorithmParams()
+    params.max_iterations = 1
+    stopped = rg.solve(params=params)
+    assert not stopped.proven
+    assert stopped.proof_lost_by == "truncated"
+
+
 def test_solve_result_bool():
     """SolveResult is truthy when it has solutions."""
     rg = _make_graph()
