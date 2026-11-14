@@ -15,6 +15,8 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <stdexcept>
+#include <string>
 #include <tuple>
 
 #include "rcspp/rcspp.hpp"
@@ -108,8 +110,18 @@ struct PyBucketAlgorithmParams : PyAlgorithmParams {
 
 // ─── Algorithm dispatch table ─────────────────────────────────────────────────
 
-// Append new values at the end: the integer values are exposed to Python.
-enum class SolverAlgorithm { Simple, Pushing, Pulling, Greedy, Tabu, AStar };
+// Append new values at the end, and never reuse a retired one: the integer values are exposed to
+// Python, where Algorithm(n) must not run another algorithm than it used to. 6 was Bidirectional,
+// retired for SearchDirection.Bidirectional.
+enum class SolverAlgorithm {
+    Simple,
+    Pushing,
+    Pulling,
+    Greedy,
+    Tabu,
+    AStar,
+    BoundGuidedGreedy = 7,
+};
 
 // Dispatch entry: the strategy, searching in params.direction. A strategy that does not search in
 // that direction throws std::invalid_argument (ValueError in Python). The clock's type is the
@@ -128,12 +140,14 @@ struct AlgoEntry {
         }
 };
 
-using AlgorithmTable = std::tuple<AlgoEntry<SolverAlgorithm::Simple, strategy::Simple>,
-                                  AlgoEntry<SolverAlgorithm::Pushing, strategy::Pushing>,
-                                  AlgoEntry<SolverAlgorithm::Pulling, strategy::Pulling>,
-                                  AlgoEntry<SolverAlgorithm::Greedy, strategy::Greedy>,
-                                  AlgoEntry<SolverAlgorithm::Tabu, strategy::Tabu>,
-                                  AlgoEntry<SolverAlgorithm::AStar, strategy::AStar>>;
+using AlgorithmTable =
+    std::tuple<AlgoEntry<SolverAlgorithm::Simple, strategy::Simple>,
+               AlgoEntry<SolverAlgorithm::Pushing, strategy::Pushing>,
+               AlgoEntry<SolverAlgorithm::Pulling, strategy::Pulling>,
+               AlgoEntry<SolverAlgorithm::Greedy, strategy::Greedy>,
+               AlgoEntry<SolverAlgorithm::Tabu, strategy::Tabu>,
+               AlgoEntry<SolverAlgorithm::AStar, strategy::AStar>,
+               AlgoEntry<SolverAlgorithm::BoundGuidedGreedy, strategy::BoundGuidedGreedy>>;
 
 template <typename ResourceGraphType, typename CostResourceType, typename LabelContainerType,
           typename... Entries>
@@ -141,7 +155,7 @@ SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, ResourceGraphType& rg, 
                                     AlgorithmParams<LabelContainerType> p, bool pre, size_t ci,
                                     std::tuple<Entries...>* /*tag*/) {
     SolveResult result;
-    [[maybe_unused]] bool matched =
+    const bool matched =
         ((Entries::value == alg
               ? (result =
                      Entries::template run<ResourceGraphType, CostResourceType, LabelContainerType>(
@@ -153,6 +167,9 @@ SolveResult dispatch_algorithm_impl(SolverAlgorithm alg, ResourceGraphType& rg, 
                  true)
               : false) ||
          ...);
+    if (!matched) {
+        throw std::invalid_argument("unknown algorithm: " + std::to_string(static_cast<int>(alg)));
+    }
     return result;
 }
 

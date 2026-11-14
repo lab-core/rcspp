@@ -11,11 +11,16 @@ title: Algorithms
 | `Simple` | ✓ | medium | Default; correct answer needed |
 | `Pushing` | ✓ | medium–fast | Dense graphs; pushing dominance forward |
 | `Pulling` | ✓ | medium–fast | Dense graphs; pulling dominance from in-arcs |
-| `Simple`, `direction="bidirectional"` | ✓ | fast–slow | Long routes with a tight, monotone clock |
+| `Simple`, `AStar`, `Pushing` or `Pulling` with `direction="bidirectional"` | ✓ | fast–slow | Long routes with a tight, monotone clock |
 | `AStar` | ✓ | fast–slow | Good heuristic available |
 | `Greedy` | ✗ | fast | Quick feasible solution; large graphs |
+| `BoundGuidedGreedy` | ✗ | fast | Greedy guided by a lower bound on the cost still to pay; with `prune_by_threshold` and a tight `upper_bound` |
 | `Tabu` | ✗ | medium | Metaheuristic diversity |
-| `Diversification` | ✗ | configurable | Generate a diverse pool of solutions |
+| `ImprovingTabu` (C++) | ✗ | medium | Tabu that counts the episodes that do not improve |
+| `Diversification` (C++) | ✗ | configurable | Generate a diverse pool of solutions |
+
+✗: no guarantee within a budget (`max_iterations`). With no budget, a heuristic tries every path,
+and so finds the optimum, at a cost that grows with the number of paths.
 
 ## What every algorithm returns
 
@@ -568,6 +573,13 @@ children are made, and lives on only while a label extended from it still waits.
 tries every path, and so finds the optimum, but its work grows
 with the number of paths; with one, it is fast, with no optimality guarantee.
 
+Like the tabu searches, it dives forward from the sources by default, or backward from the sinks
+(`direction="backward"`), with the model's backward semantics; neither searches bidirectionally.
+Backward and forward dives under the same budget find different columns: on fixed duals, backward
+Tabu and Improving Tabu found cheaper best columns than forward ones on four of five R2 and RC2
+pricing graphs, the families where forward dives do worst, and dearer ones on others, so a
+pricing loop can run both.
+
 As in every labelling search, `max_iterations` counts the labels taken, and
 `max_extended_labels_per_node` (with `max_phases`) caps the labels taken at each node.
 
@@ -578,6 +590,28 @@ params.max_extended_labels_per_node = 5   # extend at most 5 labels per node
 
 result = rg.solve(algorithm="greedy", params=params)
 ```
+
+### Bound-guided Greedy
+
+`BoundGuidedGreedy` (`algorithm="bound_guided_greedy"`) is Greedy's dive with a label's children
+taken by cost plus a lower bound on the cost still to pay, not by cost alone, so each step goes
+toward the cheapest completion. It is meant with `prune_by_threshold`, which drops, under the same bound, the
+labels that cannot beat the upper bound. The bound costs one Bellman–Ford run at the start of each
+solve. With no budget, it finds the optimum, as Greedy does.
+
+```python
+params = AlgorithmParams()
+params.max_iterations = 20_000
+params.prune_by_threshold = True
+result = rg.solve(algorithm="bound_guided_greedy", upper_bound=0.0, params=params)
+```
+
+On fixed duals, with 20 000 labels and an upper bound of 0, its best column was never dearer than
+that of plain Greedy without the prune on 25 pricing graphs, and cheaper on four: C101 at 25 and 50
+customers (-401.5 to -524.1, -429.7 to -579.3) and R101 at the first two column-generation
+iterations measured (-245.7 to -319.9, -16.0 to -23.7). The order accounts for the cheaper
+columns: with the prune on both, the same four are cheaper (R101's second: -19.8 to -23.7). On the
+others, it found the same best column in about the same time.
 
 ## `Tabu`
 
@@ -772,7 +806,7 @@ A bidirectional search also reads `critical_resource_index` and `half_way_point`
 | Direction | Searched by |
 |---|---|
 | Forward | every algorithm |
-| Backward | `Simple`, `AStar`, `Pushing`, `Pulling` |
+| Backward | `Simple`, `AStar`, `Pushing`, `Pulling`, and the heuristics: `Greedy`, `BoundGuidedGreedy`, `Tabu`, `ImprovingTabu` |
 | Bidirectional | `Simple`, `AStar`, `Pushing`, `Pulling` |
 
 Backward, each labelling algorithm runs as it does forward, on the graph read in reverse. `Pushing`
@@ -1105,7 +1139,7 @@ and hands them out next, cheapest first
 may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
 stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
 label is released once extended, living on while a label extended from it waits. A dive searches
-forward only:
+forward or backward; this one, like Greedy, says it does not search bidirectionally:
 
 <!-- docs-check: file-scope -->
 
@@ -1117,7 +1151,6 @@ struct Dive {
         using admission = rcspp::parts::AdmitAll;
         template <typename ResourceType, typename Direction>
         using retention = rcspp::parts::Retain<rcspp::parts::KeepWhileWaiting>;
-        static constexpr bool backward = false;
         static constexpr bool bidirectional = false;
 };
 ```

@@ -233,6 +233,15 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **Bounded Greedy**: `strategy::BoundGuidedGreedy` (`algorithm="bound_guided_greedy"` in Python) is
+  Greedy's dive with the children taken by cost plus completion bound (`parts::CostPlusBoundKey`),
+  meant with `prune_by_threshold`. On fixed duals its best column was never dearer than plain
+  Greedy's, and cheaper on four of 25 pricing graphs.
+- **Greedy and the tabu searches search backward**: `strategy::Greedy`, `Tabu` and
+  `ImprovingTabu` dive from the sinks when `direction` is `Backward` (`direction="backward"` in
+  Python), with the model's backward semantics, as the labelling searches do; they still refuse a
+  bidirectional search. On fixed duals, backward Tabu and Improving Tabu found cheaper best
+  columns than forward ones on four of the five R2 and RC2 pricing graphs.
 - **Threshold pruning**: `AlgorithmBaseParams::prune_by_threshold` (default off; in Python too)
   has a labelling search drop a label whose cost plus its completion bound (a Bellman–Ford run
   over the arcs' shares of the cost, from the end nodes) is at or above the solve's upper bound,
@@ -401,10 +410,13 @@ New features are summarised, with a pointer to where they are documented.
   `ColumnActivity` and `PricedColumn` are importable from `rcspp.pricing_pool`, with
   `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
 - **`AlgorithmParams.prune_by_incumbent` in Python.** The C++ field was not bound, so Python
-  users could not turn pruning by the upper bound on.
+  users could not turn pruning by the incumbent on.
 
 ### Fixed
 
+- **`Algorithm(n)` with a value no algorithm has raises `ValueError`** in Python. It returned an
+  empty result with status `complete`. Value 6, the retired `Algorithm.Bidirectional`, is one of
+  them: use `direction="bidirectional"`. `Algorithm.BoundGuidedGreedy` is 7.
 - **`prune_by_incumbent` no longer drops the cheapest path when arcs have negative costs** (Simple,
   A\*, Pushing and Pulling, forward and backward, and Greedy). The prune now compares a label's cost
   plus its completion bound with the incumbent, as a bidirectional side always did; before, it

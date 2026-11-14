@@ -412,15 +412,27 @@ def test_every_labelling_algorithm_runs_in_every_direction(algorithm, direction)
     assert result.solutions[0].cost == pytest.approx(expected, abs=1e-9)
 
 
-@pytest.mark.parametrize("direction", ["backward", "bidirectional"])
-@pytest.mark.parametrize("algorithm", ["greedy", "tabu"])
-def test_greedy_and_tabu_refuse_another_direction(algorithm, direction):
-    """``greedy`` and ``tabu`` search forward only; asked for another direction, they
-    raise ValueError."""
+@pytest.mark.parametrize("algorithm", ["greedy", "tabu", "bound_guided_greedy"])
+def test_greedy_and_tabu_search_backward_but_not_bidirectionally(algorithm):
+    """``greedy`` and ``tabu`` search forward or backward, finding the same cheapest
+    path here; asked for a bidirectional search, they raise ValueError."""
     params = AlgorithmParams()
     params.max_iterations = 10  # the tabu search refuses to run without a finite budget
-    with pytest.raises(ValueError, match=f"cannot search {direction}"):
-        _cost_only_graph([1.0, 2.0]).solve(algorithm=algorithm, direction=direction, params=params)
+    rg = _cost_only_graph([1.0, 2.0])
+    forward = rg.solve(algorithm=algorithm, params=params)
+    backward = rg.solve(algorithm=algorithm, direction="backward", params=params)
+    assert backward.solutions
+    assert min(s.cost for s in backward) == pytest.approx(min(s.cost for s in forward))
+    with pytest.raises(ValueError, match="cannot search bidirectional"):
+        rg.solve(algorithm=algorithm, direction="bidirectional", params=params)
+
+
+def test_a_retired_algorithm_value_is_refused():
+    """``Algorithm(6)`` was ``Bidirectional``: it is refused, not run as another
+    algorithm, and ``BoundGuidedGreedy`` takes the next value."""
+    assert int(Algorithm.BoundGuidedGreedy) == 7
+    with pytest.raises(ValueError, match="unknown algorithm: 6"):
+        _cost_only_graph([1.0]).solve(algorithm=Algorithm(6))
 
 
 def test_an_unknown_direction_is_refused():
