@@ -33,7 +33,7 @@ constexpr double kTolerance = 1e-9;
 /// @brief One solve's outcome on the ng pack.
 struct Outcome {
         double cost = std::numeric_limits<double>::infinity();
-        size_t joined_paths = 0;
+        size_t number_of_joined_paths = 0;
         bool bounded = false;
 
         /// @brief What is wrong with any returned path, or "" -- see @c path_problem.
@@ -68,13 +68,13 @@ inline Outcome solve_with(const test_util::InstanceConfig& config, double h_fact
     auto algorithm =
         run.graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
     run.result = run.graph->solve(algorithm.get(), kNonBindingUpperBound);
-    run.bounded = run.result.bidirectional->bounded_by_half_way;
+    run.bounded = run.result.bidirectional->half_way_used;
 
     equivalence_test::expect_consistent_ref_counts(algorithm->get_label_pool());
 
     Outcome outcome;
     outcome.cost = run.best_cost();
-    outcome.joined_paths = run.result.bidirectional->number_of_joined_paths;
+    outcome.number_of_joined_paths = run.result.bidirectional->number_of_joined_paths;
     outcome.bounded = run.bounded;
     outcome.problem = equivalence_test::any_path_problem(run);
     return outcome;
@@ -198,7 +198,7 @@ TEST(JoinOptimalityNg, TheJoinMatchesTheCyclicOracleAcrossTheCrossProduct) {
             if (std::isfinite(truth)) {
                 ++with_solutions;
             }
-            joined += outcome.joined_paths;
+            joined += outcome.number_of_joined_paths;
         }
     }
     std::cout << "[ SWEEP ] " << pairs << " cyclic ng (instance, H) pairs, " << with_solutions
@@ -232,7 +232,7 @@ TEST(JoinOptimalityNg, TheJoinMatchesTheCyclicOracleWhenSomeNodesMayBeRevisited)
             if (std::isfinite(truth)) {
                 ++with_solutions;
             }
-            joined += outcome.joined_paths;
+            joined += outcome.number_of_joined_paths;
         }
     }
     EXPECT_GT(with_solutions, 0U) << "every instance was infeasible, so this asserted nothing";
@@ -304,7 +304,7 @@ TEST(JoinOptimalityNg, TheJoinMatchesBruteForceOnAcyclicNgInstances) {
             if (std::isfinite(truth)) {
                 ++with_solutions;
             }
-            joined += outcome.joined_paths;
+            joined += outcome.number_of_joined_paths;
         }
     }
     std::cout << "[ SWEEP ] " << pairs << " acyclic ng (instance, H) pairs, " << with_solutions

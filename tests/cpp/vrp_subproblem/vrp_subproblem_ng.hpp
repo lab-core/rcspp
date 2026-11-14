@@ -66,8 +66,8 @@ class VRPSubproblemNg {
                 size_t pooled_labels = 0;
                 bool ref_counts_consistent = false;
                 AlgorithmStatus status = AlgorithmStatus::Complete;
-                bool bounded_by_half_way = false;
-                size_t joined_paths = 0;
+                bool half_way_used = false;
+                size_t number_of_joined_paths = 0;
         };
 
         /// @brief Solves through an externally-owned algorithm and reports the work done.
@@ -101,8 +101,8 @@ class VRPSubproblemNg {
                 algorithm->get_label_pool().check_ref_count_consistency();
             // A bidirectional search's diagnostics; false and 0 from every other algorithm.
             const BidirectionalStats stats = result.bidirectional.value_or(BidirectionalStats{});
-            measurement.bounded_by_half_way = stats.bounded_by_half_way;
-            measurement.joined_paths = stats.number_of_joined_paths;
+            measurement.half_way_used = stats.half_way_used;
+            measurement.number_of_joined_paths = stats.number_of_joined_paths;
             return measurement;
         }
 

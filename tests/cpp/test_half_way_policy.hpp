@@ -56,11 +56,11 @@ std::unique_ptr<ResourceGraph<RealResource>> two_node_graph(
 TEST(HalfWayPolicy, DerivesOrHonoursH) {
     const HalfWayPolicy derived(/*half_way_point=*/0.0, /*resource_upper_bound=*/100.0);
     EXPECT_TRUE(derived.enabled());
-    EXPECT_NEAR(derived.h(), 50.0, half_way_test::kTolerance);
+    EXPECT_NEAR(derived.point(), 50.0, half_way_test::kTolerance);
 
     const HalfWayPolicy explicit_h(/*half_way_point=*/30.0, /*resource_upper_bound=*/100.0);
     EXPECT_TRUE(explicit_h.enabled());
-    EXPECT_NEAR(explicit_h.h(), 30.0, half_way_test::kTolerance);  // explicit wins over R/2
+    EXPECT_NEAR(explicit_h.point(), 30.0, half_way_test::kTolerance);  // explicit wins over R/2
 }
 
 /// @brief Forward stops above H, backward stops below it, and neither stops exactly at H.
@@ -68,7 +68,7 @@ TEST(HalfWayPolicy, DerivesOrHonoursH) {
 /// A label exactly on H must survive in both directions, or a path crossing there is lost.
 TEST(HalfWayPolicy, StopPredicatesAndTheBoundary) {
     const HalfWayPolicy policy(/*half_way_point=*/0.0, /*resource_upper_bound=*/100.0);
-    ASSERT_NEAR(policy.h(), 50.0, half_way_test::kTolerance);
+    ASSERT_NEAR(policy.point(), 50.0, half_way_test::kTolerance);
 
     EXPECT_FALSE(policy.should_stop_forward(49.0));
     EXPECT_TRUE(policy.should_stop_forward(51.0));
@@ -108,7 +108,7 @@ TEST(HalfWayPolicy, UnboundedResourceWithoutExplicitHIsDisabled) {
     // An explicit H still enables it.
     const HalfWayPolicy explicit_h(40.0, std::numeric_limits<double>::infinity());
     EXPECT_TRUE(explicit_h.enabled());
-    EXPECT_NEAR(explicit_h.h(), 40.0, half_way_test::kTolerance);
+    EXPECT_NEAR(explicit_h.point(), 40.0, half_way_test::kTolerance);
 }
 
 // ============================================================================
