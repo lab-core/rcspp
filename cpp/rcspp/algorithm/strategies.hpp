@@ -57,8 +57,6 @@ struct Simple {
 /// each solve by one Bellman–Ford run from the end nodes, each arc weighted by the cost a label
 /// gains along it (@c detail::compute_completion_bound, in labelling/completion_bound.hpp).
 struct AStar {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::BestFirstSchedule<ResourceType>;
 };
@@ -67,8 +65,6 @@ struct AStar {
 ///        @c sort_nodes_by_connectivity sets it, or by id): ascending forward, descending
 ///        backward, sweep after sweep until no label waits.
 struct Pushing {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::SweepSchedule<ResourceType, Direction>;
 };
@@ -76,8 +72,6 @@ struct Pushing {
 /// @brief One node visited at a time, in Pushing's node order, pulling into it the labels
 ///        waiting at its neighbours: its predecessors forward, its successors backward.
 struct Pulling {
-        static constexpr bool bidirectional = false;
-
         template <typename ResourceType, typename Direction>
         using schedule = parts::PullSchedule<ResourceType, Direction>;
 };
