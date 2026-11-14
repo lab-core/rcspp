@@ -4,6 +4,11 @@ title: Algorithms
 
 # Algorithms
 
+This page has three parts. First, each algorithm and what it returns (`Simple` to
+`Diversification`, and whether a result is a proof). Then the options every labelling search
+shares (arc masks, threshold pruning, admission rules, search directions, model checks, bucket
+containers). Last, how the algorithms are built from parts, and how to write one of your own.
+
 ## Choosing an algorithm
 
 | Algorithm | Optimal | Speed | When to use |
@@ -1011,50 +1016,94 @@ auto result = graph.solve<strategy::Simple, Buckets>(ub, params);
 
 ## How the labelling algorithms are built
 
-The labelling searches (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) share one
+Every exact labelling search (`Simple`, `AStar`, `Pushing` and `Pulling`, in every direction) and
+every heuristic (`Greedy`, `BoundGuidedGreedy`, `Tabu` and `ImprovingTabu`, forward or backward) runs on one
 kernel, in `cpp/rcspp/algorithm/labelling/`. A strategy is not a class with its own loop but a
 *descriptor*: a struct in `rcspp::strategy` that names its parts. The parts a descriptor may name
-are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::detail`).
+are public, in `rcspp::parts`; the code that runs them is internal (`rcspp::detail`). Only
+`Diversification` keeps a class of its own, which solves an inner strategy again and again.
 
-- **The search** holds one direction's labels, one container per node, and is the only code that
-  extends them. Extending a label along an arc checks that the arc mask leaves the arc in and that
-  the arc is reachable, extends the label, tests its feasibility, asks the admission rule, and
-  stores the new label and hands it to the schedule. Every outcome (masked, unreachable,
-  infeasible, rejected, accepted) goes to the search's observer, which by default records
-  nothing.
-- **Admission and retention.** The admission rule (`parts::DominanceAdmission`) decides whether a
-  new label is kept at its node: under exact dominance, when no label there dominates it, and then
-  the labels it dominates are removed. The retention (`parts::KeepAtNodes`) decides where kept
-  labels live: in their node's container, until dominated or until the solve ends, when the labels
-  at the end nodes are read as the solutions.
+- **The search** holds one direction's labels and is the only code that extends them. Extending a
+  label along an arc checks that the arc mask leaves the arc in and that the arc is reachable,
+  extends the label, tests its feasibility, asks the admission rule, and stores the new label and
+  hands it to the schedule. Every outcome (masked, unreachable, infeasible, rejected, accepted)
+  goes to the search's observer, which by default records nothing.
+- **Admission** decides whether a new label is kept at its node. `parts::DominanceAdmission` reads
+  its rule from the params (`admission_rule`): exact dominance, which keeps a label no label at its
+  node dominates and evicts those it dominates; `Relaxed`, the same over the components a
+  `DominanceMask` leaves in; `KBest`, exact dominance and then at most k labels at each node, the
+  cheapest. `parts::AdmitAll`, a heuristic's, keeps every feasible label. A rule says whether it is
+  exact (`is_exact(context)`); one that is not loses the proof.
+- **Retention** decides where kept labels live. `parts::KeepAtNodes` keeps them in their node's
+  container until dominated or until the solve ends, when the labels at the end nodes are read as
+  the solutions. `parts::KeepWhileWaiting`, a heuristic's, stores none at the nodes: a path is recorded
+  when its end-node label is taken, and each label is released once extended, living on through
+  its reference count while a label extended from it waits.
 - **Schedules** decide the order labels are taken in. `parts::FifoSchedule` (`Simple`) hands them
   out first in, first out; `parts::BestFirstSchedule` (`AStar`) lowest cost plus completion bound
   first; `parts::SweepSchedule` (`Pushing`) node by node; `parts::PullSchedule` (`Pulling`) visits
-  one node at a time and pulls into it from its neighbours. A label schedule
-  (`parts::LabelSchedule`: FIFO, best-first, the sweep) hands the step one label, which it extends
-  along every arc leaving its node. A pulling schedule (`parts::PullingSchedule`: `PullSchedule`)
-  has the step visit one node and extend into it the labels waiting at its predecessors. A
-  schedule also applies the per-node
-  quota (`max_extended_labels_per_node`) and trims itself under memory pressure. What it cuts is
-  stored aside for the next phase in a single-direction search, and abandoned (left in its
-  container, never extended, and counted) on a side of a bidirectional one, which runs one phase.
+  one node at a time and pulls into it from its neighbours; `parts::DepthFirstSchedule` (the
+  heuristics) depth first, a label's children placed together once it is extended and handed out
+  next, by its key (`CostKey`, or `CostPlusBoundKey` for `BoundGuidedGreedy`), after its filter
+  (`TabuChildFilter` for the tabu searches) has released some. A label schedule
+  (`parts::LabelSchedule`: FIFO, best-first, the sweep, depth-first) hands the step one label,
+  which it extends along every arc leaving its node. A pulling schedule
+  (`parts::PullingSchedule`: `PullSchedule`) has the step visit one node and extend into it the
+  labels waiting at its predecessors. A schedule also applies the per-node quota
+  (`max_extended_labels_per_node`) and trims itself under memory pressure. What it cuts is stored
+  aside for the next phase in a single-direction search, and abandoned (left in its container,
+  never extended, and counted) on a side of a bidirectional one, which runs one phase.
 - **The take rule** is the checks a label goes through when it is taken, written once for every
   search. First come those whose answer can change while the label waits: dominated since it was
-  queued, the prune against the best cost found so far. Then come those whose answer is fixed
-  when the label is created: a label at an end node lowers that best cost and may be recorded; one
-  of infinite cost
-  is dropped; on a side of a bidirectional search, one past the half-way point is kept but not
-  extended.
+  queued, the prune against the best cost found so far (`prune_by_incumbent`). Then come those
+  whose answer is fixed when the label is created: a label at an end node lowers that best cost and may be recorded;
+  one of infinite cost is dropped; with `prune_by_threshold`, so is one whose cost plus its
+  completion bound reaches the upper bound; on a side of a bidirectional search, one past the
+  half-way point is kept but not extended.
 - **The step** is one unit of a search's work: take a label, run the take rule, then extend the
-  label along every arc its direction walks, or drop it as the rule says. With a pulling schedule,
-  it pulls into the next node and runs the rule on each new label.
-- **Two classes run the searches.** One runs a single search, forward or backward: the loop, the
-  memory checks and the phases, and the completion bound when its schedule's order reads one. The
-  other runs two, one per direction, sharing one label pool and one best cost; its interleave
-  (`parts::LeastWorkFirst`) takes the next unit of work from the side that has tried fewer
-  extensions,
-  and the join pairs the two halves at the end. `create_algorithm<Strategy>(params)` builds the one
-  `params.direction` asks for, from the parts the descriptor names in each direction.
+  label along every arc its direction walks, or drop it as the rule says. With a pulling
+  schedule, it pulls into the next node and runs the rule on each new label. A heuristic's step
+  also places the children just pushed and releases the label it extended.
+- **The completion bound** (`compute_completion_bound`) is one Bellman–Ford run over the arcs' shares of
+  the cost, from the end nodes: A\*'s order, `BoundGuidedGreedy`'s, the incumbent prune (under an
+  additive cost) and the threshold prune read it. It is computed at the start of a solve when something reads it.
+- **Arc masks.** `Algorithm::set_arc_mask` hands every later solve an `ArcMask`: its hard arcs are
+  never extended along, its soft arcs only as the schedule allows (the tabu searches' tabu arcs).
+  A mask that is not all open costs the solve its proof, a soft-only one included.
+- **Drivers** (`parts::Driver`) run a search several times in one solve, each run up to `max_phases`
+  phases, changing it between runs: `TabuEpisodes` and `ImprovingTabuEpisodes` are the tabu
+  searches'. A driven strategy never searches bidirectionally.
+- **The proof record** says whether a result is a proof (`SolveResult::proven`) and, if not, the
+  first thing that lost it (`proof_lost_by`): a status other than `Complete`, otherwise the first
+  loss recorded. That is an arc mask that is not all open (`ArcsMasked`; a soft-only mask too), an
+  admission rule that is not exact (`RelaxedAdmission`) or the incumbent prune on a cost that is
+  not additive (`IncumbentPrune`), all recorded at the start of the solve; then a driver that
+  changed the search (`HeuristicDriver`, when a tabu search first makes an arc tabu); then memory
+  pressure (`MemoryPressure`, recorded when the solve ends, if it fired).
+- **Three classes run the searches.** `LabellingAlgorithm` runs a single search, forward or
+  backward: the loop, the memory checks and the phases. `Driven<LabellingAlgorithm, Driver>` runs
+  it under a driver, run by run. `BidirectionalLabellingAlgorithm` runs two, one per direction,
+  sharing one label pool and one best cost; its interleave (`parts::LeastWorkFirst`) takes the next
+  unit of work from the side that has tried fewer extensions, and the join pairs the two halves at the
+  end. `create_algorithm<Strategy>(params)` builds the one `params.direction` asks for, from the
+  parts the descriptor names in each direction.
+
+### Every strategy as an assembly
+
+| Strategy | Directions | Schedule (key, filter) | Admission | Retention | Driver | Proven when it completes and |
+|---|---|---|---|---|---|---|
+| `Simple` | all three | `FifoSchedule` | `DominanceAdmission` | `KeepAtNodes` | none: the phases | nothing was lost |
+| `AStar` | all three | `BestFirstSchedule` (`CostPlusBoundKey`) | `DominanceAdmission` | `KeepAtNodes` | none | nothing was lost |
+| `Pushing` | all three | `SweepSchedule` | `DominanceAdmission` | `KeepAtNodes` | none | nothing was lost |
+| `Pulling` | all three | `PullSchedule` | `DominanceAdmission` | `KeepAtNodes` | none | nothing was lost |
+| `Greedy` | forward, backward | `DepthFirstSchedule` (`CostKey`, `KeepAllChildren`) | `AdmitAll` | `KeepWhileWaiting` | none | nothing was lost: it tried every path |
+| `BoundGuidedGreedy` | forward, backward | `DepthFirstSchedule` (`CostPlusBoundKey`, `KeepAllChildren`) | `AdmitAll` | `KeepWhileWaiting` | none | as `Greedy` |
+| `Tabu` | forward, backward | `DepthFirstSchedule` (`CostKey`, `TabuChildFilter`) | `AdmitAll` | `KeepWhileWaiting` | `TabuEpisodes` | no arc was ever tabu: no path exists |
+| `ImprovingTabu` | forward, backward | the same | `AdmitAll` | `KeepWhileWaiting` | `ImprovingTabuEpisodes` | its first dive found no path |
+| `Diversification<Inner>` | forward | its own loop, solving `Inner` under a hard mask | `Inner`'s | `Inner`'s | its loop | `is_optimal()` answers `false`, and `proven` is always false: its status is never `Complete` |
+
+A bidirectional search runs the strategy's parts on each side, with the admission rule read on
+both, and joins them; it is proven when it completes and nothing was lost.
 
 `Simple` names only its schedule; every other part is the exact search's:
 
@@ -1138,7 +1187,7 @@ and hands them out next, cheapest first
 (its key), each child's subtree before its next sibling; its filter (`KeepAllChildren` by default)
 may drop some first. `AdmitAll` keeps every label without comparing it, and `KeepWhileWaiting`
 stores none at the nodes: a solution is recorded when its label at the sink is taken, and each
-label is released once extended, living on while a label extended from it waits. A dive searches
+label is released once extended, living on while a label extended from it waits. A heuristic searches
 forward or backward; this one, like Greedy, says it does not search bidirectionally:
 
 <!-- docs-check: file-scope -->

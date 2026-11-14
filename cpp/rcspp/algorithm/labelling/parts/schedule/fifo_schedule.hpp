@@ -9,6 +9,7 @@
 #include "rcspp/algorithm/algorithm.hpp"
 #include "rcspp/algorithm/labelling/context.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/per_node_quota.hpp"
+#include "rcspp/algorithm/labelling/parts/schedule/split_off_excess.hpp"
 #include "rcspp/algorithm/labelling/parts/schedule/stored_aside_labels.hpp"
 #include "rcspp/algorithm/labelling/parts/stored_label.hpp"
 

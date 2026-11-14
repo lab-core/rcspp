@@ -1,8 +1,8 @@
 // Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 // All rights reserved.
 
-// The golden rows of the strategy and direction pairs the labelling kernel adds, which have no
-// frozen copy to compare with: what each did when it was first recorded.
+// The golden rows of the strategy and direction pairs the labelling kernel adds, which never had a
+// class before the kernel to compare with: what each did when it was first recorded.
 //
 // Its own translation unit: the backward and bidirectional instantiations of more strategies.
 

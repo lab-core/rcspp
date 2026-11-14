@@ -47,8 +47,9 @@
 /// be; docs/advanced/algorithms.md, "A strategy of one's own", gives examples and the rules the
 /// concepts cannot check.
 ///
-/// Greedy, Tabu and ImprovingTabu are dives, built from the depth-first parts; the tabu searches
-/// add a driver. They search forward or backward, never bidirectionally.
+/// Greedy, BoundGuidedGreedy, Tabu and ImprovingTabu are heuristics: dives, built from the
+/// depth-first parts; the tabu searches add a driver. They search forward or backward, never
+/// bidirectionally.
 ///
 /// Diversification is not a labelling search: its descriptor names a class of its own,
 /// `template <typename ResourceType, typename LabelContainerType> using algorithm = ...;`, and

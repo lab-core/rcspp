@@ -49,51 +49,6 @@ template <typename ResourceType>
 class HalfWay;
 enum class Role : std::uint8_t;
 
-/// @brief The label an entry of a queue holds: a @c parts::StoredLabel's @c label, or a pair's
-///        first member.
-template <typename EntryType>
-[[nodiscard]] auto* label_of(const EntryType& entry) {
-    if constexpr (requires { entry.label; }) {
-        return entry.label;
-    } else {
-        return entry.first;
-    }
-}
-
-/// @brief Cuts a queue of labels waiting to be extended down to its @p keep best entries, best
-///        meaning non-dominated first, then cheaper first.
-///
-/// What happens to the entries cut is the caller's: a dominated one is usually released, a
-/// non-dominated one kept aside for a later phase or dropped.
-///
-/// @tparam EntryType A queue entry: a label and its position in its node's container.
-/// @param queue The queue; sorted, best first, when anything is cut (and @p sort is set).
-/// @param keep  How many entries stay.
-/// @param sort  Whether to sort first; without it the queue's own order decides what stays.
-/// @return The entries cut, best first; empty when @p queue held at most @p keep.
-template <typename EntryType>
-std::list<EntryType> split_off_excess(std::list<EntryType>* queue, size_t keep, bool sort = true) {
-    std::list<EntryType> excess;
-    if (queue->size() <= keep) {
-        return excess;
-    }
-    if (sort) {
-        queue->sort([](const EntryType& lhs, const EntryType& rhs) {
-            const auto* left = label_of(lhs);
-            const auto* right = label_of(rhs);
-            if (left->dominated != right->dominated) {
-                return !left->dominated;  // non-dominated first
-            }
-            return left->get_cost() < right->get_cost();  // then cheaper first
-        });
-    }
-    excess.splice(excess.end(),
-                  *queue,
-                  std::next(queue->begin(), static_cast<std::ptrdiff_t>(keep)),
-                  queue->end());
-    return excess;
-}
-
 }  // namespace detail
 
 template <typename ResourceType, typename LabelContainerType = LabelList<ResourceType>>
@@ -201,10 +156,10 @@ class Algorithm {
                 solutions.push_back(std::move(solution));
             }
 
-            // Put back the labels a phase held back (truncated labeling, memory pressure) before
-            // the status is read: they were never extended, so a run that used up its phases with
-            // labels held back is Truncated, not Complete, whether or not the labels are released
-            // below.
+            // Put back the labels stored aside (the per-node quota, memory pressure) before the
+            // status is read: they were never extended, so a run that used up its phases with
+            // labels stored aside is Truncated, not Complete, whether or not the labels are
+            // released below.
             prepare_next_phase();
 
             // sort solutions

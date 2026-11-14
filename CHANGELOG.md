@@ -120,7 +120,7 @@ New features are summarised, with a pointer to where they are documented.
   - The values of `AlgorithmStatus` are in CapWords, as in Python: `Complete`, `Timeout`,
     `MaxSolutions`, `Interrupted` and `MemoryLimit`. `MAX_PHASES` is `Truncated` (`to_string`:
     `"truncated"`): a solve that left labels unextended, because it used up its phases, a
-    bidirectional search abandoned labels, or a dive spent its budget.
+    bidirectional search abandoned labels, or a heuristic spent its budget.
   - `Algorithm::prepareNextPhase` is `prepare_next_phase`. Rename your overrides.
   - `Algorithm::get_labels_at_sinks` is `labels_at_end_nodes`: going backward, it returns
     the labels at the sources.
@@ -233,7 +233,10 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
-- **Bounded Greedy**: `strategy::BoundGuidedGreedy` (`algorithm="bound_guided_greedy"` in Python) is
+- **How the labelling algorithms are built** (`docs/advanced/algorithms.md`) covers the heuristics,
+  drivers, arc masks, the admission rules, the threshold prune and the proof record, with every
+  strategy as an assembly of parts; `AGENT.md`'s file map lists the kernel's files.
+- **Bound-guided Greedy**: `strategy::BoundGuidedGreedy` (`algorithm="bound_guided_greedy"` in Python) is
   Greedy's dive with the children taken by cost plus completion bound (`parts::CostPlusBoundKey`),
   meant with `prune_by_threshold`. On fixed duals its best column was never dearer than plain
   Greedy's, and cheaper on four of 25 pricing graphs.
@@ -246,7 +249,7 @@ New features are summarised, with a pointer to where they are documented.
   has a labelling search drop a label whose cost plus its completion bound (a Bellman–Ford run
   over the arcs' shares of the cost, from the end nodes) is at or above the solve's upper bound,
   with a margin of `tolerance`. The paths returned are unchanged; fewer labels are extended. Every
-  labelling search reads it, the dives included, in every direction. It needs an additive cost;
+  labelling search reads it, the heuristics included, in every direction. It needs an additive cost;
   another throws `std::invalid_argument` (`ValueError`) when the solve starts.
 - **Relaxed and k-best admission**: `AlgorithmBaseParams::admission_rule` (`AdmissionRule` in
   Python) chooses how a labelling search keeps a new label at its node: `Exact` (dominance, the
@@ -339,7 +342,7 @@ New features are summarised, with a pointer to where they are documented.
   Give it a `critical_resource_index` and a `half_way_point`: with the default `half_way_point = 0`
   the half-way point is off, and the solve does more work than a forward one and logs a warning
   saying so. A bidirectional search runs one phase, and its two searches interleave: the next label
-  comes from whichever has extended fewer arcs. After a timeout or the memory limit it still runs
+  comes from whichever has tried fewer extensions. After a timeout or the memory limit it still runs
   its join, with the incumbent cutoff on, so it returns the improving paths the two halves hold;
   `join_after_early_stop = false` skips it, and so does an interrupt. With
   `prune_by_incumbent`, it prunes on lower bounds of the cost still to come, computed from
@@ -432,7 +435,7 @@ New features are summarised, with a pointer to where they are documented.
   the node's label list or crash. Simple, A\*, Pushing and Pulling, since memory pressure was
   added; the bidirectional search stores nothing aside.
 - **A truncated run that uses up its phases reports `Truncated`, not `Complete`**, in C++ and in
-  Python. With `release_after_solve`, the default, the labels a phase held back (truncated
+  Python. With `release_after_solve`, the default, the labels a phase stored aside (truncated
   labelling, memory pressure) were not counted when the status was read, so such a run reported
   `Complete` although labels were never extended; with `release_after_solve = false` it already
   reported `Truncated`. The status no longer depends on that setting.

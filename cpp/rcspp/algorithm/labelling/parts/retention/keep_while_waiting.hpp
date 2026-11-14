@@ -15,7 +15,7 @@
 
 namespace rcspp::parts {
 
-/// @brief Kept labels live only while they wait to be taken: a dive's retention, which keeps
+/// @brief Kept labels live only while they wait to be taken: a heuristic's retention, which keeps
 ///        nothing behind it.
 ///
 /// Nothing is stored at the nodes. A solution is recorded when its end-node label is taken
