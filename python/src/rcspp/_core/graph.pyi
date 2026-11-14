@@ -179,7 +179,7 @@ class AlgorithmStatus:
 
       MaxSolutions
 
-      MaxPhases
+      Truncated
 
       Interrupted
 
@@ -188,10 +188,10 @@ class AlgorithmStatus:
 
     Complete: typing.ClassVar[AlgorithmStatus]
     Interrupted: typing.ClassVar[AlgorithmStatus]
-    MaxPhases: typing.ClassVar[AlgorithmStatus]
     MaxSolutions: typing.ClassVar[AlgorithmStatus]
     MemoryLimit: typing.ClassVar[AlgorithmStatus]
     Timeout: typing.ClassVar[AlgorithmStatus]
+    Truncated: typing.ClassVar[AlgorithmStatus]
     __members__: typing.ClassVar[dict[str, AlgorithmStatus]]
     def __eq__(self, other: typing.Any) -> bool: ...
     def __getstate__(self) -> int: ...
@@ -210,20 +210,20 @@ class AlgorithmStatus:
 
 class BidirectionalStats:
     """
-    What a bidirectional solve reports: whether the half-way bound was in force, why it was off if it was, and how many paths the join produced. Read it from SolveResult.bidirectional.
+    What a bidirectional solve reports: whether the half-way point was in force, why it was off if it was, and how many paths the join produced. Read it from SolveResult.bidirectional.
     """
 
     def __repr__(self) -> str: ...
     @property
     def bounded_by_half_way(self) -> bool:
         """
-        Whether the half-way bound was in force. When it is off (see half_way_off_reason), both searches run in full and the solve is slower than a forward one, so check this rather than assume it.
+        Whether the half-way point was in force. When it is off (see half_way_off_reason), both searches run in full and the solve is slower than a forward one, so check this rather than assume it.
         """
 
     @property
     def half_way_off_reason(self) -> str:
         """
-        Why the half-way bound was off for this solve; empty when it was in force.
+        Why the half-way point was off for this solve; empty when it was in force.
         """
 
     @property
@@ -244,7 +244,7 @@ class SolveResult:
     @property
     def bidirectional(self) -> BidirectionalStats | None:
         """
-        Statistics of a bidirectional solve (a BidirectionalStats): whether the half-way bound was in force, and what the join produced. None unless the search ran bidirectionally.
+        Statistics of a bidirectional solve (a BidirectionalStats): whether the half-way point was in force, and what the join produced. None unless the search ran bidirectionally.
         """
 
     @property
@@ -286,7 +286,7 @@ class AlgorithmParams:
     @property
     def critical_resource_index(self) -> int:
         """
-        Which resource is the bidirectional clock, given as its index among the resources of the cost's type (e.g. 1 for the second 'real' resource). The clock must never decrease along an arc and must be a time window or a capacity, not a plain sum and never the cost. If it is not, the half-way bound turns itself off: the answer stays correct, but the solve is slower. Used only by a bidirectional search (default 0).
+        Which resource is the bidirectional clock, given as its index among the resources of the cost's type (e.g. 1 for the second 'real' resource). The clock must never decrease along an arc and must be a time window or a capacity, not a plain sum and never the cost. If it is not, the half-way point turns itself off: the answer stays correct, but the solve is slower. Used only by a bidirectional search (default 0).
         """
 
     @critical_resource_index.setter

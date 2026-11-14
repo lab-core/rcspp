@@ -33,12 +33,16 @@ class DirectedSimpleDominanceAlgorithm
     private:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
-            number_of_extended_labels_per_node_.resize(graph->get_number_of_nodes());
+            // A solve starts with empty queues: what an earlier solve left in them (labels held
+            // back, or never reached) names labels initialize_labels() is about to recycle.
+            unprocessed_labels_.clear();
+            unprocessed_truncated_labels_.clear();
+            number_of_extended_labels_per_node_.assign(graph->get_number_of_nodes(), 0);
         }
         LabelIteratorPair<ResourceType> next_label_iterator() override {
-            LabelIteratorPair<ResourceType> label_iterator_pair;
             while (!unprocessed_labels_.empty()) {
-                label_iterator_pair = unprocessed_labels_.front();
+                const LabelIteratorPair<ResourceType> label_iterator_pair =
+                    unprocessed_labels_.front();
                 unprocessed_labels_.pop_front();
 
                 // if dominated, release the label. Use release_with_ref_count (not
@@ -52,14 +56,17 @@ class DirectedSimpleDominanceAlgorithm
                         label_iterator_pair.first->get_end_node()->pos());
                     if (num_extended_labels_for_node < this->effective_max_labels_per_node_) {
                         ++num_extended_labels_for_node;
-                        break;  // found a label to process
+                        return label_iterator_pair;  // found a label to process
                     }
                     // otherwise, store truncated label for next phase
                     unprocessed_truncated_labels_.push_back(label_iterator_pair);
                 }
             }
 
-            return label_iterator_pair;
+            // Every label taken was released or stored for the next phase: none to process. The
+            // last one must not be handed back, or the loop would release it a second time or
+            // extend a label it stored aside.
+            return {};
         }
 
         [[nodiscard]] size_t number_of_labels() const override {
@@ -81,7 +88,7 @@ class DirectedSimpleDominanceAlgorithm
         /// @brief Trim the flat unprocessed list when memory pressure is detected.
         ///
         /// **First call**: keeps the cheapest
-        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node × num_nodes
+        /// @ref AlgorithmBaseParams::memory_pressure_max_labels_per_node × number_of_nodes
         /// entries (non-dominated first, then sorted by cost).  Dominated excess
         /// labels are recycled; non-dominated excess labels are stored in
         /// @ref unprocessed_truncated_labels_ for the next phase.  Also tightens
@@ -99,7 +106,11 @@ class DirectedSimpleDominanceAlgorithm
             if (this->memory_pressure_triggered_) {
                 // Release labels stored aside on the previous call.
                 for (auto& [label_ptr, label_iter] : unprocessed_truncated_labels_) {
-                    this->remove_label(label_iter);
+                    // A label stored aside stays at its node, where dominance may since have
+                    // removed it, erasing the position it was stored with.
+                    if (!label_ptr->dominated) {
+                        this->remove_label(label_iter);
+                    }
                     this->label_pool_.release_with_ref_count(label_ptr);
                 }
                 unprocessed_truncated_labels_.clear();

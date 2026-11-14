@@ -435,3 +435,130 @@ TEST(DiversificationSearchTest, ForbiddenTabuExcludesArcs) {
     const auto result = g->solve<DiversificationSearch>(params);
     EXPECT_FALSE(result.solutions.empty());
 }
+
+// ============================================================================
+// The status of the tabu searches
+// ============================================================================
+
+namespace {
+
+/// @brief A graph whose paths all dead-end: @p layers layers of two nodes, each node joined to
+///        both nodes of the next layer, and a sink no arc enters.
+///
+/// A dive tries all 2^layers paths before it runs out, so with 12 layers it passes the dives'
+/// check of the stop conditions, made every 4096 steps.
+///
+/// @param layers The number of layers.
+/// @return Owning pointer to the configured ResourceGraph.
+inline std::unique_ptr<ResourceGraph<RealResource>> make_dead_end_graph(size_t layers) {
+    auto g = std::make_unique<ResourceGraph<RealResource>>();
+    g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
+                                  std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
+                                  std::make_unique<ValueCostFunction<RealResource>>(),
+                                  std::make_unique<ValueDominanceFunction<RealResource>>());
+    g->add_node(0, /*source=*/true, /*sink=*/false);
+    for (size_t node_id = 1; node_id <= 2 * layers; ++node_id) {
+        g->add_node(node_id);
+    }
+    g->add_node(2 * layers + 1, /*source=*/false, /*sink=*/true);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 1);
+    g->add_arc<RealResource>(std::make_tuple(1.0), 0, 2);
+    for (size_t layer = 1; layer < layers; ++layer) {
+        for (const size_t from : {2 * layer - 1, 2 * layer}) {
+            g->add_arc<RealResource>(std::make_tuple(1.0), from, 2 * layer + 1);
+            g->add_arc<RealResource>(std::make_tuple(1.0), from, 2 * layer + 2);
+        }
+    }
+    return g;
+}
+
+constexpr size_t kDeadEndLayers = 12U;  // 4096 paths: more steps than one check interval
+
+/// @brief Params that interrupt a solve once it has looked at should_stop @p looks_before times,
+///        so that the next look, inside the first dive, stops it.
+///
+/// Before its first dive, TabuSearchAlgorithm looks twice (the solve's loop and its own), and
+/// ImprovingTabuSearch once (the solve's loop: its construction dive comes before its loop).
+///
+/// @param looks_before The looks to let through.
+/// @param calls        Counts the looks.
+inline AlgorithmBaseParams interrupted_inside_the_first_dive(size_t looks_before, size_t* calls) {
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    params.should_stop = [looks_before, calls]() { return ++*calls > looks_before; };
+    return params;
+}
+
+}  // namespace
+
+/// @brief A tabu search that runs out of paths, with no arc tabu, has proved there is none.
+TEST(TabuStatusTest, TabuThatRunsOutOfPathsIsComplete) {
+    auto g = make_dead_end_graph(3);
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    auto algorithm = g->create_algorithm<TabuSearchAlgorithm>(
+        params.with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    const auto result = g->solve(algorithm.get());
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+    EXPECT_TRUE(algorithm->is_optimal());
+}
+
+/// @brief An interrupt inside the first dive is an interrupt, not "no feasible path".
+///
+/// The dive stops with paths left to try. The tabu list is still empty, which used to read as
+/// a proof that no path exists: the status was Complete and is_optimal() true.
+TEST(TabuStatusTest, TabuInterruptedInItsFirstDiveIsInterrupted) {
+    auto g = make_dead_end_graph(kDeadEndLayers);
+    size_t calls = 0;
+    auto algorithm = g->create_algorithm<TabuSearchAlgorithm>(
+        interrupted_inside_the_first_dive(2, &calls)
+            .with_container<LabelList<ResourceTypeComposition<RealResource>>>());
+    const auto result = g->solve(algorithm.get());
+    EXPECT_GT(calls, 2U) << "the interrupt did not fire";
+    EXPECT_EQ(result.status, AlgorithmStatus::Interrupted);
+    EXPECT_FALSE(algorithm->is_optimal());
+}
+
+/// @brief The same for ImprovingTabuSearch, whose first dive is its construction phase.
+TEST(TabuStatusTest, ImprovingTabuInterruptedInItsFirstDiveIsInterrupted) {
+    auto g = make_dead_end_graph(kDeadEndLayers);
+    size_t calls = 0;
+    const auto result = g->solve<ImprovingTabuSearch>(interrupted_inside_the_first_dive(1, &calls));
+    EXPECT_GT(calls, 1U) << "the interrupt did not fire";
+    EXPECT_EQ(result.status, AlgorithmStatus::Interrupted);
+}
+
+/// @brief ImprovingTabuSearch that spends its iteration budget is not Complete.
+///
+/// Each improvement dive cleared its path, so a search ended by its budget used to report
+/// Complete. It now reports Truncated, as TabuSearchAlgorithm does.
+TEST(TabuStatusTest, ImprovingTabuThatSpendsItsIterationsIsTruncated) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    const auto result = g->solve<ImprovingTabuSearch>(params);
+    EXPECT_FALSE(result.solutions.empty());
+    EXPECT_EQ(result.status, AlgorithmStatus::Truncated);
+}
+
+/// @brief ImprovingTabuSearch that reaches max_solutions reports MaxSolutions, not Complete.
+TEST(TabuStatusTest, ImprovingTabuThatReachesMaxSolutionsIsMaxSolutions) {
+    auto g = make_two_path_graph();
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    params.max_solutions = 1;
+    const auto result = g->solve<ImprovingTabuSearch>(params);
+    EXPECT_EQ(result.solutions.size(), 1U);
+    EXPECT_EQ(result.status, AlgorithmStatus::MaxSolutions);
+}
+
+/// @brief ImprovingTabuSearch that runs out of paths in its first dive is Complete.
+TEST(TabuStatusTest, ImprovingTabuThatRunsOutOfPathsIsComplete) {
+    auto g = make_dead_end_graph(3);
+    AlgorithmBaseParams params;
+    params.max_iterations = kTabuIters;
+    const auto result = g->solve<ImprovingTabuSearch>(params);
+    EXPECT_TRUE(result.solutions.empty());
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}

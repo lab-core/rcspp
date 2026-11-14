@@ -42,7 +42,7 @@ enum class AlgorithmStatus {
     Complete,      ///< All labels processed; result is optimal (given other params).
     Timeout,       ///< Wall-clock timeout reached before completion.
     MaxSolutions,  ///< max_solutions reached.
-    MaxPhases,     ///< max_phases exhausted with labels still remaining.
+    Truncated,     ///< max_phases used up with labels unextended, or a dive's budget spent.
     Interrupted,   ///< External should_stop callback returned true.
     MemoryLimit,   ///< RSS memory limit reached.
 };
@@ -60,8 +60,8 @@ enum class AlgorithmStatus {
             return "timeout";
         case AlgorithmStatus::MaxSolutions:
             return "max_solutions";
-        case AlgorithmStatus::MaxPhases:
-            return "max_phases";
+        case AlgorithmStatus::Truncated:
+            return "truncated";
         case AlgorithmStatus::Interrupted:
             return "interrupted";
         case AlgorithmStatus::MemoryLimit:
@@ -70,17 +70,17 @@ enum class AlgorithmStatus {
     return "unknown";
 }
 
-/// @brief What a bidirectional solve reports about its half-way bound and its join.
+/// @brief What a bidirectional solve reports about its half-way point and its join.
 ///
 /// On @c SolveResult::bidirectional, which only a bidirectional search fills.
 struct BidirectionalStats {
-        /// @brief Whether the half-way bound was in force for this solve.
+        /// @brief Whether the half-way point was in force for this solve.
         ///
         /// Without the bound, a bidirectional solve does more work than a forward search alone.
         /// A disabled bound costs speed, not optimality.
         bool bounded_by_half_way = false;
 
-        /// @brief Why the half-way bound was off for this solve; empty when it was in force.
+        /// @brief Why the half-way point was off for this solve; empty when it was in force.
         std::string half_way_off_reason;
 
         /// @brief How many distinct complete paths only the join pass produced.
@@ -102,7 +102,7 @@ struct SolveResult {
         /// @c Algorithm::memory_pressure_was_triggered().
         bool memory_pressure_triggered = false;
 
-        /// @brief The bidirectional search's half-way bound and join; empty from every other
+        /// @brief The bidirectional search's half-way point and join; empty from every other
         ///        algorithm.
         std::optional<BidirectionalStats> bidirectional;
 
@@ -279,7 +279,7 @@ struct AlgorithmBaseParams {
 
         /// @brief Whether the join still runs after a timeout or the memory limit (default true).
         ///
-        /// Bidirectional only. With the half-way bound in force, few forward labels reach a sink,
+        /// Bidirectional only. With the half-way point in force, few forward labels reach a sink,
         /// so an early stop without the join returns almost nothing. With this set, the join
         /// still runs and keeps only paths cheaper than the best one found so far. An interrupt
         /// (`should_stop`) always skips the join. Set false to skip the join after a timeout or
@@ -406,7 +406,10 @@ class Algorithm {
          * @c AlgorithmStatus::Complete. It is recorded when the solve ends, before
          * @c release_after_solve (the default) empties the label queues: reading
          * @ref number_of_labels afterwards would answer 0 after a timeout or any other early stop.
-         * @c false before the first solve. Heuristics override it to answer @c false.
+         * @c false before the first solve. A heuristic ends @c Complete only when it ran out of
+         * paths to try: @c GreedyAlgorithm then enumerated every path, and
+         * @c TabuSearchAlgorithm found none with no arc tabu. @c ImprovingTabuSearch and
+         * @c DiversificationSearch override it to answer @c false.
          *
          * @return true if the last solve processed every label, false otherwise.
          */
@@ -488,7 +491,7 @@ class Algorithm {
 
             // Put back the labels a phase held back (truncated labeling, memory pressure) before
             // the status is read: they were never extended, so a run that used up its phases with
-            // labels held back is MaxPhases, not Complete, whether or not the labels are released
+            // labels held back is Truncated, not Complete, whether or not the labels are released
             // below. When they are kept, this also readies the next solve().
             prepare_next_phase();
 
@@ -514,9 +517,11 @@ class Algorithm {
             // memory_limit_.is_exceeded() are re-evaluated here — the external stop callback may
             // have flipped, or RSS may exceed the limit because of the retained solutions — even
             // though the loop actually exited by exhausting all labels. The remaining branches
-            // describe why the search stopped *early* (labels still remain).
+            // describe why the search stopped *early* (labels still remain). A search that
+            // abandoned labels it will never extend (has_abandoned_labels()) did not process every
+            // label, even with an empty queue.
             AlgorithmStatus status;
-            if (number_of_labels() == 0) {
+            if (number_of_labels() == 0 && !has_abandoned_labels()) {
                 status = AlgorithmStatus::Complete;
             } else if (timed_out_) {
                 status = AlgorithmStatus::Timeout;
@@ -527,7 +532,7 @@ class Algorithm {
             } else if (solutions.size() >= params_.max_solutions) {
                 status = AlgorithmStatus::MaxSolutions;
             } else {
-                status = AlgorithmStatus::MaxPhases;
+                status = AlgorithmStatus::Truncated;
             }
             // Recorded now: releasing the label memory below empties the queues, after which
             // number_of_labels() would read 0 whatever the run did.
@@ -657,6 +662,17 @@ class Algorithm {
         virtual void initialize_labels() = 0;
 
         [[nodiscard]] virtual size_t number_of_labels() const = 0;
+
+        /// @brief Whether the last solve abandoned labels it will never extend.
+        ///
+        /// Such labels are not in the queues, so @ref number_of_labels does not count them, and
+        /// an empty queue does not mean that every label was processed. A search that stores
+        /// the labels a quota or memory pressure cuts (for a later phase) needs nothing here:
+        /// @ref prepare_next_phase puts them back before the status is read. The default answers
+        /// @c false.
+        ///
+        /// @return @c true when a label was cut and left unextended.
+        [[nodiscard]] virtual bool has_abandoned_labels() const { return false; }
 
         virtual void prepare_next_phase() {}
 

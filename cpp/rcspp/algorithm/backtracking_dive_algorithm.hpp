@@ -17,6 +17,19 @@
 
 namespace rcspp {
 
+namespace detail {
+
+/// @brief How one dive of a tabu search ended.
+enum class DiveEnd {
+    Sink,       ///< the current label reached a sink
+    Exhausted,  ///< every path was tried: with no arc tabu, no feasible path exists
+    /// A budget, an interrupt or the memory limit stopped it, with paths left to try; the solve's
+    /// status says which.
+    Stopped,
+};
+
+}  // namespace detail
+
 /**
  * @brief Common DFS-with-backtracking machinery shared by the tabu searches
  * (@ref TabuSearchAlgorithm, @ref ImprovingTabuSearch). @ref GreedyAlgorithm runs a similar

@@ -29,7 +29,8 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
     protected:
         void initialize(const Graph<ResourceType>* graph, double cost_upper_bound) override {
             Algorithm<ResourceType, LabelContainerType>::initialize(graph, cost_upper_bound);
-            this->initialize_unprocessed_labels(graph->get_number_of_nodes());
+            this->reset(graph->get_number_of_nodes());
+            first_sweep_ = true;
         }
 
         void main_loop() override {  // NOLINT
@@ -113,10 +114,10 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
                 // start a new loop
                 this->current_unprocessed_node_pos_ = 0;
                 ++this->num_loops_;
-                first_loop_ = false;
+                first_sweep_ = false;
             }
 
-            if (first_loop_) {
+            if (first_sweep_) {
                 // on first loop, add any pre-existing labels at the node to the current labels
                 auto& labels_at_node =
                     this->unprocessed_labels_by_node_pos_.at(this->current_unprocessed_node_pos_);
@@ -177,7 +178,7 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         }
 
         void prepare_next_phase() override {
-            first_loop_ = true;
+            first_sweep_ = true;
             this->restore_truncated_unprocessed_labels();
         }
 
@@ -207,9 +208,9 @@ class PullingDominanceAlgorithm : public DominanceAlgorithm<ResourceType, LabelC
         void release_label_memory() override {
             DominanceAlgorithm<ResourceType, LabelContainerType>::release_label_memory();
             this->clear_all_queues();
-            first_loop_ = true;
+            first_sweep_ = true;
         }
 
-        bool first_loop_ = true;
+        bool first_sweep_ = true;
 };
 }  // namespace rcspp

@@ -92,7 +92,7 @@ inline std::unique_ptr<ResourceGraph<RealResource>> diamond_graph(double upper_f
 /// @brief A line graph with a cost in slot 0 and a capacity clock in slot 1.
 ///
 /// The capacity counts down backwards, so backward and forward labels share a scale and the
-/// half-way bound applies.
+/// half-way point applies.
 ///
 /// @param arc_values Per-arc `{cost, clock}` consumption.
 /// @param capacity   The clock's upper bound; its lower bound is zero.
@@ -589,7 +589,7 @@ TEST(Bidirectional, AContainerForbiddingAnotherNodeIsRefused) {
 ///
 /// `UnionExtensionFunction` over arcs carrying `{origin}` with each node forbidding itself is
 /// correct forward but not backward: the backward memory at `v` already contains `v`, so every
-/// backward label is rejected on creation. With the half-way bound on, that silently returns an
+/// backward label is rejected on creation. With the half-way point on, that silently returns an
 /// empty result. Each half is legal alone; only a check that sees both catches it.
 TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
     struct Arc {
@@ -704,7 +704,7 @@ TEST(Bidirectional, AVisitedSetCannotCarryTheElementaryCondition) {
 }
 
 // ============================================================================
-// The half-way bound's failure mode
+// The half-way point's failure mode
 // ============================================================================
 
 /// @brief `half_way_point = 0` turns the bound OFF -- it does not derive one.
@@ -1112,8 +1112,9 @@ TEST(Bidirectional, MemoryPressureTightensThePerNodeQuota) {
 
 /// @brief Memory-pressure lossiness reaches `SolveResult`, not just the algorithm object.
 ///
-/// A trimmed run may be non-optimal yet still reports Complete, so the result flag is the only
-/// signal a caller without the algorithm object gets.
+/// The trim abandons labels, so the status is Truncated rather than Complete. Only the flag says
+/// that memory pressure is the reason, and it is the only signal a caller without the algorithm
+/// object gets.
 TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
     namespace bt = bidirectional_test;
 
@@ -1142,8 +1143,8 @@ TEST(Bidirectional, MemoryPressureReachesTheSolveResult) {
     ASSERT_TRUE(pressed_flag) << "the pressure recipe did not fire";
     EXPECT_TRUE(pressed.memory_pressure_triggered)
         << "the algorithm knows the run was trimmed but the result the caller receives does not";
-    EXPECT_EQ(pressed.status, AlgorithmStatus::Complete)
-        << "the status cannot express this, which is exactly why the flag has to";
+    EXPECT_EQ(pressed.status, AlgorithmStatus::Truncated)
+        << "the trim abandoned labels: the search did not process every label";
 }
 
 /// @brief Every algorithm reports it, not only the bidirectional one.
@@ -1734,6 +1735,52 @@ TEST(MemoryPressure, NeverLoosensTheBidirectionalQuota) {
     namespace mpq = memory_pressure_quota_test;
     // Simple and Pushing are covered in test_dominance_algorithms.hpp.
     EXPECT_EQ(mpq::extended_labels(true), mpq::extended_labels(false));
+}
+
+namespace abandoned_labels_test {
+
+/// @brief The status and is_optimal() of a bidirectional solve of the fan graph with a per-node
+///        quota of @p quota, and, when @p squeeze, memory pressure that cuts every queue to
+///        nothing on its first check.
+inline std::pair<AlgorithmStatus, bool> solve(size_t quota, bool squeeze) {
+    auto graph = memory_pressure_quota_test::fan();
+    AlgorithmParams<LabelList<ResourceTypeComposition<RealResource>>> params;
+    params.max_extended_labels_per_node = quota;
+    params.critical_resource_index = 1;
+    params.half_way_point = 6.0;
+    if (squeeze) {
+        constexpr double kHugeLimitGiB = 1e9;  // pressure on every check, never a stop
+        params.max_memory_gb = kHugeLimitGiB;
+        params.memory_pressure_fraction = 0.0;
+        params.memory_check_interval = 1;
+        params.memory_pressure_max_labels_per_node = 0;
+    }
+    auto algorithm =
+        graph->create_algorithm<SimpleDominanceAlgorithm>(test_util::bidirectional(params));
+    const auto result = graph->solve(algorithm.get());
+    return {result.status, algorithm->is_optimal()};
+}
+
+}  // namespace abandoned_labels_test
+
+/// @brief A bidirectional solve that abandons labels did not process every label: it is not
+///        Complete, and not optimal, although its queues end empty.
+///
+/// It runs one phase, so the labels a quota or memory pressure takes off a queue are never
+/// extended. The status used to read the empty queues as a finished search.
+TEST(SolveStatus, ABidirectionalSolveThatAbandonsLabelsIsNotComplete) {
+    namespace alt = abandoned_labels_test;
+    const auto [full_status, full_optimal] = alt::solve(MAX_INT, /*squeeze=*/false);
+    EXPECT_EQ(full_status, AlgorithmStatus::Complete);
+    EXPECT_TRUE(full_optimal);
+
+    const auto [quota_status, quota_optimal] = alt::solve(2, /*squeeze=*/false);
+    EXPECT_EQ(quota_status, AlgorithmStatus::Truncated) << "a quota of 2 abandons labels";
+    EXPECT_FALSE(quota_optimal);
+
+    const auto [squeezed_status, squeezed_optimal] = alt::solve(MAX_INT, /*squeeze=*/true);
+    EXPECT_EQ(squeezed_status, AlgorithmStatus::Truncated) << "memory pressure abandons labels";
+    EXPECT_FALSE(squeezed_optimal);
 }
 
 /// @brief The two searches interleave: a search stopped early has started both halves.

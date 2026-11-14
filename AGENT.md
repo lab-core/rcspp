@@ -205,7 +205,7 @@ at the node where that resource crosses `H`. The requirements:
 
 - **The critical resource must be a clock**: monotone, bounded, and a *threshold*
   backwards (`TimeWindowExtensionFunction` or `CapacityExtensionFunction`, never
-  `AdditionExtensionFunction` and never the cost). If it is not, the half-way bound
+  `AdditionExtensionFunction` and never the cost). If it is not, the half-way point
   switches itself off — the answer stays correct, the solve is just slower, and it
   logs a warning once per reason per process. The default `half_way_point = 0` is one
   of those reasons: set `H` to about half the clock's range.
