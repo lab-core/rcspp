@@ -176,11 +176,9 @@ TEST(SimpleDominanceAlgorithmTest, StopAfterOneSolution) {
     EXPECT_LE(result.solutions.size(), 1U);
 }
 
-/// @brief With prune_by_incumbent, a single-direction search adds the completion bound to a
-///        label's cost before comparing it with the incumbent, so a label whose path goes on to a
-///        negative arc is not pruned: 0->2 costs 0, 0->1 costs 5 and 1->2 costs -10, so the label
-///        at 1 (cost 5) leads to the optimum, -5, although the path 0->2 (cost 0) is found first.
-TEST(SimpleDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+/// @brief The graph of the incumbent-prune tests: 0->2 costs 0, 0->1 costs 5 and 1->2 costs -10.
+///        The optimum is 0-1-2 at -5; first in, first out finds the path 0->2 (cost 0) first.
+inline std::unique_ptr<ResourceGraph<RealResource>> make_prune_negative_arc_graph() {
     auto g = std::make_unique<ResourceGraph<RealResource>>();
     g->add_resource<RealResource>(std::make_unique<AdditionExtensionFunction<RealResource>>(),
                                   std::make_unique<TrivialFeasibilityFunction<RealResource>>(),
@@ -192,15 +190,39 @@ TEST(SimpleDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegative
     g->add_arc<RealResource>(std::make_tuple(0.0), 0, 2);  // FIFO takes this path first
     g->add_arc<RealResource>(std::make_tuple(5.0), 0, 1);
     g->add_arc<RealResource>(std::make_tuple(-10.0), 1, 2);
-    AlgorithmBaseParams params;
-    params.prune_by_incumbent = true;
-    const auto result = g->solve<SimpleDominanceAlgorithm>(params);
-    ASSERT_FALSE(result.solutions.empty());
+    return g;
+}
+
+/// @brief The cheapest solution's cost; +infinity when there is none.
+template <typename ResultType>
+double cheapest_cost(const ResultType& result) {
     double best = std::numeric_limits<double>::infinity();
     for (const auto& solution : result.solutions) {
         best = std::min(best, solution.cost);
     }
-    EXPECT_DOUBLE_EQ(best, -5.0);
+    return best;
+}
+
+/// @brief With prune_by_incumbent, a single-direction search adds the completion bound to a
+///        label's cost before comparing it with the incumbent, so a label whose path goes on to a
+///        negative arc is not pruned: the label at 1 (cost 5) leads to the optimum, -5, although
+///        the path 0->2 (cost 0) is found first (@ref make_prune_negative_arc_graph).
+TEST(SimpleDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<SimpleDominanceAlgorithm>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
+    EXPECT_EQ(result.status, AlgorithmStatus::Complete);
+}
+
+/// @brief The same for A*, whose order already reads the bound: the prune keeps the optimum.
+TEST(AStarDominanceAlgorithmTest, IncumbentPruneKeepsALabelThatLeadsToANegativeArc) {
+    auto g = make_prune_negative_arc_graph();
+    AlgorithmBaseParams params;
+    params.prune_by_incumbent = true;
+    const auto result = g->solve<AStarDominanceAlgorithm>(params);
+    EXPECT_DOUBLE_EQ(cheapest_cost(result), -5.0);
     EXPECT_EQ(result.status, AlgorithmStatus::Complete);
 }
 
