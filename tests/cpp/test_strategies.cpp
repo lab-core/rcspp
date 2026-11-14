@@ -1,0 +1,216 @@
+// Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
+// All rights reserved.
+
+// A strategy of one's own: a descriptor written from the public parts (rcspp::parts) solves in
+// every direction it searches, a part of one's own meets its concept, a malformed part is refused
+// by the concept it fails, and rcspp::test_support::optimum_problem checks an exact strategy
+// against forward Simple.
+//
+// Its own translation unit: the user strategies instantiate searches nothing else needs.
+
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <string>
+#include <type_traits>
+
+#include "rcspp/rcspp.hpp"
+#include "util/random_instance.hpp"
+
+using namespace rcspp;  // NOLINT(google-build-using-namespace)
+
+namespace strategies_test {
+
+using Composed = ResourceTypeComposition<RealResource>;
+using List = LabelList<Composed>;
+
+/// @brief Best first forward, first in, first out backward; the library's other parts.
+struct BestFirstForward {
+        template <typename ResourceType, typename Direction>
+        using schedule = std::conditional_t<Direction::backward, parts::FifoSchedule<ResourceType>,
+                                            parts::BestFirstSchedule<ResourceType>>;
+};
+
+/// @brief An admission rule of one's own: dominance, and at most three labels per node. Not
+///        exact, and it says so.
+struct AtMostThree {
+        static bool is_exact(const parts::AdmissionContext& /*context*/) { return false; }
+
+        template <typename ResourceType, typename NodeView>
+        bool admit(const Label<ResourceType>& candidate, NodeView& node,
+                   const parts::AdmissionContext& /*context*/) const {
+            if (node.is_dominated(candidate) || node.size() >= 3) {
+                return false;
+            }
+            node.evict_dominated_by(candidate);
+            return true;
+        }
+};
+
+/// @brief Simple's order with the rule of at most three labels per node; forward and backward
+///        only.
+struct SimpleAtMostThree {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::FifoSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = AtMostThree;
+        static constexpr bool bidirectional = false;
+};
+
+/// @brief A schedule that hands out nothing and cannot trim: not a schedule.
+struct NotASchedule {
+        void initialize(detail::SearchContext<Composed>& /*context*/) {}
+        void push(const parts::StoredLabel<Composed>& /*stored*/) {}
+        [[nodiscard]] size_t size() const { return 0; }
+};
+
+/// @brief An admission rule that does not say whether it is exact.
+struct NoExact {
+        template <typename ResourceType, typename NodeView>
+        bool admit(const Label<ResourceType>& /*candidate*/, NodeView& /*node*/,
+                   const parts::AdmissionContext& /*context*/) const {
+            return true;
+        }
+};
+
+/// @brief A model with a usable clock, and the params of a solve on it: the clock and its
+///        half-way point set, for a bidirectional search.
+struct Model {
+        test_util::GeneratedInstance built;
+        AlgorithmParams<List> params;
+};
+
+inline Model model(uint32_t seed) {
+    test_util::InstanceConfig config;
+    config.num_nodes = 12;
+    config.with_time_window = true;
+    config.with_capacity = true;
+    config.capacity_binds = true;
+    config.mixed_sign_costs = true;
+    config.seed = seed;
+    Model m{.built = test_util::build_instance(config), .params = AlgorithmParams<List>{}};
+    m.params.critical_resource_index = m.built.clock_index;
+    m.params.half_way_point = m.built.clock_is_usable ? m.built.clock_upper_bound / 2.0 : 0.0;
+    return m;
+}
+
+/// @brief A descriptor that names its admission rule as a plain type, which would be ignored.
+struct PlainAdmission {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::FifoSchedule<ResourceType>;
+        using admission = AtMostThree;
+};
+
+/// @brief The same, written correctly: a template on the resource type and the direction.
+struct TemplatedAdmission {
+        template <typename ResourceType, typename Direction>
+        using schedule = parts::FifoSchedule<ResourceType>;
+        template <typename ResourceType, typename Direction>
+        using admission = AtMostThree;
+};
+
+}  // namespace strategies_test
+
+/// @brief A descriptor that names a templated part as a plain type is refused (it would be
+///        ignored); the library's strategies and a correct one are not.
+TEST(Strategies, APlainTypePartIsRefused) {
+    namespace st = strategies_test;
+    static_assert(!detail::NoPlainTypeParts<st::PlainAdmission>);
+    static_assert(detail::NoPlainTypeParts<st::TemplatedAdmission>);
+    static_assert(detail::NoPlainTypeParts<strategy::Simple>);
+    static_assert(detail::NoPlainTypeParts<strategy::AStar>);
+    static_assert(detail::NoPlainTypeParts<strategy::Pushing>);
+    static_assert(detail::NoPlainTypeParts<strategy::Pulling>);
+    static_assert(detail::NoPlainTypeParts<strategy::Greedy>);
+    static_assert(detail::NoPlainTypeParts<st::SimpleAtMostThree>);
+}
+
+/// @brief The parts of the library meet their concepts; a malformed part fails the concept it
+///        breaks, which is the check make_algorithm runs and names in its message.
+TEST(Strategies, ThePartsMeetTheirConceptsAndAMalformedPartDoesNot) {
+    namespace st = strategies_test;
+    using R = st::Composed;
+    static_assert(parts::LabelSchedule<parts::FifoSchedule<R>, R>);
+    static_assert(parts::LabelSchedule<parts::BestFirstSchedule<R>, R>);
+    static_assert(parts::LabelSchedule<parts::SweepSchedule<R, ForwardDirection>, R>);
+    static_assert(parts::PullingSchedule<parts::PullSchedule<R, BackwardDirection>, R>);
+    static_assert(parts::Admission<parts::DominanceAdmission, R>);
+    static_assert(parts::Admission<st::AtMostThree, R>);
+    static_assert(parts::Retention<parts::KeepAtNodes<st::List>, R, st::List>);
+    static_assert(parts::Observer<parts::NoObserver, R>);
+
+    static_assert(!parts::Schedule<st::NotASchedule, R>, "no trim, no next phase, no clear");
+    static_assert(!parts::Admission<st::NoExact, R>, "no exact");
+
+    static_assert(detail::searches<st::BestFirstForward>(SearchDirection::Bidirectional));
+    static_assert(detail::searches<st::SimpleAtMostThree>(SearchDirection::Backward));
+    static_assert(!detail::searches<st::SimpleAtMostThree>(SearchDirection::Bidirectional));
+    static_assert(!detail::searches<strategy::Greedy>(SearchDirection::Backward));
+    static_assert(std::is_same_v<detail::search_parts_t<strategy::Simple, R, ForwardDirection>,
+                                 detail::SearchParts<parts::FifoSchedule<R>>>,
+                  "a strategy that names only its schedule gets the exact search's parts");
+}
+
+/// @brief A strategy of one's own, from public parts only, solves in every direction, and runs a
+///        best-first forward side and a first-in, first-out backward side bidirectionally.
+TEST(Strategies, AStrategyOfOnesOwnSolvesInEveryDirection) {
+    namespace st = strategies_test;
+    auto m = st::model(1);
+    for (const auto direction :
+         {SearchDirection::Forward, SearchDirection::Backward, SearchDirection::Bidirectional}) {
+        auto params = m.params;
+        params.direction = direction;
+        auto algorithm = m.built.graph->create_algorithm<st::BestFirstForward>(params);
+        EXPECT_EQ(algorithm->direction(), direction);
+        (void)m.built.graph->solve(algorithm.get());
+    }
+    auto params = m.params;
+    params.direction = SearchDirection::Bidirectional;
+    auto algorithm = m.built.graph->create_algorithm<st::BestFirstForward>(params);
+    using Sides = detail::BidirectionalLabellingAlgorithm<
+        st::Composed,
+        st::List,
+        RealResource,
+        detail::SearchParts<parts::BestFirstSchedule<st::Composed>>,
+        detail::SearchParts<parts::FifoSchedule<st::Composed>>>;
+    EXPECT_NE(dynamic_cast<Sides*>(algorithm.get()), nullptr);
+}
+
+/// @brief The exact strategy of one's own finds forward Simple's optimum in every direction, along
+///        paths that replay; so do the library's.
+TEST(Strategies, OptimumProblemIsEmptyForExactStrategies) {
+    namespace st = strategies_test;
+    for (const uint32_t seed : {1U, 2U, 3U}) {
+        auto m = st::model(seed);
+        EXPECT_EQ(
+            rcspp::test_support::optimum_problem<st::BestFirstForward>(*m.built.graph, m.params),
+            "")
+            << "seed " << seed;
+        EXPECT_EQ(rcspp::test_support::optimum_problem<strategy::AStar>(*m.built.graph, m.params),
+                  "");
+        EXPECT_EQ(rcspp::test_support::optimum_problem<strategy::Pulling>(*m.built.graph, m.params),
+                  "");
+    }
+}
+
+/// @brief A strategy that refuses a direction is refused there, by name; one with an admission rule
+///        of its own keeps at most what the rule admits.
+TEST(Strategies, ARefusedDirectionAndAnAdmissionOfOnesOwn) {
+    namespace st = strategies_test;
+    auto m = st::model(2);
+    auto params = m.params;
+    params.direction = SearchDirection::Bidirectional;
+    EXPECT_THROW((void)m.built.graph->create_algorithm<st::SimpleAtMostThree>(params),
+                 std::invalid_argument);
+
+    params.direction = SearchDirection::Forward;
+    params.release_after_solve = false;
+    auto algorithm = m.built.graph->create_algorithm<st::SimpleAtMostThree>(params);
+    const auto result = m.built.graph->solve(algorithm.get());
+    const auto exact = m.built.graph->solve<strategy::Simple>(m.params);
+    ASSERT_FALSE(exact.solutions.empty());
+    if (!result.solutions.empty()) {
+        EXPECT_GE(result.solutions.front().cost, exact.solutions.front().cost - 1e-9)
+            << "an inexact rule never beats the exact optimum";
+    }
+}

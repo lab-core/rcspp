@@ -154,7 +154,7 @@ def test_preset_built_model_solves_bidirectionally():
     params = AlgorithmParams()
     params.half_way_point = 5.0
     params.critical_resource_index = 1
-    result = rg.solve(algorithm="bidirectional", params=params)
+    result = rg.solve(direction="bidirectional", params=params)
     assert len(result.solutions) > 0
 
 
@@ -198,11 +198,11 @@ def _cycle_graph(add_memory):
     return rg
 
 
-def _best(rg, algorithm, params=None):
+def _best(rg, direction, params=None):
     if params is None:
-        result = rg.solve(algorithm=algorithm)
+        result = rg.solve(direction=direction)
     else:
-        result = rg.solve(algorithm=algorithm, params=params)
+        result = rg.solve(direction=direction, params=params)
     return min(s.cost for s in result.solutions), result
 
 
@@ -216,7 +216,7 @@ def _best(rg, algorithm, params=None):
 )
 def test_memory_presets_forbid_the_cycle_in_every_direction(add_memory):
     """Both presets keep the path elementary, forward and bidirectionally."""
-    forward, result = _best(_cycle_graph(add_memory), "simple")
+    forward, result = _best(_cycle_graph(add_memory), "forward")
     assert forward == pytest.approx(-7.0)  # 0-1-2-3; the cycle 1-2-1 is forbidden
     for solution in result.solutions:
         assert len(solution.path_node_ids) == len(set(solution.path_node_ids))
@@ -242,9 +242,9 @@ def test_ng_path_preset_matches_the_hand_built_model():
 
     preset, _ = _best(
         _cycle_graph(lambda rg: presets.add_ng_path_resource(rg, "bitset", neighborhoods)),
-        "simple",
+        "forward",
     )
-    hand_built, _ = _best(_cycle_graph(by_hand), "simple")
+    hand_built, _ = _best(_cycle_graph(by_hand), "forward")
     assert preset == pytest.approx(hand_built)
 
 

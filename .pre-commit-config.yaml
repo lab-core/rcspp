@@ -115,7 +115,7 @@ repos:
         language: pygrep
         # Keywords and parameters only: origin_id stays a fine name for a local variable.
         files: \.pyi?$|^docs/python/.*\.md$
-        entry: '\b(col_ids|basis_ids|col_costs|col_indices|col_values|row_starts|row_coefs)\b|\b(origin_id|destination_id)\s*(:|=(?!=))|bounded_by_half_way|\bMaxPhases\b|\bprune_by_upper_bound\b'
+        entry: '\b(col_ids|basis_ids|col_costs|col_indices|col_values|row_starts|row_coefs)\b|\b(origin_id|destination_id)\s*(:|=(?!=))|bounded_by_half_way|\bMaxPhases\b|Algorithm\.Bidirectional|algorithm\s*=\s*["'']bidirectional|\bprune_by_upper_bound\b'
 
   # -------------------------
   # Commit message hooks

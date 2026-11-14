@@ -319,12 +319,11 @@ class Algorithm {
             result->memory_pressure_triggered = memory_pressure_triggered_;
         }
 
-        /// @brief Hook called when @ref memory_limit_.is_under_pressure() becomes true.
+        /// @brief Called by @ref check_memory each time a periodic memory check finds the
+        ///        pressure threshold reached: possibly several times in one solve.
         ///
-        /// The default implementation does nothing.  Subclasses that own
-        /// unprocessed label queues (e.g. PushingDominanceAlgorithm) override
-        /// this to trim those queues, slowing further RSS growth before the
-        /// hard limit is hit.
+        /// The default does nothing. The labelling algorithms override it to call
+        /// @ref relieve_memory_pressure on each of their searches.
         virtual void on_memory_pressure() {}
 
         /// @brief A main loop's periodic memory check: logs, trims the queues under pressure
