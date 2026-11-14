@@ -63,7 +63,7 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
 
     protected:
         /// @brief Starts the solve: an empty search and its context, and the completion bound
-        ///        when the schedule's order or the incumbent prune reads it
+        ///        when the schedule's order, the incumbent prune or the threshold prune reads it
         ///        (@ref compute_completion_bound). An admission rule that is not exact loses the
         ///        proof
         ///        (@c ProofLoss::RelaxedAdmission).
@@ -73,11 +73,12 @@ class LabellingAlgorithm : public Algorithm<ResourceType, LabelContainerType> {
                           make_directed_container<Direction>(this->params_.labels));
             context_ = this->make_context(search_, Role::Single);
             // The incumbent prune adds the completion bound whenever it is valid (an additive
-            // cost), so the bound is computed then, as well as for an order that reads it (A*).
+            // cost), so the bound is computed then, as well as for an order that reads it (A*)
+            // and for the threshold prune.
             refresh_completion_bound(
                 *graph,
                 parts::reads_completion_bound_v<typename search_type::schedule_type> ||
-                    context_.prune_adds_completion_bound);
+                    context_.prune_adds_completion_bound || this->params_.prune_by_threshold);
             if (!decltype(search_.admission)::is_exact(context_.admission)) {
                 this->proof_.record(ProofLoss::RelaxedAdmission);
             }

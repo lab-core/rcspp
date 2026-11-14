@@ -651,6 +651,33 @@ const SolveResult result = graph.solve(algorithm.get(), ub);
 The mask is sized by `get_arc_id_bound()`, one past the largest arc id, removed arcs included; an
 id it was not sized for is open. It is a C++ feature: Python does not offer it.
 
+## Dropping labels that cannot beat the upper bound
+
+`prune_by_threshold` has a labelling search drop a label when no path through it could be
+returned: when its cost plus a lower bound on the cost still to pay from its node is at or above
+the `upper_bound` the solve was given. The bound is computed at the start of each solve, by one
+Bellman–Ford run over the arcs' shares of the cost, from the end nodes. The paths returned are
+those of the solve without it, and fewer labels are extended. It pays when the upper bound is
+tight: in pricing, `upper_bound=0` asks only for columns of negative reduced cost.
+
+```python
+params = AlgorithmParams()
+params.prune_by_threshold = True
+result = rg.solve(upper_bound=0.0, params=params)   # the same columns, fewer labels
+```
+
+With no upper bound, only labels that reach no end node are dropped. A negative-cost cycle leaves
+no finite bound, and nothing is dropped. A margin of `tolerance` (relative to the upper bound when
+that is large) keeps rounding in the bound from dropping a path that would be returned. The bound
+needs an additive cost: every resource the cost reads has a zero cost (`TrivialCostFunction`) or a
+value cost (`ValueCostFunction`) under an addition. Another cost raises `ValueError`
+(`std::invalid_argument`) when the solve starts.
+
+Every labelling search reads it, Greedy and the tabu searches included, in every direction, and
+both halves of a bidirectional search, each against its own end nodes. Unlike `prune_by_incumbent`,
+it compares with the fixed upper bound, not the best path found so far, so it never cuts a path
+the solve would return.
+
 ## Keeping fewer labels: relaxed and k-best admission
 
 A labelling search keeps a new label at its node unless a label there dominates it.

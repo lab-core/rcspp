@@ -250,6 +250,14 @@ void init_graph(py::module_& m) {
                        "found): its cost plus its completion bound is at or above the incumbent "
                        "(default False). Exact under an additive cost; under another, the cost "
                        "alone is compared and the result is not a proof ('incumbent_prune').")
+        .def_readwrite("prune_by_threshold",
+                       &PyAlgorithmParams::prune_by_threshold,
+                       "Whether a labelling search drops a label whose cost plus a lower bound on "
+                       "the cost still to pay from its node reaches the solve's upper_bound "
+                       "(default False): no path through it could be returned. The paths returned "
+                       "are the same; fewer labels are extended. Needs an additive cost (a zero "
+                       "or value cost under an addition, for every resource the cost reads); "
+                       "another raises ValueError.")
         .def_readwrite("max_extended_labels_per_node",
                        &PyAlgorithmParams::max_extended_labels_per_node)
         .def_readwrite("max_phases", &PyAlgorithmParams::max_phases)

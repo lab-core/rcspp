@@ -475,6 +475,14 @@ class AlgorithmParams:
     @prune_by_incumbent.setter
     def prune_by_incumbent(self, arg0: bool) -> None: ...
     @property
+    def prune_by_threshold(self) -> bool:
+        """
+        Whether a labelling search drops a label whose cost plus a lower bound on the cost still to pay from its node reaches the solve's upper_bound (default False): no path through it could be returned. The paths returned are the same; fewer labels are extended. Needs an additive cost (a zero or value cost under an addition, for every resource the cost reads); another raises ValueError.
+        """
+
+    @prune_by_threshold.setter
+    def prune_by_threshold(self, arg0: bool) -> None: ...
+    @property
     def release_after_solve(self) -> bool:
         """
         If true (default), release label memory after solve(). Set to false when the same algorithm is called repeatedly in a tight loop to avoid shrink_to_fit() overhead.
