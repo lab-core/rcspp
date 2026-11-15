@@ -221,6 +221,12 @@ New features are summarised, with a pointer to where they are documented.
   `DEFAULT_PRICE_THRESHOLD`. The docs no longer import from the private `rcspp._core`.
 - **`AlgorithmParams.prune_by_upper_bound` in Python.** The C++ field was not bound, so Python
   users could not turn pruning by the upper bound on.
+- **Column generation, `rcspp.column_generation`**, in Python over rcspp's pricing search: a
+  master problem over a master solver (`HighspyMasterSolver` or `GurobipyMasterSolver` on the
+  user's own model, or a subclass of `MasterSolver`), a `GraphPricer` that prices a
+  `ResourceGraph` through stages from heuristic to exact, and the `ColumnGeneration` loop with
+  tolerances, initializations, statistics and hooks. The master solvers need their LP solver's
+  package: `pip install rcspp[highspy]` or `rcspp[gurobipy]`.
 - **A C++ column generation example** (`examples/column_generation/`), built with
   `-DUSE_COLUMN_GENERATION_EXAMPLE=ON` (off by default) and kept tested, not part of the library:
   nothing of it is installed, and the wheel does not have it. A column generation layer over the
