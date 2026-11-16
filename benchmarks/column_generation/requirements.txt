@@ -1,0 +1,11 @@
+# What the column generation benchmark needs besides a build of rcspp from this tree.
+# rcspp's own dependencies: the benchmark imports rcspp from the build, not from an installed package.
+networkx
+numpy
+# The default master solver; gurobipy (with a Gurobi licence) runs the Gurobi ones.
+highspy
+# The process measures and the load of the machine during a run.
+psutil
+# Writing a run's options back as TOML (the standard library only reads it).
+tomli-w
+pytest

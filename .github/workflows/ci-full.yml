@@ -113,6 +113,14 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/build/python
         run: pytest -v --tb=short examples/column_generation/tests/python
 
+      # The column generation benchmark's tests. They import rcspp from the build themselves, and
+      # check that it comes from there.
+      - name: Python tests (column generation benchmark)
+        if: matrix.suites != 'cpp'
+        run: |
+          pip install -r benchmarks/column_generation/requirements.txt
+          pytest -v --tb=short benchmarks/column_generation/tests
+
   build_wheels:
     name: Wheels / ${{ matrix.os }}
     needs: [coverage, test]
