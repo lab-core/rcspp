@@ -163,6 +163,8 @@ Out of scope (`D-183`): `T-1.9`; phase 5's grid and `T-2.5`'s records. The maste
 
 ## 9. Coding steps (later commits of the PR)
 
+Steps 1–4 done 2026-11-16 (`F-62`); what they change for steps 5–9: `F-62`, the README status.
+
 | # | commit | contents | tests |
 |---|---|---|---|
 | 1 | the folder and its docs | `README.md` (install, build `_core` with the example, run), `requirements.txt` (psutil, tomli-w), the source guard | the guard |
