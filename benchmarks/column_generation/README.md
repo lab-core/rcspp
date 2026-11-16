@@ -13,6 +13,7 @@ wheel does not have it.
 |---|---|
 | `column_generation_benchmark/` | the code the runners and the benchmark share |
 | `tests/` | the tests |
+| `OPTIONS.md` | the options of a run and of a benchmark |
 
 ## Install
 
@@ -46,6 +47,12 @@ The build copies `python/src/rcspp` next to `_core`; build again after changing 
 Before importing rcspp, the benchmark puts the build's `python` folder first on the path, then checks that rcspp and
 its `_core` come from that build, and that the build's copy of the Python sources equals `python/src`. It stops
 otherwise: a virtual environment may have another rcspp installed, which a run would measure without failing.
+
+## Options
+
+A run is a layer and its blocks (`instance`, `master`, `pricing`, `start`, ...), given in a TOML file, on the command
+line, or both; a benchmark file makes many runs. [`OPTIONS.md`](OPTIONS.md) has the words, the TOML they need, where a
+run's options come from, examples, and every option's parameters.
 
 ## Tests
 
