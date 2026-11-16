@@ -3,7 +3,7 @@
 Design chat 2026-11-16, decided by the user (`D-177`–`D-187`). Starting point, kept on the plan branch as records:
 `benchmark-results/colgen/drivers.py`, `run_matrix.py`, `full_comparison_verdict.py`. Coding steps: §9.
 
-## 1. Shape (`D-177`, `D-178`)
+## 1. Shape (`D-177`, `D-178`, `D-189`)
 
 | piece | what |
 |---|---|
@@ -17,8 +17,8 @@ Design chat 2026-11-16, decided by the user (`D-177`–`D-187`). Starting point,
 | layer | runner | what runs |
 |---|---|---|
 | `package` | `package_runner.py` | `rcspp.column_generation`, the shipped pure-Python package |
-| `cpp-example` | `cpp_example_runner.py` | the C++ example layer through its bindings: C++ master, pricer and loop |
-| `cpp-program` | the C++ program of `T-1.19` | pure C++, no Python (`D-164`); added by `T-1.19` |
+| `cpp-bindings` | `cpp_bindings_runner.py` | the C++ example layer through its bindings: C++ master, pricer and loop |
+| `cpp-native` | the C++ program of `T-1.19` | pure C++, no Python (`D-164`); added by `T-1.19` |
 
 Dropped: the example's Python loop over the bindings (measured only loop against loop) and the old Python VRP
 example (`T-1.18` compares it once, then ports it onto the package).
@@ -68,7 +68,7 @@ start = { type = "single-customer" }
 
 [matrix]                        # the product of these lists; any key, dotted for a block's key
 instance = ["C101_25", "R201_25"]
-layer = ["package", "cpp-example"]
+layer = ["package", "cpp-bindings"]
 master = ["highspy", "gurobipy"]
 pricing = ["exact", "heuristics-first"]
 "graph.ng_size" = [0, 8]
@@ -144,8 +144,8 @@ lists them and checks `D-164`'s same solver versions across the layers per cell.
 
 - Shared, never duplicated: options and TOML, instances and graphs, record, collectors, the run folder, the
   `result.json` fields. A runner holds only the column generation calls (about 100 lines). `package` and
-  `cpp-example` look alike on purpose: merged, they would hide the code a reader looks for.
-- `cpp-program` shares no Python: the benchmark resolves everything and passes it plain options; the program writes
+  `cpp-bindings` look alike on purpose: merged, they would hide the code a reader looks for.
+- `cpp-native` shares no Python: the benchmark resolves everything and passes it plain options; the program writes
   `result.json` itself. Settled in `T-1.19`.
 - A test keeps the layers from drifting: every runner built gives the same objective, iterations and columns on
   C101_25.
@@ -153,7 +153,7 @@ lists them and checks `D-164`'s same solver versions across the layers per cell.
 | task | adds (`D-182`) |
 |---|---|
 | `T-1.18` | nothing: the port runs on the package; its comparison uses the old drivers once |
-| `T-1.19` | the `cpp-program` runner and its build in the README |
+| `T-1.19` | the `cpp-native` runner and its build in the README |
 | `T-1.16` | `graph.ng_size` |
 | `T-1.21` | the engine's features as stage keys, or one key each in `graph` or `pricing` |
 | `T-1.20` | presets of truncated stages; `--compare` over three layers; maybe per-iteration values |
@@ -170,7 +170,7 @@ Out of scope (`D-183`): `T-1.9`; phase 5's grid and `T-2.5`'s records. The maste
 | 3 | instances | the interface, Solomon VRPTW, graph and rows, `single-customer` start | toy instance: graph, rows, start columns |
 | 4 | the run folder and record | `run.toml`, `command.txt`, `metadata.json`, `result.json` fields, record (§7) | round trip of `run.toml`; record fields present |
 | 5 | the `package` runner | options to objects, run, result | smoke test on a tiny instance over highspy |
-| 6 | the `cpp-example` runner | the same over the example | the drift test; skipped when the example is not built |
+| 6 | the `cpp-bindings` runner | the same over the example | the drift test; skipped when the example is not built |
 | 7 | the benchmark | processes, resume, `STOP`, `status.txt`, timeout, load sampler, refuse mixed | a fake runner: order, resume, timeout |
 | 8 | the summary | per cell figures, `--compare`, mixed lists, flags | on fixed results |
 | 9 | the comparison's benchmark file and CHANGELOG | a TOML reproducing `D-138`'s matrix; the PR's `CHANGELOG.md` entry (`D-167` (1)) | the file expands |
@@ -185,7 +185,7 @@ the user's; push and PR only when asked). Facts to port, from `benchmark-results
 
 - `master_model`: the depot is node 0, so master row 0 is free and rows 1..n are `= 1`; arcs out of customer `i`
   cover row `i`. highspy: `addRow(lower, upper, 0, [], [])`; gurobipy: `= 1` rows, the free row as `≥ -1e30`.
-  `cpp-example` also has the C++ `HighsMasterSolver(row_lower=..., row_upper=...)`; the package has none.
+  `cpp-bindings` also has the C++ `HighsMasterSolver(row_lower=..., row_upper=...)`; the package has none.
 - `FiniteVRP`: the example's graph has an infinite-cost depot-to-depot arc (the empty route); the layers refuse a
   column built from it, so the graph skips it.
 - `add_single_customer_routes`: depot, customer, depot, cost twice the distance, as `rcspp._core.graph` `Column`,
