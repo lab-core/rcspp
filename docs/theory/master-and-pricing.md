@@ -66,7 +66,8 @@ coefficients $a_{ip}$. The trouble is that there are astronomically many possibl
 shows how to solve the master problem anyway, and why doing so requires an RCSPP solver.
 
 We use **vehicle routing** as the running example because it is the easiest to picture. Everything carries over
-to the other rows of the table.
+to the other rows of the table: the [crew scheduling case study](case-studies/crew-scheduling.md) runs the same
+method on the second one.
 
 ---
 

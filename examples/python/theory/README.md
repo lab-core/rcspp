@@ -41,13 +41,17 @@ From `examples/python`, with the environment active:
 
 ```sh
 cd examples/python
-python -m theory            # every page
-python -m theory --page 3   # one page
+python -m theory               # every page and case study
+python -m theory --page 3      # one page
+python -m theory --case crew   # one case study
 ```
 
 Each page's module (`page1.py` to `page6.py`) has a `numbers()` function that returns the values as a dictionary,
 and a `report()` function that formats them. `toy.py` holds what the pages share: the toy instance, the pricing
 graphs, the master problem and the column generation loop.
+
+`crew.py` does the same for the crew scheduling case study (`docs/theory/case-studies/`). It has its own instance,
+and its docstring lists the sources of the problem and what the case study takes from each.
 
 A few lines starting with `[WARN ]` are logged by the library itself. They are expected: page 4 and page 5 discuss
 the settings that trigger them.

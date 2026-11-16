@@ -36,6 +36,14 @@ anything better than another label (**dominance**).
 The pages use vehicle routing as their running example because it is easy to picture. The library itself is not
 specific to routing.
 
+## Case studies
+
+Each case study runs the method of the pages on another problem, with its own small instance.
+
+| Case study | What it shows |
+|---|---|
+| [Crew scheduling](case-studies/crew-scheduling.md) | A pricing graph with no cycles, a row that counts crews, and a gap the quick integer heuristic misses |
+
 ## Reproducing the numbers
 
 Every number on these pages comes from running the library. The package
@@ -43,8 +51,9 @@ Every number on these pages comes from running the library. The package
 module per page, and prints them. Its README explains how to set up the environment. Then, from `examples/python`:
 
 ```sh
-python -m theory            # every page
-python -m theory --page 3   # one page
+python -m theory               # every page and case study
+python -m theory --page 3      # one page
+python -m theory --case crew   # one case study
 ```
 
 The master LPs are solved with HiGHS, through SciPy. Where the LP has several optimal duals, the pages quote the ones
@@ -69,4 +78,12 @@ dominance-and-elementarity
 algorithms-and-preprocessing
 searching-from-both-ends
 lp-to-integer
+:::
+
+:::{toctree}
+:maxdepth: 1
+:hidden:
+:caption: Case studies
+
+case-studies/crew-scheduling
 :::

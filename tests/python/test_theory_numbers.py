@@ -14,7 +14,7 @@ _here = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_here, "..", "..", "python", "src"))
 sys.path.insert(0, os.path.join(_here, "..", "..", "examples", "python"))
 
-from theory import page1, page2, page3, page4, page5, page6  # noqa: E402
+from theory import crew, page1, page2, page3, page4, page5, page6  # noqa: E402
 from theory.toy import SINK  # noqa: E402
 
 
@@ -337,7 +337,71 @@ def test_page6_vehicle_count_cut(p6):
     assert cut["duals"] == approx([4, 4, 4]) and cut["sigma"] == approx(16)
 
 
+# --- Case study: crew scheduling ---------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def cs():
+    """The crew scheduling case study's numbers."""
+    return crew.numbers()
+
+
+def test_crew_instance(cs):
+    """The problem: the connections the 3-hour rule allows, 18 hours of work, no cycle."""
+    assert cs["connections"] == {(1, 4): 0, (2, 5): 2, (3, 5): 3, (4, 5): 0, (4, 6): 2, (5, 6): 0}
+    assert cs["work"] == 18 and cs["forward_in_time"] and not cs["has_cycle"]
+    assert cs["running_at_4"] == [2, 3, 4]
+
+
+def test_crew_master(cs):
+    """The master: the 12 duties, the crew counts with a plan, the three plans of 4 crews."""
+    assert cs["duties"] == {
+        (1,): 0, (2,): 0, (2, 5): 2, (3,): 0, (3, 5): 3, (3, 5, 6): 3,
+        (4,): 0, (4, 5): 0, (4, 6): 2, (5,): 0, (5, 6): 0, (6,): 0,
+    }  # fmt: skip
+    assert cs["feasible_crews"] == [4, 5, 6] and cs["cost_with_5_crews"] == approx(0)
+    assert cs["plans"] == [
+        (3, [(1,), (2,), (3, 5, 6), (4,)]),
+        (4, [(1,), (2, 5), (3,), (4, 6)]),
+        (5, [(1,), (2,), (3, 5), (4, 6)]),
+    ]
+
+
+def test_crew_column_generation(cs):
+    """Column generation from the plan of cost 4: the table, the LP solution, the proof."""
+    rows = [
+        (it["value"], it["duals"], it["found"][0] if it["found"] else None, it["status"])
+        for it in cs["column_generation"]
+    ]
+    assert rows == [
+        (approx(4), approx([0, 2, 0, 2, 0, 0, 0]), (-2, (2,)), "complete"),
+        (approx(4), approx([0, 0, 0, 2, 2, 0, 0]), (-4, (4, 5)), "complete"),
+        (approx(4), approx([0, 0, 0, -2, 2, 4, 0]), (-6, (5, 6)), "complete"),
+        (approx(4), approx([6, 6, 6, 4, 2, 4, -6]), (-3, (3, 5, 6)), "complete"),
+        (approx(2.5), approx([3, 3, 3, 2.5, 0.5, 2.5, -3]), None, "complete"),
+    ]
+    assert cs["lp_solution"] == approx(
+        {(1,): 1, (2,): 1, (3,): 0.5, (3, 5, 6): 0.5, (4, 5): 0.5, (4, 6): 0.5}
+    )
+    assert all(rc >= -1e-9 for rc in cs["final_reduced_costs"].values())
+    assert all(found == [(-2, (2,))] for found in cs["algorithms_agree"].values())
+    assert cs["check_model"] == []
+
+
+def test_crew_lp_to_plan(cs):
+    """From the LP to a plan: 2.5, 3, and 4 over the columns found, without the duty (4)."""
+    assert cs["lp_over_all_duties"] == approx(2.5) and cs["integer_optimum"] == approx(3)
+    value, plan = cs["integer_over_generated"]
+    assert value == approx(4) and plan == [(1,), (2, 5), (3,), (4, 6)]
+    assert not cs["solo_4_generated"] and cs["solo_4_returned_at"] == [1]
+
+
+def test_crew_both_ends(cs):
+    """Searching from both ends: the same iterations, with the split in force."""
+    assert cs["bidirectional_same"] and cs["bidirectional_split"]
+
+
 def test_reports_print():
     """Every page's report runs, as ``python -m theory`` prints it."""
-    for page in (page1, page2, page3, page4, page5, page6):
-        assert page.report().startswith("Page ")
+    for page in (page1, page2, page3, page4, page5, page6, crew):
+        assert page.report().startswith(("Page ", "Case study"))
