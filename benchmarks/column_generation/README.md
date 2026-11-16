@@ -54,6 +54,17 @@ A run is a layer and its blocks (`instance`, `master`, `pricing`, `start`, ...),
 line, or both; a benchmark file makes many runs. [`OPTIONS.md`](OPTIONS.md) has the words, the TOML they need, where a
 run's options come from, examples, and every option's parameters.
 
+## A run's folder
+
+| file | contents |
+|---|---|
+| `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
+| `command.txt` | the command line that started the run |
+| `metadata.json` | start and end; the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory |
+| `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`) |
+
+`result.json` is written last: a folder that has one holds a finished run.
+
 ## Tests
 
 ```bash
