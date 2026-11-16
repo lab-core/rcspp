@@ -1,0 +1,201 @@
+# Benchmark runner (`T-1.10`): design
+
+Design chat 2026-11-16, decided by the user (`D-177`–`D-187`). Starting point, kept on the plan branch as records:
+`benchmark-results/colgen/drivers.py`, `run_matrix.py`, `full_comparison_verdict.py`. Coding steps: §9.
+
+## 1. Shape (`D-177`, `D-178`)
+
+| piece | what |
+|---|---|
+| PR | a follow-up based on #88's branch, merged after the stack; results stay on the plan branch |
+| folder | `benchmarks/column_generation/`, not in the wheel; it measures the tree it lives in (`python/src` and the tree's `build*/python` `_core`), the source guard kept (`F-59` (1)) |
+| runners | one per layer, each a script that does one run and can be called alone; its body is the column generation calls, so it is also the example a new user reads |
+| benchmark | `benchmark.py`: takes one or more runs, starts each runner as its own process, at most `processes` at a time; one run = a simple runner call |
+| contract | a runner takes options and/or a run file and an output folder, does one run, writes its files there (§4); the benchmark knows only this, never imports a runner |
+| docs | the folder's `README.md`: install the dependencies, build `_core` with the example on, build the C++ runner when it exists, run one runner, run a benchmark, read the output (`D-187`) |
+
+| layer | runner | what runs |
+|---|---|---|
+| `package` | `package_runner.py` | `rcspp.column_generation`, the shipped pure-Python package |
+| `cpp-example` | `cpp_example_runner.py` | the C++ example layer through its bindings: C++ master, pricer and loop |
+| `cpp-program` | the C++ program of `T-1.19` | pure C++, no Python (`D-164`); added by `T-1.19` |
+
+Dropped: the example's Python loop over the bindings (measured only loop against loop) and the old Python VRP
+example (`T-1.18` compares it once, then ports it onto the package).
+
+`processes` defaults to 1. A benchmark with more records it and its summary flags the timings; Gurobi gets
+`Threads = 1` then unless set (`D-178`).
+
+## 2. Input: TOML and building blocks (`D-184`)
+
+- One name per option, usable as `--name value` or as a key in a file; the command line overrides the file. TOML:
+  read by `tomllib` (Python ≥ 3.11), comments allowed.
+- Every building block is a table: `type` picks the object from a fixed list, the other keys are its parameters.
+  Unknown keys are an error before any run starts. No code in a file.
+- Any block can be named and reused (`[masters.gurobi-one-thread]`, then `master = "gurobi-one-thread"`). The
+  built-in presets live in a default TOML file shipped with the runners, in the same format as the user's.
+- Where the package already makes objects from a name and parameters (`registry`: tolerances, initializations), the
+  runner uses it.
+
+| block | example | notes |
+|---|---|---|
+| `instance` | `{ type = "solomon", name = "C101_25" }`, shorthand `"C101_25"` | §5 |
+| `graph` | `{ ng_size = 8 }` | `T-1.16` adds `ng_size` |
+| `master` | `{ type = "gurobipy", parameters = { Method = 0 } }` | `highspy`, `gurobipy`; `parameters` passed to the solver as they are |
+| `pricing` | `{ stages = [ { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 }, { algorithm = "simple" } ] }` | stage keys are the engine's `AlgorithmParams` fields; presets `exact`, `tabu`, `greedy` |
+| `start` | `{ type = "single-customer" }`, `{ type = "artificial", cost_factor = 1e4 }` | `single-customer`: one route per customer |
+| `column_generation` | tolerances, limits | the package's own parameters |
+| `statistics` | `{ per_iteration = true }` | collectors on or off (§6) |
+
+Command-line shorthand for quick runs: repeatable `--stage tabu:max_solutions=20,max_iterations=1000`.
+
+A benchmark file:
+
+```toml
+[benchmark]
+processes = 1
+repeats = 3                     # rounds: every run once, then again (§3)
+
+[pricing.heuristics-first]
+stages = [
+  { algorithm = "greedy", max_solutions = 100 },
+  { algorithm = "tabu", max_solutions = 20, max_iterations = 1000 },
+  { algorithm = "simple" },
+]
+
+[defaults]
+start = { type = "single-customer" }
+
+[matrix]                        # the product of these lists; any key, dotted for a block's key
+instance = ["C101_25", "R201_25"]
+layer = ["package", "cpp-example"]
+master = ["highspy", "gurobipy"]
+pricing = ["exact", "heuristics-first"]
+"graph.ng_size" = [0, 8]
+
+[[runs]]                        # runs outside the product
+instance = "R201_50"
+layer = "package"
+master = "gurobipy"
+pricing = { stages = [ { algorithm = "simple", max_solutions = 5 }, { algorithm = "simple" } ] }
+```
+
+The benchmark expands everything before the first run; a run's `run.toml` holds the expanded values, not the names,
+so it runs the same after a preset changes.
+
+## 3. Repeats (`D-184`)
+
+`repeats = N` runs the whole list N times as rounds, so slow changes in the machine (heat, a background job) spread
+over every cell instead of one cell's repeats. Folders `runs/<name>-r<k>/`. The summary gives per cell the median,
+min, max and spread over the rounds.
+
+## 4. Output (`D-185`)
+
+```text
+<output>/
+  benchmark.toml      the input, expanded: the list of runs
+  metadata.json       start, end, processes, runs, rounds; machine, source, versions (§7)
+  summary.md, summary.csv
+  status.txt          the runs in progress
+  runs/<instance>-<layer>-<master>-<pricing>-...-r<k>/
+    run.toml          this run's expanded options: `<runner> --file run.toml` runs it again
+    command.txt       the exact command line
+    metadata.json     start, end, exit code, the load during the run (§7)
+    result.json       status, objective, iterations, columns, artificial columns, master, pricing, other and solve
+                      seconds; the statistics collectors' fields
+    log.txt           unless --no-logs
+```
+
+- A run folder with a `result.json` is skipped: a benchmark resumes. A `STOP` file stops it after the runs in
+  progress; `--timeout` kills a run's process tree and records status `timeout`.
+- `result.json` replaces the `RESULT <json>` line, also for the C++ program (amends `D-164`'s output detail). Its
+  fields are defined once, in the shared module; a test checks every runner's file against them.
+- Writing `run.toml` needs a TOML writer (`tomllib` only reads): `tomli-w`, in the folder's requirements.
+
+## 5. Instances (`D-186`)
+
+An interface in the shared module: read the instance, build the graph and the master's rows, give starting columns
+(`single-customer` belongs here: it is a VRP idea). One implementation, Solomon VRPTW, picked by `type` from a dict.
+No discovery. Later, if users need their own: `type = "module:Class"`, an import path, without changing the format.
+
+## 6. Statistics (`D-181`)
+
+One collector per statistic: a name, its cost, an option turning it on; it adds fields to `result.json` or writes a
+per-iteration file. Now: the totals, the process measures and the summary's per-cell figures, and
+`summary --compare A B` (`D-139`'s verdict, extra seconds per iteration). Later, each with the task that needs it:
+per-iteration values through the package's `on_iteration` (`T-1.20`), a per-iteration time split (if `T-1.20`
+fails), per-stage and engine counts and the Lagrangian bound (`T-2.5`).
+
+## 7. What each run records (`D-180`)
+
+| group | fields |
+|---|---|
+| source | commit, uncommitted changes or not, branch |
+| code | `rcspp` and `_core` paths; the build's configuration and compiler, from its `CMakeCache.txt` |
+| versions | Python, `rcspp`, numpy; highspy and HiGHS, gurobipy and Gurobi when imported; the C++ program's solvers |
+| machine | a label the user gives (no host name), OS, CPU, cores, memory |
+| benchmark | processes, solver threads |
+| load, sampled during the run | other processes' CPU mean and max, memory in use, CPU frequency, on battery or not |
+
+A benchmark refuses to resume with a different commit, versions or machine unless `--allow-mixed`; the summary
+lists them and checks `D-164`'s same solver versions across the layers per cell.
+
+## 8. Shared code and layers (`D-186`), growth, out of scope
+
+- Shared, never duplicated: options and TOML, instances and graphs, record, collectors, the run folder, the
+  `result.json` fields. A runner holds only the column generation calls (about 100 lines). `package` and
+  `cpp-example` look alike on purpose: merged, they would hide the code a reader looks for.
+- `cpp-program` shares no Python: the benchmark resolves everything and passes it plain options; the program writes
+  `result.json` itself. Settled in `T-1.19`.
+- A test keeps the layers from drifting: every runner built gives the same objective, iterations and columns on
+  C101_25.
+
+| task | adds (`D-182`) |
+|---|---|
+| `T-1.18` | nothing: the port runs on the package; its comparison uses the old drivers once |
+| `T-1.19` | the `cpp-program` runner and its build in the README |
+| `T-1.16` | `graph.ng_size` |
+| `T-1.21` | the engine's features as stage keys, or one key each in `graph` or `pricing` |
+| `T-1.20` | presets of truncated stages; `--compare` over three layers; maybe per-iteration values |
+
+Out of scope (`D-183`): `T-1.9`; phase 5's grid and `T-2.5`'s records. The master solver benchmark is set aside
+(`D-179`): the runner serves for now. The runner moves no new sparse data (`D-16` not triggered).
+
+## 9. Coding steps (later commits of the PR)
+
+| # | commit | contents | tests |
+|---|---|---|---|
+| 1 | the folder and its docs | `README.md` (install, build `_core` with the example, run), `requirements.txt` (psutil, tomli-w), the source guard | the guard |
+| 2 | options and TOML | blocks, named definitions, defaults file with the presets, `[defaults]`, `[matrix]` with dotted keys, `[[runs]]`, rounds; expansion to a list of runs; errors on unknown keys | expansion, overrides, errors |
+| 3 | instances | the interface, Solomon VRPTW, graph and rows, `single-customer` start | toy instance: graph, rows, start columns |
+| 4 | the run folder and record | `run.toml`, `command.txt`, `metadata.json`, `result.json` fields, record (§7) | round trip of `run.toml`; record fields present |
+| 5 | the `package` runner | options to objects, run, result | smoke test on a tiny instance over highspy |
+| 6 | the `cpp-example` runner | the same over the example | the drift test; skipped when the example is not built |
+| 7 | the benchmark | processes, resume, `STOP`, `status.txt`, timeout, load sampler, refuse mixed | a fake runner: order, resume, timeout |
+| 8 | the summary | per cell figures, `--compare`, mixed lists, flags | on fixed results |
+| 9 | the comparison's benchmark file and CHANGELOG | a TOML reproducing `D-138`'s matrix; the PR's `CHANGELOG.md` entry (`D-167` (1)) | the file expands |
+
+To check when coding: what the sdist takes from `benchmarks/`; where the tests live so CI collects them; that a
+runner's own imports stay inside the folder and the tree.
+
+## 10. For the implementer
+
+First chat: "Task: `T-1.10`, coding steps 1–4 of `benchmark-runner.md` §9, on a new branch based on #88" (branch name
+the user's; push and PR only when asked). Facts to port, from `benchmark-results/colgen/drivers.py`:
+
+- `master_model`: the depot is node 0, so master row 0 is free and rows 1..n are `= 1`; arcs out of customer `i`
+  cover row `i`. highspy: `addRow(lower, upper, 0, [], [])`; gurobipy: `= 1` rows, the free row as `≥ -1e30`.
+  `cpp-example` also has the C++ `HighsMasterSolver(row_lower=..., row_upper=...)`; the package has none.
+- `FiniteVRP`: the example's graph has an infinite-cost depot-to-depot arc (the empty route); the layers refuse a
+  column built from it, so the graph skips it.
+- `add_single_customer_routes`: depot, customer, depot, cost twice the distance, as `rcspp._core.graph` `Column`,
+  `Row`, `Solution`; then `master.add_columns(pricer, routes)` and `master.mark_initialized()`.
+- Stages: `PricingStage(name, params)` with `rcspp.graph.AlgorithmParams` (`max_solutions`, `max_iterations`); tabu
+  needs a finite `max_iterations` or the package refuses it (`D-174`). Artificial start:
+  `ArtificialColumns(cost=factor × max(1, graph_pricer.cost_scale()))`.
+- API differences: the package's `ColumnGenerationParams` is frozen (pass `initialization=` to the constructor), the
+  example's is set by attribute. Both results give `status`, `objective`, `iterations` and `statistics`
+  (`generated_columns`, `relaxation_seconds`, `pricing_seconds`).
+- Environment: `.venv` has an old `rcspp` in site-packages (the source guard's reason). Until the README exists, the
+  build line and the `PYTHONPATH` order are in `benchmark-results/colgen/HANDOFF.md` (update of 2026-11-13); built on
+  the laptop in `../rcspp-dev/build-python-highs`.

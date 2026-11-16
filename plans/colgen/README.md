@@ -87,6 +87,12 @@ does not run, no autodoc of the package with the docs' mocks. `../rcspp-dev` is 
 review's fixes): move it to #88's head before the drivers measure anything.
 Local docs preview with `docs/theory` (`F-61`): sources in `../rcspp-docs-preview` (server stopped; rebuild and
 serve as `F-61` says).
+2026-11-16 (the laptop): run-ci passed on #88's head `0597e768` (2026-11-15). `../rcspp-dev` moved there from the
+local `prototype/column-generation-example` (kept); the old `f31257f0` kept as `backup/colgen-pure-python-f31257f0`,
+`../rcspp-rebase` detached; `_core` built in `../rcspp-dev/build-python-highs`, imports and source guard checked.
+`T-1.10`'s design done (`benchmark-runner.md`, `D-177`–`D-187`): runners per layer, a benchmark of processes, TOML
+blocks, a folder per run; master solver benchmark set aside (`D-179`). **Next:** `T-1.10`'s runner, a PR on #88
+(`benchmark-runner.md` §9); then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`).
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
@@ -164,6 +170,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `fold-map.md` (+ `-commits`, `-targets`, `tools/fold_filter.py`) | the stack's rewrite into `examples/column_generation/`: method, filter, every commit, where each item goes, PR heads, final state | before rewriting the stack |
 | `fold-record.md` | the rewrite as done: heads, checks, departures, the Linux run, step 6 | before the push or a stack review |
 | `fold-review.md` | the read of the eight folded PRs: heads, findings `V.`, coverage, questions | before the fixups or the merge |
+| `benchmark-runner.md` | `T-1.10`'s runner: shape, TOML input, output folders, records, statistics, growth per task, coding steps | before coding the runner or a follow-up's option |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
