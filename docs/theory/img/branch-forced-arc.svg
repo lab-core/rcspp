@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" width="720" height="440" role="img" aria-label="Pricing graph in the branch where arc 1 → 2 is forced" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+<title>Pricing graph in the branch where arc 1 → 2 is forced</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b1b1b"/></marker><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9480f"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b76"/></marker></defs>
+<rect x="0" y="0" width="720" height="440" rx="10" fill="#ffffff"/>
+<line x1="95.2" y1="185.7" x2="279.1" y2="81.8" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<line x1="95.2" y1="214.3" x2="279.1" y2="318.2" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<line x1="464.0" y1="200.0" x2="621.0" y2="200.0" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<line x1="322.5" y1="321.6" x2="622.8" y2="210.1" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<line x1="305.0" y1="306.0" x2="305.0" y2="94.0" stroke="#1b1b1b" stroke-width="1.4" fill="none" marker-end="url(#a)"/>
+<line x1="295.0" y1="94.0" x2="295.0" y2="306.0" stroke="#c92a2a" stroke-width="2.2" fill="none" stroke-dasharray="7 5" marker-end="url(#m)"/>
+<line x1="322.5" y1="78.4" x2="622.8" y2="189.9" stroke="#c92a2a" stroke-width="2.2" fill="none" stroke-dasharray="7 5" marker-end="url(#m)"/>
+<line x1="99.0" y1="200.0" x2="416.0" y2="200.0" stroke="#c92a2a" stroke-width="2.2" fill="none" stroke-dasharray="7 5" marker-end="url(#m)"/>
+<line x1="321.0" y1="317.3" x2="425.8" y2="220.0" stroke="#c92a2a" stroke-width="2.2" fill="none" stroke-dasharray="7 5" marker-end="url(#m)"/>
+<line x1="314.2" y1="90.0" x2="419.0" y2="187.3" stroke="#2b8a3e" stroke-width="3.2" fill="none" marker-end="url(#a)"/>
+<rect x="45.0" y="175.0" width="50" height="50" rx="6" fill="#fff4e6" stroke="#1b1b1b" stroke-width="2"/>
+<text x="70.0" y="206.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">0</text>
+<rect x="625.0" y="175.0" width="50" height="50" rx="6" fill="#fff4e6" stroke="#1b1b1b" stroke-width="2"/>
+<text x="650.0" y="206.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">0′</text>
+<circle cx="300" cy="70" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="300.0" y="76.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">1</text>
+<circle cx="440" cy="200" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="440.0" y="206.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">2</text>
+<circle cx="300" cy="330" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="300.0" y="336.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">3</text>
+<text x="360.0" y="380.0" font-size="13" text-anchor="middle" fill="#1b1b1b" font-weight="normal">Green: the forced arc 1 → 2.   Red dashed: removed, so that 1 can only be left towards 2 and 2 can only be</text>
+<text x="360.0" y="400.0" font-size="13" text-anchor="middle" fill="#1b1b1b" font-weight="normal">entered from 1.   (2 → 1 and 2 → 3 were already removed by feasibility preprocessing, page 4.)</text>
+<text x="360.0" y="424.0" font-size="13" text-anchor="middle" fill="#5f6b76" font-weight="normal">The pricing problem is still an RCSPP, just on a smaller graph.</text>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 450" width="720" height="450" role="img" aria-label="A route that visits customer 1 twice" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif">
+<title>A route that visits customer 1 twice</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1b1b1b"/></marker><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d9480f"/></marker><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5f6b76"/></marker></defs>
+<rect x="0" y="0" width="720" height="450" rx="10" fill="#ffffff"/>
+<line x1="99.0" y1="200.0" x2="406.0" y2="200.0" stroke="#ced4da" stroke-width="1.2" fill="none"/>
+<line x1="96.2" y1="212.5" x2="278.3" y2="299.6" stroke="#ced4da" stroke-width="1.2" fill="none"/>
+<line x1="454.0" y1="200.0" x2="621.0" y2="200.0" stroke="#ced4da" stroke-width="1.2" fill="none"/>
+<line x1="322.9" y1="302.8" x2="622.3" y2="208.7" stroke="#ced4da" stroke-width="1.2" fill="none"/>
+<line x1="300.0" y1="104.0" x2="300.0" y2="286.0" stroke="#ced4da" stroke-width="1.2" fill="none"/>
+<line x1="411.7" y1="215.5" x2="318.3" y2="294.5" stroke="#ced4da" stroke-width="1.2" fill="none"/>
+<line x1="95.7" y1="186.6" x2="278.7" y2="91.1" stroke="#d9480f" stroke-width="3" fill="none" marker-end="url(#h)"/>
+<text x="178.5" y="132.6" font-size="15" text-anchor="middle" fill="#d9480f" font-weight="normal">①</text>
+<path d="M322.3,88.9 Q388.1,115.0 419.4,178.5" fill="none" stroke="#d9480f" stroke-width="3" marker-end="url(#h)"/>
+<text x="389.2" y="118.8" font-size="14" text-anchor="middle" fill="#d9480f" font-weight="bold">②</text>
+<path d="M407.7,191.1 Q341.9,165.0 310.6,101.5" fill="none" stroke="#d9480f" stroke-width="3" marker-end="url(#h)"/>
+<text x="340.8" y="171.2" font-size="14" text-anchor="middle" fill="#d9480f" font-weight="bold">③</text>
+<line x1="322.7" y1="87.8" x2="622.6" y2="190.6" stroke="#d9480f" stroke-width="3" fill="none" marker-end="url(#h)"/>
+<text x="479.5" y="131.8" font-size="15" text-anchor="middle" fill="#d9480f" font-weight="normal">④</text>
+<rect x="45.0" y="175.0" width="50" height="50" rx="6" fill="#fff4e6" stroke="#1b1b1b" stroke-width="2"/>
+<text x="70.0" y="206.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">0</text>
+<rect x="625.0" y="175.0" width="50" height="50" rx="6" fill="#fff4e6" stroke="#1b1b1b" stroke-width="2"/>
+<text x="650.0" y="206.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">0′</text>
+<circle cx="300" cy="80" r="24" fill="#fff4e6" stroke="#d9480f" stroke-width="2"/>
+<text x="300.0" y="86.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">1</text>
+<circle cx="430" cy="200" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="430.0" y="206.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">2</text>
+<circle cx="300" cy="310" r="24" fill="#eef6fc" stroke="#1a6b9a" stroke-width="2"/>
+<text x="300.0" y="316.0" font-size="17" text-anchor="middle" fill="#1b1b1b" font-weight="bold">3</text>
+<text x="70.0" y="246.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">source</text>
+<text x="650.0" y="246.0" font-size="14" text-anchor="middle" fill="#5f6b76" font-weight="normal">sink</text>
+<text x="360.0" y="370.0" font-size="13" text-anchor="middle" fill="#d9480f" font-weight="normal">Reduced arc costs:  ① 10   ② 4 − π₁   ③ 4 − π₂   ④ 10 − π₁   (each arc carries the dual of the customer it leaves)</text>
+<text x="360.0" y="392.0" font-size="13" text-anchor="middle" fill="#1b1b1b" font-weight="normal">Route 0 → 1 → 2 → 1 → 0′: distance 28, load 4 + 5 + 4 = 13 (allowed when Q = 13).</text>
+<text x="360.0" y="414.0" font-size="13" text-anchor="middle" fill="#5f6b76" font-weight="normal">It collects π₁ twice: reduced cost 28 − 2π₁ − π₂. Its master column is (2, 1, 0), not a 0/1 column.</text>
+<text x="360.0" y="436.0" font-size="13" text-anchor="middle" fill="#d9480f" font-weight="bold">With π = (11.5, 12.5, 13.5): 28 − 23 − 12.5 = −7.5, so pricing reports an improving column.</text>
+</svg>
