@@ -81,10 +81,12 @@ Order since 2026-11-13 (`D-171`): **Next:** `T-1.7`, a commit in #88 with no def
 `T-1.20` in that order; then the re-scoping chat (`T-1.9`, phases 2–4); the comment on #60 just before the merge; the
 merge waits for the user. The runner's questions (where it lives, the master solver benchmark apart, what each run
 records, statistics, `T-1.9`) wait for `T-1.10`'s design chat. Stale questions closed 2026-11-13.
-`T-1.7` done in code 2026-11-13 (three commits on `fix/pure-python` in `../rcspp-fix`, not pushed: the page, the tabu
-fix, the page's test; `D-174`–`D-176`); **Next:** the push and run-ci on #88, then `T-1.10`'s design chat;
-`F-60`: a default tabu stage does not run, no autodoc of the package with the docs' mocks.
-Local docs preview with `docs/theory` (`F-61`): `../rcspp-docs-preview`, served on `127.0.0.1:8000`.
+`T-1.7` done 2026-11-13 (three commits on #88, pushed as a fast-forward to `0597e768`: the page, the tabu fix, the
+page's test; `D-174`–`D-176`); **Next:** run-ci on #88, then `T-1.10`'s design chat; `F-60`: a default tabu stage
+does not run, no autodoc of the package with the docs' mocks. `../rcspp-dev` is still at `f31257f0` (before the fold
+review's fixes): move it to #88's head before the drivers measure anything.
+Local docs preview with `docs/theory` (`F-61`): sources in `../rcspp-docs-preview` (server stopped; rebuild and
+serve as `F-61` says).
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
