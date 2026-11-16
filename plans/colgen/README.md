@@ -93,6 +93,9 @@ local `prototype/column-generation-example` (kept); the old `f31257f0` kept as `
 `T-1.10`'s design done (`benchmark-runner.md`, `D-177`–`D-187`): runners per layer, a benchmark of processes, TOML
 blocks, a folder per run; master solver benchmark set aside (`D-179`). **Next:** `T-1.10`'s runner, a PR on #88
 (`benchmark-runner.md` §9); then `T-1.18`, `T-1.19`, `T-1.16`, `T-1.21`, `T-1.20` (`D-171`).
+2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
+`feature/column-generation-benchmark`, in `../rcspp-dev`, not pushed). Slides for the colleagues drafted in
+`benchmark-results/colgen/presentation/benchmark/` (not committed, the user is reading them).
 History: `decisions.md`; measurements and how to run them: `benchmark-results/colgen/HANDOFF.md`.
 Baseline: `main` @ `129b15e0`. CI is out of the plan for now (`D-52`).
 
