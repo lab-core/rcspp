@@ -194,6 +194,9 @@ touching the folder (`F-63` (1) corrected); the runner tests parametrized over b
 Then (2026-11-17, `F-66`): `36c9490b` `column_generation.threads` (`D-209`, `Q-62`), `4ddc513e` the runners in
 `runners/` (`D-210`, `Q-63`); 177 tests; pushed 2026-11-17, head `4ddc513e`. Step 7 sets
 `column_generation.threads = 1` when `processes` > 1 and starts the runners as `runners/<layer>_runner.py`.
+Then the integer solve (2026-11-17, `F-67`, `D-211`–`D-213`): `094beacd`, and `7190eb83` the runners' shared steps in
+`runner.main` (`F-67` (11)); pushed, head `7190eb83`; 206 tests. Step 7: a runner's exit code 1 is a finished run
+whose integer solution failed the instance's check; reuse `runner.main`'s steps, do not copy them.
 
 Added to steps 5–9: runners declare their flags with argparse, add the run options with `add_run_options`, read
 them with `run_from_arguments`, support `--check build` (5, 6); `highs` on `cpp-bindings` (6); `benchmark.py` adds
