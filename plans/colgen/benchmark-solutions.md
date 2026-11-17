@@ -22,8 +22,9 @@ work goes. Builds on `benchmark-runner.md` (§4 output, §5 instances, §6 stati
   ids, rows covered); artificial columns in use, apart; the duals, one per row. `result.json` gains only counts.
 - A `solution` collector in `statistics` turns it on (`Q-61`: on by default?); its cost: one `primal` and one
   `duals` call after the run.
-- To check first: whether gurobipy still gives values after `restore_user_model()` (`run()` calls it before
-  returning); if not, read them in the `on_iteration` hook, while the solution is there.
+- Done 2026-11-17 (`F-64`, folded into step 5, `374d2ea6`); on by default (`D-208`); `results/` and the default
+  `--output` (`D-207`). Both masters keep the values after `restore_user_model()`, but lose them once columns were
+  added after the last solve: a run stopped at a limit after pricing has `"lp": null` and `missing`.
 
 ## 2. Integer solve and resolved solution (`D-204`, `D-205`)
 
@@ -48,7 +49,9 @@ optimum (no branching). Named so everywhere ("integer master over the generated 
   resolved solution.
 - Masters build different column sets, so their integer results differ: the layers' drift test stays on the LP.
 - To check first: that `solve_integer` makes the generated columns integer on both masters and on `cpp-bindings`;
-  the same `restore_user_model()` question as §1.
+  the loop's `solve_restricted_master_integer` (`F-64` (3)) may already do it. After a limit hit after pricing, the
+  last LP's values are gone (`F-64` (2)): decide whether the integer solve (which uses the final master) also
+  re-solves the LP for `solution.json`, labelled as such.
 - `cpp-native` (`T-1.19`) gets the integer solve and the raw solution; the resolved solution and its check stay in
   Python (`benchmark.py` can run them on its `solution.json`).
 

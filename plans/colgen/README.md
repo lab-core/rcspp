@@ -105,7 +105,9 @@ options as dataclasses and the full `OPTIONS.md` (`D-197`–`D-202`, `589966ad`,
 Step 5 done 2026-11-17 (`F-63`): the `package` runner, `61cf282c` on top, not pushed (133 tests).
 Solutions designed 2026-11-17 (`benchmark-solutions.md`, `D-203`–`D-206`, `Q-61`): `--overwrite` and `solution.json`
 as step 5's fixup; the integer solve and the instance's resolved, checked solution after step 6; per-iteration data
-with `T-1.20`. **Next:** step 5's fixup (`D-203`, `Q-61`), then steps 6–9 (a PR on #88); then `T-1.18`, `T-1.19`,
+with `T-1.20`. Step 5's fixup done and folded 2026-11-17 (`F-64`, `D-207`, `D-208`): the runner is `374d2ea6`
+(replaces `61cf282c`, not pushed; 140 tests); `solution.json` has no LP after a limit hit after pricing.
+**Next:** steps 6–9 (a PR on #88), the integer solve after step 6; then `T-1.18`, `T-1.19`,
 `T-1.16`, `T-1.21`,
 `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
