@@ -257,12 +257,14 @@ class Statistics(Block):
     """What a run measures besides its totals: one parameter per collector."""
 
     process: bool = True
+    solution: bool = True
 
     @classmethod
     def from_table(cls, given: dict[str, Any], where: str) -> Self:
-        only_keys(given, ("process",), "statistics", where)
+        only_keys(given, ("process", "solution"), "statistics", where)
         process = boolean(given.get("process"), where)
-        return cls(True if process is None else process)
+        solution = boolean(given.get("solution"), where)
+        return cls(True if process is None else process, True if solution is None else solution)
 
 
 #: The block of each option.

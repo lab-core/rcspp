@@ -71,7 +71,7 @@ def test_the_presets_expand_to_one_run():
         "start": {"type": "artificial", "cost_factor": 1e4},
         "graph": {},
         "column_generation": {},
-        "statistics": {"process": True},
+        "statistics": {"process": True, "solution": True},
     }
 
 
