@@ -102,7 +102,10 @@ to both layers; gurobipy's free row as ≥ −1e30; the README gains its runner,
 into steps 1–4, force-pushed 2026-11-16: `58a9071b`, `6c3b19cc`, `67822d53`, `f1aff5e7` (old head kept as local
 `backup/benchmark-steps-1-4-8e944acd`; 75 tests). 2026-11-17: pyright strict clean (`76c4f444`, not pushed); the
 options as dataclasses and the full `OPTIONS.md` (`D-197`–`D-202`, `589966ad`, on top, pushed; 119 tests).
-**Next:** steps 5–9 (a PR on #88); then `T-1.18`, `T-1.19`,
+Step 5 done 2026-11-17 (`F-63`): the `package` runner, `61cf282c` on top, not pushed (133 tests).
+Solutions designed 2026-11-17 (`benchmark-solutions.md`, `D-203`–`D-206`, `Q-61`): `--overwrite` and `solution.json`
+as step 5's fixup; the integer solve and the instance's resolved, checked solution after step 6; per-iteration data
+with `T-1.20`. **Next:** step 5's fixup (`D-203`, `Q-61`), then steps 6–9 (a PR on #88); then `T-1.18`, `T-1.19`,
 `T-1.16`, `T-1.21`,
 `T-1.20` (`D-171`), and `T-1.22` (presets with the colleagues).
 2026-11-16: layers renamed `cpp-bindings` and `cpp-native` (`D-189`; `8e944acd` on
@@ -187,6 +190,7 @@ Colleague-facing summaries (2026-10-21): French <https://claude.ai/artifact/CZfD
 | `fold-record.md` | the rewrite as done: heads, checks, departures, the Linux run, step 6 | before the push or a stack review |
 | `fold-review.md` | the read of the eight folded PRs: heads, findings `V.`, coverage, questions | before the fixups or the merge |
 | `benchmark-runner.md` | `T-1.10`'s runner: shape, TOML input, output folders, records, statistics, growth per task, coding steps | before coding the runner or a follow-up's option |
+| `benchmark-solutions.md` | the runner's solutions: `--overwrite`, `solution.json`, the integer solve, the instance's resolved solution, per-iteration data | before step 5's fixup, the integer solve or per-iteration data |
 | `measurements.md` | the measurement scripts for the 2026-10-30 presentation: matrix, runner requirements, facts, environment | before writing or running them |
 
 ## Project conventions that apply here
