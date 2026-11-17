@@ -14,7 +14,7 @@ import math
 import networkx as nx
 
 from . import _core as _ext
-from ._resource_types import ALL, canonical
+from ._resource_types import ALL, NUMERICAL, canonical
 from .resource import _GenericFunctionDescriptor
 
 # String → Algorithm enum mapping (populated lazily after _ext is imported)
@@ -342,6 +342,99 @@ class ResourceGraph:
             )
         )
         return arc_id
+
+    def add_arcs(
+        self,
+        resource_consumption,
+        origin_node_ids,
+        destination_node_ids,
+        costs=None,
+    ):
+        """Add many arcs at once, from arrays: the bulk form of :meth:`add_arc` for
+        numerical resources.
+
+        The arrays go to C++ as they are, with no Python work per arc, so a graph of hundreds of
+        thousands of arcs is built in a fraction of the time :meth:`add_arc` takes. Arcs buffered
+        by :meth:`add_arc` before are added first, so arc ids follow the order the arcs were given.
+
+        Args:
+            resource_consumption: A 2-D array of shape ``(n, k)``: one row per arc, one column per
+                registered resource, in the order ``add_<type>_resource`` was called (duplicates
+                included), as :meth:`add_arc` takes them. A 1-D array is one column, for a graph
+                with a single resource. Every registered resource must be numerical (``real`` or
+                ``int``); an ``int`` column must hold whole numbers.
+            origin_node_ids: The arcs' origins, ``n`` node ids.
+            destination_node_ids: Their destinations, ``n`` node ids.
+            costs: The arcs' fixed costs, ``n`` values; zeros when ``None``.
+
+        Returns:
+            A 1-D ``int64`` array of the new arcs' ids, in row order.
+
+        Raises:
+            ValueError: For arrays of the wrong shapes, a non-numerical resource, an ``int`` column
+                with a fraction, or an arc into a source or out of a sink. The graph is then
+                unchanged: C++ checks every arc before adding any.
+        """
+        import numpy as np
+
+        self._flush()
+        registered = self._full_registration_order
+        consumption = np.ascontiguousarray(resource_consumption, dtype=np.float64)
+
+        if consumption.ndim == 1 and len(registered) == 1:
+            consumption = consumption.reshape(-1, 1)
+
+        if consumption.ndim != 2 or consumption.shape[1] != len(registered):
+            raise ValueError(
+                f"Expected a consumption array of shape (n, {len(registered)}): one column per "
+                f"registered resource, in registration order; got shape {consumption.shape}."
+            )
+
+        others = sorted({kind for kind in registered if kind not in NUMERICAL})
+
+        if others:
+            raise ValueError(
+                f"add_arcs reads numerical resources only; this graph also has "
+                f"{', '.join(others)}: use add_arc for its arcs."
+            )
+
+        count = consumption.shape[0]
+        origins = np.ascontiguousarray(origin_node_ids, dtype=np.int64).reshape(-1)
+        destinations = np.ascontiguousarray(destination_node_ids, dtype=np.int64).reshape(-1)
+        arc_costs = (
+            np.zeros(count, dtype=np.float64)
+            if costs is None
+            else np.ascontiguousarray(costs, dtype=np.float64).reshape(-1)
+        )
+
+        if not (len(origins) == len(destinations) == len(arc_costs) == count):
+            raise ValueError(
+                f"Expected {count} origins, destinations and costs, one per row of the "
+                f"consumption; got {len(origins)}, {len(destinations)} and {len(arc_costs)}."
+            )
+
+        integral = [column for column, kind in enumerate(registered) if kind == "int"]
+
+        if integral and not np.array_equal(
+            consumption[:, integral], np.round(consumption[:, integral])
+        ):
+            raise ValueError(
+                "An int resource's column holds a fraction: int consumptions are whole."
+            )
+
+        slot_columns = [
+            [column for column, kind in enumerate(registered) if kind == slot]
+            for slot in self._graph_canonical
+        ]
+        first = self._graph.next_arc_id()
+
+        try:
+            self._graph._add_arcs_array(consumption, origins, destinations, arc_costs, slot_columns)
+        finally:
+            # C++ adds all the arcs or none: ids continue from where it stands either way.
+            self._next_arc_id = self._graph.next_arc_id()
+
+        return np.arange(first, self._next_arc_id, dtype=np.int64)
 
     def remove_arcs(self, arc_ids):
         """Remove a batch of arcs by id.

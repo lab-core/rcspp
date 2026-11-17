@@ -126,6 +126,13 @@ New features are summarised, with a pointer to where they are documented.
 
 ### Added
 
+- **`ResourceGraph.add_arcs(consumption, origin_node_ids, destination_node_ids, costs=None)`**
+  (Python): many arcs at once, from NumPy arrays, one row per arc and one column per registered
+  resource in registration order, as `add_arc` takes them. The arrays go to C++ with no Python
+  work per arc: on a graph of 483,000 arcs with two real resources, 0.12 s against 0.8–0.9 s for
+  `add_arc` and the flush. Every registered resource must be numerical (`real` or `int`), an
+  `int` column whole. It returns the new arcs' ids, and adds all the arcs or, for an arc into a
+  source or out of a sink, none. See "Many arcs at once" in `docs/python/quickstart.md`.
 - **A search direction**: `AlgorithmBaseParams::direction` (`SearchDirection::Forward` by
   default, `Backward`, `Bidirectional`), read through `Algorithm::direction()`.
   `SimpleDominanceAlgorithm` searches backward, from the sinks; `create_algorithm` and `solve`

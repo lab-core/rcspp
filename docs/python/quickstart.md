@@ -94,6 +94,29 @@ result = rg.solve()
 
 ---
 
+## Many arcs at once
+
+`add_arc` costs a few microseconds of Python per arc, which adds up on a graph of hundreds of
+thousands. `add_arcs` takes them as arrays, and hands them to C++ in one call:
+
+In the minimal example above, in place of its four `add_arc` calls:
+
+```python
+import numpy as np
+
+# One row per arc; one column per registered resource, in registration order.
+consumption = np.array([[10.0], [15.0], [20.0], [10.0]])
+ids = rg.add_arcs(consumption, [0, 1, 0, 2], [1, 3, 2, 3], costs=[10.0, 15.0, 20.0, 10.0])
+print(ids)  # [0 1 2 3]: the new arcs' ids, in row order
+```
+
+Every registered resource must be numerical (`real` or `int`, an `int` column holding whole
+numbers): a graph with a set or bitset resource adds its arcs with `add_arc`. Arcs buffered by
+`add_arc` before are added first, so ids follow the order the arcs were given. A refused arc,
+into a source or out of a sink, adds none of the batch.
+
+---
+
 ## From a NetworkX graph
 
 ```python
