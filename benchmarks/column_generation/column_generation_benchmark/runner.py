@@ -2,9 +2,11 @@
 #  All rights reserved.
 """What every runner does around its column generation calls.
 
-A runner reads its flags and its run (:func:`parse_arguments`, :func:`read_run`), fills its run
-folder before the solve (:func:`start_folder`) and after it (:func:`finish_folder`), with what
-the instance makes of its integer solution (:func:`integer_results`). Its flags:
+A runner holds its layer's calls: build the run's objects, solve, read the LP solution, solve
+the LP again, solve the integer master. :func:`main` calls them in order: it reads the flags and
+the run (:func:`parse_arguments`, :func:`read_run`), fills the run folder before the solve
+(:func:`start_folder`) and after it (:func:`finish_folder`), with what the instance makes of the
+integer solution (:func:`integer_results`). Its flags:
 
 - ``--file``: a run file, under the command line's run options;
 - ``--output``: the run folder, ``results/<run name>`` in the benchmark's folder by default;
@@ -17,12 +19,13 @@ the instance makes of its integer solution (:func:`integer_results`). Its flags:
 from __future__ import annotations
 
 import argparse
+import math
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import run_folder, source_tree
 from .collectors import collect
@@ -37,11 +40,112 @@ from .options import (
 )
 from .record import make_record
 
+if TYPE_CHECKING:
+    import gurobipy
+
 #: Where a run's folder goes when no ``--output`` is given; git ignores it.
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 
 #: What stops a runner with a message instead of a traceback.
 ERRORS = (OptionsError, InstanceError, source_tree.SourceTreeError, run_folder.RunFolderError)
+
+
+# MARK: Running
+
+
+def main(
+    description: str | None,
+    script: Path,
+    arguments: list[str],
+    *,
+    layer: str,
+    build: Callable[[Run], tuple[Instance, Any, Any]],
+    solve: Callable[[Any], dict[str, Any]],
+    read_solution: Callable[[Any, float | None], dict[str, Any]],
+    solve_lp_again: Callable[[Any, Run], tuple[dict[str, Any], float]],
+    solve_integer: Callable[[Any, Any, Run], dict[str, Any]],
+) -> int:
+    """One run of `layer`, with the runner's own calls: `build` gives the instance, the
+    master and the loop; `solve` runs the loop; then come the LP solution, solved again
+    when a limit after pricing dropped it, and the integer master.
+
+    Returns:
+        The exit code: 0, 1 when the integer solution fails the instance's check, 2 when
+        the run cannot start.
+    """
+    parsed = parse_arguments(description, arguments)
+
+    try:
+        run, build_folder = read_run(parsed, layer)
+        # Built first: wrong options stop the runner before its folder is touched.
+        instance, master, loop = build(run)
+
+        if parsed.check:
+            print(f"{run.name}: built")
+            return 0
+
+        folder = start_folder(parsed, run, [str(script.resolve()), *arguments])
+        result = solve(loop)
+        result["lp_solved_again_seconds"] = None
+        solution = None
+
+        # Read before the integer solve, which drops the LP's values.
+        if run.statistics.solution:
+            solution = read_solution(master, result["objective"])
+
+            # Stopped at a limit after pricing: the added columns took the LP's values.
+            if solution["lp"] is None and result["objective"] is not None:
+                solution, result["lp_solved_again_seconds"] = solve_lp_again(master, run)
+
+        integer = solve_integer(loop, master, run) if run.integer.solve else None
+        fields, parts = integer_results(instance, result, integer)
+        result.update(fields)
+
+        if solution is not None:
+            solution.update(parts)
+
+        finish_folder(folder, parsed, run, build_folder, result, solution)
+    except ERRORS as error:
+        print(f"{script.name}: {error}", file=sys.stderr)
+        return 2
+
+    return report(script.name, run, result, parts)
+
+
+def values_gone() -> tuple[type[Exception], ...]:
+    """What a master solver raises when it has no values to give: the HiGHS masters
+    RuntimeError, gurobipy GurobiError."""
+    errors: tuple[type[Exception], ...] = (RuntimeError,)
+
+    if "gurobipy" in sys.modules:
+        errors += (sys.modules["gurobipy"].GurobiError,)
+
+    return errors
+
+
+def gurobipy_model(lower: Sequence[float], upper: Sequence[float]) -> gurobipy.Model:
+    """A gurobipy model of the master's rows, without columns, its log off."""
+    import gurobipy
+    from gurobipy import GRB
+
+    model = gurobipy.Model()
+    model.Params.OutputFlag = 0
+
+    for low, up in zip(lower, upper, strict=True):
+        if low == up:
+            model.addLConstr(gurobipy.LinExpr(), GRB.EQUAL, low)
+        elif math.isinf(up):
+            # Gurobi reads -1e30 as no bound: a free row.
+            model.addLConstr(gurobipy.LinExpr(), GRB.GREATER_EQUAL, max(low, -1e30))
+        elif math.isinf(low):
+            model.addLConstr(gurobipy.LinExpr(), GRB.LESS_EQUAL, up)
+        else:
+            raise ValueError(f"gurobipy: a row with two different finite bounds ({low}, {up})")
+
+    return model
+
+
+# MARK: Steps
 
 
 def parse_arguments(description: str | None, arguments: Sequence[str]) -> argparse.Namespace:
