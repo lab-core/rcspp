@@ -3,7 +3,8 @@
 """What every runner does around its column generation calls.
 
 A runner reads its flags and its run (:func:`parse_arguments`, :func:`read_run`), fills its run
-folder before the solve (:func:`start_folder`) and after it (:func:`finish_folder`). Its flags:
+folder before the solve (:func:`start_folder`) and after it (:func:`finish_folder`), with what
+the instance makes of its integer solution (:func:`integer_results`). Its flags:
 
 - ``--file``: a run file, under the command line's run options;
 - ``--output``: the run folder, ``results/<run name>`` in the benchmark's folder by default;
@@ -25,7 +26,7 @@ from typing import Any
 
 from . import run_folder, source_tree
 from .collectors import collect
-from .instances import InstanceError
+from .instances import Instance, InstanceError
 from .options import (
     OptionsError,
     Run,
@@ -111,6 +112,60 @@ def start_folder(arguments: argparse.Namespace, run: Run, command: Sequence[str]
     return folder
 
 
+def relative_gap(status: str, objective: float | None, integer: float | None) -> float | None:
+    """(integer - LP) / |integer|, the solvers' MIP gap; None unless column generation
+    ended ``Optimal``: only then is the LP a lower bound."""
+    if status != "Optimal" or objective is None or integer is None:
+        return None
+
+    if integer == 0.0:
+        return 0.0 if objective == 0.0 else None
+
+    return (integer - objective) / abs(integer)
+
+
+def integer_results(
+    instance: Instance, result: Mapping[str, Any], integer: Mapping[str, Any] | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The integer solve's fields of ``result.json``, and its parts of
+    ``solution.json``: the raw solution, and the instance's solution resolved from it
+    with the errors its check found.
+
+    `integer` is what the runner read after the integer solve (None when it is off):
+    ``status``, ``seconds``, ``objective`` (None without a solution), ``columns`` and
+    ``artificial_columns``. The check's outcome is ``solution_check``: ``passed``,
+    ``failed``, or null when there is no resolved solution.
+    """
+    if integer is None:
+        fields = dict.fromkeys(
+            ("integer_status", "integer_objective", "integer_seconds", "gap", "solution_check")
+        )
+        parts = {"integer": None, "resolved": None, "resolved_missing": "no integer solve"}
+        return fields, parts
+
+    raw = {name: value for name, value in integer.items() if name != "seconds"}
+    objective = integer["objective"]
+    fields: dict[str, Any] = {
+        "integer_status": integer["status"],
+        "integer_objective": objective,
+        "integer_seconds": integer["seconds"],
+        "gap": relative_gap(result["status"], result["objective"], objective),
+        "solution_check": None,
+    }
+
+    if objective is None:
+        return fields, {"integer": raw, "resolved": None, "resolved_missing": "no integer solution"}
+
+    if integer["artificial_columns"]:
+        missing = "the integer solution uses artificial columns"
+        return fields, {"integer": raw, "resolved": None, "resolved_missing": missing}
+
+    resolved = instance.resolve_solution(integer["columns"])
+    resolved["errors"] = instance.check_solution(resolved, objective)
+    fields["solution_check"] = "failed" if resolved["errors"] else "passed"
+    return fields, {"integer": raw, "resolved": resolved}
+
+
 def finish_folder(
     folder: Path,
     arguments: argparse.Namespace,
@@ -129,3 +184,23 @@ def finish_folder(
         run_folder.write_solution(folder, solution)
 
     run_folder.write_result(folder, fields)
+
+
+def report(script: str, run: Run, result: Mapping[str, Any], parts: Mapping[str, Any]) -> int:
+    """Prints how the run ended; the runner's exit code: 1 when the integer solution
+    fails the instance's check (its folder is written all the same), else 0."""
+    line = f"{run.name}: {result['status']}, objective {result['objective']}"
+
+    if result["integer_status"] is not None:
+        line += f"; integer {result['integer_status']}, objective {result['integer_objective']}"
+
+    print(line)
+
+    if result["solution_check"] == "failed":
+        errors = "; ".join(parts["resolved"]["errors"])
+        print(
+            f"{script}: the integer solution fails the instance's check: {errors}", file=sys.stderr
+        )
+        return 1
+
+    return 0

@@ -16,11 +16,13 @@ import json
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
+from ..instances import INSTANCE_TYPES
 from .blocks import (
     BLOCKS,
     ColumnGeneration,
     Graph,
     Instance,
+    Integer,
     Master,
     OptionsError,
     Pricing,
@@ -63,6 +65,7 @@ class Run:
     start: Start
     graph: Graph
     column_generation: ColumnGeneration
+    integer: Integer
     statistics: Statistics
     name: str = field(default="", compare=False)
 
@@ -82,7 +85,13 @@ class Run:
         parts = [name_part(option, getattr(self, option), names) for option in NAMED_OPTIONS]
 
         for option in RUN_OPTIONS:
-            if option not in NAMED_OPTIONS and getattr(self, option) != defaults.get(option):
+            default = defaults.get(option)
+
+            # The integer block's defaults depend on the run's instance type.
+            if isinstance(default, Integer):
+                default = default.for_instance(integer_defaults(self.instance.type))
+
+            if option not in NAMED_OPTIONS and getattr(self, option) != default:
                 parts.append(name_part(option, getattr(self, option), names))
 
         return replace(self, name="-".join(parts))
@@ -219,14 +228,17 @@ class RunOptions:
             if option not in self.blocks:
                 raise OptionsError(f"{where}: {option} is missing")
 
+        instance = Instance.from_table(self.blocks["instance"], where)
+        integer = Integer.from_table(self.blocks["integer"], where)
         run = Run(
-            instance=Instance.from_table(self.blocks["instance"], where),
+            instance=instance,
             layer=self.layer,
             master=Master.from_table(self.blocks["master"], where),
             pricing=Pricing.from_table(self.blocks["pricing"], where),
             start=Start.from_table(self.blocks["start"], where),
             graph=Graph.from_table(self.blocks["graph"], where),
             column_generation=ColumnGeneration.from_table(self.blocks["column_generation"], where),
+            integer=integer.for_instance(integer_defaults(instance.type)),
             statistics=Statistics.from_table(self.blocks["statistics"], where),
         )
 
@@ -253,6 +265,13 @@ class RunOptions:
 
 
 # MARK: Helpers
+
+
+def integer_defaults(instance_type: str) -> dict[str, Any]:
+    """Whether an instance type's runs solve the integer master, and with which column
+    type, unless a run says otherwise."""
+    defaults: dict[str, Any] = INSTANCE_TYPES[instance_type].INTEGER
+    return defaults
 
 
 def resolve(option: str, value: Any, names: Names, where: str) -> dict[str, Any]:

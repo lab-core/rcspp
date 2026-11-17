@@ -9,6 +9,7 @@ pricing = "exact"
 start = "artificial"
 graph = {}
 column_generation = {}
+integer = {}
 statistics = {}
 
 # MARK: Pricing
