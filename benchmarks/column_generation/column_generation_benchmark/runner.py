@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -72,7 +73,8 @@ def parse_arguments(description: str | None, arguments: Sequence[str]) -> argpar
 
 
 def read_run(arguments: argparse.Namespace, layer: str) -> tuple[Run, Path]:
-    """The run the flags and options give, and the build rcspp is imported from.
+    """The run the flags and options give, and the build rcspp is imported from. The
+    run's layer is the runner's unless the run file or the command line names one.
 
     Raises:
         OptionsError: For wrong options, or a run of another layer.
@@ -80,7 +82,12 @@ def read_run(arguments: argparse.Namespace, layer: str) -> tuple[Run, Path]:
     """
     build = source_tree.use_tree(arguments.build)
     given = read_toml(arguments.file) if arguments.file else None
-    run = expand_run(given, run_from_arguments(arguments))
+    command_line = run_from_arguments(arguments)
+
+    if command_line.layer is None and "layer" not in (given or {}):
+        command_line = replace(command_line, layer=layer)
+
+    run = expand_run(given, command_line)
 
     if run.layer != layer:
         raise OptionsError(f"this runner runs layer {layer}, not {run.layer}")
