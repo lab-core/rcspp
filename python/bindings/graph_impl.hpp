@@ -11,11 +11,16 @@
 #include <pybind11/stl.h>
 #include <pybind11/typing.h>
 
+#include <array>
 #include <atomic>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <tuple>
+#include <utility>
+#include <vector>
 
 #include "rcspp/rcspp.hpp"
 #include "resource_types.hpp"
@@ -593,6 +598,31 @@ void bind_add_resource(py::class_<ResourceGraphType, Graph<CompositionType>>& rg
 
 // ─── Helper: bind resource-specific methods ───────────────────────────────────
 
+// ─── Helper: one resource type's components of an arc, from a row of an array ──────────────────
+
+/// @brief The initializers of @p ResourceType's components for one arc, read from @p row.
+///
+/// Only a numerical resource is read from an array: its one component is the column's value, cast
+/// to the resource's value type. Any other type has no column, so it gets no component.
+///
+/// @tparam ResourceType The resource type of the canonical slot.
+/// @param row     The arc's row of the consumption array.
+/// @param columns The columns of the slot's resources, in the order they were registered.
+/// @return One initializer per resource of the slot.
+template <typename ResourceType>
+auto components_from_row(const double* row, const std::vector<size_t>& columns)
+    -> std::vector<component_initializer_type_tuple_t<ResourceType>> {
+    std::vector<component_initializer_type_tuple_t<ResourceType>> components;
+    if constexpr (is_numerical_resource_v<ResourceType>) {
+        using Value = std::tuple_element_t<0, component_initializer_type_tuple_t<ResourceType>>;
+        components.reserve(columns.size());
+        for (const size_t column : columns) {
+            components.emplace_back(static_cast<Value>(row[column]));
+        }
+    }
+    return components;
+}
+
 template <typename ResourceGraphType, typename CompositionType, typename... ResourceTypes>
 void bind_resource_graph_impl(py::class_<ResourceGraphType, Graph<CompositionType>>& rg) {
     using AddArcTuple =
@@ -643,6 +673,82 @@ void bind_resource_graph_impl(py::class_<ResourceGraphType, Graph<CompositionTyp
         py::arg("costs"),
         py::arg("rows"),
         py::call_guard<py::gil_scoped_release>());
+
+    rg.def(
+        "_add_arcs_array",
+        [](ResourceGraphType& rg,
+           const py::array_t<double, py::array::c_style | py::array::forcecast>& consumption,
+           const py::array_t<int64_t, py::array::c_style | py::array::forcecast>& origins,
+           const py::array_t<int64_t, py::array::c_style | py::array::forcecast>& destinations,
+           const py::array_t<double, py::array::c_style | py::array::forcecast>& costs,
+           const std::vector<std::vector<size_t>>& slot_columns) {
+            constexpr size_t kSlots = sizeof...(ResourceTypes);
+            constexpr std::array<bool, kSlots> kNumerical = {
+                is_numerical_resource_v<ResourceTypes>...};
+            if (consumption.ndim() != 2) {
+                throw std::invalid_argument("_add_arcs_array: consumption must be a 2-D array");
+            }
+            const auto count = static_cast<size_t>(consumption.shape(0));
+            const auto width = static_cast<size_t>(consumption.shape(1));
+            if (static_cast<size_t>(origins.size()) != count ||
+                static_cast<size_t>(destinations.size()) != count ||
+                static_cast<size_t>(costs.size()) != count) {
+                throw std::invalid_argument(
+                    "_add_arcs_array: one origin, destination and cost per row of consumption");
+            }
+            if (slot_columns.size() != kSlots) {
+                throw std::invalid_argument("_add_arcs_array: one list of columns per slot");
+            }
+            for (size_t slot = 0; slot < kSlots; ++slot) {
+                if (!kNumerical[slot] && !slot_columns[slot].empty()) {
+                    throw std::invalid_argument(
+                        "_add_arcs_array: only numerical resources are read from an array");
+                }
+                for (const size_t column : slot_columns[slot]) {
+                    if (column >= width) {
+                        throw std::invalid_argument("_add_arcs_array: a column past the array");
+                    }
+                }
+            }
+            const double* values = consumption.data();
+            const int64_t* from = origins.data();
+            const int64_t* to = destinations.data();
+            const double* arc_costs = costs.data();
+            for (size_t i = 0; i < count; ++i) {
+                if (from[i] < 0 || to[i] < 0) {
+                    throw std::invalid_argument("_add_arcs_array: a node id is negative");
+                }
+            }
+
+            // The buffers are read without the GIL: the arrays are held by the caller's
+            // references for the whole call.
+            py::gil_scoped_release release;
+            // Check every arc before adding any, as _add_arcs_bulk does, so a refused arc leaves
+            // the graph unchanged.
+            for (size_t i = 0; i < count; ++i) {
+                rg.check_new_arc(static_cast<size_t>(from[i]), static_cast<size_t>(to[i]));
+            }
+            const auto arc_consumption = [&]<size_t... Slot>(const double* row,
+                                                             std::index_sequence<Slot...>) {
+                return AddArcTuple{
+                    components_from_row<std::tuple_element_t<Slot, std::tuple<ResourceTypes...>>>(
+                        row,
+                        slot_columns[Slot])...};
+            };
+            for (size_t i = 0; i < count; ++i) {
+                rg.add_arc(arc_consumption(values + i * width,
+                                           std::index_sequence_for<ResourceTypes...>{}),
+                           static_cast<size_t>(from[i]),
+                           static_cast<size_t>(to[i]),
+                           arc_costs[i],
+                           std::vector<Row>{});
+            }
+        },
+        py::arg("consumption"),
+        py::arg("origin_ids"),
+        py::arg("destination_ids"),
+        py::arg("costs"),
+        py::arg("slot_columns"));
 
     if constexpr ((std::is_same_v<ResourceTypes, RealResource> || ...)) {
         rg.def(
