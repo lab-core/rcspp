@@ -12,7 +12,7 @@ and refuses anything unknown. A field is None only where the run leaves it to th
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from typing import Any, ClassVar, Self, cast
 
 
@@ -140,13 +140,13 @@ SET_BY_EVERY_SOLVE = {
         "time_limit": "column_generation.timeout_s",
         "output_flag": None,
         "solve_relaxation": None,
-        "mip_rel_gap": None,
+        "mip_rel_gap": "integer.relative_gap",
     },
     "gurobi": {
         "threads": "column_generation.threads",
         "timelimit": "column_generation.timeout_s",
         "outputflag": None,
-        "mipgap": None,
+        "mipgap": "integer.relative_gap",
     },
 }
 
@@ -294,6 +294,67 @@ class ColumnGeneration(Block):
 
 
 @dataclass(frozen=True)
+class Integer(Block):
+    """The integer master over the generated columns, solved once column generation is
+    over: a feasible solution and an upper bound, not the integer optimum (no branching).
+
+    `solve` and `column_type` are None for the instance type's own (:meth:`for_instance`);
+    `relative_gap` None for the layer's; `threads` None for ``column_generation.threads``.
+    `timeout_s` is always finite: with many columns the integer solve can take far longer
+    than the LP.
+    """
+
+    solve: bool | None = None
+    timeout_s: float = 60.0
+    relative_gap: float | None = None
+    column_type: str | None = None
+    threads: int | None = None
+
+    COLUMN_TYPES: ClassVar = ("integer", "binary")
+
+    @classmethod
+    def from_table(cls, given: dict[str, Any], where: str) -> Self:
+        names = ("solve", "timeout_s", "relative_gap", "column_type", "threads")
+        only_keys(given, names, "integer", where)
+        timeout_s = number(given.get("timeout_s"), where)
+        relative_gap = number(given.get("relative_gap"), where)
+        column_type = string(given.get("column_type"), where)
+        threads = integer(given.get("threads"), where)
+
+        if timeout_s is not None and not 0 < timeout_s < float("inf"):
+            raise OptionsError(f"{where}: integer.timeout_s must be a positive, finite number")
+
+        if relative_gap is not None and relative_gap < 0:
+            raise OptionsError(f"{where}: integer.relative_gap must be 0 or more")
+
+        if column_type is not None and column_type not in cls.COLUMN_TYPES:
+            raise OptionsError(
+                f"{where}: integer.column_type {column_type!r} is not one of "
+                f"{', '.join(cls.COLUMN_TYPES)}"
+            )
+
+        if threads is not None and threads < 0:
+            raise OptionsError(f"{where}: integer.threads must be 0 or more")
+
+        return cls(
+            boolean(given.get("solve"), where),
+            60.0 if timeout_s is None else timeout_s,
+            relative_gap,
+            column_type,
+            threads,
+        )
+
+    def for_instance(self, defaults: dict[str, Any]) -> Integer:
+        """This block with the instance type's `defaults` (``solve``, ``column_type``)
+        where it leaves them out."""
+        return replace(
+            self,
+            solve=defaults["solve"] if self.solve is None else self.solve,
+            column_type=defaults["column_type"] if self.column_type is None else self.column_type,
+        )
+
+
+@dataclass(frozen=True)
 class Statistics(Block):
     """What a run measures besides its totals: one parameter per collector."""
 
@@ -316,6 +377,7 @@ BLOCKS: dict[str, Any] = {
     "start": Start,
     "graph": Graph,
     "column_generation": ColumnGeneration,
+    "integer": Integer,
     "statistics": Statistics,
 }
 

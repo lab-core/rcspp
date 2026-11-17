@@ -91,15 +91,30 @@ only, is used as it is.
 
 ## A run's folder
 
-| file            | contents                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run.toml`      | the run's options, expanded: the runner's `--file run.toml` runs it again                                                                                                                                                                                                                                                                                                                                                                                   |
-| `command.txt`   | the command line that started the run                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `metadata.json` | start and end; the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory                                                                                                                                                                                                                                                        |
-| `solution.json` | with the statistic `solution` (on by default), the last master LP solution: `lp` holds its `objective`, the `columns` with a value (`id`, `value`, `cost`, `path` as node ids, `rows` as `[index, coefficient]`), the `artificial_columns` still in use (`id`, `value`) and the `duals`, one per row. `lp` is null when the run stopped at a limit after pricing added columns: the master solvers drop the last solution's values then; `missing` says why |
-| `result.json`   | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value)                                                                                                                          |
+| file | contents |
+| --- | --- |
+| `run.toml` | the run's options, expanded: the runner's `--file run.toml` runs it again |
+| `command.txt` | the command line that started the run |
+| `metadata.json` | start and end; the commit and whether it had uncommitted changes, the build and its compiler, the versions of Python, rcspp, numpy and the solvers, the machine's label, processor, cores and memory |
+| `solution.json` | with the statistic `solution` (on by default): `lp`, `integer`, `resolved` below |
+| `result.json` | `status`, `objective`, `iterations`, `columns`, `artificial_columns`, `master_seconds`, `pricing_seconds`, `other_seconds`, `solve_seconds`, `lp_solved_again_seconds`, `integer_status`, `integer_objective`, `integer_seconds`, `gap`, `solution_check` (below), then the fields of the statistics turned on (`process`: `process_peak_memory_bytes`, `process_processor_seconds`; `solution`: `solution_columns`, the number of columns with a value in `lp`) |
 
 `result.json` is written last: a folder that has one holds a finished run.
+
+`solution.json` holds three parts:
+
+| part | contents |
+| --- | --- |
+| `lp` | the last master LP solution: its `objective`, the `columns` with a value (`id`, `value`, `cost`, `path` as node ids, `rows` as `[index, coefficient]`), the `artificial_columns` still in use (`id`, `value`), the `duals`, one per row, and `solved_again`. When a limit stopped the run after pricing added columns, the master solvers have dropped the last LP's values: the runner solves the LP once more, over every column, and sets `solved_again` (its time is `lp_solved_again_seconds`; `objective` in `result.json` stays the loop's). Null when no LP was solved, or the LP solved again did not end optimal; `lp_missing` says why |
+| `integer` | the integer master over the generated columns (the run option `integer`): `status`, `objective`, `columns` and `artificial_columns` as in `lp`; `objective` null and no columns when it found no solution. Null when it is off |
+| `resolved` | the instance's own solution, from the integer one: for `solomon`, `routes` (customer sequences, without the depot), `vehicles` and `distance` (the columns' costs), and the `errors` its check found: each customer served once, every route within the time windows (back at the depot by its due time) and the capacity, the distance recomputed from the file equal to `distance` and to the integer objective. Null without an integer solution, or when it uses artificial columns; `resolved_missing` says why |
+
+In `result.json`, the integer fields are null when the integer solve is off. `integer_seconds` is outside
+`solve_seconds`. `gap` is (integer objective - LP objective) / |integer objective|, the solvers' MIP gap, and null
+unless column generation ended `Optimal`: only then is the LP value a lower bound. `solution_check` is `passed`,
+`failed`, or null without a resolved solution; the check runs with the statistic `solution` off too. A failed check
+writes the whole folder and exits with code 1. The solvers give integer values up to a few ulps (`1.0000000000000002`):
+a column is used as many times as its rounded value.
 
 ## Tests
 

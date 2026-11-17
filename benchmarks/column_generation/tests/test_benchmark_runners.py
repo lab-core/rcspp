@@ -1,9 +1,9 @@
 #  Copyright (c) 2025 Laboratory for Combinatorial Optimization in Real-time Environment.
 #  All rights reserved.
 """The runners: a run fills its folder, refuses one that holds a run, writes the LP solution,
-and runs the same again from its ``run.toml`` and from its ``command.txt``; every layer gives
-the same run. The ``cpp-bindings`` runner's tests skip when the build has no column generation
-example."""
+solves the integer master and checks its routes, and runs the same again from its ``run.toml``
+and from its ``command.txt``; every layer gives the same column generation. The
+``cpp-bindings`` runner's tests skip when the build has no column generation example."""
 
 import shlex
 import subprocess  # nosec B404: the runner's own recorded command
@@ -15,12 +15,29 @@ import cpp_bindings_runner
 import package_runner
 import pytest
 from column_generation_benchmark import options, record, run_folder, runner, source_tree
+from column_generation_benchmark.instances import SolomonInstance
 
 #: The runner of each layer.
 RUNNERS = {"package": package_runner, "cpp-bindings": cpp_bindings_runner}
 
-#: What must come out the same when a run runs again.
-SAME = ("status", "objective", "iterations", "columns", "artificial_columns")
+#: What must come out the same when a run runs again on the same layer.
+SAME = (
+    "status",
+    "objective",
+    "iterations",
+    "columns",
+    "artificial_columns",
+    "integer_status",
+    "integer_objective",
+    "solution_check",
+)
+
+#: What every layer gives the same: the column generation. The integer master's result can
+#: differ, as its solver may take another of several optimal solutions.
+SAME_COLUMN_GENERATION = SAME[:5]
+
+#: The integer solve's fields of ``result.json``: null when it is off.
+INTEGER_FIELDS = ("integer_status", "integer_objective", "integer_seconds", "gap", "solution_check")
 
 
 def has_example() -> bool:
@@ -53,8 +70,8 @@ def run(layer: str, build: Path, folder: Path, *arguments: str) -> dict[str, Any
     return result
 
 
-def same(result: dict[str, Any]) -> dict[str, Any]:
-    return {name: result[name] for name in SAME}
+def same(result: dict[str, Any], names: tuple[str, ...] = SAME) -> dict[str, Any]:
+    return {name: result[name] for name in names}
 
 
 def rerun_command(folder: Path) -> dict[str, Any]:
@@ -230,6 +247,7 @@ def test_the_solution_covers_every_customer_once(
     lp = run_folder.read_json(tmp_path / run_folder.SOLUTION_FILE)["lp"]
 
     assert lp["objective"] == result["objective"]
+    assert not lp["solved_again"] and result["lp_solved_again_seconds"] is None
     assert result["solution_columns"] == len(lp["columns"])
     assert lp["artificial_columns"] == []
 
@@ -267,16 +285,21 @@ def test_artificial_columns_in_use_are_listed_apart(layer: str, build: Path, tmp
     assert all(set(column) == {"id", "value"} for column in lp["artificial_columns"])
 
 
-def test_a_run_stopped_after_pricing_has_no_lp_solution(layer: str, build: Path, tmp_path: Path):
+def test_a_run_stopped_after_pricing_solves_the_lp_again(layer: str, build: Path, tmp_path: Path):
+    # Pricing added columns after the last LP: the master solvers dropped its values.
     result = run(
         layer, build, tmp_path, "--instance", "C101_10", "--column_generation.max_iterations", "1"
     )
-    solution = run_folder.read_json(tmp_path / run_folder.SOLUTION_FILE)
+    lp = run_folder.read_json(tmp_path / run_folder.SOLUTION_FILE)["lp"]
 
     assert result["status"] == "IterationLimit"
-    assert result["solution_columns"] is None
-    assert solution["lp"] is None
-    assert "columns were added after the last LP solve" in solution["missing"]
+    assert lp["solved_again"] and result["lp_solved_again_seconds"] >= 0
+    assert result["solution_columns"] == len(lp["columns"])
+    # Over more columns than the loop's last LP: never worse.
+    assert lp["objective"] <= result["objective"] + 1e-9
+    assert len(lp["duals"]) == 11
+    # The loop's LP is no lower bound: no gap.
+    assert result["integer_status"] == "Optimal" and result["gap"] is None
 
 
 def test_a_run_without_an_lp_has_no_objective(layer: str, build: Path, tmp_path: Path):
@@ -290,7 +313,83 @@ def test_a_run_without_an_lp_has_no_objective(layer: str, build: Path, tmp_path:
         0,
         None,
     )
-    assert solution == {"lp": None, "missing": "no master LP was solved"}
+    assert (solution["lp"], solution["lp_missing"]) == (None, "no master LP was solved")
+    assert result["lp_solved_again_seconds"] is None
+
+    # The start's artificial columns are all the master has: the integer solve takes them.
+    assert solution["integer"]["artificial_columns"]
+    assert solution["resolved"] is None
+    assert solution["resolved_missing"] == "the integer solution uses artificial columns"
+    assert result["solution_check"] is None
+
+
+# MARK: Integer solve
+
+
+@pytest.mark.parametrize("column_type", ["binary", "integer"])
+def test_the_integer_solve_gives_routes_that_pass_the_check(
+    layer: str, build: Path, tmp_path: Path, column_type: str
+):
+    arguments = ("--instance", "C101_10", "--integer.column_type", column_type)
+    result = run(layer, build, tmp_path, *arguments)
+    solution = run_folder.read_json(tmp_path / run_folder.SOLUTION_FILE)
+    integer, resolved = solution["integer"], solution["resolved"]
+    objective = result["integer_objective"]
+
+    assert (result["integer_status"], integer["status"]) == ("Optimal", "Optimal")
+    assert integer["objective"] == objective
+    assert objective >= result["objective"] - 1e-6
+    assert result["gap"] == pytest.approx((objective - result["objective"]) / objective)
+    assert result["integer_seconds"] > 0
+    assert integer["artificial_columns"] == []
+    assert [round(column["value"]) for column in integer["columns"]] == [1] * len(
+        resolved["routes"]
+    )
+
+    assert result["solution_check"] == "passed" and resolved["errors"] == []
+    assert sorted(customer for route in resolved["routes"] for customer in route) == list(
+        range(1, 11)
+    )
+    assert resolved["vehicles"] == len(resolved["routes"])
+    assert resolved["distance"] == pytest.approx(objective)
+
+
+def test_the_integer_solve_can_be_left_out(layer: str, build: Path, tmp_path: Path):
+    result = run(layer, build, tmp_path, "--instance", "C101_10", "--integer.solve", "false")
+    solution = run_folder.read_json(tmp_path / run_folder.SOLUTION_FILE)
+
+    assert run_folder.result_problems(result) == []
+    assert [result[name] for name in INTEGER_FIELDS] == [None] * len(INTEGER_FIELDS)
+    assert (solution["integer"], solution["resolved"]) == (None, None)
+    assert solution["resolved_missing"] == "no integer solve"
+
+
+def test_the_check_runs_without_the_solution_file(layer: str, build: Path, tmp_path: Path):
+    result = run(layer, build, tmp_path, "--instance", "C101_10", "--statistics.solution", "false")
+
+    assert result["solution_check"] == "passed"
+    assert not (tmp_path / run_folder.SOLUTION_FILE).exists()
+
+
+def test_a_failed_check_is_an_error_status(
+    layer: str,
+    build: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    def broken(self: SolomonInstance, solution: dict[str, Any], objective: float) -> list[str]:
+        return ["customer 3 is served 2 times"]
+
+    monkeypatch.setattr(SolomonInstance, "check_solution", broken)
+    arguments = ["--build", str(build), "--output", str(tmp_path), "--instance", "C101_10"]
+
+    # The folder is written all the same: the run finished, its solution is wrong.
+    assert RUNNERS[layer].main(arguments) == 1
+    assert "fails the instance's check: customer 3 is served 2 times" in capsys.readouterr().err
+    assert (run_folder.read_result(tmp_path) or {})["solution_check"] == "failed"
+    resolved = run_folder.read_json(tmp_path / run_folder.SOLUTION_FILE)["resolved"]
+    assert resolved["errors"] == ["customer 3 is served 2 times"]
 
 
 # MARK: Runs again
@@ -411,4 +510,4 @@ def test_a_package_run_runs_on_the_cpp_bindings(build: Path, tmp_path: Path):
     )
 
     assert run_folder.read_run_file(tmp_path / "cpp-bindings")["layer"] == "cpp-bindings"
-    assert same(again) == same(first)
+    assert same(again, SAME_COLUMN_GENERATION) == same(first, SAME_COLUMN_GENERATION)

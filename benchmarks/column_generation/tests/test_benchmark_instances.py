@@ -3,6 +3,7 @@
 """The instances: a toy Solomon file's graph, master rows and starting columns."""
 
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -149,3 +150,78 @@ def test_an_instance_type_declares_its_starts():
 def test_an_unknown_start_is_refused(toy: SolomonInstance):
     with pytest.raises(InstanceError, match="no 'artificial' start"):
         toy.starting_columns("artificial")
+
+
+# MARK: Resolved solutions
+
+
+def column(path: list[int], cost: float, value: float = 1.0) -> dict[str, Any]:
+    """A column as solution.json lists it."""
+    return {"id": 0, "value": value, "cost": cost, "path": path, "rows": []}
+
+
+def toy_columns(toy: SolomonInstance) -> list[dict[str, Any]]:
+    """Two good routes of the toy, 1 then 2, and 3 alone, as a solver gives them."""
+    depot, one, two, three = toy.customers
+    first = sum(
+        instances.distance_between(*pair) for pair in [(depot, one), (one, two), (two, depot)]
+    )
+    second = 2 * instances.distance_between(depot, three)
+    return [column([0, 1, 2, 4], first, 1.0000000000000002), column([0, 3, 4], second)]
+
+
+def test_solomon_runs_solve_the_integer_master_with_binary_columns():
+    assert instances.Instance.INTEGER == {"solve": False, "column_type": "integer"}
+    assert SolomonInstance.INTEGER == {"solve": True, "column_type": "binary"}
+
+
+def test_a_good_solution_resolves_into_routes_and_passes_its_check(toy: SolomonInstance):
+    columns = toy_columns(toy)
+    solution = toy.resolve_solution(columns)
+    distance = columns[0]["cost"] + columns[1]["cost"]
+
+    assert solution == {"routes": [[1, 2], [3]], "vehicles": 2, "distance": distance}
+    assert toy.check_solution(solution, distance) == []
+
+
+@pytest.mark.parametrize(
+    ("routes", "message"),
+    [
+        ([[1, 2], [3], [2]], "customer 2 is served 2 times"),
+        ([[1, 2]], "customer 3 is served 0 times"),
+        ([[1, 2], [3], []], "route 2 is empty"),
+        ([[1, 2], [3, 7]], r"route 1 visits \[7\], not customers"),
+        # 3 is ready at 500: 1 is long past its due time then.
+        ([[3, 1], [2]], "route 0 reaches customer 1 at .*, after its due time 100"),
+        # 10 + 10 + 15 over a capacity of 20.
+        ([[1, 2, 3]], "route 0 carries 35, over the capacity 20"),
+    ],
+)
+def test_a_broken_solution_fails_its_check(
+    toy: SolomonInstance, routes: list[list[int]], message: str
+):
+    errors = toy.check_solution({"routes": routes, "vehicles": len(routes), "distance": 0.0}, 0.0)
+
+    assert any(re.fullmatch(message, error) for error in errors), errors
+
+
+def test_a_route_back_after_the_depot_closes_fails_its_check(tmp_path: Path):
+    # The depot closes at 15: customer 1 is 5 away and takes 10.
+    path = tmp_path / "EARLY_3.txt"
+    path.write_text(TOY.replace("0       1000", "0         15"))
+    early = SolomonInstance(path)
+    solution = early.resolve_solution([column([0, 1, 4], 10.0)])
+
+    assert "route 0 is back at the depot at 20, after its due time 15" in early.check_solution(
+        solution, 10.0
+    )
+
+
+def test_a_cost_that_is_not_the_distance_fails_its_check(toy: SolomonInstance):
+    solution = toy.resolve_solution(toy_columns(toy))
+    distance = solution["distance"]
+    errors = toy.check_solution({**solution, "distance": distance + 1}, distance + 2)
+
+    assert len(errors) == 2
+    assert errors[0].startswith(f"the solution's distance {distance + 1!r} is not")
+    assert errors[1].startswith(f"the objective {distance + 2!r} is not")

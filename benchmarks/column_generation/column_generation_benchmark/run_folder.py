@@ -39,7 +39,7 @@ SOLUTION_FILE = "solution.json"
 RUN_FILES = (RUN_FILE, COMMAND_FILE, METADATA_FILE, SOLUTION_FILE, RESULT_FILE)
 
 #: The fields of every ``result.json``, with their kinds; ``objective`` is null when no master
-#: LP was solved.
+#: LP was solved, the integer solve's fields when it is off.
 RESULT_FIELDS: dict[str, str] = {
     "status": "string",
     "objective": "number or null",
@@ -50,6 +50,12 @@ RESULT_FIELDS: dict[str, str] = {
     "pricing_seconds": "number",
     "other_seconds": "number",
     "solve_seconds": "number",
+    "lp_solved_again_seconds": "number or null",
+    "integer_status": "string or null",
+    "integer_objective": "number or null",
+    "integer_seconds": "number or null",
+    "gap": "number or null",
+    "solution_check": "string or null",
 }
 
 #: The fields a collector may add, with their kinds.

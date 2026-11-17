@@ -57,6 +57,7 @@ pricing = { stages = [{ algorithm = "simple" }] }
 start = { type = "single-customer" }
 graph = {}
 column_generation = { timeout_s = 600.0 }
+integer = { solve = true, timeout_s = 60.0, column_type = "binary" }
 statistics = { process = true, solution = true }
 ```
 
@@ -162,12 +163,13 @@ a `[matrix]`, a layer and a master that do not go together are dropped and liste
 else they are an error.
 
 Every master solve sets some of the solver's parameters from the layer's own, and puts the given values back after
-it: they would never reach a solve, so they are refused here. Threads and the time limit have run options instead.
+it: they would never reach a solve, so they are refused here. Threads, the time limit and the MIP gap have run
+options instead.
 
 | solver | refused | instead |
 |---|---|---|
-| HiGHS (`highspy`, `highs`) | `threads`, `time_limit`, `output_flag`, `solve_relaxation`, `mip_rel_gap` | `column_generation.threads`, `column_generation.timeout_s` |
-| Gurobi (`gurobipy`; names in any case) | `Threads`, `TimeLimit`, `OutputFlag`, `MIPGap` | `column_generation.threads`, `column_generation.timeout_s` |
+| HiGHS (`highspy`, `highs`) | `threads`, `time_limit`, `output_flag`, `solve_relaxation`, `mip_rel_gap` | `column_generation.threads`, `column_generation.timeout_s`, `integer.relative_gap` |
+| Gurobi (`gurobipy`; names in any case) | `Threads`, `TimeLimit`, `OutputFlag`, `MIPGap` | `column_generation.threads`, `column_generation.timeout_s`, `integer.relative_gap` |
 
 ### `pricing`
 
@@ -216,6 +218,26 @@ No type; the column generation's own parameters. Each is optional: absent, the l
 
 `tolerances = "relative"` is `{ type = "relative" }`; `{ type = "absolute", reduced_cost = 1e-6 }` sets one value.
 
+### `integer`
+
+No type. Once column generation is over, the **integer master over the generated columns**: the same master with
+its generated columns made integer, solved by the master's solver. It gives a feasible solution and an upper bound,
+not the integer optimum: there is no branching, and the best solution may need columns column generation never
+produced.
+
+| parameter | what | absent |
+|---|---|---|
+| `solve` | solve it or not | the instance type's: on for `solomon` |
+| `timeout_s` | its time limit, in seconds: positive and finite, as it can take far longer than the LP | 60 |
+| `relative_gap` | the solver's MIP gap, at which it stops | the layer's (the package's: 1e-4) |
+| `column_type` | `integer`, or `binary` (integer, at most 1) | the instance type's: `binary` for `solomon` |
+| `threads` | the solver's threads in the integer solve; 0 lets the solver choose | `column_generation.threads` |
+
+With rows covered exactly once, as Solomon's, `integer` and `binary` give the same solutions; `binary` gives the
+solver the bounds. Its time is `integer_seconds`, outside `solve_seconds`, so column generation times compare
+whether it is on or off. Different masters build different columns, so their integer results can differ even where
+their LP values are equal. A run that sets these as its instance type does is named as one that leaves them out.
+
 ### `statistics`
 
 No type. One parameter per statistic, on or off:
@@ -223,7 +245,7 @@ No type. One parameter per statistic, on or off:
 | parameter | what it adds to `result.json` | costs the run | default |
 |---|---|---|---|
 | `process` | the process's peak memory and processor time | two system calls once the run is over | on |
-| `solution` | `solution_columns`; writes `solution.json`, the last LP solution (see the README) | the LP's values and duals, read once the run is over | on |
+| `solution` | `solution_columns`; writes `solution.json`, the last LP solution and the integer one (see the README) | the LP's values and duals, read once the run is over; one more LP solve when a limit stopped the run after pricing | on |
 
 ## A benchmark file
 

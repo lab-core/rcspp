@@ -47,6 +47,12 @@ def result(**changes: Any) -> dict[str, Any]:
         "pricing_seconds": 0.4,
         "other_seconds": 0.01,
         "solve_seconds": 0.46,
+        "lp_solved_again_seconds": None,
+        "integer_status": "Optimal",
+        "integer_objective": 191.8136,
+        "integer_seconds": 0.02,
+        "gap": 0.0,
+        "solution_check": "passed",
     }
     fields.update(changes)
     return fields

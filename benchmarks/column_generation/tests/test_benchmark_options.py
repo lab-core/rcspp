@@ -19,6 +19,7 @@ from column_generation_benchmark.options import Benchmark, OptionsError, Run, Ru
 from column_generation_benchmark.options.blocks import (
     ColumnGeneration,
     Instance,
+    Integer,
     Master,
     Pricing,
     Start,
@@ -71,6 +72,7 @@ def test_the_presets_expand_to_one_run():
         "start": {"type": "artificial", "cost_factor": 1e4},
         "graph": {},
         "column_generation": {},
+        "integer": {"solve": True, "timeout_s": 60.0, "column_type": "binary"},
         "statistics": {"process": True, "solution": True},
     }
 
@@ -554,6 +556,44 @@ column_generation = { tolerances = { type = "absolute", reduced_cost = 1e-6 } }
     assert runs[1].column_generation.tolerances == {"type": "absolute", "reduced_cost": 1e-6}
 
 
+def test_the_integer_solve_takes_its_defaults_from_the_instance_type():
+    text = """
+[defaults]
+instance = "C101_25"
+
+[[runs]]
+
+[[runs]]
+"integer.solve" = false
+
+[[runs]]
+integer = { column_type = "integer", timeout_s = 5, relative_gap = 0.01, threads = 2 }
+"""
+    default, off, given = expand(text).runs
+
+    # A Solomon instance: on, binary, as its type declares; a minute at most.
+    assert default.integer == Integer(solve=True, timeout_s=60.0, column_type="binary")
+    assert off.integer == Integer(solve=False, timeout_s=60.0, column_type="binary")
+    assert given.integer == Integer(True, 5.0, 0.01, "integer", 2)
+
+
+def test_an_integer_block_as_the_instance_type_declares_it_is_not_named():
+    text = """
+[defaults]
+instance = "C101_25"
+
+[[runs]]
+"integer.solve" = true
+
+[[runs]]
+"integer.solve" = false
+"""
+    same, off = expand(text).runs
+
+    assert same.name == "C101_25-package-highspy-exact-artificial"
+    assert re.fullmatch(f"{same.name}-integer_{FINGERPRINT}", off.name)
+
+
 def test_a_run_without_a_layer_is_refused():
     with pytest.raises(OptionsError, match="layer is missing"):
         RunOptions().complete()
@@ -603,6 +643,13 @@ RUN = '[defaults]\ninstance = "C101_25"\n'
         (RUN + 'column_generation = { tolerances = { type = "relative", gap = 1 } }\n', "gap"),
         (RUN + "column_generation = { threads = -1 }\n", "threads must be 0 or more"),
         (RUN + "column_generation = { threads = 1.5 }\n", "1.5 is not a whole number"),
+        (RUN + "integer = { solve = 1 }\n", "1 is not true or false"),
+        (RUN + "integer = { timeout_s = 0 }\n", "timeout_s must be a positive, finite number"),
+        (RUN + "integer = { timeout_s = inf }\n", "timeout_s must be a positive, finite number"),
+        (RUN + "integer = { relative_gap = -0.1 }\n", "relative_gap must be 0 or more"),
+        (RUN + 'integer = { column_type = "real" }\n', "column_type 'real' is not one of"),
+        (RUN + "integer = { threads = -1 }\n", "integer.threads must be 0 or more"),
+        (RUN + "integer = { gap = 0.1 }\n", "'gap' is not a parameter of integer"),
         (
             RUN + 'master = { type = "highs", parameters = { threads = 1 } }\n',
             "master.parameters.threads is set by every solve.*use column_generation.threads",
